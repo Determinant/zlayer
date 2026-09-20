@@ -1,0 +1,4 @@
+.obstruction-swatch { width: 28px; height: 28px; flex: 0 0 28px; color: #ea92dd; }
+.obstruction-swatch path { fill: none; stroke: currentColor; stroke-width: 1.8; }
+.obstruction-swatch circle { fill: currentColor; }
+.obstruction-key { color: var(--muted, #9daec0); font-size: 0.7rem; line-height: 1.5; margin: 7px 0 0; }

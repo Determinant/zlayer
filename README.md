@@ -1,0 +1,98 @@
+# ZLayer
+
+**A modern, lightweight EFB. Layer by layer.**
+
+ZLayer is an offline-capable aviation PWA designed for phones, tablets, and desktops.
+It combines FAA charts, navigation and procedures with METAR/TAF weather, route
+planning, terrain and optional device GPS in one MapLibre/WebGL workspace. An
+experimental AHRS toolbox adds attitude, GPS instruments, an HSI and local recordings;
+it has not been validated in flight. Each product owns its data, behavior and
+interface. WPC analysis and NOAA radar/satellite imagery remain planned.
+
+## Direction
+
+- Cached charts and routes open immediately; refresh happens in the background.
+- FAA features and weather render as MapLibre layers, never one DOM marker per item.
+- Airport detail opens the selected procedure or minimums page directly.
+- Regional offline downloads are explicit, verified and tied to their FAA edition;
+  route-corridor downloads remain planned.
+- Every layer shows source, valid time, freshness, and degraded state.
+
+`faa-regs` owns FAA chart, NASR, and d-TPP generation. ZLayer consumes that feed and
+adds the interactive map, routing, weather layers, procedure viewer, and PWA storage.
+
+ZLayer begins as a supplemental planning tool, not an official briefing source or
+certified EFB.
+
+## Start here
+
+- [Documentation index](docs/README.md)
+- [Plan](plan.md)
+- [Current capabilities and roadmap](docs/roadmap.md)
+- [Architecture](docs/architecture.md)
+- [Layer design and source layout](docs/layer-modules.md)
+- [Local development and verification](docs/local-development.md)
+- [Offline storage, regional downloads and device checks](docs/offline-storage.md)
+- [Deployment readiness and hosting contract](docs/deployment-readiness.md)
+
+## Run locally
+
+Use Node.js 24 or newer and run commands from the repository root.
+
+```bash
+npm ci
+npm run dev
+```
+
+Development proxies the dated FAA assets at `charts.tedyin.com` so the browser uses
+the same feed shape as production. All published chart coverage is discovered from
+the feed manifests; the continuous basemap remains visible outside it.
+
+Run `npm run verify` before committing; it checks import boundaries and strict
+TypeScript, runs unit tests, and builds for production. Run `npm run test:browser`
+for the production-build browser regressions (install Chromium with
+`npx playwright install chromium` first).
+Run `npm run test:graphics` for graphics checks across Chromium, Firefox and WebKit;
+see [graphics compatibility](docs/graphics-compatibility.md) for browser installation
+and the Linux Firefox display requirement.
+See the [hosting contract](docs/deployment-readiness.md) for production requirements.
+
+The app lives in `src/`, tests in `test/`, and local proxy rules in
+`tools/dev-proxy.ts`. Only `packages/contracts` and `packages/domain` are npm
+workspaces. Run all commands from the root; `npm run build` produces static `dist/`.
+
+## Status
+
+Routes, the map camera, open panels and plate reading state survive reloads.
+Settings saves complete state/territory selections: VFR/IFR low charts, navigation,
+applicable procedure/Chart Supplement books and individual-only plates. Verified
+saved editions remain authoritative through feed updates and outages; browsing
+dates are independent. Viewed files share the same cache without implying complete
+regional coverage.
+
+See the [roadmap](docs/roadmap.md) for the full capability list and remaining work.
+Installed iOS/Android offline, storage-pressure, GPS and performance checks remain
+release gates; desktop browser coverage does not establish those guarantees.
+
+## License
+
+Copyright (C) 2026 ZLayer contributors.
+
+Except where otherwise noted, ZLayer's original source code and accompanying
+documentation are licensed under the **GNU Affero General Public License,
+version 3 only** (`AGPL-3.0-only`). You may redistribute and modify this software
+under those terms; see [LICENSE](LICENSE) for the full license. It is provided
+without any warranty, including the implied warranties of merchantability or
+fitness for a particular purpose.
+
+Commercial use and forks are welcome. Distributing a covered version requires
+providing its corresponding source under the AGPL. If you modify the program and
+let users interact with that version remotely over a network, you must prominently
+offer those users its corresponding source at no charge. The full license governs
+these obligations; contributing changes upstream is welcome but is not required.
+
+Separately licensed material retains its existing terms and notices, including the
+[SIL Open Font License for the bundled Noto glyphs](public/fonts/Noto%20Sans%20Bold/LICENSE.md),
+and third-party dependencies. Incorporated public-domain material remains public
+domain. Aviation data, charts, map tiles and other external content are subject to
+their own source terms; see the [source register](docs/data-sources.md).

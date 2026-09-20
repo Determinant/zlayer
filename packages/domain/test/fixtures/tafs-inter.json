@@ -1,0 +1,196 @@
+{
+  "source": "https://aviationweather.gov/api/data/taf?ids=YBCS,YPPH&format=json",
+  "retrievedAt": "2026-09-17",
+  "reports": [
+    {
+      "icaoId": "YBCS",
+      "issueTime": "2026-09-17T21:35:00.000Z",
+      "dbPopTime": "2026-09-17T21:35:47.264Z",
+      "validTimeFrom": 1789678800,
+      "validTimeTo": 1789754400,
+      "rawTAF": "TAF AMD YBCS 172135Z 1721/1818 13018KT 9999 -SHRA SCT030 FM180000 13020KT 9999 -SHRA SCT035 FM180900 16012KT 9999 -SHRA BKN025 INTER 1721/1802 4000 SHRA BKN014",
+      "fcsts": [
+        {
+          "timeFrom": 1789678800,
+          "timeTo": 1789689600,
+          "timeBec": null,
+          "fcstChange": null,
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 3000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789689600,
+          "timeTo": 1789722000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 3500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789722000,
+          "timeTo": 1789754400,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 2500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789678800,
+          "timeTo": 1789696800,
+          "timeBec": null,
+          "fcstChange": "TEMPO",
+          "probability": null,
+          "visib": 2.49,
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 1400,
+              "type": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "icaoId": "YPPH",
+      "issueTime": "2026-09-17T21:43:00.000Z",
+      "dbPopTime": "2026-09-17T21:43:36.746Z",
+      "validTimeFrom": 1789678800,
+      "validTimeTo": 1789776000,
+      "rawTAF": "TAF AMD YPPH 172143Z 1721/1900 03010KT CAVOK FM180400 34014KT CAVOK BECMG 1809/1810 28014KT 9999 -SHRA SCT012 BKN020 FM181600 30014KT 9999 -SHRA SCT015 BKN030 TEMPO 1810/1813 28015G25KT 4000 SHRA BKN012 INTER 1816/1900 4000 SHRA BKN015",
+      "fcsts": [
+        {
+          "timeFrom": 1789678800,
+          "timeTo": 1789704000,
+          "timeBec": null,
+          "fcstChange": null,
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "NSC",
+              "base": null,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789704000,
+          "timeTo": 1789722000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "NSC",
+              "base": null,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789722000,
+          "timeTo": 1789747200,
+          "timeBec": 1789725600,
+          "fcstChange": "BECMG",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 1200,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 2000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789747200,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 1500,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 3000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789725600,
+          "timeTo": 1789736400,
+          "timeBec": null,
+          "fcstChange": "TEMPO",
+          "probability": null,
+          "visib": 2.49,
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 1200,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789747200,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": "TEMPO",
+          "probability": null,
+          "visib": 2.49,
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 1500,
+              "type": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="25.28 0 550.72 184" fill="none" role="img" aria-label="ZLayer">
+<title>ZLayer</title>
+<desc>ZLayer aviation logo with outlined lettering, designed for #07111f.</desc>
+<g transform="translate(8 0) scale(.72)"><defs><mask id="zl-logo" x="0" y="0" width="256" height="256" maskUnits="userSpaceOnUse"><path fill="#fff" d="M0 0H256V256H0Z"/><path fill="#000" stroke="#000" stroke-width="13" stroke-linejoin="round" d="M128 28C122 28 119 36 119 46V94L43 124V143L119 125V175L98 191V207L128 197L158 207V191L137 175V125L213 143V124L137 94V46C137 36 134 28 128 28Z" transform="translate(128 117) rotate(45) scale(.81) translate(-128 -128)"/></mask></defs>
+<g mask="url(#zl-logo)"><path fill="#1A809F" d="M60 204H199L173 226H34Z"/><path fill="#38C9E6" d="M49 41H216L190 68H24Z M66 167H225L199 194H40Z"/></g>
+<path fill="#ECF7FD" d="M128 28C122 28 119 36 119 46V94L43 124V143L119 125V175L98 191V207L128 197L158 207V191L137 175V125L213 143V124L137 94V46C137 36 134 28 128 28Z" transform="translate(128 117) rotate(45) scale(.81) translate(-128 -128)"/></g>
+<g fill="#ECF7FD" transform="translate(208 121) scale(0.112 -0.112)"><path transform="translate(0 0)" d="M18 116V0H480V131H183L461 616V739H33V608H298Z"/>
+<path transform="translate(483 0)" d="M68 0H431V131H205V739H68Z"/>
+<path transform="translate(906 0)" d="M615 554H493V480C447 541 392 567 312 567C148 567 30 444 30 275C30 108 147 -13 309 -13C387 -13 440 11 493 72V0H615ZM326 445C421 445 489 374 489 273C489 233 473 187 449 159C422 126 379 109 328 109C231 109 164 175 164 272C164 373 231 445 326 445Z"/>
+<path transform="translate(1549 0)" d="M105 -185H248L568 554H414L281 195L158 554H6L209 52Z"/>
+<path transform="translate(2112 0)" d="M603 218C607 238 608 250 608 270C608 441 487 567 322 567C159 567 30 438 30 275C30 113 161 -13 330 -13C421 -13 492 20 550 87C571 113 585 136 594 164H449C415 124 382 109 327 109C248 109 190 151 174 218ZM170 335C191 407 245 445 324 445C406 445 460 406 477 335Z"/>
+<path transform="translate(2735 0)" d="M54 0H187V308C184 390 226 436 306 439V567H296C239 567 211 551 176 500V554H54Z"/>
+</g>
+</svg>

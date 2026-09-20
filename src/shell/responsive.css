@@ -1,0 +1,94 @@
+@keyframes breathe {
+  50% {
+    box-shadow: 0 0 34px rgba(97, 214, 197, 0.45);
+    transform: scale(1.03);
+  }
+}
+
+@keyframes reveal-popover {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
+}
+
+/* Width changes rearrange the shell; panel sizing belongs to each component. */
+@media (max-width: 880px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .topbar,
+  .app-shell > .route-bar {
+    grid-template-columns: var(--topbar-control-size) minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+  .topbar { padding-inline: 12px; }
+  .topbar > .search { grid-column: 2; }
+  .topbar > .topbar-meta { grid-column: 3; }
+  .brand-logo, .brand-tagline { display: none; }
+  .brand .brand-mark {
+    display: block;
+    width: var(--topbar-control-size);
+    height: var(--topbar-control-size);
+  }
+  .route-bar { grid-template-columns: auto minmax(180px, 1fr) auto; padding-inline: 12px; }
+  /* Align the leading icons but let each row allocate its own input space.
+   * The route label should not widen the search row. */
+  .route-menu { justify-self: center; }
+  .route-heading > span { display: none; }
+  .app-shell > .route-bar .route-tools { display: flex; }
+  .app-shell > .route-bar .route-summary { contain: none; }
+  .route-summary:not(.is-error) { display: none; }
+  .route-summary summary { justify-content: center; }
+  .route-summary summary span { display: none; }
+  .route-tools { gap: 4px; }
+}
+
+/* Keep the logo, search and Settings on one row, including narrow phones. */
+@media (max-width: 600px) {
+  :root { --topbar-height: calc(var(--topbar-control-size) + 16px); --map-panel-gap: 8px; }
+  .topbar {
+    column-gap: 6px;
+    padding-inline: 8px;
+  }
+  .route-bar, .app-shell > .route-bar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 7px 9px;
+  }
+  .route-input {
+    grid-column: 1;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 6px;
+  }
+  .route-fit span { display: none; }
+  .route-fit { width: max(34px, var(--touch-target)); padding: 0; justify-content: center; }
+  .flight-category-legend { bottom: 9px; left: 9px; gap: 6px; max-width: calc(100% - 72px); }
+  .flight-category-legend small { display: none; }
+}
+
+/* Phone editing gets the full width. Short landscape windows keep one row so
+ * map panels still have usable height. */
+@media (max-width: 600px) and (min-height: 400px) {
+  :root { --routebar-height: calc(var(--route-editor-height) + max(36px, var(--touch-target)) + 20px); }
+  .route-input {
+    grid-template-rows: var(--route-editor-height) max(36px, var(--touch-target));
+    gap: 6px 8px;
+  }
+  .route-editor { grid-column: 1 / -1; }
+  .route-menu { grid-column: 1; grid-row: 2; }
+  .route-heading > span { display: inline; }
+  .route-tools, .app-shell > .route-bar .route-tools { grid-column: 2 / -1; grid-row: 2; gap: 8px; }
+  .route-fit { width: auto; padding: 0 10px; }
+  .route-fit span { display: inline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

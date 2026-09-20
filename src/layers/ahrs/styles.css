@@ -1,0 +1,185 @@
+.ahrs-tool { width: 342px; max-width: 100%; padding: 12px; color: #e5edf1; background: #101e2b; border: 1px solid #38505f; border-left: 0; border-radius: 0 9px 9px 0; font-family: var(--font-ui); font-size: 14px; }
+.ahrs-heading { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 8px; }
+.ahrs-heading h3 { margin: 0; font-size: 12px; font-weight: 700; }
+.ahrs-heading-actions { display: flex; align-items: center; gap: 6px; }
+.ahrs-tool .ahrs-header-button { display: grid; place-items: center; width: 40px; height: 24px; min-height: 24px; padding: 0; border-radius: 4px; }
+.ahrs-window { position: static; width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; color: inherit; background: transparent; overflow: visible; }
+.ahrs-window::backdrop { background: transparent; }
+.ahrs-window.is-fullscreen {
+  position: fixed; inset: auto; top: var(--viewport-top, 0px); left: var(--viewport-left, 0px);
+  width: var(--viewport-width, 100dvw); height: var(--viewport-height, 100dvh);
+  z-index: 100; overflow: hidden; pointer-events: auto;
+}
+.ahrs-window.is-fullscreen .ahrs-tool {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%;
+  max-width: none; padding: 0; border: 0; border-radius: 0;
+}
+.ahrs-window.is-fullscreen .ahrs-heading {
+  margin: 0; padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  border-bottom: 1px solid #344957;
+}
+.ahrs-window.is-fullscreen .ahrs-heading h3 { font-size: 14px; }
+.ahrs-window.is-fullscreen .ahrs-header-button {
+  width: 44px; height: 44px; min-height: 44px; border-radius: 9px;
+}
+.ahrs-window.is-fullscreen .ahrs-fullscreen-button {
+  border-color: rgba(151, 199, 228, .12); color: #d9e9f2; background: rgba(33, 70, 91, .76);
+}
+.ahrs-window.is-fullscreen .ahrs-content {
+  overflow: auto; overscroll-behavior: contain; min-width: 0; min-height: 0;
+  padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+}
+.ahrs-window.is-fullscreen .ahrs-display:not([hidden]) { display: grid; align-items: start; gap: 12px; max-width: 1400px; margin: 0 auto; }
+.ahrs-window.is-fullscreen .ahrs-primary-display { min-width: 0; }
+/* Preserve instrument proportions while leaving the supporting controls scrollable. */
+.ahrs-window.is-fullscreen .ahrs-instrument { width: min(100%, calc((var(--viewport-height, 100dvh) - 200px) * .645)); margin-inline: auto; }
+.ahrs-window.is-fullscreen .ahrs-attitude-display { container-type: inline-size; }
+.ahrs-window.is-fullscreen .ahrs-flight-label,
+.ahrs-window.is-fullscreen .ahrs-speed-mph { font-size: clamp(10px, 3.4cqw, 20px); }
+.ahrs-window.is-fullscreen .ahrs-test-banner { grid-column: 1 / -1; margin: 0; }
+.ahrs-window.is-fullscreen .ahrs-hsi { min-width: 0; width: 100%; max-width: 560px; margin: 0 auto; padding-top: 0; border: 0; }
+.ahrs-window.is-fullscreen .ahrs-hsi-heading { display: none; }
+.ahrs-window.is-fullscreen .ahrs-hsi-dial { width: min(80%, calc((var(--viewport-height, 100dvh) - 200px) * .384)); }
+.ahrs-window.is-fullscreen .ahrs-hsi-readings { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ahrs-window.is-fullscreen .ahrs-setup,
+.ahrs-window.is-fullscreen .ahrs-calibration,
+.ahrs-window.is-fullscreen .ahrs-actions { max-width: 720px; margin: 14px auto 0; }
+.ahrs-window.is-fullscreen .ahrs-test-toggle { display: block; max-width: 720px; margin: 6px auto 0; }
+.ahrs-window.is-fullscreen .ahrs-footnote {
+  margin: 0; padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  border-top: 1px solid #344957;
+}
+@media (orientation: landscape) {
+  .ahrs-window.is-fullscreen .ahrs-display:not([hidden]) { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+  .ahrs-window.is-fullscreen .ahrs-instrument { width: min(100%, calc((var(--viewport-height, 100dvh) - 130px) * 1.29)); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-dial { width: min(80%, calc((var(--viewport-height, 100dvh) - 150px) * .96)); }
+}
+/* Tablets have room for larger supporting readings as well as the instruments. */
+@media (min-width: 600px) and (min-height: 600px) {
+  .ahrs-window.is-fullscreen .ahrs-content {
+    padding: 16px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left));
+  }
+  .ahrs-window.is-fullscreen .ahrs-display:not([hidden]) { gap: 24px; }
+  .ahrs-window.is-fullscreen .ahrs-hsi { container-type: inline-size; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readout { font-size: clamp(18px, 4.5cqw, 24px); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-reference { font-size: clamp(14px, 3.3cqw, 18px); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-variation { font-size: clamp(12px, 2.6cqw, 14px); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readings { gap: 12px; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readings dt { font-size: clamp(11px, 2.4cqw, 14px); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readings dd { font-size: clamp(16px, 3.5cqw, 22px); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-target,
+  .ahrs-window.is-fullscreen .ahrs-hsi-leg { font-size: 14px; }
+  /* Reserve space for the heading, navigation readings and route selector. */
+  .ahrs-window.is-fullscreen .ahrs-hsi-dial { width: min(88%, calc((var(--viewport-height, 100dvh) - 420px) * .96)); }
+}
+@media (min-width: 600px) and (min-height: 600px) and (orientation: portrait) {
+  .ahrs-window.is-fullscreen .ahrs-display:not([hidden]) { max-width: 840px; }
+  .ahrs-window.is-fullscreen .ahrs-instrument { width: min(100%, calc((var(--viewport-height, 100dvh) - 200px) * .60)); }
+  .ahrs-window.is-fullscreen .ahrs-hsi {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'heading reference' 'dial variation' 'dial readings' 'dial target' 'dial leg';
+    align-items: center; gap: 12px 24px; max-width: none;
+  }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readout { grid-area: heading; margin: 0 auto; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-dial { grid-area: dial; width: 100%; margin: 0 auto; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-reference { grid-area: reference; margin: 0; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-variation { grid-area: variation; margin: 0; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-readings { grid-area: readings; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ahrs-window.is-fullscreen .ahrs-hsi-target { grid-area: target; margin: 0; }
+  .ahrs-window.is-fullscreen .ahrs-hsi-leg,
+  .ahrs-window.is-fullscreen .ahrs-hsi-empty { grid-area: leg; }
+}
+.ahrs-gps { display: inline-flex; align-items: center; justify-self: end; min-width: 0; gap: 6px; color: #dca7a7; font-size: 12px; font-weight: 700; text-align: right; }
+.ahrs-gps i { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ahrs-gps.is-live { color: #8ae0c5; }
+.ahrs-gps.is-test, .ahrs-tool .ahrs-test-banner { color: #ffdb80; }
+.ahrs-tool .ahrs-test-banner { margin-top: 0; font-size: 12px; text-align: center; }
+.ahrs-instrument { position: relative; overflow: hidden; border: 1px solid #38505f; border-radius: 4px; background: #07101d; }
+.ahrs-attitude-display { position: relative; min-width: 0; }
+.ahrs-vsi-readout { display: block; position: absolute; bottom: 0; width: 100%; height: auto; }
+.ahrs-vsi-readout text { fill: #c6d7df; font: 10px var(--font-ui); font-variant-numeric: tabular-nums; }
+.ahrs-vsi-label { fill: #e5edf1; font-weight: 700; }
+.ahrs-vsi-readout .ahrs-vsi-number { fill: #f1f5ed; font-weight: 700; }
+.ahrs-vsi-readout .ahrs-vsi-unit { font-size: 9px; font-weight: 400; }
+.ahrs-horizon { display: block; width: 100%; height: auto; }
+.ahrs-horizon text { fill: #f8f6e9; font-family: var(--font-ui); font-size: 11px; }
+.ahrs-horizon .ahrs-cross-label { fill: #ffd6d3; font-size: 14px; font-weight: 700; letter-spacing: .08em; }
+.ahrs-flight-readings { position: absolute; inset: 0; pointer-events: none; }
+.ahrs-flight-reading { position: absolute; top: 0; bottom: 0; min-width: 0; text-align: center; background: #1d2d3b; }
+.ahrs-speed-tape { left: 0; width: 21.25%; border-right: 1px solid #526777; }
+.ahrs-altitude-tape { right: 0; width: 23.125%; border-left: 1px solid #526777; }
+.ahrs-flight-label { position: absolute; inset: 0 0 auto; display: block; padding: 3px 0; color: #e5edf1; background: #0c1925; font-size: 11px; line-height: 1.3; font-weight: 700; }
+.ahrs-flight-label > span { display: block; color: var(--text-muted); font-weight: 400; }
+.ahrs-tape { display: block; width: 100%; height: 100%; }
+.ahrs-tape text { fill: #c6d7df; font-family: var(--font-ui); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ahrs-drum { display: block; width: 100%; height: 80px; border: 1px solid #425765; border-radius: 4px; background: #263946; }
+.ahrs-drum text { fill: #f1f5ed; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+.ahrs-drum.is-compact { position: absolute; top: 51.6129%; left: 0; width: 100%; height: auto; transform: translateY(-50%); border: 0; border-radius: 0; background: transparent; }
+.ahrs-speed-mph { position: absolute; inset: auto 0 0; display: block; padding: 3px 0; color: #c6d7df; background: #0c1925; font-size: 11px; font-variant-numeric: tabular-nums; }
+.ahrs-setup, .ahrs-calibration, .ahrs-actions { border-top: 1px solid #344957; padding-top: 12px; }
+.ahrs-setup > strong { color: #def1ed; font-size: 14px; }
+.ahrs-tool p { margin: 7px 0 10px; color: #afc2cd; font-size: 14px; line-height: 1.6; }
+.ahrs-setup label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; margin: 9px 0; }
+.ahrs-tool select, .ahrs-tool input { box-sizing: border-box; min-width: 0; width: 100%; min-height: max(38px, var(--touch-target)); padding: 8px 10px; font: inherit; font-size: var(--input-font-size); color: #ecf2f4; border: 1px solid #425968; border-radius: 5px; background: #182b3a; }
+.ahrs-setup details { margin: 10px 0; }
+.ahrs-setup summary { padding: 5px 0; color: #a8bbc7; cursor: pointer; }
+.ahrs-tool button { min-height: max(34px, var(--touch-target)); border: 1px solid #46606e; border-radius: 6px; padding: 7px 10px; font: inherit; color: #dcecf2; background: #1b3242; cursor: pointer; }
+.ahrs-tool button:hover { border-color: #8bd6cb; color: #fff; }
+.ahrs-tool .ahrs-primary { width: 100%; color: #0d292e; background: #8ad7cb; border-color: #8ad7cb; font-weight: 700; }
+.ahrs-tool .ahrs-primary:hover { background: #a2e6dc; color: #0d292e; }
+.ahrs-tool .ahrs-secondary { width: 100%; margin-top: 6px; background: transparent; }
+.ahrs-tool :focus-visible { outline: 2px solid #8ad7cb; outline-offset: 2px; }
+.ahrs-calibration > div { display: flex; justify-content: space-between; gap: 5px; }
+.ahrs-calibration > div span { color: #9edfd1; white-space: nowrap; }
+.ahrs-calibration progress { width: 100%; height: 5px; margin-top: 10px; border: 0; border-radius: 5px; overflow: hidden; accent-color: #8ad7cb; }
+.ahrs-calibration progress::-webkit-progress-bar { background: #2b414e; }
+.ahrs-calibration progress::-webkit-progress-value { background: #8ad7cb; }
+.ahrs-actions > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.ahrs-actions button { flex: 1; }
+.ahrs-footnote { margin-top: 11px; color: var(--text-muted); font-size: 11px; text-align: center; }
+.ahrs-tool .ahrs-message { color: #ffb9af; }
+.ahrs-diagnostics { margin-top: 6px; font-size: 12px; }
+.ahrs-diagnostics summary { padding: 8px 0; cursor: pointer; color: #afc2cd; }
+.ahrs-diagnostics summary strong { float: right; color: #e5edf1; font-variant-numeric: tabular-nums; }
+.ahrs-tool .ahrs-diagnostics p { margin: 6px 0; font-size: 11px; line-height: 1.5; }
+.ahrs-tool .ahrs-aiding-status { font-size: 12px; }
+.ahrs-diagnostics .is-aided { color: #8ae0c5; }
+.ahrs-diagnostics .is-unaided { color: #ffdb80; }
+.ahrs-uncertainty-trend { display: block; width: 100%; height: auto; margin-top: 8px; }
+.ahrs-uncertainty-trend path { fill: none; stroke: currentColor; stroke-width: 1.75; vector-effect: non-scaling-stroke; }
+.ahrs-uncertainty-trend circle { fill: currentColor; }
+.ahrs-uncertainty-trend .ahrs-uncertainty-grid { stroke: #344957; stroke-width: 1; }
+.ahrs-uncertainty-trend text { fill: #afc2cd; font: 11px var(--font-ui); }
+.ahrs-uncertainty-legend { display: flex; justify-content: flex-end; gap: 12px; font-size: 11px; }
+.ahrs-uncertainty-legend span::before { content: '━'; margin-right: 4px; }
+.ahrs-diagnostic-readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 10px 0; }
+.ahrs-diagnostic-readings dt { color: #afc2cd; font-size: 11px; }
+.ahrs-diagnostic-readings dd { margin: 3px 0 0; font-variant-numeric: tabular-nums; }
+.ahrs-hsi { margin: 10px 0; padding-top: 9px; border-top: 1px solid #344957; }
+.ahrs-hsi-heading { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.ahrs-hsi-heading strong { font-weight: 700; color: #c6d7df; }
+.ahrs-hsi-heading span, .ahrs-hsi-course { color: #f084db; fill: #f084db; }
+.ahrs-hsi-readout { width: fit-content; min-width: 116px; margin: 8px auto 0; padding: 4px 9px; border: 1px solid #748d9c; border-radius: 3px; background: #07101d; color: #e5edf1; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.ahrs-hsi-dial { display: block; width: 80%; height: auto; margin: 2px auto 0; overflow: hidden; }
+.ahrs-hsi-dial text { fill: #c6d7df; font-family: var(--font-ui); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ahrs-hsi-dial .ahrs-hsi-course { fill: #f084db; }
+.ahrs-hsi-reference { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 5px 0 10px; color: #e5edf1; font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+.ahrs-hsi-reference > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ahrs-hsi-reference svg { width: 12px; height: 12px; }
+.ahrs-hsi-heading-value { color: #ffdb80; }
+.ahrs-hsi-variation { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 4px 0 10px; color: var(--text-muted); font-size: 12px; text-align: center; }
+.ahrs-hsi-variation.is-unavailable { color: #ffdb80; }
+.ahrs-hsi-caution { color: #ffdb80; font-weight: 700; }
+.ahrs-hsi-readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 0; }
+.ahrs-hsi-readings > div { display: grid; gap: 4px; text-align: center; }
+.ahrs-hsi-readings dt { color: var(--text-muted); font-size: 11px; letter-spacing: .04em; }
+.ahrs-hsi-readings dd { margin: 0; color: #c6d7df; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ahrs-hsi-readings .ahrs-hsi-course { color: #f084db; }
+.ahrs-hsi-target { margin: 10px 0; font-size: 12px; text-align: center; overflow-wrap: anywhere; }
+.ahrs-hsi-dial .ahrs-hsi-warning { fill: #ffd6d3; font-weight: 700; }
+.ahrs-hsi-leg { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
+.ahrs-hsi-empty { color: var(--text-muted); font-size: 12px; text-align: center; padding: 5px 0; }
+@media (max-width: 400px) {
+  .ahrs-tool { padding: 10px; }
+  .ahrs-speed-mph { font-size: 10px; }
+}

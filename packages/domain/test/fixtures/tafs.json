@@ -1,0 +1,320 @@
+{
+  "source": "https://aviationweather.gov/api/data/taf?ids=KSFO,KJFK,EGLL&format=json",
+  "retrievedAt": "2026-09-17",
+  "reports": [
+    {
+      "icaoId": "EGLL",
+      "dbPopTime": "2026-09-17T17:12:08.192Z",
+      "issueTime": "2026-09-17T16:55:00.000Z",
+      "validTimeFrom": 1789668000,
+      "validTimeTo": 1789776000,
+      "rawTAF": "TAF EGLL 171655Z 1718/1824 28012KT 9999 SCT040 PROB30 TEMPO 1814/1824 25015G25KT",
+      "fcsts": [
+        {
+          "timeFrom": 1789668000,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": null,
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 4000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789740000,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": "TEMPO",
+          "probability": 30,
+          "visib": "",
+          "vertVis": null,
+          "clouds": []
+        }
+      ]
+    },
+    {
+      "icaoId": "KJFK",
+      "dbPopTime": "2026-09-17T19:37:31.418Z",
+      "issueTime": "2026-09-17T19:37:00.000Z",
+      "validTimeFrom": 1789675200,
+      "validTimeTo": 1789776000,
+      "rawTAF": "TAF KJFK 171937Z 1720/1824 18013KT P6SM FEW025 BKN050 FM180100 21011KT P6SM SCT025 BKN040 TEMPO 1801/1805 5SM -SHRA BKN025 FM180500 26008KT P6SM SCT020 BKN035 PROB30 1805/1809 5SM -SHRA BKN020 FM180900 31009KT P6SM FEW025 SCT040 FM181400 35010KT P6SM SCT040 SCT250",
+      "fcsts": [
+        {
+          "timeFrom": 1789675200,
+          "timeTo": 1789693200,
+          "timeBec": null,
+          "fcstChange": null,
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "FEW",
+              "base": 2500,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 5000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789693200,
+          "timeTo": 1789707600,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 2500,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 4000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789693200,
+          "timeTo": 1789707600,
+          "timeBec": null,
+          "fcstChange": "TEMPO",
+          "probability": null,
+          "visib": 5,
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 2500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789707600,
+          "timeTo": 1789722000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 2000,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 3500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789707600,
+          "timeTo": 1789722000,
+          "timeBec": null,
+          "fcstChange": "PROB",
+          "probability": 30,
+          "visib": 5,
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "BKN",
+              "base": 2000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789722000,
+          "timeTo": 1789740000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "FEW",
+              "base": 2500,
+              "type": null
+            },
+            {
+              "cover": "SCT",
+              "base": 4000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789740000,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 4000,
+              "type": null
+            },
+            {
+              "cover": "SCT",
+              "base": 25000,
+              "type": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "icaoId": "KSFO",
+      "dbPopTime": "2026-09-17T21:13:42.960Z",
+      "issueTime": "2026-09-17T21:13:00.000Z",
+      "validTimeFrom": 1789678800,
+      "validTimeTo": 1789776000,
+      "rawTAF": "TAF KSFO 172113Z 1721/1824 25011KT P6SM FEW009 BKN030 OVC040 FM180100 26011KT P6SM SCT010 SCT040 FM180600 27004KT P6SM SCT015 FM181200 27004KT P6SM SCT008 BKN015 FM181800 30006KT P6SM SCT015 FM182100 29014KT P6SM FEW015 SCT050",
+      "fcsts": [
+        {
+          "timeFrom": 1789678800,
+          "timeTo": 1789693200,
+          "timeBec": null,
+          "fcstChange": null,
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "FEW",
+              "base": 900,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 3000,
+              "type": null
+            },
+            {
+              "cover": "OVC",
+              "base": 4000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789693200,
+          "timeTo": 1789711200,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 1000,
+              "type": null
+            },
+            {
+              "cover": "SCT",
+              "base": 4000,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789711200,
+          "timeTo": 1789732800,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 1500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789732800,
+          "timeTo": 1789754400,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 800,
+              "type": null
+            },
+            {
+              "cover": "BKN",
+              "base": 1500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789754400,
+          "timeTo": 1789765200,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "SCT",
+              "base": 1500,
+              "type": null
+            }
+          ]
+        },
+        {
+          "timeFrom": 1789765200,
+          "timeTo": 1789776000,
+          "timeBec": null,
+          "fcstChange": "FM",
+          "probability": null,
+          "visib": "6+",
+          "vertVis": null,
+          "clouds": [
+            {
+              "cover": "FEW",
+              "base": 1500,
+              "type": null
+            },
+            {
+              "cover": "SCT",
+              "base": 5000,
+              "type": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

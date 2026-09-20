@@ -1,0 +1,108 @@
+{
+  "history": {
+    "type": "ZLayerRouteHistory",
+    "version": 1,
+    "effectiveDate": "2026-09-03",
+    "source": {
+      "name": "Aeronautic AQ",
+      "url": "https://aq.aeronautic.ai/",
+      "downloadUrl": "https://aeronautiql.s3.amazonaws.com/databases/routes.sqlite.zst",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "countBasis": "source-filed-route-use-count",
+    "observationRange": {
+      "firstSeen": "2025-02-14",
+      "lastSeen": "2026-01-27"
+    },
+    "pairs": [
+      {
+        "origin": "KSBA",
+        "destination": "KSMO",
+        "totalCount": 14,
+        "routes": [
+          {
+            "route": "KSBA KSMO",
+            "count": 8,
+            "engineCounts": {
+              "Piston": 6,
+              "Jet": 2
+            },
+            "firstSeen": "2025-02-14",
+            "lastSeen": "2026-01-27"
+          },
+          {
+            "route": "KSBA SBAP12 KSMO",
+            "count": 4,
+            "engineCounts": {
+              "Piston": 4
+            },
+            "firstSeen": "2025-02-14",
+            "lastSeen": "2026-01-27"
+          },
+          {
+            "route": "KSBA KWANG CMA VNY V186 DARTS KSMO",
+            "count": 2,
+            "engineCounts": {
+              "Jet": 2
+            },
+            "firstSeen": "2025-02-14",
+            "lastSeen": "2026-01-27"
+          }
+        ]
+      },
+      {
+        "origin": "SBA",
+        "destination": "SMO",
+        "totalCount": 3,
+        "routes": [
+          {
+            "route": "SBA..SMO",
+            "count": 3,
+            "engineCounts": {
+              "Piston": 3
+            },
+            "firstSeen": "2025-02-14",
+            "lastSeen": "2026-01-27"
+          }
+        ]
+      },
+      {
+        "origin": "KSMO",
+        "destination": "KSBA",
+        "totalCount": 7,
+        "routes": [
+          {
+            "route": "KSMO KSBA",
+            "count": 7,
+            "engineCounts": {
+              "Jet": 7
+            },
+            "firstSeen": "2025-02-14",
+            "lastSeen": "2026-01-27"
+          }
+        ]
+      }
+    ]
+  },
+  "resource": {
+    "id": "route-history",
+    "title": "Historical filed routes",
+    "url": "https://charts.test/nav/route-history.json.gz?v=export",
+    "compression": "gzip",
+    "count": 3,
+    "routeCount": 5,
+    "bytes": 100,
+    "uncompressedBytes": 1000,
+    "source": {
+      "name": "Aeronautic AQ",
+      "url": "https://aq.aeronautic.ai/",
+      "downloadUrl": "https://aeronautiql.s3.amazonaws.com/databases/routes.sqlite.zst",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "observationRange": {
+      "firstSeen": "2025-02-14",
+      "lastSeen": "2026-01-27"
+    }
+  },
+  "revision": "2026-09-03"
+}

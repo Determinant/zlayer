@@ -1,0 +1,16 @@
+.nearby-navaids { margin: 0 0 14px; }
+.nearby-navaids h3 { margin: 0 0 8px; color: #d6e7f1; font-size: 13px; }
+.nearby-navaids table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.nearby-navaids th, .nearby-navaids td { padding: 7px 4px; border-bottom: 1px solid #97c7e41a; text-align: right; }
+.nearby-navaids th:first-child { width: 46%; padding-left: 0; text-align: left; }
+.nearby-navaids thead th { color: var(--text-muted); font-size: 11px; font-weight: 400; }
+.nearby-navaids tbody th { font-weight: 400; overflow-wrap: anywhere; }
+.nearby-navaids td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nearby-navaids small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+.navaid-bearings .navaid-magnetic { display: block; font-size: 13px; font-weight: 700; }
+.navaid-bearings .navaid-true { font-weight: 400; }
+.nearby-navaids p { margin: 8px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+.nearby-navaids .is-mapped strong { color: #65d9ff; }
+.navaid-mon { margin-left: 6px; padding: 1px 4px; border-radius: 3px; background: #419cff20; color: #9dcfff; font-size: 9px; }
+.nearby-navaids .navaid-map-key { display: flex; align-items: center; gap: 7px; color: #65d9ff; }
+.navaid-map-key > span { width: 22px; border-top: 2px dashed #005a9c; background: #fff; box-shadow: 0 0 0 2px #fff; }

@@ -1,0 +1,314 @@
+{
+  "type": "ZLayerTerminalProcedures",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA 28-day NASR DP/STAR subscription"
+  },
+  "procedures": [
+    {
+      "id": "terminal:DP:SPTNS1.TECKY:ZOA",
+      "ident": "SPTNS1",
+      "kind": "departure",
+      "name": "SPTNS ONE",
+      "computerCode": "SPTNS1.TECKY",
+      "airports": [
+        "SJC"
+      ],
+      "routes": [
+        {
+          "name": "MLPTS-TECKY",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SJC",
+              "runway": "30R"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "MLPTS",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "SPTNS"
+            },
+            {
+              "sequence": 20,
+              "ident": "SPTNS",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TECKY"
+            },
+            {
+              "sequence": 30,
+              "ident": "TECKY",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "STCLR-TECKY",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SJC",
+              "runway": "30L"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "STCLR",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "SPTNS"
+            },
+            {
+              "sequence": 20,
+              "ident": "SPTNS",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TECKY"
+            },
+            {
+              "sequence": 30,
+              "ident": "TECKY",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "VLREE TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "SPTNS1.VLREE",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TECKY",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "VLREE"
+            },
+            {
+              "sequence": 20,
+              "ident": "VLREE",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal:STAR:PCIFC.OHSEA3:ZLA",
+      "ident": "OHSEA3",
+      "kind": "arrival",
+      "name": "OHSEA THREE",
+      "computerCode": "PCIFC.OHSEA3",
+      "airports": [
+        "SNA"
+      ],
+      "routes": [
+        {
+          "name": "PCIFC-KLEVR",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SNA",
+              "runway": "20R"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "PCIFC",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "CRAYN"
+            },
+            {
+              "sequence": 20,
+              "ident": "CRAYN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "SIPPP"
+            },
+            {
+              "sequence": 30,
+              "ident": "SIPPP",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TANDY"
+            },
+            {
+              "sequence": 40,
+              "ident": "TANDY",
+              "type": "RP",
+              "icaoRegion": "K2",
+              "next": "OHSEA"
+            },
+            {
+              "sequence": 50,
+              "ident": "OHSEA",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "STYFF"
+            },
+            {
+              "sequence": 60,
+              "ident": "STYFF",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "KAYNN"
+            },
+            {
+              "sequence": 70,
+              "ident": "KAYNN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "LAXBB"
+            },
+            {
+              "sequence": 80,
+              "ident": "LAXBB",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "KLEVR"
+            },
+            {
+              "sequence": 90,
+              "ident": "KLEVR",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "PCIFC-MINOE",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SNA",
+              "runway": "02L"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "PCIFC",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "CRAYN"
+            },
+            {
+              "sequence": 20,
+              "ident": "CRAYN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "SIPPP"
+            },
+            {
+              "sequence": 30,
+              "ident": "SIPPP",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TANDY"
+            },
+            {
+              "sequence": 40,
+              "ident": "TANDY",
+              "type": "RP",
+              "icaoRegion": "K2",
+              "next": "OHSEA"
+            },
+            {
+              "sequence": 50,
+              "ident": "OHSEA",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "STYFF"
+            },
+            {
+              "sequence": 60,
+              "ident": "STYFF",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "JJAWS"
+            },
+            {
+              "sequence": 70,
+              "ident": "JJAWS",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "PUZZL"
+            },
+            {
+              "sequence": 80,
+              "ident": "PUZZL",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "MINOE"
+            },
+            {
+              "sequence": 90,
+              "ident": "MINOE",
+              "type": "RP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "ELLBC TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "ELLBC.OHSEA3",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "ELLBC",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "GOONA"
+            },
+            {
+              "sequence": 20,
+              "ident": "GOONA",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "GUDBY"
+            },
+            {
+              "sequence": 30,
+              "ident": "GUDBY",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "YORBS"
+            },
+            {
+              "sequence": 40,
+              "ident": "YORBS",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "PCIFC"
+            },
+            {
+              "sequence": 50,
+              "ident": "PCIFC",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

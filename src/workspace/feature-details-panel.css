@@ -1,0 +1,360 @@
+.feature-card {
+  position: absolute;
+  z-index: 5;
+  right: 14px;
+  bottom: 34px;
+  display: flex;
+  flex-direction: column;
+  width: min(330px, calc(100% - 28px));
+  max-height: calc(100% - 100px);
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid rgba(151, 199, 228, 0.19);
+  border-radius: 16px;
+  background: rgba(8, 20, 35, 0.95);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(18px);
+}
+
+.feature-card.has-plates {
+  width: min(390px, calc(100% - 28px));
+  height: min(620px, calc(100% - 100px));
+}
+
+.feature-card-content {
+  /* Non-airport cards have an automatic height, so their details need an
+   * intrinsic flex basis. min-height still lets tall cards scroll. */
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.feature-card-content:focus {
+  /* Keep this region focusable for keyboard scrolling without framing the
+   * entire panel. Interactive controls retain their own focus indicators. */
+  outline: none;
+}
+
+.feature-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding-right: max(36px, var(--touch-target));
+  min-height: max(36px, var(--touch-target));
+  margin-bottom: 8px;
+}
+
+.feature-card-heading h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 27px;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+.feature-card.is-coordinate .feature-card-heading h2 {
+  font-size: 22px;
+}
+
+.feature-card-actions { display: flex; align-items: center; gap: 8px; }
+.identify-feature-button {
+  display: grid;
+  place-items: center;
+  width: max(32px, var(--touch-target));
+  height: max(32px, var(--touch-target));
+  padding: 0;
+  border: 1px solid #419cff70;
+  border-radius: 8px;
+  background: #1986ff24;
+  color: #91c7ff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.identify-feature-button:hover { background: #1986ff40; }
+.identify-feature-button[aria-pressed="true"] { color: #fff; background: #126bd2; border-color: #78baff; }
+.identify-feature-button:focus-visible { outline: 2px solid #78baff; outline-offset: 3px; }
+
+.feature-card-header > p {
+  margin: 4px 0 12px;
+  color: #8fa7b9;
+  font-size: 13px;
+}
+
+.feature-card-header {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.close-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: max(32px, var(--touch-target));
+  height: max(36px, var(--touch-target));
+  border: 0;
+  border-radius: 8px;
+  color: #7790a4;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.feature-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 0 0 14px;
+  border: 1px solid rgba(151, 199, 228, 0.1);
+  border-radius: 10px;
+  background: rgba(151, 199, 228, 0.08);
+}
+
+.feature-card dl div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #0c1a2b;
+}
+
+.feature-card dl div.is-wide {
+  grid-column: 1 / -1;
+}
+
+.feature-card dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feature-card dd {
+  margin: 0;
+  color: #d6e7f1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.feature-card .feature-facts > div { align-content: start; }
+.feature-card .feature-facts > .is-frequency {
+  --frequency-label-width: 88px;
+  --frequency-row-height: 32px;
+  grid-template-columns: var(--frequency-label-width) minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 10px;
+}
+.feature-card .feature-facts > .is-frequency:has(.airport-frequency-notes) {
+  --frequency-row-height: max(32px, var(--touch-target));
+}
+.feature-card .is-frequency dt {
+  padding-top: calc((var(--frequency-row-height) - 18px) / 2);
+  font-size: 10px;
+  line-height: 18px;
+  letter-spacing: 0.06em;
+}
+.airport-frequency-value {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: var(--frequency-row-height);
+  padding: 5px 0;
+  line-height: 20px;
+}
+.airport-frequency-number { color: #dff5f2; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.airport-frequency-unit { color: #819da9; font-size: 10px; }
+.airport-frequency-context { color: #9aafbe; font-size: 10px; }
+.airport-frequency-notes summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: rgba(97, 214, 197, 0.08); }
+.airport-frequency-notes summary::-webkit-details-marker { display: none; }
+.airport-frequency-notes summary:hover .airport-frequency-number { color: #61d6c5; }
+.airport-frequency-notes summary:focus-visible { outline: 2px solid #61d6c5; outline-offset: 0; border-radius: 3px; }
+.airport-frequency-chevron {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: calc((var(--frequency-row-height) - 16px) / 2);
+  color: #829daa;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.airport-frequency-notes[open] .airport-frequency-chevron { transform: rotate(180deg); color: #61d6c5; }
+.airport-frequency-note-list {
+  margin-inline-start: calc(-1 * (var(--frequency-label-width) + 10px));
+  padding: 5px 0 9px;
+  border-top: 1px solid rgba(151, 199, 228, 0.1);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.airport-frequency-note-list p { margin: 4px 0 0; }
+
+.append-route-button,
+.remove-route-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 max(32px, var(--touch-target));
+  width: max(32px, var(--touch-target));
+  height: max(32px, var(--touch-target));
+  padding: 0;
+  border: 1px solid rgba(97, 214, 197, 0.2);
+  border-radius: 8px;
+  color: #61d6c5;
+  background: rgba(97, 214, 197, 0.07);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.append-route-button:hover,
+.remove-route-button:hover {
+  border-color: rgba(97, 214, 197, 0.38);
+  background: rgba(97, 214, 197, 0.12);
+}
+
+.append-route-button:focus-visible,
+.remove-route-button:focus-visible {
+  outline: 2px solid #61d6c5;
+  outline-offset: 3px;
+}
+
+.remove-route-button {
+  border-color: rgba(239, 119, 113, 0.3);
+  color: #f2a09a;
+  background: rgba(239, 119, 113, 0.09);
+}
+
+.remove-route-button:hover {
+  border-color: rgba(239, 119, 113, 0.5);
+  background: rgba(239, 119, 113, 0.16);
+}
+
+.remove-route-button:focus-visible {
+  outline-color: #f2a09a;
+}
+
+.feature-route-remove {
+  flex: 0 0 max(32px, var(--touch-target));
+}
+
+.feature-route-remove-menu {
+  position: absolute;
+  z-index: 2;
+  top: 64px;
+  left: 12px;
+  right: 12px;
+  max-height: calc(100% - 76px);
+  overflow-y: auto;
+  border: 1px solid rgba(239, 119, 113, 0.3);
+  border-radius: 10px;
+  background: #0c1a2b;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.feature-route-remove-menu button {
+  display: block;
+  width: 100%;
+  min-height: max(44px, var(--touch-target));
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(239, 119, 113, 0.15);
+  color: #f2a09a;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.feature-route-remove-menu button:hover,
+.feature-route-remove-menu button:focus-visible {
+  outline: none;
+  background: rgba(239, 119, 113, 0.16);
+}
+
+.feature-route-remove-menu strong,
+.feature-route-remove-menu small {
+  display: block;
+}
+
+.feature-route-remove-menu small {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.feature-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  margin: 0 0 12px;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(151, 199, 228, 0.08);
+}
+
+.feature-tabs button {
+  min-height: var(--touch-target);
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feature-tabs button.is-active {
+  color: #dafbf6;
+  background: rgba(65, 149, 151, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(97, 214, 197, 0.15);
+}
+
+@media (max-width: 640px) {
+  .feature-card,
+  .feature-card.has-plates {
+    right: 9px;
+    bottom: 28px;
+    width: calc(100% - 18px);
+  }
+}
+
+/* Respond to the map's actual space, including keyboard and safe-area changes.
+ * Keep the header and tabs reachable while the details scroll. */
+@container workspace (max-height: 400px) {
+  .feature-card,
+  .feature-card.has-plates {
+    top: 8px;
+    right: 72px;
+    bottom: 8px;
+    width: min(390px, calc(100% - 82px));
+    height: auto;
+    max-height: none;
+    padding: clamp(8px, 3cqh, 12px);
+  }
+  .feature-card-heading { margin-bottom: 4px; }
+  /* Keep the identifier and Info/Plates tabs fixed, while preserving body
+   * space for scrolling in short landscape and keyboard-sized maps. */
+  .feature-card-header > p { display: none; }
+  .feature-tabs { margin-bottom: 6px; }
+  .close-card { top: clamp(8px, 3cqh, 12px); right: clamp(8px, 3cqh, 12px); }
+}
+
+@container workspace (max-height: 300px) {
+  .feature-card,
+  .feature-card.has-plates {
+    top: 0;
+    bottom: 0;
+    padding: 4px;
+  }
+  .feature-card-heading { margin-bottom: 0; }
+  .feature-tabs { margin-bottom: 0; }
+  .close-card { top: 4px; right: 4px; }
+}

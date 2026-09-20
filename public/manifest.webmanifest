@@ -1,0 +1,15 @@
+{
+  "name": "ZLayer",
+  "short_name": "ZLayer",
+  "description": "A modern, lightweight EFB. Layer by layer. An offline-capable aviation PWA for phones, tablets, and desktops.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#08111f",
+  "theme_color": "#08111f",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

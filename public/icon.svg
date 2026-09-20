@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="ZLayer">
+<title>ZLayer</title>
+<desc>Aircraft forming the diagonal of a Z, between layered chart strokes. Transparent background.</desc>
+<defs><mask id="zl-icon" x="0" y="0" width="256" height="256" maskUnits="userSpaceOnUse"><path fill="#fff" d="M0 0H256V256H0Z"/><path fill="#000" stroke="#000" stroke-width="13" stroke-linejoin="round" d="M128 28C122 28 119 36 119 46V94L43 124V143L119 125V175L98 191V207L128 197L158 207V191L137 175V125L213 143V124L137 94V46C137 36 134 28 128 28Z" transform="translate(128 117) rotate(45) scale(.81) translate(-128 -128)"/></mask></defs>
+<g mask="url(#zl-icon)"><path fill="#1A809F" d="M60 204H199L173 226H34Z"/><path fill="#38C9E6" d="M49 41H216L190 68H24Z M66 167H225L199 194H40Z"/></g>
+<path fill="#ECF7FD" d="M128 28C122 28 119 36 119 46V94L43 124V143L119 125V175L98 191V207L128 197L158 207V191L137 175V125L213 143V124L137 94V46C137 36 134 28 128 28Z" transform="translate(128 117) rotate(45) scale(.81) translate(-128 -128)"/>
+</svg>

@@ -1,0 +1,49 @@
+name: Verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failures
+          path: test-results/
+  graphics:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Chromium graphics tests already run in the complete verify job above.
+          - { os: ubuntu-latest, project: firefox, browser: firefox }
+          - { os: ubuntu-latest, project: webkit, browser: webkit }
+          - { os: ubuntu-latest, project: webkit-retina, browser: webkit }
+          - { os: macos-latest, project: webkit-retina, browser: webkit }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - if: matrix.project == 'firefox'
+        # Firefox needs a display for WebGL2 in the Linux software-rendering runner.
+        run: xvfb-run -a npm run test:graphics -- --project firefox --headed
+      - if: matrix.project != 'firefox'
+        run: npm run test:graphics -- --project ${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: graphics-${{ matrix.os }}-${{ matrix.project }}
+          path: test-results/graphics/

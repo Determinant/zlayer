@@ -1,0 +1,33 @@
+.nearby-feature-picker {
+  position: absolute;
+  z-index: 12;
+  display: grid;
+  width: min(290px, calc(100% - 24px));
+  max-height: min(360px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(151, 199, 228, .28);
+  border-radius: 10px;
+  color: #dcecf5;
+  background: rgba(8, 20, 35, .97);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .4);
+}
+.nearby-feature-picker-heading {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 40px; padding: 5px 8px 5px 12px;
+  border-bottom: 1px solid rgba(151, 199, 228, .16);
+  font-size: 12px;
+}
+.nearby-feature-picker-heading button {
+  width: max(30px, var(--touch-target)); height: max(30px, var(--touch-target));
+  border: 0; border-radius: 6px; color: #9db1be; background: transparent; cursor: pointer;
+}
+.nearby-feature-picker-list { display: grid; overflow-y: auto; overscroll-behavior: contain; }
+.nearby-feature-picker-list button {
+  display: grid; gap: 2px; min-width: 0; min-height: max(44px, var(--touch-target));
+  padding: 7px 12px; border: 0; border-bottom: 1px solid rgba(151, 199, 228, .1);
+  color: #eaf6ff; background: transparent; text-align: left; cursor: pointer;
+}
+.nearby-feature-picker-list button:hover, .nearby-feature-picker-list button:focus-visible { background: rgba(97, 214, 197, .12); }
+.nearby-feature-picker-list button:focus-visible { outline: 2px solid #61d6c5; outline-offset: -2px; }
+.nearby-feature-picker-list strong { font-size: 13px; }
+.nearby-feature-picker-list span { overflow: hidden; color: #91a9bb; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

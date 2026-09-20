@@ -1,0 +1,229 @@
+.flight-category-legend {
+  position: absolute;
+  z-index: 4;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid rgba(216, 239, 250, 0.18);
+  border-radius: 10px;
+  color: #e2edf4;
+  background: rgba(7, 16, 29, 0.84);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+}
+
+.flight-category-legend span {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.flight-category-legend i {
+  width: 8px;
+  height: 8px;
+}
+
+.flight-category-legend small {
+  margin-left: 2px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(216, 239, 250, 0.14);
+  color: #7890a3;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.airport-weather {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.airport-weather > h3 {
+  margin: 0 0 5px;
+  color: #b2c7d7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.weather-source { margin: 6px 0 8px; }
+.weather-source label { display: grid; gap: 5px; color: #8fa7b9; font-size: 11px; }
+.weather-source select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: 7px 9px;
+  border: 1px solid rgba(151, 199, 228, 0.24);
+  border-radius: 7px;
+  color: #d6e7f1;
+  background: #0c1a2b;
+  font: inherit;
+  font-size: 12px;
+}
+.weather-source select:focus-visible { outline: 2px solid #61d6c5; outline-offset: 2px; }
+.weather-source p { margin: 5px 0 0; color: #8fa7b9; font-size: 11px; line-height: 1.5; }
+
+.airport-weather > dl { margin: 5px 0 0; }
+
+.airport-weather-report {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3px 10px;
+}
+
+.airport-weather-report:empty { display: none; }
+
+.airport-weather time {
+  color: #d6e7f1;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.airport-weather-age {
+  color: #91a9bb;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.airport-weather-status {
+  margin: 0;
+  color: #8fa7b9;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.airport-weather-status > span { white-space: nowrap; }
+.airport-weather-status .is-current { color: #73cdb6; }
+
+.airport-weather-status .is-cached { color: #e3b876; }
+
+.runway-wind-notes {
+  display: grid;
+  gap: 2px;
+}
+
+.runway-wind-notes small,
+.runway-wind-state {
+  color: #91a9bb;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.runway-wind-state { margin: 0; }
+
+.runway-wind-components {
+  display: grid;
+  gap: 2px;
+}
+
+.runway-wind-components > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.runway-wind-components span,
+.runway-wind-components abbr,
+.runway-wind-components small {
+  color: #91a9bb;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.runway-wind-components abbr { text-decoration: none; }
+
+.runway-wind-components strong {
+  color: #d6e7f1;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.runway-wind-components .is-tailwind strong,
+.runway-wind-components .is-tailwind small {
+  color: #f2bc7b;
+}
+
+.airport-taf {
+  padding-top: 13px;
+  border-top: 1px solid rgba(151, 199, 228, 0.14);
+}
+
+.taf-dates {
+  display: grid;
+  gap: 3px;
+  color: #8fa7b9;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.taf-dates time { font-size: inherit; }
+
+.taf-lines {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taf-lines li {
+  display: grid;
+  grid-template-columns: minmax(34px, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0 7px;
+  padding: 4px 8px;
+  border-left: 2px solid currentColor;
+  border-radius: 0 5px 5px 0;
+  color: #a0b0bd;
+  background: rgba(151, 199, 228, 0.04);
+}
+
+.taf-lines [data-flight-category='VFR'] { color: #20c66b; }
+.taf-lines [data-flight-category='MVFR'] { color: #62a9ff; }
+.taf-lines [data-flight-category='IFR'] { color: #ff7070; }
+.taf-lines [data-flight-category='LIFR'] { color: #e97bf5; }
+
+.taf-category {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.taf-lines code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.taf-lines .taf-local-time {
+  grid-column: 2;
+  justify-self: end;
+  max-width: 100%;
+  color: #8fa7b9;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+  white-space: normal;
+}
+
+.taf-lines .taf-local-time time {
+  color: inherit;
+  font: inherit;
+}

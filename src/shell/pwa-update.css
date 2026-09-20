@@ -1,0 +1,19 @@
+.pwa-update {
+  position: fixed; z-index: 100;
+  right: calc(100% - var(--viewport-left) - var(--viewport-width) + var(--safe-right) + 12px);
+  bottom: calc(100% - var(--viewport-top) - var(--viewport-height) + var(--safe-bottom) + 12px);
+  width: min(380px, calc(var(--safe-width) - 24px)); padding: 16px;
+  border: 1px solid #4c8e83; border-radius: 12px; background: #102333; color: #eaf6ff;
+  box-shadow: 0 8px 32px #0008; font-size: 14px; line-height: 1.5;
+}
+.pwa-update p { margin: 8px 0; color: #a8bfce; }
+.pwa-update [role="alert"] { color: #ffc08f; }
+.pwa-update code, .pwa-update-settings code { overflow-wrap: anywhere; }
+.pwa-update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pwa-update button {
+  min-height: 44px; padding: 8px 14px; border: 1px solid #4c8e83; border-radius: 8px;
+  background: #214b47; color: #d9fff5; cursor: pointer;
+}
+.pwa-update button + button { background: transparent; border-color: #315062; color: #a8bfce; }
+.pwa-update button:disabled { opacity: .5; cursor: default; }
+.pwa-update button:focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }

@@ -1,0 +1,14 @@
+{
+  "name": "@zlayer/contracts",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --import=tsx --test test/*.test.ts"
+  }
+}

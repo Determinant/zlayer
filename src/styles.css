@@ -1,0 +1,16 @@
+@import 'maplibre-gl/dist/maplibre-gl.css' layer(maplibre);
+@import './core/ui/viewport.css';
+@import './shell/styles.css';
+@import './core/ui/styles.css';
+@import './layers/routes/styles.css';
+@import './shell/layer-menu.css';
+@import './shell/settings.css';
+@import './shell/about.css';
+@import './shell/disclaimer.css';
+@import './workspace/map/styles.css';
+@import './workspace/feature-details-panel.css';
+@import './layers/navigation/styles.css';
+@import './layers/navigation/nearby-navaids.css';
+@import './layers/plates/styles.css';
+@import './layers/metar-taf/styles.css';
+@import './shell/responsive.css';

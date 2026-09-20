@@ -1,0 +1,103 @@
+.navaid-morse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px 4px;
+  margin-top: 1px;
+  color: #c3e3f4;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.navaid-morse > span {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.airport-runways {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.airport-runways > h3 {
+  margin: 0;
+  color: #b2c7d7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.airport-runway {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: #0c1a2b;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.airport-runway caption,
+.airport-helipad {
+  padding: 7px 8px;
+  border: 1px solid rgba(151, 199, 228, 0.16);
+  border-radius: 6px 6px 0 0;
+  background: rgba(151, 199, 228, 0.05);
+  text-align: left;
+}
+
+.airport-helipad {
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.airport-runway caption strong,
+.airport-helipad strong {
+  margin-right: 8px;
+  color: #d6e7f1;
+  font-size: 12px;
+}
+
+.airport-runway caption span,
+.airport-helipad span,
+.runway-end-heading small,
+.runway-empty {
+  color: #91a9bb;
+  font-size: 11px;
+}
+
+.runway-empty { margin: 0; }
+
+.airport-runway th,
+.airport-runway td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(151, 199, 228, 0.12);
+  vertical-align: top;
+}
+
+.airport-runway thead th {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  color: #91a9bb;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.airport-runway thead th:first-child { width: 21%; }
+.airport-runway thead th:nth-child(2) { width: 24%; }
+.airport-runway thead th span { font-weight: 400; }
+
+.runway-end-heading strong,
+.runway-end-heading small { display: block; }
+
+.runway-end-heading strong {
+  color: #e3edf5;
+  font-size: 12px;
+}
+
+.runway-end-heading small { font-weight: 400; }
+.runway-pattern { color: #b2c7d7; }

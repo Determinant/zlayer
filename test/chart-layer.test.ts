@@ -1,0 +1,191 @@
+import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+import test from 'node:test';
+import type { LayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
+import type { CatalogResponse, ChartPackageArchive, ChartRecord } from '@zlayer/contracts';
+import { CHART_LAYER_ANCHOR } from '../src/core/map/layer';
+import { CHART_FAMILIES, type ChartSelection } from '../src/layers/charts/overlays';
+import { createWorkspaceReadContext, type CatalogReadSource } from '../src/workspace/read-context';
+import type { SavedBundle } from '../src/offline/bundle-repository';
+
+const registered: CatalogReadSource[] = [];
+Object.assign(globalThis, { chartRegistrations: registered });
+const loader = registerHooks({ resolve(specifier, context, next) {
+  if (specifier === './mbtiles-protocol' && context.parentURL?.includes('/charts/')) return {
+    shortCircuit: true, url: 'data:text/javascript,' + encodeURIComponent(`
+      export const registerMbtilesArchives = catalog => globalThis.chartRegistrations.push(catalog);
+      export const mbtilesTileUrl = id => 'mbtiles://' + id;
+    `),
+  };
+  return next(specifier, context);
+} });
+const { createChartLayer } = await import('../src/layers/charts/layer');
+loader.deregister();
+
+const chart: ChartRecord = { id: 'sectional', title: 'Sectional', kind: 'vfr-sectional', revision: '2026-09-03',
+  format: 'mbtiles', bounds: [-120, 30, -110, 40], minZoom: 5, maxZoom: 12,
+  url: 'https://charts.test/a.mbtiles', sha256: 'a'.repeat(64), byteLength: 1024 };
+const catalog: CatalogResponse = { schemaVersion: 1, revision: chart.revision, generatedAt: '2026-09-16T00:00:00Z',
+  charts: [chart], navigation: [], weather: [] };
+const sectionalOnly: ChartSelection = { base: 'vfr-sectional', overlay: '' };
+
+function mapFixture() {
+  const layers = [CHART_LAYER_ANCHOR, 'navigation'];
+  const sources = new Set(['navigation']);
+  const visibility = new Map<string, unknown>();
+  let added = 0;
+  const map = {
+    on() {}, off() {},
+    getBounds: () => ({ getWest: () => -180, getEast: () => 180, getSouth: () => -85, getNorth: () => 85 }),
+    getLayer: (id: string) => layers.includes(id),
+    getSource: (id: string) => sources.has(id),
+    addSource(id: string) { assert.ok(!sources.has(id)); sources.add(id); added++; },
+    removeSource(id: string) { sources.delete(id); },
+    addLayer(layer: LayerSpecification, before: string) {
+      layers.splice(layers.indexOf(before), 0, layer.id);
+      visibility.set(layer.id, layer.layout?.visibility);
+    },
+    removeLayer(id: string) { layers.splice(layers.indexOf(id), 1); visibility.delete(id); },
+    getLayoutProperty: (id: string) => visibility.get(id),
+    setLayoutProperty: (id: string, _key: string, value: string) => visibility.set(id, value),
+  } as unknown as MapLibreMap;
+  return { map, layers, sources, added: () => added,
+    visible: () => layers.filter(id => visibility.get(id) === 'visible'),
+  };
+}
+
+test('refreshing chart definitions replaces only owned resources below navigation', () => {
+  const { map, layers, sources, added } = mapFixture();
+  const product = createChartLayer(catalog, CHART_FAMILIES.find(family => family.id === chart.kind)!);
+  product.update({ catalog, selection: sectionalOnly });
+  product.mount(map);
+  assert.deepEqual(layers, ['chart-sectional', CHART_LAYER_ANCHOR, 'navigation']);
+  product.update({ catalog, selection: sectionalOnly });
+  assert.equal(added(), 1, 'selection updates do not reinstall sources');
+  const refreshed = { ...catalog, charts: [{ ...chart, id: 'expanded', sha256: 'b'.repeat(64) }] };
+  product.update({ catalog: refreshed, selection: sectionalOnly });
+  assert.deepEqual(layers, ['chart-expanded', CHART_LAYER_ANCHOR, 'navigation']);
+  assert.deepEqual(sources, new Set(['navigation', 'chart-expanded']));
+  assert.equal(registered.at(-1), refreshed);
+  product.unmount();
+  assert.deepEqual(layers, [CHART_LAYER_ANCHOR, 'navigation']);
+  assert.deepEqual(sources, new Set(['navigation']));
+});
+
+test('metadata and saved-region health updates preserve existing chart sources', () => {
+  const { map, added, visible } = mapFixture();
+  const saved: SavedBundle = { catalog, bounds: [chart.bounds], key: 'saved',
+    plan: { id: 'region', regionId: 'region', title: 'Region', revision: catalog.revision, files: [], references: [] } };
+  const context = createWorkspaceReadContext(catalog, [saved]);
+  const product = createChartLayer(context, CHART_FAMILIES[0]!);
+  product.update({ catalog: context, selection: sectionalOnly });
+  product.mount(map);
+  const healthUpdate = createWorkspaceReadContext(structuredClone(catalog), [{ ...saved, unavailable: false }]);
+  product.update({ catalog: healthUpdate, selection: { ...sectionalOnly } });
+  assert.equal(added(), 1, 'finishing the saved-file check must not discard chart tiles');
+  const metadata = { ...structuredClone(catalog), generatedAt: '2026-09-19T00:00:00Z',
+    charts: [{ ...chart, title: 'Updated title' }],
+    navigation: [{ id: 'airports' as const, title: 'Airports', count: 1, sourceCount: 1, minZoom: 0, url: '/updated-airports.json' }] };
+  const refreshed = createWorkspaceReadContext(metadata, [{ ...saved, key: 'new-navigation-snapshot', catalog: metadata }]);
+  product.update({ catalog: refreshed, selection: { ...sectionalOnly } });
+  assert.equal(added(), 1, 'navigation metadata must not invalidate chart resources');
+  assert.equal(registered.at(-1), refreshed, 'future tile requests use the current catalog');
+  assert.deepEqual(visible(), ['chart-@vfr-sectional']);
+  product.unmount();
+  product.mount(map);
+  assert.equal(added(), 2, 'remount still installs the current resources');
+  assert.deepEqual(visible(), ['chart-@vfr-sectional']);
+  product.unmount();
+});
+
+test('a chart family refresh leaves other families and their tiles intact', () => {
+  const { map, added, visible } = mapFixture();
+  const current = { ...catalog, charts: [chart, { ...chart, id: 'terminal', kind: 'vfr-terminal' as const }] };
+  const selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
+  const products = CHART_FAMILIES.map(family => createChartLayer(current, family));
+  products.forEach(product => { product.update({ catalog: current, selection }); product.mount(map); });
+  const refreshed = { ...current, charts: current.charts.map(chart => chart.id === 'terminal'
+    ? { ...chart, url: '/new-terminal.mbtiles', sha256: 'b'.repeat(64) } : chart) };
+  products.forEach(product => product.update({ catalog: refreshed, selection }));
+  assert.equal(added(), 3, 'only the terminal source should be replaced');
+  assert.deepEqual(visible(), ['chart-sectional', 'chart-terminal']);
+  products.forEach(product => product.unmount());
+});
+
+test('chart archive and regional ownership changes still replace cached tile sources', () => {
+  const archive: ChartPackageArchive = { id: 'vfr-sectional-z5-r2-0-0', kind: 'vfr-sectional',
+    file: 'sectional.mbtiles', zoom: 5, root: { z: 2, x: 0, y: 0 }, bounds: chart.bounds,
+    tileMask: '1', sha256: chart.sha256, byteLength: 1024 };
+  const packaged: CatalogResponse = { ...catalog, chartPackages: {
+    root: '/packages', maximumArchiveBytes: 2048, archives: [archive], regions: [],
+  } };
+  const saved: SavedBundle = { catalog: packaged, bounds: [chart.bounds], key: 'saved',
+    plan: { id: 'region', regionId: 'region', title: 'Region', revision: catalog.revision, files: [], references: [] } };
+  const other: SavedBundle = { ...saved, catalog: { ...packaged, charts: [{ ...chart, revision: '2026-08-06' }] },
+    key: 'other', plan: { ...saved.plan, id: 'other', regionId: 'other' } };
+  const context = createWorkspaceReadContext(packaged, [saved, other]);
+  const changedArchive = (change: Partial<ChartPackageArchive>): CatalogResponse => ({ ...packaged,
+    chartPackages: { ...packaged.chartPackages!, archives: [{ ...archive, ...change }] } });
+  const cases: Array<[string, CatalogReadSource]> = [
+    ['archive content', createWorkspaceReadContext(changedArchive({ sha256: 'b'.repeat(64) }), [saved, other])],
+    ['archive address', createWorkspaceReadContext(changedArchive({ file: 'replacement.mbtiles' }), [saved, other])],
+    ['archive size', createWorkspaceReadContext(changedArchive({ byteLength: 2048 }), [saved, other])],
+    ['tile coverage', createWorkspaceReadContext(changedArchive({ tileMask: '3' }), [saved, other])],
+    ['package root', createWorkspaceReadContext({ ...packaged,
+      chartPackages: { ...packaged.chartPackages!, root: '/new-packages' } }, [saved, other])],
+    ['saved chart content', createWorkspaceReadContext(packaged, [{ ...saved,
+      catalog: changedArchive({ sha256: 'c'.repeat(64) }) }, other])],
+    ['regional bounds', createWorkspaceReadContext(packaged, [{ ...saved, bounds: [[-125, 30, -110, 40]] }, other])],
+    ['state boundary', createWorkspaceReadContext(packaged, [{ ...saved, plan: { ...saved.plan, regionId: 'us-CA' } }, other])],
+    ['overlap priority', createWorkspaceReadContext(packaged, [other, saved])],
+    ['removed region', createWorkspaceReadContext(packaged, [other])],
+    ['chart resolution', createWorkspaceReadContext({ ...packaged, charts: [{ ...chart, maxZoom: 13 }] }, [saved, other])],
+  ];
+  for (const [reason, next] of cases) {
+    const { map, added, visible } = mapFixture();
+    const product = createChartLayer(context, CHART_FAMILIES[0]!);
+    product.update({ catalog: context, selection: sectionalOnly });
+    product.mount(map);
+    product.update({ catalog: next, selection: sectionalOnly });
+    assert.equal(added(), 2, reason);
+    assert.equal(registered.at(-1), next, reason);
+    assert.deepEqual(visible(), ['chart-@vfr-sectional']);
+    product.unmount();
+  }
+});
+
+for (const packaged of [false, true]) {
+  test(`${packaged ? 'packaged' : 'sheet'} chart stacks preserve overlay order, exclusivity, and inactive sources`, () => {
+    const { map, layers, visible, added } = mapFixture();
+    const current: CatalogResponse = { ...catalog,
+      charts: CHART_FAMILIES.map(family => ({ ...chart, id: family.id, kind: family.id })),
+      ...(packaged ? { chartPackages: { root: '/charts', maximumArchiveBytes: 1024, archives: [], regions: [] } } : {}),
+    };
+    const id = (family: string) => `chart-${packaged ? '@' : ''}${family}`;
+    let selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
+    const products = CHART_FAMILIES.map(definition => createChartLayer(current, definition));
+    for (const product of [...products].reverse()) {
+      product.update({ catalog: current, selection });
+      product.mount(map);
+    }
+    const order = [...CHART_FAMILIES.map(family => id(family.id)), CHART_LAYER_ANCHOR, 'navigation'];
+    assert.deepEqual(layers, order, 'stack order must not depend on mount order');
+    assert.deepEqual(visible(), [id('vfr-sectional'), id('vfr-terminal')]);
+    const refresh = { ...current, charts: current.charts.map(chart => ({ ...chart, sha256: 'b'.repeat(64) })) };
+    products[0]!.update({ catalog: refresh, selection });
+    assert.deepEqual(layers, order, 'a refreshed sectional must not cover an existing overlay');
+    const additions = added();
+    selection = { base: 'vfr-sectional', overlay: 'vfr-flyway' };
+    products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
+    assert.deepEqual(visible(), [id('vfr-sectional'), id('vfr-flyway')]);
+    selection = { base: 'ifr-low', overlay: 'vfr-flyway' };
+    products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
+    assert.deepEqual(visible(), [id('ifr-low')], 'inactive VFR overlays must not request tiles over IFR');
+    selection = { base: '', overlay: 'vfr-flyway' };
+    products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
+    assert.deepEqual(visible(), []);
+    assert.equal(added(), additions, 'selection changes reuse sources and their whole-file caches');
+    products.forEach(product => product.unmount());
+    assert.deepEqual(layers, [CHART_LAYER_ANCHOR, 'navigation']);
+  });
+}

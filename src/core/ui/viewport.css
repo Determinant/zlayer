@@ -1,0 +1,22 @@
+:root {
+  /* JS supplies visual-viewport geometry; these also work before startup and in fixtures. */
+  --viewport-width: 100vw;
+  --viewport-height: 100dvh;
+  --viewport-left: 0px;
+  --viewport-top: 0px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-width: calc(var(--viewport-width) - var(--safe-left) - var(--safe-right));
+  --safe-height: calc(var(--viewport-height) - var(--safe-top) - var(--safe-bottom));
+  --panel-gap: 8px;
+  --touch-target: 0px;
+  --input-font-size: 14px;
+}
+
+/* any-pointer also covers tablets with a trackpad attached. Components own their
+ * dimensions, but share the same minimum rather than competing touch overrides. */
+@media (any-pointer: coarse) {
+  :root { --touch-target: 44px; --input-font-size: 16px; }
+}

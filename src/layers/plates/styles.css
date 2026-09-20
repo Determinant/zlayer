@@ -1,0 +1,529 @@
+.procedure-state {
+  min-height: 90px;
+  margin: 0 0 14px;
+  padding: 24px 10px;
+  color: #738da1;
+  text-align: center;
+  font-size: 12px;
+}
+
+.procedure-state.is-error {
+  color: #efa7a0;
+}
+
+.procedure-groups {
+  margin-bottom: 14px;
+}
+
+.procedure-group + .procedure-group {
+  margin-top: 12px;
+}
+
+.procedure-group h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 3px 5px;
+  color: #718ca0;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.procedure-group h3 span {
+  color: var(--text-muted);
+}
+
+.procedure-group > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(151, 199, 228, 0.07);
+  color: #d9e9f2;
+  text-align: left;
+  background: rgba(14, 31, 48, 0.65);
+  cursor: pointer;
+}
+
+.procedure-group > button:first-of-type {
+  border-radius: 9px 9px 0 0;
+}
+
+.procedure-group > button:last-of-type {
+  border-bottom: 0;
+  border-radius: 0 0 9px 9px;
+}
+
+.procedure-group > button:only-of-type {
+  border-radius: 9px;
+}
+
+.procedure-group > button:hover,
+.procedure-group > button:focus-visible {
+  outline: none;
+  background: rgba(33, 70, 91, 0.76);
+}
+
+.procedure-group > button > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.procedure-group strong {
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.procedure-group small {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.procedure-group i {
+  color: #5baea9;
+  font-size: 20px;
+  font-style: normal;
+}
+
+.procedure-viewer-backdrop {
+  position: fixed;
+  z-index: 100;
+  top: var(--viewport-top);
+  left: var(--viewport-left);
+  width: var(--viewport-width);
+  height: var(--viewport-height);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  justify-content: flex-end;
+  background: rgba(2, 8, 14, 0.42);
+  backdrop-filter: blur(4px);
+  animation: reveal-procedure-backdrop 180ms ease-out;
+}
+
+.procedure-viewer-backdrop[open] {
+  display: flex;
+}
+
+.procedure-viewer-backdrop::backdrop {
+  background: transparent;
+}
+
+.procedure-viewer {
+  display: grid;
+  width: min(720px, 100%);
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-left: 1px solid rgba(191, 220, 234, 0.24);
+  border-radius: 18px 0 0 18px;
+  background: #101b27;
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.58);
+  animation: slide-in-procedure 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.procedure-viewer-backdrop.is-closing {
+  pointer-events: none;
+  animation: hide-procedure-backdrop 220ms ease-in forwards;
+}
+
+.procedure-viewer-backdrop.is-closing .procedure-viewer {
+  animation: slide-out-procedure 220ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+}
+
+@keyframes slide-in-procedure {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-out-procedure {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes reveal-procedure-backdrop {
+  from {
+    background: rgba(2, 8, 14, 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+@keyframes hide-procedure-backdrop {
+  to {
+    background: rgba(2, 8, 14, 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+.procedure-viewer > header {
+  display: flex;
+  gap: 18px;
+  align-items: start;
+  justify-content: space-between;
+  padding: 15px 17px 13px;
+  border-bottom: 1px solid rgba(151, 199, 228, 0.13);
+  background: rgba(8, 19, 32, 0.98);
+  padding-top: max(15px, env(safe-area-inset-top));
+  padding-right: max(17px, env(safe-area-inset-right));
+  padding-left: max(17px, env(safe-area-inset-left));
+}
+
+.procedure-heading {
+  min-width: 0;
+}
+
+.procedure-viewer > header h2 {
+  margin: 3px 0 2px;
+  font-size: 18px;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.procedure-viewer > header p {
+  margin: 0;
+  color: #738b9d;
+  font-size: 11px;
+}
+
+.procedure-viewer-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.procedure-viewer-actions button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(151, 199, 228, 0.12);
+  border-radius: 9px;
+  color: #8aa1b2;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.procedure-viewer-actions button:hover,
+.procedure-viewer-actions button[aria-pressed="true"] {
+  color: #d9e9f2;
+  background: rgba(33, 70, 91, 0.76);
+}
+
+.procedure-viewer button:focus-visible,
+.procedure-viewer a:focus-visible {
+  outline: 2px solid #68cdbf;
+  outline-offset: -2px;
+}
+
+.procedure-page-stage {
+  position: relative;
+  overflow: auto;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(103, 132, 150, 0.12), transparent 32%),
+    #12171d;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  overflow-anchor: none;
+}
+
+.procedure-page-stage canvas {
+  display: block;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 8px 35px rgba(0, 0, 0, 0.52);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.procedure-page-stage.is-ready canvas {
+  visibility: visible;
+  opacity: 1;
+}
+
+.procedure-page-loading {
+  position: absolute;
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.procedure-page-loading .loading-placeholder {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 440px);
+  height: min(100%, 620px);
+}
+
+.procedure-page-loading .loading-placeholder-rows {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+}
+
+.procedure-page-loading .loading-placeholder-row {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.procedure-download {
+  width: min(100%, 360px);
+  animation: content-reveal 120ms ease-out;
+}
+
+.procedure-download h3 {
+  margin: 0 0 10px;
+  color: #eaf6ff;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.procedure-download p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.procedure-download-meter {
+  height: 6px;
+  margin-top: 24px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #294052;
+}
+
+.procedure-download-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #68cdbf;
+  transition: width 160ms ease-out;
+}
+
+.procedure-download-meter > .is-indeterminate {
+  width: 35%;
+  animation: procedure-download-pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes procedure-download-pulse {
+  to { transform: translateX(185%); }
+}
+
+.procedure-download-amount {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.procedure-download-amount strong {
+  color: #68cdbf;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .procedure-download,
+  .procedure-download-meter > .is-indeterminate { animation: none; }
+  .procedure-download-meter > span { transition: none; }
+}
+
+.procedure-error {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  gap: 5px;
+  color: #ffd8d4;
+  text-align: center;
+}
+
+.procedure-error span {
+  max-width: 520px;
+  color: #d79892;
+  font-size: 12px;
+}
+
+.procedure-viewer > footer {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(151, 199, 228, 0.13);
+  background: rgba(8, 19, 32, 0.98);
+  padding-bottom: max(9px, env(safe-area-inset-bottom));
+  padding-right: max(12px, env(safe-area-inset-right));
+  padding-left: max(12px, env(safe-area-inset-left));
+  flex-wrap: wrap;
+}
+
+.procedure-page-controls,
+.procedure-zoom-controls {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.procedure-viewer > footer button,
+.procedure-viewer > footer a {
+  display: grid;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(151, 199, 228, 0.15);
+  border-radius: 8px;
+  color: #a7bdcb;
+  background: rgba(255, 255, 255, 0.04);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.procedure-viewer > footer button {
+  min-width: 32px;
+}
+
+.procedure-viewer > footer button:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.procedure-viewer > footer a {
+  margin-left: auto;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.procedure-page-controls span,
+.procedure-zoom-controls span,
+.procedure-cache-state {
+  min-width: 75px;
+  color: #7e96a7;
+  text-align: center;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.procedure-cache-state {
+  margin-left: 5px;
+  text-align: left;
+}
+
+.procedure-cache-state.is-cached {
+  color: #68cdbf;
+}
+
+.procedure-cache-state.is-unavailable {
+  color: #b69a77;
+}
+
+@media (max-width: 680px) {
+  .procedure-viewer {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .procedure-viewer > header {
+    padding: 11px 12px 10px;
+    padding-top: max(11px, env(safe-area-inset-top));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-left: max(12px, env(safe-area-inset-left));
+    gap: 8px;
+  }
+
+  .procedure-viewer > header h2 {
+    font-size: 15px;
+  }
+
+  .procedure-viewer > footer {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .procedure-cache-state {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    text-align: center;
+  }
+
+  .procedure-viewer > footer a {
+    margin-left: auto;
+  }
+}
+
+@media (any-pointer: coarse) {
+  .procedure-viewer > footer button,
+  .procedure-viewer > footer a { min-width: 44px; height: 44px; }
+  .procedure-zoom-controls span { min-width: 42px; }
+}
+
+/* A viewport-filling reading mode, including browsers without native fullscreen. */
+.procedure-viewer.is-fullscreen {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.procedure-viewer.is-fullscreen > header {
+  align-items: center;
+  gap: 8px;
+  padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+}
+
+.procedure-viewer.is-fullscreen > header h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.procedure-viewer.is-fullscreen .eyebrow,
+.procedure-viewer.is-fullscreen > header p,
+.procedure-viewer.is-fullscreen .procedure-cache-state,
+.procedure-viewer.is-fullscreen > footer a {
+  display: none;
+}
+
+.procedure-viewer.is-fullscreen .procedure-page-stage {
+  padding: 4px max(4px, env(safe-area-inset-right)) 4px max(4px, env(safe-area-inset-left));
+}
+
+.procedure-viewer.is-fullscreen > footer {
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+}
+
+.procedure-viewer.is-fullscreen .procedure-page-controls span {
+  min-width: 60px;
+}
+
+.procedure-viewer.is-fullscreen .procedure-zoom-controls span {
+  min-width: 36px;
+}

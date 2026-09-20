@@ -1,0 +1,116 @@
+.settings-button {
+  display: grid; place-items: center; flex: 0 0 var(--topbar-control-size);
+  width: var(--topbar-control-size); height: var(--topbar-control-size);
+  border: 1px solid #294052; border-radius: 10px; background: #102333; color: #9dd9d1; cursor: pointer;
+}
+.settings-dialog {
+  --settings-text-size: 15px;
+  --settings-detail-size: 14px;
+  position: fixed;
+  top: calc(var(--viewport-top) + var(--safe-top));
+  left: calc(var(--viewport-left) + var(--safe-left));
+  right: calc(100% - var(--viewport-left) - var(--viewport-width) + var(--safe-right));
+  bottom: calc(100% - var(--viewport-top) - var(--viewport-height) + var(--safe-bottom));
+  width: min(780px, calc(var(--safe-width) - 2 * var(--panel-gap)));
+  height: min(780px, calc(var(--safe-height) - 2 * var(--panel-gap)));
+  max-width: none; max-height: none; margin: auto; padding: 0;
+  overflow: hidden;
+  border: 1px solid #2b4658; border-radius: 18px; background: #091725; color: #dcecf5;
+  box-shadow: 0 24px 90px #0009; text-transform: none; letter-spacing: normal;
+  font-size: var(--settings-text-size); line-height: 1.5;
+}
+.settings-dialog[open] { display: flex; flex-direction: column; }
+.settings-dialog::backdrop { background: #020912b3; backdrop-filter: blur(4px); }
+.settings-heading {
+  flex-shrink: 0; display: flex; align-items: start; justify-content: space-between; gap: 12px;
+  padding: 12px 24px; border-bottom: 1px solid #253b4e; background: #0b1b2b;
+}
+.settings-heading > div { min-width: 0; }
+.settings-heading h2 { margin: 3px 0 0; font-size: 24px; line-height: 1.25; letter-spacing: -.02em; }
+.settings-dialog button {
+  min-width: 0; max-width: 100%; min-height: 44px; padding: 10px 14px;
+  border: 1px solid #315062; border-radius: 8px;
+  background: #153344; color: #a8e3db;
+  font-size: var(--settings-text-size); font-weight: 700; line-height: 1.4; cursor: pointer;
+}
+.settings-dialog :is(input, select) { font-size: max(16px, var(--input-font-size)); line-height: 1.4; }
+.settings-heading > button {
+  display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; line-height: 1;
+}
+.settings-dialog button:disabled { opacity: .45; cursor: default; }
+.settings-dialog button:not(:disabled):hover { background: #204755; }
+.settings-dialog :is(button, input, select, summary):focus-visible, .settings-button:focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }
+.settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 28px; padding: 24px; }
+.settings-downloads { display: grid; gap: 28px; }
+.settings-downloads[hidden] { display: none; }
+.settings-cycle { display: grid; gap: 8px; max-width: 360px; color: #a8bfce; }
+.settings-cycle select {
+  min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #315062;
+  border-radius: 8px; color: #dcecf5; background: #102333;
+}
+.settings-body .settings-cycle-notice { color: #ffc08f; }
+.settings-loading .loading-label { font-size: var(--settings-detail-size); }
+.settings-loading .loading-placeholder-rows { gap: 28px; }
+.settings-loading .loading-placeholder-row { min-height: 120px; }
+.settings-loading .loading-placeholder-row:first-child { min-height: 230px; }
+.settings-body h3 { margin: 0; font-size: 18px; line-height: 1.35; }
+.settings-body h4 { margin: 0; font-size: 16px; line-height: 1.4; }
+.settings-body p { margin: 8px 0; color: #a8bfce; line-height: 1.6; }
+.settings-body summary { font-size: var(--settings-text-size); font-weight: 700; line-height: 1.5; }
+.settings-body code { font-family: var(--font-mono); font-size: var(--settings-detail-size); }
+.pwa-update-settings p:first-of-type { font-size: var(--settings-detail-size); }
+.settings-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.settings-section-heading > span { color: #a8bfce; }
+.storage-summary { padding: 18px; border: 1px solid #294052; border-radius: 12px; background: #0e2231; }
+.storage-guidance { margin-top: 18px; }
+.storage-guidance p strong { color: #dcecf5; }
+.storage-request-result { margin-top: 14px; padding: 12px; border: 1px solid #315062; border-radius: 8px; background: #102333; }
+.storage-request-result.is-protected { border-color: #2c6455; background: #12332d; }
+.storage-request-result.is-protected > strong { color: #83e0c4; }
+.storage-request-result p { margin-bottom: 0; }
+.storage-details { margin-top: 18px; border-top: 1px solid #294052; }
+.storage-details summary { min-height: 44px; padding: 12px 0; color: #a8e3db; cursor: pointer; }
+.settings-dialog progress { display: block; width: 100%; height: 7px; margin: 13px 0; accent-color: #61d6c5; border: none; border-radius: 5px; }
+.settings-dialog progress::-webkit-progress-bar { background: #223a4b; border-radius: 5px; }
+.settings-dialog progress::-webkit-progress-value { background: #61d6c5; border-radius: 5px; }
+.settings-dialog progress::-moz-progress-bar { background: #61d6c5; border-radius: 5px; }
+.offline-tag { padding: 4px 8px; border-radius: 6px; background: #213a4d; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
+.settings-dialog .offline-tag { font-size: var(--settings-detail-size); font-weight: 700; line-height: 1.4; text-transform: none; }
+.offline-tag.is-complete { color: #83e0c4; background: #1a4038; }
+.settings-body .settings-error { color: #ffc08f; }
+.download-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.region-details summary { display: flex; align-items: center; min-height: 44px; color: #a8e3db; cursor: pointer; }
+.region-details summary::before { content: '▸'; margin-right: 8px; }
+.region-details[open] summary::before { content: '▾'; }
+.settings-body .region-cycle { font-size: var(--settings-detail-size); }
+.region-filters { margin: 18px 0; }
+.region-filters label { display: grid; gap: 8px; color: #a8bfce; }
+.region-filters input { min-width: 0; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #315062; border-radius: 8px; color: #dcecf5; background: #102333; }
+.region-filter-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.settings-dialog .region-filter-options [aria-pressed="true"] { border-color: #4c8e83; background: #214b47; color: #d9fff5; }
+.region-list { display: grid; gap: 10px; }
+.region-row { min-width: 0; padding: 16px; border: 1px solid #294052; border-radius: 12px; background: #0e2231; }
+.region-row.is-active { border-color: #61bbae; }
+.region-row-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; min-height: 26px; }
+.region-row-heading h4 { min-width: 0; }
+.region-row-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.region-row-summary > p { flex: 1 1 190px; margin: 0; font-size: var(--settings-detail-size); }
+.region-progress p { margin-bottom: 0; font-size: var(--settings-detail-size); }
+.region-progress progress { margin-bottom: 8px; }
+.region-row .settings-error { overflow-wrap: anywhere; }
+.reset-settings { border-top: 1px solid #294052; }
+.reset-settings summary { min-height: 44px; padding: 12px 0; cursor: pointer; color: #a8e3db; }
+.reset-settings label { display: grid; gap: 8px; max-width: 320px; margin-top: 18px; color: #a8bfce; }
+.reset-settings input { min-width: 0; min-height: 44px; padding: 10px; border: 1px solid #315062; border-radius: 8px; background: #102333; color: #dcecf5; }
+.settings-dialog .reset-delete { border-color: #a45656; color: #ffd0ca; background: #46292d; }
+.settings-dialog .reset-delete:not(:disabled):hover { background: #60343b; }
+.reset-screen { max-width: 560px; margin: 10vh auto; padding: 24px; color: #dcecf5; line-height: 1.6; }
+.reset-screen a, .reset-screen button { display: inline-block; padding: 12px 16px; border: 1px solid #315062; border-radius: 8px; background: #153344; color: #a8e3db; font: inherit; cursor: pointer; }
+@media (max-width: 560px) {
+  .settings-dialog { border-radius: 12px; }
+  .settings-heading { padding: 12px 16px; }
+  .settings-body { padding: 16px; }
+  .settings-section-heading { flex-wrap: wrap; }
+  .region-row { padding: 14px; }
+  .region-row-summary { gap: 10px; }
+}

@@ -1,0 +1,130 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA 28-day NASR subscription"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "navaid:US:CA:CAMARILLO:CMA:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -119.09435519,
+          34.21252102
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "CMA",
+        "type": "VOR/DME",
+        "name": "CAMARILLO",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "CAMARILLO",
+        "state": "CA",
+        "country": "US",
+        "highArtcc": "ZLA",
+        "lowArtcc": "ZLA",
+        "elevationFt": 62.9,
+        "frequency": "116.85",
+        "stationDeclinationDeg": 15,
+        "channel": "115Y",
+        "publicUse": true,
+        "notamId": "CMA"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CA:BAKERSFIELD:EHF:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -119.09729363,
+          35.48455436
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "EHF",
+        "type": "VORTAC",
+        "name": "SHAFTER",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "BAKERSFIELD",
+        "state": "CA",
+        "country": "US",
+        "highArtcc": "ZLA",
+        "lowArtcc": "ZLA",
+        "elevationFt": 549.2,
+        "frequency": "115.4",
+        "stationDeclinationDeg": 14,
+        "channel": "101X",
+        "publicUse": true,
+        "notamId": "BFL"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CA:GORMAN:GMN:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -118.86136027,
+          34.80402861
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "GMN",
+        "type": "VORTAC",
+        "name": "GORMAN",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "GORMAN",
+        "state": "CA",
+        "country": "US",
+        "highArtcc": "ZLA",
+        "lowArtcc": "ZLA",
+        "elevationFt": 4920,
+        "frequency": "116.1",
+        "stationDeclinationDeg": 16,
+        "channel": "108X",
+        "publicUse": true,
+        "notamId": "RIU"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CA:LAKE HUGHES:LHS:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -118.57693805,
+          34.68297333
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "LHS",
+        "type": "VORTAC",
+        "name": "LAKE HUGHES",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "LAKE HUGHES",
+        "state": "CA",
+        "country": "US",
+        "highArtcc": "ZLA",
+        "lowArtcc": "ZLA",
+        "elevationFt": 5790,
+        "frequency": "114.35",
+        "stationDeclinationDeg": 15,
+        "channel": "90Y",
+        "publicUse": true,
+        "notamId": "HHR"
+      }
+    }
+  ],
+  "fixtureSource": {
+    "url": "https://charts.tedyin.com/charts/2026-09-03/nav/navaids.geojson",
+    "generatedAt": "2026-09-18T23:06:12.818Z",
+    "selection": "Unmodified CMA, EHF, GMN and LHS records; collection reduced for offline regression tests."
+  }
+}

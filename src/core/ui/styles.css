@@ -1,0 +1,24 @@
+.panel-scroll {
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(119, 151, 172, 0.4) transparent;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.content-reveal { animation: content-reveal 160ms ease-out; }
+@keyframes content-reveal { from { opacity: 0; } to { opacity: 1; } }
+
+/* Cached responses can finish before a placeholder needs to become visible. */
+.loading-placeholder { animation: content-reveal 120ms ease-out 120ms backwards; }
+.loading-label { display: block; margin-bottom: 12px; color: #91acbd; font-size: 12px; }
+.loading-placeholder-rows { display: grid; gap: 10px; }
+.loading-placeholder-row {
+  display: grid; align-content: center; gap: 10px; min-height: 58px; padding: 14px;
+  border: 1px solid #243b4c; border-radius: 9px; background: #0e2231;
+}
+.loading-placeholder-row > span {
+  display: block; width: 68%; height: 10px; border-radius: 4px; background: #294052;
+  animation: loading-pulse 1.6s ease-in-out infinite;
+}
+.loading-placeholder-row > span + span { width: 42%; height: 8px; }
+@keyframes loading-pulse { 50% { opacity: .45; } }
