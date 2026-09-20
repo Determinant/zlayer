@@ -67,6 +67,109 @@ async function backgroundAhrs(page: Page) {
     .getByRole('button', { name: 'Background', exact: true }).click();
 }
 
+async function mockWakeLock(page: Page, mode: 'granted' | 'pending' | 'denied' | 'unsupported' = 'granted') {
+  await page.addInitScript(mode => {
+    let requests = 0, held = 0, released = 0;
+    const pending: (() => void)[] = [];
+    const report = () => Object.assign(document.body.dataset, {
+      wakeRequests: String(requests), wakeHeld: String(held), wakeReleased: String(released),
+    });
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: mode === 'unsupported' ? undefined : {
+      request: async (type: string) => {
+        if (type !== 'screen') throw new Error(`Unexpected wake lock: ${type}`);
+        requests++; report();
+        if (mode === 'denied') throw new DOMException('Power saving', 'NotAllowedError');
+        if (mode === 'pending') await new Promise<void>(resolve => pending.push(resolve));
+        held++; report();
+        const lock = { released: false, release: async () => {
+          if (lock.released) return;
+          lock.released = true; held--; released++; report();
+        } };
+        return lock;
+      },
+    } });
+    window.addEventListener('test-wake-grant', () => pending.splice(0).forEach(resolve => resolve()));
+  }, mode);
+}
+
+test('screen wake lock follows the visible AHRS display, including full screen and Test', async ({ page }) => {
+  await page.clock.install();
+  await mockWakeLock(page);
+  await openAhrs(page);
+  const body = page.locator('body');
+  await expect(body).not.toHaveAttribute('data-wake-requests');
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
+  await page.clock.runFor(12_000);
+  await page.getByRole('button', { name: 'Enter full screen', exact: true }).click();
+  await page.getByRole('button', { name: 'Exit full screen', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-requests', '1');
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+
+  await backgroundAhrs(page);
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+  expect(await countWatches(page), 'stowing releases only the wake lock').toBe(1);
+  await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+  await expect(body).toHaveAttribute('data-wake-requests', '2');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, 'hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+  await expect(body).toHaveAttribute('data-wake-requests', '3');
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+  await page.getByRole('button', { name: 'Test', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+  await page.getByRole('button', { name: 'Stop test', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+  await expect(body).toHaveAttribute('data-wake-released', '4');
+});
+
+test('a late screen wake lock is released after stowing or canceling calibration', async ({ page }) => {
+  await mockWakeLock(page, 'pending');
+  await openAhrs(page);
+  const body = page.locator('body');
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-requests', '1');
+  await backgroundAhrs(page);
+  await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-requests', '2');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-wake-grant')));
+  await expect(body).toHaveAttribute('data-wake-held', '1');
+  await expect(body).toHaveAttribute('data-wake-released', '1');
+  await page.getByRole('button', { name: 'Cancel calibration', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await expect(body).toHaveAttribute('data-wake-requests', '3');
+  await page.getByRole('button', { name: 'Cancel calibration', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('test-wake-grant')));
+  await expect(body).toHaveAttribute('data-wake-held', '0');
+  await expect(body).toHaveAttribute('data-wake-released', '3');
+});
+
+for (const mode of ['denied', 'unsupported'] as const) {
+  test(`a ${mode} screen wake lock does not interrupt AHRS`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await mockWakeLock(page, mode);
+    await openAhrs(page);
+    await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+    await expect(page.getByRole('progressbar', { name: 'Calibration progress' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel calibration', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Calibrate', exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
 test('magnetic heading fusion uses absolute orientation and suspends on a field jump', async ({ page }) => {
   test.setTimeout(120_000);
   await page.clock.install();
@@ -1039,7 +1142,7 @@ test('denied motion permission explains how to retry without starting GPS', asyn
   expect(await countWatches(page)).toBe(0);
 });
 
-test('stationary HSI keeps its magenta course in north-up and removes it only when GPS is lost', async ({ page }, testInfo) => {
+test('stationary HSI stays relative until usable GPS track returns', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-09-18T12:00:00Z') });
   await openAhrs(page);
   const route = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
@@ -1050,20 +1153,25 @@ test('stationary HSI keeps its magenta course in north-up and removes it only wh
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
   await page.clock.runFor(12_000);
   const hsi = page.getByRole('region', { name: 'Horizontal situation indicator', exact: true });
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('N UP M');
-  await expect(hsi.getByRole('img')).toHaveAttribute('aria-label', /Low Speed\. North up, magnetic reference.*Course 077° magnetic/);
-  await expect(hsi.getByTestId('hsi-caution')).toHaveText('Low Speed');
-  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-deviation')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('REL 000°');
+  await expect(hsi.getByRole('img')).toHaveAttribute('aria-label', /Low Speed\. Relative direction 000°\. Heading unverified/);
+  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Low Speed');
+  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-deviation')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-relative-heading')).toBeVisible();
   await expect(hsi.getByTestId('hsi-heading')).toHaveCount(0);
   await expect(hsi.getByTestId('hsi-track')).toHaveCount(0);
-  await hsi.screenshot({ path: testInfo.outputPath('hsi-stationary-north-up.png') });
+  const compass = await hsi.getByTestId('hsi-compass').getAttribute('transform');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-yaw')));
+  await page.clock.runFor(1000);
+  await expect(hsi.getByTestId('hsi-compass')).not.toHaveAttribute('transform', compass!);
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-steady')));
+  await hsi.screenshot({ path: testInfo.outputPath('hsi-stationary-relative.png') });
   await page.getByRole('combobox', { name: 'HSI route leg' }).selectOption({ index: 2 });
-  await expect(hsi.getByRole('img')).toHaveAttribute('aria-label', /Course 347° magnetic/);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 5 })));
   await page.clock.runFor(1100);
   await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('TRK 077° M');
+  await expect(hsi.getByRole('img')).toHaveAttribute('aria-label', /Course 347° magnetic/);
   await expect(hsi.getByTestId('hsi-caution')).toHaveText('Low Speed');
   await expect(hsi.getByTestId('hsi-course')).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-lost')));

@@ -29,10 +29,7 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
   const guidance = useMemo(() => state.gpsLive && state.position
     ? selected ? legGuidance(selected, state.position) : nearestLeg(legs, state.position, track) : null,
   [state.gpsLive, state.position, selected, legs, track]);
-  // Position still defines the route course at rest. Without a geographic
-  // direction, use a north-up card instead of aligning that course to relative yaw.
-  const northUp = geographicReference === null && guidance !== null;
-  const relative = geographicReference === null && !northUp && inertialLive;
+  const relative = geographicReference === null && inertialLive;
   const referenceName = relative ? 'REL' : heading === null && track !== null ? 'TRK' : 'HDG';
   // Variation changes slowly: evaluate once per fix/height/day, not at IMU cadence.
   const longitude = state.position?.[0], latitude = state.position?.[1];
@@ -44,10 +41,10 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
   const declination = field && field.horizontal >= 6000 && Math.abs(latitude!) < 90 ? field.declination : null;
   const magnetic = !relative && declination !== null;
   // The empty instrument defaults to magnetic heading; TRUE requires an actual reading.
-  const trueReference = !magnetic && (geographicReference !== null || northUp);
+  const trueReference = !magnetic && geographicReference !== null;
   const suffix = trueReference ? 'T' : 'M', referenceLabel = trueReference ? 'true' : 'magnetic';
   const bearing = (value: number | null) => value === null ? null : magneticBearing(value, magnetic ? declination! : 0);
-  const reference = geographicReference ?? (northUp ? declination ?? 0 : relative ? state.attitude!.yaw : null);
+  const reference = geographicReference ?? (relative ? state.attitude!.yaw : null);
   const variationNote = relative ? 'Relative direction · heading unverified'
     : magnetic ? `VAR ${Math.abs(declination!).toFixed(1)}° ${declination! >= 0 ? 'E' : 'W'}`
     : magneticModel && day >= Date.parse(magneticModel.validUntil) ? 'Magnetic model expired'
@@ -55,22 +52,22 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     : 'Magnetic variation unavailable';
   const warning = !state.gpsLive || !state.position ? 'No GPS' : !state.gpsUsable ? 'Low Speed'
     : !legs.length ? 'No route' : !guidance ? 'No usable leg' : '';
-  const available = guidance !== null;
+  // A geographic course cannot be oriented against unaligned relative yaw.
+  const available = guidance !== null && geographicReference !== null;
   const card = bearing(reference) ?? 0;
   const trueCard = reference ?? 0;
   const courseRotation = guidance ? guidance.course - trueCard : 0;
   const side = guidance && Math.abs(guidance.crossTrackNm) >= .005 ? guidance.crossTrackNm > 0 ? 'R' : 'L' : '';
-  const direction = northUp ? `North up, ${referenceLabel} reference. Heading and track unavailable.`
-    : relative ? `Relative direction ${degrees(reference)}. Heading unverified.`
+  const direction = relative ? `Relative direction ${degrees(reference)}. Heading unverified.`
     : reference !== null ? `${referenceName === 'HDG' ? 'Heading' : 'Track'} ${degrees(bearing(reference))} ${referenceLabel}.` : '';
   const description = available
     ? `${warning ? `${warning}. ` : ''}${direction} Course ${degrees(bearing(guidance.course))} ${referenceLabel}, ${guidance.leg.from} to ${guidance.leg.to}. ${nm(guidance.distanceNm)} nautical miles to waypoint. ${side ? `${Math.abs(guidance.crossTrackNm).toFixed(2)} nautical miles ${side === 'R' ? 'right' : 'left'} of course.` : 'On course.'}${heading !== null ? ` True heading ${degrees(heading)}.` : ''}${heading !== null && track !== null ? ` GPS track ${degrees(bearing(track))} ${referenceLabel}.` : ''}`
     : `${warning}.${direction ? ` ${direction}` : ''}`;
   return <section className="ahrs-hsi" aria-label="Horizontal situation indicator">
     <div className="ahrs-hsi-heading"><strong>HSI</strong><span>{relative ? 'IMU · REL'
-      : `${northUp ? 'NORTH UP' : heading !== null ? 'IMU' : 'GPS'} · ${trueReference ? 'TRUE' : 'MAG'}`}</span></div>
+      : `${heading !== null ? 'IMU' : 'GPS'} · ${trueReference ? 'TRUE' : 'MAG'}`}</span></div>
     <div className={`ahrs-hsi-readout${heading !== null || relative ? ' ahrs-hsi-heading-value' : ''}`}>
-      {northUp ? 'N UP' : `${referenceName} ${degrees(bearing(reference))}`}{!relative && ` ${suffix}`}
+      {referenceName} {degrees(bearing(reference))}{!relative && ` ${suffix}`}
     </div>
     <svg viewBox="90 18 140 146" className="ahrs-hsi-dial" role="img" aria-label={`HSI. ${description}`}>
       <circle cx="160" cy="94" r="67" fill="#0a1520" stroke="#39505f" />
@@ -98,10 +95,8 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
           data-testid="hsi-deviation" />
         <path d={guidance.from ? 'm0 31-3-6h6Z' : 'm0 -31-3 6h6Z'} fill="currentColor" />
       </g>}
-      {northUp ? <circle cx="160" cy="94" r="3" fill="#e5edf1" stroke="#091521" strokeWidth="2" /> : <>
-        <path d="M160 80v28m-13-10 13-6 13 6m-18 8 5-2 5 2" fill="none" stroke="#091521" strokeWidth="5" strokeLinejoin="round" />
-        <path d="M160 80v28m-13-10 13-6 13 6m-18 8 5-2 5 2" fill="none" stroke="#e5edf1" strokeWidth="1.5" strokeLinejoin="round" />
-      </>}
+      <path d="M160 80v28m-13-10 13-6 13 6m-18 8 5-2 5 2" fill="none" stroke="#091521" strokeWidth="5" strokeLinejoin="round" />
+      <path d="M160 80v28m-13-10 13-6 13 6m-18 8 5-2 5 2" fill="none" stroke="#e5edf1" strokeWidth="1.5" strokeLinejoin="round" />
       {warning && !available && <g data-testid="hsi-invalid" aria-hidden="true">
         <path d="M113 47 207 141M207 47 113 141" stroke="#ff7074" strokeWidth="2.5" strokeOpacity="0.8" />
         <rect x="108" y="84" width="104" height="20" rx="3" fill="#341c24ee" />

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { ObstructionIndex, isObstructionManifest } from '../src/layers/obstructions/data';
-import { readObstructionFeatures } from '../src/layers/obstructions/stream';
+import { decompressObstructions, readObstructionFeatures } from '../src/layers/obstructions/stream';
 import { parseObstructions, loadObstructions } from '../src/layers/obstructions/api';
 import { obstructionIcon, obstructionMinHeight, obstructionMinZoom, OBSTRUCTION_MIN_ZOOM } from '../src/layers/obstructions/definitions';
 import { VFR_WAYPOINT_MIN_ZOOM } from '../src/layers/navigation/definitions';
@@ -114,6 +114,27 @@ test('wrapped routes and viewports include both sides of the dateline without du
   }
 });
 
+test('obstruction decompression bounds blob reads independently of browser stream chunking', async () => {
+  const points = Array.from({ length: 64 }, (_, i) => {
+    const point = feature(`06-${String(i + 1).padStart(6, '0')}`);
+    point.properties.structureType = randomBytes(2048).toString('base64');
+    return point;
+  });
+  const { bytes, json } = fixture(points), reads: number[] = [];
+  const blob = new Blob([new Uint8Array(bytes)]);
+  Object.defineProperty(blob, 'stream', { value: () => { throw new Error('Unbounded browser chunking'); } });
+  const slice = blob.slice.bind(blob);
+  Object.defineProperty(blob, 'slice', { value: (start: number, end: number) => {
+    reads.push(end - start); return slice(start, end);
+  } });
+  const actual: unknown[] = [];
+  await readObstructionFeatures(decompressObstructions(blob), Buffer.byteLength(json), item => actual.push(item));
+  assert.deepEqual(actual, points);
+  assert.ok(reads.length > 1, 'fixture must span multiple compressed reads');
+  assert.ok(reads.every(size => size > 0 && size <= 64 * 1024));
+  assert.equal(reads.reduce((sum, size) => sum + size, 0), bytes.length);
+});
+
 test('streaming handles split UTF-8, escapes and braces without keeping the whole JSON', async () => {
   const point = feature('06-000001');
   point.properties.structureType = 'TOWER "quoted" \\ { },[] café';
@@ -175,27 +196,28 @@ test('obstruction downloads hash once and cold cache reads reuse a receipt while
   const url = new URL(manifest.dataset.path, manifestUrl).href;
   const fetch = t.mock.method(globalThis, 'fetch', async (url: string) =>
     url === manifestUrl ? Response.json(manifest) : new Response(new Uint8Array(bytes)));
-  let hashedBytes = 0;
+  // Hashing and bounded decompression each read the compressed blob once.
+  let readBytes = 0;
   const slice = Blob.prototype.slice;
   t.mock.method(Blob.prototype, 'slice', function (this: Blob, start?: number, end?: number, type?: string) {
     const part = slice.call(this, start, end, type);
-    hashedBytes += part.size;
+    readBytes += part.size;
     return part;
   });
   await loadObstructions(manifestUrl);
-  assert.equal(hashedBytes, bytes.length);
+  assert.equal(readBytes, 2 * bytes.length);
   assert.equal(stored.get(url)!.headers.get(VERIFIED_SHA256_HEADER), manifest.dataset.sha256);
   fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
   const { index } = await loadObstructions(manifestUrl);
   assert.equal(index.query([-1, -1, 1, 1], [], 10).features.length, 1);
-  assert.equal(hashedBytes, bytes.length, 'cold loads must not repeat the gzip file hash');
+  assert.equal(readBytes, 3 * bytes.length, 'cold loads only read the gzip for decompression');
 
   // A legacy entry without a receipt is verified once, then upgraded atomically.
   stored.set(url, new Response(new Uint8Array(bytes)));
   await loadObstructions(manifestUrl);
-  assert.equal(hashedBytes, 2 * bytes.length);
+  assert.equal(readBytes, 5 * bytes.length);
   await loadObstructions(manifestUrl);
-  assert.equal(hashedBytes, 2 * bytes.length);
+  assert.equal(readBytes, 6 * bytes.length);
 });
 
 test('obstruction network headers cannot bypass hashing, and invalid receipts are reverified', async t => {

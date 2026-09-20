@@ -1,5 +1,20 @@
 import { InvalidDataError } from '../../core/data/errors';
 
+/** WebKit can read a Blob in multi-megabyte chunks and inflate each into one
+ * much larger allocation. Bound the compressed input before decompression. */
+export function decompressObstructions(blob: Blob): ReadableStream<Uint8Array> {
+  let offset = 0;
+  return new ReadableStream<BufferSource>({
+    async pull(controller) {
+      if (offset === blob.size) { controller.close(); return; }
+      const end = Math.min(blob.size, offset + 64 * 1024);
+      const bytes = new Uint8Array(await blob.slice(offset, end).arrayBuffer());
+      offset = end;
+      controller.enqueue(bytes);
+    },
+  }).pipeThrough(new DecompressionStream('gzip'));
+}
+
 /** Read the publisher's FeatureCollection incrementally. The national JSON is
  * hundreds of MB; retain at most a chunk and one feature, never the document. */
 export async function readObstructionFeatures(stream: ReadableStream<Uint8Array>, expectedBytes: number,

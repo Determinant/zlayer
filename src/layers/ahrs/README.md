@@ -37,6 +37,15 @@ their timer, snapshots and route calculations pause while hidden. Reopening
 immediately publishes a fresh snapshot and preserves the selected HSI leg.
 There is no entry in the right-hand layer menu.
 
+While calibration, live attitude or the Test demo is visible, AHRS requests a
+screen wake lock to prevent idle screen sleep. Stowing the toolbox (including
+**Background**), hiding the page, stopping or unmounting releases it; returning to
+an active display requests it again. Full-screen changes retain the same lock.
+This requires browser support and HTTPS. The OS can decline or release the lock
+for power-saving reasons; manual screen locking still works. Safari Home Screen
+web apps support it from iOS/iPadOS 18.4 ([WebKit release notes](https://webkit.org/blog/16574/webkit-features-in-safari-18-4/)).
+Actual device auto-lock behavior still requires phone/tablet verification.
+
 Stopping, canceling calibration, or an unrecoverable fault clears the GPS instruments,
 HSI guidance and GPS-live badge along with the AHRS location lease. A separate
 map GPS consumer can continue tracking, but cannot leave frozen AHRS readings.
@@ -466,12 +475,11 @@ The cross label explains the current limitation:
 
 Calibration and motion faults take priority over GPS limitations. Specific sensor
 problems appear in the explanatory text. The HSI uses the current GPS gates
-independently and also distinguishes No GPS from Low Speed. With a fresh position
-and usable route leg, the HSI keeps its magenta course, CDI, distance and cross-track
-readings at low speed, showing **Low Speed** below the dial without crossing out
-the course. An available heading or ground track orients the card; otherwise a
-labeled **N UP** card shows the course relative to magnetic north (true north when
-variation is unavailable), with a position dot instead of an aircraft heading.
+independently and also distinguishes No GPS from Low Speed. With a fresh position,
+usable route leg and valid heading or ground track, the HSI keeps its magenta
+course, CDI, distance and cross-track readings at low speed, showing **Low Speed**
+below the dial without crossing out the course. Without heading or track, it
+stays in **REL** beneath the **Low Speed** cross and hides route guidance.
 Without a fresh position, route guidance is hidden and the calibrated IMU card
 remains visible beneath the cross; **REL** identifies an unverified heading reference.
 A fresh slow fix remains available in the snapshot (`gpsLive`), while `gpsUsable`

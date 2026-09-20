@@ -6,7 +6,7 @@ import { readArtifact, verifyBlob } from '../../core/storage/artifacts';
 import { verificationReceipt } from '../../core/storage/verification-receipt';
 import { discardResponseBody } from '../../core/storage/response';
 import { isObstructionManifest, ObstructionIndex } from './data';
-import { readObstructionFeatures } from './stream';
+import { decompressObstructions, readObstructionFeatures } from './stream';
 import type { ObstructionManifest } from './types';
 
 export async function parseObstructions(blob: Blob, manifest: ObstructionManifest): Promise<ObstructionIndex> {
@@ -16,7 +16,7 @@ export async function parseObstructions(blob: Blob, manifest: ObstructionManifes
 
 async function indexObstructions(blob: Blob, manifest: ObstructionManifest): Promise<ObstructionIndex> {
   const index = new ObstructionIndex(manifest.dataset.count);
-  await readObstructionFeatures(blob.stream().pipeThrough(new DecompressionStream('gzip')),
+  await readObstructionFeatures(decompressObstructions(blob),
     manifest.dataset.uncompressedBytes, feature => index.add(feature));
   index.finish();
   return index;

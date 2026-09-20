@@ -81,6 +81,20 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
   useEffect(() => () => layer.stop(), [layer]);
   const setup = confirming || state.phase === 'idle' || state.phase === 'error';
   const calibrating = state.phase === 'calibrating' || state.phase === 'requesting';
+  const keepAwake = active && (testing || calibrating || state.phase === 'ready');
+  useEffect(() => {
+    if (!keepAwake || !navigator.wakeLock) return;
+    let cancelled = false, lock: WakeLockSentinel | undefined;
+    void navigator.wakeLock.request('screen').then(acquired => {
+      // Stowing or stopping can happen before the browser grants the request.
+      if (cancelled) void acquired.release().catch(() => {});
+      else lock = acquired;
+    }).catch(() => {}); // Unsupported policy or power-saving must not interrupt AHRS.
+    return () => {
+      cancelled = true;
+      void lock?.release().catch(() => {});
+    };
+  }, [keepAwake]);
   const calibrationPaused = state.phase === 'calibrating' && state.calibrationReason === 'imu-stale';
   const calibrationWaiting = state.phase === 'calibrating' &&
     !['collecting-imu', 'imu-stale', 'pose-changed'].includes(state.calibrationReason);

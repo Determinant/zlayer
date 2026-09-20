@@ -15,9 +15,10 @@ rotation, keyboard-sized viewports and container-only resizing, then selects an
 airport. Map density and tile-cache sizing use MapLibre's defaults.
 
 An iPhone 15 Pro reported Safari's “a problem repeatedly occurred” screen, while
-the reporter's iPad was unaffected. A fresh visit in Linux WebKit did not reproduce
-the process crash; the iOS version, exact trigger and result after the update
-remain unknown. The device difference alone does not establish memory pressure:
+the reporter's iPad was unaffected. The reporter subsequently confirmed that the
+crash persists after an update. A fresh visit in Linux WebKit did not reproduce
+the process crash; the iOS version and exact trigger remain unknown. The device
+difference alone does not establish memory pressure:
 an iPad's larger viewport can have more total backing pixels. The resize cleanup
 removes redundant work, but is not a confirmed repair of the reported failure.
 
@@ -37,6 +38,41 @@ pixel ratio also froze density at map creation, preventing later resizes from
 using an updated display density. Chart tile resolution and the separate PDF
 canvas budget are unaffected. The partial revert passed import/type checks,
 a production build and all six 1×/2×/3× resize cases in Chromium and WebKit.
+
+### Obstruction decompression memory spike
+
+Follow-up isolation found a concrete allocation problem in the obstruction
+loader. For the 656,056-record published dataset (16,568,035 gzip bytes expanding
+to 277,404,929 JSON bytes), Playwright 1.63 Linux WebKit read `Blob.stream()` in
+two chunks, up to 8 MiB each. `DecompressionStream` emitted two correspondingly
+large chunks, up to 142,775,846 bytes. The incremental parser therefore still
+decoded and scanned roughly half the national document at once.
+
+The loader now reads at most 64 KiB of compressed data per pull, before passing
+it to the decompressor. In an isolated worker parsing the same dataset, the
+largest decompressed chunk fell to 1,386,852 bytes and sampled WebKit content
+process peak RSS fell from 2,043 to 513 MiB. Both runs parsed all 656,056 records.
+The 64 KiB input bound does not promise an identical output chunk size for other
+datasets or browser implementations.
+
+A fresh full-app comparison at 3× iPhone 15 Pro viewport density, with layers
+enabled and ownship disabled, reduced sampled content-process peak RSS from
+2,768 to 1,548 MiB. The comparison used the same published app/data, substituting
+only the rebuilt obstruction worker in the second browser context. These are
+Linux WebKit RSS measurements, not iOS memory footprints or a reproduced phone
+termination. An on-device retest is still required to confirm the crash is fixed.
+
+The regression checks bounded reads independently of browser blob chunking and
+complete record recovery across multiple compressed chunks. Existing validation
+still checks gzip integrity, hash/size/count mismatches, cache receipts and
+corrupt downloads. Layer visibility, symbol detail and map density are unchanged.
+
+Validation passed import/type checks, a production build, all 12 obstruction
+unit tests and 13 of 14 obstruction browser cases in Chromium/WebKit. The remaining
+WebKit assertion expects no repeat gzip download after toggling/remounting; it
+observed three downloads instead of one on both the original `4d19d2f` source and
+the patched source. Rendering assertions in that case passed. That cache-reuse
+failure remains separate from the bounded-decompression change.
 
 ## Terrain incident and cause
 
