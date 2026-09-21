@@ -1,3 +1,4 @@
+import { isMagneticModel, type MagneticModel } from '../../core/geo/magnetic-model';
 import type {
   Bounds,
   CatalogResponse,
@@ -372,4 +373,12 @@ function isSafeFilename(value: unknown): value is string {
 
 function isTimestamp(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+/** Uses the same validated, durable JSON cache as the other chart reference data. */
+export async function fetchMagneticModel(revision: string, signal?: AbortSignal): Promise<MagneticModel> {
+  const resource = await fetchMagneticModelResource(revision, signal);
+  return fetchJson(resource.url, (value): value is MagneticModel => isMagneticModel(value) &&
+    value.effectiveDate === revision && value.coefficients.length === resource.count,
+  'Geographic magnetic model', signal ? { signal } : {});
 }

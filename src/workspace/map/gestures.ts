@@ -5,9 +5,12 @@ import { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID, t
 import { routeEditTarget } from '../../layers/routes/editing';
 import { routePointKeys } from '../../layers/routes/selection';
 import { unwrapRouteCoordinates } from '../../layers/routes/geometry';
+import { routeSnapFeature, ROUTE_SNAP_RADIUS_PX, type RouteSnap } from '../../layers/routes/snapping';
 import type { NearbyFeature, SelectFeature } from '../feature-selection';
+import { renderedSnapBounds } from './snap-bounds';
 
 type GestureOptions = {
+  toolActive?: () => boolean;
   route: () => RoutePlan;
   canEditRoute: () => boolean;
   interactiveLayerIds: () => string[];
@@ -24,19 +27,21 @@ type GestureOptions = {
 type RouteDragState = {
   target: RouteEditTarget;
   revision: number;
-  candidate: GeoPointFeature | undefined;
+  pointer: 'mouse' | 'touch';
+  excludedFeatures: GeoPointFeature[];
+  snap: RouteSnap | undefined;
   coordinate: GeoPointFeature | undefined;
   allowCoordinateDrop: boolean;
   dragPanWasEnabled: boolean;
   touchZoomWasEnabled: boolean;
   startPoint: [number, number];
+  lastPoint: [number, number];
   distancePx: number;
   active: boolean;
 };
 
-const SNAP_RADIUS_PX = 24;
 const DRAG_THRESHOLD_PX = 6;
-const SNAP_OFF_RADIUS_PX = 28;
+const REMOVE_DISTANCE_PX = 28;
 const NEARBY_RADIUS_PX = 30;
 const LONG_PRESS_MS = 550;
 
@@ -56,6 +61,14 @@ export class MapGestures {
       map.on(type, listener);
       this.#unbind.push(() => { map.off(type, listener); });
     };
+    // A new physical press starts a new click sequence. Compatibility mouse
+    // events after a touch release do not emit another pointerdown.
+    const canvas = map.getCanvas();
+    const pointerDown = (event: PointerEvent) => {
+      if (event.isPrimary && event.button === 0) this.#clearClickSuppression();
+    };
+    canvas.addEventListener('pointerdown', pointerDown);
+    this.#unbind.push(() => canvas.removeEventListener('pointerdown', pointerDown));
     on('click', (event) => this.#selectFeature(event));
     on('contextmenu', (event) => {
       event.preventDefault();
@@ -70,10 +83,10 @@ export class MapGestures {
       this.#setPointerCursor(event);
     });
     on('touchmove', (event) => { this.#updateRouteDrag(event); this.#cancelNearbyLongPressIfMoved(event); });
-    on('mouseup', () => this.#finishRouteDrag());
+    on('mouseup', (event) => this.#endRouteDrag(event));
     // MapLibre's touchend points are changedTouches, not the remaining touches.
     on('touchend', (event) => {
-      this.#finishRouteDrag(event.originalEvent.touches.length === 0);
+      this.#endRouteDrag(event);
       this.#cancelNearbyLongPress();
       if (this.#longPressHandled) {
         // The compatibility mouse events from this release would steal focus
@@ -84,32 +97,37 @@ export class MapGestures {
         this.#longPressHandled = false;
       }
     });
-    on('touchcancel', () => { this.#finishRouteDrag(false); this.#cancelNearbyLongPress(); });
+    on('touchcancel', event => this.#finishDragOutsideMap(event.originalEvent));
     window.addEventListener('mouseup', this.#finishDragOutsideMap);
     window.addEventListener('touchend', this.#finishDragOutsideMap);
     window.addEventListener('touchcancel', this.#finishDragOutsideMap);
+    window.addEventListener('blur', this.#cancelGesture);
+    window.addEventListener('keydown', this.#cancelOnEscape);
   }
 
   get dragging(): boolean { return this.#routeDrag !== undefined; }
-  cancelRouteDrag(): void { this.#finishRouteDrag(false); }
+  cancelInteractions(): void { this.#cancelGesture(); }
+  cancelRouteDrag(): void {
+    if (!this.#routeDrag) return;
+    this.#finishRouteDrag(false);
+    this.#cancelNearbyLongPress();
+  }
 
   destroy(): void {
-    this.#finishRouteDrag(false);
+    this.#cancelGesture();
     for (const unbind of this.#unbind.splice(0)) unbind();
     if (this.#suppressClickTimer !== undefined) window.clearTimeout(this.#suppressClickTimer);
-    if (this.#nearbyLongPress) window.clearTimeout(this.#nearbyLongPress.timer);
     window.removeEventListener('mouseup', this.#finishDragOutsideMap);
     window.removeEventListener('touchend', this.#finishDragOutsideMap);
     window.removeEventListener('touchcancel', this.#finishDragOutsideMap);
+    window.removeEventListener('blur', this.#cancelGesture);
+    window.removeEventListener('keydown', this.#cancelOnEscape);
   }
 
   #selectFeature(event: MapMouseEvent): void {
+    if (this.options.toolActive?.()) return;
     if (this.#suppressClick) {
-      this.#suppressClick = false;
-      if (this.#suppressClickTimer !== undefined) {
-        window.clearTimeout(this.#suppressClickTimer);
-        this.#suppressClickTimer = undefined;
-      }
+      this.#clearClickSuppression();
       return;
     }
     const features = this.#map.queryRenderedFeatures(event.point, {
@@ -123,7 +141,8 @@ export class MapGestures {
 
   #showNearby(point: MapMouseEvent['point']): void {
     const nearby: NearbyFeature[] = [];
-    const longitude = this.#map.unproject(point).lng;
+    const coordinate = this.#map.unproject(point);
+    const longitude = coordinate.lng;
     const pointKeys = routePointKeys(this.options.route());
     for (const [routeIndex, waypoint] of this.options.route().waypoints.entries()) {
       if (this.#featureDistance(waypoint.feature, point, longitude) <= NEARBY_RADIUS_PX) {
@@ -144,10 +163,11 @@ export class MapGestures {
     nearby.push(...[...unique.values()].map(feature => ({ feature })));
     if ((nearby.length > 1 || nearby[0]?.routeIndex !== undefined) && this.options.onChooseNearby) {
       this.options.onChooseNearby(nearby, { x: point.x, y: point.y });
-    } else this.options.onSelect(nearby[0]?.feature, nearby[0]?.routePointId);
+    } else this.options.onSelect(nearby[0]?.feature ?? routeCoordinateFeature([longitude, coordinate.lat]), nearby[0]?.routePointId);
   }
 
   #contextAction(point: MapMouseEvent['point']): void {
+    if (this.options.toolActive?.()) return;
     this.cancelRouteDrag();
     if (!this.options.onContextAction?.(point)) this.#showNearby(point);
   }
@@ -155,6 +175,7 @@ export class MapGestures {
   #startNearbyLongPress(event: MapTouchEvent): void {
     this.#cancelNearbyLongPress();
     this.#longPressHandled = false;
+    if (this.options.toolActive?.()) return;
     if (event.points.length !== 1) return;
     const point: [number, number] = [event.point.x, event.point.y];
     const timer = window.setTimeout(() => {
@@ -182,6 +203,7 @@ export class MapGestures {
   }
 
   #setPointerCursor(event: MapMouseEvent): void {
+    if (this.options.toolActive?.()) return;
     if (this.#routeDrag) {
       this.#map.getCanvas().style.cursor = 'grabbing';
       return;
@@ -195,7 +217,7 @@ export class MapGestures {
 
   #startRouteDrag(event: MapMouseEvent | MapTouchEvent): void {
     // GeoJSON hit features can lag behind comparison state while the worker updates.
-    if (!this.options.canEditRoute()) return;
+    if (this.options.toolActive?.() || !this.options.canEditRoute()) return;
     if ('points' in event && event.points.length !== 1) {
       this.#finishRouteDrag(false);
       return;
@@ -222,6 +244,9 @@ export class MapGestures {
     identity: RouteEditTarget,
   ): void {
     if (this.#routeDrag) return;
+    const route = this.options.route();
+    const leg = identity.kind === 'leg' ? route.legs.find(leg => leg.edit?.afterEntryId === identity.afterEntryId) : undefined;
+    const waypoint = identity.kind === 'waypoint' ? route.waypoints.find(point => point.edit?.entryId === identity.entryId) : undefined;
     event.preventDefault();
     const dragPanWasEnabled = this.#map.dragPan.isEnabled();
     const touchZoomWasEnabled = this.#map.touchZoomRotate.isEnabled();
@@ -229,14 +254,16 @@ export class MapGestures {
     if (touchZoomWasEnabled) this.#map.touchZoomRotate.disable();
     this.#routeDrag = {
       target: identity,
-      revision: this.options.route().revision,
-      candidate: undefined,
+      revision: route.revision,
+      pointer: 'points' in event ? 'touch' : 'mouse',
+      excludedFeatures: leg ? [leg.from.feature, leg.to.feature] : waypoint ? [waypoint.feature] : [],
+      snap: undefined,
       coordinate: undefined,
-      allowCoordinateDrop: identity.kind === 'leg' || this.options.route().waypoints.some(
-        waypoint => waypoint.edit?.entryId === identity.entryId && waypoint.feature.properties.kind === 'coordinate'),
+      allowCoordinateDrop: identity.kind === 'leg' || waypoint?.feature.properties.kind === 'coordinate',
       dragPanWasEnabled,
       touchZoomWasEnabled,
       startPoint: [event.point.x, event.point.y],
+      lastPoint: [event.point.x, event.point.y],
       distancePx: 0,
       active: false,
     };
@@ -244,12 +271,12 @@ export class MapGestures {
   }
 
   #updateRouteDrag(event: MapMouseEvent | MapTouchEvent): void {
+    const drag = this.#routeDrag;
+    if (!drag || drag.pointer !== ('points' in event ? 'touch' : 'mouse')) return;
     if ('points' in event && event.points.length !== 1) {
-      this.#finishRouteDrag(false);
+      this.cancelRouteDrag();
       return;
     }
-    const drag = this.#routeDrag;
-    if (!drag) return;
     if (!this.options.canEditRoute() || drag.revision !== this.options.route().revision) {
       this.#finishRouteDrag(false);
       return;
@@ -260,14 +287,36 @@ export class MapGestures {
     );
     if (!drag.active && drag.distancePx < DRAG_THRESHOLD_PX) return;
     drag.active = true;
-    const candidate = this.#nearestSnapFeature(event);
+    this.#cancelNearbyLongPress();
+    drag.lastPoint = [event.point.x, event.point.y];
+    drag.snap = this.#nearestSnapFeature(event, drag);
+    const candidate = drag.snap?.feature;
     drag.coordinate = !candidate && drag.allowCoordinateDrop
       ? routeCoordinateFeature([event.lngLat.lng, event.lngLat.lat]) : undefined;
-    const coordinate = candidate?.geometry.coordinates ?? drag.coordinate?.geometry.coordinates ?? [event.lngLat.lng, event.lngLat.lat];
-    drag.candidate = candidate;
+    const coordinate = candidate?.geometry.coordinates ?? [event.lngLat.lng, event.lngLat.lat];
     this.options.preview({ route: this.options.route(), preview: {
       target: drag.target, revision: drag.revision, coordinate, snapped: candidate !== undefined,
     } });
+  }
+
+  #endRouteDrag(event: MapMouseEvent | MapTouchEvent): void {
+    const drag = this.#routeDrag;
+    if (!drag || drag.pointer !== ('points' in event ? 'touch' : 'mouse')) return;
+    if (!('points' in event) && event.originalEvent.button !== 0) return;
+    const canvas = this.#map.getCanvas();
+    // Touch events stay targeted at the canvas even when the finger leaves it.
+    if ('points' in event && (event.originalEvent.touches.length !== 0 || event.points.length !== 1) ||
+      event.point.x < 0 || event.point.y < 0 || event.point.x > canvas.clientWidth || event.point.y > canvas.clientHeight) {
+      this.cancelRouteDrag();
+      return;
+    }
+    // Preserve the preview at an unchanged pointer position: a source/label
+    // refresh must not choose a new drop target only on release. A release can
+    // update an active drag's final position, but cannot start an unseen edit.
+    if (drag.active && (event.point.x !== drag.lastPoint[0] || event.point.y !== drag.lastPoint[1])) {
+      this.#updateRouteDrag(event);
+    }
+    this.#finishRouteDrag();
   }
 
   #finishRouteDrag(commit = true): void {
@@ -281,54 +330,54 @@ export class MapGestures {
     this.options.preview({ route: this.options.route() });
     // Tile properties suffice for the drag preview. Restore the full reference
     // only for a committed drop, never once per candidate on every move event.
-    const dropFeature = commit && drag.active && drag.candidate
-      ? this.options.resolveFeature?.(drag.candidate) ?? drag.candidate : drag.coordinate;
+    const candidate = drag.snap?.feature;
+    const dropFeature = commit && drag.active && candidate
+      ? this.options.resolveFeature?.(candidate) ?? candidate : drag.coordinate;
     if (commit && drag.active && drag.target.kind === 'leg' && dropFeature) {
       this.options.onRouteLegInsert(drag.target.afterEntryId, dropFeature);
     }
     if (commit && drag.active && drag.target.kind === 'waypoint') {
       if (dropFeature) {
         this.options.onRouteWaypointReplace(drag.target.entryId, dropFeature);
-      } else if (drag.distancePx >= SNAP_OFF_RADIUS_PX) {
+      } else if (drag.distancePx >= REMOVE_DISTANCE_PX) {
         this.options.onRouteWaypointRemove(drag.target.entryId);
       }
     }
-    if (commit && drag.active) this.#suppressNextClick();
+    if (drag.active) this.#suppressNextClick();
   }
 
-  #nearestSnapFeature(event: MapMouseEvent | MapTouchEvent): GeoPointFeature | undefined {
+  #nearestSnapFeature(event: MapMouseEvent | MapTouchEvent, drag: RouteDragState): RouteSnap | undefined {
     const { x, y } = event.point;
+    const layers = this.options.interactiveLayerIds();
     const features = this.#map.queryRenderedFeatures(
-      [[x - SNAP_RADIUS_PX, y - SNAP_RADIUS_PX], [x + SNAP_RADIUS_PX, y + SNAP_RADIUS_PX]],
-      { layers: this.options.interactiveLayerIds() },
+      [[x - ROUTE_SNAP_RADIUS_PX, y - ROUTE_SNAP_RADIUS_PX], [x + ROUTE_SNAP_RADIUS_PX, y + ROUTE_SNAP_RADIUS_PX]],
+      { layers },
     ).filter(isPointFeature);
-    const drag = this.#routeDrag;
-    const leg = drag?.target.kind === 'leg'
-      ? this.options.route().legs.find(
-          (candidate) => candidate.edit?.afterEntryId === (drag.target.kind === 'leg' ? drag.target.afterEntryId : undefined),
-        )
-      : undefined;
-    const waypoint = drag?.target.kind === 'waypoint'
-      ? this.options.route().waypoints.find((candidate) => candidate.edit?.entryId === (drag.target.kind === 'waypoint' ? drag.target.entryId : undefined))
-      : undefined;
     const candidates = features
       // A GPS marker has no feature ID, and its preview has already moved away
       // from the original coordinate. Exclude it by entry identity before stripping
       // editing properties, so it cannot snap to its own marker or label.
-      .filter(feature => !(drag?.target.kind === 'waypoint' && feature.source === ROUTE_SOURCE_ID &&
+      .filter(feature => !(drag.target.kind === 'waypoint' && feature.source === ROUTE_SOURCE_ID &&
         feature.properties.editEntryId === drag.target.entryId))
       .map(toPointFeature)
-      .filter((feature) => !leg || (
-        !sameFeature(feature, leg.from.feature) && !sameFeature(feature, leg.to.feature)
-      ))
-      .filter((feature) => !waypoint || !sameFeature(feature, waypoint.feature));
-    let nearest: GeoPointFeature | undefined;
-    let nearestDistance = Infinity;
-    for (const feature of candidates) {
-      const distance = this.#featureDistance(feature, event.point, event.lngLat.lng);
-      if (distance < nearestDistance) { nearest = feature; nearestDistance = distance; }
-    }
-    return nearest;
+      .filter(feature => !drag.excludedFeatures.some(excluded => sameFeature(feature, excluded)));
+    const coordinate = (feature: GeoPointFeature) =>
+      unwrapRouteCoordinates([feature.geometry.coordinates], event.lngLat.lng)[0]!;
+    const project = (feature: GeoPointFeature) => this.#map.project(coordinate(feature));
+    return routeSnapFeature(candidates, drag.snap, feature => {
+      const anchor = project(feature);
+      return [x - anchor.x, y - anchor.y];
+    }, feature => {
+      const matches = (candidate: MapGeoJSONFeature) => isPointFeature(candidate) && sameFeature(feature, toPointFeature(candidate));
+      const sources = new Set(features.filter(matches).map(candidate => candidate.source));
+      // Include the target's other icon/label layers, without scanning unrelated
+      // navigation sources while measuring its captured hit area.
+      const targetLayers = layers.filter(id => {
+        const source = this.#map.getLayer(id)?.source;
+        return source !== undefined && sources.has(source);
+      });
+      return renderedSnapBounds(this.#map, feature, targetLayers, coordinate(feature), matches);
+    });
   }
 
   #featureDistance(feature: GeoPointFeature, point: MapMouseEvent['point'], longitude: number): number {
@@ -354,9 +403,26 @@ export class MapGestures {
     }, 400);
   }
 
+  #clearClickSuppression(): void {
+    this.#suppressClick = false;
+    if (this.#suppressClickTimer !== undefined) window.clearTimeout(this.#suppressClickTimer);
+    this.#suppressClickTimer = undefined;
+  }
+
   #finishDragOutsideMap = (event: Event): void => {
-    this.#finishRouteDrag(event.type !== 'touchcancel' &&
-      (!('touches' in event) || (event as TouchEvent).touches.length === 0));
+    if (event.type === 'mouseup' && (this.#routeDrag?.pointer !== 'mouse' || (event as MouseEvent).button !== 0)) return;
+    if (event.type !== 'mouseup' && this.#routeDrag?.pointer === 'mouse') return;
+    // An in-map release already committed with its actual position. A release
+    // reaching only the window must never commit the last in-map preview.
+    this.#cancelGesture();
+  };
+
+  #cancelGesture = (): void => { this.cancelRouteDrag(); this.#cancelNearbyLongPress(); };
+  #cancelOnEscape = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && (this.#routeDrag || this.#nearbyLongPress)) {
+      event.preventDefault();
+      this.#cancelGesture();
+    }
   };
 }
 

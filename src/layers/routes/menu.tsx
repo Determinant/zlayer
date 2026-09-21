@@ -6,8 +6,9 @@ import { RouteStashDialog, type RouteStashView } from './stash-dialog';
 
 type ExportAction = 'copy' | 'share';
 
-export function RouteMenu({ plan, onOpen, onClear, onLoadRoute }: {
+export function RouteMenu({ plan, onOpen, onClear, onLoadRoute, navlogOpen, navlogId, onToggleNavlog }: {
   plan: RoutePlan; onOpen: () => void; onClear: () => void; onLoadRoute: (draft: RouteDraft) => void;
+  navlogOpen: boolean; navlogId: string; onToggleNavlog: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -167,6 +168,9 @@ export function RouteMenu({ plan, onOpen, onClear, onLoadRoute }: {
     </button>
     {open && <div className={`route-menu-popover${exportAction ? ' has-export-formats' : ''}`}>
       <div id={id} role="menu" aria-label="Route actions" ref={menuRef}>
+        <button type="button" role="menuitem" aria-expanded={navlogOpen} aria-controls={navlogOpen ? navlogId : undefined}
+          onClick={() => { close(); onToggleNavlog(); }}>{navlogOpen ? 'Hide' : 'Show'} NavLog</button>
+        <div role="separator" />
         <button type="button" role="menuitem" ref={copyButtonRef} disabled={!text}
           aria-haspopup="menu" aria-expanded={exportAction === 'copy'}
           aria-controls={exportAction === 'copy' ? `${id}-copy-formats` : undefined}

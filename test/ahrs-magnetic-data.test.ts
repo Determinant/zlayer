@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { fetchMagneticModel } from '../src/layers/ahrs/magnetic-data';
+import { fetchMagneticModel } from '../src/workspace/catalog/catalog';
 import { cacheFixture } from './helpers/cache';
 
 const model = JSON.parse(readFileSync(new URL('./fixtures/magnetic-model.json', import.meta.url), 'utf8'));

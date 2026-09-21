@@ -4,6 +4,7 @@ import { Fragment, useEffect, useId, useRef, type CSSProperties } from 'react';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { useBackDismiss } from '../core/ui/pwa-back';
 import { isBoolean } from '../core/storage/ui-state';
+import '../core/ui/map-tool-button.css';
 
 import type {
   NavigationData,
@@ -110,7 +111,7 @@ export function LayerMenu({
     <div className="layer-menu" ref={menuRef}>
       <button
         ref={buttonRef}
-        className={`layer-control-button ${open ? 'is-open' : ''}`}
+        className={`map-tool-button layer-control-button ${open ? 'is-open' : ''}`}
         type="button"
         aria-label={open ? 'Close map layers' : 'Open map layers'}
         aria-expanded={open}

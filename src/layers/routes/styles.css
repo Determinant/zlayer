@@ -192,17 +192,21 @@
   padding: 0;
 }
 
-.route-token {
-  --token-color: #61bfff;
+:is(.route-token, .route-navlog-waypoint) {
+  --token-color: #7cc9f5;
+  color: color-mix(in srgb, var(--token-color) 65%, #f4faff);
+}
 
+.route-token {
   position: relative;
+  /* Keep the tinted surface above the editor background, behind its label. */
+  isolation: isolate;
   display: flex;
   align-items: center;
   height: max(26px, var(--touch-target));
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 7px;
-  color: color-mix(in srgb, var(--token-color) 25%, #f4faff);
   background: transparent;
   cursor: grab;
   touch-action: manipulation;
@@ -282,16 +286,19 @@
   right: -3px;
 }
 
-.route-token.is-fixes,
-.route-token.is-vfr-waypoints {
-  --token-color: #69c9ff;
+:is(.route-token, .route-navlog-waypoint).is-fixes {
+  --token-color: #b8bec5;
 }
 
-.route-token.is-navaids {
-  --token-color: #b997ff;
+:is(.route-token, .route-navlog-waypoint).is-vfr-waypoints {
+  --token-color: #e7c778;
 }
 
-.route-token.is-ndb {
+:is(.route-token, .route-navlog-waypoint).is-navaids {
+  --token-color: #bca7ec;
+}
+
+:is(.route-token, .route-navlog-waypoint).is-ndb {
   --token-color: #9eafc2;
 }
 
@@ -468,6 +475,7 @@ details.route-summary { display: block; }
 
 .route-issues {
   position: absolute;
+  z-index: 30;
   top: calc(100% + 6px);
   right: 12px;
   width: min(430px, calc(var(--safe-width) - 24px));

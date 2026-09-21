@@ -34,6 +34,7 @@ src/
     terrain/               route/viewport DEM demand, packaged elevation, worker, contours and fill
     obstructions/          FAA Daily DOF loader, compact worker index, viewport/route symbols
     ownship/               shared device GPS watch, ground track, one-minute projection and status
+    ruler/                 temporary distance/bearing measurement, offset grips and map input
     ahrs/                  estimator, calibration, attitude/GPS instruments, HSI and recording
   offline/                 region lifecycle, snapshots, retention and availability
     compatibility/         legacy plan, bundle and supplement migrations
@@ -113,6 +114,7 @@ there is no mandatory map dependency or universal refresh timer.
 | Obstructions | Controls/legend and `map.ts` adapter | Validated FAA Daily DOF, worker index, viewport height thresholds, route corridor fading and source date |
 | GPS aircraft | Controls/status, snapshot subscription, shared GPS leases and `map.ts` adapter | Device location watch, fix freshness, ground track and one-minute projection |
 | AHRS | `AhrsTool`, calibration/stop commands and snapshot subscription | Local estimator, motion permission, flight leveling/gyro calibration, GPS instruments, HSI and recordings |
+| Ruler | `RulerTool`, snapshot/actions and `map.ts` | Temporary two-point measurement, magnetic bearings, offset grips and mouse/touch placement |
 
 `metar-taf/airport-weather.tsx` composes two instances of `station-weather.tsx`,
 which owns selection, the station dropdown, refresh and cleanup. `nearby-stations.ts`
@@ -122,7 +124,7 @@ request formats, retry policies and cache keys (`zlayers.metars.v1` and `zlayers
 Selections and refresh timers remain independent. The METAR map identity and saved
 visibility setting remain `metar`; the directory name describes the module's scope.
 
-`workspace/products.ts` creates stable METAR, plates, GPS aircraft and AHRS instances
+`workspace/products.ts` creates stable METAR, plates, GPS aircraft, AHRS and ruler instances
 for the workspace. AHRS uses a lease on the shared GPS source and appears as a map-edge
 tool, without a right-hand layer toggle. The lease does not require a GPS fix for
 calibration or live attitude: the cross warns of missing/slow GPS or high tilt

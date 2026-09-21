@@ -14,6 +14,7 @@ import type { MapView } from './style';
 import type { NearbyFeature, SelectFeature } from '../feature-selection';
 import type { NavaidIdentification } from '../../layers/navigation/identification-layer';
 import type { PlatesController } from '../../layers/plates/layer';
+import type { RulerLayer } from '../../layers/ruler';
 
 export type MapInputs = {
   catalog: CatalogReadSource;
@@ -30,6 +31,7 @@ export type MapInputs = {
   terrainAltitude: number | null;
   ownshipEnabled: boolean;
   identification?: NavaidIdentification;
+  inspectedCoordinate?: GeoPointFeature | undefined;
 };
 
 export type MapCallbacks = {
@@ -48,4 +50,5 @@ export type MapCallbacks = {
   onError: (message: string, code?: ResourceErrorCode) => void;
 };
 
-export type MapAttachment = { metarLayer: ReturnType<typeof createMetarLayer>; ownshipLayer: OwnshipLayer; platesLayer?: PlatesController };
+export type MapAttachment = { metarLayer: ReturnType<typeof createMetarLayer>; ownshipLayer: OwnshipLayer;
+  platesLayer?: PlatesController; rulerLayer?: RulerLayer };

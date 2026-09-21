@@ -1,6 +1,9 @@
 import { isRecord, isIsoDate } from '@zlayer/contracts';
-import { validPosition, type Position } from './navigation';
-import { RAD, wrap } from './estimator/math';
+type Position = readonly [longitude: number, latitude: number];
+const RAD = Math.PI / 180;
+const wrap = (degrees: number) => ((degrees % 360) + 360) % 360;
+const validPosition = (position: Position) => position.length === 2 && position.every(Number.isFinite) &&
+  Math.abs(position[0]) <= 180 && Math.abs(position[1]) <= 90;
 
 type Coefficient = readonly [n: number, m: number, g: number, h: number, gDot: number, hDot: number];
 export type MagneticModel = {

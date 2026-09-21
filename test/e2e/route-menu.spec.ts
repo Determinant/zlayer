@@ -63,6 +63,8 @@ test('desktop copy expands a keyboard-accessible format menu and copies the sele
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.click();
   const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
+  await expect(page.getByRole('menuitem', { name: 'Show NavLog', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(copy).toBeFocused();
   await page.keyboard.press('ArrowRight');
   const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
@@ -310,7 +312,7 @@ test('route menu replaces a token menu and stays within a short landscape viewpo
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.focus();
   await trigger.press('ArrowDown');
-  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Show NavLog', exact: true })).toBeFocused();
   await expect(page.getByRole('menuitem', { name: 'Replace route item', exact: true })).toHaveCount(0);
   const popover = (await page.locator('.route-menu-popover').boundingBox())!;
   expect(popover.y + popover.height).toBeLessThanOrEqual(320);

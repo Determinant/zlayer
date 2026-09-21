@@ -1,5 +1,5 @@
 import { createRouteEntry, type RouteDraft, type RouteEntry, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
-import { sameRouteApproach, sameRouteDeparture } from './draft';
+import { sameRouteDraft } from './draft';
 
 /** Published items which supply this point, or depend on it as an endpoint. */
 export function routeItemsForPoint(plan: RoutePlan, point: RouteWaypoint): RouteEntry[] {
@@ -23,12 +23,7 @@ export function removeRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Rout
   // Coded procedure children cannot be flattened into ordinary editable fixes.
   if (point.owners.some(owner => owner.kind === 'approach')) return draft;
   if (!point.edit && plan.entries[point.source.tokenIndex]?.departure) return draft;
-  if (!plan.waypoints.includes(point) || draft.entries.length !== plan.entries.length ||
-    draft.entries.some((entry, index) => {
-      const resolved = plan.entries[index]!;
-      return entry.id !== resolved.id || entry.text !== resolved.text || entry.pinnedFeatureId !== resolved.pinnedFeatureId ||
-        !sameRouteApproach(entry.approach, resolved.approach) || !sameRouteDeparture(entry.departure, resolved.departure);
-    })) return draft;
+  if (!plan.waypoints.includes(point) || !sameRouteDraft(draft, plan)) return draft;
   const expand = new Set(routeItemsForPoint(plan, point).map(entry => entry.id));
   if (!point.edit) expand.add(point.source.entryId);
   return { entries: draft.entries.flatMap(entry => {

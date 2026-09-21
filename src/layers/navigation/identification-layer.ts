@@ -3,12 +3,12 @@ import { MercatorCoordinate, type GeoJSONSource, type Map as MapLibreMap } from 
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { NEARBY_VOR_MAP_LIMIT, type NearbyVor } from '@zlayer/domain';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
+import { REFERENCE_LINE_COLOR as COLOR, REFERENCE_LINE_HALO, REFERENCE_LINE_PAINT } from '../../core/map/reference-line';
 import { formatNavaidRadial } from './nearby-navaids-format';
 
 export type NavaidIdentification = { point: GeoPointFeature; stations: readonly NearbyVor[] } | undefined;
 type IdentificationProjection = Pick<MapLibreMap, 'project' | 'unproject' | 'getCenter'>;
 const SOURCE = 'navaid-identification';
-const COLOR = '#005a9c';
 const LAYERS = ['navaid-id-halo', 'navaid-id-lines', 'navaid-id-points', 'navaid-id-labels', 'navaid-id-references'];
 
 export function identificationGeoJson(input: NavaidIdentification,
@@ -79,11 +79,9 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
       map = target;
       map.addSource(SOURCE, { type: 'geojson', data: identificationGeoJson(input, map) });
       map.addLayer({ id: 'navaid-id-halo', type: 'line', source: SOURCE, filter: ['==', '$type', 'LineString'],
-        // A continuous opaque casing isolates the thin dark-blue dashes from busy charts.
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-opacity': 1, 'line-width': 6 } });
+        ...REFERENCE_LINE_HALO });
       map.addLayer({ id: 'navaid-id-lines', type: 'line', source: SOURCE, filter: ['==', '$type', 'LineString'],
-        paint: { 'line-color': COLOR, 'line-width': 2, 'line-dasharray': [4, 2] } });
+        paint: REFERENCE_LINE_PAINT });
       map.addLayer({ id: 'navaid-id-points', type: 'circle', source: SOURCE,
         filter: ['all', ['==', '$type', 'Point'], ['has', 'target']],
         paint: { 'circle-radius': ['case', ['get', 'target'], 7, 5], 'circle-color': COLOR,

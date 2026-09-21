@@ -25,6 +25,7 @@ later implementation changes.
   [coverage, source evidence and remaining work](approach-coverage.md)
 - [Fix display](fix-display.md), [route terrain](route-terrain.md), [GPS aircraft](gps-aircraft.md)
 - [Route obstructions](route-obstructions.md)
+- [Map ruler and magnetic bearings](ruler.md)
 - [Experimental AHRS toolbox](../src/layers/ahrs/README.md),
   [calibration and attitude-display policy](../src/layers/ahrs/README.md#calibration-and-validity),
   [attitude uncertainty, including yaw](../src/layers/ahrs/estimator/uncertainty.md),

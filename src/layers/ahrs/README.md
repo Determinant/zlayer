@@ -247,12 +247,12 @@ without GPS. Stale/interrupted motion removes the inertial reading.
 
 `AhrsTool` accepts the browsing FAA `revision`. Its optional magnetic model is
 discovered through that cycle's navigation manifest on the configured chart feed.
-`magnetic-data.ts` uses the existing validated JSON cache, including offline reuse
+The shared catalog `fetchMagneticModel` loader uses the existing validated JSON cache, including offline reuse
 after a successful load. Opening or reconnecting retries failed loads; stowing
 cancels pending requests. This does not add a model download to saved-region packs.
 Hosts can also pass a validated `MagneticModel` directly to `Hsi`.
 
-`magnetic-model.ts` evaluates WMM2025 at the current GPS position, ellipsoid height
+`core/geo/magnetic-model.ts`, shared with the map ruler, evaluates WMM2025 at the current GPS position, ellipsoid height
 (zero if absent), and UTC date. It recomputes only when position, height, model or
 day changes. The published coefficients include their annual changes and are
 valid from 2025-01-01 through 2029-12-31, independently of the FAA cycle.

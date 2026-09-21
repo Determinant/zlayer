@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createRouteResolver, routeCoordinateFeature, routeDraftText, routeEntryPins } from '@zlayer/domain';
+import { createRouteResolver, routeCoordinateFeature, routeDraftText, routeEntryPins, type RouteDraft } from '@zlayer/domain';
 import { draftSnapshot } from './helpers/route-draft';
 import type { GeoPointFeature } from '@zlayer/contracts';
 
@@ -130,6 +130,21 @@ test('feature edits preserve and shift exact feature pins', () => {
   draft = removeRouteEntry(draft, draft.entries[1]!.id);
   assert.equal(routeDraftText(draft), 'KHWD KSFO');
   assert.deepEqual(routeEntryPins(draft.entries), { 1: 'airport:ksfo' });
+});
+
+test('replacing a feature with the same pinned entity preserves its airport attachments', () => {
+  const airport = point('airport:ksfo', 'KSFO');
+  const draft: RouteDraft = { entries: appendRouteFeature(routeDraftFromText(''), airport).entries.map(entry => ({
+    ...entry, approach: { airportId: 'SFO', procedureId: 'ils28r', name: 'ILS RWY 28R', cycle: 'test' },
+    departure: { airportId: 'SFO', procedureId: 'sfo', ident: 'SFO5', name: 'SAN FRANCISCO FIVE',
+      effectiveDate: '2026-09-03', transition: 'SNS' },
+  })) };
+  const entry = draft.entries[0]!;
+  assert.equal(replaceRouteFeature(draft, entry.id, { ...airport }), draft);
+  const changed = replaceRouteFeature(draft, entry.id, point('other:ksfo', 'KSFO'));
+  assert.equal(changed.entries[0]?.pinnedFeatureId, 'other:ksfo');
+  assert.equal(changed.entries[0]?.approach, undefined, 'a different entity must not inherit airport attachments');
+  assert.equal(changed.entries[0]?.departure, undefined);
 });
 
 test('typed replacement changes only the targeted entry and clears its old feature pin', () => {

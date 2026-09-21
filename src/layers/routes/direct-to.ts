@@ -4,7 +4,7 @@ import { createRouteEntry, routeCoordinateFeature, routeTokenForFeature,
 import type { OwnshipSnapshot } from '../ownship/layer';
 import { GPS_STALE_MS } from '../ownship/position';
 import { routeItemsForPoint } from './removal';
-import { sameRouteApproach, sameRouteDeparture } from './draft';
+import { sameRouteDraft } from './draft';
 
 export type DirectToAction = (feature: GeoPointFeature, point?: RouteWaypoint) => void;
 
@@ -14,20 +14,12 @@ export function directToPosition({ state, fix }: OwnshipSnapshot, now = Date.now
     ? fix.coordinates : undefined;
 }
 
-export function routeDraftMatchesPlan(draft: RouteDraft, plan: RoutePlan): boolean {
-  return draft.entries.length === plan.entries.length && draft.entries.every((entry, index) => {
-    const resolved = plan.entries[index]!;
-    return entry.id === resolved.id && entry.text === resolved.text && entry.pinnedFeatureId === resolved.pinnedFeatureId &&
-      sameRouteApproach(entry.approach, resolved.approach) && sameRouteDeparture(entry.departure, resolved.departure);
-  });
-}
-
 /** Trim to the selected occurrence, expanding only published items whose context
  * is cut away. Unrelated entries and unresolved suffix input stay intact. */
 export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: RouteWaypoint,
   position: PointGeometry['coordinates']): RouteDraft {
   const index = plan.waypoints.indexOf(point);
-  if (index < 0 || !routeDraftMatchesPlan(draft, plan)) return draft;
+  if (index < 0 || !sameRouteDraft(draft, plan)) return draft;
   if (point.owners.some(owner => owner.kind === 'approach')) {
     const { points, airport, problem } = approachRemainder(plan, point);
     if (problem || !airport) return draft;

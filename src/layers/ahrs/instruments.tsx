@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import type { AhrsLayer } from './layer';
-import type { MagneticModel } from './magnetic-model';
+import type { MagneticModel } from '../../core/geo/magnetic-model';
 import { Horizon } from './horizon';
 import { Hsi } from './hsi';
 import { AhrsDiagnostics } from './diagnostics';

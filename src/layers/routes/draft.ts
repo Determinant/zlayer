@@ -46,7 +46,10 @@ export function insertRouteFeature(draft: RouteDraft, afterEntryId: string, feat
 export function replaceRouteFeature(draft: RouteDraft, entryId: string, feature: GeoPointFeature): RouteDraft {
   const index = draft.entries.findIndex(entry => entry.id === entryId);
   const entry = entryForFeature(feature, entryId);
-  return index < 0 || !entry ? draft : spliceEntries(draft, index, 1, [entry]);
+  if (index < 0 || !entry) return draft;
+  const previous = draft.entries[index]!;
+  return previous.text === entry.text && previous.pinnedFeatureId === entry.pinnedFeatureId
+    ? draft : spliceEntries(draft, index, 1, [entry]);
 }
 export function removeRouteEntry(draft: RouteDraft, entryId: string): RouteDraft {
   const index = draft.entries.findIndex(entry => entry.id === entryId);
@@ -75,6 +78,15 @@ export function sameRouteDeparture(left: RouteDeparture | undefined, right: Rout
   return left === right || !!left && !!right && left.airportId === right.airportId && left.procedureId === right.procedureId &&
     left.ident === right.ident && left.name === right.name && left.effectiveDate === right.effectiveDate &&
     left.transition === right.transition && left.branchId === right.branchId && left.branchName === right.branchName;
+}
+/** Compare authored entries, including exact entity pins and procedure choices.
+ * A newly resolved plan may share the same draft despite a new revision. */
+export function sameRouteDraft(left: RouteDraft, right: RouteDraft): boolean {
+  return left.entries.length === right.entries.length && left.entries.every((entry, index) => {
+    const other = right.entries[index]!;
+    return entry.id === other.id && entry.text === other.text && entry.pinnedFeatureId === other.pinnedFeatureId &&
+      sameRouteApproach(entry.approach, other.approach) && sameRouteDeparture(entry.departure, other.departure);
+  });
 }
 export function moveRouteEntry(draft: RouteDraft, fromEntryId: string, toEntryId: string): RouteDraft {
   const from = draft.entries.findIndex(entry => entry.id === fromEntryId);

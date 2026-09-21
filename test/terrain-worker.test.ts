@@ -9,6 +9,7 @@ import type { TerrainPackage } from '../src/layers/terrain/packages';
 import type { TerrainWorker } from '../src/layers/terrain/types';
 import { stitchTerrainContours } from '../src/layers/terrain/seams';
 import { terrainCorridor } from '../src/layers/terrain/corridor';
+import { terrainPointLocation } from '../src/layers/terrain/point-elevation';
 
 // Exercise the real worker's fill/contour/peak pipeline. Only archive input and
 // browser canvas/Comlink boundaries are replaced; both elevation channels differ.
@@ -46,6 +47,24 @@ test('the terrain worker builds the same corridor without reading or allocating 
   const segments: Segment[] = [[project([-122.4, 37.5]), project([-122.1, 37.5])],
     [project([-122.1, 37.5]), project([-121.85, 37.2])]];
   assert.deepEqual(await runtime.worker!.corridor(segments), terrainCorridor(segments));
+});
+
+test('waypoint queries read one finest-detail DEM without allocating a render canvas', async () => {
+  const location = terrainPointLocation([-122.5, 37.25])!;
+  let reads = 0;
+  const previous = runtime.context;
+  runtime.context = () => { throw new Error('Point sampling must not render terrain'); };
+  try {
+    runtime.read = (tile, _url, signal) => {
+      assert.deepEqual(tile, location.tile);
+      signal.throwIfAborted(); reads++;
+      const values = new Float32Array(65536).fill(NaN);
+      values[location.sampleIndex] = 1234;
+      return values;
+    };
+    assert.equal(await runtime.worker!.sample({ id: 100, ...location, tileUrl: '' }), 1234);
+    assert.equal(reads, 1);
+  } finally { runtime.context = previous; }
 });
 
 for (const zoom of [9, 11, 13]) test(`route fill boundaries follow surface contours and retain sampled highs at zoom ${zoom}`, async () => {

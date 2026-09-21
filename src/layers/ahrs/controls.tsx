@@ -8,7 +8,8 @@ import type { FlightAlignmentReason } from './estimator/flight-alignment';
 import type { AhrsLayer, AhrsSnapshot } from './layer';
 import { AhrsInstruments } from './instruments';
 import { InstrumentTest } from './instrument-test';
-import { useMagneticModel } from './use-magnetic-model';
+import { useMagneticModel } from '../../core/geo/use-magnetic-model';
+import { fetchMagneticModel } from '../../workspace/catalog/catalog';
 import { AhrsWindow, AhrsFullScreenButton } from './full-screen';
 import { AhrsRecorderControl } from './recorder-control';
 import './styles.css';
@@ -60,7 +61,7 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
     };
   }, [layer]);
   const active = visible && pageVisible;
-  const magneticModel = useMagneticModel(revision, active);
+  const magneticModel = useMagneticModel(revision, active, fetchMagneticModel);
   useEffect(() => layer.setVisible(active), [layer, active]);
   const source = useMemo(() => ({ getSnapshot: layer.getSnapshot,
     subscribe: (listener: () => void) => active ? layer.subscribe(listener) : () => {},

@@ -5,7 +5,7 @@ import { fromEuler, RAD } from './estimator/math';
 import { AhrsInstruments } from './instruments';
 import { METERS_PER_FOOT, METERS_PER_KNOT_SECOND } from './instrument-display';
 import type { AhrsSnapshot } from './layer';
-import type { MagneticModel } from './magnetic-model';
+import type { MagneticModel } from '../../core/geo/magnetic-model';
 
 /** A display source only: it never acquires GPS, motion, or a workspace route. */
 function createInstrumentTest() {

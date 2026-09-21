@@ -1,6 +1,6 @@
 # Route parsing and editing
 
-The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach? }` entries.
+The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach?, departure? }` entries.
 IDs survive insertion, replacement and reorder; pins travel with their entries.
 Route text is an import/export format, and token indexes are display positions.
 
@@ -39,8 +39,10 @@ text/import → draft entries → scoped segments → constrained points → res
 | `src/layers/routes/history/` | Worker client and store, plus history query and draft conversion; offline callers use `client.ts` |
 | `src/layers/routes/editor.tsx`, `use-editor-gestures.ts` | Entry, insertion, token menus, reorder and pointer lifecycle |
 | `src/layers/routes/renderer.ts`, `geometry.ts`, `editing.ts` | GeoJSON presentation, dateline handling and edit target identity |
+| `src/layers/routes/snapping.ts` | Stable snap selection and bounded retention through missing rendered hits |
 | `src/workspace/feature-route-actions.tsx` | Shared detail-panel add/remove controls, derived from the selected feature and current route |
 | `src/workspace/map/gestures.ts` | Shared map selection, route hit testing, dragging and snapping |
+| `src/workspace/map/snap-bounds.ts` | One-time capture of rendered snap bounds through MapLibre's public query API |
 
 Keep text helpers and shared types separate from the resolver: TEC interpretation
 uses preferred-route import helpers, which must not import the resolver back.
@@ -74,7 +76,24 @@ consumes the resulting plan rather than interpreting route text again.
   navigation data or feature pins and survive route text export and saved drafts.
   Taps, cancelled drags and stale route revisions do not insert anything.
   A drag preview marks the new bend; the leg itself is the hit target, with no
-  midpoint handle.
+  midpoint handle. The free preview follows precise pointer coordinates; rounding
+  happens when saving the GPS waypoint. Leg movement updates only the bent line
+  and marker in a separate source. The original leg stays available throughout
+  the drag. Once preview tiles are ready, paint state swaps their visibility in
+  one frame; cancellation restores the original without a source reload. Pointer
+  moves during initial loading coalesce to the latest coordinate, keeping
+  per-move geometry work independent of route length.
+- Snapping preserves the map's rendered label/icon hits in a box extending 24 CSS
+  pixels around the pointer, ranked by anchor distance. A captured entity remains
+  eligible while hit, within 36 pixels of its anchor, or within its captured
+  rendered bounds plus the 24-pixel acquisition box and a 12-pixel release margin
+  when symbol placement or source updates temporarily hide it. Bounds are measured
+  once on acquisition, within the acquired world copy and relative to its anchor,
+  and never grow with pointer motion.
+  Another rendered target must be more than 6 pixels closer to take over.
+  Equal-distance initial candidates use
+  stable feature identity, independent of map query ordering. Distances use the
+  pointer's world copy.
 - Dragging an existing GPS waypoint to empty space updates that entry's coordinate;
   dropping it on a navigation feature replaces it with that feature. Its moving
   marker and label cannot snap to themselves. GPS waypoints are removed through
@@ -83,6 +102,14 @@ consumes the resulting plan rather than interpreting route text again.
 - Route waypoint markers and labels select their navigation feature, including
   airports whose background symbols are hidden at the current zoom. A tap or click
   opens details without editing the route, including in recommendation previews.
+- Right-clicking empty map space (or holding on touch) opens a temporary GPS
+  waypoint using the same coordinate details and actions. Its marker lasts while
+  that point is selected; viewing or closing it does not change the route.
+  Nearby navigation features and route points retain their existing selection menu.
+- GPS waypoint details preserve existing feature elevations and otherwise include
+  approximate terrain elevation in feet MSL, rounded to 10 ft. The lookup uses the finest supported DEM at the saved coordinate,
+  independently of zoom and terrain-layer visibility. Saved terrain packages take
+  precedence over browsing data; missing heights show **Unavailable** with **Retry**.
 
 ### Anchored approaches
 
@@ -93,7 +120,9 @@ airport in one box and shows a compact name plus the entry (for example,
 `ILS Y 31 · VTF`). Click it to change the entry, switch approach or view its plate.
 The box's × and **Remove approach** detach only the approach.
 The airport stays in the route. Reordering moves both together, while replacing
-the airport clears the attachment. Duplicate airport occurrences are independent.
+the airport with a different entity clears the attachment. Replacing it with the
+same text and feature pin is a no-op and retains its attachments. Duplicate airport
+occurrences are independent.
 
 The picker shares Advise's docked panel and map-preview path. It leaves the map
 interactive and fits the selected approach into the area beside or above the
@@ -345,6 +374,21 @@ visible without claiming eligibility or clearance. The source is the
   revisions cancel map drags, editor menus and reordering. Inline insertion follows
   its entry ID through data refreshes and resets if that entry is removed.
   Pointer cancellation/lost capture and teardown release timers, capture and listeners.
+- Map drags also cancel on Escape, window blur, and release outside the canvas.
+  Gesture cancellation clears pending long presses, restores only the map controls that
+  were enabled before the drag, and cannot commit the last preview. Mouse and
+  touch releases finish only their own gesture; releasing another mouse button
+  does not finish a left-button drag. Map drops and chip reorders use the final
+  release position, including when the last move event was coalesced. A release
+  cannot start a map edit without an active drag preview. If the pointer stays
+  at its last previewed position, release preserves that preview's drop target
+  even when rendered query results change. A new physical press clears click
+  suppression immediately; compatibility mouse events from the preceding touch
+  release remain suppressed. Route-only refreshes leave independent empty-map
+  long presses intact.
+- Direct-to and point removal share `sameRouteDraft` to reject stale actions
+  consistently, comparing entry identity, text, exact feature pins, and every
+  approach/SID selection field. Re-resolution with an unchanged draft remains valid.
 - Recommendation overlays carry no editing targets. Selecting a shared geometry
   still preserves the selected route's metadata. Details include every TEC segment.
 
@@ -354,7 +398,7 @@ the same longitude-unwrapping rule.
 
 ## Route actions
 
-The Route icon and label open a menu for Copy Route, native Share when supported,
+The Route icon and label open a menu for Show/Hide NavLog, Copy Route, native Share when supported,
 Open in ForeFlight on iPhone/iPad, Save Route, Manage Routes, and Clear Route. On phones the menu trigger
 starts the second row before Advise; wider layouts keep it before the input.
 Clearing returns focus to the empty route editor. Clipboard failures offer selected
@@ -362,6 +406,22 @@ text for manual copying. Exports expand airport-attached SIDs to `SID exit` and
 resolved TEC designators to their published route text, preserve unknown entries, and use ForeFlight's Maps URL scheme for the
 app handoff. **Open in ForeFlight** automatically uses ForeFlight coordinate
 syntax. The menu does not detect whether ForeFlight is installed.
+
+**Show NavLog** reveals a compact drawer below the route input without resizing
+the map. The lower bezel collapses the entire drawer, leaving no tab behind;
+reopen it from the Route menu. Closing with the bezel or Escape returns focus
+to the Route button. The drawer follows route edits,
+uses the shared panel scrollbar, and keeps its column headings visible while scrolling.
+Waypoint names share the route chips' type colors: ice blue airports, soft gray fixes,
+lavender navaids, slate NDBs, and amber VFR waypoints. Procedure groups remain green.
+Subtle alternating backgrounds across waypoint rows help track course and distance.
+Rows describe the incoming leg at each expanded waypoint occurrence: initial
+course, leg NM, and cumulative NM. Courses show magnetic / true (for example,
+`113°M / 126°T`), retaining true course when the magnetic reference is unavailable; curved and
+composite paths show **Varies**. Distances use resolved route geometry, with gaps,
+VTF and missed-approach sections identified. Attached airport markers do not
+become extra flown legs. Incomplete routes show known distance only; holds and
+schematic paths are excluded. Speed, time and fuel are not modeled in this view.
 
 **Copy Route** and **Share…** each expand a format submenu on desktop, iOS/iPadOS
 (including the desktop-style iPad user agent), and Android. Share passes the

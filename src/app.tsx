@@ -50,6 +50,7 @@ import { TerrainLegend, type TerrainStatus } from './layers/terrain';
 import type { ObstructionStatus } from './layers/obstructions';
 import { OwnshipStatus } from './layers/ownship';
 import { AhrsTool } from './layers/ahrs';
+import { RulerTool } from './layers/ruler';
 import { MapEdgeTools } from './shell/map-edge-tools';
 import { NearbyFeaturePicker } from './workspace/nearby-feature-picker';
 import type { NearbyFeature } from './workspace/feature-selection';
@@ -309,6 +310,8 @@ export function App() {
                 route={route.plan}
                 routePreview={routePreview}
                 identification={identificationMap}
+                inspectedCoordinate={selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected)
+                  ? selected : undefined}
                 {...(mapView ? { initialView: mapView } : {})}
                 routeFocusNonce={routeFocusNonce}
                 focusTarget={focusTarget}
@@ -318,6 +321,7 @@ export function App() {
                 onViewChange={setMapView}
                 metarLayer={metarLayer}
                 platesLayer={plates}
+                rulerLayer={workspaceLayers.ruler}
                 metarEnabled={metarEnabled}
                 ownshipLayer={ownshipLayer}
                 ownshipEnabled={ownshipEnabled}
@@ -339,6 +343,7 @@ export function App() {
           </ErrorBoundary>
 
           <plates.MapControl />
+          <RulerTool layer={workspaceLayers.ruler} revision={context.browsing.revision} />
 
           {nearbyFeatures && <NearbyFeaturePicker features={nearbyFeatures.features} point={nearbyFeatures.point}
             onSelect={selectFeature} onClose={() => setNearbyFeatures(undefined)} />}
@@ -459,6 +464,7 @@ export function App() {
               <FeatureDetailsPanel
                 key={featureKey(selected)}
                 feature={selectedWithWeather ?? selected}
+                catalog={context}
                 metarClient={metarLayer.client}
                 procedureResource={selectedCatalog?.procedures}
                 editionUnavailable={!selectedCatalog}

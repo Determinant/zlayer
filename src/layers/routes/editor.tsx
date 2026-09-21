@@ -16,6 +16,7 @@ import type { RouteApproach, RouteDeparture, RouteEntry as DraftEntry, RoutePlan
 import type { NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
 
 import { RouteMenu } from './menu';
+import { routeWaypointClass } from './waypoint-style';
 import { backspaceRouteTokenIndex, updateRouteEntry } from './entry';
 import { formatWaypointLabel } from '../../core/format/coordinates';
 import type { RouteDraft } from './draft';
@@ -32,6 +33,9 @@ type RouteEditorProps = {
   plan: RoutePlan;
   navigationData?: NavigationData | undefined;
   status: RouteLoadStatus;
+  navlogOpen: boolean;
+  navlogId: string;
+  onToggleNavlog: () => void;
   onUseRoute: (draft: RouteDraft) => void;
   onAppendInput: (input: string) => void;
   onInsertInput: (beforeEntryId: string, input: string) => void;
@@ -55,6 +59,9 @@ export function RouteEditor({
   plan,
   navigationData,
   status,
+  navlogOpen,
+  navlogId,
+  onToggleNavlog,
   onUseRoute,
   onAppendInput,
   onInsertInput,
@@ -214,7 +221,8 @@ export function RouteEditor({
         else if (canFit) onFit();
       }}
     >
-      <RouteMenu plan={plan} onOpen={() => setMenu(undefined)} onLoadRoute={draft => {
+      <RouteMenu plan={plan} navlogOpen={navlogOpen} navlogId={navlogId} onToggleNavlog={onToggleNavlog}
+        onOpen={() => setMenu(undefined)} onLoadRoute={draft => {
         setEntry('');
         setInlineEdit(undefined);
         setMenu(undefined);
@@ -549,8 +557,7 @@ function routeTokenStateClass(
   if (token.invalid) return token.pending ? 'is-pending' : 'is-unresolved';
   if (token.procedure) return 'is-procedure';
   if (token.tec) return 'is-tec';
-  if (token.waypoint?.layer === 'navaids' && /\bNDB\b/i.test(token.waypoint.feature.properties.type ?? '')) return 'is-ndb';
-  if (token.waypoint) return `is-${token.waypoint.layer}`;
+  if (token.waypoint) return routeWaypointClass(token.waypoint);
   if (token.airway) return 'is-airway';
   return token.pending ? 'is-pending' : 'is-unresolved';
 }

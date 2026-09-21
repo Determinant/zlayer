@@ -54,6 +54,17 @@ if (new URLSearchParams(location.search).has('navigation')) {
       properties: { kind: 'fix', ident: fix.ident, lowArtcc: 'ZOA' } },
   ] };
 }
+if (new URLSearchParams(location.search).has('entities')) {
+  for (const [layer, points] of [
+    ['fixes', [['SUNOL', 'REPORTING_POINT']]],
+    ['vfr-waypoints', [['VPWAM', 'VFR']]],
+    ['navaids', [['OSI', 'VOR/DME'], ['REIGA', 'NDBDME']]],
+  ] as const) {
+    references[layer] = { ...navigation, meta: { ...navigation.meta, layer, returned: points.length },
+      features: points.map(([ident, type], index) => ({ type: 'Feature', id: `${layer}:${ident}`,
+        geometry: { type: 'Point', coordinates: [-122.2 + index * .05, 37.5] }, properties: { ident, type } })) };
+  }
+}
 const resolve = createRouteResolver(Object.values(references), undefined, terminal);
 const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-16T00:00:00Z',
   navigation: [], charts: [], weather: [], terminalProcedures: {

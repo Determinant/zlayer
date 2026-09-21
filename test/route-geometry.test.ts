@@ -9,7 +9,7 @@ import { insertRouteFeature } from '../src/layers/routes/draft';
 import { createRouteRemovalResolver } from './helpers/route-removal';
 import { unwrapRouteCoordinates } from '../src/layers/routes/geometry';
 import { routeEditProperties, routeEditTarget } from '../src/layers/routes/editing';
-import { installRouteLayers, syncRoute, ROUTE_SOURCE_ID, RECOMMENDATION_SOURCE_ID } from '../src/layers/routes/renderer';
+import { installRouteLayers, syncRoute, ROUTE_SOURCE_ID, ROUTE_DRAG_SOURCE_ID, RECOMMENDATION_SOURCE_ID } from '../src/layers/routes/renderer';
 
 const coordinates: [number, number][] = [[-176.64248222, 51.88358277], [174.11358888, 52.71225833]];
 
@@ -82,10 +82,10 @@ test('dateline routes render and fit the short crossing, forward and reverse', (
   const resolve = createRouteResolver([airports]);
   for (const input of ['PADK PASY', 'PASY PADK']) {
     const plan = resolve(input);
-    let rendered: { features: Array<{ geometry: { type: string; coordinates: [number, number][] } }> };
-    const map = { setGlobalStateProperty() {}, getSource: (id: string) => id === 'route-plan' ? { setData: (data: typeof rendered) => { rendered = data; } } : undefined };
+    const sources = new Map<string, { features: Array<{ geometry: { type: string; coordinates: [number, number][] } }> }>();
+    const map = { setGlobalStateProperty() {}, getSource: (id: string) => ({ setData: (data: NonNullable<ReturnType<typeof sources.get>>) => sources.set(id, data) }) };
     syncRoute(map as unknown as MapLibreMap, plan);
-    const line = rendered!.features.find(feature => feature.geometry.type === 'LineString')!.geometry.coordinates;
+    const line = sources.get(ROUTE_SOURCE_ID)!.features.find(feature => feature.geometry.type === 'LineString')!.geometry.coordinates;
     assert.ok(Math.abs(line[1]![0] - line[0]![0]) < 10);
     assert.ok(plan.distanceNm > 340 && plan.distanceNm < 345);
     const fitted = unwrapRouteCoordinates(plan.waypoints.map(point => point.feature.geometry.coordinates), 180);
@@ -95,7 +95,9 @@ test('dateline routes render and fit the short crossing, forward and reverse', (
     syncRoute(map as unknown as MapLibreMap, plan, {
       target: plan.legs[0]!.edit!, revision: plan.revision, coordinate: [179, 52], snapped: false,
     });
-    const preview = rendered!.features[0]!.geometry.coordinates;
+    assert.equal(sources.get(ROUTE_SOURCE_ID)!.features.filter(feature => feature.geometry.type === 'LineString').length, 1,
+      'the original remains available until preview tiles are ready and for immediate cancellation');
+    const preview = sources.get(ROUTE_DRAG_SOURCE_ID)!.features[0]!.geometry.coordinates;
     assert.equal(preview.length, 3);
     assert.ok(preview.slice(1).every((point, i) => Math.abs(point[0] - preview[i]![0]) < 10));
   }

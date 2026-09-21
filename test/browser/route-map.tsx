@@ -8,7 +8,11 @@ import { insertRouteFeature, replaceRouteFeature, removeRouteEntry } from '../..
 import { createRouteRemovalResolver, routeRemovalAirports as airports } from '../helpers/route-removal';
 import { MapLayerHost, ROUTE_LINE_ANCHOR } from '../../src/core/map/layer';
 import { createRouteLayer } from '../../src/layers/routes/layer';
+import { createWaypointInspectionLayer } from '../../src/layers/navigation/map';
+import { routePointForFeature } from '../../src/layers/routes/selection';
 import { MapGestures } from '../../src/workspace/map/gestures';
+import { createRulerLayer, RulerTool } from '../../src/layers/ruler';
+import { createRulerMapLayer } from '../../src/layers/ruler/map';
 import { NearbyFeaturePicker } from '../../src/workspace/nearby-feature-picker';
 import { createMetarClient } from '../../src/layers/metar-taf/metar/client';
 import { FeatureDetailsPanel } from '../../src/workspace/feature-details-panel';
@@ -21,6 +25,7 @@ import '../../src/shell/styles.css';
 import '../../src/core/ui/edge-handle.css';
 import '../../src/core/ui/edge-panels.css';
 import '../../src/workspace/feature-details-panel.css';
+import '../../src/workspace/map/styles.css';
 
 setWorkerUrl(workerUrl);
 const metarClient = createMetarClient();
@@ -32,6 +37,7 @@ const resolve = createRouteRemovalResolver({ ...(missingFix ? { missingFix } : {
   ...(procedureGapAfter ? { procedureGapAfter } : {}) });
 const comparison = new URLSearchParams(location.search).has('comparison');
 const showDetails = new URLSearchParams(location.search).has('details');
+const showRuler = new URLSearchParams(location.search).has('ruler');
 const initialRoute = new URLSearchParams(location.search).get('route') ?? 'KSBA KSMX';
 const emptyPlan = emptyRoutePlan();
 
@@ -45,6 +51,10 @@ function Fixture() {
   const [renderedPlan, setRenderedPlan] = useState<RoutePlan>();
   const updateDraft = useRef<(change: (draft: RouteDraft) => RouteDraft) => void>(() => {});
   const [ownship] = useState(createOwnshipLayer);
+  const [inspection] = useState(createWaypointInspectionLayer);
+  const [ruler] = useState(createRulerLayer);
+  useEffect(() => inspection.update(selected?.properties.kind === 'coordinate' && renderedPlan &&
+    !routePointForFeature(renderedPlan, selected) ? selected : undefined), [inspection, selected, renderedPlan]);
   const { action: directTo, confirmation } = useDirectTo(ownship, renderedPlan ?? emptyPlan, edit => updateDraft.current(edit));
   useEffect(() => new URLSearchParams(location.search).has('gps') ? ownship.acquire() : undefined, [ownship]);
   const [error, setError] = useState('');
@@ -60,12 +70,24 @@ function Fixture() {
         glyphs: '/fonts/{fontstack}/{range}.pbf', sources: {},
         layers: [{ id: ROUTE_LINE_ANCHOR, type: 'background', paint: { 'background-color': '#314653' } }] } });
     const route = createRouteLayer();
+    const rulerMap = createRulerMapLayer(ruler);
     const host = new MapLayerHost(map, (_id, reason) => setError(String(reason)));
     // No navigation layers: airports remain visible through the route at this zoom.
     route.update({ route: plan, ...(comparison ? { comparison: {
       selectedKey: 'preview', routes: [{ key: 'preview', plan }],
     } } : {}) });
-    map.on('load', () => host.mount([route]));
+    map.on('load', () => {
+      if (fixtureOptions.has('snapping')) {
+        map.addSource('snap-target', { type: 'geojson', data: { type: 'Feature', id: 'fix:TAILS',
+          geometry: { type: 'Point', coordinates: [-119, 36] },
+          properties: { kind: 'fix', ident: 'TAILS', mapFeatureId: 'fix:TAILS' } } });
+        map.addLayer({ id: 'snap-target', type: 'circle', source: 'snap-target', paint: { 'circle-radius': 5 } });
+        if (fixtureOptions.has('snapLabel')) map.addLayer({ id: 'snap-label', type: 'symbol', source: 'snap-target',
+          layout: { 'text-field': 'TAILS NAVIGATION FIX', 'text-font': ['Noto Sans Bold'], 'text-size': 14,
+            'text-anchor': 'left', 'text-offset': [1, 0], 'text-max-width': 30, 'text-allow-overlap': true } });
+      }
+      host.mount([route, inspection, ...(showRuler ? [rulerMap] : [])]);
+    });
     map.on('error', event => setError(event.error.message));
     const edit = (next: RouteDraft) => {
       draft = next;
@@ -78,19 +100,23 @@ function Fixture() {
     updateDraft.current = change => edit(change(draft));
     const gestures = new MapGestures(map, {
       route: () => plan, canEditRoute: () => !comparison,
-      interactiveLayerIds: () => host.interactiveLayerIds(), onSelect: select,
+      toolActive: () => ruler.getSnapshot().active,
+      interactiveLayerIds: () => [...host.interactiveLayerIds(),
+        ...['snap-target', 'snap-label'].filter(id => map.getLayer(id))], onSelect: select,
       onChooseNearby: (features, point) => setNearby({ features, point }),
       preview: input => host.update(route, input),
       onRouteLegInsert: (afterEntryId, feature) => edit(insertRouteFeature(draft, afterEntryId, feature)),
       onRouteWaypointReplace: (entryId, feature) => edit(replaceRouteFeature(draft, entryId, feature)),
       onRouteWaypointRemove: entryId => edit(removeRouteEntry(draft, entryId)),
     });
+    Object.assign(window, { rulerAudit: { layer: ruler } });
     Object.assign(window, { routeMapAudit: { map, showNearby: (point: { x: number; y: number }) =>
       setNearby({ point, features: airports.features.map(feature => ({ feature })) }) } });
     return () => { gestures.destroy(); host.unmount(); map.remove(); };
   }, []);
-  return <main style={{ position: 'absolute', inset: 0, '--touch-target': '44px' } as React.CSSProperties}>
+  return <main className={showRuler ? 'map-stage' : ''} style={{ position: 'absolute', inset: 0, '--touch-target': '44px' } as React.CSSProperties}>
     <div ref={container} style={{ position: 'absolute', inset: 0 }} />
+    {showRuler && <RulerTool layer={ruler} revision="2026-09-03" />}
     {nearby && <NearbyFeaturePicker features={nearby.features}
       point={nearby.point} onSelect={select} onClose={() => setNearby(undefined)} />}
     {showDetails && selected && renderedPlan && <FeatureDetailsPanel onIdentificationChange={() => {}} feature={selected} metarClient={metarClient}

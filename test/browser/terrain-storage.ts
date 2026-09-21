@@ -3,6 +3,7 @@ import { isTerrainManifest } from '@zlayer/contracts';
 import { createBrowserDownloads } from '../../src/offline/browser-downloads';
 import type { DownloadPlan } from '../../src/offline/downloads';
 import { terrainArchiveUrl } from '@zlayer/contracts';
+import { fetchChartCatalog } from '../../src/workspace/catalog/catalog';
 
 type Fixture = boolean | 'fine' | 'surface';
 const fixtureName = (geographic: Fixture) => geographic === 'surface' ? 'terrain-surface' : geographic === 'fine' ? 'terrain-geographic-fine'
@@ -14,13 +15,14 @@ const source = async (geographic: Fixture = false) => {
 const id = (geographic: Fixture) => `${fixtureName(geographic)}-selection`;
 const downloads = createBrowserDownloads(async () => { throw new Error('Unexpected PDF'); });
 
-export async function save(geographic: Fixture = false) {
+export async function save(geographic: Fixture = false, workspace = false) {
   const terrain = await source(geographic), root = terrain.root, shard = terrain.shards[0]!;
+  const chartPackages = workspace ? (await fetchChartCatalog('2026-09-03')).chartPackages : undefined;
   const plan: DownloadPlan = { id: id(geographic), regionId: id(geographic), title: 'Terrain fixture',
     revision: '2026-09-03', terrain: true, bounds: [[-122.01, 37.01, -122.009, 37.011]],
     references: [], files: [{ kind: 'terrain', url: terrainArchiveUrl(root, shard), byteLength: shard.byteLength, sha256: shard.sha256 }],
     catalog: { schemaVersion: 1, generatedAt: '2026-09-03T00:00:00Z', revision: '2026-09-03',
-      charts: [], navigation: [], weather: [], terrain } };
+      charts: [], navigation: [], weather: [], ...(chartPackages ? { chartPackages } : {}), terrain } };
   await downloads.start(plan);
   return downloads.snapshot().find(job => job.id === id(geographic));
 }

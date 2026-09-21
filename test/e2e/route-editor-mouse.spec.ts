@@ -128,3 +128,21 @@ test('mouse text selection stays native inside the typing field', async ({ page 
   await expect(editor).not.toHaveClass(/is-scrolling/);
   await expect(page.locator('.route-token.is-dragging')).toHaveCount(0);
 });
+
+test('reordering uses the release position when the last pointer move was coalesced', async ({ page }) => {
+  await page.clock.install();
+  await longRoute(page);
+  const source = page.locator('[data-route-entry="entry-0"] .route-token');
+  const ids = await entryIds(page), start = await center(source);
+  const end = await center(page.locator('[data-route-entry="entry-2"] .route-token'));
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.clock.runFor(500);
+  await expect(source).toHaveClass(/is-dragging/);
+  await source.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0,
+    clientX: end.x, clientY: end.y });
+  await page.mouse.up();
+  expect(await entryIds(page)).toEqual([ids[1], ids[2], ids[0], ...ids.slice(3)]);
+  await expect(page.locator('.route-token.is-dragging')).toHaveCount(0);
+  await expect(page.locator('.route-token-menu')).toHaveCount(0);
+});

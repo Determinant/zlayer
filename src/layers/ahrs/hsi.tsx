@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import type { AhrsSnapshot } from './layer';
 import { HSI_FULL_SCALE_NM, legGuidance, nearestLeg, type HsiLeg } from './navigation';
-import { magneticBearing, magneticField, type MagneticModel } from './magnetic-model';
+import { magneticBearing, magneticField, type MagneticModel } from '../../core/geo/magnetic-model';
 
 const degrees = (value: number | null) => value === null ? '—' : `${String(Math.round(value) % 360).padStart(3, '0')}°`;
 const nm = (value: number | undefined) => value === undefined ? '—' : value < 100 ? value.toFixed(1) : Math.round(value).toString();

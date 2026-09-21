@@ -2,7 +2,7 @@ import { EdgePanelFrame, useEdgePanel } from '../core/ui/edge-panels';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { formatDate } from '../core/format/time';
 import { formatWaypointLabel } from '../core/format/coordinates';
-import type { SavedSupplement } from './read-context';
+import type { CatalogReadSource, SavedSupplement } from './read-context';
 
 import type { GeoPointFeature, ProcedureResourceRecord } from '@zlayer/contracts';
 import { featureIdent, featureKey, featureSubtitle, type NearbyVor } from '@zlayer/domain';
@@ -15,9 +15,11 @@ import { AirportRunways } from '../layers/navigation/airport-runways';
 import { NearbyNavaids } from '../layers/navigation/nearby-navaids';
 import { AirportWeather, type MetarClient } from '../layers/metar-taf';
 import { FeatureRouteActions, type FeatureRoute } from './feature-route-actions';
+import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
 
 type FeatureDetailsPanelProps = {
   feature: GeoPointFeature;
+  catalog?: CatalogReadSource | undefined;
   metarClient: MetarClient;
   procedureResource: ProcedureResourceRecord | undefined;
   revision: string;
@@ -32,6 +34,7 @@ type FeatureDetailsPanelProps = {
 
 export function FeatureDetailsPanel({
   feature,
+  catalog,
   metarClient,
   procedureResource,
   revision,
@@ -52,6 +55,10 @@ export function FeatureDetailsPanel({
   const hasRunways = Array.isArray(feature.properties.runways);
   const hasPlates = hasAirportPlates(feature);
   const detailRows = featureDetailRows(feature, false);
+  const needsTerrainElevation = feature.properties.kind === 'coordinate' && !detailRows.some(row => row.label === 'Elevation');
+  if (needsTerrainElevation) {
+    detailRows.splice(1, 0, { label: 'Elevation', value: '' });
+  }
 
   return (
     <EdgePanelFrame panel={panel} label={`${label} details`} tab={{ edge: 'bottom', order: 1 }}
@@ -104,7 +111,8 @@ export function FeatureDetailsPanel({
                   {detailRows.map(({ label, value, wide, morse, notes, frequency }) => (
                     <div key={label} className={frequency ? 'is-wide is-frequency' : wide ? 'is-wide' : undefined}>
                       <dt>{label}</dt>
-                      <dd>{frequency ? <AirportFrequencyValue {...{ label, value, ...(notes ? { notes } : {}) }} /> : <>
+                      <dd>{needsTerrainElevation && label === 'Elevation' ? <WaypointElevation feature={feature} catalog={catalog} active={panel.open} />
+                        : frequency ? <AirportFrequencyValue {...{ label, value, ...(notes ? { notes } : {}) }} /> : <>
                         {value}{morse && <span className="navaid-morse" role="img"
                         aria-label={morse.description} title={`Morse identifier ${morse.identifier}`}>
                         {morse.groups.map((code, index) => <span key={index} aria-hidden="true">{code}{' '}</span>)}

@@ -5,7 +5,6 @@ type PointerSession = {
   pointerId: number;
   pointerType: string;
   sourceId: string | undefined;
-  targetId: string | undefined;
   startX: number;
   startY: number;
   clientX: number;
@@ -87,6 +86,7 @@ export function useEditorGestures(revision: number, onMoveEntry: (from: string, 
     };
     const closeOnKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         setMenu(undefined);
         inputRef.current?.focus();
       }
@@ -168,7 +168,6 @@ export function useEditorGestures(revision: number, onMoveEntry: (from: string, 
     const editor = editorRef.current;
     const target = nearestEntry(editor, session);
     const targetId = target?.entryId ?? session.sourceId;
-    session.targetId = targetId;
     setDrag({
       sourceId: session.sourceId,
       targetId,
@@ -220,7 +219,6 @@ export function useEditorGestures(revision: number, onMoveEntry: (from: string, 
       pointerId: event.pointerId,
       pointerType: event.pointerType,
       sourceId: entryId,
-      targetId: entryId,
       startX: event.clientX,
       startY: event.clientY,
       clientX: event.clientX,
@@ -284,9 +282,12 @@ export function useEditorGestures(revision: number, onMoveEntry: (from: string, 
     pointerSessionRef.current = undefined;
     releasePointer(session);
     if (cancelled) suppressClickRef.current = true;
-    if (!cancelled && session.revision === revision && session.mode === 'dragging' &&
-      session.sourceId !== undefined && session.targetId !== undefined && session.sourceId !== session.targetId) {
-      onMoveEntry(session.sourceId, session.targetId);
+    if (!cancelled && session.revision === revision && session.mode === 'dragging' && session.sourceId !== undefined) {
+      // Pointerup can carry a newer position than the last delivered move.
+      session.clientX = event.clientX;
+      session.clientY = event.clientY;
+      const target = nearestEntry(editorRef.current, session);
+      if (target && target.entryId !== session.sourceId) onMoveEntry(session.sourceId, target.entryId);
     }
     setDrag(undefined);
     setScrolling(false);

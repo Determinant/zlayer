@@ -57,6 +57,8 @@ Display scaling and browser chrome can change the available viewport.
 - A right-click, or a stationary long press on touch screens, queries a small map
   radius and opens a nearby-feature chooser when airport, navaid or fix points
   overlap. Ordinary clicks keep selecting the nearest rendered point directly.
+  Empty-space context gestures open a temporary GPS waypoint with coordinates and
+  terrain elevation, without editing the route.
 - Component styles consume the shared 44px touch minimum, including tablets with a
   mouse or trackpad. Text-entry controls use 16px on touch devices. MapLibre CSS is
   imported in a lower-priority cascade layer; lazy loading cannot override app controls.

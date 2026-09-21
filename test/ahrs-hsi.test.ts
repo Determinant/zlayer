@@ -9,7 +9,7 @@ import { legGuidance, nearestLeg, type HsiLeg } from '../src/layers/ahrs/navigat
 import { Ahrs } from '../src/layers/ahrs/estimator/ahrs';
 import { G } from '../src/layers/ahrs/estimator/math';
 import type { AhrsSnapshot } from '../src/layers/ahrs/layer';
-import { isMagneticModel } from '../src/layers/ahrs/magnetic-model';
+import { isMagneticModel } from '../src/core/geo/magnetic-model';
 
 const east: HsiLeg = { key: 'east', from: 'A', to: 'B', start: [0, 0], end: [2, 0] };
 const north: HsiLeg = { key: 'north', from: 'B', to: 'C', start: [2, 0], end: [2, 2] };

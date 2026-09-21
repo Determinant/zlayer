@@ -1,4 +1,4 @@
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
 import type { RouteEditTarget, RouteLeg, RoutePlan } from '@zlayer/domain';
@@ -33,6 +33,8 @@ type RouteProperties = GeoPointFeature['properties'] & {
   editKind?: 'leg' | 'waypoint';
   editEntryId?: string;
   planRevision?: number;
+  routeLegId?: string;
+  dragPreviewKey?: string;
   dragging?: boolean;
   snapped?: boolean;
   procedurePreview?: boolean;
@@ -60,10 +62,17 @@ type RouteFeatureCollection = {
 };
 
 export const ROUTE_SOURCE_ID = 'route-plan';
+export const ROUTE_DRAG_SOURCE_ID = 'route-drag';
+const ROUTE_DRAG_VISIBLE_STATE = 'zlayer-route-drag-visible';
+const dragOpacity = (opacity: number): ExpressionSpecification =>
+  ['case', ['boolean', ['global-state', ROUTE_DRAG_VISIBLE_STATE], false], opacity, 0];
 export const RECOMMENDATION_SOURCE_ID = 'route-alternatives';
 export const ROUTE_LABEL_BACKGROUND_ID = 'route-label-background';
 export const HOLD_ARROW_IMAGE_ID = 'route-hold-arrow';
+const DRAG_LINE_LAYERS = ['route-line-halo', 'route-line', 'route-procedure-line',
+  'route-approach-line', 'route-missed-line-background', 'route-missed-line'];
 export const ROUTE_LAYER_IDS = [
+  ...DRAG_LINE_LAYERS.map(id => `${id}-drag`),
   'route-alternative-halo', 'route-alternative-line', 'route-alternative-procedure-line',
   'route-line-halo', 'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line',
   'route-missed-line-background', 'route-missed-line', 'route-waypoint-halos', 'route-waypoints',
@@ -71,6 +80,20 @@ export const ROUTE_LAYER_IDS = [
 ];
 
 export function installRouteLayers(map: MapLibreMap): void {
+  // Moving legs use exactly the same styling, but update a two-feature source.
+  const addDraggableLine = (layer: LineLayerSpecification & { paint: { 'line-opacity'?: number } }, before: string) => {
+    const opacity = layer.paint?.['line-opacity'] ?? 1;
+    map.addLayer({ ...layer, paint: { ...layer.paint,
+      'line-opacity': ['case', ['boolean', ['feature-state', 'dragging'], false], 0, opacity],
+      'line-opacity-transition': { duration: 0, delay: 0 },
+    } }, before);
+    map.addLayer({ ...layer, id: `${layer.id}-drag`, source: ROUTE_DRAG_SOURCE_ID, paint: { ...layer.paint,
+      'line-opacity': dragOpacity(opacity),
+      'line-opacity-transition': { duration: 0, delay: 0 },
+    } }, before);
+  };
+  map.setGlobalStateProperty(ROUTE_DRAG_VISIBLE_STATE, false);
+  map.addSource(ROUTE_DRAG_SOURCE_ID, { type: 'geojson', data: routeData() });
   // Keep the 4px rounded corners fixed while the center stretches to fit each label.
   const size = 24, radius = 8;
   const background = new Uint8Array(size * size * 4);
@@ -102,9 +125,12 @@ export function installRouteLayers(map: MapLibreMap): void {
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 4.5] } }, ROUTE_LINE_ANCHOR);
   map.addSource(ROUTE_SOURCE_ID, {
     type: 'geojson',
+    // String feature IDs can be lost in tiling. Only legs need feature state;
+    // waypoint selection keeps its original identity in mapFeatureId.
+    promoteId: 'routeLegId',
     data: routeData(),
   });
-  map.addLayer({
+  addDraggableLine({
     id: 'route-line-halo',
     type: 'line',
     source: ROUTE_SOURCE_ID,
@@ -117,7 +143,7 @@ export function installRouteLayers(map: MapLibreMap): void {
         11, ['case', ['has', 'approachPhase'], 10 * APPROACH_LINE_SCALE, 10]],
     },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addDraggableLine({
     id: 'route-line',
     type: 'line',
     source: ROUTE_SOURCE_ID,
@@ -129,7 +155,7 @@ export function installRouteLayers(map: MapLibreMap): void {
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 5],
     },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addDraggableLine({
     id: 'route-procedure-line', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'procedurePreview'], true],
     paint: { 'line-color': ROUTE_COLOR, 'line-opacity': 0.72, 'line-dasharray': [3, 2],
@@ -140,19 +166,19 @@ export function installRouteLayers(map: MapLibreMap): void {
     filter: ['==', ['get', 'routeKind'], 'approach-extension'],
     paint: { 'line-color': '#f3afeb', 'line-opacity': 0.7, 'line-width': 2.5 * APPROACH_LINE_SCALE },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addDraggableLine({
     id: 'route-approach-line', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'approachPhase'], 'approach'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-color': APPROACH_COLOR, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 5 * APPROACH_LINE_SCALE] },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addDraggableLine({
     id: 'route-missed-line-background', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'approachPhase'], 'missed'],
     layout: { 'line-join': 'round' },
     paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 4 * APPROACH_LINE_SCALE] },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addDraggableLine({
     id: 'route-missed-line', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'approachPhase'], 'missed'],
     layout: { 'line-join': 'round' },
@@ -267,13 +293,17 @@ export function installRouteLayers(map: MapLibreMap): void {
   map.addLayer({
     id: 'route-insert-preview',
     type: 'circle',
-    source: ROUTE_SOURCE_ID,
+    source: ROUTE_DRAG_SOURCE_ID,
     filter: ['==', ['get', 'routeKind'], 'insert-preview'],
     paint: {
       'circle-radius': 6,
       'circle-color': ['case', ['get', 'snapped'], '#82e8da', '#dff3ff'],
       'circle-stroke-color': ROUTE_COLOR,
       'circle-stroke-width': 2,
+      'circle-opacity': dragOpacity(1),
+      'circle-stroke-opacity': dragOpacity(1),
+      'circle-opacity-transition': { duration: 0, delay: 0 },
+      'circle-stroke-opacity-transition': { duration: 0, delay: 0 },
     },
   });
 }
@@ -285,7 +315,30 @@ export type RouteRenderState = {
   alternatives: RoutePlan[];
   labelIds: string[];
   pointKeys: ReturnType<typeof routePointKeys>;
+  dragLeg: RouteLeg | undefined;
+  drag: { id: string; visible: boolean; submitted: RouteDragPreview } | undefined;
 };
+
+/** Both paint changes take effect in the same frame, without retiling the route.
+ * Check after a render: setData completion alone precedes tile replacement. */
+export function revealRouteDrag(map: MapLibreMap, state: RouteRenderState): boolean {
+  if (!state.drag || state.drag.visible || !map.isSourceLoaded(ROUTE_DRAG_SOURCE_ID)) return false;
+  // Failed tiles also count as loaded. Keep the original if the expected
+  // preview is absent, including an old tile retained from an earlier gesture.
+  if (!map.querySourceFeatures(ROUTE_DRAG_SOURCE_ID, {
+    filter: ['==', ['get', 'dragPreviewKey'], dragPreviewKey(state.drag.id, state.drag.submitted)],
+  }).length) return false;
+  state.drag.visible = true;
+  map.setFeatureState({ source: ROUTE_SOURCE_ID, id: state.drag.id }, { dragging: true });
+  map.setGlobalStateProperty(ROUTE_DRAG_VISIBLE_STATE, true);
+  return true;
+}
+
+export function hideRouteDrag(map: MapLibreMap, state?: RouteRenderState): void {
+  if (!state?.drag?.visible) return;
+  map.setGlobalStateProperty(ROUTE_DRAG_VISIBLE_STATE, false);
+  map.removeFeatureState({ source: ROUTE_SOURCE_ID, id: state.drag.id }, 'dragging');
+}
 
 export function syncRoute(
   map: MapLibreMap,
@@ -300,31 +353,57 @@ export function syncRoute(
   if (comparison || preview?.revision !== displayed.revision) preview = undefined;
   const editable = !comparison;
   const samePlan = previous?.plan === displayed;
+  const dragLeg = preview?.target.kind === 'leg'
+    ? samePlan && sameTarget(previous.preview, preview) ? previous.dragLeg
+      : displayed.legs.find(leg => leg.edit?.afterEntryId === (preview.target.kind === 'leg' ? preview.target.afterEntryId : undefined))
+    : undefined;
+  const waypointPreview = preview?.target.kind === 'waypoint' ? preview : undefined;
+  const previousWaypoint = previous?.preview?.target.kind === 'waypoint' ? previous.preview : undefined;
   const pointKeys = samePlan ? previous.pointKeys : routePointKeys(displayed);
   const labelIds = samePlan ? previous.labelIds : [...new Set(displayed.waypoints.map(waypoint => mapLabelKey(waypoint.feature)))];
   if (!sameItems(previous?.labelIds, labelIds)) map.setGlobalStateProperty(ROUTE_LABEL_IDS_STATE, labelIds);
-  if (!samePlan || previous.editable !== editable || !samePreview(previous.preview, preview)) {
-    (map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(routeData(displayed, preview, editable, pointKeys));
+  const sameDrag = samePlan && previous.dragLeg === dragLeg;
+  if (!sameDrag) hideRouteDrag(map, previous);
+  const drag = dragLeg && preview
+    ? sameDrag ? previous.drag : { id: routeLegId(dragLeg, displayed.revision)!, visible: false, submitted: preview }
+    : undefined;
+  if (!samePlan || previous.editable !== editable || !samePreview(previousWaypoint, waypointPreview)) {
+    (map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(routeData(displayed, waypointPreview, editable, pointKeys));
+  }
+  // Let the first preview finish loading even during continuous pointer motion.
+  // Once revealed, submit the latest coordinate and resume ordinary coalescing.
+  if (!previous || previous.drag !== drag || drag?.visible && !samePreview(drag.submitted, preview)) {
+    (map.getSource(ROUTE_DRAG_SOURCE_ID) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
+      features: dragLeg && preview && drag ? [legFeature(dragLeg, displayed.revision, preview, false), {
+        type: 'Feature', geometry: { type: 'Point', coordinates: preview.coordinate },
+        properties: { routeKind: 'insert-preview', snapped: preview.snapped,
+          dragPreviewKey: dragPreviewKey(drag.id, preview) },
+      }] : [] });
+    if (drag && preview) drag.submitted = preview;
   }
   const alternatives = comparison?.routes.filter(route => route !== selected).map(route => route.plan) ?? [];
   if (!sameItems(previous?.alternatives, alternatives)) {
     (map.getSource(RECOMMENDATION_SOURCE_ID) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
       features: alternatives.flatMap(route => route.legs.map(leg => legFeature(leg, plan.revision, undefined, false))) });
   }
-  return { plan: displayed, preview, editable, alternatives, labelIds, pointKeys };
+  return { plan: displayed, preview, editable, alternatives, labelIds, pointKeys, dragLeg, drag };
 }
 
 function sameItems<T>(previous: readonly T[] | undefined, next: readonly T[]): boolean {
-  return previous?.length === next.length && next.every((item, index) => item === previous[index]);
+  return previous === next || previous?.length === next.length && next.every((item, index) => item === previous[index]);
 }
 
 function samePreview(previous: RouteDragPreview | undefined, next: RouteDragPreview | undefined): boolean {
   if (previous === next) return true;
   if (!previous || !next || previous.revision !== next.revision || previous.snapped !== next.snapped ||
     previous.coordinate[0] !== next.coordinate[0] || previous.coordinate[1] !== next.coordinate[1]) return false;
-  return previous.target.kind === 'waypoint' && next.target.kind === 'waypoint'
+  return sameTarget(previous, next);
+}
+
+function sameTarget(previous: RouteDragPreview | undefined, next: RouteDragPreview): boolean {
+  return previous?.target.kind === 'waypoint' && next.target.kind === 'waypoint'
     ? previous.target.entryId === next.target.entryId
-    : previous.target.kind === 'leg' && next.target.kind === 'leg' && previous.target.afterEntryId === next.target.afterEntryId;
+    : previous?.target.kind === 'leg' && next.target.kind === 'leg' && previous.target.afterEntryId === next.target.afterEntryId;
 }
 
 function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true,
@@ -374,22 +453,6 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
       },
     });
   }
-  if (preview?.target.kind === 'leg' && plan.legs.some(
-    (leg) => leg.edit?.afterEntryId === (preview.target.kind === 'leg' ? preview.target.afterEntryId : undefined),
-  )) {
-    features.push({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: preview.coordinate,
-      },
-      properties: {
-        routeKind: 'insert-preview',
-
-        snapped: preview.snapped,
-      },
-    });
-  }
   return { type: 'FeatureCollection', features };
 }
 
@@ -408,14 +471,24 @@ function legFeature(leg: RouteLeg, revision: number, preview?: RouteDragPreview,
     coordinates.push(preview.coordinate);
   }
   coordinates.push(to);
+  const id = routeLegId(leg, revision);
   return {
     type: 'Feature',
     geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(leg.geometry ?? coordinates) },
     properties: {
       routeKind: 'leg',
+      ...(id === undefined ? {} : { routeLegId: id }),
       ...(leg.approachPhase ? { approachPhase: leg.approachPhase } : {}),
       ...(!leg.owners.some(owner => owner.kind === 'procedure') ? {} : { procedurePreview: true }),
       ...(!editable || !leg.edit ? {} : routeEditProperties(leg.edit, revision)),
     },
   };
+}
+
+function routeLegId(leg: RouteLeg, revision: number): string | undefined {
+  return leg.edit ? `${revision}:${leg.edit.afterEntryId}` : undefined;
+}
+
+function dragPreviewKey(id: string, preview: RouteDragPreview): string {
+  return JSON.stringify([id, preview.coordinate, preview.snapped]);
 }

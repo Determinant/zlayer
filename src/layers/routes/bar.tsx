@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
 import { routeEntryPins, type RouteApproach, type RouteDeparture, type RouteEntry, type RoutePlan } from '@zlayer/domain';
 import type { CatalogResponse, NavigationData } from '@zlayer/contracts';
 
 import { RouteEditor } from './editor';
+import { RouteNavLog } from './navlog';
 import type { RouteLoadStatus } from './use-plan';
 import { RouteRecommendations } from './recommendations';
 import type { RouteDraft } from './draft';
@@ -54,12 +55,19 @@ export function RouteBar({
   onDepartureChange,
   onOpenPlate,
 }: RouteBarProps) {
+  // Mount on first opening, then retain the drawer for its closing animation.
+  const [navlogOpen, setNavlogOpen] = useState<boolean>();
+  const navlogId = useId();
+  const toggleNavlog = () => setNavlogOpen(open => !open);
   return (
     <section className="route-bar" aria-label="Flight route planner">
       <RouteEditor
         plan={plan}
         navigationData={navigationData}
         status={status}
+        navlogOpen={navlogOpen === true}
+        navlogId={navlogId}
+        onToggleNavlog={toggleNavlog}
         onUseRoute={onUseRoute}
         onAppendInput={onAppendInput}
         onInsertInput={onInsertInput}
@@ -94,6 +102,8 @@ export function RouteBar({
           <RouteSummary plan={plan} status={status} />
         </>}
       />
+      {navlogOpen !== undefined && <RouteNavLog id={navlogId} open={navlogOpen} onToggle={toggleNavlog}
+        plan={plan} status={status} revision={catalog.revision} />}
     </section>
   );
 }

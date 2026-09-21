@@ -16,57 +16,6 @@
   pointer-events: auto;
 }
 
-.layer-control-button {
-  flex-shrink: 0;
-  position: relative;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid rgba(220, 241, 250, 0.22);
-  border-radius: 10px;
-  color: #d8eaf3;
-  background: rgba(10, 22, 37, 0.82);
-  box-shadow:
-    0 10px 34px rgba(0, 0, 0, 0.34),
-    inset 0 1px rgba(255, 255, 255, 0.06);
-  -webkit-backdrop-filter: blur(20px) saturate(145%);
-  backdrop-filter: blur(20px) saturate(145%);
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
-}
-
-.layer-control-button:hover {
-  border-color: rgba(119, 225, 210, 0.46);
-  background: rgba(16, 34, 53, 0.92);
-}
-
-.layer-control-button:active {
-  transform: scale(0.96);
-}
-
-.layer-control-button:focus-visible {
-  outline: 3px solid rgba(97, 214, 197, 0.25);
-  outline-offset: 2px;
-}
-
-.layer-control-button.is-open {
-  border-color: rgba(97, 214, 197, 0.54);
-  color: #7ae6d7;
-  background: rgba(16, 42, 56, 0.94);
-}
-
-.layer-control-button svg {
-  width: 25px;
-  height: 25px;
-  fill: rgba(97, 214, 197, 0.1);
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.65;
-}
-
 .active-layer-count {
   position: absolute;
   top: -5px;

@@ -22,6 +22,7 @@ export function MapCanvas({
   route,
   routePreview,
   identification,
+  inspectedCoordinate,
   initialView,
   routeFocusNonce,
   focusTarget,
@@ -35,6 +36,7 @@ export function MapCanvas({
   metarLayer,
   ownshipLayer,
   platesLayer,
+  rulerLayer,
   ownshipEnabled,
   metarEnabled,
   terrainEnabled,
@@ -69,6 +71,7 @@ export function MapCanvas({
         route,
         routePreview,
         identification,
+        inspectedCoordinate,
         ...(initialView ? { initialView } : {}),
         onSelect: (feature, routePointId) => callbacks.current.onSelect(feature, routePointId),
         ...(callbacks.current.onChooseNearby ? { onChooseNearby: (features: NearbyFeature[], point: { x: number; y: number }) => callbacks.current.onChooseNearby?.(features, point) } : {}),
@@ -83,6 +86,7 @@ export function MapCanvas({
         metarLayer,
         ownshipLayer,
         ...(platesLayer ? { platesLayer } : {}),
+        ...(rulerLayer ? { rulerLayer } : {}),
         ownshipEnabled,
         metarEnabled,
         terrainEnabled,
@@ -109,8 +113,8 @@ export function MapCanvas({
   }, [metarLayer, ownshipLayer, platesLayer]);
 
   useEffect(() => runtimeRef.current?.update({ catalog, chartSelection, visibility, fixContext,
-    metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification }),
-  [catalog, chartSelection, visibility, fixContext, metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification]);
+    metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification, inspectedCoordinate }),
+  [catalog, chartSelection, visibility, fixContext, metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification, inspectedCoordinate]);
   useEffect(() => {
     if (focusTarget) runtimeRef.current?.focus(focusTarget.feature);
   }, [focusTarget]);

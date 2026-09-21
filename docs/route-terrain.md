@@ -129,6 +129,17 @@ loading, source reuse, mode restoration, low zoom, failures and saved preference
 
 ## Selected altitude and clearance
 
+GPS waypoint details retain any elevation supplied by the feature; otherwise they
+sample terrain at the waypoint's saved coordinate, for both route points and
+temporary map inspections. This uses DEM zoom 13 (or the
+packaged source's finest geographic level), retaining maximum heights just like
+Viewport clearance. It is independent of map zoom, contour intervals and terrain
+visibility. The card displays an approximate height rounded to 10 ft MSL. A bounded
+worker query reuses the terrain readers and saved-source precedence; it releases
+the worker when complete or canceled. Selecting another point or closing the card
+cannot publish a stale result. Missing data remains unavailable, with a retry action;
+reconnection, source changes and offline inventory updates refresh the lookup.
+
 The corner legend has Elevation / Clearance tabs. Elevation shows only the
 elevation color scale. Clearance adds an editable altitude field and a
 touch/keyboard-accessible slider from 0 to 25,000 ft MSL that snaps in 500 ft steps, initially

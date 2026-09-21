@@ -163,6 +163,16 @@
 }
 
 .feature-card .feature-facts > div { align-content: start; }
+.feature-fact-retry {
+  min-height: var(--touch-target, 32px);
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .feature-card .feature-facts > .is-frequency {
   --frequency-label-width: 88px;
   --frequency-row-height: 32px;

@@ -12,10 +12,19 @@ import { TerrainWorkLimit } from './work-limit';
 import { viewportPixels } from './viewport';
 import { terrainBorder, type TerrainBorder } from './seams';
 import { terrainCorridor } from './corridor';
+import { readTerrainPoint, type TerrainPointRequest } from './point-elevation';
 
 const elevation = new ElevationTiles();
 const jobs = new Map<number, AbortController>();
 const renderLimit = new TerrainWorkLimit(4);
+
+async function sample(request: TerrainPointRequest): Promise<number | null> {
+  const controller = new AbortController();
+  jobs.set(request.id, controller);
+  try {
+    return await readTerrainPoint(elevation, request, controller.signal);
+  } finally { jobs.delete(request.id); }
+}
 
 async function render(request: TerrainRequest): Promise<TerrainResult> {
   const controller = new AbortController();
@@ -87,5 +96,5 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
   }
 }
 
-expose({ corridor: async segments => terrainCorridor(segments), render,
+expose({ corridor: async segments => terrainCorridor(segments), render, sample,
   cancel: (id: number) => jobs.get(id)?.abort() } satisfies TerrainWorker);

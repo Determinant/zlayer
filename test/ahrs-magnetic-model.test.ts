@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { decimalYear, isMagneticModel, magneticBearing, magneticField } from '../src/layers/ahrs/magnetic-model';
+import { decimalYear, isMagneticModel, magneticBearing, magneticField } from '../src/core/geo/magnetic-model';
 
 const document: unknown = JSON.parse(readFileSync(new URL('./fixtures/magnetic-model.json', import.meta.url), 'utf8'));
 assert.ok(isMagneticModel(document));

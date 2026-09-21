@@ -5,7 +5,7 @@ import { Ahrs } from '../../src/layers/ahrs/estimator/ahrs';
 import { fromEuler, RAD } from '../../src/layers/ahrs/estimator/math';
 import { InstrumentPanel } from '../../src/layers/ahrs/instruments';
 import { Hsi } from '../../src/layers/ahrs/hsi';
-import { isMagneticModel } from '../../src/layers/ahrs/magnetic-model';
+import { isMagneticModel } from '../../src/core/geo/magnetic-model';
 import type { AhrsSnapshot } from '../../src/layers/ahrs/layer';
 import type { Position } from '../../src/layers/ahrs/navigation';
 import '../../src/layers/ahrs/styles.css';

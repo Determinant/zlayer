@@ -2,7 +2,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RoutePlan } from '@zlayer/domain';
 import type { OwnshipLayer } from '../ownship/layer';
-import { directToFeature, directToPosition, directToRoutePoint, directToRouteProblem, routeDraftMatchesPlan, type DirectToAction } from './direct-to';
+import { directToFeature, directToPosition, directToRoutePoint, directToRouteProblem, type DirectToAction } from './direct-to';
+import { sameRouteDraft } from './draft';
 
 export type DirectToConfirmation = {
   ident: string;
@@ -20,7 +21,7 @@ export function useDirectTo(layer: Pick<OwnshipLayer, 'subscribe' | 'getSnapshot
   } {
   const available = useSyncExternalStore(layer.subscribe, () => !!directToPosition(layer.getSnapshot()));
   const [pending, setPending] = useState<{ feature: GeoPointFeature; plan: RoutePlan; problem?: string }>();
-  const unchanged = !pending || routeDraftMatchesPlan(plan, pending.plan);
+  const unchanged = !pending || sameRouteDraft(plan, pending.plan);
   useEffect(() => { if (!unchanged) setPending(undefined); }, [unchanged]);
   const action: DirectToAction = (feature, point) => {
     const position = directToPosition(layer.getSnapshot());
@@ -40,7 +41,7 @@ export function useDirectTo(layer: Pick<OwnshipLayer, 'subscribe' | 'getSnapshot
         if (pending.problem) return;
         const position = directToPosition(layer.getSnapshot());
         if (!position) return;
-        update(draft => routeDraftMatchesPlan(draft, pending.plan) ? directToFeature(pending.feature, position) : draft);
+        update(draft => sameRouteDraft(draft, pending.plan) ? directToFeature(pending.feature, position) : draft);
         setPending(undefined);
       },
     } : undefined,

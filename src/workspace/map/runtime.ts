@@ -48,11 +48,13 @@ export class MapRuntime {
   #routeReady = false;
   readonly #gestures: MapGestures;
   readonly #saveView: () => void;
+  readonly #unsubscribeRuler: (() => void) | undefined;
 
   constructor(options: MapRuntimeOptions) {
+    const { rulerLayer } = options;
     this.#inputs = options;
     this.#layers = createBuiltInMapLayers(options.catalog, options.metarLayer, options.onTerrainStatus, options.ownshipLayer,
-      !!options.initialView && options.ownshipEnabled, options.onObstructionStatus, options.platesLayer);
+      !!options.initialView && options.ownshipEnabled, options.onObstructionStatus, options.platesLayer, options.rulerLayer);
     this.#onReady = options.onReady;
     this.#onError = options.onError;
 
@@ -95,6 +97,7 @@ export class MapRuntime {
     this.#gestures = new MapGestures(this.#map, {
       route: () => this.#inputs.route,
       canEditRoute: () => !this.#inputs.routePreview,
+      toolActive: () => rulerLayer?.getSnapshot().active ?? false,
       interactiveLayerIds: () => this.#layerHost.interactiveLayerIds(),
       resolveFeature: feature => resolveNavigationFeature(feature, this.#inputs.data),
       preview: input => this.#layerHost.update(this.#layers.route, input),
@@ -104,6 +107,12 @@ export class MapRuntime {
       onRouteLegInsert: options.onRouteLegInsert,
       onRouteWaypointReplace: options.onRouteWaypointReplace,
       onRouteWaypointRemove: options.onRouteWaypointRemove,
+    });
+    let rulerActive = false;
+    this.#unsubscribeRuler = rulerLayer?.subscribe(() => {
+      const active = rulerLayer.getSnapshot().active;
+      if (active && !rulerActive) this.#gestures.cancelInteractions();
+      rulerActive = active;
     });
     // Long-lived camera listeners need callbacks, not the initial input object
     // (which also holds a catalog, route and national navigation collections).
@@ -161,6 +170,9 @@ export class MapRuntime {
     if (inputs.route !== previous.route || routePreviewChanged) this.#updateRouteLayer();
     if (inputs.identification !== previous.identification) {
       this.#layerHost.update(this.#layers.identification, inputs.identification);
+    }
+    if (inputs.inspectedCoordinate !== previous.inspectedCoordinate) {
+      this.#layerHost.update(this.#layers.inspection, inputs.inspectedCoordinate);
     }
     if (inputs.route !== previous.route || routePreviewChanged || inputs.terrainEnabled !== previous.terrainEnabled
       || inputs.terrainAltitude !== previous.terrainAltitude || inputs.terrainCoverage !== previous.terrainCoverage
@@ -230,6 +242,7 @@ export class MapRuntime {
     window.removeEventListener('pagehide', this.#saveView);
     document.removeEventListener('visibilitychange', this.#saveView);
     this.#gestures.destroy();
+    this.#unsubscribeRuler?.();
     this.#layerHost.unmount();
     this.#map.remove();
   }
@@ -257,6 +270,7 @@ export class MapRuntime {
     this.#updateTerrainLayer();
     this.#updateObstructionLayer();
     this.#layerHost.update(this.#layers.identification, this.#inputs.identification);
+    this.#layerHost.update(this.#layers.inspection, this.#inputs.inspectedCoordinate);
     this.#layerHost.update(this.#layers.ownship, { enabled: this.#inputs.ownshipEnabled });
     this.#layerHost.mount(this.#layers.modules);
     this.#routeReady = true;

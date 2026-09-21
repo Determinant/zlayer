@@ -23,6 +23,17 @@
   height: auto;
 }
 
+/* Keep Ruler directly below Layers; its readout opens toward the map interior. */
+.map-stage .ruler-tool {
+  position: absolute; z-index: 9;
+  top: calc(var(--map-panel-gap) + 44px + 9px); right: var(--map-panel-gap);
+  width: calc(100% - 2 * var(--map-panel-gap));
+  display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 9px;
+}
+.map-stage .ruler-toggle { flex: 0 0 44px; }
+.map-stage .ruler-card { flex: 0 1 244px; min-width: 0; }
+.map-stage:has(.layer-popover) .ruler-tool { visibility: hidden; }
+
 .map-loading {
   position: absolute;
   inset: 0;
