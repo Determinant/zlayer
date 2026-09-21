@@ -41,7 +41,6 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   const tileUrl = import.meta.env?.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL;
   const url = () => `${protocol}://tiles/${revision}/{z}/{x}/{y}`;
   const mode = () => input.coverage ?? 'route';
-  const usesSurface = () => mode() === 'route' && sources.some(source => source.schemaVersion === 2);
   const minimumZoom = () => mode() === 'viewport' ? VIEWPORT_MIN_ZOOM : MIN_TERRAIN_ZOOM;
   const enabled = () => input.enabled && (mode() === 'viewport' || segments.length > 0);
   const coveredTiles = () => !map || !enabled() || map.getZoom() < minimumZoom() ? [] : map.coveringTiles({
@@ -110,7 +109,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     const nextSegments = input.enabled && mode() === 'route' ? routeSegments(input.routes) : [];
     // Tile zoom selects its own display detail. Keeping this identity independent
     // of zoom lets MapLibre reuse overview/detail tiles on repeat zoom gestures.
-    const nextKey = JSON.stringify([mode(), input.enabled, nextSegments, usesSurface() && input.altitude == null]);
+    const nextKey = JSON.stringify([mode(), input.enabled, nextSegments]);
     if (nextKey !== key) {
       key = nextKey; revision++; cancel(); segments = nextSegments;
       if (!enabled()) { client?.dispose(); client = undefined; }
@@ -144,8 +143,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
         new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' }), 'Terrain worker unavailable');
       worker = client;
       const packages = packagesForTerrainTile(sources, tile, location.href);
-      const result = await worker.call(remote => remote.render({ id, tile, segments: nearby, tileUrl, packages,
-        coverage: requestedMode, surfaceFill: input.altitude == null }));
+      const result = await worker.call(remote => remote.render({ id, tile, segments: nearby, tileUrl, packages, coverage: requestedMode }));
       if (controller.signal.aborted || generation !== revision || !map) {
         result.data?.close(); return { data: null };
       }
@@ -217,10 +215,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
         sourceKey = nextSourceKey;
         if (sourceChanged) key = '';
       }
-      // Crossing between elevation and clearance selects another height grid for
-      // the fill. Numeric altitude changes still only recolor the cached tiles.
-      const geometryChanged = sourceChanged || (usesSurface() && (next.altitude == null) !== (input.altitude == null))
-        || next.coverage !== input.coverage || next.enabled !== input.enabled || next.routes.length !== input.routes.length
+      const geometryChanged = sourceChanged || next.coverage !== input.coverage || next.enabled !== input.enabled || next.routes.length !== input.routes.length
         || next.routes.some((route, index) => route !== input.routes[index]);
       input = next;
       if (geometryChanged) refresh(); else syncColors();

@@ -289,7 +289,7 @@ test('terrain labels keep their foreground position through edits, toggles and i
   host.unmount(); assert.deepEqual(f.layers, [TERRAIN_LAYER_ANCHOR]);
 });
 
-test('geographic coloring modes choose the correct fill grid while altitude adjustments reuse rendered terrain', async t => {
+test('geographic coloring modes and altitude adjustments reuse the same rendered terrain', async t => {
   const f = fixture(t);
   const geographic: TerrainSource = { schemaVersion: 2, encoding: 'int16-metres-gzip', grid: 'EPSG:4326',
     minZoom: 1, maxZoom: 11, resolutionArcSeconds: 2.45, generatedAt: catalog.generatedAt, root: terrain.root,
@@ -297,13 +297,11 @@ test('geographic coloring modes choose the correct fill grid while altitude adju
   const input = { enabled: true, routes: [route], catalog: { ...catalog, terrain: geographic } };
   f.layer.update({ ...input, altitude: 5500 });
   await f.render(); await f.finish(0);
-  assert.equal(f.jobs[0]!.request.surfaceFill, false);
   const contours = f.data();
-  f.layer.update({ ...input, altitude: 6000 }); await f.render();
-  assert.equal(f.jobs.length, 1, 'numeric altitude changes reuse the maximum fill');
-  assert.equal(f.data(), contours);
-  f.layer.update({ ...input, altitude: null }); await f.render(); await f.finish(1);
-  assert.equal(f.jobs[1]!.request.surfaceFill, true);
-  f.layer.update({ ...input, altitude: 5500 }); await f.render(); await f.finish(2);
-  assert.equal(f.jobs[2]!.request.surfaceFill, false, 'clearance never reuses the lower surface fill');
+  for (const altitude of [6000, null, 5500, null]) {
+    f.layer.update({ ...input, altitude }); await f.render();
+    assert.equal(f.jobs.length, 1, 'palette changes must not rebuild terrain');
+    assert.equal(f.data(), contours);
+    assert.equal(f.status().state, 'ready');
+  }
 });

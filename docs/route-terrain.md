@@ -44,10 +44,10 @@ route recommendations participate; unresolved route gaps do not.
   `putImageData` on a readback-friendly pixel canvas. CPU-oriented storage avoids
   the accelerated cross-thread bitmap corruption reproduced in WebKit; direct
   writes alone were insufficient. See [graphics compatibility](graphics-compatibility.md).
-- Geographic contours and elevation-mode fills use bilinearly interpolated surface heights.
-  Clearance fills and sampled highs retain maximum elevations; their boundaries can extend
-  beyond the surface contours. Switching coloring modes rebuilds the numeric fill from
-  cached heights, while numeric altitude changes still only update the palette.
+- Geographic contours and route fills use the same bilinearly interpolated surface heights
+  in both coloring modes. Clearance colors compare the selected altitude with each band's
+  upper elevation. Sampled highs and viewport shading retain maximum elevations.
+  Switching coloring modes or changing altitude only updates the palette.
   Legacy Mercator sources retain their existing height processing.
 - Outlines are traced from the surface height grid with marching squares,
   joined across cells, then rounded with two corner-cutting passes to soften grid
