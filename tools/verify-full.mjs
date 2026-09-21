@@ -8,8 +8,9 @@ const stages = [
   { name: 'Checks, unit tests and production build', args: ['run', 'verify'] },
   { name: 'Complete Chromium browser suite', args: ['run', 'test:browser', '--',
     '--output=test-results/local/browser'] },
-  { name: 'Chromium and WebKit graphics suites', args: ['run', 'test:graphics', '--',
-    '--project=chromium', '--project=webkit', '--project=webkit-retina',
+  // Chromium graphics tests are already included in the complete browser suite.
+  { name: 'WebKit graphics suites', args: ['run', 'test:graphics', '--',
+    '--project=webkit', '--project=webkit-retina',
     '--output=test-results/local/graphics'] },
   { name: 'Firefox graphics suite', display: linux, args: ['run', 'test:graphics', '--',
     '--project=firefox', ...(linux ? ['--headed'] : []),

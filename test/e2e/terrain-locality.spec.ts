@@ -1,6 +1,56 @@
 import type { GeoJSONSource } from 'maplibre-gl';
 import { test, expect } from '@playwright/test';
 
+test('corridors share the terrain worker and a single cached outline survives toggles until detach', async ({ page }) => {
+  await page.addInitScript(() => {
+    const records: { render: number; corridor: number; terminated: boolean }[] = [];
+    const workers = new WeakMap<Worker, typeof records[number]>();
+    (window as any).terrainWorkerAudit = records;
+    const post = Worker.prototype.postMessage, terminate = Worker.prototype.terminate;
+    Worker.prototype.postMessage = function(this: Worker, message: any, ...args: any[]) {
+      const method = message?.path?.[0];
+      if (method === 'render' || method === 'corridor') {
+        let record = workers.get(this);
+        if (!record) { record = { render: 0, corridor: 0, terminated: false }; workers.set(this, record); records.push(record); }
+        record[method as 'render' | 'corridor']++;
+      }
+      return (post as any).call(this, message, ...args);
+    } as any;
+    Worker.prototype.terminate = function() {
+      const record = workers.get(this);
+      if (record) record.terminated = true;
+      return terminate.call(this);
+    };
+  });
+  await page.goto('/test/browser/terrain.html?zoom=11');
+  const ready = () => expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30000 });
+  const records = () => page.evaluate(() => (window as any).terrainWorkerAudit as { render: number; corridor: number; terminated: boolean }[]);
+  await ready();
+  const initial = await records();
+  expect(initial).toHaveLength(1);
+  expect(initial[0]!.corridor).toBe(1);
+  expect(initial[0]!.render).toBeGreaterThan(0);
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole('button', { name: 'Clear route', exact: true }).click();
+    await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
+    expect((await records()).every(worker => worker.terminated)).toBe(true);
+    await page.getByRole('button', { name: 'Restore route', exact: true }).click();
+    await ready();
+    const current = await records();
+    expect(current.reduce((count, worker) => count + worker.corridor, 0)).toBe(1);
+    expect(current.filter(worker => !worker.terminated)).toHaveLength(1);
+    expect(current.at(-1)!.render).toBeGreaterThan(0);
+  }
+  await page.getByRole('button', { name: 'Remount', exact: true }).click();
+  await ready();
+  const remounted = await records();
+  expect(remounted.reduce((count, worker) => count + worker.corridor, 0)).toBe(2);
+  expect(remounted.filter(worker => !worker.terminated)).toHaveLength(1);
+  await expect.poll(() => page.evaluate(() => window.terrainMapAudit.map
+    .queryRenderedFeatures(undefined, { layers: ['route-terrain-corridor-line'] }).length)).toBeGreaterThan(0);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
 for (const coverage of ['route', 'viewport']) test(`catalog metadata updates preserve ${coverage} terrain without new work`, async ({ page }) => {
   await page.addInitScript(() => {
     (window as any).terrainRenderCalls = 0;

@@ -11,6 +11,7 @@ import type { TerrainRequest, TerrainResult, TerrainWorker } from './types';
 import { TerrainWorkLimit } from './work-limit';
 import { viewportPixels } from './viewport';
 import { terrainBorder, type TerrainBorder } from './seams';
+import { terrainCorridor } from './corridor';
 
 const elevation = new ElevationTiles();
 const jobs = new Map<number, AbortController>();
@@ -86,4 +87,5 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
   }
 }
 
-expose({ render, cancel: (id: number) => jobs.get(id)?.abort() } satisfies TerrainWorker);
+expose({ corridor: async segments => terrainCorridor(segments), render,
+  cancel: (id: number) => jobs.get(id)?.abort() } satisfies TerrainWorker);

@@ -156,8 +156,8 @@ unless the zone changes. See [date and currency labels](date-time-display.md).
 
 `npm run verify:full` is the full local CI command. Run it before committing;
 the smaller automatic GitHub check does not replace it. It runs the existing
-`verify` command, every Chromium browser test, and every graphics test in
-Chromium, Firefox, WebKit and 2× WebKit, without smoke filtering.
+`verify` command, every Chromium browser test (including graphics), and additional
+graphics coverage in Firefox, WebKit and 2× WebKit, without smoke filtering.
 
 ```bash
 npx playwright install --with-deps chromium firefox webkit

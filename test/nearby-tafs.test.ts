@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TafReport } from '@zlayer/contracts';
-import { hasCurrentReport, nearbyStationBoxes, nearbyStations, stationChoices } from '../src/layers/metar-taf/nearby-stations';
+import { hasCurrentReport, nearbyStations, stationChoices } from '../src/layers/metar-taf/nearby-stations';
 
 const now = Date.parse('2026-09-17T18:00:00Z');
 const report = (icaoId: string, lon: number, lat: number, extra: Partial<TafReport> = {}): TafReport => ({
@@ -32,17 +32,9 @@ test('nearby TAFs prefer current forecasts, then distance, and retain expired re
   assert.equal(hasCurrentReport(stations[2]?.report, now), false);
 });
 
-test('nearby TAF discovery handles the dateline, world copies, polar locations and invalid geometry', () => {
-  const boxes = nearbyStationBoxes([179.8, 51]).map(box => box.split(',').map(Number));
-  assert.equal(boxes.length, 2);
-  assert.equal(boxes[0]![3], 180);
-  assert.equal(boxes[1]![1], -180);
-  assert.ok(boxes.every(([south, west, north, east]) => south! < 51 && north! > 51 && west! < east!));
-  assert.deepEqual(nearbyStationBoxes([539.8, 51]), nearbyStationBoxes([179.8, 51]));
-  assert.equal(nearbyStations([179.8, 51], [report('PADK', -179.9, 51)], now).length, 1);
-  assert.deepEqual(nearbyStationBoxes([0, 89.9])[0]!.split(',').map(Number).slice(1), [-180, 90, 180]);
-  assert.deepEqual(nearbyStationBoxes([NaN, 37]), []);
-  assert.deepEqual(nearbyStationBoxes([0, 91]), []);
+test('nearby TAF discovery finds stations across the dateline', () => {
+  const stations = nearbyStations([179.8, 51], [report('PADK', -179.9, 51)], now);
+  assert.deepEqual(stations.map(station => station.stationId), ['PADK']);
 });
 
 test('station choices retain expired local TAFs without requiring coordinates and exclude cancelled or NIL forecasts', () => {

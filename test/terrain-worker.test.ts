@@ -8,6 +8,7 @@ import { project, type Tile, type Segment } from '../src/layers/terrain/geometry
 import type { TerrainPackage } from '../src/layers/terrain/packages';
 import type { TerrainWorker } from '../src/layers/terrain/types';
 import { stitchTerrainContours } from '../src/layers/terrain/seams';
+import { terrainCorridor } from '../src/layers/terrain/corridor';
 
 // Exercise the real worker's fill/contour/peak pipeline. Only archive input and
 // browser canvas/Comlink boundaries are replaced; both elevation channels differ.
@@ -40,6 +41,12 @@ const loader = registerHooks({ resolve(specifier, context, next) {
 await import('../src/layers/terrain/terrain.worker');
 loader.deregister();
 test.after(() => { Reflect.deleteProperty(globalThis, 'terrainWorkerTest'); Reflect.deleteProperty(globalThis, 'ImageData'); });
+
+test('the terrain worker builds the same corridor without reading or allocating DEMs', async () => {
+  const segments: Segment[] = [[project([-122.4, 37.5]), project([-122.1, 37.5])],
+    [project([-122.1, 37.5]), project([-121.85, 37.2])]];
+  assert.deepEqual(await runtime.worker!.corridor(segments), terrainCorridor(segments));
+});
 
 for (const zoom of [9, 11, 13]) test(`route fill boundaries follow surface contours and retain sampled highs at zoom ${zoom}`, async () => {
   const center = project([-119.66734166, 37.89044722]), scale = 2 ** zoom;

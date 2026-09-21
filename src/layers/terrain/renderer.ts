@@ -8,8 +8,7 @@ import { TERRAIN_ATTRIBUTION } from './elevation';
 import { foregroundLayerAnchor, TERRAIN_LAYER_ANCHOR } from '../../core/map/layer';
 import type { TerrainCoverage } from './types';
 import { VIEWPORT_ELEVATION_OFFSET, VIEWPORT_MIN_ZOOM, viewportPalette } from './viewport';
-import { terrainCorridor } from './corridor';
-import type { Segment } from './geometry';
+import type { TerrainCorridor } from './corridor';
 
 export const TERRAIN_SOURCE = 'route-terrain';
 export const TERRAIN_LABEL_SOURCE = 'route-terrain-labels';
@@ -19,7 +18,8 @@ export const TERRAIN_SOURCES = [TERRAIN_SOURCE, TERRAIN_LABEL_SOURCE, TERRAIN_CO
 export const TERRAIN_LAYERS = ['route-terrain-fill', 'route-terrain-outlines', 'route-terrain-contour-labels',
   'route-terrain-corridor-halo', 'route-terrain-corridor-line'];
 
-export function installTerrain(map: MapLibreMap, url: string, coverage: TerrainCoverage = 'route', segments: readonly Segment[] = []): void {
+export function installTerrain(map: MapLibreMap, url: string, coverage: TerrainCoverage = 'route',
+  corridor: TerrainCorridor = { type: 'FeatureCollection', features: [] }): void {
   const before = map.getLayer(TERRAIN_LAYER_ANCHOR) ? TERRAIN_LAYER_ANCHOR : undefined;
   const foreground = foregroundLayerAnchor('terrain');
   if (coverage === 'viewport') {
@@ -37,7 +37,7 @@ export function installTerrain(map: MapLibreMap, url: string, coverage: TerrainC
   map.addSource(TERRAIN_LABEL_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addSource(TERRAIN_CONTOUR_SOURCE, { type: 'geojson', tolerance: 0.2,
     data: { type: 'FeatureCollection', features: [] } });
-  map.addSource(TERRAIN_CORRIDOR_SOURCE, { type: 'geojson', tolerance: 0.1, data: terrainCorridor(segments) });
+  map.addSource(TERRAIN_CORRIDOR_SOURCE, { type: 'geojson', tolerance: 0.1, data: corridor });
   map.addLayer({ id: TERRAIN_LAYERS[0]!, type: 'color-relief', source: TERRAIN_SOURCE,
     minzoom: MIN_TERRAIN_ZOOM, paint: { 'color-relief-opacity': 1, 'resampling': 'nearest',
       'color-relief-color': terrainFillPalette(null, 1000) } }, before);
@@ -109,6 +109,10 @@ export function syncTerrainContours(map: MapLibreMap, lines: readonly TerrainIso
     features: lines.map(line => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: line.coordinates },
       properties: { elevation: line.elevation, opacity: line.opacity } })),
   });
+}
+
+export function syncTerrainCorridor(map: MapLibreMap, corridor: TerrainCorridor): void {
+  (map.getSource(TERRAIN_CORRIDOR_SOURCE) as GeoJSONSource | undefined)?.setData(corridor);
 }
 
 export function syncTerrainLabels(map: MapLibreMap, labels: readonly TerrainLabel[]): void {

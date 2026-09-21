@@ -31,11 +31,12 @@ test('nearby METARs prefer current observations, then distance, retaining labele
   assert.equal(hasCurrentReport(lax, now + 2 * 3600_000 + 1), false);
 });
 
-test('nearby METAR boxes cover dateline, world copies and polar positions', () => {
+test('nearby station boxes cover dateline, world copies, polar positions and invalid geometry', () => {
   const boxes = nearbyStationBoxes([179.8, 51]).map(box => box.split(',').map(Number));
   assert.equal(boxes.length, 2);
   assert.equal(boxes[0]![3], 180);
   assert.equal(boxes[1]![1], -180);
+  assert.ok(boxes.every(([south, west, north, east]) => south! < 51 && north! > 51 && west! < east!));
   assert.deepEqual(nearbyStationBoxes([539.8, 51]), nearbyStationBoxes([179.8, 51]));
   assert.deepEqual(nearbyStationBoxes([0, 89.9])[0]!.split(',').map(Number).slice(1), [-180, 90, 180]);
   assert.deepEqual(nearbyStationBoxes([NaN, 37]), []);

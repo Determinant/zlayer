@@ -1,10 +1,12 @@
 import clipping, { type Polygon } from 'polygon-clipping';
 import { INNER_NM, nmPerWorldUnit, unproject, type Point, type Segment } from './geometry';
 
+export type TerrainCorridor = GeoJSON.FeatureCollection<GeoJSON.MultiLineString>;
+
 /** Outline the same latitude-adjusted Mercator distance used by the terrain mask.
  * Union the leg buffers so bends, crossings and shared legs have no internal seams.
  * This geometry only changes with the route, never with the camera or altitude. */
-export function terrainCorridor(segments: readonly Segment[]): GeoJSON.FeatureCollection<GeoJSON.MultiLineString> {
+export function terrainCorridor(segments: readonly Segment[]): TerrainCorridor {
   const polygons: Polygon[] = [];
   const seen = new Set<string>();
   for (const [a, b] of segments) {

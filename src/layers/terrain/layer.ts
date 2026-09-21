@@ -6,13 +6,14 @@ import { removeLayerResources, type MapLayerModule } from '../../core/map/layer'
 import { contourInterval, MIN_TERRAIN_ZOOM, terrainTileZoom } from './detail';
 import { DEFAULT_ELEVATION_URL } from './elevation';
 import { routeSegments, segmentsForTile, type Segment, type Tile } from './geometry';
-import { installTerrain, syncTerrainLabels, syncTerrainContours, syncTerrainAltitude, TERRAIN_LAYERS, TERRAIN_SOURCES, TERRAIN_SOURCE } from './renderer';
+import { installTerrain, syncTerrainLabels, syncTerrainContours, syncTerrainCorridor, syncTerrainAltitude, TERRAIN_LAYERS, TERRAIN_SOURCES, TERRAIN_SOURCE } from './renderer';
 import type { TerrainCoverage, TerrainStatus, TerrainWorker } from './types';
 import { VIEWPORT_MIN_ZOOM } from './viewport';
 import { TerrainVectorCache, type TerrainVectors } from './vector-cache';
 import type { CatalogReadSource } from '../../workspace/read-context';
 import { terrainSources, terrainSourceKey, packagesForTerrainTile } from './sources';
 import { stitchTerrainContours } from './seams';
+import type { TerrainCorridor } from './corridor';
 
 type TerrainInput = { routes: readonly RoutePlan[]; enabled: boolean; altitude?: number | null; catalog?: CatalogReadSource; coverage?: TerrainCoverage };
 let nextProtocol = 0;
@@ -21,6 +22,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   const protocol = `route-terrain-${nextProtocol++}`;
   let map: MapLibreMap | undefined;
   let client: WorkerClient<TerrainWorker> | undefined;
+  let workerError: unknown;
   let stopObservingInventory: (() => void) | undefined;
   let input: TerrainInput = { routes: [], enabled: true };
   let segments: Segment[] = [];
@@ -29,6 +31,10 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   let key = '', revision = 0, nextRequest = 0;
   let interval: 500 | 1000 = 1000;
   let pending = 0;
+  let corridorKey = '', corridorFailed = false;
+  let corridorJob: { key: string } | undefined;
+  // Keep just one completed outline, independently of DEM/source generations.
+  let corridorCache: { key: string; data: TerrainCorridor } | undefined;
   let previousStatus = '';
   const active = new Map<AbortController, string>();
   const recovering = new Map<string, AbortController>();
@@ -45,6 +51,15 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   const mode = () => input.coverage ?? 'route';
   const minimumZoom = () => mode() === 'viewport' ? VIEWPORT_MIN_ZOOM : MIN_TERRAIN_ZOOM;
   const enabled = () => input.enabled && (mode() === 'viewport' || segments.length > 0);
+  const needsCorridor = () => enabled() && mode() === 'route' && corridorCache?.key !== corridorKey;
+  const worker = () => {
+    if (workerError) throw workerError;
+    try {
+      if (!client || client.retired) client = new WorkerClient<TerrainWorker>(
+        new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' }), 'Terrain worker unavailable');
+      return client;
+    } catch (error) { workerError = error; throw error; }
+  };
   const coveredTiles = () => !map || !enabled() || map.getZoom() < minimumZoom() ? [] : map.coveringTiles({
     tileSize: 512, minzoom: minimumZoom(), maxzoom: 13, roundZoom: true,
   }).map(({ canonical: { z, x, y } }) => ({ z, x, y }));
@@ -77,8 +92,8 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   const status = () => {
     const sourceLoading = TERRAIN_SOURCES.some(source => map?.getSource(source) && !map.isSourceLoaded(source));
     const state: TerrainStatus['state'] = !enabled() ? 'idle'
-      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() ? 'error'
-        : pending || vectorTimer || sourceLoading || hasMissingVectors() ? 'loading' : 'ready';
+      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() || corridorFailed ? 'error'
+        : pending || vectorTimer || sourceLoading || hasMissingVectors() || needsCorridor() ? 'loading' : 'ready';
     const overview = terrainTileZoom(map?.getZoom() ?? 0) < 10;
     const next = JSON.stringify([state, interval, overview, mode()]);
     if (next !== previousStatus) { previousStatus = next; onStatus({ state, interval, overview, coverage: mode() }); }
@@ -90,6 +105,31 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     if (event.sourceId === TERRAIN_SOURCE) map?.triggerRepaint();
   };
   const cancel = () => { for (const controller of active.keys()) controller.abort(); active.clear(); recovering.clear(); };
+  const syncCorridor = () => {
+    if (!map || !needsCorridor() || map.getZoom() < minimumZoom() || corridorFailed || corridorJob) return;
+    const job = corridorJob = { key: corridorKey }, requestedSegments = segments;
+    const current = () => corridorJob === job && job.key === corridorKey && !!map && enabled() && mode() === 'route';
+    void (async () => {
+      try {
+        // Coalesce same-turn edits before dispatch, and keep at most one union
+        // in flight. Its completion starts only the latest requested geometry.
+        await Promise.resolve();
+        if (!current()) return;
+        const data = await worker().call(remote => remote.corridor(requestedSegments));
+        if (!current()) return;
+        corridorCache = { key: job.key, data };
+        syncTerrainCorridor(map!, data);
+      } catch {
+        if (current()) corridorFailed = true;
+      } finally {
+        if (corridorJob === job) {
+          corridorJob = undefined;
+          syncCorridor();
+          status();
+        }
+      }
+    })();
+  };
   const refreshView = () => {
     const next = new Map(coveredTiles().map(tile => [`${tile.z}/${tile.x}/${tile.y}`, tile]));
     const nextKey = [...next.keys()].sort().join(',');
@@ -104,6 +144,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       syncVectors();
     }
     interval = contourInterval(terrainTileZoom(map?.getZoom() ?? 9));
+    syncCorridor();
     syncColors();
     status();
   };
@@ -111,17 +152,19 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     const nextSegments = input.enabled && mode() === 'route' ? routeSegments(input.routes) : [];
     // Tile zoom selects its own display detail. Keeping this identity independent
     // of zoom lets MapLibre reuse overview/detail tiles on repeat zoom gestures.
-    const nextKey = JSON.stringify([mode(), input.enabled, nextSegments]);
+    const nextCorridorKey = JSON.stringify(nextSegments);
+    const nextKey = `${mode()}/${input.enabled}/${nextCorridorKey}`;
     if (nextKey !== key) {
       key = nextKey; revision++; cancel(); segments = nextSegments;
-      if (!enabled()) { client?.dispose(); client = undefined; }
+      corridorKey = nextCorridorKey; corridorFailed = false; workerError = undefined;
+      if (!enabled()) { corridorJob = undefined; client?.dispose(); client = undefined; }
       clearTimeout(vectorTimer); vectorTimer = undefined;
       pending = 0; failedTiles.clear(); tiles.clear(); coverage.clear(); coverageKey = ''; published = undefined;
       if (map) {
         // setTiles retains expired raster textures while replacements load. Drop
         // those textures so a previous route's corridor is never shown as current.
         removeLayerResources(map, TERRAIN_LAYERS, TERRAIN_SOURCES);
-        installTerrain(map, url(), mode(), segments);
+        installTerrain(map, url(), mode(), corridorCache?.key === corridorKey ? corridorCache.data : undefined);
         appliedAltitude = undefined; appliedInterval = undefined;
         for (const id of TERRAIN_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', enabled() ? 'visible' : 'none');
       }
@@ -130,24 +173,25 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   };
   // Repair also invalidates incomplete tiles outside the current view, so they
   // cannot reappear from MapLibre's raster cache after a later pan.
-  const retry = () => { if (failedTiles.size) { key = ''; refresh(); } };
+  const retry = () => {
+    if (failedTiles.size) { key = ''; refresh(); }
+    else if (corridorFailed) { corridorFailed = false; workerError = undefined; refreshView(); }
+  };
 
   const renderTile = async (tile: Tile, controller: AbortController): Promise<{ data: ImageBitmap | null }> => {
     const requestedMode = mode();
     const nearby = requestedMode === 'viewport' ? [] : segmentsForTile(tile, segments);
     if (requestedMode === 'route' && !nearby.length) return { data: null };
     const generation = revision, id = nextRequest++, tileKey = `${tile.z}/${tile.x}/${tile.y}`;
-    let worker: WorkerClient<TerrainWorker> | undefined;
-    const abort = () => { if (worker) void worker.call(remote => remote.cancel(id)).catch(() => {}); };
+    let target: WorkerClient<TerrainWorker> | undefined;
+    const abort = () => { if (target) void target.call(remote => remote.cancel(id)).catch(() => {}); };
     controller.signal.throwIfAborted();
     controller.signal.addEventListener('abort', abort, { once: true });
     active.set(controller, tileKey); pending++; status();
     try {
-      if (!client || client.retired) client = new WorkerClient<TerrainWorker>(
-        new Worker(new URL('./terrain.worker.ts', import.meta.url), { type: 'module' }), 'Terrain worker unavailable');
-      worker = client;
+      target = worker();
       const packages = packagesForTerrainTile(sources, tile, location.href);
-      const result = await worker.call(remote => remote.render({ id, tile, segments: nearby, tileUrl, packages, coverage: requestedMode }));
+      const result = await target.call(remote => remote.render({ id, tile, segments: nearby, tileUrl, packages, coverage: requestedMode }));
       if (controller.signal.aborted || generation !== revision || !map) {
         result.data?.close(); return { data: null };
       }
@@ -226,6 +270,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       if (geometryChanged) refresh(); else syncColors();
     },
     unmount() {
+      corridorJob = undefined; corridorCache = undefined; corridorKey = ''; corridorFailed = false; workerError = undefined;
       revision++; cancel(); client?.dispose(); client = undefined;
       clearTimeout(vectorTimer); vectorTimer = undefined; tiles.clear(); coverage.clear(); coverageKey = ''; published = undefined;
       if (colorFrame !== undefined) cancelAnimationFrame(colorFrame);

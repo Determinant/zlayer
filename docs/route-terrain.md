@@ -268,7 +268,19 @@ without replacing the map. Zooming preserves the source and cached contour tiles
 revisiting an overview does not restart its elevation requests. Removing or hiding the route cancels obsolete
 requests, including work waiting for a render or network slot, and terminates the
 worker to release its decoded cache. Unmounting also removes all owned map resources. Tile requests outside the corridor are
-rejected before starting a worker job, and worker messages include only nearby legs.
+rejected before starting a worker job, and tile-render messages include only nearby legs.
+
+The same worker builds the dashed 4 NM corridor boundary, including the polygon
+union for curved approaches. This work starts at route terrain's visible zoom,
+with at most one corridor job in flight; further route edits replace the waiting
+geometry instead of queuing every intermediate route. Old outlines disappear as
+soon as the route changes, and late results cannot restore an obsolete route or
+map attachment. The layer retains only its latest completed outline. That cache
+survives altitude/camera changes, DEM-source refreshes and terrain/coverage toggles,
+and is released on unmount. No additional worker or DEM allocation is needed for
+the boundary. The layer stays loading until the current boundary is available;
+a boundary failure reports incomplete terrain and an online/inventory retry can
+repair it without invalidating healthy elevation tiles.
 
 Failed requests leave gaps, never zero elevation. **Terrain incomplete** tracks
 failed tiles at the current view and zoom, and missing elevation inside the route

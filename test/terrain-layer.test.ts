@@ -8,7 +8,8 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { createRouteResolver } from '@zlayer/domain';
 import { MapLayerHost, TERRAIN_LAYER_ANCHOR, type LayerSlot } from '../src/core/map/layer';
 import { createTerrainLayer } from '../src/layers/terrain/layer';
-import { unproject, type Tile } from '../src/layers/terrain/geometry';
+import { routeSegments, unproject, type Point, type Segment, type Tile } from '../src/layers/terrain/geometry';
+import { terrainCorridor, type TerrainCorridor } from '../src/layers/terrain/corridor';
 import { TERRAIN_CONTOUR_SOURCE, TERRAIN_CORRIDOR_SOURCE, TERRAIN_LABEL_SOURCE, TERRAIN_SOURCE } from '../src/layers/terrain/renderer';
 import type { TerrainRequest, TerrainResult, TerrainStatus } from '../src/layers/terrain/types';
 import type { CatalogResponse, TerrainSource } from '@zlayer/contracts';
@@ -29,9 +30,10 @@ const terrain: TerrainSource = { schemaVersion: 1, encoding: 'float32-feet-gzip'
   shards: [{ zoom: 13, x: 3968, y: 4096, file: `${'a'.repeat(64)}.terrain`, sha256: 'a'.repeat(64), byteLength: 100 }] };
 type FixtureResult = Omit<TerrainResult, 'data'> & { data: { testTerrainBitmap: number } };
 
-function fixture(t: test.TestContext) {
+function fixture(t: test.TestContext, options: { deferCorridors?: boolean; zoom?: number } = {}) {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const jobs: { request: TerrainRequest; finish: () => void; fail: () => void }[] = [];
+  const corridors: { segments: Segment[]; finish: () => void; fail: () => void }[] = [];
   const closed: number[] = [], canceled: number[] = [], workers: TestWorker[] = [], statuses: TerrainStatus[] = [];
   transferHandlers.set('test-terrain-bitmap', {
     canHandle: (value): value is FixtureResult => !!value && typeof value === 'object' && 'data' in value &&
@@ -46,7 +48,12 @@ function fixture(t: test.TestContext) {
     constructor() {
       super(); workers.push(this);
       this.channel.port1.on('message', data => this.dispatchEvent(new MessageEvent('message', { data })));
-      expose({ render: (request: TerrainRequest) => new Promise<TerrainResult>((resolve, reject) => {
+      expose({ corridor: (segments: Segment[]) => new Promise<TerrainCorridor>((resolve, reject) => {
+        const job = { segments, finish: () => resolve(terrainCorridor(segments)),
+          fail: () => reject(new Error('Corridor unavailable')) };
+        corridors.push(job);
+        if (!options.deferCorridors) job.finish();
+      }), render: (request: TerrainRequest) => new Promise<TerrainResult>((resolve, reject) => {
         const { x, y, z } = request.tile;
         const coordinate = unproject([(x + 0.5) / 2 ** z, (y + 0.5) / 2 ** z]);
         jobs.push({ request, finish: () => resolve({
@@ -69,7 +76,7 @@ function fixture(t: test.TestContext) {
   }
   const sources = new Map<string, unknown>(), layers = [TERRAIN_LAYER_ANCHOR], writes: string[] = [];
   const listeners = new Map<string, Set<() => void>>();
-  let covered = [tile(0)], loaded = true, zoom = 13, repaints = 0;
+  let covered = [tile(0)], loaded = true, zoom = options.zoom ?? 13, repaints = 0;
   const map = {
     getZoom: () => zoom, coveringTiles: () => covered.map(canonical => ({ canonical })),
     isSourceLoaded: () => loaded, triggerRepaint() { repaints++; },
@@ -90,7 +97,7 @@ function fixture(t: test.TestContext) {
   const advance = async () => { t.mock.timers.tick(100); await settled(); };
   const finish = async (i: number) => { jobs[i]!.finish(); await settled(); await advance(); };
   cleanup = () => { layer.unmount(); workers.forEach(worker => worker.terminate()); };
-  return { layer, map, jobs, workers, statuses, closed, canceled, sources, listeners, writes, layers, fire, advance, finish,
+  return { layer, map, jobs, corridors, workers, statuses, closed, canceled, sources, listeners, writes, layers, fire, advance, finish,
     data: (id = TERRAIN_CONTOUR_SOURCE) => sources.get(id) as { features: { properties: { elevation: number } }[] },
     status: () => statuses.at(-1)!, repaints: () => repaints, loaded(value: boolean) { loaded = value; },
     move(tiles: Tile[]) { covered = tiles; fire('move'); },
@@ -238,19 +245,104 @@ test('viewport shading does not schedule route-vector recovery and switching bac
   assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 1);
 });
 
-test('corridor geometry follows route edits, stays stable on camera/altitude changes, and clears with the route', t => {
-  const f = fixture(t), initial = f.data(TERRAIN_CORRIDOR_SOURCE);
+test('corridor geometry arrives independently of elevation and is reused across camera, altitude, source and visibility changes', async t => {
+  const f = fixture(t);
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0, 'installing sources must not run the polygon union');
+  await settled();
+  const initial = f.data(TERRAIN_CORRIDOR_SOURCE);
   assert.equal(initial.features.length, 1, 'the boundary is available before elevation finishes loading');
+  assert.equal(f.jobs.length, 0); assert.equal(f.corridors.length, 1);
   f.zoom(9.5); f.move([tile(1)]);
   f.layer.update({ enabled: true, routes: [route], altitude: 7500 });
+  f.layer.update({ enabled: true, routes: [route], catalog: { ...catalog, terrain } });
+  await settled();
   assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE), initial);
+  f.layer.update({ enabled: true, routes: [route], coverage: 'viewport' });
+  f.layer.update({ enabled: true, routes: [route], coverage: 'route' });
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE), initial);
+  f.layer.update({ enabled: false, routes: [route] });
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0);
+  assert.ok(f.workers[0]!.terminated);
+  f.layer.update({ enabled: true, routes: [route] });
+  await settled();
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE), initial);
+  assert.equal(f.corridors.length, 1, 'one cached outline survives DEM replacement and toggles');
+  assert.equal(f.workers.length, 1, 'a cached outline does not need to restart the worker');
   const changed = resolve('BBBB AAAA');
   f.layer.update({ enabled: true, routes: [changed] });
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0, 'remove the old outline immediately');
+  await settled();
   assert.notEqual(f.data(TERRAIN_CORRIDOR_SOURCE), initial);
   f.layer.update({ enabled: true, routes: [] });
   assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0);
   f.layer.update({ enabled: false, routes: [route] });
   assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0);
+});
+
+const shiftedRoute = (latitude: number) => ({ ...route,
+  legs: route.legs.map(leg => ({ ...leg, geometry: [[-10, latitude], [10, latitude]] as Point[] })) });
+
+test('slow corridor work coalesces route edits to the latest geometry and never publishes an obsolete outline', async t => {
+  const f = fixture(t, { deferCorridors: true }); await f.render(); await f.finish(0);
+  assert.equal(f.status().state, 'loading', 'finished elevation is not ready while its outline is pending');
+  const latest = shiftedRoute(0.04);
+  f.layer.update({ enabled: true, routes: [shiftedRoute(0.02)] });
+  f.layer.update({ enabled: true, routes: [latest] });
+  await settled();
+  assert.equal(f.corridors.length, 1, 'route edits cannot queue a union for every intermediate route');
+  f.writes.length = 0;
+  f.corridors[0]!.finish(); await settled();
+  assert.equal(f.writes.includes(TERRAIN_CORRIDOR_SOURCE), false);
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0);
+  assert.equal(f.corridors.length, 2);
+  assert.deepEqual(f.corridors[1]!.segments, routeSegments([latest]));
+  f.corridors[1]!.finish(); await settled();
+  assert.deepEqual(f.data(TERRAIN_CORRIDOR_SOURCE), terrainCorridor(routeSegments([latest])));
+  assert.equal(f.workers.length, 1, 'corridors share the existing DEM worker');
+  f.layer.update({ enabled: true, routes: [route] }); await settled();
+  f.corridors[2]!.finish(); await settled();
+  f.layer.update({ enabled: true, routes: [latest] }); await settled();
+  assert.equal(f.corridors.length, 4, 'retain only the most recent completed geometry');
+  f.layer.update({ enabled: true, routes: [] });
+  f.corridors[3]!.finish(); await settled();
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0, 'clearing the route cancels pending outlines');
+  assert.equal(f.status().state, 'idle');
+});
+
+test('corridor failures stop retrying and recover without rebuilding healthy elevation tiles', async t => {
+  const f = fixture(t, { deferCorridors: true }); await f.render(); await f.finish(0);
+  const contours = f.data();
+  f.corridors[0]!.fail(); await settled();
+  assert.equal(f.status().state, 'error');
+  for (let i = 0; i < 10; i++) { f.move([tile(0)]); await f.render(); }
+  assert.equal(f.corridors.length, 1);
+  window.dispatchEvent(new Event('online')); await settled();
+  assert.equal(f.status().state, 'loading');
+  f.corridors[1]!.finish(); await settled();
+  assert.equal(f.status().state, 'ready');
+  assert.equal(f.data(), contours); assert.equal(f.jobs.length, 1);
+});
+
+test('corridor work stays lazy below its display zoom and detach releases its cache and pending worker', async t => {
+  const f = fixture(t, { deferCorridors: true, zoom: 7 }); await settled();
+  assert.equal(f.workers.length, 0);
+  assert.equal(f.status().state, 'zoom');
+  f.zoom(9); await settled();
+  assert.equal(f.corridors.length, 1);
+  f.layer.unmount();
+  assert.ok(f.workers[0]!.terminated);
+  f.layer.mount(f.map); await settled();
+  f.corridors[0]!.finish(); await settled();
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0, 'an old attachment cannot publish into its replacement');
+  f.corridors[1]!.finish(); await settled();
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 1);
+  f.layer.unmount(); f.layer.mount(f.map); await settled();
+  assert.equal(f.corridors.length, 3, 'unmount releases even the completed cache');
+  assert.equal(f.data(TERRAIN_CORRIDOR_SOURCE).features.length, 0);
+  f.layer.update({ enabled: true, coverage: 'viewport', routes: [route] });
+  f.corridors[2]!.finish(); await settled();
+  assert.equal(f.sources.has(TERRAIN_CORRIDOR_SOURCE), false);
+  assert.equal(f.status().state, 'ready', 'a late route outline cannot hold viewport shading in loading');
 });
 
 test('pans, new routes, disable and unmount cancel obsolete recovery and close late bitmaps', async t => {

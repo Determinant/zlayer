@@ -78,12 +78,15 @@ test('close-zoom contours remove square-grid elbows while reducing rendered vert
   const segments: Segment[] = [[[tile.x / scale, tile.y / scale], [(tile.x + 1) / scale, (tile.y + 1) / scale]]];
   const raw = traceContours(values, size, 1000, false);
   const { lines } = terrainIsolines(values, size, tile, segments, 1000, 512, false);
+  assert.deepEqual(lines.map(line => line.elevation), [1000, 2000, 3000, 4000, 5000]);
   let vertices = 0;
-  for (const line of lines) for (const coordinates of line.coordinates) {
-    const path = coordinates.map(point => {
+  for (const line of lines) {
+    assert.equal(line.coordinates.length, 1, 'each contour remains one continuous path');
+    const path = line.coordinates[0]!.map(point => {
       const [x, y] = project(point);
       return [x * scale - tile.x, y * scale - tile.y] as Point;
     });
+    assert.ok(path.length > 2, 'each contour retains enough vertices to check rounding');
     vertices += path.length;
     assert.ok(sharpestTurn(path) < Math.PI / 4, 'square elbows must remain rounded after simplification');
     const original = raw.find(path => path.elevation === line.elevation)!.points;
