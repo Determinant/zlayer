@@ -39,7 +39,8 @@ export default function Settings({ catalog, open }: {
   const plans = useMemo(() => chartRegionPlans(catalog, location.href).map(({ region, plan }) => {
     if (!plateIndex) return { plan, problem: undefined };
     try {
-      return { plan: withRegionPlates(plan, region, plateIndex, catalog, location.href), problem: undefined };
+      const complete = { ...plan, ...(catalog.terrain ? { terrain: true } : {}) };
+      return { plan: withRegionPlates(complete, region, plateIndex, catalog, location.href), problem: undefined };
     } catch (error) { return { plan, problem: error instanceof Error ? error.message : 'Plate coverage unavailable' }; }
   }), [catalog, plateIndex]);
   const active = Boolean(operation) || jobs.some(isDownloadActive);
@@ -191,9 +192,10 @@ export default function Settings({ catalog, open }: {
         <PersistentDetails storageKey="settings-region-details-open" className="region-details">
           <summary>Coverage, sizes and FAA cycles</summary>
           <p>Includes all published VFR and IFR low charts at every zoom, navigation data,
-            all applicable plates and Chart Supplements. Preferred/TEC routes and route history
-            are included when available.</p>
-          <p>Sizes include charts and full books. Some FAA plate sizes are known only after
+            published terrain at every supported detail level, all applicable plates and Chart Supplements.
+            Published approach entries and fixes, preferred/TEC routes and route history
+            are included for offline planning when available.</p>
+          <p>Terrain size is calculated while preparing the download. Sizes include charts and full books. Some FAA plate sizes are known only after
             downloading, so their regions show a minimum size until saved. Overlapping
             regions share files; navigation data and indexes add storage once.</p>
           <p>Saved editions are used in their regions, even online. The FAA data cycle controls
@@ -205,6 +207,8 @@ export default function Settings({ catalog, open }: {
             are saved only as viewed and are not included. Cached weather may be outdated;
             check its timestamp.</p>
         </PersistentDetails>
+        {!catalog.terrain && <p role="status">Terrain downloads are not available from this feed. These downloads include charts and plates;
+          use Verify / update to add terrain after it becomes available.</p>}
         {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary charts and plates…' : 'Checking saved files…'}</p>}
         {!plateIndex && !plateError && <p role="status">Loading region details…</p>}
         {plateError && <p className="settings-error" role="alert">{plateError}{' '}

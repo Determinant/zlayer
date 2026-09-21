@@ -60,7 +60,7 @@ test('PNG and composed chart tiles keep their orientation and alpha through MapL
   }
 });
 
-test('map symbols, weather colors and route pixels survive rotation, resize and WebGL restoration', async ({ page }, testInfo) => {
+test('map symbols, weather colors and route pixels survive rotation, resize and WebGL restoration', { tag: '@smoke' }, async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openGraphics(page);

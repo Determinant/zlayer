@@ -1,4 +1,5 @@
 import { FeatureDetailsPanel } from './workspace/feature-details-panel';
+import { EdgePanels } from './core/ui/edge-panels';
 import { formatDate } from './core/format/time';
 import { featureKey, restoreRouteCoordinate } from '@zlayer/domain';
 import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react';
@@ -20,9 +21,9 @@ import {
   chartCountForSelection, chartSelectionTitle, resolveChartSelection, NO_CHARTS, useChartCache,
 } from './layers/charts';
 import {
-  RouteBar, useRoutePlan, useRouteDraft, appendRouteText, EMPTY_ROUTE_DRAFT,
+  RouteBar, useRoutePlan, useRouteDraft, useDirectTo, DirectToDialog, appendRouteText, EMPTY_ROUTE_DRAFT,
   insertRouteFeature, insertRouteTextBefore, moveRouteEntry, removeRouteEntry,
-  replaceRouteFeature, replaceRouteText, type RouteRecommendationsMap,
+  replaceRouteFeature, replaceRouteText, setRouteApproach, type RouteMapPreview,
 } from './layers/routes';
 import { createWorkspaceLayers } from './workspace/products';
 import { LayerMenu } from './shell/layer-menu';
@@ -54,25 +55,38 @@ import type { NearbyFeature } from './workspace/feature-selection';
 import { isGeoPointFeature } from '@zlayer/contracts';
 import { usePersistentState } from './core/ui/use-persistent-state';
 import { useNavaidIdentification } from './layers/navigation/use-navaid-identification';
+import { StartupScreen } from './shell/startup-screen';
+import { useStartup } from './shell/use-startup';
 
 const MapCanvas = lazy(() => import('./workspace/map/canvas'));
 
 export function App() {
+  const [mapIdle, setMapIdle] = useState(false);
+  const [mapFailed, setMapFailed] = useState(false);
+  const mapStartupFailed = useCallback(() => setMapFailed(true), []);
   const online = useOnline();
   const { catalog: browsingCatalog, cycles, selection, selectCycle, error: catalogError, cycleNotice } = useCatalog();
   const { context, bundles, error: regionError } = useWorkspaceReadContext(browsingCatalog);
   const [mapPreferences, setMapPreferences] = useMapPreferences();
   const [mapView, setMapView] = useMapView();
-  const { chartBase, chartOverlay, visibility, fixDisplay, metarEnabled, terrainEnabled, obstructionsEnabled, terrainAltitude, ownshipEnabled } = mapPreferences;
+  const { chartBase, chartOverlay, visibility, fixDisplay, metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled } = mapPreferences;
   const [terrainStatus, setTerrainStatus] = useState<TerrainStatus>({ state: 'idle', interval: 1000 });
   const [obstructionStatus, setObstructionStatus] = useState<ObstructionStatus>({ state: 'idle' });
   const [workspaceLayers] = useState(createWorkspaceLayers);
   const { metar: metarLayer, plates, ownship: ownshipLayer } = workspaceLayers;
   const metarSnapshot = useLayerSnapshot(metarLayer);
+  const { mapImage: mappedPlate, selection: plateSelection, mapSelection, mapImageRestored, mapRestoreError } = useLayerSnapshot(plates);
   const [selectionContext, setSelectionContext] = useState<{ feature: GeoPointFeature; context: WorkspaceReadContext; routePointId?: string }>();
-  const [identificationOpen, setIdentificationOpen] = useState(false);
+  const [identificationOpen, setIdentificationOpen] = usePersistentState('identification-open', false,
+    (value): value is boolean => typeof value === 'boolean');
   const [savedFeature, setSavedFeature] = usePersistentState<GeoPointFeature | null>('selected-feature', null,
     (value): value is GeoPointFeature | null => value === null || isGeoPointFeature(value));
+  const [activeSidePanel, setActiveSidePanel] = usePersistentState<string | null>('side-panel',
+    plateSelection ? 'plate' : savedFeature ? 'details' : null,
+    (value): value is string | null => value === null || value === 'plate' || value === 'details');
+  useEffect(() => {
+    if ((activeSidePanel === 'plate' && !plateSelection) || (activeSidePanel === 'details' && !savedFeature)) setActiveSidePanel(null);
+  }, [activeSidePanel, plateSelection, savedFeature, setActiveSidePanel]);
   const [savedRoutePointId, setSavedRoutePointId] = usePersistentState<string | null>('selected-route-entry', null,
     (value): value is string | null => value === null || typeof value === 'string' && value.length > 0);
   useEffect(() => {
@@ -91,15 +105,18 @@ export function App() {
   const [query, setQuery] = useState('');
   const { warning, report, clear, dismiss } = useResourceWarning(online);
   const reportChartError = useCallback((message: string, code?: ResourceErrorCode) => report('Chart unavailable', message, code), [report]);
-  const [routeDraft, setRouteDraft] = useRouteDraft();
+  const [routeDraft, setRouteDraft, routeUndo] = useRouteDraft();
   const [routeFocusNonce, setRouteFocusNonce] = useState(0);
-  const [recommendations, setRecommendations] = useState<RouteRecommendationsMap>();
+  const [recommendations, setRecommendations] = useState<RouteMapPreview>();
+  const [approachPreview, setApproachPreview] = useState<RouteMapPreview>();
+  const routePreview = approachPreview ?? recommendations;
 
-  const { data: navigationData, loadState, issues: navigationIssues, airways } = useNavigationData(context, visibility);
+  const { data: navigationData, loadState, loading: navigationPending, issues: navigationIssues, airways } = useNavigationData(context, visibility);
   const route = useRoutePlan(
     context?.routing,
     routeDraft,
   );
+  const { action: directTo, confirmation: directToConfirmation } = useDirectTo(ownshipLayer, route.plan, setRouteDraft);
   const { metars, state: metarState, weatherAirportCount } = metarSnapshot;
   const search = useNavigationSearch(context, query, metars);
   const chartSelection = useMemo(() => resolveChartSelection(context?.charts ?? [], chartBase, chartOverlay),
@@ -127,14 +144,27 @@ export function App() {
     setNearbyFeatures(undefined);
     setIdentificationOpen(false);
     setSavedRoutePointId(routePointId ?? null);
-    if (!feature) { setSavedFeature(null); setSelectionContext(undefined); return; }
+    if (!feature) {
+      setActiveSidePanel(current => current === 'details' ? null : current);
+      setSavedFeature(null); setSelectionContext(undefined); return;
+    }
     if (context) {
+      setActiveSidePanel('details');
       const resolved = resolveNavigationFeature(restoreRouteCoordinate(feature), mapNavigationData);
       setSavedFeature(resolved);
       setSelectionContext({ feature: resolved, context, ...(routePointId === undefined ? {} : { routePointId }) });
     }
   };
   const selectedReference = selected;
+  useEffect(() => {
+    if (!mappedPlate || mapImageRestored) return;
+    setActiveSidePanel(null);
+    setNearbyFeatures(undefined);
+    setIdentificationOpen(false);
+    setSavedRoutePointId(null);
+    setSavedFeature(null);
+    setSelectionContext(undefined);
+  }, [mappedPlate, mapImageRestored]);
   const selectedWithWeather = useMemo(
     () => selectedReference ? featureWithMetar(selectedReference, metarSnapshot) : undefined,
     [selectedReference, metars],
@@ -159,13 +189,20 @@ export function App() {
     priorityFixes: [
       ...(selectedReference?.properties.kind === 'fix' ? [selectedReference] : []),
       ...route.plan.waypoints.filter(waypoint => waypoint.layer === 'fixes').map(waypoint => waypoint.feature),
-      ...(recommendations?.routes.find(route => route.key === recommendations.selectedKey)?.plan.waypoints ?? [])
+      ...(routePreview?.routes.find(route => route.key === routePreview.selectedKey)?.plan.waypoints ?? [])
         .filter(waypoint => waypoint.layer === 'fixes').map(waypoint => waypoint.feature),
     ],
-  }), [fixDisplay, airways, selectedReference, route.plan, recommendations]);
+  }), [fixDisplay, airways, selectedReference, route.plan, routePreview]);
 
+  const dataPending = navigationPending || route.status === 'loading' ||
+    (!!mapSelection && !mappedPlate && !mapRestoreError) ||
+    (activeChartCount > 0 && chartCacheState === 'preparing') ||
+    (terrainEnabled && terrainStatus.state === 'loading') || (obstructionsEnabled && obstructionStatus.state === 'loading');
+  const startup = useStartup(!!context && !dataPending && mapIdle, mapFailed);
+  const startupMessage = !context ? 'Opening your workspace…' : dataPending ? 'Loading your map data…'
+    : !mapIdle ? 'Preparing your map…' : 'Finishing up…';
   if (catalogError && !context) return <CatalogError message={catalogError} />;
-  if (!context) return <LaunchState />;
+  if (!context) return <StartupScreen message={startupMessage} slow={startup.slow} />;
   const savedEditions = [...new Set(visibleBundles.map(bundle => bundle.catalog.revision))];
   const visibleNavigationIssues = navigationIssues.filter(issue => issue.regionId ?
     visibleBundles.some(bundle => bundle.plan.regionId === issue.regionId && bundle.catalog.revision === issue.revision) : browsingVisible);
@@ -188,7 +225,8 @@ export function App() {
   };
 
   return (
-    <main className="app-shell">
+    <><fieldset className="workspace-startup-gate" role="presentation" disabled={!startup.complete}>
+    <main className="app-shell" inert={!startup.complete} aria-busy={!startup.complete}>
       <header className="topbar">
         <div className="brand">
           <img className="brand-mark" src="/icon.svg" alt="ZLayer" />
@@ -217,7 +255,12 @@ export function App() {
         status={route.status}
         catalog={context.routing}
         onUseRoute={setRouteDraft}
+        onDirectTo={directTo}
+        onApproachChange={(entry, approach) => setRouteDraft(current => setRouteApproach(current, entry, approach))}
+        onOpenPlate={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
+        undo={routeUndo}
         onRecommendationPreview={setRecommendations}
+        onApproachPreview={setApproachPreview}
         onAppendInput={(input) => setRouteDraft((current) => appendRouteText(current, input))}
         onInsertInput={(beforeEntryId, input) =>
           setRouteDraft((current) => insertRouteTextBefore(current, beforeEntryId, input))
@@ -239,7 +282,7 @@ export function App() {
 
       <section className="workspace">
         <div className="map-stage">
-          <ErrorBoundary fallback={error => <div className="map-runtime-error" role="alert">
+          <ErrorBoundary onError={mapStartupFailed} fallback={error => <div className="map-runtime-error" role="alert">
             <span>Map unavailable: {error.message}</span>
             <button type="button" onClick={() => window.location.reload()}>Reload app</button>
           </div>}>
@@ -251,7 +294,7 @@ export function App() {
                 fixContext={fixContext}
                 data={mapNavigationData}
                 route={route.plan}
-                recommendations={recommendations}
+                routePreview={routePreview}
                 identification={identificationMap}
                 {...(mapView ? { initialView: mapView } : {})}
                 routeFocusNonce={routeFocusNonce}
@@ -261,10 +304,12 @@ export function App() {
                 onViewportChange={setViewport}
                 onViewChange={setMapView}
                 metarLayer={metarLayer}
+                platesLayer={plates}
                 metarEnabled={metarEnabled}
                 ownshipLayer={ownshipLayer}
                 ownshipEnabled={ownshipEnabled}
                 terrainEnabled={terrainEnabled}
+                terrainCoverage={terrainCoverage}
                 obstructionsEnabled={obstructionsEnabled}
                 terrainAltitude={terrainAltitude}
                 onTerrainStatus={setTerrainStatus}
@@ -273,10 +318,14 @@ export function App() {
                 onRouteWaypointReplace={replaceRouteWaypoint}
                 onRouteWaypointRemove={removeRouteWaypoint}
                 onReady={() => clear('Map layer unavailable')}
+                onIdleChange={startup.complete ? undefined : setMapIdle}
+                onStartupFailure={mapStartupFailed}
                 onError={(message, code) => report('Map layer unavailable', message, code)}
               />
             </Suspense>
           </ErrorBoundary>
+
+          <plates.MapControl />
 
           {nearbyFeatures && <NearbyFeaturePicker features={nearbyFeatures.features} point={nearbyFeatures.point}
             onSelect={selectFeature} onClose={() => setNearbyFeatures(undefined)} />}
@@ -295,6 +344,8 @@ export function App() {
             metarObservedAt={metarState.observedAt}
             weatherAirportCount={weatherAirportCount}
             terrainEnabled={terrainEnabled}
+            terrainCoverage={terrainCoverage}
+            onTerrainCoverageChange={terrainCoverage => setMapPreferences(current => ({ ...current, terrainCoverage }))}
             terrainStatus={terrainStatus}
             onTerrainVisibilityChange={() => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled }))}
             obstructionsEnabled={obstructionsEnabled}
@@ -347,10 +398,13 @@ export function App() {
               onToggle={() => setMapPreferences(current => ({ ...current, ownshipEnabled: !current.ownshipEnabled }))} />}
             ahrs={{ render: visible => <AhrsTool layer={workspaceLayers.ahrs} route={route.plan} revision={context.browsing.revision} visible={visible} />,
               stop: workspaceLayers.ahrs.stop }}
-            terrain={terrainEnabled && terrainStatus.state !== 'idle' &&
-              <TerrainLegend status={terrainStatus} altitude={terrainAltitude}
+            terrain={<TerrainLegend status={terrainStatus} altitude={terrainAltitude} enabled={terrainEnabled}
+                onToggle={() => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled }))}
+                coverage={terrainCoverage} onCoverageChange={terrainCoverage => setMapPreferences(current => ({ ...current, terrainCoverage }))}
                 onAltitudeChange={terrainAltitude => setMapPreferences(current => ({ ...current, terrainAltitude }))} />}
-          />
+          >
+            <LayerPanels layers={workspaceLayers.panels} />
+          </MapEdgeTools>
 
           <div className="workspace-notices">
             {regionError && <div className="feed-status" role="status">{regionError}</div>}
@@ -387,27 +441,31 @@ export function App() {
             <FlightCategoryLegend observedAt={metarState.observedAt} />
           )}
 
-          {selected && (
-            <FeatureDetailsPanel
-              key={featureKey(selected)}
-              feature={selectedWithWeather ?? selected}
-              metarClient={metarLayer.client}
-              procedureResource={selectedCatalog?.procedures}
-              editionUnavailable={!selectedCatalog}
-              identification={identificationOpen ? identification : undefined}
-              onIdentificationChange={setIdentificationOpen}
-              savedSupplement={supplementForFeature(selectedReadContext!, selectedWithWeather ?? selected)}
-              revision={selectedCatalog?.revision ?? selected.properties.dataRevision ?? context.browsing.revision}
-              route={{ plan: route.plan, pointId: selectionContext?.routePointId, update: setRouteDraft }}
-              onClose={() => selectFeature(undefined)}
-              onOpenProcedure={plates.open}
-            />
-          )}
+          <EdgePanels side="right" active={activeSidePanel} onActiveChange={setActiveSidePanel} className="side-panels">
+            {selected && (
+              <FeatureDetailsPanel
+                key={featureKey(selected)}
+                feature={selectedWithWeather ?? selected}
+                metarClient={metarLayer.client}
+                procedureResource={selectedCatalog?.procedures}
+                editionUnavailable={!selectedCatalog}
+                identification={identificationOpen ? identification : undefined}
+                onIdentificationChange={setIdentificationOpen}
+                savedSupplement={supplementForFeature(selectedReadContext!, selectedWithWeather ?? selected)}
+                revision={selectedCatalog?.revision ?? selected.properties.dataRevision ?? context.browsing.revision}
+                route={{ plan: route.plan, pointId: selectionContext?.routePointId, update: setRouteDraft, onDirectTo: directTo }}
+                onClose={() => selectFeature(undefined)}
+                onOpenProcedure={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
+              />
+            )}
 
-          <LayerPanels layers={workspaceLayers.panels} />
+            <LayerPanels layers={workspaceLayers.panels} />
+          </EdgePanels>
         </div>
       </section>
-    </main>
+      <DirectToDialog confirmation={directToConfirmation} />
+    </main></fieldset>
+    {!startup.complete && <StartupScreen message={startupMessage} slow={startup.slow} onContinue={startup.finish} />}</>
   );
 }
 
@@ -419,15 +477,6 @@ function countVisibleFeatures(
     (count, [id, collection]) =>
       count + (visibility[id as NavigationLayerId] ? (collection?.features.length ?? 0) : 0),
     0,
-  );
-}
-
-function LaunchState() {
-  return (
-    <main className="launch-state">
-      <img className="brand-mark is-loading" src="/icon.svg" alt="ZLayer" />
-      <p>Opening chart workspace…</p>
-    </main>
   );
 }
 

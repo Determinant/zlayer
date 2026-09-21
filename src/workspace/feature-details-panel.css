@@ -1,24 +1,43 @@
-.feature-card {
+.feature-details-panel {
+  --edge-handle-width: max(32px, var(--touch-target));
+  --detail-edge-gap: 0px;
   position: absolute;
-  z-index: 5;
-  right: 14px;
+  right: var(--detail-edge-gap);
   bottom: 34px;
   display: flex;
   flex-direction: column;
-  width: min(330px, calc(100% - 28px));
+  width: min(330px, calc(100% - var(--edge-handle-width) - 8px));
   max-height: calc(100% - 100px);
+  pointer-events: none;
+}
+
+.feature-details-panel.has-plates {
+  width: min(390px, calc(100% - var(--edge-handle-width) - 8px));
+  height: min(620px, calc(100% - 100px));
+}
+
+.feature-details-panel > .map-edge-handle {
+  position: absolute;
+  left: calc(100% - var(--edge-handle-width) + var(--detail-edge-gap));
+  top: 0;
+  transition: left 180ms ease;
+}
+.feature-details-panel.is-open > .map-edge-handle { left: calc(-1 * var(--edge-handle-width)); }
+
+.feature-card {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   padding: 12px;
   border: 1px solid rgba(151, 199, 228, 0.19);
-  border-radius: 16px;
+  border-radius: 9px 0 0 9px;
   background: rgba(8, 20, 35, 0.95);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
   backdrop-filter: blur(18px);
-}
-
-.feature-card.has-plates {
-  width: min(390px, calc(100% - 28px));
-  height: min(620px, calc(100% - 100px));
+  transform: translateX(calc(100% + var(--detail-edge-gap)));
 }
 
 .feature-card-content {
@@ -64,7 +83,8 @@
 }
 
 .feature-card-actions { display: flex; align-items: center; gap: 8px; }
-.identify-feature-button {
+.identify-feature-button,
+.direct-to-button {
   display: grid;
   place-items: center;
   width: max(32px, var(--touch-target));
@@ -78,9 +98,9 @@
   font-weight: 700;
   cursor: pointer;
 }
-.identify-feature-button:hover { background: #1986ff40; }
+.identify-feature-button:hover, .direct-to-button:hover { background: #1986ff40; }
 .identify-feature-button[aria-pressed="true"] { color: #fff; background: #126bd2; border-color: #78baff; }
-.identify-feature-button:focus-visible { outline: 2px solid #78baff; outline-offset: 3px; }
+.identify-feature-button:focus-visible, .direct-to-button:focus-visible { outline: 2px solid #78baff; outline-offset: 3px; }
 
 .feature-card-header > p {
   margin: 4px 0 12px;
@@ -318,27 +338,27 @@
 }
 
 @media (max-width: 640px) {
-  .feature-card,
-  .feature-card.has-plates {
-    right: 9px;
+  .feature-details-panel,
+  .feature-details-panel.has-plates {
     bottom: 28px;
-    width: calc(100% - 18px);
+    width: calc(100% - var(--edge-handle-width) - 8px);
   }
 }
 
 /* Respond to the map's actual space, including keyboard and safe-area changes.
  * Keep the header and tabs reachable while the details scroll. */
 @container workspace (max-height: 400px) {
-  .feature-card,
-  .feature-card.has-plates {
+  .feature-details-panel,
+  .feature-details-panel.has-plates {
+    --detail-edge-gap: 72px;
     top: 8px;
-    right: 72px;
     bottom: 8px;
-    width: min(390px, calc(100% - 82px));
+    width: min(390px, calc(100% - 82px - var(--edge-handle-width)));
     height: auto;
     max-height: none;
-    padding: clamp(8px, 3cqh, 12px);
   }
+  .feature-details-panel > .map-edge-handle { top: 56px; }
+  .feature-card { padding: clamp(8px, 3cqh, 12px); }
   .feature-card-heading { margin-bottom: 4px; }
   /* Keep the identifier and Info/Plates tabs fixed, while preserving body
    * space for scrolling in short landscape and keyboard-sized maps. */
@@ -348,12 +368,12 @@
 }
 
 @container workspace (max-height: 300px) {
-  .feature-card,
-  .feature-card.has-plates {
+  .feature-details-panel,
+  .feature-details-panel.has-plates {
     top: 0;
     bottom: 0;
-    padding: 4px;
   }
+  .feature-card { padding: 4px; }
   .feature-card-heading { margin-bottom: 0; }
   .feature-tabs { margin-bottom: 0; }
   .close-card { top: 4px; right: 4px; }

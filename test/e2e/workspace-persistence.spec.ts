@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mockGps, sendFix, countWatches } from './ownship-fixture';
 
+test.afterEach(async ({ request }) => { await request.post('/__test/reset'); });
+
 const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!));
 
 function twoPagePdf() {
@@ -22,6 +24,7 @@ function twoPagePdf() {
   return Buffer.from(body + `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
 }
 async function mapReady(page: Page) {
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeVisible();
 }
 async function pan(page: Page) {
@@ -107,7 +110,7 @@ test('panel visibility, toolboxes, settings and recommendations survive refresh 
   await expect(page.getByRole('button', { name: 'Show chart status', exact: true })).toBeVisible();
 });
 
-test('airport, plate, page, zoom, fullscreen and scroll restore together, including offline', async ({ page, context }) => {
+test('airport, plate, page, zoom, fullscreen and scroll restore together, including offline', async ({ page, request }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -118,15 +121,23 @@ test('airport, plate, page, zoom, fullscreen and scroll restore together, includ
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await page.getByRole('button', { name: 'Enter full screen' }).click();
-  const dialog = page.locator('.procedure-viewer-backdrop');
+  const dialog = page.locator('.procedure-window');
   for (let i = 0; i < 4; i++) await dialog.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
-  await page.locator('.procedure-page-stage').evaluate(stage => { stage.scrollTop = 120; stage.scrollLeft = 60; });
+  await page.locator('.procedure-page-stage').evaluate(stage => {
+    stage.scrollTop = 120; stage.scrollLeft = 60;
+    // Exit before the browser dispatches its next scroll event or the debounce.
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+  });
+  expect(await page.evaluate(() => Object.entries(localStorage).filter(([key]) => key.endsWith(':scroll'))
+    .map(([, value]) => JSON.parse(value).value))).toEqual([{ left: 60, top: 120 }]);
   await expect.poll(() => page.locator('.procedure-page-stage').evaluate(stage => stage.scrollTop)).toBe(120);
   const zoom = await page.locator('.procedure-zoom-controls').textContent();
   const pageText = await page.locator('.procedure-page-controls').textContent();
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-  await context.setOffline(true);
+  // WebKit's offline emulation rejects service-worker responses as well.
+  await page.addInitScript(() => Object.defineProperty(navigator, 'onLine', { get: () => false }));
+  await request.post('/__test/disconnect');
   await page.reload();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await expect(page.getByRole('button', { name: 'Exit full screen' })).toBeVisible();
@@ -134,12 +145,13 @@ test('airport, plate, page, zoom, fullscreen and scroll restore together, includ
   await expect(page.locator('.procedure-page-controls')).toHaveText(pageText!);
   await expect.poll(() => page.locator('.procedure-page-stage').evaluate(stage => stage.scrollTop)).toBe(120);
   await page.getByLabel('Close plate', { exact: true }).click();
-  await expect(page.locator('.procedure-viewer-backdrop')).toHaveCount(0);
+  await expect(page.locator('.procedure-window')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
   await expect(page.locator('.feature-card h2')).toHaveText('KSBA');
   await page.reload();
   await mapReady(page);
-  await expect(page.locator('.procedure-viewer-backdrop')).toHaveCount(0);
+  await expect(page.locator('.procedure-window')).toHaveCount(0);
   await expect(page.locator('.feature-card h2')).toHaveText('KSBA');
   await page.getByLabel('Close detail').click();
   await page.reload();
@@ -149,6 +161,8 @@ test('airport, plate, page, zoom, fullscreen and scroll restore together, includ
 });
 
 test('a visited PDF page survives refresh, and corrupt presentation records do not block startup', async ({ page }) => {
+  // Page routing cannot intercept requests already handled by a service worker.
+  await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
   await page.route('**/two-page.pdf', route => route.fulfill({ contentType: 'application/pdf', body: twoPagePdf() }));
   await page.addInitScript(() => {
     if (localStorage.getItem('test-seeded')) return;
@@ -172,7 +186,7 @@ test('a visited PDF page survives refresh, and corrupt presentation records do n
   await expect(page.locator('.procedure-page-controls')).toContainText('Page 2 / 2');
   await expect(page.getByLabel('PDF page 2', { exact: true })).toBeVisible();
   await page.getByLabel('Close plate', { exact: true }).click();
-  await expect(page.locator('.procedure-viewer-backdrop')).toHaveCount(0);
+  await expect(page.locator('.procedure-window')).toHaveCount(0);
   await expect(page.locator('.feature-card')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open map layers', exact: true })).toBeVisible();
 });

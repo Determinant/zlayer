@@ -5,6 +5,30 @@ import type { GeoPointFeature } from '@zlayer/contracts';
 
 import { formatObservationTime } from '../src/layers/metar-taf/metar/format.js';
 import { featureDetailRows, resolveNavigationFeature } from '../src/layers/navigation/feature-details.js';
+import { withMapLabelKeys } from '../src/core/map/label';
+
+test('map sources omit nested reference details while retaining styling and exact export identity', () => {
+  const feature: GeoPointFeature = { type: 'Feature', id: 'airport:KSBA',
+    geometry: { type: 'Point', coordinates: [-119.84, 34.43] },
+    properties: { ident: 'KSBA', kind: 'airport', facilityType: 'A', towered: true,
+      longestRunwayFt: 6052, dataRevision: '2026-09-03', dataSourceKey: 'export-1',
+      runways: [{ id: '07/25' }], frequencies: [{ type: 'TOWER', frequencyMHz: 119.7 }], charts: ['ENROUTE LOW'],
+      metarStationId: 'KSBA', displayFlightCategory: 'VFR' } };
+  const collection = { type: 'FeatureCollection' as const, features: [feature],
+    meta: { layer: 'airports' as const, revision: '2026-09-03', returned: 1, truncated: false } };
+  const mapped = withMapLabelKeys(collection).features[0]!;
+  for (const key of ['runways', 'frequencies', 'charts']) {
+    assert.equal(key in mapped.properties, false);
+    assert.ok(key in feature.properties, 'the canonical record must remain complete');
+  }
+  for (const key of ['ident', 'kind', 'facilityType', 'towered', 'longestRunwayFt', 'dataRevision',
+    'dataSourceKey', 'metarStationId', 'displayFlightCategory']) {
+    assert.equal(mapped.properties[key], feature.properties[key]);
+  }
+  assert.equal(resolveNavigationFeature(mapped, { airports: collection }), feature);
+  const anonymous: GeoPointFeature = { type: 'Feature', geometry: feature.geometry, properties: feature.properties };
+  assert.equal(withMapLabelKeys({ ...collection, features: [anonymous] }).features[0]!.properties.runways, feature.properties.runways);
+});
 
 test('formats weather details without malformed variable-wind notation', () => {
   const feature: GeoPointFeature = {

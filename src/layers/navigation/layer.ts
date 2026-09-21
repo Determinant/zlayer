@@ -1,5 +1,6 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { AirwayDataResponse, GeoPointFeature, NavigationData } from '@zlayer/contracts';
+import { featureKey } from '@zlayer/domain';
 import { NAVIGATION_LAYERS, DEFAULT_VISIBILITY, type LayerVisibility } from './definitions';
 import { installNavigationLayers, INTERACTIVE_LAYER_IDS, PRIORITY_FIX_LAYER_ID, PRIORITY_FIX_SOURCE_ID, syncNavigationData, syncVisibility } from './renderer';
 import { NAVIGATION_ICON_IDS } from './symbols';
@@ -18,9 +19,11 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
   let input: NavigationInput = { data: {}, visibility: DEFAULT_VISIBILITY };
   let fixes: FixDisplayIndex | undefined;
   let displayed: NavigationData = {};
+  let priority = priorityFixData([]);
+  let priorityKeys = new Set<string>();
   const renderPriority = () => {
     (map?.getSource(PRIORITY_FIX_SOURCE_ID) as GeoJSONSource | undefined)
-      ?.setData(withMapLabelKeys(priorityFixData(input.priorityFixes ?? [])));
+      ?.setData(withMapLabelKeys(priority));
   };
   return {
     id: 'navigation', slot: 'navigation', interactiveLayerIds: INTERACTIVE_LAYER_IDS,
@@ -34,9 +37,21 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
     },
     update(next) {
       const rebuild = input.data.fixes !== next.data.fixes || input.airways !== next.airways;
-      const redrawFixes = rebuild || input.fixDisplay !== next.fixDisplay || input.priorityFixes !== next.priorityFixes;
+      const previousSettings = input.fixDisplay ?? DEFAULT_FIX_DISPLAY;
+      const settings = next.fixDisplay ?? DEFAULT_FIX_DISPLAY;
+      let priorityChanged = false, priorityKeysChanged = false;
+      if (input.priorityFixes !== next.priorityFixes) {
+        const nextPriority = priorityFixData(next.priorityFixes ?? []);
+        priorityChanged = nextPriority.features.length !== priority.features.length ||
+          nextPriority.features.some((feature, index) => feature !== priority.features[index]);
+        priority = nextPriority;
+        const nextKeys = new Set((next.priorityFixes ?? []).map(featureKey));
+        priorityKeysChanged = nextKeys.size !== priorityKeys.size || [...nextKeys].some(key => !priorityKeys.has(key));
+        priorityKeys = nextKeys;
+      }
+      const redrawFixes = rebuild || previousSettings.detail !== settings.detail ||
+        (settings.detail !== 'all' && previousSettings.airspace !== settings.airspace) || priorityKeysChanged;
       const visibilityChanged = input.visibility !== next.visibility;
-      const priorityChanged = input.priorityFixes !== next.priorityFixes;
       input = next;
       if (rebuild) fixes = next.data.fixes ? indexFixDisplay(next.data.fixes, next.airways) : undefined;
       const previousData = displayed;

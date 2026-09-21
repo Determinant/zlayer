@@ -5,13 +5,17 @@ import type { RouteEditTarget, RouteLeg, RoutePlan } from '@zlayer/domain';
 import { unwrapRouteCoordinates } from './geometry';
 import { routeEditProperties } from './editing';
 import { routePointKeys } from './selection';
-import type { RecommendationPreview } from './suggestions';
+import { holdArrowImage } from './hold-arrow';
+import type { RoutePreview } from './map-preview';
 import { ROUTE_LINE_ANCHOR } from '../../core/map/layer';
 import { mapLabelKey, ROUTE_LABEL_IDS_STATE } from '../../core/map/label';
 
 export const ROUTE_LEG_HIT_LAYER_ID = 'route-leg-hits';
 export const ROUTE_WAYPOINT_HIT_LAYER_ID = 'route-waypoint-hits';
 const ROUTE_COLOR = '#33c6ff';
+const APPROACH_RGB = [237, 98, 217] as const;
+const ROUTE_HALO_RGB = [4, 20, 34] as const;
+const APPROACH_COLOR = `rgb(${APPROACH_RGB.join(',')})`;
 
 export type RouteDragPreview = {
   target: RouteEditTarget;
@@ -21,7 +25,7 @@ export type RouteDragPreview = {
 };
 
 type RouteProperties = GeoPointFeature['properties'] & {
-  routeKind: 'leg' | 'waypoint' | 'insert-preview';
+  routeKind: 'leg' | 'waypoint' | 'insert-preview' | 'approach-extension' | 'approach-hold' | 'approach-missed' | 'hold-direction';
   ident?: string;
   navigationLayer?: NavigationLayerId;
   editKind?: 'leg' | 'waypoint';
@@ -30,6 +34,11 @@ type RouteProperties = GeoPointFeature['properties'] & {
   dragging?: boolean;
   snapped?: boolean;
   procedurePreview?: boolean;
+  approachPhase?: 'approach' | 'missed';
+  approachPoint?: boolean;
+  approachRole?: string;
+  holdLabelOnRight?: boolean;
+  holdBearing?: number;
 };
 
 type RouteGeometry =
@@ -51,10 +60,11 @@ type RouteFeatureCollection = {
 export const ROUTE_SOURCE_ID = 'route-plan';
 export const RECOMMENDATION_SOURCE_ID = 'route-alternatives';
 export const ROUTE_LABEL_BACKGROUND_ID = 'route-label-background';
+export const HOLD_ARROW_IMAGE_ID = 'route-hold-arrow';
 export const ROUTE_LAYER_IDS = [
   'route-alternative-halo', 'route-alternative-line', 'route-alternative-procedure-line',
-  'route-line-halo', 'route-line', 'route-procedure-line', 'route-waypoint-halos', 'route-waypoints',
-  'route-waypoint-labels', ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_LEG_HIT_LAYER_ID, 'route-insert-preview',
+  'route-line-halo', 'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line', 'route-missed-line', 'route-waypoint-halos', 'route-waypoints',
+  'route-waypoint-labels', 'route-hold-direction', ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_LEG_HIT_LAYER_ID, 'route-insert-preview',
 ];
 
 export function installRouteLayers(map: MapLibreMap): void {
@@ -72,6 +82,7 @@ export function installRouteLayers(map: MapLibreMap): void {
   }, {
     pixelRatio: 2, stretchX: [[radius, size - radius]], stretchY: [[radius, size - radius]],
   });
+  map.addImage(HOLD_ARROW_IMAGE_ID, holdArrowImage(APPROACH_RGB, ROUTE_HALO_RGB), { pixelRatio: 2 });
   map.addSource(RECOMMENDATION_SOURCE_ID, { type: 'geojson', data: routeData() });
   map.addLayer({ id: 'route-alternative-halo', type: 'line', source: RECOMMENDATION_SOURCE_ID,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -94,10 +105,10 @@ export function installRouteLayers(map: MapLibreMap): void {
     id: 'route-line-halo',
     type: 'line',
     source: ROUTE_SOURCE_ID,
-    filter: ['==', ['get', 'routeKind'], 'leg'],
+    filter: ['in', ['get', 'routeKind'], ['literal', ['leg', 'approach-hold', 'approach-missed']]],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': 'rgba(4, 20, 34, 0.72)',
+      'line-color': `rgba(${ROUTE_HALO_RGB.join(',')},0.72)`,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 6, 11, 10],
     },
   }, ROUTE_LINE_ANCHOR);
@@ -105,7 +116,7 @@ export function installRouteLayers(map: MapLibreMap): void {
     id: 'route-line',
     type: 'line',
     source: ROUTE_SOURCE_ID,
-    filter: ['all', ['==', ['get', 'routeKind'], 'leg'], ['!', ['has', 'procedurePreview']]],
+    filter: ['all', ['==', ['get', 'routeKind'], 'leg'], ['!', ['has', 'procedurePreview']], ['!', ['has', 'approachPhase']]],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ROUTE_COLOR,
@@ -120,6 +131,23 @@ export function installRouteLayers(map: MapLibreMap): void {
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 5] },
   }, ROUTE_LINE_ANCHOR);
   map.addLayer({
+    id: 'route-approach-extension', type: 'line', source: ROUTE_SOURCE_ID,
+    filter: ['==', ['get', 'routeKind'], 'approach-extension'],
+    paint: { 'line-color': '#f3afeb', 'line-opacity': 0.7, 'line-width': 2.5 },
+  }, ROUTE_LINE_ANCHOR);
+  map.addLayer({
+    id: 'route-approach-line', type: 'line', source: ROUTE_SOURCE_ID,
+    filter: ['==', ['get', 'approachPhase'], 'approach'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': APPROACH_COLOR, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 5] },
+  }, ROUTE_LINE_ANCHOR);
+  map.addLayer({
+    id: 'route-missed-line', type: 'line', source: ROUTE_SOURCE_ID,
+    filter: ['==', ['get', 'approachPhase'], 'missed'],
+    layout: { 'line-join': 'round' },
+    paint: { 'line-color': APPROACH_COLOR, 'line-dasharray': [2.5, 1.5], 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 4] },
+  }, ROUTE_LINE_ANCHOR);
+  map.addLayer({
     id: 'route-waypoint-halos',
     type: 'circle',
     source: ROUTE_SOURCE_ID,
@@ -130,7 +158,7 @@ export function installRouteLayers(map: MapLibreMap): void {
         5, ['case', ['get', 'dragging'], 8, 6],
         11, ['case', ['get', 'dragging'], 11, 9],
       ],
-      'circle-color': 'rgba(4, 20, 34, 0.84)',
+      'circle-color': `rgba(${ROUTE_HALO_RGB.join(',')},0.84)`,
     },
   });
   map.addLayer({
@@ -146,7 +174,7 @@ export function installRouteLayers(map: MapLibreMap): void {
         ['get', 'dragging'], '#ffd17a',
         '#e9f7ff',
       ],
-      'circle-stroke-color': ROUTE_COLOR,
+      'circle-stroke-color': ['case', ['==', ['get', 'approachPoint'], true], APPROACH_COLOR, ROUTE_COLOR],
       'circle-stroke-width': 2,
     },
   });
@@ -164,13 +192,18 @@ export function installRouteLayers(map: MapLibreMap): void {
       'icon-pitch-alignment': 'viewport',
       'icon-allow-overlap': false,
       'icon-optional': false,
-      'text-field': ['get', 'ident'],
+      'text-field': ['step', ['zoom'], ['get', 'ident'], 10,
+        ['case', ['has', 'approachRole'], ['concat', ['get', 'ident'], '\n', ['get', 'approachRole']], ['get', 'ident']]],
       'text-font': ['Noto Sans Bold'],
       'text-size': 13,
-      'text-max-width': 0,
-      // Prefer a nameplate on the right, with only a horizontal fallback.
-      'text-variable-anchor': ['left', 'right'],
-      'text-radial-offset': 1.3,
+      'text-max-width': 20,
+      // Put hold names on the side away from the racetrack, with vertical fallbacks.
+      // Ordinary waypoint names retain their horizontal placement.
+      'text-variable-anchor-offset': ['case', ['has', 'holdLabelOnRight'],
+        ['case', ['get', 'holdLabelOnRight'],
+          ['literal', ['left', [1.3, 0], 'bottom', [0, -1.3], 'top', [0, 1.3], 'right', [-1.3, 0]]],
+          ['literal', ['right', [-1.3, 0], 'bottom', [0, -1.3], 'top', [0, 1.3], 'left', [1.3, 0]]]],
+        ['literal', ['left', [1.3, 0], 'right', [-1.3, 0]]]],
       'text-justify': 'auto',
       'text-rotation-alignment': 'viewport',
       'text-pitch-alignment': 'viewport',
@@ -181,6 +214,19 @@ export function installRouteLayers(map: MapLibreMap): void {
       'icon-opacity': 0.75,
       'text-color': '#f4f8fc',
     },
+  });
+  map.addLayer({
+    id: 'route-hold-direction', type: 'symbol', source: ROUTE_SOURCE_ID, minzoom: 8,
+    filter: ['==', ['get', 'routeKind'], 'hold-direction'],
+    layout: {
+      'icon-image': HOLD_ARROW_IMAGE_ID,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.85, 11, 1.1],
+      'icon-rotate': ['get', 'holdBearing'],
+      'icon-rotation-alignment': 'map', 'icon-pitch-alignment': 'map',
+      // Reserve this small space before placing labels, so they can move off the arrow.
+      'icon-allow-overlap': false, 'icon-ignore-placement': false, 'icon-padding': 2,
+    },
+    paint: { 'icon-opacity': 1 },
   });
   map.addLayer({
     id: ROUTE_WAYPOINT_HIT_LAYER_ID,
@@ -221,30 +267,71 @@ export function installRouteLayers(map: MapLibreMap): void {
   });
 }
 
+export type RouteRenderState = {
+  plan: RoutePlan;
+  preview: RouteDragPreview | undefined;
+  editable: boolean;
+  alternatives: RoutePlan[];
+  labelIds: string[];
+  pointKeys: ReturnType<typeof routePointKeys>;
+};
+
 export function syncRoute(
   map: MapLibreMap,
   plan: RoutePlan,
   preview?: RouteDragPreview,
-  recommendations?: RecommendationPreview,
-): void {
-  const comparison = recommendations?.routes.length ? recommendations : undefined;
+  routePreview?: RoutePreview,
+  previous?: RouteRenderState,
+): RouteRenderState {
+  const comparison = routePreview?.routes.length ? routePreview : undefined;
   const selected = comparison?.routes.find(route => route.key === comparison.selectedKey) ?? comparison?.routes[0];
   const displayed = selected?.plan ?? plan;
-  map.setGlobalStateProperty(ROUTE_LABEL_IDS_STATE,
-    [...new Set(displayed.waypoints.map(waypoint => mapLabelKey(waypoint.feature)))]);
-  const source = map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined;
-  source?.setData(routeData(displayed, comparison ? undefined : preview, !comparison));
-  const alternatives = map.getSource(RECOMMENDATION_SOURCE_ID) as GeoJSONSource | undefined;
-  alternatives?.setData({ type: 'FeatureCollection', features: comparison?.routes
-    .filter(route => route !== selected).flatMap(route => route.plan.legs.map(leg => legFeature(leg, plan.revision, undefined, false))) ?? [] });
+  if (comparison || preview?.revision !== displayed.revision) preview = undefined;
+  const editable = !comparison;
+  const samePlan = previous?.plan === displayed;
+  const pointKeys = samePlan ? previous.pointKeys : routePointKeys(displayed);
+  const labelIds = samePlan ? previous.labelIds : [...new Set(displayed.waypoints.map(waypoint => mapLabelKey(waypoint.feature)))];
+  if (!sameItems(previous?.labelIds, labelIds)) map.setGlobalStateProperty(ROUTE_LABEL_IDS_STATE, labelIds);
+  if (!samePlan || previous.editable !== editable || !samePreview(previous.preview, preview)) {
+    (map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(routeData(displayed, preview, editable, pointKeys));
+  }
+  const alternatives = comparison?.routes.filter(route => route !== selected).map(route => route.plan) ?? [];
+  if (!sameItems(previous?.alternatives, alternatives)) {
+    (map.getSource(RECOMMENDATION_SOURCE_ID) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
+      features: alternatives.flatMap(route => route.legs.map(leg => legFeature(leg, plan.revision, undefined, false))) });
+  }
+  return { plan: displayed, preview, editable, alternatives, labelIds, pointKeys };
 }
 
-function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true): RouteFeatureCollection {
+function sameItems<T>(previous: readonly T[] | undefined, next: readonly T[]): boolean {
+  return previous?.length === next.length && next.every((item, index) => item === previous[index]);
+}
+
+function samePreview(previous: RouteDragPreview | undefined, next: RouteDragPreview | undefined): boolean {
+  if (previous === next) return true;
+  if (!previous || !next || previous.revision !== next.revision || previous.snapped !== next.snapped ||
+    previous.coordinate[0] !== next.coordinate[0] || previous.coordinate[1] !== next.coordinate[1]) return false;
+  return previous.target.kind === 'waypoint' && next.target.kind === 'waypoint'
+    ? previous.target.entryId === next.target.entryId
+    : previous.target.kind === 'leg' && next.target.kind === 'leg' && previous.target.afterEntryId === next.target.afterEntryId;
+}
+
+function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true,
+  pointKeys = plan ? routePointKeys(plan) : undefined): RouteFeatureCollection {
   if (!plan) return { type: 'FeatureCollection', features: [] };
   if (preview?.revision !== plan.revision) preview = undefined;
   const features: RouteFeature[] = [];
-  const pointKeys = routePointKeys(plan);
   for (const leg of plan.legs) features.push(legFeature(leg, plan.revision, preview, editable));
+  for (const extension of plan.approachExtensions ?? []) features.push({ type: 'Feature',
+    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(extension) }, properties: { routeKind: 'approach-extension' } });
+  for (const depiction of plan.approachDepictions ?? []) {
+    features.push({ type: 'Feature',
+      geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(depiction.coordinates) },
+      properties: { routeKind: depiction.kind === 'hold' ? 'approach-hold' : 'approach-missed', approachPhase: depiction.phase } });
+    if (depiction.kind === 'hold' && depiction.arrow) features.push({ type: 'Feature',
+      geometry: { type: 'Point', coordinates: depiction.arrow.coordinate },
+      properties: { routeKind: 'hold-direction', holdBearing: depiction.arrow.bearing } });
+  }
   for (const waypoint of plan.waypoints) {
     const isDragging = waypoint.edit !== undefined &&
       preview?.target.kind === 'waypoint' &&
@@ -261,9 +348,12 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
       properties: {
         ...waypoint.feature.properties,
         mapFeatureId: waypoint.feature.id,
-        ...(editable ? { routePointId: pointKeys.get(waypoint) } : {}),
+        ...(editable ? { routePointId: pointKeys!.get(waypoint) } : {}),
         routeKind: 'waypoint',
         ident: waypoint.ident,
+        ...(waypoint.approachRole ? { approachRole: waypoint.approachRole } : {}),
+        ...(waypoint.approachHold?.inboundCourse === undefined ? {} : { holdLabelOnRight: waypoint.approachHold.inboundCourse < 180 }),
+        ...(waypoint.owners.some(owner => owner.kind === 'approach') ? { approachPoint: true } : {}),
         navigationLayer: waypoint.layer,
         ...(!editable || !waypoint.edit ? {} : routeEditProperties(waypoint.edit, plan.revision)),
         dragging: isDragging,
@@ -307,9 +397,10 @@ function legFeature(leg: RouteLeg, revision: number, preview?: RouteDragPreview,
   coordinates.push(to);
   return {
     type: 'Feature',
-    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(coordinates) },
+    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(leg.geometry ?? coordinates) },
     properties: {
       routeKind: 'leg',
+      ...(leg.approachPhase ? { approachPhase: leg.approachPhase } : {}),
       ...(!leg.owners.some(owner => owner.kind === 'procedure') ? {} : { procedurePreview: true }),
       ...(!editable || !leg.edit ? {} : routeEditProperties(leg.edit, revision)),
     },

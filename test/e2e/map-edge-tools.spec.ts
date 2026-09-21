@@ -37,13 +37,17 @@ test.describe('touch map overlays', () => {
       for (const name of ['chart status', 'GPS status', 'AHRS toolbox', 'terrain toolbox']) {
         const handle = page.getByRole('button', { name: `Show ${name}`, exact: true });
         const box = (await handle.boundingBox())!;
-        expect(box.width).toBeGreaterThanOrEqual(44);
-        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
         await insideMap(page, handle);
         await handle.tap();
         const expanded = page.locator('.map-edge-tool.is-open');
         await insideMap(page, expanded);
         await expect(page.locator('.map-edge-content:not([inert])')).toHaveCount(1);
+        await expect.poll(() => page.locator('.map-edge-tools .is-open .map-edge-handle').evaluateAll(tabs => tabs.every(tab => {
+          const box = tab.getBoundingClientRect();
+          return tab.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+        }))).toBe(true);
         if (name === 'chart status') expect((await page.locator('.map-badge').boundingBox())!.height).toBeLessThan(33);
         if (name === 'GPS status') {
           const center = page.getByRole('button', { name: 'Center aircraft', exact: true });
@@ -61,6 +65,8 @@ test.describe('touch map overlays', () => {
         if (name === 'terrain toolbox') {
           await page.getByRole('tab', { name: 'Clearance', exact: true }).tap();
           const altitude = page.getByRole('spinbutton', { name: 'Selected altitude' });
+          await altitude.scrollIntoViewIfNeeded();
+          await altitude.tap();
           await altitude.fill('6500');
           await altitude.press('Enter');
           await insideMap(page, altitude);
@@ -68,7 +74,7 @@ test.describe('touch map overlays', () => {
         }
         // A tap pins the panel through map interaction and focus changes.
         const map = (await page.getByLabel('Aviation chart map').boundingBox())!;
-        await page.touchscreen.tap(map.x + map.width - 20, map.y + 75);
+        await page.touchscreen.tap(map.x + map.width - 4, map.y + 75);
         const toggle = page.getByRole('button', { name: `Hide ${name}`, exact: true });
         await expect(toggle).toHaveAttribute('aria-expanded', 'true');
         await toggle.tap();
@@ -88,8 +94,8 @@ test.describe('touch map overlays', () => {
 
 test('hover does not change panel state; tabs alone toggle panels', async ({ page }) => {
   await openMap(page);
-  const chart = page.locator('.map-edge-charts .map-edge-handle');
-  const gps = page.locator('.map-edge-gps .map-edge-handle');
+  const chart = page.locator('[data-edge-tab="charts"] .map-edge-handle');
+  const gps = page.locator('[data-edge-tab="gps"] .map-edge-handle');
   await chart.hover();
   await expect(chart).toHaveAttribute('aria-expanded', 'false');
   await chart.click();
@@ -109,15 +115,21 @@ test('hover does not change panel state; tabs alone toggle panels', async ({ pag
 
 test('tab toggles persist through pointer movement, and Escape returns to the handle', async ({ page }) => {
   await openMap(page);
-  const chart = page.locator('.map-edge-charts .map-edge-handle');
+  const chart = page.locator('[data-edge-tab="charts"] .map-edge-handle');
   await chart.hover();
   await expect(chart).toHaveAttribute('aria-expanded', 'false');
   await chart.click();
   await page.mouse.move(700, 400);
   await expect(chart).toHaveAttribute('aria-expanded', 'true');
-  const terrain = page.locator('.map-edge-terrain .map-edge-handle');
+  const terrain = page.locator('[data-edge-tab="terrain"] .map-edge-handle');
   await terrain.focus();
   await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('switch', { name: 'Show terrain', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Route', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Viewport', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('tab', { name: 'Elevation', exact: true })).toBeFocused();
   await page.keyboard.press('ArrowRight');
@@ -137,10 +149,22 @@ test('tab toggles persist through pointer movement, and Escape returns to the ha
   await expect(terrain).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(altitude).toHaveValue('7200');
-  // Removing the route removes the Terrain tab entirely.
+  // The terrain tab stays usable without a route, including when shading is off.
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
-  await expect(terrain).toHaveCount(0);
+  await expect(terrain).toBeVisible();
+  await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
+  await page.getByRole('button', { name: 'Viewport', exact: true }).click();
+  const legend = page.getByLabel('Viewport terrain elevation');
+  await expect(legend).toContainText('Entire viewport', { timeout: 30_000 });
+  await legend.getByRole('switch', { name: 'Show terrain', exact: true }).click();
+  await expect(legend).toContainText('Terrain is off');
+  await terrain.click();
+  await expect(terrain).toHaveAttribute('aria-expanded', 'false');
+  await terrain.click();
+  await expect(legend.getByRole('switch', { name: 'Show terrain', exact: true })).toHaveAttribute('aria-checked', 'false');
+  await legend.getByRole('switch', { name: 'Show terrain', exact: true }).click();
+  await expect(legend).toContainText('Entire viewport', { timeout: 30_000 });
   await chart.hover();
   await expect(chart).toHaveAttribute('aria-expanded', 'false');
 });

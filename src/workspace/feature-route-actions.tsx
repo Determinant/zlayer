@@ -1,21 +1,33 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useBackDismiss } from '../core/ui/pwa-back';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import { appendRouteFeature, removeRouteEntry } from '../layers/routes/draft';
+import { appendRouteFeature, removeRouteEntry, setRouteApproach } from '../layers/routes/draft';
 import { routePointForFeature } from '../layers/routes/selection';
 import { removeRoutePoint, routeItemsForPoint } from '../layers/routes/removal';
+import type { DirectToAction } from '../layers/routes/direct-to';
+import { DirectToIcon } from '../layers/routes/direct-to-icon';
 
 export type FeatureRoute = {
   plan: RoutePlan;
   pointId?: string | undefined;
   update: (edit: (draft: RouteDraft) => RouteDraft) => void;
+  onDirectTo?: DirectToAction | undefined;
 };
 
 /** All feature types share the same membership lookup and draft operations. */
 export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeature; route: FeatureRoute }) {
-  const { plan, pointId, update } = route;
+  const { plan, pointId, update, onDirectTo } = route;
   const ident = featureIdent(feature);
   const point = routePointForFeature(plan, feature, pointId);
+  const approach = point?.owners.find(owner => owner.kind === 'approach');
+  if (approach) {
+    const entry = plan.entries[approach.source.tokenIndex]!;
+    return <button type="button" className="remove-route-button" aria-label={`Remove approach from ${entry.text}`}
+      title={`Remove approach from ${entry.text}`} onClick={() => update(draft => setRouteApproach(draft, entry, undefined))}>
+      <RouteActionIcon add={false} />
+    </button>;
+  }
   const addLabel = `Add ${ident} to end of route`;
   return <>
     {point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
@@ -25,6 +37,9 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
       onClick={() => update(draft => appendRouteFeature(draft, feature))}>
       <RouteActionIcon add />
     </button>
+    {onDirectTo && <button className="direct-to-button" type="button" aria-label={`Direct to ${ident}`}
+      title={`Direct to ${ident}`} aria-haspopup={point ? undefined : 'dialog'}
+      onClick={() => onDirectTo(feature, point)}><DirectToIcon /></button>}
   </>;
 }
 
@@ -49,6 +64,7 @@ function RouteRemoveButton({ ident, onRemove, items }: {
     return () => document.removeEventListener('pointerdown', dismiss);
   }, [open]);
   const close = () => { setOpen(false); trigger.current?.focus(); };
+  useBackDismiss(open, root, close);
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape' && open) {
       event.preventDefault(); event.stopPropagation(); close(); return;

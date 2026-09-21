@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "builderVersion": 1,
+  "cycle": "2609",
+  "effectiveDate": "2026-09-03",
+  "expirationDate": "2026-10-01",
+  "generatedAt": "2026-09-03T00:00:00Z",
+  "faaPdfBaseUrl": "https://aeronav.faa.gov/d-tpp/2609/",
+  "sourceXml": {
+    "url": "test",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "volumes": [],
+  "airports": [
+    {
+      "id": "KSFO",
+      "faaId": "SFO",
+      "icaoId": "KSFO",
+      "name": "TEST AIRPORT",
+      "city": "TEST",
+      "state": "CA",
+      "volumeId": "SW2",
+      "military": false,
+      "sortCode": "1",
+      "procedures": [
+        {
+          "id": "rnav",
+          "name": "RNAV (GPS) RWY 28L",
+          "kind": "approach",
+          "sortOrder": 0,
+          "pdfName": "TEST.PDF",
+          "pdfUrl": "TEST.PDF",
+          "namedDestination": null,
+          "volumeTarget": null,
+          "source": {
+            "userAction": null,
+            "changeNoticeFlag": null,
+            "changeNoticeSection": null,
+            "changeNoticePage": null,
+            "procedureId": null,
+            "twoColored": null,
+            "civil": null,
+            "faaComputerCode": null,
+            "copter": null,
+            "amendmentNumber": null,
+            "amendmentDate": null,
+            "chartSequence": "1",
+            "chartCode": "IAP",
+            "extraFields": {}
+          }
+        },
+        {
+          "id": "ils",
+          "name": "ILS OR LOC RWY 28R",
+          "kind": "approach",
+          "sortOrder": 1,
+          "pdfName": "TEST.PDF",
+          "pdfUrl": "TEST.PDF",
+          "namedDestination": null,
+          "volumeTarget": null,
+          "source": {
+            "userAction": null,
+            "changeNoticeFlag": null,
+            "changeNoticeSection": null,
+            "changeNoticePage": null,
+            "procedureId": null,
+            "twoColored": null,
+            "civil": null,
+            "faaComputerCode": null,
+            "copter": null,
+            "amendmentNumber": null,
+            "amendmentDate": null,
+            "chartSequence": "2",
+            "chartCode": "IAP",
+            "extraFields": {}
+          }
+        },
+        {
+          "id": "diagram",
+          "name": "AIRPORT DIAGRAM",
+          "kind": "airport-diagram",
+          "sortOrder": 2,
+          "pdfName": "TEST.PDF",
+          "pdfUrl": "TEST.PDF",
+          "namedDestination": null,
+          "volumeTarget": null,
+          "source": {
+            "userAction": null,
+            "changeNoticeFlag": null,
+            "changeNoticeSection": null,
+            "changeNoticePage": null,
+            "procedureId": null,
+            "twoColored": null,
+            "civil": null,
+            "faaComputerCode": null,
+            "copter": null,
+            "amendmentNumber": null,
+            "amendmentDate": null,
+            "chartSequence": "3",
+            "chartCode": "IAP",
+            "extraFields": {}
+          }
+        },
+        {
+          "id": "deleted",
+          "name": "OLD APPROACH",
+          "kind": "approach",
+          "sortOrder": 3,
+          "pdfName": "TEST.PDF",
+          "pdfUrl": "TEST.PDF",
+          "namedDestination": null,
+          "volumeTarget": null,
+          "source": {
+            "userAction": "D",
+            "changeNoticeFlag": null,
+            "changeNoticeSection": null,
+            "changeNoticePage": null,
+            "procedureId": null,
+            "twoColored": null,
+            "civil": null,
+            "faaComputerCode": null,
+            "copter": null,
+            "amendmentNumber": null,
+            "amendmentDate": null,
+            "chartSequence": "4",
+            "chartCode": "IAP",
+            "extraFields": {}
+          }
+        }
+      ]
+    }
+  ]
+}

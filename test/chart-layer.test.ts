@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test from 'node:test';
 import type { LayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
-import type { CatalogResponse, ChartPackageArchive, ChartRecord } from '@zlayer/contracts';
+import type { Bounds, CatalogResponse, ChartPackageArchive, ChartRecord } from '@zlayer/contracts';
 import { CHART_LAYER_ANCHOR } from '../src/core/map/layer';
 import { CHART_FAMILIES, type ChartSelection } from '../src/layers/charts/overlays';
 import { createWorkspaceReadContext, type CatalogReadSource } from '../src/workspace/read-context';
@@ -33,10 +33,13 @@ function mapFixture() {
   const layers = [CHART_LAYER_ANCHOR, 'navigation'];
   const sources = new Set(['navigation']);
   const visibility = new Map<string, unknown>();
+  const listeners = new Map<string, Set<() => void>>();
+  let bounds: Bounds = [-180, -85, 180, 85];
   let added = 0;
   const map = {
-    on() {}, off() {},
-    getBounds: () => ({ getWest: () => -180, getEast: () => 180, getSouth: () => -85, getNorth: () => 85 }),
+    on(type: string, listener: () => void) { const callbacks = listeners.get(type) ?? new Set(); callbacks.add(listener); listeners.set(type, callbacks); },
+    off(type: string, listener: () => void) { listeners.get(type)?.delete(listener); },
+    getBounds: () => ({ getWest: () => bounds[0], getEast: () => bounds[2], getSouth: () => bounds[1], getNorth: () => bounds[3] }),
     getLayer: (id: string) => layers.includes(id),
     getSource: (id: string) => sources.has(id),
     addSource(id: string) { assert.ok(!sources.has(id)); sources.add(id); added++; },
@@ -50,8 +53,40 @@ function mapFixture() {
     setLayoutProperty: (id: string, _key: string, value: string) => visibility.set(id, value),
   } as unknown as MapLibreMap;
   return { map, layers, sources, added: () => added,
+    move(next: Bounds) { bounds = next; for (const callback of listeners.get('move') ?? []) callback(); },
+    listenerCount: () => [...listeners.values()].reduce((sum, callbacks) => sum + callbacks.size, 0),
     visible: () => layers.filter(id => visibility.get(id) === 'visible'),
   };
+}
+
+for (const packaged of [false, true]) {
+  test(`${packaged ? 'packaged' : 'sheet'} charts reuse compiled families while viewport visibility and catalog replacement remain live`, () => {
+    const { map, move, visible, listenerCount } = mapFixture();
+    let reads = 0;
+    const records = [chart, { ...chart, id: 'terminal', kind: 'vfr-terminal' as const, bounds: [-118, 33, -117, 34] as Bounds }];
+    const current: CatalogResponse = { ...catalog,
+      get charts() { reads++; return records; },
+      ...(packaged ? { chartPackages: { root: '/charts', maximumArchiveBytes: 1024, archives: [], regions: [] } } : {}),
+    };
+    const selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
+    const products = CHART_FAMILIES.map(family => createChartLayer(current, family));
+    products.forEach(product => { product.update({ catalog: current, selection }); product.mount(map); });
+    assert.equal(listenerCount(), 4);
+    reads = 0;
+    for (let i = 0; i < 60; i++) move([-119, 32, -118.5, 35]);
+    assert.equal(reads, 0, 'movement does not traverse catalog records again');
+    assert.deepEqual(visible(), packaged ? ['chart-@vfr-sectional', 'chart-@vfr-terminal'] : ['chart-sectional']);
+    move([242.2, 33.2, 242.8, 33.8]);
+    assert.deepEqual(visible(), packaged ? ['chart-@vfr-sectional', 'chart-@vfr-terminal'] : ['chart-sectional', 'chart-terminal'],
+      'wrapped viewports still activate the matching sheets');
+    const refreshed = { ...current, charts: [{ ...chart, id: 'new-sheet', bounds: [10, 10, 20, 20] as Bounds }] };
+    products.forEach(product => product.update({ catalog: refreshed, selection }));
+    assert.deepEqual(visible(), packaged ? ['chart-@vfr-sectional'] : [], 'new catalog definitions replace the old cache');
+    move([12, 12, 18, 18]);
+    assert.deepEqual(visible(), [packaged ? 'chart-@vfr-sectional' : 'chart-new-sheet']);
+    products.forEach(product => product.unmount());
+    assert.equal(listenerCount(), 0);
+  });
 }
 
 test('refreshing chart definitions replaces only owned resources below navigation', () => {

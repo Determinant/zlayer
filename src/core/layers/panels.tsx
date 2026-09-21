@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import type { PanelLayer } from './product';
 import { ErrorBoundary } from './error-boundary';
+import { PanelDefaults, usePanelSide } from '../ui/edge-panels';
 
 export function LayerPanels({ layers }: { layers: readonly PanelLayer[] }) {
-  return layers.map(layer => <LayerPanel key={layer.definition.id} layer={layer} />);
+  const side = usePanelSide();
+  const ids = new Set<string>();
+  for (const layer of layers) {
+    if (ids.has(layer.definition.id)) throw new Error(`Duplicate panel layer: ${layer.definition.id}`);
+    ids.add(layer.definition.id);
+  }
+  return layers.filter(layer => !side || layer.panel.side === side)
+    .map(layer => <LayerPanel key={layer.definition.id} layer={layer} />);
 }
 
-function LayerPanel({ layer: { definition, Panel, close } }: { layer: PanelLayer }) {
+function LayerPanel({ layer: { definition, panel, Panel, close } }: { layer: PanelLayer }) {
   const [attempt, setAttempt] = useState(0);
   const retry = () => setAttempt(value => value + 1);
   return (
@@ -21,7 +29,7 @@ function LayerPanel({ layer: { definition, Panel, close } }: { layer: PanelLayer
         </div>
       </div>
     )}>
-      <Panel />
+      <PanelDefaults value={{ ...panel, name: definition.id, label: definition.title }}><Panel /></PanelDefaults>
     </ErrorBoundary>
   );
 }

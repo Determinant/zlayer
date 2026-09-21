@@ -139,6 +139,27 @@
   position: relative;
 }
 
+.route-token-list li.is-entry-dragging { z-index: 3; }
+.route-approach-bundle { display: flex; align-items: center; isolation: isolate; }
+.route-approach-outline {
+  position: absolute; z-index: -1;
+  inset: max(0px, calc((max(26px, var(--touch-target)) - 34px) / 2)) 0;
+  border: 1px solid #51e0af77; border-radius: 7px; background: #123d37;
+  pointer-events: none;
+}
+.route-approach-bundle .route-token::before { border-radius: 0 7px 7px 0; }
+.route-attached-approach, .route-detach-approach {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: max(26px, var(--touch-target)); padding: 0 7px; border: 0; border-radius: 5px;
+  color: #b7f4dc; background: transparent; cursor: pointer; font: inherit; font-size: 11px;
+}
+.route-attached-approach span { max-width: min(210px, calc(100vw - 200px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-attached-approach svg { flex: 0 0 16px; width: 16px; height: 16px; fill: none; stroke: #51e0af; stroke-width: 1.4; }
+.route-detach-approach { min-width: max(26px, var(--touch-target)); padding: 0; font-size: 19px; }
+.route-attached-approach:hover, .route-detach-approach:hover { background: #51e0af1a; }
+.route-attached-approach:focus-visible, .route-detach-approach:focus-visible { outline: 2px solid #51e0af; outline-offset: -2px; }
+.route-attached-approach:disabled { cursor: default; }
+
 .route-token-list .route-inline-entry {
   width: 146px;
   flex: 0 0 146px;
@@ -365,6 +386,13 @@
   color: #f2a09a;
 }
 
+.route-token-menu .route-menu-direct-to {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #91c7ff;
+}
+
 .route-token-menu .route-menu-remove:hover,
 .route-token-menu .route-menu-remove:focus-visible {
   background: rgba(239, 119, 113, 0.11);
@@ -476,15 +504,6 @@ details.route-summary { display: block; }
 .route-history-filter select:focus-visible { outline: 2px solid #61bfff; outline-offset: -2px; }
 .route-recommendations button:disabled { cursor: default; }
 .route-recommendations {
-  position: absolute;
-  top: calc(100% + 7px);
-  right: 12px;
-  z-index: 35;
-  display: flex;
-  flex-direction: column;
-  width: min(460px, calc(var(--safe-width) - 24px));
-  max-height: max(0px, calc(var(--workspace-height) - 16px));
-  overflow: hidden;
   border: 1px solid #345168;
   border-radius: 9px;
   color: #c3d8e6;
@@ -593,16 +612,4 @@ details.route-summary { display: block; }
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-@media (max-width: 640px) {
-  .route-recommendations {
-    position: fixed;
-    top: auto;
-    bottom: calc(100% - var(--viewport-top) - var(--viewport-height) + var(--safe-bottom) + var(--panel-gap));
-    right: auto;
-    left: calc(var(--viewport-left) + var(--safe-left) + var(--panel-gap));
-    width: calc(var(--safe-width) - 2 * var(--panel-gap));
-    max-height: min(calc(var(--safe-height) * 0.5), calc(var(--workspace-height) - 16px));
-  }
 }

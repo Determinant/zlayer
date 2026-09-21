@@ -45,6 +45,8 @@ export function retainCachedProducts(fresh: ChartCatalog, cached?: ChartCatalog)
       if (cached.terminalProcedures) result.terminalProcedures = cached.terminalProcedures;
       if (cached.preferredRoutes) result.preferredRoutes = cached.preferredRoutes;
       if (cached.routeHistory) result.routeHistory = cached.routeHistory;
+    } else if (issue.product === 'terrain') {
+      if (cached.terrain) result.terrain = cached.terrain;
     } else if (issue.product === 'route-history') {
       if (cached.routeHistory) result.routeHistory = cached.routeHistory;
     } else if (cached.procedures) result.procedures = cached.procedures;

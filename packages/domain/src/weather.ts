@@ -33,18 +33,19 @@ const WEATHER_PROPERTY_NAMES = [
 export function mergeMetarsIntoAirports(
   airports: FeatureCollectionResponse,
   metars: MetarFeatureCollection,
+  options: { weatherOnly?: boolean } = {},
 ): FeatureCollectionResponse {
   const latestByStation = indexLatestMetars(metars.features);
-  return {
-    ...airports,
-    features: airports.features.map((airport) => {
-      const properties = withoutWeatherProperties(airport.properties);
-      const metar = latestAirportMetar(airport, latestByStation);
-      if (!metar) return { ...airport, properties };
-
-      return { ...airport, properties: { ...properties, ...metarWeatherProperties(metar) } };
-    }),
-  };
+  const features: GeoPointFeature[] = [];
+  for (const airport of airports.features) {
+    const metar = latestAirportMetar(airport, latestByStation);
+    // The weather overlay only needs reporting airports. Filter before cloning
+    // thousands of static FAA records on each observation refresh.
+    if (!metar && options.weatherOnly) continue;
+    const properties = withoutWeatherProperties(airport.properties);
+    features.push({ ...airport, properties: metar ? { ...properties, ...metarWeatherProperties(metar) } : properties });
+  }
+  return { ...airports, features };
 }
 
 /** Decoded observation fields, without borrowing an airport's identity or geometry. */

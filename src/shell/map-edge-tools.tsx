@@ -1,5 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { usePersistentState } from '../core/ui/use-persistent-state';
+import { EdgePanels, EdgePanelFrame, useEdgePanel, type PanelStowGuard } from '../core/ui/edge-panels';
+import '../core/ui/confirmation-dialog.css';
 import './map-edge-tools.css';
 
 type Tool = 'charts' | 'gps' | 'terrain' | 'ahrs';
@@ -12,13 +14,14 @@ const icons: Record<Tool, ReactNode> = {
 };
 
 /** Keep the slim overlays mounted while they tuck away beyond the map edge. */
-export function MapEdgeTools({ charts, gps, terrain, ahrs }: {
+export function MapEdgeTools({ charts, gps, terrain, ahrs, children }: {
   charts: ReactNode; gps?: ReactNode; terrain?: ReactNode;
   ahrs?: { render(visible: boolean): ReactNode; stop(): void };
+  children?: ReactNode;
 }) {
-  const [active, setActive] = usePersistentState<Tool | null>('edge-tool', 'terrain',
-    (value): value is Tool | null => value === null || value === 'charts' || value === 'gps' || value === 'terrain' || value === 'ahrs');
-  const [stow, setStow] = useState<{ next: Tool | null } | null>(null);
+  const [active, setActive] = usePersistentState<string | null>('edge-tool', 'terrain',
+    (value): value is string | null => value === null || typeof value === 'string' && Object.hasOwn(labels, value));
+  const [stow, setStow] = useState<{ next: string | null; proceed: () => boolean } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -26,36 +29,33 @@ export function MapEdgeTools({ charts, gps, terrain, ahrs }: {
     if (stow) dialog.current?.showModal();
     else dialog.current?.close();
   }, [stow]);
-  const toggle = (name: Tool) => {
-    const next = active === name ? null : name;
-    if (active === 'ahrs') { setStow({ next }); return false; }
-    setActive(next);
-    return true;
-  };
   const confirmStow = (mode: 'stop' | 'background') => {
     if (!stow) return;
+    if (!stow.proceed()) { setStow(null); return; }
     if (mode === 'stop') ahrs?.stop();
     const target = stow.next ?? 'ahrs';
     dialog.current?.close();
-    setActive(stow.next);
     setStow(null);
-    requestAnimationFrame(() => root.current?.querySelector<HTMLButtonElement>(`.map-edge-${target} .map-edge-handle`)?.focus());
+    requestAnimationFrame(() => root.current?.querySelector<HTMLButtonElement>(`[data-edge-tab="${target}"] .map-edge-handle`)?.focus());
   };
   return <div ref={root} className="map-edge-tools">
-    {([['charts', charts], ['gps', gps], ['ahrs', ahrs?.render], ['terrain', terrain]] as const).map(([name, content]) => content &&
-      <EdgeTool key={name} name={name} open={active === name}
-        onToggle={() => toggle(name)}>
-        {typeof content === 'function' ? content(active === name) : content}
-      </EdgeTool>)}
-    <dialog ref={dialog} className="ahrs-stow-dialog" role="alertdialog"
+    <EdgePanels side="left" active={active} onActiveChange={setActive} individualTabs>
+      {([['charts', charts], ['gps', gps], ['ahrs', ahrs?.render], ['terrain', terrain]] as const).map(([name, content]) => content &&
+        <EdgeTool key={name} name={name}
+          beforeStow={name === 'ahrs' ? (next, proceed) => { setStow({ next, proceed }); return false; } : undefined}>
+          {typeof content === 'function' ? content(active === name) : content}
+        </EdgeTool>)}
+      {children}
+    </EdgePanels>
+    <dialog ref={dialog} className="confirmation-dialog ahrs-stow-dialog" role="alertdialog"
       aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
       onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
       onKeyDown={event => event.stopPropagation()}
       onCancel={event => { event.preventDefault(); event.stopPropagation(); setStow(null); }}>
       <h2 id={`${id}-title`}>Stow AHRS?</h2>
       <p id={`${id}-description`}>Stop motion sensing and recording to save power; you'll need to calibrate again. Background keeps AHRS running while stowed.</p>
-      <div className="ahrs-stow-actions">
-        <button type="button" className="ahrs-stow-stop" autoFocus onClick={() => confirmStow('stop')}>Stop</button>
+      <div className="confirmation-actions ahrs-stow-actions">
+        <button type="button" className="confirmation-primary ahrs-stow-stop" autoFocus onClick={() => confirmStow('stop')}>Stop</button>
         <button type="button" onClick={() => confirmStow('background')}>Background</button>
         <button type="button" onClick={() => setStow(null)}>Cancel</button>
       </div>
@@ -63,29 +63,11 @@ export function MapEdgeTools({ charts, gps, terrain, ahrs }: {
   </div>;
 }
 
-function EdgeTool({ name, open, onToggle, children }: {
-  name: Tool; open: boolean; onToggle: () => boolean; children: ReactNode;
+function EdgeTool({ name, beforeStow, children }: {
+  name: Tool; beforeStow?: PanelStowGuard | undefined; children: ReactNode;
 }) {
-  const id = useId();
-  const handle = useRef<HTMLButtonElement>(null);
-  const actionLabel = `${open ? 'Hide' : 'Show'} ${labels[name]}`;
-  return <div className={`map-edge-tool map-edge-${name}${open ? ' is-open' : ''}`}
-    onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
-    onKeyDown={event => {
-      if (event.key === 'Escape' && open) {
-        event.stopPropagation();
-        // Let a field's Escape handler discard its draft before focus triggers blur.
-        if (onToggle()) requestAnimationFrame(() => handle.current?.focus());
-        // The same Escape must not immediately cancel the confirmation it opens.
-        else event.preventDefault();
-      }
-    }}>
-    <button ref={handle} type="button" className="map-edge-handle" aria-controls={id} aria-expanded={open}
-      aria-label={actionLabel} title={actionLabel}
-      onClick={onToggle}>
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icons[name]}</svg>
-    </button>
-    <div id={id} className="map-edge-content panel-scroll" tabIndex={-1} inert={!open} aria-hidden={!open}>{children}</div>
-  </div>;
+  const panel = useEdgePanel(name, { beforeStow });
+  return <EdgePanelFrame panel={panel} label={labels[name]} icon={icons[name]} className={`map-edge-tool map-edge-${name}`}>
+    <div {...panel.bodyProps} className="map-edge-content edge-panel-body panel-scroll" tabIndex={-1}>{children}</div>
+  </EdgePanelFrame>;
 }

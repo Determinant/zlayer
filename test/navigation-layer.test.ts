@@ -36,10 +36,10 @@ function mapFixture(t: test.TestContext) {
       layers.set(layer.id, layer);
     },
     getLayer(id: string) { return layers.get(id); },
-    moveLayer(id: string) {
+    moveLayer(id: string, beforeId?: string) {
       assert.ok(layers.has(id), `Missing layer: ${id}`);
       order.splice(order.indexOf(id), 1);
-      order.push(id);
+      order.splice(beforeId ? order.indexOf(beforeId) : order.length, 0, id);
     },
     removeLayer(id: string) { order.splice(order.indexOf(id), 1); layers.delete(id); },
     addImage(id: string) { assert.ok(!images.has(id)); images.add(id); }, hasImage: (id: string) => images.has(id),
@@ -49,6 +49,39 @@ function mapFixture(t: test.TestContext) {
   } as unknown as MapLibreMap;
   return { map, sources, layers, images, visibility, writes, order };
 }
+
+test('equivalent fix inputs skip source replacement while priority edits retain order and refreshed records', t => {
+  const { map, sources, writes } = mapFixture(t);
+  const features: GeoPointFeature[] = ['FIRST', 'SECOND'].map(ident => ({ type: 'Feature', id: `fix:${ident}`,
+    geometry: { type: 'Point', coordinates: [-122, 37] }, properties: { kind: 'fix', ident, charts: ['ENROUTE LOW'] } }));
+  const fixes: FeatureCollectionResponse = { type: 'FeatureCollection', features,
+    meta: { layer: 'fixes', revision: 'test', returned: features.length, truncated: false } };
+  const product = createNavigationLayer();
+  const input = { data: { fixes }, visibility: DEFAULT_VISIBILITY, fixDisplay: DEFAULT_FIX_DISPLAY, priorityFixes: [] as GeoPointFeature[] };
+  product.update(input); product.mount(map); writes.length = 0;
+  const background = sources.get('nav-fixes');
+  product.update({ ...input, fixDisplay: { ...DEFAULT_FIX_DISPLAY }, priorityFixes: [] });
+  assert.deepEqual(writes, [], 'equivalent empty arrays and settings are a no-op');
+  assert.equal(sources.get('nav-fixes'), background);
+  product.update({ ...input, priorityFixes: features });
+  assert.deepEqual(writes, ['nav-fixes', PRIORITY_FIX_SOURCE_ID]);
+  writes.length = 0;
+  product.update({ ...input, priorityFixes: [...features, features[0]!] });
+  assert.deepEqual(writes, [], 'duplicate priority occurrences have no rendering effect');
+  product.update({ ...input, priorityFixes: [...features].reverse() });
+  assert.deepEqual(writes, [PRIORITY_FIX_SOURCE_ID], 'reordering priority icons does not change background density');
+  assert.deepEqual(sources.get(PRIORITY_FIX_SOURCE_ID)!.features.map(f => f.id), [...features].reverse().map(f => f.id));
+  writes.length = 0;
+  const refreshed = { ...features[0]!, geometry: { type: 'Point' as const, coordinates: [-121, 38] as [number, number] } };
+  product.update({ ...input, priorityFixes: [features[1]!, refreshed] });
+  assert.deepEqual(writes, [PRIORITY_FIX_SOURCE_ID], 'same identity with refreshed coordinates still updates the priority source');
+  assert.deepEqual(sources.get(PRIORITY_FIX_SOURCE_ID)!.features[1]!.geometry.coordinates, [-121, 38]);
+  writes.length = 0;
+  product.update({ ...input, priorityFixes: [] });
+  assert.deepEqual(writes, ['nav-fixes', PRIORITY_FIX_SOURCE_ID]);
+  assert.deepEqual(sources.get('nav-fixes'), background, 'clearing priorities restores the original rendering');
+  product.unmount();
+});
 
 test('route lines stay below markers and waypoint labels stay above circles across remounts and chart refreshes', t => {
   const { map, order, layers } = mapFixture(t);
@@ -65,7 +98,7 @@ test('route lines stay below markers and waypoint labels stay above circles acro
     // Chart replacement uses its own anchor and must not cover route lines.
     map.addLayer({ id: 'refreshed-chart', type: 'background' }, CHART_LAYER_ANCHOR);
     const lines = [...layers.values()].filter(layer => layer.type === 'line' && layer.id !== 'route-leg-hits');
-    assert.equal(lines.length, 6, 'normal and procedure lines for both primary and alternatives, plus halos');
+    assert.equal(lines.length, 9, 'normal/procedure lines, approach/missed/VTF lines and halos');
     for (const line of lines) {
       assert.ok(order.indexOf('refreshed-chart') < order.indexOf(line.id));
       for (const marker of markers) {
@@ -78,6 +111,8 @@ test('route lines stay below markers and waypoint labels stay above circles acro
         assert.ok(order.indexOf(circle.id) < order.indexOf(label), `${label} must be above ${circle.id}`);
       }
     }
+    assert.ok(order.indexOf('route-hold-direction') > order.indexOf('route-waypoint-labels'),
+      'hold arrows retain their collision priority when the host raises route labels');
     map.removeLayer('refreshed-chart');
   }
   host.unmount();

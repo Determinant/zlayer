@@ -1,7 +1,7 @@
 import { browsingCatalog, type CatalogReadSource } from '../../workspace/read-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
-import type { Bounds } from '@zlayer/contracts';
+import type { Bounds, ChartRecord } from '@zlayer/contracts';
 
 import { mbtilesTileUrl, registerMbtilesArchives } from './mbtiles-protocol';
 import { CHART_LAYER_ANCHOR } from '../../core/map/layer';
@@ -9,6 +9,12 @@ import { regionalBundles } from '../../workspace/read-context';
 import { CHART_FAMILIES, chartIsVisible, type ChartSelection, type ChartFamilyId } from './overlays';
 
 const HIGH_DENSITY_CHART_TILE_SIZE = 128;
+// Catalogs are immutable snapshots. All family layers share these small render
+// definitions, and old catalogs remain collectable after an edition change.
+const chartDefinitions = new WeakMap<CatalogReadSource, {
+  all: readonly ChartRecord[];
+  families: Map<ChartFamilyId, readonly ChartRecord[]>;
+}>();
 
 export function installChartLayers(
   map: MapLibreMap,
@@ -18,7 +24,7 @@ export function installChartLayers(
 ): void {
   registerMbtilesArchives(catalog);
   const bounds = viewportBounds(map);
-  for (const chart of renderedCharts(catalog).filter(chart => !family || chart.kind === family)) {
+  for (const chart of renderedCharts(catalog, family)) {
     const layerId = chartLayerId(chart.id);
     map.addSource(layerId, {
       type: 'raster',
@@ -56,7 +62,7 @@ export function syncChartSelection(
   family?: ChartFamilyId,
 ): void {
   const bounds = viewportBounds(map);
-  for (const chart of renderedCharts(catalog).filter(chart => !family || chart.kind === family)) {
+  for (const chart of renderedCharts(catalog, family)) {
     const layerId = chartLayerId(chart.id);
     const visibility = chartIsVisible(chart, selection, bounds) ? 'visible' : 'none';
     if (map.getLayer(layerId) && map.getLayoutProperty(layerId, 'visibility') !== visibility) {
@@ -65,7 +71,17 @@ export function syncChartSelection(
   }
 }
 
-function renderedCharts(catalog: CatalogReadSource) {
+function renderedCharts(catalog: CatalogReadSource, family?: ChartFamilyId): readonly ChartRecord[] {
+  let definitions = chartDefinitions.get(catalog);
+  if (!definitions) {
+    const all = compileCharts(catalog);
+    definitions = { all, families: new Map(CHART_FAMILIES.map(({ id }) => [id, all.filter(chart => chart.kind === id)])) };
+    chartDefinitions.set(catalog, definitions);
+  }
+  return family ? definitions.families.get(family)! : definitions.all;
+}
+
+function compileCharts(catalog: CatalogReadSource): readonly ChartRecord[] {
   if (!browsingCatalog(catalog).chartPackages && !regionalBundles(catalog).length) return catalog.charts;
   return CHART_FAMILIES.flatMap(overlay => {
     const charts = catalog.charts.filter(chart => chart.kind === overlay.id);
@@ -88,7 +104,7 @@ function chartLayerId(chartId: string): string {
 }
 
 export function chartResourceIds(catalog: CatalogReadSource, family: ChartFamilyId): string[] {
-  return renderedCharts(catalog).filter(chart => chart.kind === family).map(chart => chartLayerId(chart.id));
+  return renderedCharts(catalog, family).map(chart => chartLayerId(chart.id));
 }
 
 /** A refreshed base must stay below overlays already mounted, regardless of update order. */

@@ -41,6 +41,13 @@ a production build and all six 1×/2×/3× resize cases in Chromium and WebKit.
 
 ### Obstruction decompression memory spike
 
+The reporter subsequently confirmed that bounded decompression substantially
+reduced iPhone crashes, with occasional failures remaining. The follow-up
+[memory/resource review](memory-resources.md) adds early obstruction filtering,
+smaller map payloads and bounded route-history inflation. Its measurements and
+remaining publisher/device work are recorded separately from this historical
+investigation.
+
 Follow-up isolation found a concrete allocation problem in the obstruction
 loader. For the 656,056-record published dataset (16,568,035 gzip bytes expanding
 to 277,404,929 JSON bytes), Playwright 1.63 Linux WebKit read `Blob.stream()` in
@@ -230,13 +237,16 @@ rendering continue using the drawing operations appropriate to those tasks.
 
 ```sh
 npx playwright install --with-deps chromium firefox webkit
-npm run verify
-npm run test:graphics -- --project chromium --project webkit --project webkit-retina
+npm run verify:full
 ```
 
-On Linux, Firefox needs a display for WebGL2 in software-rendering environments:
+Full local CI runs all checks, unit tests, browser tests and all four graphics
+projects. On Linux, its Firefox stage runs headed and automatically uses
+`xvfb-run -a` when `DISPLAY` is unset. Install Xvfb for that environment.
+To run only the graphics suites independently on Linux:
 
 ```sh
+npm run test:graphics -- --project chromium --project webkit --project webkit-retina
 xvfb-run -a npm run test:graphics -- --project firefox --headed
 ```
 
@@ -245,8 +255,12 @@ The test server builds production bundles and uses local synthetic data. The
 graphics fixture is excluded from ordinary production builds. Failures retain
 traces; screenshots are saved alongside test results for visual review.
 
-CI runs Chromium graphics checks as part of the complete browser suite. Separate
-jobs cover Linux Firefox, WebKit and 2× WebKit, plus 2× WebKit on macOS.
+Automatic GitHub CI runs a Chromium smoke check for map pixels, rotation, resize
+and WebGL recovery. Full local CI keeps the entire graphics matrix.
+**Actions → Verify → Run workflow** with **full** enabled runs
+all Chromium graphics checks within the complete browser suite, plus separate
+jobs for Linux Firefox, WebKit and 2× WebKit, and macOS 2× WebKit. See the
+[CI commands](local-development.md#verification) for the manual CLI equivalent.
 Graphics tests use deterministic GPS inputs. Playwright 1.63's Linux WebKit
 geolocation override was observed returning a timestamp 1000× too large; the
 application's rejection of invalid/future fixes is deliberately unchanged.

@@ -53,9 +53,12 @@ export function installMetarLayers(map: MapLibreMap, data: FeatureCollectionResp
 }
 
 
-export function syncMetarMap(map: MapLibreMap, data: FeatureCollectionResponse, visible: boolean): void {
-  (map.getSource(METAR_SOURCE_ID) as GeoJSONSource | undefined)?.setData(withMapLabelKeys(data));
+export function syncMetarMap(map: MapLibreMap, data: FeatureCollectionResponse | undefined, visible: boolean): void {
+  if (data) (map.getSource(METAR_SOURCE_ID) as GeoJSONSource | undefined)?.setData(withMapLabelKeys(data));
+  const visibility = visible ? 'visible' : 'none';
   for (const id of METAR_LAYER_IDS) {
-    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== visibility) {
+      map.setLayoutProperty(id, 'visibility', visibility);
+    }
   }
 }

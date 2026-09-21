@@ -144,3 +144,21 @@ test('ID-less fixes keep their density ordering and distinct same-name selection
   assert.deepEqual(fixDisplayData(index, DEFAULT_FIX_DISPLAY, [first]).features.map(feature => feature.geometry.coordinates),
     [second.geometry.coordinates]);
 });
+
+test('cached rankings preserve density when priority fixes enter, leave, or change order', () => {
+  const raw = collection([fix('FIRST', ['ENROUTE LOW']), fix('SECOND', ['ENROUTE LOW']), fix('TERM', ['SID'])]);
+  const index = indexFixDisplay(raw, airways(airway('V1', ['FIRST', 'SECOND']), airway('J1', ['SECOND'])));
+  const render = (priority: GeoPointFeature[] = []) => fixDisplayData(index, DEFAULT_FIX_DISPLAY, priority);
+  const original = render();
+  assert.deepEqual(names(original), ['FIRST', 'SECOND']);
+  assert.deepEqual(original.features.map(f => f.properties.mapFixMinZoom), [6, 10]);
+  const promoted = render([raw.features[0]!]);
+  assert.deepEqual(names(promoted), ['SECOND']);
+  assert.equal(promoted.features[0]!.properties.mapFixMinZoom, 6, 'priority fixes free their former density cells');
+  assert.equal(promoted.features[0]!.properties.mapFixPriority, 0, 'visible ordering remains contiguous');
+  assert.deepEqual(render(), original);
+  const both = fixDisplayData(index, { detail: 'enroute', airspace: 'both' });
+  assert.deepEqual(names(both), ['SECOND', 'FIRST'], 'low and high memberships both contribute');
+  assert.deepEqual(render(), original, 'switching settings cannot reuse the wrong ranking');
+  assert.deepEqual(render(raw.features.slice(0, 2)), render(raw.features.slice(0, 2).reverse()));
+});

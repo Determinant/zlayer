@@ -18,6 +18,7 @@ for (const layout of ['flat-packages', 'packages', 'mbtiles', 'legacy-404', 'leg
       const url = String(input);
       requests.push(url);
       assert.equal(options?.cache, 'no-store');
+      if (url.endsWith('/terrain/manifest.json')) return new Response(null, { status: 404 });
       if (failedProduct && url.includes(`/${failedProduct}/`)) return new Response(null, { status: 503 });
       if ((url.endsWith('/mbtiles/manifest.json') && layout !== 'flat-packages') ||
           (url.endsWith('/packages/manifest.json') && layout !== 'packages')) {
@@ -108,7 +109,7 @@ for (const layout of ['flat-packages', 'packages', 'mbtiles', 'legacy-404', 'leg
       assert.equal(catalog.charts.length, 103);
       assert.equal(catalog.charts.at(-1)?.id, 'expanded-sheet-101');
       // Catalog discovery fetches metadata only, never the chart archives.
-      assert.equal(requests.length, layout === 'flat-packages' ? 3 : layout === 'packages' ? 4 : layout === 'mbtiles' ? 5 : 6);
+      assert.equal(requests.length, layout === 'flat-packages' ? 4 : layout === 'packages' ? 5 : layout === 'mbtiles' ? 6 : 7);
       assert.equal(catalog.chartPackages?.archives.length, packageLayout ? 1 : undefined);
       if (packageLayout) assert.equal(catalog.chartPackages?.root,
         `https://charts.tedyin.com/charts/2026-09-03/mbtiles${layout === 'packages' ? '/packages' : ''}`);

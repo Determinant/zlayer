@@ -4,18 +4,13 @@ import { routeResolver } from './resolver';
 import { preferredRouteDraft, type RouteDraft } from './draft';
 import { createFiledRouteDraft } from './history/draft';
 import { routeConditions } from './conditions';
+import type { RoutePreview } from './map-preview';
 
 export type SuggestionCategory = 'frequency' | 'preferred' | 'tec';
 export type RouteSuggestion = {
   id: string; route: string; detail: string;
   conditions: [string, string][]; draft: RouteDraft | undefined;
 };
-export type RecommendationPreview = {
-  routes: { key: string; plan: RoutePlan }[];
-  selectedKey: string;
-};
-export type RecommendationInset = { right: number; bottom: number };
-export type RouteRecommendationsMap = RecommendationPreview & { inset: RecommendationInset; preserveView?: boolean };
 
 export function createRecommendationModel(
   history: RouteHistoryResults | undefined, preferred: PreferredRoutesData | undefined,
@@ -48,8 +43,8 @@ export function createRecommendationModel(
     if (!plans.has(suggestion.id)) plans.set(suggestion.id, resolve(suggestion.draft));
     return plans.get(suggestion.id);
   };
-  const preview = (selectedId?: string): RecommendationPreview => {
-    const routes: RecommendationPreview['routes'] = [];
+  const preview = (selectedId?: string): RoutePreview => {
+    const routes: RoutePreview['routes'] = [];
     const append = (suggestion: RouteSuggestion) => {
       const plan = planFor(suggestion);
       const key = recommendationGeometryKey(plan);

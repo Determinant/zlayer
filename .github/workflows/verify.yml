@@ -1,8 +1,25 @@
 name: Verify
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the complete Chromium suite and cross-platform graphics matrix
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -11,24 +28,41 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.full && 60 || 10 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - name: Browser smoke checks
+        if: github.event_name != 'workflow_dispatch' || !inputs.full
+        run: npm run test:smoke
+      - name: Complete browser suite
+        if: github.event_name == 'workflow_dispatch' && inputs.full
+        run: npm run test:browser
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-failures
           path: test-results/
   graphics:
+    if: github.event_name == 'workflow_dispatch' && inputs.full
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Chromium graphics tests already run in the complete verify job above.
+          # Chromium graphics tests already run in the complete browser job above.
           - { os: ubuntu-latest, project: firefox, browser: firefox }
           - { os: ubuntu-latest, project: webkit, browser: webkit }
           - { os: ubuntu-latest, project: webkit-retina, browser: webkit }
           - { os: macos-latest, project: webkit-retina, browser: webkit }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

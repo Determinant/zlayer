@@ -7,7 +7,6 @@ export function terrainDetail(zoom: number) {
     demZoom: Math.min(13, z + 1),
     gridSize: z < 10 ? 128 : z < 12 ? 256 : 512,
     interval: contourInterval(z),
-    lines: true,
     contourLabels: z < 10 ? 0 : z < 12 ? 2 : 3,
   };
 }

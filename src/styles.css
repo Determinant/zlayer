@@ -2,6 +2,8 @@
 @import './core/ui/viewport.css';
 @import './shell/styles.css';
 @import './core/ui/styles.css';
+@import './core/ui/edge-handle.css';
+@import './core/ui/edge-panels.css';
 @import './layers/routes/styles.css';
 @import './shell/layer-menu.css';
 @import './shell/settings.css';
@@ -12,5 +14,6 @@
 @import './layers/navigation/styles.css';
 @import './layers/navigation/nearby-navaids.css';
 @import './layers/plates/styles.css';
+@import './workspace/side-panels.css';
 @import './layers/metar-taf/styles.css';
 @import './shell/responsive.css';

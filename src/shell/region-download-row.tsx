@@ -47,7 +47,8 @@ export function RegionDownloadRow({ region, details, pending, error, busy, onSta
       <p>Cycle {formatDate(display.revision)} · {size}
         {knownSize && ` · ${display.files.length.toLocaleString()} ${display.files.length === 1 ? 'file' : 'files'}`}</p>
       <div className="download-actions">
-        <button type="button" disabled={running ? view.action.disabled : busy || (!job && !update)}
+        <button type="button" disabled={running ? view.action.disabled : busy || (!job && !update)
+          || (job?.state === 'complete' && current && details === 'loading')}
           onClick={() => running ? onPause(display.id) : onStart(primaryPlan)}>{view.action.label}</button>
         {job && !running && <>
           {job.state !== 'complete' && update && <button type="button" disabled={busy}
@@ -62,9 +63,11 @@ export function RegionDownloadRow({ region, details, pending, error, busy, onSta
       <p>{view.progress.message}</p>
     </div>}
     {message && <p className="settings-error" role="alert">{message}</p>}
+    {job && !job.terrain && <p>Terrain is not included in this older download. Use Verify / update to add it.</p>}
   </article>;
 }
 
 function downloadSize(plan: DownloadPlan): string {
-  return `${plan.files.some(file => file.kind === 'faa-pdf') ? 'At least ' : ''}${formatBytes(downloadBytes(plan))}`;
+  return `${plan.files.some(file => file.kind === 'faa-pdf') || (plan.terrain && !plan.files.some(file => file.kind === 'terrain'))
+    ? 'At least ' : ''}${formatBytes(downloadBytes(plan))}`;
 }

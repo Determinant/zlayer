@@ -75,7 +75,7 @@ worker.addEventListener('fetch', (event) => {
   const respond = (response: Promise<Response>) => event.respondWith(trackWork(response));
   const onChartFeed = isOnChartFeed(url, `${worker.location.origin}/`);
 
-  if (onChartFeed && url.pathname.endsWith('.mbtiles') && ['GET', 'HEAD'].includes(event.request.method)) {
+  if (onChartFeed && /\.(mbtiles|dem|terrain)$/.test(url.pathname) && ['GET', 'HEAD'].includes(event.request.method)) {
     respond(chartArchiveResponse(event.request));
     return;
   }

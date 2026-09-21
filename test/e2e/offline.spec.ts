@@ -48,7 +48,7 @@ test('dismissed fetch warnings stay dismissed across map tiles and chart failure
   await expect(dismiss).toHaveCount(0);
 });
 
-test('saved region, route draft, first-use PDF viewer and glyphs work after a cold offline page', async ({ page, context }) => {
+test('saved region, route draft, first-use PDF viewer and glyphs work after a cold offline page', { tag: '@smoke' }, async ({ page, context }) => {
   const errors: string[] = [];
   context.on('page', opened => opened.on('pageerror', error => errors.push(error.message)));
   page.on('pageerror', error => errors.push(error.message));

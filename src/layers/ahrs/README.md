@@ -49,6 +49,10 @@ Actual device auto-lock behavior still requires phone/tablet verification.
 Stopping, canceling calibration, or an unrecoverable fault clears the GPS instruments,
 HSI guidance and GPS-live badge along with the AHRS location lease. A separate
 map GPS consumer can continue tracking, but cannot leave frozen AHRS readings.
+Stopping or starting a new calibration also releases the old estimator replay
+history. Once calibration is applied, its raw IMU/GPS window is discarded; the
+estimator retains the resulting trim and bias. Stowing with **Background** and
+temporary sensor pauses preserve the running estimator.
 Temporary motion pauses keep the session, including when returning from a hidden
 page. Fresh readings resume calibration or attitude automatically. The shared GPS
 provider may suspend its hardware watch while hidden and restart it on return.
@@ -296,6 +300,14 @@ The app enables automatic recovery from interrupted IMU timing: scrolling,
 temporary browser stalls and returning from the background retain calibration.
 While readings are missing, **Motion** marks the held last attitude. Fresh
 readings resume integration without a calibration prompt.
+
+Scrolling does not explicitly pause AHRS. Motion callbacks, estimation and the
+React/SVG display run on the main thread, so a busy or suspended main thread can
+delay both sensor delivery and drawing. A sensor gap above 0.5 seconds shows
+**Motion** when the display next runs; if rendering itself is stalled, the warning
+cannot paint until it resumes. A brief freeze is therefore possible and does not
+by itself establish a memory leak. Repeated or persistent foreground freezes need
+an on-device CPU/memory trace. See the [iPhone resource review](../../../docs/reviews/iphone-memory-ahrs-2026-09-20.md).
 
 With the device secured in its selected mount, the pilot confirms a roughly steady,
 level pose; in flight this means straight, level flight at a steady speed, not

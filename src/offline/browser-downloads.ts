@@ -15,6 +15,7 @@ import { CHART_CACHE, DATA_CACHE, PDF_CACHE } from '../core/storage/cache-names'
 import { cachedFileBytes, fileCache, storageStatus, formatBytes } from './storage';
 import { httpResourceError, isResourceErrorCode, ResourceError } from '../core/data/errors';
 import { discardResponseBody } from '../core/storage/response';
+import { prepareRegionTerrain } from './terrain';
 
 async function exclusive(work: () => Promise<void>): Promise<void> {
   if (!navigator.locks) throw new Error('This browser lacks safe multi-window download coordination; update your browser');
@@ -69,6 +70,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       );
       if (!await preparePwa()) throw new Error('Offline service worker unavailable. Reload online and retry.');
       signal.throwIfAborted();
+      plan = await prepareRegionTerrain(plan, signal);
       const storage = await storageStatus();
       signal.throwIfAborted();
       if (storage.quota !== undefined && storage.usage !== undefined) {
@@ -104,7 +106,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       return withReferenceSnapshot(plan, references);
     },
     download: async file => {
-      if (file.kind !== 'chart') {
+      if (file.kind !== 'chart' && file.kind !== 'terrain') {
         await downloadPdf(file);
         return;
       }

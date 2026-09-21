@@ -33,6 +33,7 @@ test('map choices survive a fresh app mount, including false switches and base-m
   assert.equal(defaults.chartBase, undefined, 'first launch leaves automatic base selection intact');
   assert.equal(defaults.visibility.fixes, true, 'IFR fixes are enabled by default');
   assert.equal(defaults.terrainEnabled, true, 'terrain starts enabled without a saved preference');
+  assert.equal(defaults.terrainCoverage, 'route', 'existing route coverage remains the default');
   assert.equal(defaults.obstructionsEnabled, true);
   assert.equal(defaults.ownshipEnabled, true, 'GPS starts enabled without a saved preference');
   setPreferences(current => ({ ...current, chartBase: 'ifr-low', chartOverlay: 'vfr-terminal', metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
@@ -54,7 +55,7 @@ test('invalid fields fall back independently without discarding valid choices', 
     visibility: { airports: false, fixes: 'false', unknown: true },
     fixDisplay: { detail: 'terminal', airspace: 'wrong' },
   }));
-  assert.deepEqual(render()[0], { chartBase: undefined, chartOverlay: '', metarEnabled: false, terrainEnabled: true, obstructionsEnabled: true, terrainAltitude: null, ownshipEnabled: true,
+  assert.deepEqual(render()[0], { chartBase: undefined, chartOverlay: '', metarEnabled: false, terrainEnabled: true, terrainCoverage: 'route', obstructionsEnabled: true, terrainAltitude: null, ownshipEnabled: true,
     visibility: { airports: false, navaids: true, 'vfr-waypoints': true, fixes: true },
     fixDisplay: { detail: 'terminal', airspace: 'low' },
   });
@@ -113,4 +114,30 @@ test('selected terrain altitude persists, including zero, and invalid stored alt
     storage.setItem(key, JSON.stringify({ terrainAltitude: altitude }));
     assert.equal(restart()[0].terrainAltitude, null);
   }
+});
+
+test('terrain coverage persists while older or invalid preferences retain the route corridor', t => {
+  const { render, restart, storage } = setup(t);
+  render()[1](current => ({ ...current, terrainCoverage: 'viewport' }));
+  render();
+  assert.equal(restart()[0].terrainCoverage, 'viewport');
+  for (const terrainCoverage of [undefined, null, true, 'unknown', 'route']) {
+    storage.setItem(key, JSON.stringify({ terrainCoverage, terrainAltitude: 4500 }));
+    const restored = restart()[0];
+    assert.equal(restored.terrainCoverage, 'route');
+    assert.equal(restored.terrainAltitude, 4500);
+  }
+});
+
+test('preferences save before another render and mounting never overwrites unknown records', t => {
+  const unknown = JSON.stringify({ version: 99, chartBase: 'ifr-low', future: true });
+  const { render, restart, storage } = setup(t, unknown);
+  assert.equal(render()[0].chartBase, undefined);
+  assert.equal(storage.getItem(key), unknown);
+  render()[1](current => ({ ...current, chartBase: '', terrainCoverage: 'viewport', terrainAltitude: 0, metarEnabled: false }));
+  const stored = JSON.parse(storage.getItem(key)!);
+  assert.equal(stored.version, 2);
+  assert.equal(stored.terrainCoverage, 'viewport');
+  assert.equal(stored.terrainAltitude, 0);
+  assert.equal(restart()[0].metarEnabled, false, 'no render or effect is needed before reload');
 });

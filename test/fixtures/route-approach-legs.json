@@ -1,0 +1,709 @@
+{
+  "type": "ZLayerTerminalProcedures",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA NASR"
+  },
+  "procedures": [],
+  "approaches": {
+    "type": "ZLayerApproachRoutes",
+    "metadata": {
+      "effectiveDate": "2026-09-03",
+      "source": "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/"
+    },
+    "procedures": [
+      {
+        "id": "KSBA:I07",
+        "airport": "KSBA",
+        "ident": "I07",
+        "magneticVariation": 14,
+        "transitions": [
+          {
+            "id": "GOLET",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "GOLET",
+                  "coordinate": [
+                    -119.864375,
+                    34.281349999999996
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "LOBER",
+                  "coordinate": [
+                    -120.08545833333334,
+                    34.26329722222222
+                  ]
+                }
+              },
+              {
+                "path": "FC",
+                "fix": {
+                  "ident": "LOBER",
+                  "coordinate": [
+                    -120.08545833333334,
+                    34.26329722222222
+                  ]
+                },
+                "magneticCourse": 343,
+                "distance": 7.5
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "HABUT",
+                  "coordinate": [
+                    -120.08879444444445,
+                    34.42236944444444
+                  ],
+                  "role": "IF"
+                },
+                "magneticCourse": 343,
+                "distance": 2
+              }
+            ]
+          },
+          {
+            "id": "GVO",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "GVO",
+                  "coordinate": [
+                    -120.09108888888889,
+                    34.53131944444444
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "YONNI",
+                  "coordinate": [
+                    -120.09003333333332,
+                    34.48125
+                  ]
+                }
+              },
+              {
+                "path": "FC",
+                "fix": {
+                  "ident": "YONNI",
+                  "coordinate": [
+                    -120.09003333333332,
+                    34.48125
+                  ]
+                },
+                "magneticCourse": 163,
+                "distance": 1.5
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "HABUT",
+                  "coordinate": [
+                    -120.08879444444445,
+                    34.42236944444444
+                  ],
+                  "role": "IF"
+                },
+                "magneticCourse": 163,
+                "distance": 2
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "HABUT",
+              "coordinate": [
+                -120.08879444444445,
+                34.42236944444444
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "GOYED",
+              "coordinate": [
+                -120.02124166666667,
+                34.42389722222222
+              ]
+            },
+            "magneticCourse": 75,
+            "distance": 3.4
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "NAPPS",
+              "coordinate": [
+                -119.96445833333334,
+                34.425149999999995
+              ],
+              "role": "FAF"
+            },
+            "magneticCourse": 75,
+            "distance": 2.8
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "RW07",
+              "coordinate": [
+                -119.85464166666667,
+                34.427499999999995
+              ],
+              "role": "MAP"
+            },
+            "magneticCourse": 75,
+            "distance": 5.5
+          },
+          {
+            "path": "CA",
+            "missed": true,
+            "magneticCourse": 74.6
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "GOLET",
+              "coordinate": [
+                -119.864375,
+                34.281349999999996
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 184.8,
+            "distance": 10
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "GOLET",
+              "coordinate": [
+                -119.864375,
+                34.281349999999996
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 307,
+            "holdMinutes": 1
+          }
+        ]
+      },
+      {
+        "id": "KSFO:I28R",
+        "airport": "KSFO",
+        "ident": "I28R",
+        "magneticVariation": 14,
+        "transitions": [
+          {
+            "id": "ARCHI",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "ARCHI",
+                  "coordinate": [
+                    -121.87554166666666,
+                    37.49079722222222
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "ZILED",
+                  "coordinate": [
+                    -121.95821111111111,
+                    37.495625000000004
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "GIRRR",
+                  "coordinate": [
+                    -122.02723611111111,
+                    37.4996
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "DUMBA",
+                  "coordinate": [
+                    -122.09614722222221,
+                    37.50351666666667
+                  ]
+                }
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "CEPIN",
+                  "coordinate": [
+                    -122.172875,
+                    37.53595277777777
+                  ],
+                  "role": "IF"
+                },
+                "magneticCourse": 283.8,
+                "distance": 4.2
+              }
+            ]
+          },
+          {
+            "id": "DUMBA",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "DUMBA",
+                  "coordinate": [
+                    -122.09614722222221,
+                    37.50351666666667
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "CEPIN",
+                  "coordinate": [
+                    -122.172875,
+                    37.53595277777777
+                  ],
+                  "role": "IF"
+                },
+                "magneticCourse": 283.8,
+                "distance": 4.2
+              }
+            ]
+          },
+          {
+            "id": "EDDYY",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "EDDYY",
+                  "coordinate": [
+                    -122.11874999999999,
+                    37.37490277777778
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "SIDBY",
+                  "coordinate": [
+                    -122.14474722222224,
+                    37.45071111111111
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "CEPIN",
+                  "coordinate": [
+                    -122.172875,
+                    37.53595277777777
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          },
+          {
+            "id": "SIDBY",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "SIDBY",
+                  "coordinate": [
+                    -122.14474722222224,
+                    37.45071111111111
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "CEPIN",
+                  "coordinate": [
+                    -122.172875,
+                    37.53595277777777
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "CEPIN",
+              "coordinate": [
+                -122.172875,
+                37.53595277777777
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "AXMUL",
+              "coordinate": [
+                -122.25719722222222,
+                37.571513888888894
+              ],
+              "role": "FAF"
+            },
+            "magneticCourse": 284,
+            "distance": 4.6
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "RW28R",
+              "coordinate": [
+                -122.35805833333333,
+                37.61391944444445
+              ],
+              "role": "MAP"
+            },
+            "magneticCourse": 284,
+            "distance": 5.4
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "VIKYU",
+              "coordinate": [
+                -122.59620555555556,
+                37.71351111111112
+              ]
+            },
+            "missed": true,
+            "magneticCourse": 281.1,
+            "distance": 13
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "VIKYU",
+              "coordinate": [
+                -122.59620555555556,
+                37.71351111111112
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 281.1,
+            "holdMinutes": 1
+          }
+        ]
+      },
+      {
+        "id": "KSFO:R28L",
+        "airport": "KSFO",
+        "ident": "R28L",
+        "magneticVariation": 14,
+        "transitions": [
+          {
+            "id": "ARCHI",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "ARCHI",
+                  "coordinate": [
+                    -121.87554166666666,
+                    37.49079722222222
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "PONKE",
+                  "coordinate": [
+                    -121.99605277777778,
+                    37.45881666666667
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "WETOR",
+                  "coordinate": [
+                    -122.05714166666667,
+                    37.484719444444444
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "ROKME",
+                  "coordinate": [
+                    -122.118275,
+                    37.51059166666667
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "HEMAN",
+                  "coordinate": [
+                    -122.17333333333333,
+                    37.53385
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          },
+          {
+            "id": "EDDYY",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "EDDYY",
+                  "coordinate": [
+                    -122.11874999999999,
+                    37.37490277777778
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "SIDBY",
+                  "coordinate": [
+                    -122.14474722222224,
+                    37.45071111111111
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "HEMAN",
+                  "coordinate": [
+                    -122.17333333333333,
+                    37.53385
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          },
+          {
+            "id": "FAITH",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "FAITH",
+                  "coordinate": [
+                    -121.86189999999999,
+                    37.40121666666666
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "DIVEC",
+                  "coordinate": [
+                    -121.93500833333334,
+                    37.43288333333333
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "PONKE",
+                  "coordinate": [
+                    -121.99605277777778,
+                    37.45881666666667
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "WETOR",
+                  "coordinate": [
+                    -122.05714166666667,
+                    37.484719444444444
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "ROKME",
+                  "coordinate": [
+                    -122.118275,
+                    37.51059166666667
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "HEMAN",
+                  "coordinate": [
+                    -122.17333333333333,
+                    37.53385
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          },
+          {
+            "id": "SIDBY",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "SIDBY",
+                  "coordinate": [
+                    -122.14474722222224,
+                    37.45071111111111
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "HEMAN",
+                  "coordinate": [
+                    -122.17333333333333,
+                    37.53385
+                  ],
+                  "role": "IF"
+                }
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "HEMAN",
+              "coordinate": [
+                -122.17333333333333,
+                37.53385
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "DUYET",
+              "coordinate": [
+                -122.25292777777777,
+                37.567400000000006
+              ],
+              "role": "FAF"
+            }
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "NEPIC",
+              "coordinate": [
+                -122.29688333333333,
+                37.58589444444445
+              ]
+            }
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "RW28L",
+              "coordinate": [
+                -122.35926388888889,
+                37.612097222222225
+              ],
+              "role": "MAP"
+            }
+          },
+          {
+            "path": "CA",
+            "missed": true,
+            "magneticCourse": 283.9
+          },
+          {
+            "path": "DF",
+            "fix": {
+              "ident": "OLYMM",
+              "coordinate": [
+                -122.6726888888889,
+                37.71602777777778
+              ]
+            },
+            "missed": true,
+            "turn": "L"
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "OLYMM",
+              "coordinate": [
+                -122.6726888888889,
+                37.71602777777778
+              ]
+            },
+            "missed": true,
+            "turn": "L",
+            "magneticCourse": 278.2,
+            "distance": 4
+          }
+        ]
+      }
+    ]
+  }
+}

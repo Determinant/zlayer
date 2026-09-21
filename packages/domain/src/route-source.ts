@@ -3,7 +3,7 @@ import type { RouteEntry } from './route-model.js';
 
 /** The user's entry remains the source even inside nested published expansions. */
 export type RouteSource = { entryId: string; tokenIndex: number; token: string };
-export type RouteOwner = { kind: 'airway' | 'procedure' | 'tec'; source: RouteSource; ident: string };
+export type RouteOwner = { kind: 'airway' | 'procedure' | 'tec' | 'approach'; source: RouteSource; ident: string };
 export type RouteScope = { departure?: RouteAtom; destination?: RouteAtom };
 export type RouteAtom = {
   text: string;

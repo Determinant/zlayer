@@ -4,7 +4,7 @@ import { CHART_CACHE, PDF_CACHE } from '../core/storage/cache-names';
 import { discardResponseBody } from '../core/storage/response';
 import { verificationReceipt } from '../core/storage/verification-receipt';
 
-export const fileCache = (file: OfflineFile) => file.kind === 'chart' ? CHART_CACHE : PDF_CACHE;
+export const fileCache = (file: OfflineFile) => file.kind === 'chart' || file.kind === 'terrain' ? CHART_CACHE : PDF_CACHE;
 
 export async function cachedFileBytes(file: OfflineFile): Promise<number | undefined> {
   const response = await (await caches.open(fileCache(file))).match(file.url);

@@ -154,6 +154,14 @@ metadata, including URL, count, cycle and captured JSON digest. Planning and
 recommendations use one national edition without clipping it to chart coverage;
 partial availability is reported explicitly.
 
+`ZLayerTerminalProcedures.approaches`, when present, is a `ZLayerApproachRoutes`
+document from the same effective date. Its airport-scoped procedure identifiers,
+published transition branches and common/final/missed coded legs retain fix
+coordinates and roles, RF centers, turn directions and explicit endpoint-free
+legs. It is optional for older exports. Approach entry selection requires this
+data; the chart catalog alone cannot supply route geometry. Existing national
+reference identity and offline guards validate the nested document.
+
 ## METAR
 
 AWC METAR snapshots use GeoJSON points with the source station ID, observation time,
@@ -234,6 +242,9 @@ before rendering, and writes synchronously on actions. Defaults are never writte
 just because a component mounted; unavailable async data must not erase an open
 panel or a selection. Explicit closing persists as well as opening. Denied/full
 storage leaves session controls usable. These records are local to this origin.
+Route and layer preferences use the same action-time lifecycle with their existing
+versioned formats. The [saved workspace inventory](workspace-state.md) lists owners,
+coverage, migrations, intentionally transient state and cross-window limits.
 
 The first-visit installation and safety notice uses
 `zlayer-ui:welcome-acknowledged` with `{ version: 1, value: true }` after **I understand**.
@@ -246,8 +257,8 @@ including notice edits, do not request acknowledgement again. Requiring renewed
 acknowledgement would need an explicit change to this persistence contract.
 
 Restored presentation includes Layers, Settings and its region query/storage
-details, nested About, the selected map-edge toolbox, feature details and their
-Info/Plates tab, route details, and recommendations (aircraft filter, selection,
+details, nested About, the selected map-edge toolbox, the active/stowed right panel,
+feature details and their Info/Plates tab or navaid identification, route details, and recommendations (aircraft filter, selection,
 expanded conditions and row limits). Feature snapshots retain their source key;
 unavailable editions remain unavailable rather than adopting another edition.
 Plate selection retains the exact document URL, integrity metadata, edition and
@@ -255,8 +266,12 @@ original target; page, zoom, fullscreen and scroll position are remembered per
 document/plate. Actual PDF page counts bound restored pages. PDFs and live data
 still use their normal loaders, caches and validation. Loading/error flags,
 in-progress gestures and transient context menus are not durable UI state.
+The on-map IAP has a separate `plate-on-map` selection record. It rebuilds its
+original approach from the exact document, preserving the camera, reader and
+active panel; its effective dates remain visible. Failure offers Retry/Hide without
+discarding the selection. Explicit hiding persists and cancels pending restoration.
 
-AHRS remembers its full-screen preference, but calibration and estimator state do
+AHRS remembers its full-screen and device-mount preferences, but calibration and estimator state do
 not resume after reload. A fresh IMU calibration does not require a GPS fix. During
 a calibrated session, the warning cross does not imply absent or frozen attitude:
 live IMU indication remains visible with no fix, slow GPS or high tilt uncertainty.

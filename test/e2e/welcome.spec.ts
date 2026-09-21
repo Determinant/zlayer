@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.use({ storageState: { cookies: [], origins: [] } });
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
 
-test('first visit shows installation and safety before the workspace, then remembers acknowledgment', async ({ page, context }) => {
+test('first visit shows installation and safety before the workspace, then remembers acknowledgment', { tag: '@smoke' }, async ({ page, context }) => {
   await page.goto('/');
   const welcome = page.getByRole('dialog', { name: 'Welcome to ZLayer', exact: true });
   await expect(welcome).toBeVisible();

@@ -3,7 +3,7 @@ import { mockGps, sendFix, countWatches, stats } from './ownship-fixture';
 
 test.use({ hasTouch: true });
 
-test('aircraft and 1 min vector render through MapLibre, stay aligned on rotation, expire and remount', async ({ page }, testInfo) => {
+test('aircraft and 1 min vector render through MapLibre, stay aligned on rotation, expire and remount', { tag: '@smoke' }, async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await mockGps(page);

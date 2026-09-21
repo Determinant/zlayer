@@ -9,6 +9,7 @@ import { createRouteLayer } from '../src/layers/routes/layer';
 import { routeEditProperties } from '../src/layers/routes/editing';
 import type { NearbyFeature } from '../src/workspace/feature-selection';
 import { withMapLabelKeys } from '../src/core/map/label';
+import { resolveNavigationFeature } from '../src/layers/navigation/feature-details';
 
 const navigation: FeatureCollectionResponse = { type: 'FeatureCollection',
   meta: { layer: 'fixes', revision: 'test', returned: 4, truncated: false },
@@ -17,7 +18,8 @@ const navigation: FeatureCollectionResponse = { type: 'FeatureCollection',
 };
 const resolve = createRouteResolver([navigation]);
 
-function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = [], kind: 'waypoint' | 'leg' = 'waypoint') {
+function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = [], kind: 'waypoint' | 'leg' = 'waypoint',
+  references: FeatureCollectionResponse = navigation) {
   const original = globalThis.window;
   const target = Object.assign(new EventTarget(), { setTimeout, clearTimeout });
   globalThis.window = target as unknown as Window & typeof globalThis;
@@ -45,9 +47,14 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
   const replacements: Array<{ index: string; feature: GeoPointFeature }> = [];
   const insertions: Array<{ afterEntryId: string; feature: GeoPointFeature }> = [];
   const previews: Array<RouteDragPreview | undefined> = [];
+  const resolutions: GeoPointFeature[] = [];
   let editable = true;
   const gestures = new MapGestures(map as unknown as MapLibreMap, {
     route: () => route, interactiveLayerIds: () => [], preview: input => previews.push(input.preview),
+    resolveFeature: feature => {
+      resolutions.push(feature);
+      return resolveNavigationFeature(feature, { fixes: references });
+    },
     canEditRoute: () => editable,
     onSelect: feature => selections.push(feature), onRouteLegInsert: (afterEntryId, feature) => {
       assert.equal(kind, 'leg', 'unexpected insertion');
@@ -70,7 +77,7 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
     lngLat: { lng: coordinate[0], lat: coordinate[1] }, preventDefault() {},
   });
   return { touch, edits, gestures, map, target, selections, replacements, handlers,
-    nearby, insertions, previews,
+    nearby, insertions, previews, resolutions,
     setRoute: (next: RoutePlan, render = true) => { route = next; if (render) rendered = next; },
     setEditable: (value: boolean) => { editable = value; },
     click: () => handlers.get('click')!({ point: { x: 100, y: 100 } }),
@@ -260,6 +267,20 @@ test('a context gesture offers nearby navigation points as one chooser set', t =
   assert.deepEqual(nearby[0]!.map(({ feature }) => feature.properties.ident), ['KSFO', 'SNS']);
 });
 
+test('releasing a handled long press suppresses compatibility mouse events and the following map click', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { touch, handlers, click, selections } = setup(t);
+  touch('touchstart', 1);
+  t.mock.timers.tick(550);
+  const selected = selections.length;
+  let prevented = false;
+  handlers.get('touchend')!({ originalEvent: { touches: [], cancelable: true,
+    preventDefault() { prevented = true; } } });
+  assert.equal(prevented, true);
+  click();
+  assert.equal(selections.length, selected);
+});
+
 test('nearby results include hidden planned points and distinct repeated route occurrences', t => {
   const { handlers, nearby, map, setRoute } = setup(t);
   const plan = resolve('KSFO 371500N1223000W KSFO');
@@ -293,6 +314,29 @@ test('nearby planned points replace duplicate navigation symbols and labels, wit
   assert.equal(nearby[0]![0]!.feature.id, 'KSFO');
 });
 
+for (const kind of ['waypoint', 'leg'] as const) for (const cancel of [false, true]) {
+  test(`${kind} dragging restores only the committed snap target (cancel: ${cancel})`, t => {
+    const features: GeoPointFeature[] = Array.from({ length: 12 }, (_, index) => ({
+      type: 'Feature', id: `fix:${index}`, geometry: { type: 'Point', coordinates: [-120 + index / 100, 36] },
+      properties: { kind: 'fix', ident: `FIX${index}`, dataSourceKey: 'reference', dataRevision: 'test', charts: ['ENROUTE LOW'] },
+    }));
+    const references = { ...navigation, features };
+    const rendered = withMapLabelKeys(references).features.map(feature => ({ ...feature, id: 0 }));
+    const { touch, map, resolutions, insertions, replacements, previews } = setup(t,
+      [...rendered, ...rendered] as unknown as MapGeoJSONFeature[], kind, references);
+    map.project = coordinate => ({ x: coordinate[0] === features[5]!.geometry.coordinates[0] ? 135 : 1000, y: 100 });
+    touch('touchstart', 1);
+    for (let i = 0; i < 20; i++) touch('touchmove', 1, 135 + i);
+    assert.equal(previews.at(-1)?.snapped, true);
+    assert.equal(resolutions.length, 0, 'movement never reads national reference collections');
+    touch(cancel ? 'touchcancel' : 'touchend', 0);
+    assert.equal(resolutions.length, cancel ? 0 : 1);
+    const changes = kind === 'leg' ? insertions : replacements;
+    assert.equal(changes.length, cancel ? 0 : 1);
+    if (!cancel) assert.equal(changes[0]!.feature, features[5], 'the committed target retains its complete reference data');
+  });
+}
+
 for (const action of ['click', 'snap'] as const) {
   test(`${action} restores navigation identity and worker-safe properties after tile encoding`, t => {
     const feature: GeoPointFeature = { type: 'Feature', id: 'fix:TAILS',
@@ -301,11 +345,12 @@ for (const action of ['click', 'snap'] as const) {
     const mapped = withMapLabelKeys({ ...navigation, features: [feature] }).features[0]!;
     const rendered = {
       type: 'Feature', id: 0,
-      geometry: feature.geometry,
+      geometry: { type: 'Point', coordinates: [-122.52, 37.27] },
       // Vector-tile decoding produces a dictionary, not a normal JSON object.
       properties: Object.assign(Object.create(null), mapped.properties),
     } as unknown as MapGeoJSONFeature;
-    const { click, touch, selections, replacements, edits } = setup(t, [rendered]);
+    assert.equal(mapped.properties.charts, undefined, 'nested detail stays outside MapLibre');
+    const { click, touch, selections, replacements, edits } = setup(t, [rendered], 'waypoint', { ...navigation, features: [feature] });
     if (action === 'click') click();
     else {
       touch('touchstart', 1);
@@ -315,9 +360,7 @@ for (const action of ['click', 'snap'] as const) {
     }
     const selected = action === 'click' ? selections[0] : replacements[0]?.feature;
     assert.ok(selected);
-    assert.deepEqual(selected, {
-      ...feature, properties: { ...feature.properties, mapLabelKey: feature.id },
-    });
+    assert.equal(selected, feature, 'clicks and drag snaps resolve the original complete record');
     assert.equal(Object.getPrototypeOf(selected.properties), Object.prototype);
     assert.equal(Object.getPrototypeOf(rendered.properties), null, 'do not mutate MapLibre data');
     assert.deepEqual(edits, []);

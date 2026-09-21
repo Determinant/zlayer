@@ -60,7 +60,7 @@ export function navigationSourceKey(source: CatalogResponse): string {
   let key = sourceKeys.get(source);
   if (!key) {
     // Chart coverage and live weather do not change a navigation/plate source.
-    const { charts: _charts, chartPackages: _packages, weather: _weather, ...references } = source;
+    const { charts: _charts, chartPackages: _packages, terrain: _terrain, weather: _weather, ...references } = source;
     key = `catalog:${jsonIdentity(references)}`;
     sourceKeys.set(source, key);
   }

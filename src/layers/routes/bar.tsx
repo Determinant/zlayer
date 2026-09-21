@@ -1,22 +1,26 @@
 import type { ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
-import { routeEntryPins, type RoutePlan } from '@zlayer/domain';
+import { routeEntryPins, type RouteApproach, type RouteEntry, type RoutePlan } from '@zlayer/domain';
 import type { CatalogResponse } from '@zlayer/contracts';
 
 import { RouteEditor } from './editor';
 import type { RouteLoadStatus } from './use-plan';
 import { RouteRecommendations } from './recommendations';
 import type { RouteDraft } from './draft';
-import type { RouteRecommendationsMap } from './suggestions';
+import type { RouteMapPreview } from './map-preview';
 import { routeConditions } from './conditions';
+import type { DirectToAction } from './direct-to';
+import type { RouteUndo } from './use-draft';
+import type { ProcedureSelection } from '../plates/data';
 
 type RouteBarProps = {
   plan: RoutePlan;
   status: RouteLoadStatus;
   catalog: CatalogResponse;
   onUseRoute: (draft: RouteDraft) => void;
-  onRecommendationPreview?: (preview: RouteRecommendationsMap | undefined) => void;
+  onRecommendationPreview?: (preview: RouteMapPreview | undefined) => void;
+  onApproachPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
   onAppendInput: (input: string) => void;
   onInsertInput: (beforeEntryId: string, input: string) => void;
   onReplaceInput: (entryId: string, input: string) => void;
@@ -24,6 +28,10 @@ type RouteBarProps = {
   onMoveEntry: (fromEntryId: string, toEntryId: string) => void;
   onClear: () => void;
   onFit: () => void;
+  onDirectTo?: DirectToAction | undefined;
+  onApproachChange?: ((entry: RouteEntry, approach: RouteApproach | undefined) => void) | undefined;
+  onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
+  undo?: RouteUndo | undefined;
 };
 
 export function RouteBar({
@@ -32,6 +40,7 @@ export function RouteBar({
   catalog,
   onUseRoute,
   onRecommendationPreview,
+  onApproachPreview,
   onAppendInput,
   onInsertInput,
   onReplaceInput,
@@ -39,6 +48,10 @@ export function RouteBar({
   onMoveEntry,
   onClear,
   onFit,
+  onDirectTo,
+  onApproachChange,
+  onOpenPlate,
+  undo,
 }: RouteBarProps) {
   return (
     <section className="route-bar" aria-label="Flight route planner">
@@ -52,6 +65,14 @@ export function RouteBar({
         onMoveEntry={onMoveEntry}
         onClear={onClear}
         onFit={onFit}
+        onDirectTo={onDirectTo}
+        approachResource={catalog.procedures}
+        approachRouteResource={catalog.terminalProcedures}
+        revision={catalog.revision}
+        onApproachChange={onApproachChange}
+        onApproachPreview={onApproachPreview}
+        onOpenPlate={onOpenPlate}
+        undo={undo}
         tools={<>
           <RouteRecommendations catalog={catalog} tokens={plan.tokens} pins={routeEntryPins(plan.entries)} onUseRoute={onUseRoute}
             {...(onRecommendationPreview ? { onPreviewChange: onRecommendationPreview } : {})} />
@@ -85,19 +106,21 @@ function RouteSummary({ plan, status }: Pick<RouteBarProps, 'plan' | 'status'>) 
     ...routeConditions(route).map(([label, value]) => `${label}: ${value}`),
     'Published TEC definition; eligibility and ATC clearance are not verified.',
   ]);
-  if (messages.length > 0 || tecDetails.length > 0) {
+  const approachDetails = plan.approachDepictions?.length
+    ? ['Holding racetracks and altitude-dependent missed turns are schematic and excluded from route distance and terrain corridors. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.'] : [];
+  if (messages.length > 0 || tecDetails.length > 0 || approachDetails.length > 0) {
     const warning = messages.length > 0;
     return (
-      <PersistentDetails storageKey="route-summary-open" className={`route-summary${warning ? ' is-error' : ''}`}>
-        <summary aria-label={warning ? `Route issues (${messages.length}): ${messages[0]}` : 'TEC route details and published conditions'}>
+      <PersistentDetails storageKey="route-summary-open" className={`route-summary${warning ? ' is-error' : ''}${approachDetails.length ? ' has-approach-details' : ''}`}>
+        <summary aria-label={warning ? `Route issues (${messages.length}): ${messages[0]}` : approachDetails.length ? 'Approach map details' : 'TEC route details and published conditions'}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {warning ? <path d="M12 3 2 21h20Z M12 9v5 M12 17v1" />
               : <><circle cx="12" cy="12" r="9" /><path d="M12 11v6 M12 7v1" /></>}
           </svg>
-          <span>{warning ? messages[0] : `${Math.round(plan.distanceNm).toLocaleString()} NM · TEC details`}</span>
+          <span>{warning ? messages[0] : `${Math.round(plan.distanceNm).toLocaleString()} NM · ${approachDetails.length ? 'Approach' : 'TEC'} details`}</span>
         </summary>
         <ul id="route-summary" className="route-issues" aria-live="polite">
-          {[...messages, ...tecDetails].map((message, index) => <li key={index}>{message}</li>)}
+          {[...messages, ...tecDetails, ...approachDetails].map((message, index) => <li key={index}>{message}</li>)}
         </ul>
       </PersistentDetails>
     );

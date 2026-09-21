@@ -10,11 +10,25 @@ through the same narrow proxy and cache used by the viewer. They are required fi
 not omitted warnings. An advertised book target with an unresolved page still blocks
 the region until the index is corrected.
 
-Regional saves include the optional national preferred/TEC, SID/STAR and historical
+When the feed publishes `charts/terrain/manifest.json`, new selections also include
+terrain DEM zooms 1–13. Regional preparation reads immutable spatial indices and
+adds the necessary elevation archives before the quota preflight and file transfers.
+The displayed initial size is a minimum until terrain preparation has finished.
+Indices and DEMs have published sizes and SHA-256 hashes and share the whole-file
+archive cache used by the terrain renderer. Regional verification checks required
+index membership as well as retained file receipts. Terrain is independent of FAA
+cycles; unchanged archives are shared across regions and cycles.
+
+Existing selections retain their original scope until **Verify / update**. Settings
+labels downloads that do not include terrain, including selections from feeds where
+terrain has not yet been published. Publishing the terrain product does not add bytes
+to a previously saved region automatically.
+
+Regional saves include the optional national preferred/TEC, SID/STAR, approach and historical
 route references when published. Each export is shared once per identity in the same
 reference cache used by routing. **Verify / update** adds newly available references
 to an existing selection without re-fetching verified charts or books. Older feeds
-remain usable with the missing recommendation sources shown as unavailable.
+remain usable with missing route data shown as unavailable.
 History stays gzip-compressed in storage; decoding, validation and airport-pair
 indexing run in a worker. Offline checks validate the stored response, not worker
 memory. See [routes and recommendations](routes.md#recommendations) for UI behavior
@@ -118,7 +132,7 @@ same-length content changes under an unchanged receipt.
 
 TPP metadata must match the export timestamp in its `v` URL parameter. New saves
 and **Verify / update** capture `jsonSha256`, the SHA-256 digest of each validated
-parsed JSON export: navigation, airways, preferred routes, SID/STAR routes,
+parsed JSON export: navigation, airways, preferred routes, SID/STAR and approach routes,
 historical routes and TPP metadata. Preparation persists these identities in both
 the staged catalog and reference expectations before transferring files or activating.
 Saved cache URLs include the digest, allowing builds at the same publisher URL to
@@ -278,7 +292,8 @@ subsequent fetch warnings across tiles and chart archives until the app is reloa
 including after reconnecting. Storage, integrity and rendering failures remain visible
 and can be dismissed individually.
 
-Regional saves do **not** bulk-download the terrain basemap or promise current weather.
+Regional saves include published elevation terrain; they do **not** bulk-download
+the background basemap or promise current weather.
 Basemap resources are retained as viewed; missing ones do not disable saved chart
 overlays. Weather keeps its observation times and stale/unavailable labels. Downloads
 show their FAA cycle; saved means retained, not current or suitable for navigation.

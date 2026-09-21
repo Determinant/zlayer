@@ -1,14 +1,17 @@
+import { boundedBlobStream } from '../storage/blob-stream';
+import { InvalidDataError } from './errors';
+
 export type GzipJsonSize = { bytes: number; uncompressedBytes: number };
 
 /** Keep the original compressed response in Cache Storage; bound decompression by the manifest. */
 export async function parseGzipJson(response: Response, expected: GzipJsonSize): Promise<unknown> {
   if (!response.body) throw new InvalidDataError('Missing gzip response body');
-  const buffer = await new Response(response.body.pipeThrough(limitBytes(Math.max(expected.bytes, expected.uncompressedBytes))))
-    .arrayBuffer();
-  const bytes = new Uint8Array(buffer);
+  const blob = await new Response(response.body.pipeThrough(limitBytes(Math.max(expected.bytes, expected.uncompressedBytes))))
+    .blob();
+  const bytes = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-    if (bytes.length !== expected.bytes) throw new InvalidDataError('Compressed route history size does not match the manifest');
-    const decoded = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'))
+    if (blob.size !== expected.bytes) throw new InvalidDataError('Compressed route history size does not match the manifest');
+    const decoded = boundedBlobStream(blob).pipeThrough(new DecompressionStream('gzip'))
       .pipeThrough(limitBytes(expected.uncompressedBytes, true));
     try { return JSON.parse(await new Response(decoded).text()) as unknown; }
     catch (cause) {
@@ -21,8 +24,8 @@ export async function parseGzipJson(response: Response, expected: GzipJsonSize):
     }
   }
   // Fetch may already have decoded Content-Encoding: gzip, even when CORS hides that header.
-  if (bytes.length === expected.uncompressedBytes) {
-    try { return JSON.parse(new TextDecoder().decode(bytes)) as unknown; }
+  if (blob.size === expected.uncompressedBytes) {
+    try { return JSON.parse(await blob.text()) as unknown; }
     catch (cause) {
       if (cause instanceof SyntaxError) throw new InvalidDataError('Invalid gzip route history', { cause });
       throw cause;
@@ -42,4 +45,3 @@ function limitBytes(limit: number, exact = false) {
     flush() { if (exact && received !== limit) throw new InvalidDataError('Route history size does not match the manifest'); },
   });
 }
-import { InvalidDataError } from './errors';

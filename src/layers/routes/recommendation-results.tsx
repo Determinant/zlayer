@@ -4,8 +4,8 @@ import { formatDate, formatDateRange } from '../../core/format/time';
 import type { AirwayDataResponse, CatalogResponse, NavigationData, TerminalProceduresData } from '@zlayer/contracts';
 import { airportRouteIdent, type RouteAirportPair } from '@zlayer/domain';
 import type { RouteDraft } from './draft';
-import { createRecommendationModel, recommendationGeometryKey, type RecommendationInset, type RecommendationPreview,
-  type RouteSuggestion, type RouteRecommendationsMap } from './suggestions';
+import { createRecommendationModel, recommendationGeometryKey, type RouteSuggestion } from './suggestions';
+import type { RoutePreviewInset, RoutePreview, RouteMapPreview } from './map-preview';
 import { useSuggestions } from './use-suggestions';
 import { routeConditions } from './conditions';
 import { usePersistentState } from '../../core/ui/use-persistent-state';
@@ -16,7 +16,7 @@ export function RecommendationResults({ catalog, pair, navigation, airways, term
   onPreviewInteraction, onUseRoute, preserveView = false }: {
   catalog: CatalogResponse; pair: RouteAirportPair; navigation: NavigationData; airways: AirwayDataResponse | undefined;
   terminal?: TerminalProceduresData | undefined;
-  inset: RecommendationInset; onPreviewChange: (preview: RouteRecommendationsMap | undefined) => void;
+  inset: RoutePreviewInset; onPreviewChange: (preview: RouteMapPreview | undefined) => void;
   onPreviewInteraction: () => void;
   onUseRoute: (draft: RouteDraft) => void;
   preserveView?: boolean;
@@ -62,7 +62,7 @@ export function RecommendationResults({ catalog, pair, navigation, airways, term
 
 type Model = ReturnType<typeof createRecommendationModel>;
 type SectionProps = {
-  id: string; title: string; rows: RouteSuggestion[]; model: Model; preview: RecommendationPreview;
+  id: string; title: string; rows: RouteSuggestion[]; model: Model; preview: RoutePreview;
   source: ReactNode; controls?: ReactNode; error: string | undefined; loading: boolean; empty: string;
   onRetry: () => void; onPreview: (id: string) => void; onUseRoute: (draft: RouteDraft) => void;
 };

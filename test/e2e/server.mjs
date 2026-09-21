@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, extname } from 'node:path';
 import { build } from 'vite';
@@ -15,18 +15,34 @@ process.env.VITE_ZLAYERS_BASEMAP_TILE_URL = `http://127.0.0.1:${port}/basemap.pn
 process.env.VITE_ZLAYERS_BASEMAP_STYLE_URL = '';
 process.env.VITE_ZLAYERS_TERRAIN_TILE_URL = `http://127.0.0.1:${port}/terrain/{z}/{x}/{y}.png`;
 await build({ build: { outDir: directory, rolldownOptions: {
+  preserveEntrySignatures: 'exports-only',
   input: { regionalTest: resolve('test/e2e/regional-renderer.ts'), lifecycleTest: resolve('test/e2e/lifecycle.html'),
+    terrainStorageTest: resolve('test/browser/terrain-storage.ts'),
     identificationTest: resolve('test/browser/identification.html'),
+    edgePanelsTest: resolve('test/browser/edge-panels.html'),
+    fixesTest: resolve('test/browser/fixes.html'),
+    weatherMapTest: resolve('test/browser/weather-map.html'),
     obstructionTest: resolve('test/browser/obstructions.html'),
     routeEditor: resolve('test/browser/routes.html'), routeMap: resolve('test/browser/route-map.html'), terrainTest: resolve('test/browser/terrain.html'),
     ownshipTest: resolve('test/browser/ownship.html'), graphicsTest: resolve('test/browser/graphics.html'),
     ahrsDrums: resolve('test/browser/ahrs-drums.html'), ahrsGeometry: resolve('test/browser/ahrs-geometry.html') },
   output: { entryFileNames: chunk => chunk.name === 'regionalTest' ? 'regional-test.js'
+    : chunk.name === 'terrainStorageTest' ? 'assets/terrain-storage-test.js'
     : chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js' },
 } }, logLevel: 'error' });
 const fixtures = await fixtureFiles();
+for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic']]) {
+  for (const file of await readdir(new URL(`../fixtures/${directory}/`, import.meta.url))) {
+    if (!/\.(json|terrain|dem)$/.test(file)) continue;
+    fixtures.set(`/chart-data/${route}/${file}`, {
+      body: await readFile(new URL(`../fixtures/${directory}/${file}`, import.meta.url)), type: 'application/octet-stream',
+    });
+  }
+}
+
 const originalFixtures = new Map(fixtures);
 const identificationNavaids = JSON.parse(await readFile(new URL('../fixtures/id-navaids.json', import.meta.url), 'utf8'));
+const publishedApproaches = JSON.parse(await readFile(new URL('../fixtures/route-approach-published.json', import.meta.url), 'utf8'));
 let failUpdatedBook = false;
 let failNevadaAirports = false;
 let failBrowsingAirports = false;
@@ -80,6 +96,31 @@ const server = createServer(async (request, response) => {
       manifest.products.find(product => product.id === 'navaids').count = data.features.length;
       fixtures.set(`${root}/manifest.json`, { type: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
       fixtures.set(`${root}/navaids.geojson`, { type: 'application/geo+json', body: Buffer.from(JSON.stringify(data)) });
+    } else if (path === '/__test/published-approaches') {
+      const root = '/chart-data/2026-09-03';
+      const setJson = (path, value) => fixtures.set(path, { type: 'application/json', body: Buffer.from(JSON.stringify(value)) });
+      const navigation = JSON.parse(originalFixtures.get(`${root}/nav/airports.geojson`).body);
+      navigation.features.push({ type: 'Feature', id: 'airport:KSNS', geometry: { type: 'Point', coordinates: [-121.606, 36.663] },
+        properties: { ident: 'KSNS', icaoId: 'KSNS', faaId: 'SNS', name: 'SALINAS MUNI', state: 'CA', kind: 'landing-facility', facilityType: 'AIRPORT', use: 'PUBLIC' } });
+      setJson(`${root}/nav/airports.geojson`, navigation);
+      const manifest = JSON.parse(originalFixtures.get(`${root}/nav/manifest.json`).body);
+      manifest.generatedAt = publishedApproaches.source.generatedAt;
+      manifest.products.find(product => product.id === 'airports').count = navigation.features.length;
+      manifest.products.push({ id: 'terminal-procedures', file: 'terminal-procedures.json', count: 0 });
+      setJson(`${root}/nav/manifest.json`, manifest);
+      setJson(`${root}/nav/terminal-procedures.json`, publishedApproaches.terminal);
+      const catalog = JSON.parse(originalFixtures.get(`${root}/tpp/catalog.json`).body);
+      const airport = structuredClone(publishedApproaches.airports.find(airport => airport.id === 'KSNS'));
+      // Real published titles and IDs, with the small local test book replacing the PDF volume.
+      for (const procedure of airport.procedures) procedure.volumeTarget.pageIndex = 0;
+      catalog.airports.push(airport);
+      catalog.volumes[0].resolvedTargetCount += airport.procedures.length;
+      catalog.generatedAt = publishedApproaches.source.generatedAt;
+      setJson(`${root}/tpp/catalog.json`, catalog);
+      const tpp = JSON.parse(originalFixtures.get(`${root}/tpp/manifest.json`).body);
+      Object.assign(tpp, { generatedAt: catalog.generatedAt, airportCount: catalog.airports.length,
+        procedureCount: catalog.airports.reduce((sum, airport) => sum + airport.procedures.length, 0) });
+      setJson(`${root}/tpp/manifest.json`, tpp);
     } else if (path === '/__test/legacy-latest-charts') {
       const root = '/chart-data/2026-09-03/mbtiles';
       const { effectiveDate, generatedAt, charts } = JSON.parse(originalFixtures.get(`${root}/manifest.json`).body);

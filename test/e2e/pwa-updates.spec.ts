@@ -13,7 +13,7 @@ async function nextVersion(page: Page): Promise<string> {
   return current!.replace(/\.b[a-f0-9]{8}$/, `.b${release.slice(0, 8)}`);
 }
 
-test('a prepared release prompts both windows, waits for a click, and reloads once offline with saved data', async ({ page, context, request }, testInfo) => {
+test('a prepared release prompts both windows, waits for a click, and reloads once offline with saved data', { tag: '@smoke' }, async ({ page, context, request }, testInfo) => {
   await page.goto('/');
   await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
   const originalRelease = await page.locator(releaseSelector).getAttribute('content');

@@ -28,7 +28,7 @@ export type ProcedureDocument = {
 
 export type ProcedureSelection = {
   airport: Pick<ProcedureAirport, 'id'>;
-  procedure: Pick<ProcedureRecord, 'id' | 'name'>;
+  procedure: Pick<ProcedureRecord, 'id' | 'name'> & Partial<Pick<ProcedureRecord, 'kind'>>;
   document: ProcedureDocument;
   cycle: string;
   effectiveDate: string;

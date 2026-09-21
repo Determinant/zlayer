@@ -20,3 +20,7 @@ export function isProcedureSelection(value: unknown): value is ProcedureSelectio
 export function plateViewKey(selection: ProcedureSelection): string {
   return `plate-view:${JSON.stringify([selection.document.url, selection.procedure.id, selection.document.pageIndex])}`;
 }
+
+export function isMapPlateSelection(value: unknown): value is ProcedureSelection | null {
+  return isProcedureSelection(value) && (value === null || value.procedure.kind === 'approach');
+}

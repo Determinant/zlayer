@@ -33,40 +33,56 @@ export function isObstructionFeature(value: unknown): value is ObstructionFeatur
 
 const INDEX_ZOOM = 7, GRID = 2 ** INDEX_ZOOM;
 
+function columns(capacity: number) {
+  return { ids: new Float64Array(capacity), coordinates: new Float64Array(capacity * 2),
+    heights: new Int32Array(capacity), elevations: new Int32Array(capacity),
+    symbols: new Uint8Array(capacity), verified: new Uint8Array(capacity) };
+}
+
 /** Compact national index stays in the worker. Only eligible viewport points
  * cross to the map, so MapLibre never tiles the 656k-record source. */
 export class ObstructionIndex {
   #count = 0;
-  readonly #ids: Float64Array;
-  readonly #seen = new Set<number>();
-  readonly #coordinates: Float64Array;
-  readonly #heights: Int32Array;
-  readonly #elevations: Int32Array;
-  readonly #symbols: Uint8Array;
-  readonly #verified: Uint8Array;
+  #size = 0;
+  #sourceIds: Float64Array | undefined;
+  #data = columns(0);
   readonly #cells = new Map<number, number[]>();
   constructor(readonly expectedCount: number) {
-    this.#ids = new Float64Array(expectedCount);
-    this.#symbols = new Uint8Array(expectedCount);
-    this.#coordinates = new Float64Array(expectedCount * 2);
-    this.#heights = new Int32Array(expectedCount);
-    this.#elevations = new Int32Array(expectedCount);
-    this.#verified = new Uint8Array(expectedCount);
+    // Validate uniqueness for the entire export, including filtered records.
+    // Sorting packed IDs at finish avoids a national-size JS Set during loading.
+    this.#sourceIds = new Float64Array(expectedCount);
+  }
+  get size(): number { return this.#size; }
+  /** Typed storage only; excludes the small spatial grid's JS arrays. */
+  get byteLength(): number {
+    return Object.values(this.#data).reduce((sum, values) => sum + values.byteLength, this.#sourceIds?.byteLength ?? 0);
+  }
+  #resize(capacity: number): void {
+    const next = columns(capacity);
+    for (const key of Object.keys(next) as (keyof typeof next)[]) {
+      next[key].set(this.#data[key].subarray(0, next[key].length));
+    }
+    this.#data = next;
   }
   add(value: unknown): void {
-    if (!isObstructionFeature(value) || this.#count >= this.expectedCount) {
+    if (!this.#sourceIds || !isObstructionFeature(value) || this.#count >= this.expectedCount) {
       throw new InvalidDataError('Invalid or duplicate obstruction record');
     }
     // Eight base-36 digits fit exactly in a double. Avoid retaining hundreds of
     // thousands of JS strings/objects after streaming the national dataset.
     const id = parseInt(value.id.replace('-', ''), 36);
-    if (this.#seen.has(id)) throw new InvalidDataError('Duplicate obstruction record');
-    const index = this.#count++, [lon, lat] = value.geometry.coordinates as [number, number], p = value.properties;
-    this.#ids[index] = id; this.#seen.add(id);
-    this.#coordinates[index * 2] = lon; this.#coordinates[index * 2 + 1] = lat;
-    this.#heights[index] = p.heightAglFt; this.#elevations[index] = p.elevationMslFt;
-    this.#verified[index] = p.verified ? 1 : 0;
-    this.#symbols[index] = OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType));
+    this.#sourceIds[this.#count++] = id;
+    const [lon, lat] = value.geometry.coordinates as [number, number], p = value.properties;
+    // The route and every zoom tier share this floor. Validate first, then drop
+    // records that can never be displayed before allocating/indexing their data.
+    if (obstructionMinZoom(p.heightAglFt) === undefined) return;
+    if (this.#size === this.#data.ids.length) this.#resize(Math.min(this.expectedCount, Math.max(1024, this.#size * 2)));
+    const index = this.#size++, data = this.#data;
+    data.ids[index] = id;
+    data.coordinates[index * 2] = lon; data.coordinates[index * 2 + 1] = lat;
+    data.heights[index] = p.heightAglFt; data.elevations[index] = p.elevationMslFt;
+    data.verified[index] = p.verified ? 1 : 0;
+    data.symbols[index] = OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType));
     const [x, y] = project([lon === 180 ? -180 : lon, lat]);
     const key = Math.max(0, Math.min(GRID - 1, Math.floor(y * GRID))) * GRID + Math.floor(x * GRID);
     const cell = this.#cells.get(key) ?? [];
@@ -74,7 +90,13 @@ export class ObstructionIndex {
   }
   finish(): void {
     if (this.#count !== this.expectedCount) throw new InvalidDataError('Obstruction count does not match the manifest');
-    this.#seen.clear();
+    if (!this.#sourceIds) return;
+    this.#sourceIds.sort();
+    for (let i = 1; i < this.#sourceIds.length; i++) {
+      if (this.#sourceIds[i] === this.#sourceIds[i - 1]) throw new InvalidDataError('Duplicate obstruction record');
+    }
+    this.#sourceIds = undefined;
+    if (this.#data.ids.length !== this.#size) this.#resize(this.#size);
   }
   query(bounds: Bounds, segments: readonly Segment[], zoom: number): ObstructionCollection {
     const collection: ObstructionCollection = { type: 'FeatureCollection', features: [] };
@@ -91,9 +113,9 @@ export class ObstructionIndex {
         if (!nearby.length && zoom < OBSTRUCTION_MIN_ZOOM) continue;
         for (const index of cell) {
           if (found.has(index)) continue;
-          const height = this.#heights[index]!, minZoom = obstructionMinZoom(height);
+          const height = this.#data.heights[index]!, minZoom = obstructionMinZoom(height);
           if (minZoom === undefined || (zoom < minZoom && !nearby.length)) continue;
-          const lon = this.#coordinates[index * 2]!, lat = this.#coordinates[index * 2 + 1]!;
+          const lon = this.#data.coordinates[index * 2]!, lat = this.#data.coordinates[index * 2 + 1]!;
           const point = project([lon === 180 ? -180 : lon, lat]);
           point[0] += Math.floor(x / GRID);
           if (point[0] < left || point[0] > right || point[1] < top || point[1] > bottom) continue;
@@ -102,12 +124,12 @@ export class ObstructionIndex {
           // obstruction that is already eligible by its AGL zoom threshold.
           if (zoom < minZoom && routeOpacity <= 0) continue;
           found.add(index);
-          const elevation = this.#elevations[index]!;
-          const id = this.#ids[index]!.toString(36).toUpperCase().padStart(8, '0');
+          const elevation = this.#data.elevations[index]!;
+          const id = this.#data.ids[index]!.toString(36).toUpperCase().padStart(8, '0');
           collection.features.push({ type: 'Feature', id: `${id.slice(0, 2)}-${id.slice(2)}`, geometry: { type: 'Point', coordinates: [lon, lat] },
-            properties: { oas: `${id.slice(0, 2)}-${id.slice(2)}`, icon: OBSTRUCTION_ICONS[this.#symbols[index]!]!, routeOpacity, elevationMslFt: elevation,
+            properties: { oas: `${id.slice(0, 2)}-${id.slice(2)}`, icon: OBSTRUCTION_ICONS[this.#data.symbols[index]!]!, routeOpacity, elevationMslFt: elevation,
               heightAglFt: height, minZoom,
-              label: `${elevation}${this.#verified[index] ? '' : ' UC'}\n(${height})` } });
+              label: `${elevation}${this.#data.verified[index] ? '' : ' UC'}\n(${height})` } });
         }
       }
     }

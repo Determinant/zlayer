@@ -1,6 +1,6 @@
 # Route parsing and editing
 
-The editable draft is an ordered array of `{ id, text, pinnedFeatureId? }` entries.
+The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach? }` entries.
 IDs survive insertion, replacement and reorder; pins travel with their entries.
 Route text is an import/export format, and token indexes are display positions.
 
@@ -72,10 +72,110 @@ consumes the resulting plan rather than interpreting route text again.
   airports whose background symbols are hidden at the current zoom. A tap or click
   opens details without editing the route, including in recommendation previews.
 
+### Anchored approaches
+
+Right-click or long-press an airport chip and choose **Choose approach…**. Choose
+a chart, then a published entry or **Vectors to final (VTF)**, preview it on the
+main map and press **Add to route**. No entry is chosen implicitly. The green segment precedes the
+airport in one box and shows a compact name plus the entry (for example,
+`ILS Y 31 · VTF`). Click it to change the entry, switch approach or view its plate.
+The box's × and **Remove approach** detach only the approach.
+The airport stays in the route. Reordering moves both together, while replacing
+the airport clears the attachment. Duplicate airport occurrences are independent.
+
+The picker shares Advise's docked panel and map-preview path. It leaves the map
+interactive and fits the selected approach into the area beside or above the
+panel. Switching entries changes only the preview; **Add to route** or **Replace
+approach** commits the selection. Closing the picker, returning to the approach
+list, or opening a plate clears the preview and restores the saved route depiction.
+
+The attachment stores the catalog airport ID, procedure ID, display name, cycle,
+and coded route/entry identity and effective date on the existing route entry.
+It survives reloads. A missing or older-edition selection stays visible
+and removable; the picker does not silently substitute a different edition.
+The picker loads the shared cached procedure catalog and national terminal routes,
+excluding deleted procedures and non-approach charts. `terminal-procedures.json`
+now optionally contains `approaches: ZLayerApproachRoutes`, normalized from FAA
+CIFP primary records by the faa-regs navigation builder. This shares existing
+download, cache, edition and offline verification machinery. Old exports still
+load but cannot supply approach entries; they must be rebuilt and published.
+Chart title matching is conservative and keeps runway and Y/Z variants distinct.
+Charts with no unambiguous coded counterpart offer **View plate**, not an invented entry.
+Entry choices use the published fix names, including coded IAFs within feeder
+routes. When a fix starts multiple branches, the next fix distinguishes them
+(for example, `SNS via AANNE` and `SNS via ARTYY`). Selecting an internal IAF
+omits its incoming feeder leg and retains any coded hold or procedure turn.
+Previously saved regions retain their pinned data; use **Verify / update** to
+include approach routes added by a newer export of the same FAA cycle.
+
+The selected entry decompresses on the map into magenta approach legs, named
+fixes/roles and dashed missed-approach legs. The preceding route connects to the
+chosen entry, and a subsequent waypoint connects from the last known missed
+endpoint (usually its holding fix). VTF starts at the FAF and adds a light 30 NM
+final-course extension, leaving the preceding route disconnected; loading VTF
+does not activate a present-position direct-to. Its workflow follows the entry
+selection and final-extension conventions in the [ForeFlight pilot guide](https://cloudfront.foreflight.com/docs/ff/14.10/ForeFlight%20Mobile%20Pilot%27s%20Guide%20v14.10.pdf).
+
+This is a route preview. TF/CF/DF show waypoint connections, RF uses its coded
+center, and AF follows the published radius around the DME antenna. Arcs with
+missing or inconsistent geometry stay gaps. Older exports need rebuilding to
+include AF centers and radii. The export also retains airport magnetic variation,
+explicit true courses and holding leg times separately from distances.
+Published holds appear as oriented racetracks: initial holds are solid and missed
+holds are dashed, with one small outbound direction chevron per racetrack at local
+zoom levels. Labels show the suggested direct, parallel or teardrop entry after
+`HOLD R/L`, based on the planned arrival course and mirrored FAA entry sectors.
+Fix labels show only their names below zoom 10; roles, hold entries and leg lengths
+appear at zoom 10 and closer, in both previews and the saved route.
+Preview labels retain the connected arrival when switching from VTF or an explicitly
+filed entry fix; missing arrival/course information displays `ENTRY ?`. These are planning suggestions
+without wind correction, and sector boundaries allow pilot discretion
+([FAA AIM 5-3-8](https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap5_section_3.html)).
+Their turn radii and timed-leg sizes are schematic; distance-coded
+straight legs retain their published length. An altitude-terminated missed climb
+(CA/VA) followed by a fixed TF/CF/DF leg receives a dashed schematic connection.
+A climb followed by one heading/course-to-intercept leg (VI/CI) and a known CF
+inbound course also receives a schematic connection, preserving the intermediate
+heading and joining the inbound course (for example, NUQ ILS or LOC 32R to OAK).
+Climb lengths and intercept positions are illustrative, not computed flight paths.
+These depictions are separate from route legs and excluded from route distance and
+terrain corridors. The picker and route details explain this distinction. No hold
+entry maneuver is drawn. Unknown courses, open-ended vectors, unsupported procedure turns
+and missing geometry stay gaps. A trailing open-ended leg cannot become
+an onward connector. Approach children remain owned by the airport bundle and
+cannot be dragged or flattened to ordinary waypoints. Remove/change the bundle
+to edit it. Filing text remains unchanged. Legacy chart-only attachments prompt
+for an entry before supplying route connections.
+
+The Route menu provides **Undo route edit** and **Redo route edit** for the last
+50 edits in the current session. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z work while a route
+control is focused; text fields retain their native text undo. Each approach
+selection, switch or removal is one edit, and undo/redo save immediately.
+
+### Direct to
+
+With a fresh GPS fix, right-click or long-press a resolved route waypoint and choose
+**Direct to**. The route starts at a snapshot of the current GPS position, removes
+everything before that occurrence, and keeps the target and the remaining route.
+Feature details offer the standard **D→** Direct to icon immediately before **ID**.
+An on-route feature uses the selected occurrence; an off-route feature asks for
+an in-app confirmation, styled like the AHRS stow dialog, before replacing the
+route with GPS position → target. Cancelling or pressing Escape
+keeps the route. Without a fresh fix these actions are hidden, and the fix is
+checked again after confirmation. If the fix becomes stale while the dialog is
+open, **Direct to** pauses until a fresh fix arrives. The origin remains fixed as
+GPS updates arrive.
+Cutting into an airway, procedure or TEC expands the affected remainder into pinned
+waypoints; unrelated route items and unresolved suffix entries are retained.
+If that expansion would remove a warning or connect across a missing waypoint or
+route discontinuity, Direct to leaves the route unchanged and explains the problem.
+This includes procedure previews with an open connection to the airport. An intact
+published suffix can still be retained, or the target can be chosen after the gap.
+
 ### Nearby navaid identification
 
 Every feature, including temporary GPS points, has a blue **ID** button after
-append-to-route. It opens up to six nearby VOR, VOR/DME or VORTAC references within
+the route actions. It opens up to six nearby VOR, VOR/DME or VORTAC references within
 100 NM, using the feature's navigation edition even with navaids hidden or an empty
 route. GPS coordinates have no published edition: their references follow the
 current regional context, including catalog revalidation and saved region updates.

@@ -5,6 +5,18 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
   await mockGps(page);
   await page.addInitScript(({ permission, ownshipEnabled }) => {
     localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ chartBase: '', ownshipEnabled }));
+    try { new DeviceMotionEvent('devicemotion'); }
+    catch {
+      // Desktop WebKit can expose the hardware interface without a constructor.
+      // Test DOM delivery and recovery with the same synthetic inputs there.
+      class Motion extends Event {
+        constructor(type: string, values: DeviceMotionEventInit = {}) {
+          super(type);
+          Object.assign(this, { acceleration: null, accelerationIncludingGravity: null, rotationRate: null, interval: 0 }, values);
+        }
+      }
+      Object.defineProperty(window, 'DeviceMotionEvent', { configurable: true, value: Motion });
+    }
     Object.defineProperty(DeviceMotionEvent, 'requestPermission', { configurable: true, value: async () => permission });
     // Only the synthetic stream belongs to this test; desktop Chrome can also
     // emit an initial hardware event with null readings.
@@ -399,8 +411,9 @@ test('queued motion and duplicate timestamps preserve calibration and live attit
   expect(await countWatches(page)).toBe(1);
 });
 
-test('scrolling during calibration preserves progress and resumes when motion readings return', async ({ page }) => {
-  await page.setViewportSize({ width: 744, height: 1133 });
+for (const viewport of [{ width: 390, height: 844 }, { width: 744, height: 1133 }])
+test(`scrolling during calibration preserves progress and resumes when motion readings return (${viewport.width}px)`, async ({ page }) => {
+  await page.setViewportSize(viewport);
   await page.clock.install();
   await openAhrs(page);
   await page.clock.pauseAt(new Date(Date.now() + 1000));
@@ -432,8 +445,9 @@ test('scrolling during calibration preserves progress and resumes when motion re
   expect(await countWatches(page)).toBe(1);
 });
 
-test('scrolling to the attitude indicator survives paused and batched motion delivery', async ({ page }) => {
-  await page.setViewportSize({ width: 744, height: 1133 });
+for (const viewport of [{ width: 390, height: 844 }, { width: 744, height: 1133 }])
+test(`scrolling to the attitude indicator survives paused and batched motion delivery (${viewport.width}px)`, async ({ page }) => {
+  await page.setViewportSize(viewport);
   await page.clock.install();
   await openAhrs(page);
   await page.clock.pauseAt(new Date(Date.now() + 1000));
@@ -832,8 +846,8 @@ test('stowing AHRS confirms tab, Escape and toolbox switches, with cancel keepin
   const stop = dialog.getByRole('button', { name: 'Stop', exact: true });
   const keep = dialog.getByRole('button', { name: 'Cancel', exact: true });
   const confirm = dialog.getByRole('button', { name: 'Background', exact: true });
-  const ahrs = page.locator('.map-edge-ahrs .map-edge-handle');
-  const gps = page.locator('.map-edge-gps .map-edge-handle');
+  const ahrs = page.locator('[data-edge-tab="ahrs"] .map-edge-handle');
+  const gps = page.locator('[data-edge-tab="gps"] .map-edge-handle');
   await ahrs.click();
   await expect(dialog).toBeVisible();
   await expect(stop).toBeFocused();
@@ -905,9 +919,9 @@ for (const { phase, duration, ownshipEnabled } of [
     if (phase === 'calibrating') await expect(page.getByRole('progressbar', { name: 'Calibration progress' })).toBeVisible();
     else await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
     expect(await countWatches(page)).toBe(1);
-    const ahrs = page.locator('.map-edge-ahrs .map-edge-handle');
+    const ahrs = page.locator('[data-edge-tab="ahrs"] .map-edge-handle');
     // Also cover Stop when switching directly to another toolbox.
-    const target = ownshipEnabled ? page.locator('.map-edge-gps .map-edge-handle') : ahrs;
+    const target = ownshipEnabled ? page.locator('[data-edge-tab="gps"] .map-edge-handle') : ahrs;
     await target.focus();
     await target.press('Enter');
     const dialog = page.getByRole('alertdialog', { name: 'Stow AHRS?', exact: true });

@@ -1,4 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { EdgePanelFrame, useEdgePanel } from '../../core/ui/edge-panels';
 import { LoadingPlaceholder } from '../../core/ui/loading-placeholder';
 import { formatDate, formatDateRange } from '../../core/format/time';
 import type { ProcedureDocument, ProcedureSelection } from './data';
@@ -9,62 +11,103 @@ import type { ProcedureDownloadProgress } from './document-cache';
 
 export type PlateCacheState = 'saving' | 'cached' | 'unavailable';
 
-/** Keep the modal, focus and controls mounted while the PDF renderer loads. */
+const HeaderActionContext = createContext<HTMLElement | null>(null);
+
+/** Keep action state in the lazy reader while placing its button in the header. */
+export function ProcedureHeaderAction({ children }: { children: ReactNode }) {
+  const target = useContext(HeaderActionContext);
+  return target ? createPortal(children, target) : null;
+}
+
+/** Keep one reader mounted through loading, stowing, and full-screen changes. */
 export function ProcedureDialog({ selection, onClose, children }: {
   selection: ProcedureSelection; onClose: () => void; children: ReactNode;
 }) {
-  const [closing, setClosing] = useState(false);
+  const panel = useEdgePanel('plate');
+  const { open, setOpen, close } = panel;
+  const [headerAction, setHeaderAction] = useState<HTMLSpanElement | null>(null);
   const [fullScreen, setFullScreen] = usePersistentState(`${plateViewKey(selection)}:fullscreen`, false, isBoolean);
-  const dismiss = () => { writeUiState('plate-selection', null); setClosing(true); };
+  // The opener may disappear if the airport panel is closed independently.
+  const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const [openerPanelId] = useState(() => opener?.closest('.edge-panel-body')?.id);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const fullScreenButton = useRef<HTMLButtonElement>(null);
+  const wasFullScreen = useRef(false);
+  const initiallyFocused = useRef(false);
   const titleId = useId();
   const source = selection.document;
+  const dismiss = () => {
+    const finish = () => {
+      writeUiState('plate-selection', null);
+      onClose();
+      requestAnimationFrame(() => {
+        if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
+        else if (openerPanelId) document.querySelector<HTMLButtonElement>(`[aria-controls="${CSS.escape(openerPanelId)}"]`)
+          ?.focus({ preventScroll: true });
+      });
+    };
+    if (fullScreen) { setOpen(false); finish(); }
+    else close(finish);
+  };
 
   useLayoutEffect(() => {
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    return () => dialog?.close();
+    const dialog = dialogRef.current!;
+    return () => dialog.close();
   }, []);
 
-  useEffect(() => {
-    if (!closing) return;
-    const timeout = window.setTimeout(onClose, 300);
-    return () => window.clearTimeout(timeout);
-  }, [closing, onClose]);
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current!;
+    if (!open) { if (dialog.matches(':modal')) dialog.close(); return; }
+    if (fullScreen) {
+      dialog.close();
+      dialog.showModal();
+      fullScreenButton.current?.focus({ preventScroll: true });
+    } else {
+      if (wasFullScreen.current) dialog.close();
+      if (!dialog.open) dialog.setAttribute('open', '');
+      if (wasFullScreen.current) fullScreenButton.current?.focus({ preventScroll: true });
+      else if (!initiallyFocused.current) closeButton.current?.focus({ preventScroll: true });
+    }
+    initiallyFocused.current = true;
+    wasFullScreen.current = fullScreen;
+  }, [fullScreen, open]);
 
-  return <dialog ref={dialogRef} className={`procedure-viewer-backdrop${closing ? ' is-closing' : ''}`}
-    aria-labelledby={titleId} onCancel={event => {
-      event.preventDefault();
-      if (fullScreen) setFullScreen(false);
-      else dismiss();
-    }}>
-    <article className={`procedure-viewer${fullScreen ? ' is-fullscreen' : ''}`}
-      onAnimationEnd={event => { if (closing && event.target === event.currentTarget) onClose(); }}>
-      <header>
-        <div className="procedure-heading">
-          <span className="eyebrow">{selection.airport.id} · FAA {selection.cycle.includes('-') ? formatDate(selection.cycle) : selection.cycle}</span>
-          <h2 id={titleId}>{fullScreen && `${selection.airport.id} · `}{selection.procedure.name}</h2>
-          <p>Effective {formatDateRange(selection.effectiveDate, selection.expirationDate)}
-            {' · '}{source.source === 'chart-supplement' ? 'Chart Supplement' :
-              source.source === 'combined-volume' ? 'Combined TPP' : 'FAA document'}</p>
-        </div>
-        <div className="procedure-viewer-actions">
-          <button type="button" onClick={() => setFullScreen(value => !value)}
-            aria-label={fullScreen ? 'Exit full screen' : 'Enter full screen'}
-            title={fullScreen ? 'Exit full screen' : 'Enter full screen'} aria-pressed={fullScreen}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d={fullScreen
-                ? 'M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6'
-                : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
-            </svg>
-          </button>
-          <button type="button" autoFocus onClick={dismiss} aria-label="Close plate">×</button>
-        </div>
-      </header>
-      {children}
-    </article>
-  </dialog>;
+  return <EdgePanelFrame panel={panel} label={`${selection.airport.id} plate`}
+    className={`procedure-panel${fullScreen ? ' is-fullscreen' : ''}`}
+    icon={<><path d="M6 3h9l4 4v14H6Z" /><path d="M14 3v5h5M10 12h5m-5 4h5" /></>}>
+    <dialog ref={dialogRef} {...panel.bodyProps} open className="procedure-window edge-panel-body"
+      aria-modal={fullScreen || undefined} aria-labelledby={titleId}
+      onCancel={event => { event.preventDefault(); event.stopPropagation(); if (fullScreen) setFullScreen(false); }}>
+      <article className={`procedure-viewer${fullScreen ? ' is-fullscreen' : ''}`}>
+        <header>
+          <div className="procedure-heading">
+            <span className="eyebrow">{selection.airport.id} · FAA {selection.cycle.includes('-') ? formatDate(selection.cycle) : selection.cycle}</span>
+            <h2 id={titleId}>{fullScreen && `${selection.airport.id} · `}{selection.procedure.name}</h2>
+            <p>Effective {formatDateRange(selection.effectiveDate, selection.expirationDate)}
+              {' · '}{source.source === 'chart-supplement' ? 'Chart Supplement' :
+                source.source === 'combined-volume' ? 'Combined TPP' : 'FAA document'}</p>
+          </div>
+          <div className="procedure-viewer-actions">
+            <span ref={setHeaderAction}
+              className={`procedure-header-action${selection.procedure.kind === 'approach' ? ' is-reserved' : ''}`} />
+            <button ref={fullScreenButton} type="button" onClick={() => setFullScreen(value => !value)}
+              aria-label={fullScreen ? 'Exit full screen' : 'Enter full screen'}
+              title={fullScreen ? 'Exit full screen' : 'Enter full screen'} aria-pressed={fullScreen}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={fullScreen
+                  ? 'M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6'
+                  : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
+              </svg>
+            </button>
+            <button ref={closeButton} type="button" onClick={dismiss} aria-label="Close plate">×</button>
+          </div>
+        </header>
+        <HeaderActionContext.Provider value={headerAction}>{children}</HeaderActionContext.Provider>
+      </article>
+    </dialog>
+  </EdgePanelFrame>;
 }
 
 export function ProcedurePageLoading({ source, progress }: {
@@ -112,9 +155,10 @@ export function ProcedureLoading({ source }: { source: ProcedureDocument }) {
   </>;
 }
 
-export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState, onPageChange, onZoomChange }: {
+export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState, onPageChange, onZoomChange, mapAction }: {
   source: ProcedureDocument; pageIndex: number; pageCount: number; zoom: number; cacheState: PlateCacheState;
   onPageChange?: (page: number) => void; onZoomChange?: (zoom: number) => void;
+  mapAction?: ReactNode;
 }) {
   return <footer>
     <div className="procedure-page-controls">
@@ -131,6 +175,7 @@ export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState
       <button type="button" disabled={!onZoomChange || zoom >= 4}
         onClick={() => onZoomChange?.(zoom * 1.2)} aria-label="Zoom in">+</button>
     </div>
+    {mapAction}
     <span className={`procedure-cache-state is-${cacheState}`}>
       {cacheState === 'cached' ? 'Available offline' : cacheState === 'saving'
         ? `Saving offline${source.byteLength ? ` · ${Math.round(source.byteLength / 1024 / 1024)} MB` : ''}`

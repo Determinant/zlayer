@@ -27,6 +27,29 @@ function metar(properties: MetarFeature['properties']): MetarFeature {
   };
 }
 
+test('weather-only joins skip non-reporting airports and retain the same matched reports and identities', () => {
+  const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
+    meta: { revision: 'test', layer: 'airports', returned: 3, truncated: false },
+    features: ['KSFO', 'KJFK', 'KOAK'].map(icaoId => ({ type: 'Feature', id: `airport:${icaoId}`,
+      geometry: { type: 'Point', coordinates: [-122, 37] }, properties: { icaoId, kind: 'airport',
+        // A previously joined report must not qualify an airport on its own.
+        metarStationId: icaoId, rawMetar: 'obsolete' } })),
+  };
+  const reports: MetarFeatureCollection = { type: 'FeatureCollection', features: [
+    metar({ id: 'KSFO', obsTime: '2026-09-20T10:00:00Z', fltcat: 'VFR' }),
+    metar({ id: 'KOAK', obsTime: '2026-09-20T09:00:00Z', fltcat: 'IFR' }),
+    metar({ id: 'KOAK', obsTime: '2026-09-20T11:00:00Z', fltcat: 'MVFR' }),
+  ] };
+  const original = structuredClone(airports);
+  const complete = mergeMetarsIntoAirports(airports, reports);
+  const filtered = mergeMetarsIntoAirports(airports, reports, { weatherOnly: true });
+  assert.deepEqual(filtered.features, complete.features.filter(feature => feature.properties.metarStationId));
+  assert.deepEqual(filtered.features.map(feature => feature.id), ['airport:KSFO', 'airport:KOAK']);
+  assert.deepEqual(filtered.features.map(feature => feature.properties.flightCategory), ['VFR', 'MVFR']);
+  assert.deepEqual(airports, original);
+  assert.equal(mergeMetarsIntoAirports(airports, { type: 'FeatureCollection', features: [] }, { weatherOnly: true }).features.length, 0);
+});
+
 test('uses AWC flight category and normalizes its spelling', () => {
   assert.equal(metarFlightCategory(metar({ id: 'KSFO', fltcat: 'vfr' })), 'VFR');
   assert.equal(metarFlightCategory(metar({ id: 'KSFO', fltCat: 'VFR*' })), 'VFR');

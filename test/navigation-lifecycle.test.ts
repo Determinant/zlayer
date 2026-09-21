@@ -65,6 +65,26 @@ test('returning focus keeps ready navigation data stable', async t => {
   }
 });
 
+test('initial loading includes pending airways and settles when an optional feed fails', async t => {
+  const hooks = setup(t);
+  const current = { ...catalog('https://charts.test/startup/airports'), airways: {
+    id: 'airways' as const, title: 'Airways', count: 0, sourceCount: 0, url: 'https://charts.test/startup/airways',
+  } };
+  let release!: (response: Response) => void;
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => String(url).endsWith('/airways')
+    ? new Promise<Response>(resolve => { release = resolve; }) : Response.json(document('READY')));
+  const enabled = { ...visibility, fixes: true };
+  const render = () => hooks.render(() => useNavigationData(current, enabled));
+  assert.equal(render().loading, true, 'loading starts before passive effects publish per-layer state');
+  await tick();
+  assert.equal(render().loadState.airports, 'ready');
+  assert.equal(render().loading, true, 'airways are still initializing');
+  release(new Response(null, { status: 503 }));
+  await tick();
+  assert.equal(render().loading, false, 'an unavailable optional feed must not hold the loading screen');
+  assert.equal(render().data.airports?.features[0]?.properties.ident, 'READY');
+});
+
 test('search keeps airport matches when another navigation product is unavailable', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const hooks = setup(t);

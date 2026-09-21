@@ -13,7 +13,7 @@ export type RecordingInfo = {
 export type RecordingStorage = {
   save(info: RecordingInfo, chunk?: Blob): Promise<void>;
   list(): Promise<RecordingInfo[]>;
-  download(info: RecordingInfo): Promise<Blob>;
+  read(info: RecordingInfo): AsyncIterable<Blob>;
   remove(id: string): Promise<void>;
 };
 const PREFIX = 'ahrs-recording:';
@@ -39,15 +39,12 @@ export const recordingStorage: RecordingStorage = {
         Number.isFinite(record.startedAt) && Number.isSafeInteger(record.chunks) && record.chunks > 0;
     }).sort((a, b) => b.startedAt - a.startedAt);
   },
-  async download(info) {
-    const parts: Blob[] = [];
+  async *read(info) {
     for (let index = 0; index < info.chunks; index++) {
       const chunk = await readOfflineRecord(chunkKey(info.id, index));
       if (!(chunk instanceof Blob)) throw new Error('This recording is incomplete in storage.');
-      parts.push(chunk);
+      yield chunk;
     }
-    // An active/interrupted recording is a valid file containing its committed prefix.
-    return new Blob(parts, { type: RECORDING_MIME });
   },
   async remove(id) {
     // Delete by prefix, not a possibly stale chunk count from the list view.
@@ -55,6 +52,8 @@ export const recordingStorage: RecordingStorage = {
   },
 };
 
-export function recordingFilename(info: RecordingInfo): string {
-  return `zlayer-ahrs-${new Date(info.startedAt).toISOString().replaceAll(':', '-')}-${info.id.slice(0, 8)}.jsonl`;
+export type RecordingExportFormat = 'gpx' | 'jsonl';
+
+export function recordingFilename(info: RecordingInfo, format: RecordingExportFormat): string {
+  return `zlayer-ahrs-${new Date(info.startedAt).toISOString().replaceAll(':', '-')}-${info.id.slice(0, 8)}.${format}`;
 }

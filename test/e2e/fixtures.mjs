@@ -20,17 +20,21 @@ for (let y = 0; y < 256; y++) {
 }
 export const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   pngChunk('IHDR', header), pngChunk('IDAT', deflateSync(pixels)), pngChunk('IEND', Buffer.alloc(0))]);
-function pdf() {
+function pdf(georeferenced = false) {
   const drawing = '0.1 0.3 0.8 rg 20 20 160 160 re f\n' +
     '1 0 0 rg 20 145 35 35 re f\n0 1 0 rg 145 145 35 35 re f\n1 1 0 rg 20 20 35 35 re f';
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> /Contents 4 0 R >>',
+    `<< /Type /Pages /Kids [3 0 R${georeferenced ? ' 6 0 R' : ''}] /Count ${georeferenced ? 2 : 1} >>`,
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> /Contents 4 0 R ' +
+      (georeferenced ? '/VP [<< /BBox [0 0 200 200] /Measure << /Type /Measure /Subtype /GEO ' +
+        '/Bounds [0 0 1 0 1 1 0 1] /LPTS [0 0 1 0 1 1 0 1] /GPTS [34.3 -120 34.3 -119.7 34.6 -119.7 34.6 -120] ' +
+        '/GCS << /Type /GEOGCS /WKT (GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]) >> >> >>] ' : '') + '>>',
     `<< /Length ${drawing.length} >>\nstream\n${drawing}\nendstream`,
     // An unused object makes this large enough to exercise PDF.js range loading.
     `<< /Length 262144 >>\nstream\n${' '.repeat(262144)}\nendstream`,
   ];
+  if (georeferenced) objects.push(objects[2]);
   let text = '%PDF-1.7\n';
   const offsets = [0];
   for (const [index, object] of objects.entries()) {
@@ -144,6 +148,9 @@ export async function fixtureFiles() {
         volumeId: 'SW', printedPage: '1', pageIndex: 0 }] });
   }
   add('/weather/metars.geojson', { type: 'FeatureCollection', features: [] });
+  add('/route-approaches.json', JSON.parse(await readFile(new URL('../fixtures/route-approaches.json', import.meta.url), 'utf8')));
+  add('/route-approach-legs.json', JSON.parse(await readFile(new URL('../fixtures/route-approach-legs.json', import.meta.url), 'utf8')));
   add('/basemap.png', png, 'image/png');
+  add('/georeferenced-book.pdf', pdf(true), 'application/pdf');
   return files;
 }

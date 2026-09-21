@@ -8,12 +8,13 @@ import type {
 } from '@zlayer/contracts';
 import { isRouteHistoryResource, type RouteHistoryResource, isChartPackageIndex, type ChartPackageIndex } from '@zlayer/contracts';
 import { chartRoot } from './feed';
+import { isTerrainManifest } from '@zlayer/contracts';
 import { isSupportedCycle } from './cycles';
 import { fetchJson, JsonResponseError } from '../../core/data/fetch-json';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
   isStrictBounds as isBounds, hasUniqueStrings } from '@zlayer/contracts';
 
-export type CatalogIssue = { product: 'charts' | 'navigation' | 'procedures' | 'route-history'; message: string };
+export type CatalogIssue = { product: 'charts' | 'navigation' | 'procedures' | 'route-history' | 'terrain'; message: string };
 export type ChartCatalog = CatalogResponse & { issues: CatalogIssue[] };
 
 const PUBLISHED_CHART_KINDS = new Set<Exclude<ChartKind, 'unknown'>>([
@@ -133,7 +134,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
     if (manifest.effectiveDate !== revision) throw new Error(`Feed revision does not match ${revision}`);
     return manifest;
   };
-  const [charts, navigation, procedures] = await Promise.all([
+  const [charts, navigation, procedures, terrain] = await Promise.all([
     load('charts', async () => {
       const result = await fetchChartManifest(revisionRoot, revision, signal);
       inCycle(result.manifest);
@@ -152,6 +153,14 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       revision,
       signal,
     ))),
+    load('terrain', async () => {
+      try { return await fetchJson(`${chartRoot()}/terrain/manifest.json`, isTerrainManifest,
+        'Terrain manifest', { revalidate: true, ...(signal ? { signal } : {}) }); }
+      catch (error) {
+        if (error instanceof JsonResponseError && [404, 410].includes(error.status)) return undefined;
+        throw error;
+      }
+    }),
   ]);
   signal?.throwIfAborted();
   const chartManifest = charts?.manifest;
@@ -181,6 +190,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       procedures?.generatedAt,
     ].filter((value): value is string => value !== undefined)),
     revision,
+    ...(terrain ? { terrain: { ...terrain, root: `${chartRoot()}/terrain` } } : {}),
     charts: (chartManifest?.charts ?? []).map((chart): ChartRecord => ({
       id: chart.id,
       title: chart.title,
@@ -231,7 +241,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
     } } : {}),
     ...(routeHistory ? { routeHistory } : {}),
     ...(terminal ? { terminalProcedures: {
-      id: 'terminal-procedures', title: 'FAA SID/STAR waypoint routes',
+      id: 'terminal-procedures', title: 'FAA terminal procedure routes',
       count: terminal.count, sourceCount: terminal.count,
       url: `${revisionRoot}/nav/${terminal.file}?v=${navigationVersion}`,
     } } : {}),

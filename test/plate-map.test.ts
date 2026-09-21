@@ -1,0 +1,133 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { Map as MapLibreMap } from 'maplibre-gl';
+import { createPlatesController } from '../src/layers/plates/layer';
+import type { ProcedureSelection } from '../src/layers/plates/data';
+import type { PlateMapImage } from '../src/layers/plates/map-image';
+import { createPlateMapLayer } from '../src/layers/plates/map';
+import { PLATE_LAYER_ANCHOR } from '../src/core/map/layer';
+
+const selection: ProcedureSelection = { airport: { id: 'KSBA' }, procedure: { id: 'first', name: 'First approach', kind: 'approach' },
+  document: { url: 'https://test/plate.pdf', nativeUrl: 'https://test/plate.pdf', pageIndex: 0, source: 'faa-individual' },
+  cycle: '2609', effectiveDate: '2026-09-03', expirationDate: '2026-10-01' };
+function image(name: string): PlateMapImage {
+  return { selection: { ...selection, procedure: { id: name, name, kind: 'approach' } },
+    canvas: { width: 400, height: 600 } as HTMLCanvasElement,
+    coordinates: [[-120, 35], [-119, 35], [-119, 34], [-120, 34]],
+    outline: [[-120, 35], [-119, 35], [-119, 34], [-120, 34]] };
+}
+
+test('a single map plate survives viewer opens, replaces atomically and releases removed canvases', () => {
+  const product = createPlatesController();
+  const first = image('first'), second = image('second');
+  product.open(first.selection);
+  product.showOnMap(first, product.getSnapshot().requestId);
+  assert.equal(product.getSnapshot().selection, undefined);
+  assert.equal(product.getSnapshot().mapImage, first);
+  product.open(second.selection);
+  const request = product.getSnapshot().requestId;
+  product.close(request);
+  assert.equal(product.getSnapshot().mapImage, first);
+  product.open(second.selection);
+  const changes: string[] = [];
+  product.subscribe(() => { changes.push(product.getSnapshot().mapImage?.selection.procedure.id ?? 'none'); });
+  product.showOnMap(second, product.getSnapshot().requestId);
+  assert.deepEqual(changes, ['second']);
+  assert.equal(first.canvas.width, 0);
+  product.hideFromMap(first);
+  assert.equal(product.getSnapshot().mapImage, second, 'a stale close cannot remove the replacement');
+  product.hideFromMap(second);
+  assert.equal(product.getSnapshot().mapImage, undefined);
+  assert.equal(second.canvas.height, 0);
+});
+
+test('a late render after closing or replacing its viewer cannot change the map', () => {
+  const product = createPlatesController();
+  product.open(selection);
+  const request = product.getSnapshot().requestId;
+  product.open({ ...selection, procedure: { id: 'next', name: 'Next' } });
+  const late = image('late');
+  product.showOnMap(late, request);
+  assert.equal(product.getSnapshot().mapImage, undefined);
+  assert.equal(product.getSnapshot().selection?.procedure.id, 'next');
+  assert.equal(late.canvas.width, 0);
+  product.close();
+  product.showOnMap(image('closed'), product.getSnapshot().requestId);
+  assert.equal(product.getSnapshot().mapImage, undefined);
+});
+
+test('a map menu is dismissed by viewer changes and cannot target a replacement plate', () => {
+  const product = createPlatesController();
+  const first = image('first'), second = image('second');
+  product.open(first.selection);
+  product.showOnMap(first, product.getSnapshot().requestId);
+  product.openMapMenu(first, { x: 100, y: 200 });
+  assert.equal(product.getSnapshot().mapImage, first);
+  product.open(second.selection);
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  product.openMapMenu(first, { x: 100, y: 200 });
+  product.showOnMap(second, product.getSnapshot().requestId);
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  product.openMapMenu(first, { x: 100, y: 200 });
+  product.hideFromMap(first);
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(product.getSnapshot().mapImage, second);
+});
+
+test('the map opens a menu only inside the footprint, keeps the plate until selected, and restores after reattachment', () => {
+  const product = createPlatesController();
+  const layer = createPlateMapLayer(product);
+  const sources = new Set<string>(), layers = new Set<string>();
+  const handlers = new Map<string, () => void>();
+  let fits = 0;
+  const map = {
+    on: (event: string, handler: () => void) => handlers.set(event, handler),
+    off: (event: string) => handlers.delete(event),
+    getSource: (id: string) => sources.has(id), getLayer: (id: string) => layers.has(id),
+    addSource: (id: string) => { assert.equal(sources.size, 0); sources.add(id); },
+    addLayer: ({ id }: { id: string }, anchor: string) => { assert.equal(anchor, PLATE_LAYER_ANCHOR); layers.add(id); },
+    removeLayer: (id: string) => layers.delete(id),
+    removeSource: (id: string) => { assert.equal(layers.size, 0); sources.delete(id); },
+    fitBounds() { fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
+  } as unknown as MapLibreMap;
+  layer.mount(map);
+  for (const name of ['first', 'second']) {
+    const next = image(name);
+    product.open(next.selection);
+    product.showOnMap(next, product.getSnapshot().requestId);
+    assert.equal(sources.size, 1);
+    assert.equal(layers.size, 1);
+  }
+  layer.unmount();
+  assert.equal(sources.size, 0);
+  assert.ok(product.getSnapshot().mapImage!.canvas.width > 0);
+  layer.mount(map);
+  assert.equal(sources.size, 1);
+  assert.equal(fits, 2, 'reattaching after a style change preserves the camera');
+  assert.equal(layer.showMenuAt({ x: -118, y: 34 }), false);
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(sources.size, 1);
+  const point = { x: -119.5, y: 34.5 };
+  assert.equal(layer.showMenuAt(point), true);
+  assert.deepEqual(product.getSnapshot().mapMenuPoint, point);
+  assert.equal(sources.size, 1, 'opening the menu preserves the overlay');
+  assert.ok(product.getSnapshot().mapImage!.canvas.width > 0);
+  handlers.get('movestart')!();
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(sources.size, 1, 'moving the map only dismisses the menu');
+  layer.showMenuAt(point);
+  product.closeMapMenu();
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(sources.size, 1, 'dismissing the menu preserves the overlay');
+  layer.showMenuAt(point);
+  layer.unmount();
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(handlers.size, 0);
+  layer.mount(map);
+  layer.showMenuAt(point);
+  product.hideFromMap(product.getSnapshot().mapImage);
+  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(sources.size, 0);
+  assert.equal(layers.size, 0);
+  layer.unmount();
+});

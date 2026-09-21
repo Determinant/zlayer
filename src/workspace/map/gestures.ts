@@ -11,8 +11,10 @@ type GestureOptions = {
   route: () => RoutePlan;
   canEditRoute: () => boolean;
   interactiveLayerIds: () => string[];
+  resolveFeature?: (feature: GeoPointFeature) => GeoPointFeature;
   preview: (input: { route: RoutePlan; preview?: RouteDragPreview }) => void;
   onSelect: SelectFeature;
+  onContextAction?: (point: { x: number; y: number }) => boolean;
   onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }) => void;
   onRouteLegInsert: (afterEntryId: string, feature: GeoPointFeature) => void;
   onRouteWaypointReplace: (entryId: string, feature: GeoPointFeature) => void;
@@ -44,6 +46,8 @@ export class MapGestures {
   #suppressClick = false;
   #suppressClickTimer: number | undefined;
   #nearbyLongPress: { point: [number, number]; timer: number } | undefined;
+  #contextMenuHandledUntil = 0;
+  #longPressHandled = false;
   readonly #unbind: Array<() => void> = [];
 
   constructor(map: MapLibreMap, private readonly options: GestureOptions) {
@@ -53,7 +57,12 @@ export class MapGestures {
       this.#unbind.push(() => { map.off(type, listener); });
     };
     on('click', (event) => this.#selectFeature(event));
-    on('contextmenu', (event) => { event.preventDefault(); this.#showNearby(event.point); });
+    on('contextmenu', (event) => {
+      event.preventDefault();
+      this.#cancelNearbyLongPress();
+      if (Date.now() < this.#contextMenuHandledUntil) return;
+      this.#contextAction(event.point);
+    });
     on('mousedown', (event) => this.#startRouteDrag(event));
     on('touchstart', (event) => { this.#startRouteDrag(event); this.#startNearbyLongPress(event); });
     on('mousemove', (event) => {
@@ -63,7 +72,18 @@ export class MapGestures {
     on('touchmove', (event) => { this.#updateRouteDrag(event); this.#cancelNearbyLongPressIfMoved(event); });
     on('mouseup', () => this.#finishRouteDrag());
     // MapLibre's touchend points are changedTouches, not the remaining touches.
-    on('touchend', (event) => { this.#finishRouteDrag(event.originalEvent.touches.length === 0); this.#cancelNearbyLongPress(); });
+    on('touchend', (event) => {
+      this.#finishRouteDrag(event.originalEvent.touches.length === 0);
+      this.#cancelNearbyLongPress();
+      if (this.#longPressHandled) {
+        // The compatibility mouse events from this release would steal focus
+        // from the new menu or activate a control underneath the finger.
+        if (event.originalEvent.cancelable) event.originalEvent.preventDefault();
+        this.#suppressNextClick();
+        this.#contextMenuHandledUntil = Date.now() + 400;
+        this.#longPressHandled = false;
+      }
+    });
     on('touchcancel', () => { this.#finishRouteDrag(false); this.#cancelNearbyLongPress(); });
     window.addEventListener('mouseup', this.#finishDragOutsideMap);
     window.addEventListener('touchend', this.#finishDragOutsideMap);
@@ -98,7 +118,7 @@ export class MapGestures {
     const feature = features.find(isPointFeature);
     const pointId = feature?.source === ROUTE_SOURCE_ID && typeof feature.properties.routePointId === 'string'
       ? feature.properties.routePointId : undefined;
-    this.options.onSelect(feature ? toPointFeature(feature) : undefined, pointId);
+    this.options.onSelect(feature ? this.#resolveFeature(feature) : undefined, pointId);
   }
 
   #showNearby(point: MapMouseEvent['point']): void {
@@ -115,7 +135,7 @@ export class MapGestures {
       [point.x + NEARBY_RADIUS_PX, point.y + NEARBY_RADIUS_PX],
     ], { layers: this.options.interactiveLayerIds() })
       .filter(isPointFeature)
-      .map(toPointFeature);
+      .map(feature => this.#resolveFeature(feature));
     const unique = new Map<string, GeoPointFeature>();
     for (const feature of features) {
       if (nearby.some(candidate => sameFeature(candidate.feature, feature))) continue;
@@ -127,14 +147,21 @@ export class MapGestures {
     } else this.options.onSelect(nearby[0]?.feature, nearby[0]?.routePointId);
   }
 
+  #contextAction(point: MapMouseEvent['point']): void {
+    this.cancelRouteDrag();
+    if (!this.options.onContextAction?.(point)) this.#showNearby(point);
+  }
+
   #startNearbyLongPress(event: MapTouchEvent): void {
     this.#cancelNearbyLongPress();
+    this.#longPressHandled = false;
     if (event.points.length !== 1) return;
     const point: [number, number] = [event.point.x, event.point.y];
     const timer = window.setTimeout(() => {
       this.#nearbyLongPress = undefined;
-      this.cancelRouteDrag();
-      this.#showNearby({ x: point[0], y: point[1] } as MapMouseEvent['point']);
+      this.#longPressHandled = true;
+      this.#contextMenuHandledUntil = Date.now() + 1000;
+      this.#contextAction({ x: point[0], y: point[1] } as MapMouseEvent['point']);
       this.#suppressNextClick();
     }, LONG_PRESS_MS);
     this.#nearbyLongPress = { point, timer };
@@ -252,7 +279,10 @@ export class MapGestures {
     if (drag.touchZoomWasEnabled) this.#map.touchZoomRotate.enable();
     this.#map.getCanvas().style.cursor = '';
     this.options.preview({ route: this.options.route() });
-    const dropFeature = drag.candidate ?? drag.coordinate;
+    // Tile properties suffice for the drag preview. Restore the full reference
+    // only for a committed drop, never once per candidate on every move event.
+    const dropFeature = commit && drag.active && drag.candidate
+      ? this.options.resolveFeature?.(drag.candidate) ?? drag.candidate : drag.coordinate;
     if (commit && drag.active && drag.target.kind === 'leg' && dropFeature) {
       this.options.onRouteLegInsert(drag.target.afterEntryId, dropFeature);
     }
@@ -306,6 +336,11 @@ export class MapGestures {
     const coordinate = unwrapRouteCoordinates([feature.geometry.coordinates], longitude)[0]!;
     const projected = this.#map.project(coordinate);
     return Math.hypot(projected.x - point.x, projected.y - point.y);
+  }
+
+  #resolveFeature(feature: MapPointFeature): GeoPointFeature {
+    const point = toPointFeature(feature);
+    return this.options.resolveFeature?.(point) ?? point;
   }
 
   #suppressNextClick(): void {

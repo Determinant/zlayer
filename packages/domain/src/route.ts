@@ -9,6 +9,7 @@ import type {
 } from '@zlayer/contracts';
 import { createProcedureExpander } from './terminal-procedures.js';
 import { createTecInterpreter } from './tec-routes.js';
+import { expandRouteApproaches } from './approaches.js';
 
 import type { RouteDraft, RouteFeaturePins, RoutePlan, RouteResolver, RouteWaypoint } from './route-model.js';
 import { normalizeRouteToken, routeTokenForFeature } from './route-text.js';
@@ -117,6 +118,7 @@ export function createRouteResolver(
       }
       previous = waypoint;
     }
+    expandRouteApproaches(plan, terminalData?.approaches);
     plan.issues.sort((a, b) => a.tokenIndex - b.tokenIndex);
     plan.unresolved = [...new Set(plan.issues.map(issue => issue.token))];
     plan.distanceNm = plan.legs.reduce((total, leg) => total + leg.distanceNm, 0);
@@ -211,7 +213,7 @@ function candidateSortKey(feature: GeoPointFeature): string {
   return feature.id ?? feature.geometry.coordinates.join(',');
 }
 
-function geographicMidpoint(
+export function geographicMidpoint(
   from: PointGeometry['coordinates'],
   to: PointGeometry['coordinates'],
 ): PointGeometry['coordinates'] {

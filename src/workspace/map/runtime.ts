@@ -9,7 +9,7 @@ import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Bounds, GeoPointFeature } from '@zlayer/contracts';
 import type { MapInputs, MapCallbacks, MapAttachment } from './inputs';
 import { createBuiltInMapLayers } from './registry';
-import { CHART_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
+import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
 import { MapGestures } from './gestures';
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { unwrapRouteCoordinates } from '../../layers/routes/geometry';
@@ -17,6 +17,7 @@ import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
 import { mapErrorMessage } from './errors';
 import { MapNavigationControl } from './navigation-control';
 import { resourceErrorCode } from '../../core/data/errors';
+import { resolveNavigationFeature } from '../../layers/navigation/feature-details';
 
 // MapLibre's default relative worker URL is not emitted by Vite's app bundler.
 // Bundle the worker (and its shared imports) explicitly for production/offline use.
@@ -42,6 +43,7 @@ export class MapRuntime {
   readonly #layerHost: MapLayerHost;
   readonly #onReady: MapRuntimeOptions['onReady'];
   readonly #onError: MapRuntimeOptions['onError'];
+  readonly #reportIdle: (idle: boolean) => void;
   #inputs: MapInputs;
   #routeReady = false;
   readonly #gestures: MapGestures;
@@ -50,7 +52,7 @@ export class MapRuntime {
   constructor(options: MapRuntimeOptions) {
     this.#inputs = options;
     this.#layers = createBuiltInMapLayers(options.catalog, options.metarLayer, options.onTerrainStatus, options.ownshipLayer,
-      !!options.initialView && options.ownshipEnabled, options.onObstructionStatus);
+      !!options.initialView && options.ownshipEnabled, options.onObstructionStatus, options.platesLayer);
     this.#onReady = options.onReady;
     this.#onError = options.onError;
 
@@ -65,6 +67,12 @@ export class MapRuntime {
       attributionControl: false,
       fadeDuration: 0,
     });
+    const { onIdleChange } = options;
+    let idle = false;
+    this.#reportIdle = value => { if (value !== idle) { idle = value; onIdleChange?.(value); } };
+    this.#map.on('idle', () => this.#reportIdle(true));
+    this.#map.on('dataloading', () => this.#reportIdle(false));
+    this.#map.on('movestart', () => this.#reportIdle(false));
     configureTouchRotation(this.#map.touchZoomRotate);
     this.#layerHost = new MapLayerHost(this.#map, (id, error) => {
       this.#onError(`${id}: ${error instanceof Error ? error.message : 'Layer unavailable'}`, resourceErrorCode(error));
@@ -80,25 +88,33 @@ export class MapRuntime {
     this.#map.on('error', (event) => {
       const message = mapErrorMessage(event);
       if (message) this.#onError(message, resourceErrorCode(event.error));
+      // A terminal tile error can settle a source after its last render. Ask
+      // for the final frame/idle event so offline startup cannot stay "busy".
+      if (!idle) this.#map.triggerRepaint();
     });
     this.#gestures = new MapGestures(this.#map, {
       route: () => this.#inputs.route,
-      canEditRoute: () => !this.#inputs.recommendations,
+      canEditRoute: () => !this.#inputs.routePreview,
       interactiveLayerIds: () => this.#layerHost.interactiveLayerIds(),
+      resolveFeature: feature => resolveNavigationFeature(feature, this.#inputs.data),
       preview: input => this.#layerHost.update(this.#layers.route, input),
       onSelect: options.onSelect,
+      onContextAction: point => this.#layers.plates?.showMenuAt(point) ?? false,
       ...(options.onChooseNearby ? { onChooseNearby: options.onChooseNearby } : {}),
       onRouteLegInsert: options.onRouteLegInsert,
       onRouteWaypointReplace: options.onRouteWaypointReplace,
       onRouteWaypointRemove: options.onRouteWaypointRemove,
     });
+    // Long-lived camera listeners need callbacks, not the initial input object
+    // (which also holds a catalog, route and national navigation collections).
+    const { onViewportChange, onViewChange } = options;
     let previousViewport: Bounds | undefined;
     const reportViewport = () => {
       const bounds = this.#map.getBounds();
       const viewport: Bounds = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
       if (previousViewport?.every((value, index) => value === viewport[index])) return;
       previousViewport = viewport;
-      options.onViewportChange(viewport);
+      onViewportChange(viewport);
     };
     let previousView: MapView | undefined;
     const reportView = () => {
@@ -111,7 +127,7 @@ export class MapRuntime {
       if (previousView?.center.every((value, index) => value === view.center[index]) && previousView.zoom === view.zoom
         && previousView.bearing === view.bearing && previousView.pitch === view.pitch) return;
       previousView = view;
-      options.onViewChange?.(view);
+      onViewChange?.(view);
     };
     this.#saveView = reportView;
     window.addEventListener('pagehide', reportView);
@@ -123,30 +139,35 @@ export class MapRuntime {
   }
 
   update(inputs: MapInputs): void {
+    // Data may arrive after an earlier idle frame. Wait for these inputs to
+    // reach the renderer, even when an update happens to leave the style unchanged.
+    this.#reportIdle(false);
+    this.#map.triggerRepaint();
     const previous = this.#inputs;
     const chartsChanged = inputs.catalog !== previous.catalog ||
       inputs.chartSelection.base !== previous.chartSelection.base || inputs.chartSelection.overlay !== previous.chartSelection.overlay;
     const navigationChanged = inputs.data !== previous.data || inputs.visibility !== previous.visibility ||
       inputs.fixContext !== previous.fixContext || inputs.metarEnabled !== previous.metarEnabled;
-    const recommendationsChanged = inputs.recommendations !== previous.recommendations;
-    const cameraKey = (value: MapInputs['recommendations']) => JSON.stringify([value?.routes.map(route => route.key), value?.inset]);
-    const refit = recommendationsChanged && (cameraKey(previous.recommendations) !== cameraKey(inputs.recommendations) ||
-      Boolean(previous.recommendations?.preserveView && !inputs.recommendations?.preserveView));
-    if (inputs.route.revision !== previous.route.revision || (recommendationsChanged && inputs.recommendations)) {
+    const routePreviewChanged = inputs.routePreview !== previous.routePreview;
+    const cameraKey = (value: MapInputs['routePreview']) => JSON.stringify([value?.routes.map(route => route.key), value?.inset]);
+    const refit = routePreviewChanged && (cameraKey(previous.routePreview) !== cameraKey(inputs.routePreview) ||
+      Boolean(previous.routePreview?.preserveView && !inputs.routePreview?.preserveView));
+    if (inputs.route.revision !== previous.route.revision || (routePreviewChanged && inputs.routePreview)) {
       this.#gestures.cancelRouteDrag();
     }
     this.#inputs = inputs;
     if (chartsChanged) this.#updateChartLayers();
     if (navigationChanged) this.#updateNavigationLayers();
-    if (inputs.route !== previous.route || recommendationsChanged) this.#updateRouteLayer();
+    if (inputs.route !== previous.route || routePreviewChanged) this.#updateRouteLayer();
     if (inputs.identification !== previous.identification) {
       this.#layerHost.update(this.#layers.identification, inputs.identification);
     }
-    if (inputs.route !== previous.route || recommendationsChanged || inputs.terrainEnabled !== previous.terrainEnabled
-      || inputs.terrainAltitude !== previous.terrainAltitude) this.#updateTerrainLayer();
-    if (inputs.route !== previous.route || recommendationsChanged
+    if (inputs.route !== previous.route || routePreviewChanged || inputs.terrainEnabled !== previous.terrainEnabled
+      || inputs.terrainAltitude !== previous.terrainAltitude || inputs.terrainCoverage !== previous.terrainCoverage
+      || inputs.catalog !== previous.catalog) this.#updateTerrainLayer();
+    if (inputs.route !== previous.route || routePreviewChanged
       || inputs.obstructionsEnabled !== previous.obstructionsEnabled) this.#updateObstructionLayer();
-    if (inputs.recommendations && !inputs.recommendations.preserveView && refit && this.#routeReady) this.fitRoute();
+    if (inputs.routePreview && !inputs.routePreview.preserveView && refit && this.#routeReady) this.fitRoute();
     if (inputs.ownshipEnabled !== previous.ownshipEnabled) {
       this.#layerHost.update(this.#layers.ownship, { enabled: inputs.ownshipEnabled });
     }
@@ -160,17 +181,19 @@ export class MapRuntime {
 
   #updateRouteLayer(): void {
     this.#layerHost.update(this.#layers.route, { route: this.#inputs.route,
-      ...(this.#inputs.recommendations ? { recommendations: this.#inputs.recommendations } : {}) });
+      ...(this.#inputs.routePreview ? { comparison: this.#inputs.routePreview } : {}) });
   }
 
   #updateTerrainLayer(): void {
     this.#layerHost.update(this.#layers.terrain, { enabled: this.#inputs.terrainEnabled, altitude: this.#inputs.terrainAltitude,
-      routes: this.#inputs.recommendations?.routes.map(route => route.plan) ?? [this.#inputs.route] });
+      coverage: this.#inputs.terrainCoverage ?? 'route',
+      catalog: this.#inputs.catalog,
+      routes: this.#inputs.routePreview?.routes.map(route => route.plan) ?? [this.#inputs.route] });
   }
 
   #updateObstructionLayer(): void {
     this.#layerHost.update(this.#layers.obstructions, { enabled: this.#inputs.obstructionsEnabled,
-      routes: this.#inputs.recommendations?.routes.map(route => route.plan) ?? [this.#inputs.route] });
+      routes: this.#inputs.routePreview?.routes.map(route => route.plan) ?? [this.#inputs.route] });
   }
 
   focus(feature: GeoPointFeature): void {
@@ -178,9 +201,11 @@ export class MapRuntime {
   }
 
   fitRoute(): void {
-    const plans = this.#inputs.recommendations?.routes.map(route => route.plan) ?? [this.#inputs.route];
+    const plans = this.#inputs.routePreview?.routes.map(route => route.plan) ?? [this.#inputs.route];
     const coordinates = plans.flatMap(plan => unwrapRouteCoordinates(
-      plan.waypoints.map(waypoint => waypoint.feature.geometry.coordinates), this.#map.getCenter().lng));
+      [...plan.waypoints.map(waypoint => waypoint.feature.geometry.coordinates),
+        ...plan.legs.flatMap(leg => leg.geometry ?? []), ...(plan.approachExtensions ?? []).flat(),
+        ...(plan.approachDepictions ?? []).flatMap(depiction => depiction.coordinates)], this.#map.getCenter().lng));
     const first = coordinates[0];
     if (!first) return;
     const bearing = this.#navigation.getTargetBearing();
@@ -192,7 +217,7 @@ export class MapRuntime {
       (current, coordinate) => current.extend(coordinate),
       new LngLatBounds(first, first),
     );
-    const inset = this.#inputs.recommendations?.inset;
+    const inset = this.#inputs.routePreview?.inset;
     const container = this.#map.getContainer();
     const padding = inset ? { top: 36, left: 36,
       right: 36 + Math.min(inset.right, Math.max(0, container.clientWidth - 144)),
@@ -219,7 +244,8 @@ export class MapRuntime {
   }
 
   #installLayers(): void {
-    for (const id of [CHART_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]) {
+    // Keep terrain visible above plates, including when either layer is refreshed.
+    for (const id of [CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]) {
       if (!this.#map.getLayer(id)) this.#map.addLayer({
         id, type: 'background', paint: { 'background-opacity': 0 },
       });
@@ -234,6 +260,6 @@ export class MapRuntime {
     this.#layerHost.update(this.#layers.ownship, { enabled: this.#inputs.ownshipEnabled });
     this.#layerHost.mount(this.#layers.modules);
     this.#routeReady = true;
-    if (this.#inputs.recommendations && !this.#inputs.recommendations.preserveView) this.fitRoute();
+    if (this.#inputs.routePreview && !this.#inputs.routePreview.preserveView) this.fitRoute();
   }
 }

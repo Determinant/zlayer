@@ -134,12 +134,65 @@ feature code live in `src/layers/ahrs/`; see the
 [AHRS display policy](../src/layers/ahrs/README.md#calibration-and-validity) for
 calibration assumptions, warning states and validation limits.
 
-`LayerPanels` renders registered panel contributions. Opening an airport card sends
+`LayerPanels` renders registered panel contributions on their chosen edge. Opening an airport card sends
 an action to the plates product; `App` does not manage the selected PDF or its viewer.
 The dialog mounts immediately, while the PDF renderer loads lazily. Replacing a plate
 starts a new viewer session, and a delayed close from an older session cannot close
 the new one. Selection and per-plate reading state restore through the shared
 [UI persistence contract](contracts.md#workspace-persistence).
+
+### Stowable panels
+
+`core/ui/edge-panels.tsx` owns selection, the outgoing/incoming slide sequence,
+mounted-panel registration, inert content, tab accessibility, Escape/focus return,
+and dismissal after stowing. Each `EdgePanels` group has one selected panel or none;
+the left and right groups operate independently. A switch slides the outgoing panel
+back before the incoming panel enters. Stowing preserves mounted content and feature
+state. Closing runs the feature's cleanup after the exit, including a page reload
+during that exit; reopening cancels the pending close.
+
+A `PanelLayer` chooses its edge and a stable tab slot. The workspace renders its
+registry under both groups; the host mounts each contribution only on its chosen
+side. Register the product once in `workspace/products.ts`; the feature does not
+import shell or workspace composition:
+
+```tsx
+import { EdgePanel } from '../../core/ui/edge-panels';
+import type { PanelLayer } from '../../core/layers/product';
+
+export const checklist: PanelLayer = {
+  definition: { id: 'checklist', title: 'Checklist' },
+  panel: { side: 'right', tab: { edge: 'bottom', order: 2 } },
+  Panel: () => (
+    <EdgePanel autoOpen={false} icon={<path d="M4 4h16v16H4Z" />}>
+      <ChecklistContents />
+    </EdgePanel>
+  ),
+};
+```
+
+Slots are 44px high with a 4px gap, counted from `top` or `bottom`. Choose an unused
+slot; right bottom slots 0 and 1 currently belong to plate and airport details.
+Adding or removing a panel leaves other slots in place. The shell owns the group's
+map-edge insets, while a feature can supply its own dimensions through `className`.
+Both compact attached tabs and separate tab rails use the same controller and
+support either side. Existing left tools keep their individual heights and positions.
+
+`EdgePanel` inherits its name, label, and placement from the registration. It opens
+on mount by default; use `autoOpen={false}` for a persistent, initially stowed tool.
+A render-function child receives `setOpen`, `stow`, and `close(onClose)`. A feature
+with a custom body, such as the native plate dialog, uses `useEdgePanel` with
+`EdgePanelFrame` and spreads `panel.bodyProps` onto its `.edge-panel-body` element.
+The frame still supplies its tab, keyboard behavior and registration. Nested menus
+consume Escape with `stopPropagation`; preventing a field's native Escape behavior
+alone still allows the panel to stow after the field discards its draft. Native modal
+dialogs keep their own Escape/cancel behavior.
+
+A feature can provide `beforeStow(next, proceed)`. Return `true` to continue, or
+`false` to display a feature-owned confirmation and call `proceed()` after acceptance.
+Cancellation leaves the current panel open. A deferred confirmation cannot override
+a newer request or dismiss a replacement instance. AHRS uses this hook for its
+Stop/Background/Cancel decision; sensor and recording policy remain in the feature.
 
 A product can expose an immutable snapshot through `LayerStore<T>`. The generic
 `useLayerSnapshot` hook uses React's external-store subscription API. Controls and

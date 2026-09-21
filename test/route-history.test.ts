@@ -2,6 +2,7 @@ import { draftSnapshot } from './helpers/route-draft';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { gzipSync } from 'node:zlib';
+import { randomBytes } from 'node:crypto';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { createRouteHistoryStore } from '../src/layers/routes/history/store';
 import { parseGzipJson } from '../src/core/data/gzip-json';
@@ -14,6 +15,23 @@ const json = JSON.stringify(history);
 const bytes = new Uint8Array(gzipSync(json));
 const resource = { ...metadata, bytes: bytes.length, uncompressedBytes: Buffer.byteLength(json) };
 const query = { origins: ['KSBA', 'SBA'], destinations: ['KSMO', 'SMO'] };
+
+test('route history bounds compressed blob reads before inflation without a whole-file ArrayBuffer', async t => {
+  const value = { records: Array.from({ length: 128 }, () => randomBytes(2048).toString('base64')) };
+  const text = JSON.stringify(value), compressed = new Uint8Array(gzipSync(text));
+  const reads: number[] = [];
+  const arrayBuffer = Blob.prototype.arrayBuffer;
+  t.mock.method(Blob.prototype, 'arrayBuffer', function (this: Blob) {
+    reads.push(this.size);
+    assert.ok(this.size <= 64 * 1024, 'gzip input must not allocate an entire archive');
+    return arrayBuffer.call(this);
+  });
+  assert.deepEqual(await parseGzipJson(new Response(compressed), {
+    bytes: compressed.length, uncompressedBytes: Buffer.byteLength(text),
+  }), value);
+  assert.ok(reads.length > 3);
+  assert.equal(reads.reduce((sum, size) => sum + size, 0), compressed.length + 2, 'signature plus one bounded decompression pass');
+});
 
 test('saved history validates the actual export even when source receipts, sizes and totals are unchanged', async t => {
   const { stored } = cacheFixture(t);

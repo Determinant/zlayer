@@ -1,8 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useBackDismiss } from '../../core/ui/pwa-back';
+import { createPortal } from 'react-dom';
 import { formatTimestamp } from '../../core/format/time';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import type { AhrsLayer } from './layer';
-import { recordingFilename, recordingStorage, type RecordingInfo } from './recording-storage';
+import { recordingStorage, type RecordingExportFormat, type RecordingInfo } from './recording-storage';
+import { downloadRecording } from './recording-download';
+import '../../core/ui/confirmation-dialog.css';
 import './recorder.css';
 
 const bytes = (size: number) => size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -18,17 +22,21 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
   const [open, setOpen] = useState(false);
   const [recordings, setRecordings] = useState<RecordingInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<{ id: string; format: RecordingExportFormat } | null>(null);
+  const downloadController = useRef<AbortController | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<RecordingInfo | null>(null);
   const [error, setError] = useState('');
   const deleted = useRef(new Set<string>());
   const root = useRef<HTMLDivElement>(null), button = useRef<HTMLButtonElement>(null);
+  useBackDismiss(open && visible, root, () => { setOpen(false); button.current?.focus(); });
   const id = useId();
   const running = state.phase === 'recording' || state.phase === 'starting';
   const busy = state.phase === 'starting' || state.phase === 'saving';
-  useEffect(() => { if (!visible) setOpen(false); }, [visible]);
+  useEffect(() => () => downloadController.current?.abort(), []);
+  useEffect(() => { if (!visible) { setOpen(false); setConfirmation(null); } }, [visible]);
   useEffect(() => {
-    if (!open) return;
+    if (!open || confirmation) return;
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -42,7 +50,7 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
       document.removeEventListener('pointerdown', outside, true);
       document.removeEventListener('keydown', escape, true);
     };
-  }, [open]);
+  }, [open, confirmation]);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -54,28 +62,23 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
   }, [open, state.phase]);
   const saved = recordings.map(info => info.id === state.info?.id ? state.info : info);
   if (state.info && state.info.chunks > 0 && (running || busy) && !saved.some(info => info.id === state.info!.id)) saved.unshift(state.info);
-  const download = async (info: RecordingInfo) => {
-    setDownloading(info.id); setError('');
+  const download = async (info: RecordingInfo, format: RecordingExportFormat) => {
+    const controller = new AbortController();
+    downloadController.current = controller;
+    setDownloading({ id: info.id, format }); setError('');
     try {
-      const blob = await recordingStorage.download(info);
-      const url = URL.createObjectURL(blob), link = document.createElement('a');
-      link.href = url; link.download = recordingFilename(info);
-      document.body.append(link); link.click(); link.remove();
-      // Give mobile browsers time to open the local download before revoking it.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await downloadRecording(info, format, controller.signal);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'The recording could not be downloaded.');
-    } finally { setDownloading(null); }
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'The recording could not be downloaded.');
+    } finally { downloadController.current = null; setDownloading(null); }
   };
   const remove = async (info: RecordingInfo) => {
-    if (!window.confirm('Delete this recording from this device? This cannot be undone.')) return;
-    const focused = document.activeElement;
+    button.current?.focus();
     setDeleting(info.id); setError('');
     try {
       await layer.recorder.remove(info.id);
       deleted.current.add(info.id);
       setRecordings(values => values.filter(value => value.id !== info.id));
-      if (document.activeElement === focused) button.current?.focus();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'The recording could not be deleted.');
     } finally { setDeleting(null); }
@@ -104,23 +107,57 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
         : 'Start before calibration to capture the complete session.'}</p>
       {(state.error || error) && <p role="alert">{error || state.error}</p>}
       <h4>Saved recordings</h4>
+      {downloading && <button type="button" onClick={() => downloadController.current?.abort()}>Cancel download</button>}
       {!saved.length && <p>{loading ? 'Loading…' : 'No recordings yet.'}</p>}
       <ul>{saved.map(info => <li key={info.id}>
         <div><time dateTime={new Date(info.startedAt).toISOString()}>{formatTimestamp(info.startedAt, { timeZone: 'local' })}</time>
           <small>{duration(info)} · {bytes(info.bytes)}{info.status === 'recording'
             ? info.id === state.info?.id && (running || busy) ? ' · Recording' : ' · Partial' : ''}</small></div>
         <div className="ahrs-recording-actions">
-          <button type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info); }}>
-            {downloading === info.id ? 'Preparing…' : 'Download'}
+          <button type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info, 'gpx'); }}>
+            {downloading?.id === info.id && downloading.format === 'gpx' ? 'Preparing…' : 'Download GPX'}
+          </button>
+          <button type="button" disabled={downloading !== null || deleting !== null}
+            title="Download the detailed sensor recording (JSONL) for debugging"
+            onClick={() => { void download(info, 'jsonl'); }}>
+            {downloading?.id === info.id && downloading.format === 'jsonl' ? 'Preparing…' : 'Debug log'}
           </button>
           <button type="button" className="ahrs-recording-delete"
             disabled={downloading !== null || deleting !== null || info.id === state.info?.id && (running || busy)}
             title={info.id === state.info?.id && (running || busy) ? 'Stop recording before deleting it.' : 'Delete recording from this device'}
-            onClick={() => { void remove(info); }}>
+            onClick={() => setConfirmation(info)}>
             {deleting === info.id ? 'Deleting…' : 'Delete'}
           </button>
         </div>
       </li>)}</ul>
     </div>}
+    {open && visible && confirmation && <RecordingDeleteDialog
+      onCancel={() => setConfirmation(null)}
+      onConfirm={() => { setConfirmation(null); void remove(confirmation); }} />}
   </div>;
+}
+
+function RecordingDeleteDialog({ onCancel, onConfirm }: { onCancel(): void; onConfirm(): void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const id = useId();
+  useLayoutEffect(() => {
+    const element = dialog.current!;
+    element.showModal();
+    cancel.current?.focus();
+    return () => element.close();
+  }, []);
+  return createPortal(<dialog ref={dialog} className="confirmation-dialog" role="alertdialog"
+    aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
+    onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
+    onKeyDown={event => event.stopPropagation()}
+    onCancel={event => { event.preventDefault(); event.stopPropagation(); onCancel(); }}>
+    <h2 id={`${id}-title`}>Delete recording?</h2>
+    <p id={`${id}-description`}>This will permanently delete the recording from this device. This cannot be undone.</p>
+    <div className="confirmation-actions">
+      <button type="button" className="confirmation-primary"
+        onClick={() => { dialog.current?.close(); onConfirm(); }}>Delete</button>
+      <button ref={cancel} type="button" onClick={onCancel}>Cancel</button>
+    </div>
+  </dialog>, document.body);
 }

@@ -48,13 +48,17 @@ Development proxies the dated FAA assets at `charts.tedyin.com` so the browser u
 the same feed shape as production. All published chart coverage is discovered from
 the feed manifests; the continuous basemap remains visible outside it.
 
-Run `npm run verify` before committing; it checks import boundaries and strict
-TypeScript, runs unit tests, and builds for production. Run `npm run test:browser`
-for the production-build browser regressions (install Chromium with
-`npx playwright install chromium` first).
-Run `npm run test:graphics` for graphics checks across Chromium, Firefox and WebKit;
-see [graphics compatibility](docs/graphics-compatibility.md) for browser installation
-and the Linux Firefox display requirement.
+Run `npm run verify:full` for full local CI before committing: import boundaries,
+strict TypeScript, unit tests, the production build, all Chromium browser tests,
+and the complete Chromium/Firefox/WebKit/2× WebKit graphics matrix.
+Install browsers with `npx playwright install --with-deps chromium firefox webkit`;
+see [graphics compatibility](docs/graphics-compatibility.md) for the Linux Firefox
+display requirement. The individual `verify`, `test:browser` and `test:graphics`
+commands remain available.
+GitHub pushes and pull requests run `verify` and the smaller `test:smoke` suite.
+Full local CI retains all tests. **Actions → Verify → Run workflow** with **full**
+enabled also runs the complete hosted matrix, including macOS WebKit;
+see [verification](docs/local-development.md#verification).
 See the [hosting contract](docs/deployment-readiness.md) for production requirements.
 
 The app lives in `src/`, tests in `test/`, and local proxy rules in

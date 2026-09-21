@@ -13,9 +13,15 @@ export function mapLabelKey(feature: GeoPointFeature): string {
 // String GeoJSON IDs do not survive every tile encoder. Keep selection and label
 // identity in properties as well, including when a rendered feature is reused.
 export function withMapLabelKeys(collection: FeatureCollectionResponse): FeatureCollectionResponse {
-  return { ...collection, features: collection.features.map(feature => ({
-    ...feature, properties: { ...feature.properties, mapFeatureId: feature.id, mapLabelKey: mapLabelKey(feature) },
-  })) };
+  return { ...collection, features: collection.features.map(feature => {
+    // These nested details are used before rendering (fix classification) or
+    // restored from the matching navigation export on selection. Copying them
+    // into every vector tile wastes memory and serializes them into strings.
+    // Anonymous features have no lookup identity, so keep their full fallback.
+    const { runways: _runways, frequencies: _frequencies, charts: _charts, ...display } = feature.properties;
+    return { ...feature, properties: { ...(feature.id === undefined ? feature.properties : display),
+      mapFeatureId: feature.id, mapLabelKey: mapLabelKey(feature) } };
+  }) };
 }
 
 export function labelLayer(

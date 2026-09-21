@@ -4,10 +4,12 @@ import { referenceGuard } from '../core/data/references';
 import { snapshotFilesIncluded } from './plan-records';
 import { DATA_CACHE } from '../core/storage/cache-names';
 import type { DownloadPlan } from './downloads';
+import { terrainFilesIncluded } from './terrain';
 
 export async function regionReferencesReady(plan: DownloadPlan,
   verified = new Map<string, Promise<boolean>>()): Promise<boolean> {
   if (!snapshotFilesIncluded(plan)) return false;
+  if (!await terrainFilesIncluded(plan)) return false;
   const cache = await caches.open(DATA_CACHE);
   for (const resource of plan.references) {
     const key = JSON.stringify([plan.revision, resource]);

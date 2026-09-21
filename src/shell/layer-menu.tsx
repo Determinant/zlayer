@@ -2,6 +2,7 @@ import { routingCatalog, type CatalogReadSource } from '../workspace/read-contex
 import { formatDate, formatDataAge } from '../core/format/time';
 import { Fragment, useEffect, useId, useRef, type CSSProperties } from 'react';
 import { usePersistentState } from '../core/ui/use-persistent-state';
+import { useBackDismiss } from '../core/ui/pwa-back';
 import { isBoolean } from '../core/storage/ui-state';
 
 import type {
@@ -18,7 +19,7 @@ import { NAVIGATION_LAYERS, type LayerVisibility, type NavigationLoadState } fro
 import type { FixDisplaySettings } from '../layers/navigation/fix-display';
 import { FixDisplayControls } from '../layers/navigation/fix-display-controls';
 import { ChartControls } from './chart-controls';
-import { TerrainControls, type TerrainStatus } from '../layers/terrain';
+import { TerrainControls, type TerrainCoverage, type TerrainStatus } from '../layers/terrain';
 import { ObstructionControls, type ObstructionStatus } from '../layers/obstructions';
 
 type LayerMenuProps = {
@@ -39,6 +40,8 @@ type LayerMenuProps = {
   onVisibilityChange: (layerId: NavigationLayerId) => void;
   onMetarVisibilityChange: () => void;
   terrainEnabled: boolean;
+  terrainCoverage: TerrainCoverage;
+  onTerrainCoverageChange: (coverage: TerrainCoverage) => void;
   terrainStatus: TerrainStatus;
   onTerrainVisibilityChange: () => void;
   obstructionsEnabled: boolean;
@@ -64,6 +67,8 @@ export function LayerMenu({
   onVisibilityChange,
   onMetarVisibilityChange,
   terrainEnabled,
+  terrainCoverage,
+  onTerrainCoverageChange,
   terrainStatus,
   onTerrainVisibilityChange,
   obstructionsEnabled,
@@ -73,6 +78,7 @@ export function LayerMenu({
   const [open, setOpen] = usePersistentState('layers-open', false, isBoolean);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  useBackDismiss(open, menuRef, () => { setOpen(false); buttonRef.current?.focus(); });
   const popoverId = useId();
   const fixDetailsId = `${popoverId}-fix-details`;
   const activeChartCount = chartCountForSelection(catalog.charts, chartSelection);
@@ -140,7 +146,8 @@ export function LayerMenu({
 
             <ChartControls charts={catalog.charts} selection={chartSelection}
               onBaseChange={onChartBaseChange} onOverlayChange={onChartOverlayChange} />
-            <TerrainControls enabled={terrainEnabled} status={terrainStatus} onToggle={onTerrainVisibilityChange} />
+            <TerrainControls enabled={terrainEnabled} status={terrainStatus} onToggle={onTerrainVisibilityChange}
+              coverage={terrainCoverage} onCoverageChange={onTerrainCoverageChange} />
             <ObstructionControls enabled={obstructionsEnabled} status={obstructionStatus} onToggle={onObstructionVisibilityChange} />
 
             <section className="layer-section">

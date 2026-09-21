@@ -7,6 +7,69 @@
   font-size: 12px;
 }
 
+.procedure-viewer > footer .procedure-return-to-approach { padding-inline: 12px; min-height: 44px; color: #8ee1d4; }
+.procedure-map-error { width: 100%; color: #efa7a0; font-size: 12px; }
+.plate-map-control {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, calc(100% - 72px));
+  padding: 8px 8px 8px 12px;
+  border: 1px solid #365065;
+  border-radius: 10px;
+  background: rgba(8, 19, 32, 0.95);
+  box-shadow: 0 3px 12px #0005;
+}
+.plate-map-control > span { display: grid; gap: 4px; min-width: 0; }
+.plate-map-control strong { font-size: 12px; color: #d9e9f2; overflow-wrap: anywhere; }
+.plate-map-control small { font-size: 11px; color: #91aabb; overflow-wrap: anywhere; }
+.plate-map-control button {
+  flex: 0 0 44px;
+  height: 44px;
+  border: 1px solid #365065;
+  border-radius: 8px;
+  background: #122a3b;
+  color: #d9e9f2;
+  font-size: 22px;
+  cursor: pointer;
+}
+.plate-map-control button:focus-visible { outline: 2px solid #68cdbf; outline-offset: 2px; }
+.plate-map-control .plate-map-retry { flex-basis: auto; padding-inline: 10px; font-size: 12px; }
+
+.plate-map-menu {
+  position: absolute;
+  z-index: 12;
+  width: min(230px, calc(100% - 24px));
+  padding: 4px;
+  border: 1px solid #365065;
+  border-radius: 10px;
+  background: rgba(8, 20, 35, 0.97);
+  box-shadow: 0 14px 38px #0006;
+}
+.plate-map-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: max(44px, var(--touch-target));
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  color: #d9e9f2;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.plate-map-menu svg { flex: 0 0 auto; }
+.plate-map-menu button:hover, .plate-map-menu button:focus-visible { background: #61d6c51f; }
+.plate-map-menu button:focus-visible { outline: 2px solid #68cdbf; outline-offset: -2px; }
+
 .procedure-state.is-error {
   color: #efa7a0;
 }
@@ -95,79 +158,61 @@
   font-style: normal;
 }
 
-.procedure-viewer-backdrop {
-  position: fixed;
-  z-index: 100;
-  top: var(--viewport-top);
-  left: var(--viewport-left);
-  width: var(--viewport-width);
-  height: var(--viewport-height);
+.procedure-panel {
+  --edge-handle-width: max(32px, var(--touch-target));
+  position: absolute;
+  top: 64px;
+  right: 0;
+  bottom: 34px;
+  width: min(600px, calc(100% - var(--edge-handle-width) - 8px));
+  pointer-events: none;
+}
+
+.procedure-panel > .map-edge-handle {
+  position: absolute; left: calc(100% - var(--edge-handle-width)); top: 0;
+  transition: left 180ms ease;
+}
+.procedure-panel.is-open > .map-edge-handle { left: calc(-1 * var(--edge-handle-width)); }
+.procedure-panel.is-fullscreen > .map-edge-handle { display: none; }
+
+.procedure-window {
+  position: relative;
+  width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
   margin: 0;
   padding: 0;
   border: 0;
   color: inherit;
-  justify-content: flex-end;
-  background: rgba(2, 8, 14, 0.42);
-  backdrop-filter: blur(4px);
-  animation: reveal-procedure-backdrop 180ms ease-out;
-}
-
-.procedure-viewer-backdrop[open] {
-  display: flex;
-}
-
-.procedure-viewer-backdrop::backdrop {
   background: transparent;
+  transform: translateX(100%);
+}
+
+.procedure-window[open] { display: block; }
+
+.procedure-window::backdrop {
+  background: transparent;
+}
+
+.procedure-window:modal {
+  position: fixed;
+  top: var(--viewport-top);
+  left: var(--viewport-left);
+  width: var(--viewport-width);
+  height: var(--viewport-height);
 }
 
 .procedure-viewer {
   display: grid;
-  width: min(720px, 100%);
+  width: 100%;
   height: 100%;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
-  border-left: 1px solid rgba(191, 220, 234, 0.24);
-  border-radius: 18px 0 0 18px;
-  background: #101b27;
-  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.58);
-  animation: slide-in-procedure 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.procedure-viewer-backdrop.is-closing {
-  pointer-events: none;
-  animation: hide-procedure-backdrop 220ms ease-in forwards;
-}
-
-.procedure-viewer-backdrop.is-closing .procedure-viewer {
-  animation: slide-out-procedure 220ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
-}
-
-@keyframes slide-in-procedure {
-  from {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes slide-out-procedure {
-  to {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes reveal-procedure-backdrop {
-  from {
-    background: rgba(2, 8, 14, 0);
-    backdrop-filter: blur(0);
-  }
-}
-
-@keyframes hide-procedure-backdrop {
-  to {
-    background: rgba(2, 8, 14, 0);
-    backdrop-filter: blur(0);
-  }
+  border: 1px solid rgba(151, 199, 228, 0.19);
+  border-radius: 9px 0 0 9px;
+  background: #081423;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
 }
 
 .procedure-viewer > header {
@@ -207,6 +252,11 @@
   flex: 0 0 auto;
 }
 
+.procedure-header-action { display: contents; }
+/* Reserve the approach action while its lazy reader loads so the title and
+ * reading area do not move when the button arrives. */
+.procedure-header-action.is-reserved { display: block; flex: 0 0 44px; width: 44px; }
+
 .procedure-viewer-actions button {
   display: grid;
   width: 44px;
@@ -222,7 +272,10 @@
   cursor: pointer;
 }
 
-.procedure-viewer-actions button:hover,
+.procedure-viewer-actions .procedure-show-on-map { color: #8ee1d4; }
+.procedure-viewer-actions button:disabled { opacity: 0.32; cursor: default; }
+
+.procedure-viewer-actions button:hover:not(:disabled),
 .procedure-viewer-actions button[aria-pressed="true"] {
   color: #d9e9f2;
   background: rgba(33, 70, 91, 0.76);
@@ -257,7 +310,8 @@
 }
 
 .procedure-page-stage.is-ready canvas {
-  visibility: visible;
+  /* A ready page must still inherit the panel's stowed visibility. */
+  visibility: inherit;
   opacity: 1;
 }
 
@@ -441,12 +495,7 @@
 }
 
 @media (max-width: 680px) {
-  .procedure-viewer {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    border-radius: 0;
-  }
+  .procedure-panel { bottom: 28px; }
 
   .procedure-viewer > header {
     padding: 11px 12px 10px;
@@ -475,6 +524,33 @@
   .procedure-viewer > footer a {
     margin-left: auto;
   }
+}
+
+/* Leave enough reading space in landscape or above an on-screen keyboard. */
+@container workspace (max-height: 400px) {
+  .procedure-panel { top: 8px; bottom: 8px; }
+  .procedure-panel > .map-edge-handle { top: 56px; }
+  .procedure-viewer:not(.is-fullscreen) > header { padding: 4px 8px; gap: 8px; align-items: center; }
+  .procedure-viewer:not(.is-fullscreen) > header h2 { margin: 0; font-size: 14px; }
+  .procedure-viewer:not(.is-fullscreen) > header p { display: none; }
+  .procedure-viewer:not(.is-fullscreen) > footer { padding: 4px 8px; gap: 4px; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-page-stage { padding: 8px; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-page-loading { inset: 8px; overflow: auto; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download { padding-block: 8px; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download h3 { font-size: 13px; margin-bottom: 6px; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download p { font-size: 11px; line-height: 1.4; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download-meter { margin-top: 10px; }
+}
+
+@container workspace (max-height: 300px) {
+  .procedure-viewer:not(.is-fullscreen) > footer {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .procedure-viewer:not(.is-fullscreen) > footer > * { flex-shrink: 0; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-cache-state { width: auto; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download p { display: none; }
 }
 
 @media (any-pointer: coarse) {

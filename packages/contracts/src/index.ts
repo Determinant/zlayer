@@ -7,4 +7,6 @@ export { isRecord, isNonEmptyString, isNonNegativeInteger, isIsoDate, isSha256,
   isStrictBounds, hasUniqueStrings } from './validation.js';
 export * from './route-history.js';
 export * from './terminal-procedures.js';
+export * from './approach-routes.js';
 export * from './taf.js';
+export * from './terrain.js';

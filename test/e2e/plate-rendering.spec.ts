@@ -20,7 +20,7 @@ async function ready(page: Page) {
   await expect(page.locator('.procedure-page-loading')).toHaveCount(0);
 }
 
-test('plate loading keeps the same modal through renderer preparation and PDF downloads', async ({ page }, testInfo) => {
+test('plate loading keeps the same panel through renderer preparation and PDF downloads', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
   let releaseModule!: (route: Route) => void;
   let releasePdf!: (route: Route) => void;
@@ -34,7 +34,7 @@ test('plate loading keeps the same modal through renderer preparation and PDF do
   await expect(heading).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Preparing plate…' })).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Zoom in', exact: true })).toBeDisabled();
-  await page.locator('.procedure-viewer').evaluate(element =>
+  await page.locator('.side-panels').evaluate(element =>
     Promise.all(element.getAnimations().map(animation => animation.finished)));
   const before = await heading.boundingBox();
   await page.screenshot({ path: testInfo.outputPath('plate-preparing-mobile.png') });
@@ -60,7 +60,9 @@ test('a plate can close before its renderer loads without reopening or losing fo
   const held = await pending;
   await page.getByRole('button', { name: 'Close plate', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(opener).toBeFocused();
+  const airportTab = page.getByRole('button', { name: 'Show KSBA details', exact: true });
+  await expect(airportTab).toBeFocused();
+  await airportTab.press('Enter');
   await held.continue();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await opener.click();

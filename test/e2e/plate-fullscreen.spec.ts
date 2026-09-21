@@ -11,7 +11,7 @@ async function openPlate(page: Page) {
   await opener.click();
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
   await expect(page.locator('.procedure-page-loading')).toHaveCount(0);
-  await page.locator('.procedure-viewer').evaluate(element =>
+  await page.locator('.side-panels').evaluate(element =>
     Promise.all(element.getAnimations().map(animation => animation.finished)));
   return opener;
 }
@@ -54,6 +54,7 @@ test('an open plate and airport keep their state through fold and tablet size ch
   }
   expect(requests).toEqual([]);
   await page.getByRole('button', { name: 'Close plate', exact: true }).click();
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await expect(page.locator('.feature-edition')).toHaveText(edition!);
   await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
 });
@@ -110,6 +111,7 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   // Exercise focus restoration on reopening an already cached plate.
   await page.getByRole('button', { name: 'Close plate' }).click();
   await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   // macOS WebKit does not focus buttons on pointer clicks. Restore focus to a
   // keyboard opener, which is the native dialog contract on every platform.
   await opener.focus();
@@ -124,8 +126,9 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   await enter.click();
   await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
   await expect(page.locator('.procedure-page-controls')).toContainText('Page 1 / 1');
-  await opener.evaluate(element => element.focus());
-  await expect(opener).not.toBeFocused();
+  const search = page.getByLabel('Search FAA navigation data');
+  await search.evaluate(element => element.focus());
+  await expect(search).not.toBeFocused();
   for (let index = 0; index < 8; index++) {
     await page.keyboard.press('Tab');
     // Native dialogs allow keyboard access to browser chrome (activeElement is body).
@@ -143,6 +146,10 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   await enter.click();
   await page.getByRole('button', { name: 'Close plate' }).click();
   await expect(dialog).toHaveCount(0);
+  const airportTab = page.getByRole('button', { name: 'Show KSBA details', exact: true });
+  await expect(airportTab).toBeFocused();
+  await airportTab.press('Enter');
+  await opener.focus();
   await expect(opener).toBeFocused();
   await opener.press('Enter');
   await expect(page.getByRole('button', { name: 'Exit full screen' })).toHaveAttribute('aria-pressed', 'true');
@@ -150,6 +157,13 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   await page.keyboard.press('Escape');
   await expect(enter).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  const show = page.getByRole('button', { name: 'Show KSBA plate', exact: true });
+  await expect(show).toBeFocused();
+  await show.press('Enter');
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
+  await page.getByRole('button', { name: 'Close plate', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(opener).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Show KSBA details', exact: true })).toBeFocused();
 });

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import type { Map as MapLibreMap } from 'maplibre-gl';
 
 test('obstructions fade in the route corridor and follow route/toggle/remount changes', async ({ page }, testInfo) => {
   const errors: string[] = [], downloads: string[] = [];
@@ -153,10 +154,12 @@ test('background obstructions remain visible while route queries are pending and
   await expect(page.locator('html')).toHaveAttribute('data-pending-obstruction-queries', '1');
   await expect.poll(rendered).toEqual(background);
   await page.getByRole('button', { name: 'Zoom out' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-pending-obstruction-queries', '2');
   await expect(status).toHaveAttribute('data-state', 'loading');
   await expect(body).toHaveAttribute('data-map-idle', 'true');
   await expect.poll(rendered).toEqual([]);
+  // Let the 80 ms view debounce run while the first RPC is deliberately held.
+  await page.waitForTimeout(150);
+  await expect(page.locator('html')).toHaveAttribute('data-pending-obstruction-queries', '1');
   await release();
   await expect(status).toHaveAttribute('data-state', 'ready');
   await expect(status).toHaveAttribute('data-count', '0');
@@ -203,4 +206,73 @@ test('the app exposes a separate persistent obstruction switch', async ({ page }
   await page.reload();
   await expect(page.getByRole('switch', { name: /^Obstructions/ })).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByRole('switch', { name: /^Elevation contours/ })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('panning renders buffered obstructions and refills the next area before the gesture ends', async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      readonly obstruction: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options); this.obstruction = String(url).includes('obstructions.worker');
+      }
+      override postMessage(message: unknown, options: Transferable[] | StructuredSerializeOptions = []) {
+        if (this.obstruction && (message as { path?: string[] }).path?.[0] === 'query') {
+          document.documentElement.dataset.obstructionQueries = String(Number(document.documentElement.dataset.obstructionQueries ?? 0) + 1);
+        }
+        if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
+      }
+    };
+  });
+  await page.goto('/test/browser/obstructions.html?route=none');
+  const status = page.locator('output[data-state]');
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await page.evaluate(() => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    map.jumpTo({ center: [-121.98, 37.5], zoom: 12 });
+    const { width, height } = map.getCanvas().getBoundingClientRect();
+    // Place 06-000003 just beyond the right edge, inside the preload margin.
+    map.jumpTo({ center: map.unproject([-width * 0.1, height / 2]) });
+  });
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await expect(status).toHaveAttribute('data-count', '1');
+  await expect.poll(() => page.locator('body').getAttribute('data-published-obstructions').then(value =>
+    JSON.parse(value ?? '[]').some((point: { id: string }) => point.id === '06-000003'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    return map.queryRenderedFeatures({ layers: ['route-obstruction-symbols'] }).some(point => point.id === '06-000003');
+  })).toBe(false);
+  const queries = Number(await page.locator('html').getAttribute('data-obstruction-queries'));
+  expect(queries).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    const { width, height } = map.getCanvas().getBoundingClientRect();
+    map.easeTo({ center: map.unproject([width * 0.7, height / 2]), duration: 1500, easing: t => t });
+  });
+  await page.waitForFunction(() => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    return map.isMoving() && map.queryRenderedFeatures({ layers: ['route-obstruction-symbols'] }).some(point => point.id === '06-000003');
+  });
+  await page.waitForFunction(() => !(window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map.isMoving());
+  expect(Number(await page.locator('html').getAttribute('data-obstruction-queries'))).toBe(queries);
+  const count = await page.evaluate(async () => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    const source = map.getSource('route-obstructions') as import('maplibre-gl').GeoJSONSource;
+    const data = await source.getData();
+    return data.type === 'FeatureCollection' ? data.features.filter(point => point.geometry?.type === 'Point' &&
+      map.getBounds().contains(point.geometry.coordinates as [number, number])).length : 0;
+  });
+  await expect(status).toHaveAttribute('data-count', String(count));
+  await page.evaluate(() => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    const { width, height } = map.getCanvas().getBoundingClientRect();
+    map.easeTo({ center: map.unproject([width * 1.25, height / 2]), duration: 1500, easing: t => t });
+  });
+  await page.waitForFunction(previous => {
+    const map = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map;
+    return map.isMoving() && Number(document.documentElement.dataset.obstructionQueries) > previous;
+  }, queries);
+  await page.waitForFunction(() => !(window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit.map.isMoving());
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await expect(page.getByTestId('errors')).toBeEmpty();
 });

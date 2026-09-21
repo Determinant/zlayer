@@ -9,9 +9,53 @@ replay/reference history. It is not an exact mid-flight restart checkpoint.
 Calibration and recording can proceed without ever receiving a GPS fix; the GPS
 lease does not make a fix a prerequisite for live IMU attitude.
 
-## Download format
+## GPX track download
 
-Files are UTF-8 JSON Lines (`.jsonl`), with one independently parseable event per
+**Download GPX** exports a UTF-8 [GPX 1.1](https://www.topografix.com/GPX/1/1/)
+track with ZLayer AHRS extensions. Existing JSONL recordings can also be exported
+as GPX. Ordinary GPX readers can use the track and ignore the extensions. The
+extensions describe recorded attitude; another application's GPX support does
+not imply support for AHRS replay or simulator playback.
+
+Each `trkpt` contains WGS84 latitude/longitude, a UTC acquisition timestamp and,
+when available, the browser's altitude in meters. Altitude is preserved as
+reported by browser geolocation (specified as WGS84 ellipsoid height), without
+geoid or pressure correction. Duplicate and out-of-order fix timestamps are
+omitted. Lost/stale GPS, calibration, stopping AHRS and gaps over ten seconds
+start new track segments. No positions are interpolated. Without any saved GPS
+positions, GPX export reports an error and the debug log remains available.
+
+Extensions use namespace `urn:zlayer:ahrs:1` (prefix `z`, version `1`):
+
+| Element | Contents |
+| --- | --- |
+| `trkpt/extensions/z:gps` | Groundspeed in m/s, true course over ground in degrees, horizontal/vertical accuracy in meters, whether velocity was estimated, and UTC receipt time. Missing values are omitted. |
+| `gpx/extensions/z:recording` | Session ID, estimator model, units/frame metadata, monotonic clock origin in epoch milliseconds, and `complete` (an explicit recording end was saved). |
+| `z:configuration` | XML-escaped JSON containing the initial mount, optional true heading, trim and estimator options. |
+| `z:state` | Initial snapshot and each recorded AHRS state, with independent UTC `time` and monotonic-seconds `t`; phase, warning/crossed status, roll/pitch/yaw, quaternion, heading reference/status, model uncertainty, IMU age, load, vertical speed, biases and aiding flags when available. |
+| `z:event` | Calibration/alignment, sensor issues, visibility changes and stop/end events with their own `time`, `t`, `type` and XML-escaped JSON data. |
+
+States retain their recorded rate (up to 10 Hz), independently of slower GPS
+fixes. Their times describe the recorded snapshot, not a new GPS fix. Angles and
+angle uncertainties are degrees; the quaternion is `w x y z`, rotating trimmed
+body forward/right/down axes into the estimator's local-level frame. Yaw is
+clockwise, and north alignment is valid only while `headingStatus="tracking"`.
+`headingReference` alone describes alignment history, not current validity. GPS
+course is separate from yaw. Nonfinite uncertainties are omitted; an absent
+heading uncertainty must not be treated as zero.
+
+`imuAge` is seconds, `load` is specific-force magnitude divided by standard
+gravity, and `verticalSpeed` is positive-up m/s. `gyroBias` is rad/s and `accelBias`
+is m/s², each a space-separated vector in trimmed body axes. GPX includes concise
+diagnostics; raw sensor inputs, complete covariance and innovation histories
+remain in the debug log for estimator replay. GPX is uncompressed XML: its size
+depends on the fields/rates retained, and standardization does not itself make
+it smaller than JSONL.
+
+## Debug log download
+
+**Debug log** exports UTF-8 JSON Lines (`.jsonl`), the same format used internally,
+with one independently parseable event per
 line. Each line has `sequence`, `type`, `time` and `data`. Sequence numbers start
 at zero and preserve callback order, including delayed GPS observations.
 
@@ -135,10 +179,37 @@ and drains what it has. Quota/storage failures stop recording and retain the
 previously committed prefix without interrupting the attitude estimator.
 
 Metadata uses `ahrs-recording:` keys and chunks use `ahrs-samples:` keys in the
-existing `zlayer-offline` database. Listing sessions reads metadata only. Export
-reads that session's committed chunks and builds a local Blob download; exporting
-an active session gives a snapshot of its saved prefix. Separate windows use
-unique session IDs. **Delete all local data** also deletes these recordings.
+existing `zlayer-offline` database. Listing sessions reads metadata only. Exporting
+an active session gives a snapshot of its committed prefix. An interrupted or
+active GPX export is still a complete XML document, with `complete="false"`.
+Separate windows use unique session IDs.
+
+Both exports run in a dedicated worker. Input is read sequentially in at most
+64 KiB pieces; GPX uses two passes so track points precede independently timed
+attitude samples without buffering a flight. Output is appended to a temporary
+file in the browser's origin-private file system (OPFS), then downloaded using
+a disk-backed File. GPX entries over 1 Mi characters are rejected to bound parsing
+memory. Cancelling an export or unmounting the recorder control terminates its worker.
+
+If disk export is unavailable (including private WebKit sessions) or storage is
+full, a fallback accepts at most 8 MiB of output. A quota failure during writing
+or flushing closes/removes the partial disk export and retries from the saved
+source within this same limit. Larger fallback exports report an error asking
+the user to free/enable local storage; a smaller GPX may still be downloadable.
+Saved recordings remain available after an export failure. These are application
+buffer limits, not a guarantee of total browser memory usage or iOS background
+execution.
+
+Temporary exports use the OPFS `zlayer-exports` directory. Failed/cancelled
+exports are cleaned up. Repeating the most recent download of the same committed
+prefix reuses its URL and renews a five-minute window for mobile Save/Share. A
+different export releases any previous fallback Blob before preparing more data;
+only one fallback payload is retained at a time. Disk-backed files keep their
+five-minute window. Scratch files left by a closed
+or crashed tab are removed on a later export once they are over a day old.
+**Delete all local data** removes recordings and this scratch directory. An
+unavailable OPFS root does not block reset; a failure to delete an accessible
+scratch directory is still reported and remains retryable.
 
 Each saved session also has a **Delete** action, with confirmation. Stop an active
 recording and let it finish saving before deleting it; completed and interrupted

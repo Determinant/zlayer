@@ -10,7 +10,7 @@
 .ahrs-recorder-menu time, .ahrs-recorder-menu small { display: block; font-size: 11px; font-variant-numeric: tabular-nums; }
 .ahrs-recorder-menu small { color: #afc2cd; margin-top: 4px; }
 .ahrs-tool .ahrs-recorder-menu button { font-size: 12px; }
-.ahrs-recording-actions { display: flex; gap: 6px; margin-left: auto; }
+.ahrs-recording-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .ahrs-tool .ahrs-recording-actions button { min-height: 44px; }
 .ahrs-tool .ahrs-recording-delete { color: #ffb0b0; }
 .ahrs-tool .ahrs-record-action { width: 100%; }

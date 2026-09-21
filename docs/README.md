@@ -31,12 +31,17 @@ later implementation changes.
   [local recordings and JSON Lines downloads](../src/layers/ahrs/recording.md)
 - [Airport plates](offline-procedures.md), [offline storage and regional downloads](offline-storage.md)
 - [PWA releases and update prompts](pwa-updates.md)
+- [Installed-app Back navigation](pwa-navigation.md)
+- [Workspace startup and loading screen](startup.md)
+- [Saved workspace state and restoration](workspace-state.md)
 
 ## Quality and release
 
 - [Responsive layout and recovery](responsive-checks.md)
 - [Typography review](typography-checks.md), [proposed color system](color-system.md)
 - [Graphics compatibility and browser matrix](graphics-compatibility.md)
+- [Memory/resource review and preprocessing opportunities](memory-resources.md)
+- [iPhone memory and AHRS scrolling review](reviews/iphone-memory-ahrs-2026-09-20.md)
 - [AHRS magnetic aiding implementation review](reviews/ahrs-magnetic-aiding-2026-09-19.md)
 - [Hosting contract, local verification and remaining gates](deployment-readiness.md)
 - [Bundled map glyphs](../public/fonts/README.md)

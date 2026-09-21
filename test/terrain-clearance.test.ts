@@ -59,7 +59,7 @@ test('packed pixels preserve band/opacity values and missing elevations at the w
   const segment: Segment = [[660 / 4096, 1595 / 4096], [661 / 4096, 1596 / 4096]];
   const heights = new Float32Array(size * size).fill(1430);
   heights[0] = NaN; heights[1] = 200;
-  const { pixels } = paintTerrain(heights, tile, [segment], 1000, 1, size, false, true);
+  const { pixels } = paintTerrain(heights, tile, [segment], 1000, size);
   const unpack = (i: number) => pixels[i * 4]! * 256 + pixels[i * 4 + 1]!;
   assert.equal(unpack(0), 0);
   assert.equal(unpack(1), packedTerrainValue(200, 1000, 1));

@@ -1,10 +1,14 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useBackDismiss } from '../../core/ui/pwa-back';
 import type { RoutePlan } from '@zlayer/domain';
 import { foreFlightRouteUrl, routeExportText, ROUTE_EXPORT_FORMATS, type RouteExportFormat } from './export';
+import type { RouteUndo } from './use-draft';
 
 type ExportAction = 'copy' | 'share';
 
-export function RouteMenu({ plan, onOpen, onClear }: { plan: RoutePlan; onOpen: () => void; onClear: () => void }) {
+export function RouteMenu({ plan, onOpen, onClear, undo }: {
+  plan: RoutePlan; onOpen: () => void; onClear: () => void; undo?: RouteUndo | undefined;
+}) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [manualCopy, setManualCopy] = useState<string>();
@@ -64,6 +68,7 @@ export function RouteMenu({ plan, onOpen, onClear }: { plan: RoutePlan; onOpen: 
     (exportAction === 'share' ? shareButtonRef : copyButtonRef).current?.focus();
     setExportAction(undefined); setManualCopy(undefined); setMessage('');
   };
+  useBackDismiss(open, rootRef, () => exportAction ? closeFormats() : close());
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -178,6 +183,11 @@ export function RouteMenu({ plan, onOpen, onClear }: { plan: RoutePlan; onOpen: 
         </button>}
         {formats('share')}
         <div role="separator" />
+        {undo && <>
+          <button type="button" role="menuitem" disabled={!undo.canUndo} onClick={() => { undo.undo(); close(); }}>Undo route edit</button>
+          <button type="button" role="menuitem" disabled={!undo.canRedo} onClick={() => { undo.redo(); close(); }}>Redo route edit</button>
+          <div role="separator" />
+        </>}
         <button type="button" role="menuitem" className="route-menu-clear" disabled={!text}
           onClick={() => { setOpen(false); onClear(); }}>Clear route</button>
       </div>

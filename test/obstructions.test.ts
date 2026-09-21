@@ -84,6 +84,54 @@ test('the corridor adds a 4 NM core and 8 NM fade at wider zooms without restric
   assert.equal(index.query([-1, -1, 1, 1], [], 10).features.length, 4, 'background points still clip to the viewport');
 });
 
+test('the retained index scales with displayable records while all source records remain validated', () => {
+  const index = new ObstructionIndex(20_000);
+  for (let i = 0; i < index.expectedCount; i++) {
+    const point = feature(`06-${String(i).padStart(6, '0')}`);
+    point.properties.heightAglFt = i === 19_999 ? 500 : 499;
+    index.add(point);
+  }
+  index.finish();
+  assert.equal(index.size, 1);
+  assert.ok(index.byteLength < 1024, 'filtered records and temporary duplicate validation must not remain resident');
+  assert.equal(index.query([-1, -1, 1, 1], [], 13).features[0]!.id, '06-019999');
+  assert.throws(() => index.add(feature('06-020000')), /Invalid/);
+
+  const low = feature('06-000001'); low.properties.heightAglFt = 499;
+  const duplicate = new ObstructionIndex(2);
+  duplicate.add(low); duplicate.add(low);
+  assert.throws(() => duplicate.finish(), /Duplicate/, 'filtered duplicates still invalidate the whole snapshot');
+  const mixed = new ObstructionIndex(2);
+  mixed.add(low); mixed.add(feature(low.id));
+  assert.throws(() => mixed.finish(), /Duplicate/, 'duplicates spanning retained and dropped records remain invalid');
+  const invalid = new ObstructionIndex(1);
+  assert.throws(() => invalid.add({ ...low, geometry: { type: 'Point', coordinates: [181, 0] } }), /Invalid/);
+  assert.throws(() => invalid.finish(), /count/);
+  const empty = new ObstructionIndex(1);
+  empty.add(low); empty.finish();
+  assert.equal(empty.size, 0); assert.equal(empty.byteLength, 0);
+});
+
+test('growing the filtered columns preserves all eligible fields and original coordinates', () => {
+  const index = new ObstructionIndex(2500);
+  for (let i = 0; i < index.expectedCount; i++) {
+    const point = feature(`06-${String(i).padStart(6, '0')}`, -0.25 + i / 10000, 0.123456789);
+    Object.assign(point.properties, { heightAglFt: 500 + i, elevationMslFt: i - 100,
+      verified: i % 2 === 0, lightingCode: 'H', quantity: 2 });
+    index.add(point);
+  }
+  index.finish();
+  const points = index.query([-1, -1, 1, 1], [], 13).features;
+  assert.equal(points.length, index.size);
+  assert.equal(points.length, 2500);
+  for (const i of [0, 1023, 1024, 2047, 2048, 2499]) {
+    const point = points.find(point => point.id === `06-${String(i).padStart(6, '0')}`)!;
+    assert.deepEqual(point.geometry.coordinates, [-0.25 + i / 10000, 0.123456789]);
+    assert.equal(point.properties.label, `${i - 100}${i % 2 ? ' UC' : ''}\n(${500 + i})`);
+    assert.equal(point.properties.icon, i < 500 ? 'obstruction-low-group-strobe' : 'obstruction-tall-group-strobe');
+  }
+});
+
 test('the Walnut Grove towers near KSAC appear without a route and outside an unrelated route corridor', () => {
   // Published FAA Daily DOF records, 2026-09-18.
   const towers = [

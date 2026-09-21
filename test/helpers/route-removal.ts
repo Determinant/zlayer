@@ -52,6 +52,15 @@ const preferred: PreferredRoutesData = { type: 'ZLayerPreferredRoutes', metadata
   })),
 };
 
-export function createRouteRemovalResolver() {
-  return createRouteResolver([routeRemovalAirports, fixes, navaids, vfr], airways, terminal, preferred);
+export function createRouteRemovalResolver(options: { missingFix?: string; procedureGapAfter?: string } = {}) {
+  const navigation = options.missingFix ? { ...fixes,
+    features: fixes.features.filter(feature => feature.properties.ident !== options.missingFix) } : fixes;
+  const procedures = options.procedureGapAfter ? { ...terminal, procedures: terminal.procedures.map(procedure => ({
+    ...procedure, routes: procedure.routes.map(route => ({ ...route, points: route.points.map(point => {
+      if (point.ident !== options.procedureGapAfter) return point;
+      const { next: _next, ...disconnected } = point;
+      return disconnected;
+    }) })),
+  })) } : terminal;
+  return createRouteResolver([routeRemovalAirports, navigation, navaids, vfr], airways, procedures, preferred);
 }

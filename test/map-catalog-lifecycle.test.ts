@@ -38,7 +38,7 @@ test('catalog refreshes update an existing map and preserve the user camera', ()
   let props: ComponentProps<typeof MapCanvas> = {
     catalog, chartSelection: { base: '', overlay: '' }, visibility: DEFAULT_VISIBILITY,
     fixContext: { fixDisplay: DEFAULT_FIX_DISPLAY, airways: undefined, priorityFixes: [] },
-    data: {}, route: emptyRoutePlan(''), recommendations: undefined,
+    data: {}, route: emptyRoutePlan(''), routePreview: undefined,
     metarLayer: createMetarLayer(new MetarClient(new URL('https://app.test/weather'))),
     ownshipLayer: createOwnshipLayer(), ownshipEnabled: false, metarEnabled: false,
     terrainEnabled: false, obstructionsEnabled: false, terrainAltitude: null, routeFocusNonce: 0, focusTarget: undefined,

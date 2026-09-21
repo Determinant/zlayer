@@ -15,7 +15,7 @@ import {
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 import type { ProcedureSelection } from './data';
-import { ProcedureFooter, ProcedurePageLoading, type PlateCacheState } from './viewer-dialog';
+import { ProcedureFooter, ProcedureHeaderAction, ProcedurePageLoading, type PlateCacheState } from './viewer-dialog';
 import { pdfCanvasSize } from './render-scale';
 import { clampPlateZoom, usePinchZoom } from './use-pinch-zoom';
 import { loadProcedureDocument, type ProcedureDownloadProgress } from './document-cache';
@@ -26,11 +26,13 @@ import { readUiState, writeUiState } from '../../core/storage/ui-state';
 import { usePersistentState } from '../../core/ui/use-persistent-state';
 import { plateViewKey } from './persistence';
 import { isRecord } from '@zlayer/contracts';
+import type { PlateMapImage } from './map-image';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 type ProcedureViewerProps = {
   selection: ProcedureSelection;
+  onShowOnMap?: (image: PlateMapImage) => void;
 };
 
 type ViewerState = {
@@ -38,7 +40,7 @@ type ViewerState = {
   error?: string;
 };
 
-export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
+export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureViewerProps) {
   const key = plateViewKey(selection);
   const [savedPage, setPageIndex] = usePersistentState<number | null>(`${key}:page`, null,
     (value): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0));
@@ -51,12 +53,25 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
       [value.left, value.top].every(item => typeof item === 'number' && Number.isFinite(item) && item >= 0)));
   const zoomRef = useRef(zoom);
   const scrollRef = useRef(savedScroll);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const restoreScroll = useRef(true);
   const saveTimer = useRef<number | undefined>(undefined);
   const dirty = useRef({ zoom: false, scroll: false });
   // Gesture handlers update memory immediately; storage is flushed after idle or on exit.
   const saveView = useCallback(() => {
     window.clearTimeout(saveTimer.current);
     saveTimer.current = undefined;
+    // A final scroll event can still be queued when iOS hides the page. Read
+    // the live viewport before leaving, but never replace saved intent with
+    // the zero offsets of a hidden or not-yet-restored reader.
+    const stage = stageRef.current;
+    if (!restoreScroll.current && stage?.isConnected && stage.clientWidth > 0 && stage.clientHeight > 0) {
+      const next = { left: Math.max(0, stage.scrollLeft), top: Math.max(0, stage.scrollTop) };
+      if (next.left !== scrollRef.current.left || next.top !== scrollRef.current.top) {
+        scrollRef.current = next;
+        dirty.current.scroll = true;
+      }
+    }
     if (dirty.current.zoom) writeUiState(zoomKey, zoomRef.current);
     if (dirty.current.scroll) writeUiState(scrollKey, scrollRef.current);
     dirty.current = { zoom: false, scroll: false };
@@ -73,9 +88,12 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
     setZoom(value);
     scheduleSave('zoom');
   }, [scheduleSave]);
-  const restoreScroll = useRef(true);
   const [viewer, setViewer] = useState<ViewerState>({});
+  const [selectedPageIndex, setSelectedPageIndex] = useState(selection.document.pageIndex);
   const [rendering, setRendering] = useState(false);
+  const [preparingMap, setPreparingMap] = useState(false);
+  const [mapError, setMapError] = useState<string>();
+  const mapPreparation = useRef<AbortController | undefined>(undefined);
   const [cacheState, setCacheState] = useState<PlateCacheState>('saving');
   const [downloadProgress, setDownloadProgress] = useState<ProcedureDownloadProgress>();
   const [painted, setPainted] = useState<{ document: PDFDocumentProxy; pageIndex: number;
@@ -83,7 +101,6 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
   const [pixelRatio, setPixelRatio] = useState(displayPixelRatio);
   const renderCompletion = useRef<Promise<void>>(Promise.resolve());
   const [availableSize, setAvailableSize] = useState({ width: 0, height: 0 });
-  const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { document: source } = selection;
   const ready = Boolean(viewer.document && painted?.document === viewer.document && painted.pageIndex === pageIndex);
@@ -108,6 +125,7 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
   }, [ready, painted, zoom]);
 
   useEffect(() => retainActiveFiles([source.url]), [source.url]);
+  useEffect(() => () => mapPreparation.current?.abort(), [source]);
 
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -176,8 +194,10 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
         task = getDocument({ range, disableStream: true, disableAutoFetch: true,
           verbosity: VerbosityLevel.ERRORS, useSystemFonts: true });
         const document = await task.promise;
-        const index = savedPage === null ? await procedurePageIndex(document, source) : Math.min(savedPage, document.numPages - 1);
+        const targetIndex = await procedurePageIndex(document, source);
+        const index = savedPage === null ? targetIndex : Math.min(savedPage, document.numPages - 1);
         if (current) {
+          setSelectedPageIndex(targetIndex);
           setPageIndex(index);
           setViewer({ document });
         }
@@ -197,7 +217,7 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
   useEffect(() => {
     const pdf = viewer.document;
     const canvas = canvasRef.current;
-    if (!pdf || !canvas || pinching || availableSize.height <= 0 || availableSize.width <= 0) return;
+    if (!pdf || !canvas || pinching || preparingMap || availableSize.height <= 0 || availableSize.width <= 0) return;
 
     let current = true;
     let renderTask: ReturnType<Awaited<ReturnType<typeof pdf.getPage>>['render']> | undefined;
@@ -247,10 +267,33 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
       current = false;
       renderTask?.cancel();
     };
-  }, [availableSize, pageIndex, viewer.document, zoom, pixelRatio, pinching]);
+  }, [availableSize, pageIndex, viewer.document, zoom, pixelRatio, pinching, preparingMap]);
+
+  const showOnMap = async () => {
+    const pdf = viewer.document;
+    if (!pdf || !onShowOnMap || mapPreparation.current || pageIndex !== selectedPageIndex) return;
+    const controller = new AbortController();
+    mapPreparation.current = controller;
+    setPreparingMap(true);
+    setMapError(undefined);
+    try {
+      const { preparePlateMapImage } = await import('./prepare-map-image');
+      await renderCompletion.current;
+      controller.signal.throwIfAborted();
+      const image = await preparePlateMapImage(pdf, pageIndex, selection, controller.signal);
+      if (controller.signal.aborted) image.canvas.width = image.canvas.height = 0;
+      else onShowOnMap(image);
+    } catch (error) {
+      if (!controller.signal.aborted) setMapError(error instanceof Error ? error.message : 'Unable to show this plate on the map.');
+    } finally {
+      if (!controller.signal.aborted) setPreparingMap(false);
+      mapPreparation.current = undefined;
+    }
+  };
 
   const pageCount = viewer.document?.numPages ?? source.pageCount ?? 1;
   const changePage = (next: number) => {
+    setMapError(undefined);
     setPageIndex(Math.max(0, Math.min(pageCount - 1, next)));
     scrollRef.current = { left: 0, top: 0 };
     scheduleSave('scroll');
@@ -258,6 +301,18 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
   };
 
   return <>
+    {onShowOnMap && selection.procedure.kind === 'approach' && pageIndex === selectedPageIndex &&
+      <ProcedureHeaderAction>
+        <button type="button" className="procedure-show-on-map" disabled={!ready || rendering || pinching || preparingMap}
+          onClick={() => void showOnMap()} aria-busy={preparingMap}
+          aria-label={preparingMap ? 'Preparing map…' : 'Show on map'}
+          title={preparingMap ? 'Preparing map…' : 'Show on map'}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15" />
+          </svg>
+        </button>
+      </ProcedureHeaderAction>}
     <div ref={stageRef} className={`procedure-page-stage${ready ? ' is-ready' : ''}`}
       onScroll={event => {
         if (!ready || restoreScroll.current) return;
@@ -277,7 +332,12 @@ export default function ProcedureViewer({ selection }: ProcedureViewerProps) {
       </>}
     </div>
     <ProcedureFooter source={source} pageIndex={pageIndex} pageCount={pageCount} zoom={zoom} cacheState={cacheState}
-      {...(viewer.document ? { onPageChange: changePage, onZoomChange: changeZoom } : {})} />
+      {...(viewer.document && !preparingMap ? { onPageChange: changePage, onZoomChange: changeZoom } : {})}
+      mapAction={onShowOnMap && selection.procedure.kind === 'approach' ? <>
+        {pageIndex !== selectedPageIndex && <button type="button" className="procedure-return-to-approach"
+          disabled={!viewer.document || preparingMap} onClick={() => changePage(selectedPageIndex)}>Return to approach</button>}
+        {mapError && <span className="procedure-map-error" role="alert">{mapError}</span>}
+      </> : undefined} />
   </>;
 }
 

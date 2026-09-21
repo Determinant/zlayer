@@ -26,6 +26,18 @@ test('airport summary shows elevation, runway and local frequencies on desktop, 
   await expect(facts.locator('dt')).toHaveText(['Elevation', 'Longest runway', 'ATIS', 'Tower / CTAF', 'Ground']);
   await expect(facts.locator('dd')).toContainText(['170 ft', '3,500 ft', '119.15 MHz', '120.10 MHz', '121.90 MHz']);
   await expect(facts).not.toContainText('Type');
+  // Search supplies the complete record. Re-select the actual map symbol to
+  // verify nested details are restored after the compact map/tile projection.
+  await expect.poll(() => page.evaluate(() => {
+    const view = JSON.parse(localStorage.getItem('zlayers-map-view-v1') ?? '{}');
+    return Math.abs((view.center?.[0] ?? 0) + 118.45) < 1e-8 && Math.abs((view.center?.[1] ?? 0) - 34.02) < 1e-8;
+  })).toBe(true);
+  await page.getByRole('button', { name: 'Close detail', exact: true }).click();
+  const canvas = page.locator('.maplibregl-canvas');
+  const box = (await canvas.boundingBox())!;
+  await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  await expect(facts.locator('dt')).toHaveText(['Elevation', 'Longest runway', 'ATIS', 'Tower / CTAF', 'Ground']);
+  await expect(facts).toContainText('119.15 MHz');
   await page.screenshot({ path: testInfo.outputPath('airport-summary-desktop.png') });
   const notes = facts.getByRole('button', { name: 'Tower / CTAF: 120.10 MHz. Hours and notes' });
   await notes.focus();

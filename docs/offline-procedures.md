@@ -75,6 +75,48 @@ restricted proxy. Military HIGH procedures can be individual-only even with all 
 books hosted, so the proxy is not merely a temporary missing-upload workaround.
 See [deployment readiness](deployment-readiness.md).
 
+## IAPs on the map
+
+Open an approach from an airport's **Plates** tab and select the **Show on map**
+map icon in the header, immediately left of the full-screen button.
+The viewer closes and the map fits the plate. Only one IAP can be shown: a new
+selection replaces the previous overlay once its geographic data and image are
+ready. Opening or closing the normal PDF viewer leaves the current overlay alone.
+
+Right-click or long-press inside the plate to open its menu, then select
+**Hide IAP from map**. Opening or dismissing the menu leaves the plate in place;
+Escape or clicking outside closes the menu. Once the plate is ready, no status
+banner covers the map. Panning, pinching and gestures outside the plate retain
+their normal map behavior. The overlay restores after
+reload from its exact saved PDF/approach target, including offline when the PDF
+is cached. Restoration preserves the saved camera and other panels; explicit
+hiding clears the saved overlay. A failed restore offers Retry/Hide and retains
+the selection. See the [saved workspace inventory](workspace-state.md).
+
+Placement comes from the selected PDF page's embedded geographic viewport,
+control points and projection, including the FAA's Lambert Conformal Conic data.
+The plate retains its printed content; geographic alignment applies to the
+plan view, not the profile, minima or inset diagrams. The client does not infer
+placement from the airport location. Missing, ambiguous, unsupported or
+inconsistent metadata leaves the normal viewer available and preserves any
+existing overlay.
+
+PDF.js extracts only the selected page for the lazily loaded metadata reader.
+The raster is reprojected to Web Mercator with a mesh, with at most 4,194,304
+pixels (16 MiB of RGBA data) per canvas and 3,072 pixels per side. The temporary
+PDF render canvas is released after reprojection. Replacing or removing an
+overlay releases its canvas and map source. The same verified PDF cache supports
+offline reuse; a selected overlay retains its document against automatic cleanup.
+Restoration releases its PDF worker once the bounded map image is ready. PDF.js 6.3.289
+provides the fixed page-extraction implementation; the earlier 5.4.624 release
+fails on null references in real FAA pages.
+
+`test/plate-georeference.test.ts`, `test/plate-map.test.ts` and
+`test/e2e/plate-map.spec.ts` cover placement validation, single-overlay lifecycle,
+stale work, explicit removal from the right-click/long-press menu, panning, unsupported pages and offline
+reuse. The existing plate rendering, fullscreen and pinch tests cover the PDF.js
+upgrade.
+
 ## Document identity and reuse
 
 Hosted books are keyed by published SHA-256 and size; individual FAA URLs include
@@ -94,6 +136,12 @@ required individual plates. They do not create duplicate document blobs. An adve
 but unresolved book page blocks completeness; an intentionally individual-only record
 is handled through its FAA PDF. See [offline storage](offline-storage.md) for verification,
 shared-file removal and device testing.
+
+When published for the saved edition, the region also retains coded approach routes,
+entries and fixes. A new route can be planned offline: attach an approach to an airport,
+choose a published entry or VTF, switch approaches, and draw the selected route without
+opening that approach online first. Existing regions need **Verify / update** to acquire
+approach data added after their download. See [anchored approaches](routes.md#anchored-approaches).
 
 ## Planned route packages and cycle migration
 

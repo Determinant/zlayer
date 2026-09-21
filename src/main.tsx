@@ -7,8 +7,10 @@ import '@fontsource/b612/700.css';
 import { preparePwa } from './pwa';
 import { RESET_KEY, RESET_URL, WORKSPACE_LOCK, openResetScreen, resetPending, resetRequested } from './core/storage/reset';
 import { observeVisibleViewport } from './core/ui/viewport';
+import { observePwaBack } from './core/ui/pwa-back';
 import { FirstVisit } from './shell/disclaimer';
 import { PwaUpdatePrompt } from './shell/pwa-update';
+import { StartupScreen } from './shell/startup-screen';
 import './styles.css';
 
 const root = document.getElementById('root');
@@ -33,9 +35,14 @@ if (requested || new URL(location.href).searchParams.get('reset') === '1') {
   const { ResetScreen } = await import('./shell/reset-screen');
   view.render(<ResetScreen requested={requested} />);
 } else {
+  const stopObservingBack = observePwaBack();
+  if (import.meta.hot) import.meta.hot.dispose(stopObservingBack);
   const start = async () => {
     if (resetPending()) { openResetScreen(); return; }
-    const { App } = await import('./app');
+    view.render(<StartupScreen />);
+    let App;
+    try { ({ App } = await import('./app')); }
+    catch { view.render(<StartupScreen message="The workspace could not open." slow />); return; }
     if (resetPending()) { openResetScreen(); return; }
     view.render(<StrictMode><FirstVisit><App /><PwaUpdatePrompt /></FirstVisit></StrictMode>);
     void preparePwa();

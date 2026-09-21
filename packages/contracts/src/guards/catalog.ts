@@ -6,10 +6,12 @@ import { isProcedureResourceRecord } from './procedures.js';
 import { isBounds, isRecord, isNonEmptyString, isNonNegativeInteger, isSha256, hasValidDate, hasUniqueStrings } from '../validation.js';
 import { isChartPackageIndex } from '../chart-packages.js';
 import { isPreferredRoutesResource } from '../preferred-routes.js';
+import { isTerrainManifest } from '../terrain.js';
 
 export function isCatalogResponse(value: unknown): value is CatalogResponse {
   if (!isRecord(value)) return false;
   return value.schemaVersion === 1 &&
+    (value.terrain === undefined || (isRecord(value.terrain) && isNonEmptyString(value.terrain.root) && isTerrainManifest(value.terrain))) &&
     isNonEmptyString(value.generatedAt) &&
     hasValidDate(value.generatedAt) &&
     isNonEmptyString(value.revision) &&

@@ -34,6 +34,7 @@ function Fixture() {
         layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#132333' } },
           { id: ROUTE_LINE_ANCHOR, type: 'background', paint: { 'background-opacity': 0 } }] } });
     mapRef.current = map;
+    Object.assign(window, { obstructionMapAudit: { map } });
     map.on('idle', async () => {
       document.body.dataset.mapIdle = 'true';
       document.body.dataset.renderedObstructions = JSON.stringify(map.getLayer(OBSTRUCTION_LAYER)

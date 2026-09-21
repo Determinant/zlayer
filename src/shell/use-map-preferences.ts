@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useStoredState } from '../core/ui/use-persistent-state';
 import { isRecord } from '@zlayer/contracts';
 import { CHART_BASES, CHART_OVERLAYS, type ChartBaseSelection, type ChartOverlaySelection } from '../layers/charts/overlays';
 import { DEFAULT_VISIBILITY, NAVIGATION_LAYERS, type LayerVisibility } from '../layers/navigation/definitions';
 import { DEFAULT_FIX_DISPLAY, type FixDisplaySettings } from '../layers/navigation/fix-display';
 import { MAX_TERRAIN_ALTITUDE, TERRAIN_ALTITUDE_STEP } from '../layers/terrain/clearance';
+import type { TerrainCoverage } from '../layers/terrain';
 
 type MapPreferences = {
   chartBase: ChartBaseSelection | undefined;
@@ -12,6 +13,7 @@ type MapPreferences = {
   fixDisplay: FixDisplaySettings;
   metarEnabled: boolean;
   terrainEnabled: boolean;
+  terrainCoverage: TerrainCoverage;
   obstructionsEnabled: boolean;
   terrainAltitude: number | null;
   ownshipEnabled: boolean;
@@ -20,22 +22,20 @@ type MapPreferences = {
 const STORAGE_KEY = 'zlayers-map-preferences-v1';
 
 export function useMapPreferences() {
-  const [preferences, setPreferences] = useState(readPreferences);
-  useEffect(() => {
+  return useStoredState(STORAGE_KEY, readPreferences, preferences => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, ...preferences }));
     } catch {
       // Denied/full storage must not prevent changing settings for this session.
     }
-  }, [preferences]);
-  return [preferences, setPreferences] as const;
+  });
 }
 
 function readPreferences(): MapPreferences {
   let saved: Record<string, unknown> = {};
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (isRecord(value)) saved = value;
+    if (isRecord(value) && (value.version === undefined || value.version === 1 || value.version === 2)) saved = value;
   } catch {
     // Missing, corrupt, or inaccessible storage uses normal startup defaults.
   }
@@ -63,6 +63,7 @@ function readPreferences(): MapPreferences {
     metarEnabled: typeof saved.metarEnabled === 'boolean' ? saved.metarEnabled : true,
     ownshipEnabled: typeof saved.ownshipEnabled === 'boolean' ? saved.ownshipEnabled : true,
     terrainEnabled: typeof saved.terrainEnabled === 'boolean' ? saved.terrainEnabled : true,
+    terrainCoverage: choice(saved.terrainCoverage, ['route', 'viewport'], 'route'),
     obstructionsEnabled: typeof saved.obstructionsEnabled === 'boolean' ? saved.obstructionsEnabled : true,
     terrainAltitude: typeof saved.terrainAltitude === 'number' && Number.isFinite(saved.terrainAltitude)
       && saved.terrainAltitude >= 0 && saved.terrainAltitude <= MAX_TERRAIN_ALTITUDE

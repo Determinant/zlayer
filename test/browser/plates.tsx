@@ -5,6 +5,8 @@ import type { ProcedureResourceRecord } from '@zlayer/contracts';
 import { emptyRoutePlan } from '@zlayer/domain';
 import { fetchChartCatalog } from '../../src/workspace/catalog/catalog';
 import { LayerPanels } from '../../src/core/layers/panels';
+import { EdgePanels } from '../../src/core/ui/edge-panels';
+import type { PanelLayer } from '../../src/core/layers/product';
 import { createPlatesLayer } from '../../src/layers/plates';
 import { fetchProcedureCatalog } from '../../src/layers/plates/api';
 import { procedureDocument } from '../../src/layers/plates/data';
@@ -16,8 +18,9 @@ const metarClient = createMetarClient();
 
 const plates = createPlatesLayer();
 let failImport = true;
-const panelFixture = {
+const panelFixture: PanelLayer = {
   definition: { id: 'failure-test', title: 'Test panel' },
+  panel: { side: 'right', tab: { edge: 'top', order: 0 } },
   Panel: function FailingPanel() {
     const [Panel] = useState(() => lazy(async () => {
       if (failImport) throw new Error('Simulated lazy import failure');
@@ -33,6 +36,7 @@ function Fixture() {
   const [offline, setOffline] = useState(false);
   const [originalFetch] = useState(() => window.fetch.bind(window));
   const [airportCard, setAirportCard] = useState<{ faaId: string; resource: ProcedureResourceRecord }>();
+  const [active, setActive] = useState<string | null>(() => plates.getSnapshot().selection ? 'plate' : null);
   const open = async (kind: 'approach' | 'takeoff-minimums', fallback: boolean) => {
     try {
       setStatus('Opening plate…');
@@ -43,17 +47,20 @@ function Fixture() {
       const procedure = fallback ? { ...published, volumeTarget: null } : published;
       plates.open({ airport, procedure, document: procedureDocument(catalog, procedure, resource.url, location.href),
         cycle: catalog.cycle, effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate });
+      setActive('plate');
       setStatus('Workspace remains usable');
     } catch (error) { setStatus(String(error)); }
   };
-  return <main style={{ padding: 24 }}>
+  return <main className="workspace" style={{ height: '100dvh' }}><div className="map-stage" style={{ padding: 24 }}>
     <h1>Plate viewer regression checks</h1>
     <p>{status}</p>
     <button onClick={() => void open('approach', false)}>Hosted approach</button>{' '}
     <button onClick={() => void open('approach', true)}>FAA approach fallback</button>{' '}
     <button onClick={() => void open('takeoff-minimums', true)}>FAA named fallback</button>{' '}
     {['HWD', 'SQL', '0Q3', 'ANC', 'HNL'].map(faaId => <button key={faaId} onClick={() => {
-      void fetchChartCatalog('2026-09-03').then(catalog => setAirportCard({ faaId, resource: catalog.procedures! }));
+      void fetchChartCatalog('2026-09-03').then(catalog => {
+        setAirportCard({ faaId, resource: catalog.procedures! }); setActive('details');
+      });
     }}>Show {faaId} airport</button>)}{' '}
     <button onClick={() => {
       window.fetch = offline ? originalFetch : (input, init) => /\.pdf/i.test(String(input))
@@ -62,14 +69,17 @@ function Fixture() {
     }}>{offline ? 'Enable PDF network' : 'Disable PDF network'}</button>{' '}
     <button onClick={() => setTestFailure(true)}>Fail lazy panel</button>{' '}
     <button onClick={() => { failImport = false; }}>Allow panel retry</button>
-    {airportCard && <FeatureDetailsPanel onIdentificationChange={() => {}} key={airportCard.faaId}
-      feature={{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
-        properties: { kind: 'airport', faaId: airportCard.faaId, name: `${airportCard.faaId} fixture airport` } }}
-      metarClient={metarClient} procedureResource={airportCard.resource} revision="2026-09-03"
-      route={{ plan: emptyRoutePlan(), update: () => setStatus(`Added ${airportCard.faaId} to end of route`) }}
-      onClose={() => setAirportCard(undefined)} onOpenProcedure={plates.open} />}
-    <LayerPanels layers={testFailure ? [plates, panelFixture] : [plates]} />
-  </main>;
+    <EdgePanels side="right" active={active} onActiveChange={setActive} className="side-panels">
+      {airportCard && <FeatureDetailsPanel onIdentificationChange={() => {}} key={airportCard.faaId}
+        feature={{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+          properties: { kind: 'airport', faaId: airportCard.faaId, name: `${airportCard.faaId} fixture airport` } }}
+        metarClient={metarClient} procedureResource={airportCard.resource} revision="2026-09-03"
+        route={{ plan: emptyRoutePlan(), update: () => setStatus(`Added ${airportCard.faaId} to end of route`) }}
+        onClose={() => { setAirportCard(undefined); setActive(current => current === 'details' ? null : current); }}
+        onOpenProcedure={selection => { plates.open(selection); setActive('plate'); }} />}
+      <LayerPanels layers={testFailure ? [plates, panelFixture] : [plates]} />
+    </EdgePanels>
+  </div></main>;
 }
 
 createRoot(document.getElementById('root')!).render(<Fixture />);

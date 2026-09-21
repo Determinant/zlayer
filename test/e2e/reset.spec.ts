@@ -30,10 +30,16 @@ test('full reset requires confirmation, stops other windows, clears app storage 
     localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, longitude: -119, latitude: 34, zoom: 8, bearing: 0, pitch: 0 }));
     localStorage.setItem('zlayers.metars.v1', '[]');
     localStorage.setItem('zlayers.tafs.v1', '[]');
+    for (const key of ['plate-on-map', 'side-panel', 'identification-open', 'ahrs-mount']) {
+      localStorage.setItem(`zlayer-ui:${key}`, JSON.stringify({ version: 1, value: null }));
+    }
     sessionStorage.setItem('zlayer-test-session', 'saved');
     localStorage.setItem('unrelated-data', 'keep');
     await (await caches.open('zlayers-shell-old-release')).put('/old.js', new Response('old'));
     await (await caches.open('unrelated-cache')).put('/keep', new Response('keep'));
+    const files = await navigator.storage.getDirectory();
+    await (await files.getDirectoryHandle('zlayer-exports', { create: true })).getFileHandle('interrupted.gpx', { create: true });
+    await files.getDirectoryHandle('unrelated-files', { create: true });
   });
   const other = await context.newPage();
   await other.goto('/');
@@ -52,11 +58,16 @@ test('full reset requires confirmation, stops other windows, clears app storage 
   await remove.click();
   for (const window of [page, other]) {
     await expect(window.getByRole('heading', { name: 'Local data cleared' })).toBeVisible({ timeout: 25_000 });
-    expect(await window.evaluate(async () => ({
-      local: Object.keys(localStorage), session: Object.keys(sessionStorage),
-      caches: await caches.keys(), databases: (await indexedDB.databases()).map(db => db.name),
-      registrations: (await navigator.serviceWorker.getRegistrations()).length,
-    }))).toEqual({ local: ['unrelated-data'], session: [], caches: ['unrelated-cache'], databases: [], registrations: 0 });
+    expect(await window.evaluate(async () => {
+      const files: string[] = [];
+      for await (const name of (await navigator.storage.getDirectory()).keys()) files.push(name);
+      return {
+        local: Object.keys(localStorage), session: Object.keys(sessionStorage),
+        caches: await caches.keys(), databases: (await indexedDB.databases()).map(db => db.name),
+        registrations: (await navigator.serviceWorker.getRegistrations()).length, files,
+      };
+    })).toEqual({ local: ['unrelated-data'], session: [], caches: ['unrelated-cache'], databases: [], registrations: 0,
+      files: ['unrelated-files'] });
     expect(navigations.get(window), 'each window must load its reset screen only once').toBe(1);
   }
   await context.setOffline(false);
@@ -154,6 +165,36 @@ test('failed deletion keeps reset pending and can be retried without reopening t
   await expect(page.getByRole('heading', { name: 'Local data cleared' })).toBeVisible();
   expect(await page.evaluate(async () => ({ keys: Object.keys(localStorage), caches: await caches.keys() })))
     .toEqual({ keys: [], caches: [] });
+});
+
+test('full reset finishes when private browsing makes OPFS unavailable', async ({ page }) => {
+  await page.addInitScript(() => {
+    StorageManager.prototype.getDirectory = async () => {
+      throw new DOMException('OPFS unavailable in private browsing', 'UnknownError');
+    };
+  });
+  await page.goto('/');
+  await page.getByLabel('Settings and offline downloads').click();
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    localStorage.setItem('zlayer-test-preference', 'saved');
+    const opening = indexedDB.open('zlayer-offline', 1);
+    opening.onupgradeneeded = () => opening.result.createObjectStore('records');
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const db = opening.result, transaction = db.transaction('records', 'readwrite');
+      transaction.objectStore('records').put({ saved: true }, 'zlayer-test-record');
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  }));
+  await page.locator('.reset-settings summary').click();
+  await page.getByLabel('Type DELETE to confirm').fill('DELETE');
+  await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Local data cleared' })).toBeVisible();
+  expect(await page.evaluate(async () => ({
+    pending: localStorage.getItem('zlayer-reset-pending'), preference: localStorage.getItem('zlayer-test-preference'),
+    caches: await caches.keys(), databases: await indexedDB.databases(),
+  }))).toEqual({ pending: null, preference: null, caches: [], databases: [] });
 });
 
 test('reset still coordinates windows when service workers are unavailable', async ({ page, context }) => {

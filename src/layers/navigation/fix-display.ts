@@ -22,10 +22,13 @@ type FixEntry = {
   low: boolean;
   high: boolean;
   terminal: boolean;
-  lowAirways: Set<string>;
-  highAirways: Set<string>;
+  lowConnections: number;
+  highConnections: number;
 };
 export type FixDisplayIndex = { collection: FeatureCollectionResponse; entries: FixEntry[] };
+type RankedFix = { entry: FixEntry; tier: number; connections: number };
+// Retain only the current settings' ranking, not a GeoJSON copy for every mode.
+const rankings = new WeakMap<FixDisplayIndex, { detail: FixDetail; airspace: FixAirspace; entries: RankedFix[] }>();
 
 const TERMINAL_CHARTS = new Set(['SID', 'STAR', 'MILITARY SID', 'MILITARY STAR', 'SPECIAL DP']);
 const OCEANIC_CHARTS = new Set(['WESTERN ATLANTIC ROUTE', 'NORTH ATLANTIC ROUTE', 'NORTH PACIFIC ROUTE']);
@@ -47,14 +50,19 @@ export function indexFixDisplay(collection: FeatureCollectionResponse, airways?:
       low: oceanic || charts.includes('ENROUTE LOW') || charts.includes('AREA'),
       high: oceanic || charts.includes('ENROUTE HIGH'),
       terminal: charts.some(chart => TERMINAL_CHARTS.has(chart)),
-      lowAirways: new Set<string>(), highAirways: new Set<string>(),
+      lowConnections: 0, highConnections: 0,
     };
   });
   const byIdent = new Map<string, FixEntry[]>();
   for (const entry of entries) {
     const ident = entry.feature.properties.ident?.trim().toUpperCase();
-    if (ident) byIdent.set(ident, [...(byIdent.get(ident) ?? []), entry]);
+    if (ident) {
+      const matches = byIdent.get(ident);
+      if (matches) matches.push(entry); else byIdent.set(ident, [entry]);
+    }
   }
+  // Membership names are needed only while indexing, and only for airway fixes.
+  const memberships = new Map<FixEntry, Set<string>>();
   for (const airway of airways?.airways ?? []) {
     const ident = airway.ident.trim().toUpperCase();
     const band = /^[VT]\d+$/.test(ident) ? 'low' : /^[JQ]\d+$/.test(ident) ? 'high' : undefined;
@@ -73,7 +81,12 @@ export function indexFixDisplay(collection: FeatureCollectionResponse, airways?:
       if (candidates.length !== 1) continue;
       const entry = candidates[0]!;
       entry[band] = true;
-      (band === 'low' ? entry.lowAirways : entry.highAirways).add(ident);
+      let names = memberships.get(entry);
+      if (!names) { names = new Set(); memberships.set(entry, names); }
+      if (!names.has(ident)) {
+        names.add(ident);
+        if (band === 'low') entry.lowConnections++; else entry.highConnections++;
+      }
     }
   }
   return { collection, entries };
@@ -86,23 +99,8 @@ export function fixDisplayData(
   priorityFeatures: readonly GeoPointFeature[] = [],
 ): FeatureCollectionResponse {
   const priorityKeys = new Set(priorityFeatures.map(featureKey));
-  const airspace = settings.detail === 'all' ? 'both' : settings.airspace;
-  const ranked = index.entries.flatMap(entry => {
-    if (priorityKeys.has(featureKey(entry.feature))) return [];
-    const enroute = airspace === 'low' ? entry.low
-      : airspace === 'high' ? entry.high : entry.low || entry.high;
-    const eligible = enroute || settings.detail === 'all' ||
-      (settings.detail === 'terminal' && entry.terminal);
-    if (!eligible) return [];
-    const memberships = airspace === 'low' ? entry.lowAirways
-      : airspace === 'high' ? entry.highAirways
-      : new Set([...entry.lowAirways, ...entry.highAirways]);
-    const tier = enroute ? memberships.size > 1 ? 0 : memberships.size === 1 ? 1 : 2
-      : entry.terminal ? 3 : 4;
-    return [{ entry, tier, connections: memberships.size }];
-  });
-  ranked.sort((a, b) => a.tier - b.tier || b.connections - a.connections ||
-    fixSortKey(a.entry.feature).localeCompare(fixSortKey(b.entry.feature)));
+  // Filter before density placement: promoting a fix must still free its cells.
+  const ranked = rankedFixes(index, settings).filter(({ entry }) => !priorityKeys.has(featureKey(entry.feature)));
   const densityZoom = createDensityZoom();
   const features = ranked.map(({ entry, tier }, order) => ({
     ...entry.feature,
@@ -110,6 +108,29 @@ export function fixDisplayData(
       mapFixMinZoom: densityZoom(entry.feature, FIX_TIER_MIN_ZOOM[tier]!), mapFixPriority: order },
   }));
   return { ...index.collection, features, meta: { ...index.collection.meta, returned: features.length } };
+}
+
+function rankedFixes(index: FixDisplayIndex, settings: FixDisplaySettings): RankedFix[] {
+  const airspace = settings.detail === 'all' ? 'both' : settings.airspace;
+  const cached = rankings.get(index);
+  if (cached?.detail === settings.detail && cached.airspace === airspace) return cached.entries;
+  const ranked = index.entries.flatMap(entry => {
+    const enroute = airspace === 'low' ? entry.low
+      : airspace === 'high' ? entry.high : entry.low || entry.high;
+    const eligible = enroute || settings.detail === 'all' ||
+      (settings.detail === 'terminal' && entry.terminal);
+    if (!eligible) return [];
+    // V/T and J/Q names are disjoint, so the union's size is their sum.
+    const connections = airspace === 'low' ? entry.lowConnections
+      : airspace === 'high' ? entry.highConnections : entry.lowConnections + entry.highConnections;
+    const tier = enroute ? connections > 1 ? 0 : connections === 1 ? 1 : 2
+      : entry.terminal ? 3 : 4;
+    return [{ entry, tier, connections }];
+  });
+  ranked.sort((a, b) => a.tier - b.tier || b.connections - a.connections ||
+    fixSortKey(a.entry.feature).localeCompare(fixSortKey(b.entry.feature)));
+  rankings.set(index, { detail: settings.detail, airspace, entries: ranked });
+  return ranked;
 }
 
 /** Process highest priority first. World-anchored, nested cells keep pan/zoom stable. */

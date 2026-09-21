@@ -18,11 +18,14 @@ export function unproject([x, y]: Point): Point {
 
 /** Use resolved legs, including airway/procedure expansion; never bridge route gaps. */
 export function routeSegments(plans: readonly RoutePlan[]): Segment[] {
-  return plans.flatMap(plan => plan.legs.map(leg => {
-    const a = project(leg.from.feature.geometry.coordinates);
-    const b = project(leg.to.feature.geometry.coordinates);
-    b[0] += Math.round(a[0] - b[0]);
-    return [a, b] as Segment;
+  return plans.flatMap(plan => plan.legs.flatMap(leg => {
+    const coordinates = leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates];
+    return coordinates.slice(1).map((coordinate, index): Segment => {
+      const a = project(coordinates[index]!);
+      const b = project(coordinate);
+      b[0] += Math.round(a[0] - b[0]);
+      return [a, b];
+    });
   }));
 }
 

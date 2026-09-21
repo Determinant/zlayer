@@ -149,6 +149,25 @@ unless the zone changes. See [date and currency labels](date-time-display.md).
 
 ## Verification
 
+`npm run verify:full` is the full local CI command. Run it before committing;
+the smaller automatic GitHub check does not replace it. It runs the existing
+`verify` command, every Chromium browser test, and every graphics test in
+Chromium, Firefox, WebKit and 2× WebKit, without smoke filtering.
+
+```bash
+npx playwright install --with-deps chromium firefox webkit
+npm run verify:full
+```
+
+Suites run sequentially because tests mutate the fixture server's state. A failed
+suite does not skip subsequent suites, and any failure makes the command fail.
+Browser artifacts are kept separately under `test-results/local/browser`,
+`test-results/local/graphics` and `test-results/local/firefox`. On Linux, Firefox
+runs headed, using `xvfb-run -a` if `DISPLAY` is unset; install Xvfb when running
+without a desktop display. Missing browsers or display dependencies are failures.
+This checks the current OS; the manual GitHub matrix retains separate Linux and
+macOS coverage.
+
 `npm run verify` runs import-boundary checks, strict TypeScript, tests and the production build.
 `npm run check:imports` separately checks source ownership, persistence migration entries,
 data/worker isolation from UI runtimes, and lazy renderer/decoder loading. Node tests
@@ -172,13 +191,34 @@ On Linux, `npx playwright install --with-deps chromium` also installs required s
 libraries. Alternatively, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a working Chrome
 or Chromium executable. That override can use a different version from CI; reproduce
 CI browser failures with Playwright's installed browser before changing assertions.
-GitHub Actions runs both `verify` and the browser suite and
-retains failure traces. The full suite targets Chromium. `npm run test:graphics`
-runs the graphics, terrain, GPS rendering and plate fullscreen/pinch cases in
-Chromium, Firefox, WebKit and 2× WebKit. Separate CI jobs cover Linux Firefox/WebKit
-and macOS 2× WebKit; see [graphics setup](graphics-compatibility.md#run-the-checks)
-for browser dependencies and Linux Firefox's display requirement. Installed-device
-verification remains separate release work.
+GitHub Actions runs `npm run verify` and `npm run test:smoke` as separate jobs on
+pushes and pull requests. The smoke command selects five existing Chromium tests
+tagged `@smoke`: first-visit acknowledgment, map/WebGL recovery, GPS rendering,
+cold offline startup with saved routes and PDFs, and app updates across windows.
+It uses the same production-build server and assertions as the complete suite.
+Each automatic job has a ten-minute limit; a newer run cancels an older run for
+the same event and ref. Failure traces are retained.
+
+For focused work, `npm run test:browser` runs the full Chromium regressions
+independently. `npm run test:graphics` covers graphics,
+terrain, GPS rendering and plate fullscreen/pinch cases in Chromium, Firefox,
+WebKit and 2× WebKit; see [graphics setup](graphics-compatibility.md#run-the-checks)
+for dependencies and Linux Firefox's display requirement. Both complete suites
+remain part of full local CI. Device performance and memory benchmarks run locally;
+installed-device verification remains separate release work.
+
+For a complete hosted run, select **Actions → Verify → Run workflow**, choose
+the branch and leave **full** enabled (the default), or run:
+
+```bash
+gh workflow run verify.yml --ref main -f full=true
+```
+
+This runs the full Chromium suite (60-minute job limit), plus graphics jobs for
+Linux Firefox, WebKit and 2× WebKit, and macOS 2× WebKit (15-minute limits).
+Disable **full** to run only the ordinary verification and smoke checks manually.
+Only the full hosted run is opt-in. Full local CI retains all test coverage;
+moving suites off GitHub's automatic path does not resolve their test failures.
 
 Interactive browser fixtures, served by Vite but excluded from ordinary builds:
 
@@ -187,8 +227,15 @@ Interactive browser fixtures, served by Vite but excluded from ordinary builds:
   properties must round-trip to the priority layer without worker errors.
 - `/test/browser/plates.html`: hosted KHWD approach, individual and named-destination
   FAA fallbacks, cached reopening with PDF requests disabled, and lazy-panel recovery.
-  Each path must render a PDF.js canvas. Focus enters the named modal, Tab stays inside,
-  Escape/Close restores a keyboard opener, and the slide-in layout fits phone/tablet sizes.
+  Each path must render a PDF.js canvas. The side panel leaves the map interactive;
+  its edge tab or Escape stows it without losing the page, zoom, or scroll position.
+  Airport details and the PDF are independent windows, with one instance of each.
+  Each side has at most one unstowed panel. Switching binder tabs retains each
+  panel’s own dimensions and contents; both tabs follow the active panel’s edge.
+  Stowing the active panel leaves all panels on that side stowed. Closing or
+  changing the airport keeps the PDF loaded.
+  Full screen traps focus, Escape returns to the side panel, and Close restores focus to the opener or its stowed panel’s tab.
+  Both layouts fit phone/tablet sizes without a dimmed or blurred map backdrop.
   Airport buttons cover diagram-before-CS ordering, VFR-only airports and Alaska/Pacific books.
 - `/test/browser/routes.html`: real route interaction checks.
 - `/test/browser/route-map.html`: route labels, feature selection and map rendering.

@@ -19,13 +19,13 @@ export type NavigationLoadState = Partial<Record<NavigationLayerId, NavigationLo
 export function useNavigationData(
   catalog: CatalogReadSource | undefined,
   visibility: LayerVisibility,
-): { data: NavigationData; loadState: NavigationLoadState; issues: NavigationIssue[]; airways: AirwayDataResponse | undefined } {
+): { data: NavigationData; loadState: NavigationLoadState; loading: boolean; issues: NavigationIssue[]; airways: AirwayDataResponse | undefined } {
   const [loaded, setLoaded] = useState<Partial<Record<NavigationLayerId, {
     key: string; status: NavigationLoadStatus; collection?: FeatureCollectionResponse | undefined; issues?: NavigationIssue[];
   }>>>({});
   const online = useOnline();
   const inventoryVersion = useInventoryVersion();
-  const [airwayState, setAirwayState] = useState<{ revision: string; url: string; data: AirwayDataResponse }>();
+  const [airwayState, setAirwayState] = useState<{ revision: string; url: string; data: AirwayDataResponse | undefined }>();
   const routing = catalog ? routingCatalog(catalog) : undefined;
 
   useEffect(() => {
@@ -36,7 +36,12 @@ export function useNavigationData(
     const load = () => {
       void fetchAirways(resource, routing.revision).then(data => {
         if (!cancelled) setAirwayState({ revision: routing.revision, url: resource.url, data });
-      }).catch(() => { /* Chart-use tags still provide enroute filtering offline. */ });
+      }).catch(() => {
+        // Chart-use tags still provide enroute filtering offline. A failed
+        // optional airway request must also settle the initial loading state.
+        if (!cancelled) setAirwayState(current => current?.revision === routing.revision && current.url === resource.url
+          ? current : { revision: routing.revision, url: resource.url, data: undefined });
+      });
     };
     load();
     window.addEventListener('online', load);
@@ -63,19 +68,25 @@ export function useNavigationData(
     return () => { cancelled = true; };
   }, [catalog, visibility, online, inventoryVersion]);
 
-  const { data, loadState, issues } = useMemo(() => {
+  const { data, loadState, issues, loading } = useMemo(() => {
     const data: NavigationData = {};
     const loadState: NavigationLoadState = {};
     const issues: NavigationIssue[] = [];
+    let loading = false;
     for (const layer of catalog ? regionalNavigationLayers(catalog) : []) {
       const entry = loaded[layer.id];
-      if (!catalog || entry?.key !== navigationRequestKey(layer, routingCatalog(catalog).revision, catalog.charts, catalog)) continue;
+      if (!catalog || entry?.key !== navigationRequestKey(layer, routingCatalog(catalog).revision, catalog.charts, catalog)) {
+        if (visibility[layer.id]) loading = true;
+        continue;
+      }
+      if (visibility[layer.id] && entry.status === 'loading') loading = true;
       loadState[layer.id] = entry.status;
       if (entry.collection) data[layer.id] = entry.collection;
       if (visibility[layer.id]) issues.push(...entry.issues ?? []);
     }
-    return { data, loadState, issues };
+    return { data, loadState, issues, loading };
   }, [catalog, loaded, visibility]);
-  return { data, loadState, issues, airways: airwayState?.revision === routing?.revision &&
-    airwayState?.url === routing?.airways?.url ? airwayState?.data : undefined };
+  const airwaysCurrent = airwayState?.revision === routing?.revision && airwayState?.url === routing?.airways?.url;
+  return { data, loadState, issues, loading: loading || !!(visibility.fixes && routing?.airways && !airwaysCurrent),
+    airways: airwaysCurrent ? airwayState?.data : undefined };
 }

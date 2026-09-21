@@ -25,6 +25,9 @@ export function presentDownload(job: Download | undefined, pending: RegionOperat
     return present(status, status ?? 'Download', pending === 'start'
       ? { label: 'download', value: undefined, message: 'Preparing download…' } : undefined);
   }
+  if (pending === 'start' && !isDownloadActive(job)) {
+    return present('Starting…', 'Starting…', { label: 'download', value: undefined, message: 'Preparing download…' });
+  }
 
   const files = `${job.files.length.toLocaleString()} ${job.files.length === 1 ? 'file' : 'files'}`;
   const saved: ProgressPresentation = { label: 'download', value: job.completedFiles,

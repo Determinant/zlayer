@@ -1,6 +1,8 @@
 import type { GeoPointFeature, NavigationLayerId, SearchResult } from '@zlayer/contracts';
 import { featureIdent, featureKey, featureSubtitle } from '@zlayer/domain';
 import { navigationIssueMessages, type NavigationIssue } from './api';
+import { useRef } from 'react';
+import { useBackDismiss } from '../../core/ui/pwa-back';
 
 type SearchBoxProps = {
   query: string;
@@ -13,8 +15,10 @@ type SearchBoxProps = {
 };
 
 export function SearchBox({ query, results, loading = false, unavailable = [], issues = [], onQueryChange, onSelect }: SearchBoxProps) {
+  const root = useRef<HTMLDivElement>(null);
+  useBackDismiss(!!query, root, () => onQueryChange(''));
   return (
-    <div className="search">
+    <div ref={root} className="search">
       <input
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}

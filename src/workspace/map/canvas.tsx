@@ -20,7 +20,7 @@ export function MapCanvas({
   fixContext,
   data,
   route,
-  recommendations,
+  routePreview,
   identification,
   initialView,
   routeFocusNonce,
@@ -34,23 +34,27 @@ export function MapCanvas({
   onRouteWaypointRemove,
   metarLayer,
   ownshipLayer,
+  platesLayer,
   ownshipEnabled,
   metarEnabled,
   terrainEnabled,
+  terrainCoverage = 'route',
   obstructionsEnabled,
   terrainAltitude,
   onTerrainStatus,
   onObstructionStatus,
   onReady,
+  onIdleChange,
+  onStartupFailure,
   onError,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<MapRuntime | undefined>(undefined);
   const callbacks = useRef<MapCallbacks>({ onSelect, onViewportChange, ...(onViewChange ? { onViewChange } : {}), onRouteLegInsert,
-    onRouteWaypointReplace, onRouteWaypointRemove, onReady, onError, onTerrainStatus, onObstructionStatus });
+    onRouteWaypointReplace, onRouteWaypointRemove, onReady, onIdleChange, onStartupFailure, onError, onTerrainStatus, onObstructionStatus });
   callbacks.current = { onSelect, ...(onChooseNearby ? { onChooseNearby } : {}), onViewportChange,
     ...(onViewChange ? { onViewChange } : {}), onRouteLegInsert,
-    onRouteWaypointReplace, onRouteWaypointRemove, onReady, onError, onTerrainStatus, onObstructionStatus };
+    onRouteWaypointReplace, onRouteWaypointRemove, onReady, onIdleChange, onStartupFailure, onError, onTerrainStatus, onObstructionStatus };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -63,7 +67,7 @@ export function MapCanvas({
         fixContext,
         data,
         route,
-        recommendations,
+        routePreview,
         identification,
         ...(initialView ? { initialView } : {}),
         onSelect: (feature, routePointId) => callbacks.current.onSelect(feature, routePointId),
@@ -78,14 +82,17 @@ export function MapCanvas({
           callbacks.current.onRouteWaypointRemove(entryId),
         metarLayer,
         ownshipLayer,
+        ...(platesLayer ? { platesLayer } : {}),
         ownshipEnabled,
         metarEnabled,
         terrainEnabled,
+        terrainCoverage,
         obstructionsEnabled,
         terrainAltitude,
         onTerrainStatus: status => callbacks.current.onTerrainStatus(status),
         onObstructionStatus: status => callbacks.current.onObstructionStatus(status),
         onReady: () => callbacks.current.onReady(),
+        onIdleChange: idle => callbacks.current.onIdleChange?.(idle),
         onError: (message, code) => callbacks.current.onError(message, code),
       });
       runtimeRef.current = runtime;
@@ -94,15 +101,16 @@ export function MapCanvas({
         runtimeRef.current = undefined;
       };
     } catch (error) {
+      callbacks.current.onStartupFailure?.();
       callbacks.current.onError(error instanceof Error ? error.message : 'Unable to create WebGL map.');
       return undefined;
     }
   // Catalog/data changes are inputs to this runtime, not a new map attachment.
-  }, [metarLayer, ownshipLayer]);
+  }, [metarLayer, ownshipLayer, platesLayer]);
 
   useEffect(() => runtimeRef.current?.update({ catalog, chartSelection, visibility, fixContext,
-    metarEnabled, terrainEnabled, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, recommendations, identification }),
-  [catalog, chartSelection, visibility, fixContext, metarEnabled, terrainEnabled, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, recommendations, identification]);
+    metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification }),
+  [catalog, chartSelection, visibility, fixContext, metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled, data, route, routePreview, identification]);
   useEffect(() => {
     if (focusTarget) runtimeRef.current?.focus(focusTarget.feature);
   }, [focusTarget]);

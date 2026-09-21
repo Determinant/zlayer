@@ -17,8 +17,10 @@
     "check:imports": "node --import=tsx tools/check-imports.ts",
     "test": "node --import=tsx --test test/*.test.ts && npm run test --workspaces --if-present",
     "test:browser": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
     "test:graphics": "playwright test --config playwright.graphics.config.ts",
-    "verify": "npm run check && npm test && npm run build"
+    "verify": "npm run check && npm test && npm run build",
+    "verify:full": "node tools/verify-full.mjs"
   },
   "dependencies": {
     "@fontsource/b612": "^5.3.0",
@@ -28,8 +30,10 @@
     "comlink": "4.3.0",
     "hash-wasm": "4.12.0",
     "maplibre-gl": "6.9.0",
-    "pdfjs-dist": "5.4.624",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
     "polygon-clipping": "0.15.7",
+    "proj4": "2.22.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "sql.js": "^1.14.2",

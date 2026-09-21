@@ -1,4 +1,5 @@
 import { hasJsonReferenceIdentity, type JsonReferenceIdentity } from './json-reference.js';
+import { isApproachRoutesData, type ApproachRoutesData } from './approach-routes.js';
 import { hasUniqueStrings, isIsoDate, isNonEmptyString as text, isNonNegativeInteger as count,
   isPositiveInteger, isRecord } from './validation.js';
 
@@ -42,6 +43,7 @@ export type TerminalProceduresData = {
   type: 'ZLayerTerminalProcedures';
   metadata: { effectiveDate: string; source: string };
   procedures: TerminalProcedure[];
+  approaches?: ApproachRoutesData;
 };
 
 export function isTerminalProceduresResource(value: unknown): value is TerminalProceduresResource {
@@ -54,7 +56,8 @@ export function isTerminalProceduresData(value: unknown, revision?: string): val
   return isRecord(value) && value.type === 'ZLayerTerminalProcedures' && isRecord(value.metadata) &&
     isIsoDate(value.metadata.effectiveDate) && (revision === undefined || value.metadata.effectiveDate === revision) &&
     text(value.metadata.source) && Array.isArray(value.procedures) && value.procedures.every(isProcedure) &&
-    hasUniqueStrings(value.procedures.map(procedure => procedure.id));
+    hasUniqueStrings(value.procedures.map(procedure => procedure.id)) &&
+    (value.approaches === undefined || isApproachRoutesData(value.approaches, value.metadata.effectiveDate));
 }
 
 function airportIdent(value: unknown): value is string {

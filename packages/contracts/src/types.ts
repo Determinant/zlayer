@@ -1,4 +1,5 @@
 import type { JsonReferenceIdentity } from './json-reference.js';
+import type { TerrainSource } from './terrain.js';
 import type { RouteHistoryResource } from './route-history.js';
 import type { ChartPackageIndex } from './chart-packages.js';
 import type { PreferredRoutesResource } from './preferred-routes.js';
@@ -230,6 +231,7 @@ export type WeatherProductRecord = {
 };
 
 export type CatalogResponse = {
+  terrain?: TerrainSource;
   schemaVersion: 1;
   generatedAt: string;
   revision: string;

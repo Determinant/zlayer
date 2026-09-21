@@ -10,11 +10,13 @@ import type { ObstructionStatus } from '../../layers/obstructions';
 import { createOwnshipMapLayer } from '../../layers/ownship/map';
 import type { OwnshipLayer } from '../../layers/ownship';
 import { createNavaidIdentificationLayer } from '../../layers/navigation/identification-layer';
+import { createPlateMapLayer } from '../../layers/plates/map';
+import type { PlatesController } from '../../layers/plates/layer';
 
 /** Only products with a map contribution enter the MapLibre host. */
 export function createBuiltInMapLayers(catalog: CatalogReadSource, metar: ReturnType<typeof createMetarLayer>,
   onTerrainStatus: (status: TerrainStatus) => void, ownshipProduct: OwnshipLayer, preserveView = false,
-  onObstructionStatus: (status: ObstructionStatus) => void = () => {}) {
+  onObstructionStatus: (status: ObstructionStatus) => void = () => {}, platesProduct?: PlatesController) {
   const charts = createChartMapLayers(catalog);
   const navigation = createNavigationLayer();
   const route = createRouteLayer();
@@ -22,6 +24,7 @@ export function createBuiltInMapLayers(catalog: CatalogReadSource, metar: Return
   const terrain = createTerrainLayer(onTerrainStatus);
   const obstructions = createObstructionLayer(onObstructionStatus);
   const ownship = createOwnshipMapLayer(ownshipProduct, preserveView);
-  return { charts, terrain, obstructions, navigation, metar: metar.map, route, identification, ownship,
-    modules: [...charts, terrain, obstructions, navigation, metar.map, route, identification, ownship] };
+  const plates = platesProduct && createPlateMapLayer(platesProduct);
+  return { charts, terrain, plates, obstructions, navigation, metar: metar.map, route, identification, ownship,
+    modules: [...charts, terrain, ...(plates ? [plates] : []), obstructions, navigation, metar.map, route, identification, ownship] };
 }

@@ -1,4 +1,4 @@
-import { chartPackageUrl, type CatalogResponse } from '@zlayer/contracts';
+import { chartPackageUrl, terrainArchiveUrl, type CatalogResponse } from '@zlayer/contracts';
 import { isOnChartFeed } from '../workspace/catalog/feed';
 import { readOfflineRecord, writeOfflineRecord } from '../core/storage/database';
 import { cacheAccessKey, cacheLastUsed, noteCacheAccess } from '../core/storage/cache-access';
@@ -20,6 +20,10 @@ export function catalogResourceUrls(catalog: CatalogResponse, base: string): str
     const root = new URL(catalog.chartPackages.root, base).href;
     urls.push(...catalog.chartPackages.archives.map(file => chartPackageUrl(root, file)));
     urls.push(`${root}/manifest.json`);
+  }
+  if (catalog.terrain) {
+    const root = new URL(catalog.terrain.root, base).href;
+    urls.push(`${root}/manifest.json`, ...catalog.terrain.shards.map(shard => terrainArchiveUrl(root, shard)));
   }
   // Discovery metadata stays with the active catalog, including legacy layouts.
   for (const resource of references) {

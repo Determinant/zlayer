@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { Map as MapLibreMap, MapSourceDataEvent } from 'maplibre-gl';
 import type { FeatureCollectionResponse, GeoPointFeature } from '@zlayer/contracts';
 import { isAirportFeature, latestMetarObservation, mergeMetarsIntoAirports, setFlightCategoryDisplay } from '@zlayer/domain';
 
@@ -39,6 +39,8 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   let loading = false;
   let refresh: OnDemandRefresh | undefined;
   let unsubscribe: (() => void) | undefined;
+  let scopeDirty = true;
+  let display: { input: MetarInput; reports: MetarSnapshot['metars']['features'] } | undefined;
   const store = createLayerStore<MetarLayerSnapshot>({
     ...cache, state: { status: 'idle' }, visibleStationIds: [], weatherAirportCount: 0,
   });
@@ -61,14 +63,20 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     });
   };
   const mapData = () => {
-    const joined = mergeMetarsIntoAirports(input.airports ?? emptyAirports, cache.metars);
     // Only weather-bearing airport features enter this source. Static navigation
     // never changes when observations refresh; both sources retain FAA identities.
-    return setFlightCategoryDisplay({
-      ...joined, features: joined.features.filter(feature => feature.properties.metarStationId),
-    }, input.enabled);
+    const joined = mergeMetarsIntoAirports(input.airports ?? emptyAirports, cache.metars, { weatherOnly: true });
+    return setFlightCategoryDisplay(joined, input.enabled);
   };
-  const render = () => { if (map) syncMetarMap(map, mapData(), input.airportsVisible); };
+  const render = () => {
+    if (!map) return;
+    const reports = cache.metars.features;
+    const unchanged = display && display.input.airports === input.airports && display.input.enabled === input.enabled &&
+      reports.length === display.reports.length && reports.every((report, index) => report === display!.reports[index]);
+    syncMetarMap(map, unchanged ? undefined : mapData(), input.airportsVisible);
+    // Keep only input identities; MapLibre owns the rendered GeoJSON copy.
+    display = { input, reports };
+  };
   const demand = () => {
     refresh?.setDemand(scope, canRefresh());
     publish();
@@ -78,17 +86,26 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     scope = ids;
     demand();
   };
-  const moving = () => setScope([]);
+  const invalidateScope = () => { scopeDirty = true; };
+  const sourceChanged = (event: MapSourceDataEvent) => {
+    if (event.sourceId === 'nav-airports' || event.sourceId === METAR_SOURCE_ID) invalidateScope();
+  };
+  const moving = () => { invalidateScope(); setScope([]); };
   const rendered = () => {
-    if (map && !map.isMoving()) setScope(visibleMetarStationIds(map));
+    if (!map || map.isMoving() || !scopeDirty) return;
+    scopeDirty = false;
+    // Keep scope current even with refresh disabled, including late-loading tiles.
+    setScope(input.airportsVisible ? visibleMetarStationIds(map) : []);
   };
 
   const layer: MapLayerModule<MetarInput> = {
     id: 'metar', slot: 'weather', interactiveLayerIds: ['airports-weather-points'],
     mount(target) {
       map = target;
+      scopeDirty = true;
       cache = client.snapshot();
       installMetarLayers(map, mapData());
+      display = { input, reports: cache.metars.features };
       unsubscribe = client.subscribe(() => {
         cache = client.snapshot();
         render();
@@ -105,6 +122,10 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
         },
       });
       map.on('movestart', moving);
+      map.on('moveend', invalidateScope);
+      map.on('resize', invalidateScope);
+      map.on('sourcedata', sourceChanged);
+      map.on('styledata', invalidateScope);
       map.on('render', rendered);
       document.addEventListener('visibilitychange', demand);
       window.addEventListener('online', demand);
@@ -117,6 +138,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
         input.airportsVisible !== next.airportsVisible;
       input = next;
       if (changed) {
+        invalidateScope();
         render();
         if (!input.airportsVisible) scope = [];
         demand();
@@ -132,10 +154,15 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       window.removeEventListener('offline', demand);
       if (map) {
         map.off('movestart', moving);
+        map.off('moveend', invalidateScope);
+        map.off('resize', invalidateScope);
+        map.off('sourcedata', sourceChanged);
+        map.off('styledata', invalidateScope);
         map.off('render', rendered);
         removeLayerResources(map, METAR_LAYER_IDS, [METAR_SOURCE_ID]);
       }
       map = undefined;
+      display = undefined;
       scope = [];
       loading = false;
       publish();

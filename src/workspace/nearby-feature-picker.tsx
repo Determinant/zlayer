@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useBackDismiss } from '../core/ui/pwa-back';
 import type { NearbyFeature, SelectFeature } from './feature-selection';
 import { featureIdent, featureKey, featureSubtitle, normalizeNavaidType } from '@zlayer/domain';
 import './nearby-feature-picker.css';
@@ -10,6 +11,7 @@ export function NearbyFeaturePicker({ features, point, onSelect, onClose }: {
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  useBackDismiss(true, ref, onClose);
   const previousFocus = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(true);
   const [position, setPosition] = useState(point);

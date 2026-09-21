@@ -1,6 +1,6 @@
 import type { GeoPointFeature, NavigationData, PreferredRouteRecord } from '@zlayer/contracts';
 import { createRouteEntry, routeEntriesFromText, routeDraftFromText, routeTokenForFeature, resolvePreferredRouteEntries,
-  airportRouteIdent, type RouteAirportPair, type RouteDraft, type RouteEntry } from '@zlayer/domain';
+  airportRouteIdent, type RouteAirportPair, type RouteApproach, type RouteDraft, type RouteEntry } from '@zlayer/domain';
 
 export { routeDraftFromText, routeDraftText } from '@zlayer/domain';
 export type { RouteDraft } from '@zlayer/domain';
@@ -51,6 +51,19 @@ export function replaceRouteFeature(draft: RouteDraft, entryId: string, feature:
 export function removeRouteEntry(draft: RouteDraft, entryId: string): RouteDraft {
   const index = draft.entries.findIndex(entry => entry.id === entryId);
   return index < 0 ? draft : spliceEntries(draft, index, 1);
+}
+/** The expected entry prevents a late picker action from changing a replaced airport. */
+export function setRouteApproach(draft: RouteDraft, expected: RouteEntry, approach: RouteApproach | undefined): RouteDraft {
+  const index = draft.entries.indexOf(expected);
+  if (index < 0 || sameRouteApproach(expected.approach, approach)) return draft;
+  const { approach: _previous, ...airport } = expected;
+  return spliceEntries(draft, index, 1, [{ ...airport, ...(approach ? { approach } : {}) }]);
+}
+export function sameRouteApproach(left: RouteApproach | undefined, right: RouteApproach | undefined): boolean {
+  return left === right || !!left && !!right && left.airportId === right.airportId &&
+    left.procedureId === right.procedureId && left.name === right.name && left.cycle === right.cycle &&
+    left.entry?.routeId === right.entry?.routeId && left.entry?.transitionId === right.entry?.transitionId &&
+    left.entry?.name === right.entry?.name && left.entry?.effectiveDate === right.entry?.effectiveDate;
 }
 export function moveRouteEntry(draft: RouteDraft, fromEntryId: string, toEntryId: string): RouteDraft {
   const from = draft.entries.findIndex(entry => entry.id === fromEntryId);

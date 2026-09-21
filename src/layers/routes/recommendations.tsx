@@ -5,7 +5,8 @@ import { airportRouteIdent, preferredRouteAirports,
 import { loadRouteResources, routeResourceKey } from './resources';
 import type { RouteDraft } from './draft';
 import { RecommendationResults } from './recommendation-results';
-import type { RecommendationInset, RouteRecommendationsMap } from './suggestions';
+import type { RouteMapPreview } from './map-preview';
+import { usePreviewPanel } from './use-preview-panel';
 import { useOnline } from '../../core/use-online';
 import { usePersistentState } from '../../core/ui/use-persistent-state';
 import { isBoolean } from '../../core/storage/ui-state';
@@ -20,7 +21,7 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
   tokens: readonly string[];
   pins: RouteFeaturePins;
   onUseRoute: (draft: RouteDraft) => void;
-  onPreviewChange?: (preview: RouteRecommendationsMap | undefined) => void;
+  onPreviewChange?: (preview: RouteMapPreview | undefined) => void;
 }) {
   const [open, setOpen] = usePersistentState('recommendations-open', false, isBoolean);
   const [preserveRestoredView, setPreserveRestoredView] = useState(open);
@@ -30,11 +31,13 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
   const [loaded, setLoaded] = useState<Loaded>();
   const [failure, setFailure] = useState<{ key: string; message: string }>();
   const [attempt, setAttempt] = useState(0);
-  const [inset, setInset] = useState<RecommendationInset>({ right: 0, bottom: 0 });
   const online = useOnline();
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const inset = usePreviewPanel(open, panel, closeButton, restoreFocus => {
+    setOpen(false); if (restoreFocus) button.current?.focus();
+  }, button);
   const airports = catalog.navigation.find(layer => layer.id === 'airports');
   const key = routeResourceKey(catalog, 'recommendations');
   const canLoad = tokens.length >= 2;
@@ -60,41 +63,6 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
     return () => { cancelled = true; };
   }, [open, canLoad, airports, catalog.navigation, catalog.airways, catalog.terminalProcedures, catalog.revision, key, attempt, online]);
 
-  useEffect(() => {
-    if (!open) return;
-    closeButton.current?.focus();
-    const measure = () => {
-      const bounds = panel.current?.getBoundingClientRect();
-      if (!bounds) return;
-      const map = panel.current?.closest('.app-shell')?.querySelector('.workspace')?.getBoundingClientRect();
-      // CSS chooses the placement; measure its actual overlap with the map so
-      // safe areas, keyboards and shell rearrangements do not duplicate breakpoints here.
-      const next = getComputedStyle(panel.current!).position === 'fixed'
-        ? { right: 0, bottom: Math.max(0, Math.ceil((map?.bottom ?? innerHeight) - bounds.top)) + 8 }
-        : { right: Math.max(0, Math.ceil((map?.right ?? innerWidth) - bounds.left)) + 8, bottom: 0 };
-      setInset(current => current.right === next.right && current.bottom === next.bottom ? current : next);
-    };
-    const observer = new ResizeObserver(measure);
-    if (panel.current) observer.observe(panel.current);
-    measure();
-    window.addEventListener('resize', measure);
-    const onPointer = (event: PointerEvent) => {
-      // The comparison stays open while the user pans and zooms the map.
-      if (event.target instanceof Element && event.target.closest('.map-canvas')) return;
-      if (!panel.current?.contains(event.target as Node) && !button.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); setOpen(false); button.current?.focus(); }
-    };
-    document.addEventListener('pointerdown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', measure);
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
 
   return <>
     <span id="route-recommend-hint" className="route-recommend-hint">{HINT}</span>
@@ -102,7 +70,7 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
       aria-describedby="route-recommend-hint"
       aria-expanded={open} aria-controls={open ? 'route-recommendations' : undefined}
       aria-haspopup="dialog" onClick={() => { setPreserveRestoredView(false); setOpen(value => !value); }}>Advise</button>
-    {open && <div ref={panel} id="route-recommendations" className="route-recommendations"
+    {open && <div ref={panel} id="route-recommendations" className="route-preview-panel route-recommendations"
       role="dialog" aria-labelledby="route-recommendations-title" aria-describedby="route-recommendations-hint">
       <header className="route-recommend-header">
         <div><span className="route-recommend-caption">Route recommendations</span>

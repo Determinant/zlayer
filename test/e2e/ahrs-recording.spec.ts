@@ -35,7 +35,7 @@ async function open(page: Page) {
 async function download(page: Page) {
   const result = page.waitForEvent('download');
   await page.getByRole('region', { name: 'AHRS recordings', exact: true })
-    .getByRole('button', { name: 'Download', exact: true }).first().click();
+    .getByRole('button', { name: 'Debug log', exact: true }).first().click();
   const file = await result;
   expect(file.suggestedFilename()).toMatch(/^zlayer-ahrs-.*\.jsonl$/);
   expect(await file.failure()).toBeNull();
@@ -73,16 +73,29 @@ test('saved recordings can be deleted individually offline while active capture 
   await expect(menu.getByRole('button', { name: 'Start recording', exact: true })).toBeEnabled();
   const oldKeys = await recordingKeys(page);
   expect(oldKeys.some(key => key.startsWith('ahrs-samples:'))).toBe(true);
-  page.once('dialog', dialog => dialog.dismiss());
+  const confirmation = page.getByRole('alertdialog', { name: 'Delete recording?', exact: true });
   await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeFocused();
+  expect(await recordingKeys(page)).toEqual(oldKeys);
+  await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(confirmation).toHaveCount(0);
+  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeFocused();
+  await expect(page.getByRole('alertdialog', { name: 'Stow AHRS?', exact: true })).toHaveCount(0);
   expect(await recordingKeys(page)).toEqual(oldKeys);
 
   await menu.getByRole('button', { name: 'Start recording', exact: true }).click();
   await expect(menu.locator('li')).toHaveCount(2);
   await expect(menu.locator('li').first().getByRole('button', { name: 'Delete', exact: true })).toBeDisabled();
-  page.once('dialog', dialog => dialog.accept());
   await menu.locator('li').last().getByRole('button', { name: 'Delete', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(confirmation).toHaveCount(0);
   await expect(menu.locator('li')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Recording · open recorder', exact: true })).toBeFocused();
   await expect(menu.getByRole('button', { name: 'Stop recording', exact: true })).toBeEnabled();
   expect(await countWatches(page)).toBe(1);
   const remaining = await recordingKeys(page);
@@ -126,9 +139,54 @@ test('AHRS recorder captures live inputs, fits beside full screen, and downloads
   await menu.getByRole('button', { name: 'Stop recording', exact: true }).click();
   await expect(menu.getByRole('button', { name: 'Start recording', exact: true })).toBeEnabled();
   expect(await countWatches(page)).toBe(1); // Stopping recording leaves the estimator running.
+  await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  const confirmation = page.getByRole('alertdialog', { name: 'Delete recording?', exact: true });
+  await expect(confirmation).toBeVisible();
+  const confirmationBox = (await confirmation.boundingBox())!;
+  expect(confirmationBox.x).toBeGreaterThanOrEqual(0);
+  expect(confirmationBox.x + confirmationBox.width).toBeLessThanOrEqual(320);
+  expect(confirmationBox.y).toBeGreaterThanOrEqual(0);
+  expect(confirmationBox.y + confirmationBox.height).toBeLessThanOrEqual(568);
+  await page.screenshot({ path: testInfo.outputPath('recorder-delete-mobile.png') });
+  await page.keyboard.press('Escape');
+  await expect(confirmation).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'AHRS full screen', exact: true })).toBeVisible();
+  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeFocused();
   await page.reload();
   await page.getByRole('button', { name: 'AHRS recorder', exact: true }).click();
-  await expect(menu.getByRole('button', { name: 'Download', exact: true })).toHaveCount(1);
+  await expect(menu.getByRole('button', { name: 'Download GPX', exact: true })).toHaveCount(1);
+  const gpxDownload = page.waitForEvent('download');
+  await menu.getByRole('button', { name: 'Download GPX', exact: true }).click();
+  const gpx = await gpxDownload;
+  expect(gpx.suggestedFilename()).toMatch(/^zlayer-ahrs-.*\.gpx$/);
+  expect(await gpx.failure()).toBeNull();
+  await gpx.saveAs(testInfo.outputPath('recording.gpx'));
+  const xml = await readFile((await gpx.path())!, 'utf8');
+  const track = await page.evaluate(xml => {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const points = [...doc.getElementsByTagNameNS('http://www.topografix.com/GPX/1/1', 'trkpt')];
+    const states = [...doc.getElementsByTagNameNS('urn:zlayer:ahrs:1', 'state')];
+    return { errors: doc.getElementsByTagName('parsererror').length,
+      points: points.map(point => ({ latitude: point.getAttribute('lat'), longitude: point.getAttribute('lon'),
+        time: point.getElementsByTagName('time')[0]?.textContent, altitude: point.getElementsByTagName('ele')[0]?.textContent })),
+      states: states.map(state => ({ time: state.getAttribute('time'), phase: state.getAttribute('phase'),
+        roll: state.getAttribute('roll'), quaternion: state.getAttribute('quaternion'), headingStatus: state.getAttribute('headingStatus') })),
+      complete: doc.getElementsByTagNameNS('urn:zlayer:ahrs:1', 'recording')[0]?.getAttribute('complete') };
+  }, xml);
+  expect(track.errors).toBe(0);
+  expect(track.points.length).toBeGreaterThanOrEqual(12);
+  expect(track.points.every(point => point.latitude === '37' && point.longitude === '-122' &&
+    point.altitude === '3048' && Number.isFinite(Date.parse(point.time!)))).toBe(true);
+  expect(new Set(track.points.map(point => point.time)).size).toBe(track.points.length);
+  expect(track.states.length).toBeGreaterThan(track.points.length * 5);
+  expect(track.states.some(state => state.phase === 'ready' && state.roll !== null && state.quaternion !== null)).toBe(true);
+  expect(track.complete).toBe('true');
+  // The worker wrote an OPFS file, rather than collecting the entire export in the page.
+  expect(await page.evaluate(async () => {
+    const directory = await (await navigator.storage.getDirectory()).getDirectoryHandle('zlayer-exports');
+    for await (const [name] of directory.entries()) if (name.endsWith('.gpx')) return true;
+    return false;
+  })).toBe(true);
   const lines = await download(page);
   for (const type of ['calibrate', 'alignment', 'imu', 'gps', 'state', 'covariance', 'end'])
     expect(lines.some(line => line.type === type), type).toBe(true);
@@ -155,10 +213,70 @@ test('an interrupted recording retains a valid downloadable prefix offline', asy
   const lines = await download(page);
   expect(lines.some(line => line.type === 'imu')).toBe(true);
   expect(lines.some(line => line.type === 'end')).toBe(false);
-  page.once('dialog', dialog => dialog.accept());
+  const exported = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download GPX', exact: true }).click();
+  const gpx = await exported;
+  const xml = await readFile((await gpx.path())!, 'utf8');
+  expect(xml).toContain('complete="false"');
+  expect(xml.trim()).toMatch(/<\/gpx>$/);
   await page.getByRole('region', { name: 'AHRS recordings', exact: true }).getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Delete recording?', exact: true }).getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText('No recordings yet.', { exact: true })).toBeVisible();
   expect(await recordingKeys(page)).toEqual([]);
+});
+
+test('a recording without GPS reports a GPX error and keeps its debug log available', async ({ page }) => {
+  await mockGps(page);
+  await page.goto('/');
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
+  await page.getByRole('button', { name: 'AHRS recorder', exact: true }).click();
+  const menu = page.getByRole('region', { name: 'AHRS recordings', exact: true });
+  await menu.getByRole('button', { name: 'Start recording', exact: true }).click();
+  await menu.getByRole('button', { name: 'Stop recording', exact: true }).click();
+  await expect(menu.getByRole('button', { name: 'Start recording', exact: true })).toBeEnabled();
+  await menu.getByRole('button', { name: 'Download GPX', exact: true }).click();
+  await expect(menu.getByRole('alert')).toHaveText('No GPS positions were saved. Download the debug log instead.');
+  expect(await page.evaluate(async () => {
+    const directory = await (await navigator.storage.getDirectory()).getDirectoryHandle('zlayer-exports');
+    let count = 0;
+    for await (const _ of directory.keys()) count++;
+    return count;
+  })).toBe(0);
+  expect((await download(page)).at(-1).type).toBe('end');
+});
+
+test('cancelling an export terminates its worker and leaves the recording downloadable', async ({ page }) => {
+  await page.clock.install();
+  await open(page);
+  await page.clock.runFor(3000);
+  await page.getByRole('button', { name: 'Recording · open recorder', exact: true }).click();
+  const menu = page.getByRole('region', { name: 'AHRS recordings', exact: true });
+  await menu.getByRole('button', { name: 'Stop recording', exact: true }).click();
+  await expect(menu.getByRole('button', { name: 'Start recording', exact: true })).toBeEnabled();
+  await page.evaluate(() => {
+    const Original = Worker;
+    window.Worker = class extends Original {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        if (!String(url).includes('recording-export')) return;
+        // Hold the RPC so cancellation happens before an export finishes.
+        this.postMessage = () => {};
+        const terminate = this.terminate.bind(this);
+        this.terminate = () => {
+          terminate(); window.Worker = Original;
+          document.documentElement.dataset.exportTerminated = 'true';
+        };
+      }
+    };
+  });
+  await menu.getByRole('button', { name: 'Download GPX', exact: true }).click();
+  await expect(menu.getByRole('button', { name: 'Preparing…', exact: true })).toBeDisabled();
+  await menu.getByRole('button', { name: 'Cancel download', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-export-terminated', 'true');
+  await expect(menu.getByRole('button', { name: 'Download GPX', exact: true })).toBeEnabled();
+  await expect(menu.getByRole('alert')).toHaveCount(0);
+  expect((await download(page)).at(-1).type).toBe('end');
 });
 
 test('a failed recording deletion rolls back metadata and chunks and remains downloadable', async ({ page }) => {
@@ -177,8 +295,8 @@ test('a failed recording deletion rolls back metadata and chunks and remains dow
       return remove.call(this, key);
     };
   });
-  page.once('dialog', dialog => dialog.accept());
   await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Delete recording?', exact: true }).getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(menu.getByRole('alert')).toContainText('Deletion failed');
   expect(await recordingKeys(page)).toEqual(before);
   expect((await download(page)).at(-1).type).toBe('end');

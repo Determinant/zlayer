@@ -18,13 +18,16 @@ function fixture(t: test.TestContext) {
       infos.set(info.id, structuredClone(info));
     },
     async list() { return [...infos.values()]; },
-    async download(info) { return new Blob(chunks.get(info.id)!.slice(0, info.chunks)); },
+    async *read(info) { yield* chunks.get(info.id)!.slice(0, info.chunks); },
     async remove(id) { infos.delete(id); chunks.delete(id); },
   };
   const recorder = createAhrsRecorder(storage, { now: () => 10, epoch: () => 1_800_000_000_000, id: () => String(++nextId) });
   t.after(() => recorder.stop());
-  const events = async () => (await (await storage.download(recorder.getSnapshot().info!)).text())
-    .trim().split('\n').map(line => JSON.parse(line));
+  const events = async () => {
+    const parts = [];
+    for await (const chunk of storage.read(recorder.getSnapshot().info!)) parts.push(chunk);
+    return (await new Blob(parts).text()).trim().split('\n').map(line => JSON.parse(line));
+  };
   return { recorder, storage, infos, chunks, events, fail: () => { failure = true; } };
 }
 

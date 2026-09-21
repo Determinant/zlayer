@@ -1,0 +1,171 @@
+{
+  "source": {
+    "terminalUrl": "https://charts.tedyin.com/charts/2026-09-03/nav/terminal-procedures.json",
+    "cifpUrl": "https://aeronav.faa.gov/Upload_313-d/cifp/CIFP_260903.zip",
+    "plateUrl": "https://aeronav.faa.gov/d-tpp/2609/00410IL32R.PDF"
+  },
+  "type": "ZLayerTerminalProcedures",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA 28-day NASR DP/STAR subscription"
+  },
+  "procedures": [],
+  "approaches": {
+    "type": "ZLayerApproachRoutes",
+    "metadata": {
+      "effectiveDate": "2026-09-03",
+      "source": "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/"
+    },
+    "procedures": [
+      {
+        "id": "KNUQ:I32R",
+        "airport": "KNUQ",
+        "ident": "I32R",
+        "magneticVariation": 16,
+        "transitions": [
+          {
+            "id": "ZAPEP",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "ZAPEP",
+                  "coordinate": [
+                    -121.87833333333333,
+                    37.08426111111111
+                  ],
+                  "role": "IAF"
+                }
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "AGAPE",
+                  "coordinate": [
+                    -121.90738333333334,
+                    37.141275
+                  ],
+                  "role": "IF"
+                },
+                "magneticCourse": 321.7,
+                "distance": 3.6
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "AGAPE",
+              "coordinate": [
+                -121.90738333333334,
+                37.141275
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "RIROC",
+              "coordinate": [
+                -121.93541388888889,
+                37.19624722222222
+              ]
+            },
+            "magneticCourse": 322,
+            "distance": 3.5
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "ORZOS",
+              "coordinate": [
+                -121.95530000000001,
+                37.235175
+              ]
+            },
+            "magneticCourse": 322,
+            "distance": 2.5
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "JULUD",
+              "coordinate": [
+                -121.97015,
+                37.26421388888889
+              ]
+            },
+            "magneticCourse": 322,
+            "distance": 1.9
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "EBIYI",
+              "coordinate": [
+                -121.99281666666667,
+                37.30848888888889
+              ],
+              "role": "FAF"
+            },
+            "magneticCourse": 322,
+            "distance": 2.9
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "RW32R",
+              "coordinate": [
+                -122.04284722222222,
+                37.40603888888889
+              ],
+              "role": "MAP"
+            },
+            "magneticCourse": 322,
+            "distance": 6.3
+          },
+          {
+            "path": "CA",
+            "missed": true,
+            "magneticCourse": 321.7
+          },
+          {
+            "path": "VI",
+            "missed": true,
+            "magneticCourse": 310
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "OAK",
+              "coordinate": [
+                -122.22359166666666,
+                37.725925000000004
+              ]
+            },
+            "missed": true,
+            "magneticCourse": 319,
+            "distance": 19
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "OAK",
+              "coordinate": [
+                -122.22359166666666,
+                37.725925000000004
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 139,
+            "holdMinutes": 1
+          }
+        ]
+      }
+    ]
+  }
+}

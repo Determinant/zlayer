@@ -1,0 +1,12 @@
+.side-panels { --edge-handle-width: max(32px, var(--touch-target)); z-index: 12; }
+/* Layer-owned slots remain fixed relative to the map, independent of content. */
+.side-panels > .edge-panel-tabs {
+  /* Align the lowest slot with the terrain tab on the left. */
+  bottom: 56px;
+}
+@media (max-height: 440px) {
+  .side-panels > .edge-panel-tabs { bottom: 8px; }
+  .workspace:has(.side-panels [data-edge-tab]) .maplibregl-ctrl-bottom-right {
+    right: max(32px, var(--touch-target));
+  }
+}

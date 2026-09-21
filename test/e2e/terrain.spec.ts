@@ -3,6 +3,7 @@ import { corridorDistance, corridorOpacity, project, type Point, type Segment } 
 import { METERS_TO_FEET } from '../../src/layers/terrain/contours';
 import { terrainColor, TERRAIN_FILL_OPACITY } from '../../src/layers/terrain/palette';
 import { terrainMeters } from './terrain-fixture.mjs';
+import { clearanceColor } from '../../src/layers/terrain/clearance';
 
 test('the 8 NM fade stays transparent with reduced-precision texture sampling', async ({ browser }, testInfo) => {
   const viewport = { width: 1100, height: 850 }, density = 3, zoom = 9.35;
@@ -74,11 +75,21 @@ test('terrain renders through the real worker and map, changes intervals, clears
   const requests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (request.url().includes('/terrain/')) requests.push(request.url()); });
+  const corridor = () => page.evaluate(() => window.terrainMapAudit.map
+    .queryRenderedFeatures(undefined, { layers: ['route-terrain-corridor-line'] }).length);
   await page.goto('/test/browser/terrain.html');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true', { timeout: 30_000 });
   await expect(page.locator('body')).toHaveAttribute('data-terrain-labels-above-route', 'true');
+  await expect(page.locator('body')).toHaveAttribute('data-terrain-labels-below-waypoints', 'true');
+  await expect(page.locator('.terrain-corridor-key')).toHaveText('4 NM each side');
+  await expect.poll(corridor).toBeGreaterThan(0);
+  expect(await page.evaluate(() => {
+    const order = window.terrainMapAudit.map.getStyle().layers.map(layer => layer.id);
+    return order.indexOf('route-terrain-corridor-line') > order.indexOf('route-terrain-outlines') &&
+      order.indexOf('route-terrain-corridor-line') < order.indexOf('route-line');
+  })).toBe(true);
   await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
@@ -104,18 +115,24 @@ test('terrain renders through the real worker and map, changes intervals, clears
   await page.getByRole('button', { name: 'Clear route' }).click();
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
   await expect(page.locator('body')).toHaveAttribute('data-contour-features', '0');
-  await expect(page.getByLabel('Route terrain elevation')).toHaveCount(0);
+  await expect.poll(corridor).toBe(0);
+  await expect(page.locator('.terrain-corridor-key')).toHaveCount(0);
+  await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
   await page.getByRole('button', { name: 'Restore route' }).click();
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
-  await page.getByRole('switch').click();
-  await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await page.locator('.terrain-section').getByRole('switch').click();
+  await expect(page.locator('.terrain-section').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
-  await page.getByRole('switch').click();
+  await expect.poll(corridor).toBe(0);
+  await expect(page.locator('.terrain-corridor-key')).toHaveCount(0);
+  await page.locator('.terrain-section').getByRole('switch').click();
   await page.getByRole('button', { name: 'Remount' }).click();
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true', { timeout: 30_000 });
   await expect(page.locator('body')).toHaveAttribute('data-terrain-labels-above-route', 'true');
+  await expect(page.locator('body')).toHaveAttribute('data-terrain-labels-below-waypoints', 'true');
+  await expect.poll(corridor).toBeGreaterThan(0);
   await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
   await expect(page.getByTestId('errors')).toBeEmpty();
   expect(errors).toEqual([]);
@@ -191,7 +208,7 @@ test('terrain help stays tucked away until hovered, focused or tapped', async ({
   const help = page.getByRole('tooltip');
   await expect(help).toHaveCount(0);
   await info.hover();
-  await expect(help).toContainText('Full color within 4 NM');
+  await expect(help).toContainText('Dashed edges mark 4 NM on each side');
   await help.hover();
   await expect(help).toBeVisible();
   await page.mouse.move(800, 100);
@@ -204,7 +221,7 @@ test('terrain help stays tucked away until hovered, focused or tapped', async ({
   await expect(help).toBeVisible();
   await page.mouse.click(800, 100);
   await expect(help).toHaveCount(0);
-  await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.terrain-section').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: browserName !== 'firefox' });
   try {
     const phone = await context.newPage();
@@ -215,7 +232,7 @@ test('terrain help stays tucked away until hovered, focused or tapped', async ({
     await phone.screenshot({ path: testInfo.outputPath('terrain-help-phone.png') });
     await phone.touchscreen.tap(360, 450);
     await expect(phone.getByRole('tooltip')).toHaveCount(0);
-    await expect(phone.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    await expect(phone.locator('.terrain-section').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   } finally { await context.close(); }
 });
 
@@ -229,6 +246,7 @@ test('zoomed-out terrain shows a toolbox hint without downloading elevation', as
   const legend = page.getByLabel('Route terrain elevation');
   const hint = legend.getByText('Zoom in to see terrain contours');
   await expect(hint).toBeVisible();
+  await expect(page.locator('.terrain-corridor-key')).toHaveCount(0);
   expect(requests).toHaveLength(0);
   await legend.getByRole('tab', { name: 'Clearance', exact: true }).click();
   await expect(hint).toBeVisible();
@@ -335,7 +353,7 @@ test('terrain fetch failure is visible and clearing a loading route cannot resto
   await page.getByRole('button', { name: 'Restore route' }).click();
   await page.getByRole('button', { name: 'Clear route' }).click();
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
-  await expect(page.getByLabel('Route terrain elevation')).toHaveCount(0);
+  await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
 });
 
 test('phone terrain stays responsive to touch and releases its worker when disabled', async ({ browser, browserName }, testInfo) => {
@@ -396,10 +414,10 @@ test('phone terrain stays responsive to touch and releases its worker when disab
     expect(await workers()).toEqual({ live: 1, peak: 1, created: 1 });
     await page.screenshot({ path: testInfo.outputPath('terrain-phone-throttled.png') });
     for (let i = 0; i < 3; i++) {
-      await page.getByRole('switch').tap();
+      await page.locator('.terrain-section').getByRole('switch').tap();
       await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
       await expect.poll(async () => (await workers()).live).toBe(0);
-      await page.getByRole('switch').tap();
+      await page.locator('.terrain-section').getByRole('switch').tap();
       await ready();
       expect((await workers()).live).toBe(1);
     }
@@ -472,6 +490,9 @@ test('altitude controls change clearance colors while reusing elevation and cont
   await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true');
   expect(await coreColor()).toEqual(await coreColor(1100)); // Same base map as outside the terrain corridor.
   await page.screenshot({ path: testInfo.outputPath('terrain-clearance-unshaded.png') });
+  await expect(legend.locator('.terrain-corridor-key')).toBeVisible();
+  expect(await page.evaluate(() => window.terrainMapAudit.map
+    .queryRenderedFeatures(undefined, { layers: ['route-terrain-corridor-line'] }).length)).toBeGreaterThan(0);
   await expect(page.locator('body')).toHaveAttribute('data-contour-updates', contourUpdates!);
   expect(requests.length).toBe(before);
   await elevationTab.click();
@@ -531,4 +552,161 @@ test('altitude controls change clearance colors while reusing elevation and cont
   expect(requests.length).toBe(before);
   await expect(page.getByTestId('errors')).toBeEmpty();
   expect(errors).toEqual([]);
+});
+
+test('viewport colors native elevations beyond the route and reuses tiles across altitude and route changes', async ({ page }, testInfo) => {
+  const requests: string[] = [];
+  page.on('request', request => { if (request.url().includes('/terrain/')) requests.push(request.url()); });
+  await page.goto('/test/browser/terrain.html');
+  const ready = async () => {
+    await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true');
+  };
+  await ready();
+  await expect(page.locator('.terrain-section').getByRole('button', { name: 'Route', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Route terrain elevation').getByRole('button', { name: 'Viewport', exact: true }).click();
+  await ready();
+  await expect(page.locator('body')).toHaveAttribute('data-contour-features', '0');
+  await expect(page.locator('body')).toHaveAttribute('data-published-contours', '0');
+  const legend = page.getByLabel('Viewport terrain elevation');
+  await expect(page.locator('.terrain-corridor-key')).toHaveCount(0);
+  expect(await page.evaluate(() => !!window.terrainMapAudit.map.getSource('route-terrain-corridor'))).toBe(false);
+  const source = await page.locator('body').getAttribute('data-terrain-source');
+  const contours = await page.locator('body').getAttribute('data-contour-updates');
+  const before = requests.length;
+  // Clear route symbols before comparing pixels: waypoint labels can extend
+  // beyond the route line and otherwise obscure valid terrain colors.
+  await page.getByRole('button', { name: 'Clear route', exact: true }).click();
+  await ready();
+  const viewport = page.viewportSize()!;
+  const center = project([-122.12, 37.42]), worldSize = 512 * 2 ** 9;
+  const segments: Segment[] = [[project([-122.35, 37.5]), project([-122.1, 37.5])],
+    [project([-122.1, 37.5]), project([-121.85, 37.2])]];
+  for (const altitude of [null, 4500] as const) {
+    if (altitude !== null) {
+      const styles = Number(await page.locator('body').getAttribute('data-style-updates'));
+      await legend.getByRole('tab', { name: 'Clearance', exact: true }).click();
+      await expect.poll(() => page.locator('body').getAttribute('data-style-updates').then(Number)).toBeGreaterThan(styles);
+      await ready();
+    }
+    const samples: { x: number; y: number; rgb: number[] }[] = [];
+    let outside = 0;
+    for (let y = 180; y < viewport.height - 80; y += 80) for (let x = 380; x < viewport.width - 60; x += 80) {
+      const point: Point = [center[0] + (x + 0.5 - viewport.width / 2) / worldSize,
+        center[1] + (y + 0.5 - viewport.height / 2) / worldSize];
+      const distance = corridorDistance(point, segments);
+      if (distance < 0.5) continue; // Exclude the independently rendered route line.
+      // Sample the native DEM pixel center (zoom 10 at this display scale).
+      const height = Math.ceil(terrainMeters(...point.map(v => (Math.floor(v * 262144) + 0.5) / 262144) as Point) * METERS_TO_FEET);
+      if (altitude !== null && [0, 500, 1000, 2000].some(boundary => Math.abs(altitude - height - boundary) < 15)) continue;
+      const hex = altitude === null ? undefined : clearanceColor(altitude - height);
+      const rgb = hex ? [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) : terrainColor(height);
+      const alpha = hex === '#00000000' ? 0 : TERRAIN_FILL_OPACITY;
+      samples.push({ x, y, rgb: [238, 234, 225].map((base, i) => Math.round(base * (1 - alpha) + rgb[i]! * alpha)) });
+      if (distance > 8) outside++;
+    }
+    expect(outside).toBeGreaterThan(10);
+    const colors = await page.locator('.maplibregl-canvas').evaluate((element, samples) => {
+      const canvas = element as HTMLCanvasElement, gl = canvas.getContext('webgl2')!;
+      const scale = canvas.width / canvas.clientWidth;
+      return samples.map(({ x, y }) => {
+        const pixel = new Uint8Array(4);
+        gl.readPixels(Math.floor((x + 0.5) * scale), canvas.height - Math.floor((y + 0.5) * scale) - 1,
+          1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        return [...pixel].slice(0, 3);
+      });
+    }, samples);
+    for (const [i, sample] of samples.entries()) {
+      expect(Math.max(...sample.rgb.map((v, c) => Math.abs(v - colors[i]![c]!))),
+        `Viewport color at ${sample.x},${sample.y}, altitude ${altitude}`).toBeLessThanOrEqual(6);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`terrain-viewport-${altitude === null ? 'elevation' : 'clearance'}.png`) });
+  }
+  await page.getByRole('button', { name: 'Clear route', exact: true }).click();
+  await ready();
+  await expect(legend).toBeVisible();
+  await page.getByRole('button', { name: 'Restore route', exact: true }).click();
+  await ready();
+  await expect(page.locator('body')).toHaveAttribute('data-terrain-source', source!);
+  await expect(page.locator('body')).toHaveAttribute('data-contour-updates', contours!);
+  expect(requests.length).toBe(before);
+  await page.getByRole('button', { name: 'Pan away', exact: true }).click();
+  await ready();
+  expect(requests.length).toBeGreaterThan(before);
+  await page.getByRole('button', { name: 'Return to route', exact: true }).click();
+  await ready();
+  await legend.getByRole('button', { name: 'Route', exact: true }).click();
+  await ready();
+  await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
+  await expect(page.getByLabel('Route terrain elevation').getByRole('spinbutton', { name: 'Selected altitude' })).toHaveValue('4500');
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+test('viewport works without a route below contour zoom, retries failures and disables cleanly', async ({ page }, testInfo) => {
+  await page.goto('/test/browser/terrain.html?zoom=6');
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'zoom');
+  await page.getByRole('button', { name: 'Clear route', exact: true }).click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
+  await page.route('**/terrain/**', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.locator('.terrain-section').getByRole('button', { name: 'Viewport', exact: true }).click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'error', { timeout: 30_000 });
+  await expect(page.getByLabel('Viewport terrain elevation')).toContainText('Terrain incomplete');
+  await page.unroute('**/terrain/**');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true');
+  await expect(page.locator('body')).toHaveAttribute('data-published-contours', '0');
+  await page.screenshot({ path: testInfo.outputPath('terrain-viewport-wide.png') });
+  await page.locator('.terrain-section').getByRole('switch').click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
+  await expect(page.getByLabel('Viewport terrain elevation')).toContainText('Terrain is off');
+  await page.locator('.terrain-section').getByRole('switch').click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Remount', exact: true }).click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await page.getByLabel('Viewport terrain elevation').getByRole('button', { name: 'Route', exact: true }).click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'idle');
+  await page.getByRole('button', { name: 'Restore route', exact: true }).click();
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'zoom');
+});
+
+test('terrain toolbox stays available without a route or while disabled, and remembers viewport preferences', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('zlayers-map-preferences-v1')) localStorage.setItem('zlayers-map-preferences-v1',
+      JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: false }));
+  });
+  await page.goto('/');
+  const routeLegend = page.getByLabel('Route terrain elevation');
+  await expect(routeLegend).toContainText('Add a route or select Viewport');
+  await routeLegend.getByRole('button', { name: 'Viewport', exact: true }).click();
+  await page.getByRole('button', { name: 'Open map layers', exact: true }).click();
+  const section = page.locator('.terrain-section');
+  await expect(section.getByRole('button', { name: 'Viewport', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await section.getByRole('button', { name: 'Route', exact: true }).click();
+  await section.getByRole('button', { name: 'Viewport', exact: true }).click();
+  await expect(section).toContainText('Entire viewport', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Close map layers', exact: true }).click();
+  const legend = page.getByLabel('Viewport terrain elevation');
+  await expect(legend).toBeVisible();
+  await legend.getByRole('tab', { name: 'Clearance', exact: true }).click();
+  await legend.getByRole('spinbutton', { name: 'Selected altitude' }).fill('6500');
+  await legend.getByRole('spinbutton', { name: 'Selected altitude' }).press('Enter');
+  await page.reload();
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText('Entire viewport', { timeout: 30_000 });
+  await expect(legend.getByRole('button', { name: 'Viewport', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(legend.getByRole('spinbutton', { name: 'Selected altitude' })).toHaveValue('6500');
+  await page.screenshot({ path: testInfo.outputPath('terrain-viewport-workspace-phone.png') });
+  await legend.getByRole('button', { name: 'Route', exact: true }).click();
+  await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
+  await expect(page.getByRole('button', { name: 'Hide terrain toolbox', exact: true })).toBeVisible();
+  await routeLegend.getByRole('button', { name: 'Viewport', exact: true }).click();
+  await legend.getByRole('switch', { name: 'Show terrain', exact: true }).click();
+  await expect(legend).toContainText('Terrain is off');
+  await page.reload();
+  await expect(legend).toContainText('Terrain is off');
+  await expect(legend.getByRole('switch', { name: 'Show terrain', exact: true })).toHaveAttribute('aria-checked', 'false');
+  await legend.getByRole('switch', { name: 'Show terrain', exact: true }).click();
+  await expect(legend).toContainText('Entire viewport', { timeout: 30_000 });
 });

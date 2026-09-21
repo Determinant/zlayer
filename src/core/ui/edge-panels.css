@@ -1,0 +1,66 @@
+@property --edge-panel-reveal { syntax: '<number>'; inherits: true; initial-value: 0; }
+.edge-panels {
+  position: absolute; inset: 0; pointer-events: none;
+  --edge-handle-width: max(32px, var(--touch-target, 0px));
+  --edge-panel-reveal: 0;
+  transition: --edge-panel-reveal 180ms ease;
+}
+.edge-panels[data-revealed] { --edge-panel-reveal: 1; }
+@starting-style { .edge-panels[data-revealed] { --edge-panel-reveal: 0; } }
+.edge-panel-tabs {
+  position: absolute; top: 0; bottom: 0;
+  width: var(--edge-handle-width); pointer-events: none;
+}
+.edge-panels.is-left { --edge-panel-direction: -1; }
+.edge-panels.is-right { --edge-panel-direction: 1; }
+.edge-panels.is-left > .edge-panel-tabs { left: 0; }
+.edge-panels.is-right > .edge-panel-tabs { right: 0; }
+.edge-panels:has(:modal) > .edge-panel-tabs { visibility: hidden; }
+.edge-panels :modal { pointer-events: auto; }
+.edge-panels > .edge-panel.is-presented { z-index: 1; }
+.edge-panel-tabs > [data-edge-tab] { position: absolute; z-index: 0; }
+.edge-panel-tabs > .is-presented {
+  z-index: 2;
+  transform: translateX(calc(-1 * var(--edge-panel-direction) * var(--edge-panel-offset, 0px) * var(--edge-panel-reveal)));
+}
+.edge-panel-body {
+  visibility: hidden; pointer-events: none;
+  transition: transform 180ms ease, visibility 0s linear 180ms;
+}
+.edge-panel.is-open > .edge-panel-body {
+  visibility: visible; pointer-events: auto;
+  transform: translateX(0); transition: transform 180ms ease;
+}
+/* One animated fraction drives both the panel and its own tab, including when
+ * dimensions change during a slide. Standalone panels retain the fallback above. */
+.edge-panels > .edge-panel > .edge-panel-body {
+  visibility: hidden; transition: none;
+  transform: translateX(calc(var(--edge-panel-direction) * var(--edge-panel-offset, 0px) * (1 - var(--edge-panel-reveal))));
+}
+.edge-panels > .edge-panel.is-presented > .edge-panel-body { visibility: visible; }
+.edge-panels > .edge-panel > .edge-panel-body:modal { transform: none; }
+/* Compact panels carry their own handle. The same reveal fraction and
+ * direction apply on either edge; feature CSS only supplies their dimensions. */
+.edge-panels.has-individual-tabs > .edge-panel {
+  transform: translateX(calc(var(--edge-panel-direction) * (100% - var(--edge-handle-width))));
+}
+.edge-panels.has-individual-tabs > .edge-panel.is-presented {
+  transform: translateX(calc(var(--edge-panel-direction) * var(--edge-panel-offset) * (1 - var(--edge-panel-reveal))));
+}
+.edge-panels.has-individual-tabs > .edge-panel > .edge-panel-body { transform: none; }
+.edge-panels.is-left.has-individual-tabs > .edge-panel > .edge-panel-body { order: -1; }
+.edge-panels.is-right.has-individual-tabs > .edge-panel > .edge-panel-body { order: 1; }
+
+.edge-panel-window {
+  position: absolute; top: 0; bottom: 0; right: 0; display: flex; align-items: stretch;
+  width: min(320px, calc(100% - var(--edge-handle-width) - 8px)); max-height: 100%; pointer-events: none;
+}
+.edge-panels.is-left > .edge-panel-window { left: 0; right: auto; }
+.edge-panels.has-individual-tabs > .edge-panel-window { bottom: auto; align-items: flex-start; }
+.edge-panel-content {
+  flex: 1 1 auto; min-width: 0; max-height: inherit; overflow: auto; overscroll-behavior: contain;
+  padding: 12px; border-radius: 9px; background: #07101d; color: #d9e9f2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .edge-panels, .edge-panel-body, .edge-panel.is-open > .edge-panel-body { transition: none; }
+}

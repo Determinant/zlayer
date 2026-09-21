@@ -156,7 +156,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     if (fix && time > lastFix && time <= environment.now() + 0.1) {
       lastFix = time;
       const sample = { time, accuracy: fix.accuracy, speed: fix.speed, track: fix.track, estimated: fix.estimated };
-      alignment.observeGps(sample);
+      if (phase === 'calibrating') alignment.observeGps(sample);
       if (hasAlignment && live) filter.updateGps({ ...sample, altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
     }
     publish();
@@ -206,6 +206,9 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
           filter.update({ time: candidate.time, gyro: bias, specificForce: rotate(trim, candidate.specificForce) });
           if (heading !== undefined) filter.alignHeading(heading);
           if (magneticMessage) filter.magneticUnavailable(magneticMessage);
+          // The applied trim/bias own the calibration result. Its raw window is
+          // no longer needed for display reads or subsequent GPS observations.
+          alignment.reset();
           hasAlignment = true;
           phase = 'ready';
           message = '';
@@ -246,6 +249,9 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     void recorder.stop();
     release();
     phase = 'idle'; hasAlignment = false; message = ''; motionIssue = false;
+    // The layer stays mounted when stopped. Release replay covariances and the
+    // independent heading trajectory instead of retaining the last session.
+    filter.reset();
     alignment.reset();
     store.publish(initial());
   };
@@ -282,6 +288,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       release();
       const session = generation;
       phase = 'requesting'; message = ''; hasAlignment = false; motionIssue = false;
+      filter.reset();
       magneticMessage = '';
       lastImu = lastFix = -Infinity;
       heading = trueHeading;

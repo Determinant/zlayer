@@ -1,13 +1,14 @@
-# Route terrain
+# Terrain
 
 `src/layers/terrain/` owns the elevation client, worker, contour rendering, labels,
 controls and map lifecycle. Workspace composition passes the displayed route plans
-and saved visibility/altitude preferences. Terrain is enabled by default (including
-older preferences without a terrain setting); an explicit saved Off choice is respected. It has no demand
+and saved visibility/coverage/altitude preferences. Terrain is enabled by default (including
+older preferences without a terrain setting); an explicit saved Off choice is respected.
+Coverage defaults to **Route**. In Route mode it has no demand
 until a resolved leg is displayed. Expanded airway/procedure legs and displayed
 route recommendations participate; unresolved route gaps do not.
 
-## Display
+## Route display
 
 - The layer menu keeps terrain help behind an info icon, available on hover,
   keyboard focus or tap. Escape or an outside press dismisses the help.
@@ -17,6 +18,12 @@ route recommendations participate; unresolved route gaps do not.
   rounded; joins and overlapping legs use minimum distance, never stacked alpha.
 - The mask follows the displayed Mercator leg with latitude-adjusted ground
   distance and shortest-world wrapping across the antimeridian.
+- A fine white dashed boundary with a narrow black trim marks the **4 NM edge on
+  each side**. It follows the same distance calculation as the mask, merges
+  overlapping legs without internal seams, and has rounded ends. The unfilled
+  boundary draws above contours and below routes, at the same zooms as route
+  terrain. A matching legend key identifies its width. It updates with route
+  geometry, not pans or altitude changes, and is absent in Viewport coverage.
 - Broad 1,000 ft elevation regions have prominent outlines even at overview scales;
   tile zoom 11 adds 500 ft regions and outlines. Major contours use dark brown
   strokes at 98% opacity. Their width grows smoothly from 1–1.4px at overview
@@ -33,7 +40,7 @@ route recommendations participate; unresolved route gaps do not.
   interpolates heights, then quantizes to flat region colors at screen resolution.
   It never blurs colored fills or opacity to soften elevation boundaries. Nearest
   raster resampling preserves the distinct regions during fractional zooming.
-  Each DEM subtile is written directly to its final canvas offset with
+  Each display DEM subtile is written directly to its final canvas offset with
   `putImageData` on a readback-friendly pixel canvas. CPU-oriented storage avoids
   the accelerated cross-thread bitmap corruption reproduced in WebKit; direct
   writes alone were insufficient. See [graphics compatibility](graphics-compatibility.md).
@@ -56,6 +63,48 @@ route recommendations participate; unresolved route gaps do not.
   Below zoom 8, a prominent **Zoom in to see terrain contours** hint appears above
   both toolbox tabs; no elevation tiles are loaded and the hint disappears on zooming in.
 
+## Viewport coverage
+
+The **Route / Viewport** buttons in Layers and the terrain toolbox select coverage
+independently of **Elevation / Clearance** coloring. The coverage choice persists;
+older, missing or invalid preferences select Route. The terrain toolbox tab always
+stays available, including without a route and when terrain is disabled. Its On/Off
+switch controls the same preference as Layers. Route mode without a leg explains
+that a route or Viewport coverage is needed; it makes no elevation requests.
+
+Viewport shades all visible tiles without requiring a route. It skips corridor
+distance calculations, contour tracing, vector sources and terrain labels. It uses
+the same elevation reader, packaged sources, request limits and decoded cache as
+Route. Each display tile reads at most four native 256px DEMs, one source zoom
+above the display tile and capped at DEM zoom 13. Unlike Route, Viewport also
+loads coarser tiles below display zoom 8; available source detail determines what
+small features can be seen.
+
+The worker stores integer feet in RGB (`R * 65536 + G * 256 + B - 40000`), rounding
+each valid native sample upward by less than one foot. Encoding precision is not
+source accuracy. Zero bytes denote missing data and always render transparently;
+visible missing/failed tiles report incomplete terrain. At the maximum source
+zoom, nearest expansion preserves the native samples without interpolating peaks
+away. The same numeric canvas transfer and high-precision GPU sampling safeguards
+used by Route apply here.
+
+The GPU applies a small palette to those heights. Elevation colors vary with
+sampled height, retaining the existing 500/1,000 ft lowland shading cutoff.
+Clearance uses sampled height with the same clearance categories below, rather
+than Route's upper contour-band elevation. Route edits do not invalidate viewport
+tiles, and altitude changes update only the palette. Switching coverage cancels
+obsolete jobs and replaces the source so the two texture encodings cannot mix;
+disabling terrain or unmounting releases the worker and rendering resources.
+
+A local Node comparison of one 512px tile's CPU preparation (synthetic sinusoidal
+ridges, five warm-up runs and 20 measured runs) measured Viewport medians of
+1.98/2.11/2.54 ms at display zooms 9/11/13, versus 16.33/41.74/29.27 ms for Route's
+simplification, fill, contour and sampled-high work. This excludes downloading,
+decoding, canvas transfer, MapLibre processing and GPU drawing; it is not a device
+frame-rate measurement. Browser regressions compare actual viewport pixels to
+native elevation samples, including areas beyond 8 NM, and cover route-independent
+loading, source reuse, mode restoration, low zoom, failures and saved preferences.
+
 ## Selected altitude and clearance
 
 The corner legend has Elevation / Clearance tabs. Elevation shows only the
@@ -68,7 +117,7 @@ remembers the selected altitude. Active altitude/mode survives reloads.
 This is a manual comparison, never live aircraft altitude.
 
 Clearance is **selected MSL altitude minus terrain MSL elevation**. Colors use
-the upper elevation of each 500/1,000 ft contour band so the fill does not overstate
+the upper elevation of each 500/1,000 ft contour band in Route mode so the fill does not overstate
 the clearance within that band. Labels retain their original MSL elevation and
 add a signed difference above it (for example, `+1,500 ft`). Sampled highs use their displayed elevation,
 rounded upward to 100 ft, for the subtraction.
@@ -81,7 +130,7 @@ rounded upward to 100 ft, for the subtraction.
 | 1,000–1,999 ft | Green |
 | 2,000 ft and above | Unshaded (transparent) |
 
-The worker encodes a band's upper elevation and corridor fade in a 512px indexed
+In Route mode, the worker encodes a band's upper elevation and corridor fade in a 512px indexed
 texture. MapLibre's `color-relief` layer applies a 512-stop GPU palette using a
 private `raster-dem` source with custom unpacking. These values are **palette indices**,
 not a geographic DEM for 3D terrain or other elevation consumers. Missing/outside
@@ -98,11 +147,55 @@ or rerun terrain workers. Touch and pointer interaction stays inside the toolbox
 
 ## Elevation and precision
 
-The default is [Mapzen Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/),
+Published `charts/terrain/manifest.json` packages take precedence, with saved region
+indices preferred over newer browsing metadata. The fallback is
+[Mapzen Terrain Tiles on AWS](https://registry.opendata.aws/terrain-tiles/),
 using [Terrarium PNG encoding](https://github.com/tilezen/joerd/blob/master/docs/formats.md):
 `R * 256 + G + B / 256 - 32768` meters. Attribution links to the
 [source providers](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
-`VITE_ZLAYERS_TERRAIN_TILE_URL` can supply an equivalent 256px Terrarium service.
+`VITE_ZLAYERS_TERRAIN_TILE_URL` can supply an equivalent 256px fallback service.
+Transient fallback failures receive two short retries within a 15-second deadline;
+permanent failures and cancellation do not retry. Missing samples remain missing.
+
+`faa-regs`'s `build:terrain` reads current USGS 3DEP **1-arc-second** GeoTIFFs and
+checks source ETags on subsequent builds. Schema 2 publishes a geographic grid
+anchored at (-180, 90), with **4.9 arc-seconds** in both axes at native level 10.
+Levels 9–1 double that spacing successively. These geographic levels are distinct
+from the displayed Web Mercator zoom. Default U.S. coverage is approximately
+6,834 archives / 3.3 GiB of grids before compression, plus indexes/provenance.
+
+Each `ZDEM0002` archive contains four adjacent 256×256 grids of gzip-compressed
+little-endian **int16 metres**, with -32768 reserved for missing data. The builder
+takes the maximum contributing valid source elevation, disabling source overviews,
+and rounds upward to whole metres. This retains source peaks with less than one
+metre of additional quantization; it does not recover features missing from the
+30-metre source. Heights preserve source orthometric datums. The publisher records
+per-source datums, revisions, grid spacing and processing provenance.
+
+The browser converts metres to feet on read. The worker maps geographic cells onto
+the requested Mercator tile and retains maxima over each display pixel footprint.
+Close-up display zooms reuse native level 10 instead of downloading finer grids.
+Adjacent tiles share a bounded 32-grid / 8 MiB decoded geographic cache. Pending
+reads stay separate from that cache, with at most four native geographic reads
+active. Canceling one consumer preserves its peers; canceling the last stops the
+remaining read and decompression work. Terrain rendering retains its worker and
+output-cache limits. Any missing cell within a display pixel's footprint keeps
+that pixel unknown, including missing neighbours at saved-region edges; corrupt
+data is rejected. Route contours still come from the resulting numeric heights.
+
+The reader also accepts schema 1 `ZDEM0001` float32-feet Mercator packages at zooms
+1–13, so saved selections survive the transition. Saved sources retain precedence
+over browsing sources across both formats. **Verify / update** prepares the new
+geographic archive set; it does not request nonexistent finer native levels.
+Publish the updated client before the schema-2 terrain manifest. Old immutable
+archives and source caches are retained until explicit cleanup.
+
+The top manifest contains spatial index identities, not millions of individual tile
+records. Each immutable `.terrain` index covers a 64×64 tile area at one native zoom.
+Workers fetch only indices needed for the current view; offline preparation reads
+only those intersecting the selected region. Both indices and DEMs use the verified
+whole-file archive cache, SHA-256 and byte-length receipts, bounded shared downloads,
+and content-addressed URLs. No persistent per-tile cache is introduced.
 
 Data and geometry detail follow the display scale. Each 512px display tile reads
 at most four 256px DEM tiles, at one source zoom above the display tile (capped at
@@ -129,9 +222,15 @@ Only tiles intersecting the visible corridor are requested (plus conservative
 tile-edge coverage). A dedicated worker decodes elevation and generates indexed
 fill textures and simplified vector contours; MapLibre draws the fills, outlines and
 collision-managed labels. At most four render jobs allocate canvases/grids at once,
-and at most four network requests run at once. Completed or canceled render jobs
+and at most four DEM reads run at once. The shared archive cache separately limits
+downloads to four; these can finish populating the cache after a consumer cancels,
+so overlapping fallback PNG requests can briefly add to that network work.
+Completed or canceled render jobs
 release their canvas backing stores. A 128-tile LRU holds at most 32 MiB of decoded elevations;
-ordinary HTTP caching is also respected. Route changes invalidate contour tiles
+ordinary HTTP caching is also respected. Concurrent consumers of the same DEM
+share one download and decode, even when request slots are free. Canceling one
+consumer leaves its peers running; canceling the last stops queued/active work.
+Packaged DEM cancellation also stops the decompression stream. Route changes invalidate contour tiles
 without replacing the map. Zooming preserves the source and cached contour tiles;
 revisiting an overview does not restart its elevation requests. Removing or hiding the route cancels obsolete
 requests, including work waiting for a render or network slot, and terminates the
@@ -145,9 +244,17 @@ warning unless interpolation spreads the gap into the corridor.
 Successful tile retries clear their failures; returning to an unresolved gap
 shows the warning again. Re-enabling terrain or reconnecting while the current
 view is incomplete retries failures. Healthy views are not invalidated by focus
-or reconnect events. This initial module has no
-explicit offline terrain download or persistent elevation package: browser HTTP
-cache and the live worker cache are opportunistic, not offline coverage guarantees.
+or reconnect events. New region downloads include published terrain at DEM zooms
+1–13, including the low zooms used by viewport shading. Preparation expands the
+region's immutable indices into required DEM files before quota checks and transfer.
+Completion and later verification require retained files and index membership;
+an in-memory grid or index never proves offline coverage. Overlapping regions
+share files and removal retains files owned by another region.
+
+Use **Verify / update** on older downloads to add terrain after the publisher has
+built and uploaded it. Feeds without the terrain product remain usable; Settings
+explicitly states that their downloads exclude terrain. PNG fallback HTTP caching
+remains opportunistic. See [offline storage](offline-storage.md) for rollout details.
 
 ## Verification
 
@@ -155,8 +262,21 @@ cache and the live worker cache are opportunistic, not offline coverage guarante
 nodata inside/outside the rendered corridor, flat region colors/opacity, zoom work
 bounds, simplification, sampled highs, joined contour paths, closed peaks and
 outline fading.
-`test/terrain-elevation.test.ts` checks the four-download limit, prompt cancellation
-of queued reads, and cache reuse after waiting for a network slot.
+`test/terrain-elevation.test.ts` checks the four-download limit, shared download/decode,
+independent consumer cancellation, late bitmap cleanup, retry after cancellation
+and the 128-entry decoded LRU bound.
+`test/terrain-archive.test.ts` checks decompression size/value validation and active
+stream cancellation.
+`test/terrain-packages.test.ts` reads real producer fixtures, rejects malformed
+archives, checks regional membership/eviction and queue sharing, and exercises
+transient fallback retries. `test/e2e/terrain-offline.spec.ts` saves a region through
+the real browser backend, reloads offline, reads all zooms in fresh workers without
+network access, detects eviction, and repairs the download.
+This cold offline-reload test runs on Chromium: [Playwright's service-worker test
+support is Chromium-only](https://playwright.dev/docs/service-workers). WebKit's
+offline navigation emulation failed before terrain code even with a cached app
+shell and no terrain fixture. Rendering/lifecycle tests still run on WebKit at 1×
+and 2× density; offline reload on physical Safari remains a separate device check.
 `test/terrain-work-limit.test.ts` checks bounded render work and queue progress after
 cancellation or failure, including cancellation while a slot is being handed over.
 `test/terrain-clearance.test.ts` verifies palette encoding, clearance signs/color
@@ -204,9 +324,31 @@ These are local CPU timings, excluding network, PNG decoding, canvas transfers,
 MapLibre vector tiling, GPU drawing and label placement. They are not iOS device
 measurements. Dense contours, many overlapping route legs and large viewports
 remain the heavier cases. The 32 MiB cap covers decoded DEMs only; MapLibre's raster
-textures, up to 128 cached vector tile results, temporary grids and canvases add
+textures, cached vector tile results, temporary grids and canvases add
 memory. Physical iPad/iPhone profiling is still needed to establish frame-rate,
 total memory and battery costs.
+
+The 2026-09-20 review removed the unused CPU color/stroke/label painter. The route
+fill now only encodes band and opacity bytes; vector contours remain the sole
+outline implementation. Eight before/after fill comparisons across zooms 8, 9,
+11 and 13, both contour intervals, nodata and fades were byte-identical. Geometry,
+sampled highs and clearance semantics are unchanged. The worker shares numeric
+pixel copying and cancellation yields between Route and Viewport.
+
+Run `node --import=tsx tools/benchmark-terrain.ts` for a reproducible comparison
+of both modes using smooth and dense synthetic ridges, five warmups and 20 measured
+runs at zooms 9, 11 and 13. It measures preparation of one 512px display tile;
+network, decoding, canvas transfer and GPU work are excluded. Viewport work stays
+proportional to its sample count, while Route additionally traces contour crossings
+and calculates corridor distances. Cache tests check reuse during warm pans and
+after more than 150 distinct tiles, and that unrelated catalog metadata causes
+no terrain downloads or renders. Vector storage normally holds 128 tiles; only
+the current visible set may exceed that budget on a very large viewport.
+
+On the review machine (Node 24), Viewport medians were 1.6–3.0 ms per tile across
+these fixtures; Route medians were 11.8–22.6 ms for smooth ridges and 25.3–89.0 ms
+for dense ridges. These synthetic CPU costs explain the benefit of omitting
+contours in Viewport mode; they do not establish end-to-end loading time or device FPS.
 
 The follow-up review corrected uneven-saddle contour connectivity and added the
 render-job allocation limit and immediate worker/canvas cleanup described above.

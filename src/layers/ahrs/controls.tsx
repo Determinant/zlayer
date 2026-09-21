@@ -68,7 +68,8 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
     subscribe: (listener: () => void) => active ? layer.subscribe(listener) : () => {},
   }), [layer, active]);
   const state = useLayerSnapshot(source);
-  const [mount, setMount] = useState<Mount>('upright');
+  const [mount, setMount] = usePersistentState<Mount>('ahrs-mount', 'upright',
+    (value): value is Mount => value === 'upright' || value === 'flat');
   const [heading, setHeading] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [testing, setTesting] = useState(false);

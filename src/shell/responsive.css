@@ -36,7 +36,7 @@
   .route-heading > span { display: none; }
   .app-shell > .route-bar .route-tools { display: flex; }
   .app-shell > .route-bar .route-summary { contain: none; }
-  .route-summary:not(.is-error) { display: none; }
+  .route-summary:not(.is-error):not(.has-approach-details) { display: none; }
   .route-summary summary { justify-content: center; }
   .route-summary summary span { display: none; }
   .route-tools { gap: 4px; }

@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
 import test from 'node:test';
 import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createRouteResolver, emptyRoutePlan } from '@zlayer/domain';
-import { RouteBar } from '../src/layers/routes/bar';
+
+// Browser tests cover the styles; the server-rendering checks only need the markup.
+const loader = registerHooks({ resolve(specifier, context, next) {
+  return specifier.endsWith('.css') ? { url: 'data:text/javascript,export{}', shortCircuit: true } : next(specifier, context);
+} });
+const { RouteBar } = await import('../src/layers/routes/bar');
+loader.deregister();
 
 const noop = () => {};
 
