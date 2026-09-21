@@ -36,4 +36,5 @@ The implemented [obstruction layer](route-obstructions.md) shows `Source Sep 18`
 in Layers, using the manifest's FAA `source.lastModified` timestamp. It currently
 shows the source date without an elapsed-age label. Offline snapshots retain that
 date; formatting does not impose a monthly expiration or replace source-specific
-currency rules.
+currency rules. Valid HTTP-date source timestamps are converted to epoch milliseconds
+before formatting, so both those and ISO timestamps produce the same UTC date label.

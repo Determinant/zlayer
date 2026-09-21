@@ -9,25 +9,34 @@ adding more data sources. Current capabilities and planned work are listed separ
 - Viewport/zoom-selected, prestitched VFR/IFR MBTiles with whole-file caching.
 - Searchable FAA navigation with progressive fix decluttering and runway details.
 - Persisted route entries and exact feature pins; direct/Victor/Tango routing,
-  compact TEC routes, SID/STAR previews, compact coordinate waypoints, map/touch/keyboard
+  compact TEC routes, SID/STAR previews, anchored approaches with published entries or
+  vectors to final, compact coordinate waypoints, map/touch/keyboard
   editing, text copying in three formats and sharing where the browser supports it.
+- Local Route Stash with named structured snapshots, load/edit/remove/reorder,
+  retained pins and approach attachments, and coordinated writes across windows.
 - Restored map camera, panels, feature selection, recommendation choices and plate
   reading state; nearby-feature selection for overlapping map points.
 - Historical filed-route, preferred and TEC recommendations with mapped previews.
-- Airport plates and Chart Supplements in one exact-page PDF.js viewer.
+- Airport plates and Chart Supplements in one exact-page PDF.js viewer, with an
+  optional georeferenced IAP map overlay that restores independently of the viewer.
 - Current/cached METAR categories and runway wind components, plus selected-airport
   TAF periods with local validity times and visible stale/error states.
-- Route-corridor terrain contours and manual altitude comparison; optional GPS
-  aircraft position, track, accuracy and one-minute projection.
+- Route-corridor contours and viewport terrain shading, packaged elevation and manual altitude
+  comparison; FAA Daily DOF obstructions with viewport/route decluttering; optional
+  GPS aircraft position, track, accuracy and one-minute projection.
 - Experimental [AHRS toolbox](../src/layers/ahrs/README.md) with attitude, GPS
-  groundspeed/altitude/VSI, an HSI, calibration and local JSON Lines recordings.
+  groundspeed/altitude/VSI, HSI guidance for straight route legs, calibration and local recordings
+  with GPX track and JSON Lines debug downloads.
   Device and flight validation remain outstanding.
-- State/territory offline downloads including charts, navigation and all applicable
-  books/individual plates; size, integrity, progress, retry and shared-file removal.
+- State/territory offline downloads including charts, navigation, available route/approach
+  references, published terrain and all applicable books/individual plates; size,
+  integrity, progress, retry and shared-file removal.
 - Committed regional snapshots retain edition ownership through feed updates and
   eviction; staged updates activate only after verification. Latest date discovery
   and explicit browsing dates stay independent of those saved selections.
 - Protected browsing-cache expiry, temporary chart/PDF removal and safe shell cleanup.
+- Coordinated PWA update prompts, complete-shell installation and installed-app Back
+  navigation that unwinds active workspace controls.
 - [Full local reset](offline-storage.md#full-local-reset) with explicit confirmation,
   coordination across open windows and interruption recovery.
 - Static-host deployment scripts and nginx data/weather/PDF proxies, bundled glyphs,
@@ -59,6 +68,27 @@ Acceptance: cached launch stays interactive through source failure; saved data s
 an installed-device cold restart; incomplete data is never labeled complete; expiration
 is visible rather than mistaken for freshness. See [offline storage](offline-storage.md)
 for today's guarantees and [product budgets](product.md) for performance targets.
+
+## Approach geometry and coverage
+
+The [ordered interpreter and reference export](approach-geometry-plan.md) are
+implemented and locally rebuilt. The [recorded coverage](approach-coverage.md)
+has no gaps or geometry warnings in 1,676 selectable California entries or 403
+Arizona entries. The 149 California and 35 Arizona unmatched instrument charts
+remain availability gaps.
+
+The [national coverage summary](approach-coverage.md#recorded-faa-2609-results)
+distinguishes geographic scope, unmatched charts, unoffered feeder starts and
+expected radar endings. U.S. coverage is 9,079/10,980 chart records (82.69%), with
+1,854 unmatched charts and 132 unresolved entries across 47 matched charts after
+the recorded radar/source-review exceptions. Passing available entries does not
+establish nationwide chart coverage.
+
+Remaining work: publish the coordinated client/feed revision, reconcile unmatched
+chart identities and unsupported families with authoritative source data, and
+review the national diagnostic inventory. Continue per-cycle audits of source
+coverage, branches, course/turn constraints and schematic bounds. Connected
+schematic geometry alone does not establish correctness.
 
 ## Weather expansion
 

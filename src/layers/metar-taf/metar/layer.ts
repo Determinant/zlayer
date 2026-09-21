@@ -99,7 +99,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   };
 
   const layer: MapLayerModule<MetarInput> = {
-    id: 'metar', slot: 'weather', interactiveLayerIds: ['airports-weather-points'],
+    id: 'metar', slot: 'weather', interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels'],
     mount(target) {
       map = target;
       scopeDirty = true;

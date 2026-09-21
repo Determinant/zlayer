@@ -6,5 +6,5 @@ export { useDirectTo } from './use-direct-to';
 export { DirectToDialog } from './direct-to-dialog';
 export {
   appendRouteFeature, appendRouteText, EMPTY_ROUTE_DRAFT, insertRouteFeature,
-  insertRouteTextBefore, moveRouteEntry, removeRouteEntry, replaceRouteFeature, replaceRouteText, setRouteApproach,
+  insertRouteTextBefore, moveRouteEntry, removeRouteEntry, replaceRouteFeature, replaceRouteText, setRouteApproach, setRouteDeparture,
 } from './draft';

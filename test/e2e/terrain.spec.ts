@@ -367,10 +367,16 @@ test('terrain failures follow the visible tiles and clear when those tiles recov
   await expect(status).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await idle();
   await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
-  const styles = await page.locator('body').getAttribute('data-style-updates');
+  const styles = Number(await page.locator('body').getAttribute('data-style-updates'));
+  // The current detail tiles are healthy, but the failed overview tiles must
+  // leave the raster cache so a later return can request them again.
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect(page.locator('body')).toHaveAttribute('data-style-updates', styles!);
+  await expect.poll(() => page.locator('body').getAttribute('data-style-updates').then(Number)).toBeGreaterThan(styles);
+  await idle();
   await expect(status).toHaveAttribute('data-state', 'ready');
+  const recoveredStyles = await page.locator('body').getAttribute('data-style-updates');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.locator('body')).toHaveAttribute('data-style-updates', recoveredStyles!);
 
   await page.getByRole('button', { name: 'Overview', exact: true }).click();
   await expect(status).toHaveAttribute('data-state', 'error', { timeout: 30_000 });
@@ -379,7 +385,9 @@ test('terrain failures follow the visible tiles and clear when those tiles recov
   await expect(status).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await idle();
   await page.unroute('**/terrain/10/**');
-  // Returning reloads failed tiles without changing the route or toggling terrain.
+  // Reconnecting while the failure is offscreen invalidates it too.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await idle();
   await page.getByRole('button', { name: 'Return to route', exact: true }).click();
   await expect(status).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
   await idle();

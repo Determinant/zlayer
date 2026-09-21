@@ -20,6 +20,9 @@ export const PRIORITY_FIX_LAYER_ID = 'fixes-priority-icons';
 
 export const INTERACTIVE_LAYER_IDS = [
   ...AIRPORT_POINT_LAYER_IDS,
+  'airports-major-labels',
+  'airports-regional-labels',
+  'airports-local-labels',
   'vfr-waypoints-icons',
   'navaids-icons',
   'fixes-icons',

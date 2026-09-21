@@ -194,7 +194,7 @@ for (const standalone of ['display-mode', 'ios'] as const) {
         await input.press('Enter');
         const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
         await trigger.click();
-        await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
         await expect(page.getByRole('menu', { name: 'Copy route format', exact: true })).toBeVisible();
         await back(page);
         await expect(page.getByRole('menu', { name: 'Copy route format', exact: true })).toBeHidden();

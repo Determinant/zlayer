@@ -59,6 +59,7 @@ for (const supplement of [false, true]) {
     }
     await page.getByRole('button', { name: 'Close plate', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
     await opener.click();
     await expect(meter).toHaveAttribute('aria-valuenow', '50');
     await page.evaluate(() => (window as StreamingWindow).plateDownloadFixture.advance());
@@ -71,6 +72,7 @@ for (const supplement of [false, true]) {
     await page.getByRole('button', { name: 'Close plate', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     // The fixture shares a physical book across these two regional references.
+    await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
     await page.getByRole('button', { name: supplement ? /TEST APPROACH/ : /Chart Supplement/ }).click();
     await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('.procedure-page-stage canvas')).toBeVisible();

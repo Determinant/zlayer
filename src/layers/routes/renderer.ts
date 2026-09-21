@@ -9,6 +9,7 @@ import { holdArrowImage } from './hold-arrow';
 import type { RoutePreview } from './map-preview';
 import { ROUTE_LINE_ANCHOR } from '../../core/map/layer';
 import { mapLabelKey, ROUTE_LABEL_IDS_STATE } from '../../core/map/label';
+import { formatWaypointLabel } from '../../core/format/coordinates';
 
 export const ROUTE_LEG_HIT_LAYER_ID = 'route-leg-hits';
 export const ROUTE_WAYPOINT_HIT_LAYER_ID = 'route-waypoint-hits';
@@ -16,6 +17,7 @@ const ROUTE_COLOR = '#33c6ff';
 const APPROACH_RGB = [237, 98, 217] as const;
 const ROUTE_HALO_RGB = [4, 20, 34] as const;
 const APPROACH_COLOR = `rgb(${APPROACH_RGB.join(',')})`;
+const APPROACH_LINE_SCALE = 0.6;
 
 export type RouteDragPreview = {
   target: RouteEditTarget;
@@ -25,7 +27,7 @@ export type RouteDragPreview = {
 };
 
 type RouteProperties = GeoPointFeature['properties'] & {
-  routeKind: 'leg' | 'waypoint' | 'insert-preview' | 'approach-extension' | 'approach-hold' | 'approach-missed' | 'hold-direction';
+  routeKind: 'leg' | 'waypoint' | 'insert-preview' | 'approach-extension' | 'approach-hold' | 'approach-missed' | 'approach-intercept' | 'approach-procedure-turn' | 'hold-direction';
   ident?: string;
   navigationLayer?: NavigationLayerId;
   editKind?: 'leg' | 'waypoint';
@@ -63,7 +65,8 @@ export const ROUTE_LABEL_BACKGROUND_ID = 'route-label-background';
 export const HOLD_ARROW_IMAGE_ID = 'route-hold-arrow';
 export const ROUTE_LAYER_IDS = [
   'route-alternative-halo', 'route-alternative-line', 'route-alternative-procedure-line',
-  'route-line-halo', 'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line', 'route-missed-line', 'route-waypoint-halos', 'route-waypoints',
+  'route-line-halo', 'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line',
+  'route-missed-line-background', 'route-missed-line', 'route-waypoint-halos', 'route-waypoints',
   'route-waypoint-labels', 'route-hold-direction', ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_LEG_HIT_LAYER_ID, 'route-insert-preview',
 ];
 
@@ -82,7 +85,7 @@ export function installRouteLayers(map: MapLibreMap): void {
   }, {
     pixelRatio: 2, stretchX: [[radius, size - radius]], stretchY: [[radius, size - radius]],
   });
-  map.addImage(HOLD_ARROW_IMAGE_ID, holdArrowImage(APPROACH_RGB, ROUTE_HALO_RGB), { pixelRatio: 2 });
+  map.addImage(HOLD_ARROW_IMAGE_ID, holdArrowImage(APPROACH_RGB, ROUTE_HALO_RGB, APPROACH_LINE_SCALE), { pixelRatio: 2 });
   map.addSource(RECOMMENDATION_SOURCE_ID, { type: 'geojson', data: routeData() });
   map.addLayer({ id: 'route-alternative-halo', type: 'line', source: RECOMMENDATION_SOURCE_ID,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -105,11 +108,13 @@ export function installRouteLayers(map: MapLibreMap): void {
     id: 'route-line-halo',
     type: 'line',
     source: ROUTE_SOURCE_ID,
-    filter: ['in', ['get', 'routeKind'], ['literal', ['leg', 'approach-hold', 'approach-missed']]],
+    filter: ['in', ['get', 'routeKind'], ['literal', ['leg', 'approach-hold', 'approach-missed', 'approach-intercept', 'approach-procedure-turn']]],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': `rgba(${ROUTE_HALO_RGB.join(',')},0.72)`,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 6, 11, 10],
+      'line-width': ['interpolate', ['linear'], ['zoom'],
+        5, ['case', ['has', 'approachPhase'], 6 * APPROACH_LINE_SCALE, 6],
+        11, ['case', ['has', 'approachPhase'], 10 * APPROACH_LINE_SCALE, 10]],
     },
   }, ROUTE_LINE_ANCHOR);
   map.addLayer({
@@ -133,19 +138,25 @@ export function installRouteLayers(map: MapLibreMap): void {
   map.addLayer({
     id: 'route-approach-extension', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'routeKind'], 'approach-extension'],
-    paint: { 'line-color': '#f3afeb', 'line-opacity': 0.7, 'line-width': 2.5 },
+    paint: { 'line-color': '#f3afeb', 'line-opacity': 0.7, 'line-width': 2.5 * APPROACH_LINE_SCALE },
   }, ROUTE_LINE_ANCHOR);
   map.addLayer({
     id: 'route-approach-line', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'approachPhase'], 'approach'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': APPROACH_COLOR, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 5] },
+    paint: { 'line-color': APPROACH_COLOR, 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 5 * APPROACH_LINE_SCALE] },
+  }, ROUTE_LINE_ANCHOR);
+  map.addLayer({
+    id: 'route-missed-line-background', type: 'line', source: ROUTE_SOURCE_ID,
+    filter: ['==', ['get', 'approachPhase'], 'missed'],
+    layout: { 'line-join': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 4 * APPROACH_LINE_SCALE] },
   }, ROUTE_LINE_ANCHOR);
   map.addLayer({
     id: 'route-missed-line', type: 'line', source: ROUTE_SOURCE_ID,
     filter: ['==', ['get', 'approachPhase'], 'missed'],
     layout: { 'line-join': 'round' },
-    paint: { 'line-color': APPROACH_COLOR, 'line-dasharray': [2.5, 1.5], 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 11, 4] },
+    paint: { 'line-color': APPROACH_COLOR, 'line-dasharray': [2.5, 1.5], 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 4 * APPROACH_LINE_SCALE] },
   }, ROUTE_LINE_ANCHOR);
   map.addLayer({
     id: 'route-waypoint-halos',
@@ -192,8 +203,8 @@ export function installRouteLayers(map: MapLibreMap): void {
       'icon-pitch-alignment': 'viewport',
       'icon-allow-overlap': false,
       'icon-optional': false,
-      'text-field': ['step', ['zoom'], ['get', 'ident'], 10,
-        ['case', ['has', 'approachRole'], ['concat', ['get', 'ident'], '\n', ['get', 'approachRole']], ['get', 'ident']]],
+      'text-field': ['step', ['zoom'], ['get', 'displayIdent'], 10,
+        ['case', ['has', 'approachRole'], ['concat', ['get', 'displayIdent'], '\n', ['get', 'approachRole']], ['get', 'displayIdent']]],
       'text-font': ['Noto Sans Bold'],
       'text-size': 13,
       'text-max-width': 20,
@@ -327,7 +338,7 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
   for (const depiction of plan.approachDepictions ?? []) {
     features.push({ type: 'Feature',
       geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(depiction.coordinates) },
-      properties: { routeKind: depiction.kind === 'hold' ? 'approach-hold' : 'approach-missed', approachPhase: depiction.phase } });
+      properties: { routeKind: `approach-${depiction.kind}`, approachPhase: depiction.phase } });
     if (depiction.kind === 'hold' && depiction.arrow) features.push({ type: 'Feature',
       geometry: { type: 'Point', coordinates: depiction.arrow.coordinate },
       properties: { routeKind: 'hold-direction', holdBearing: depiction.arrow.bearing } });
@@ -351,6 +362,8 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
         ...(editable ? { routePointId: pointKeys!.get(waypoint) } : {}),
         routeKind: 'waypoint',
         ident: waypoint.ident,
+        // The offline map font includes Latin-1; use its apostrophe for minutes.
+        displayIdent: formatWaypointLabel(waypoint.ident).replaceAll('′', "'"),
         ...(waypoint.approachRole ? { approachRole: waypoint.approachRole } : {}),
         ...(waypoint.approachHold?.inboundCourse === undefined ? {} : { holdLabelOnRight: waypoint.approachHold.inboundCourse < 180 }),
         ...(waypoint.owners.some(owner => owner.kind === 'approach') ? { approachPoint: true } : {}),

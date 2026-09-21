@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SavedSupplement } from '../../workspace/read-context';
 
 import type { ChartSupplementCatalog, GeoPointFeature, ProcedureCatalog, ProcedureResourceRecord } from '@zlayer/contracts';
@@ -16,7 +16,8 @@ type AirportPlatesProps = {
   onOpen: (selection: ProcedureSelection) => void;
 };
 
-type CatalogState<T> = { catalog?: T; loading: boolean; error?: string };
+type CatalogSource = Omit<AirportPlatesProps, 'onOpen'>;
+type CatalogState<T> = { source: CatalogSource; catalog?: T; loading: boolean; error?: string };
 
 export function AirportPlates({
   feature,
@@ -25,29 +26,38 @@ export function AirportPlates({
   savedSupplement,
   onOpen,
 }: AirportPlatesProps) {
-  const [procedures, setProcedures] = useState<CatalogState<ProcedureCatalog>>({ loading: Boolean(resource) });
-  const [supplements, setSupplements] = useState<CatalogState<ChartSupplementCatalog>>({ loading: true });
+  const source = useMemo(() => ({ feature, resource, revision, savedSupplement }),
+    [feature, resource, revision, savedSupplement?.catalog, savedSupplement?.url]);
+  const [loadedProcedures, setProcedures] = useState<CatalogState<ProcedureCatalog>>();
+  const [loadedSupplements, setSupplements] = useState<CatalogState<ChartSupplementCatalog>>();
+  // Hide the previous edition during the render before effect cleanup runs.
+  // Its page targets must never be combined with the next catalog's URL.
+  const procedures: CatalogState<ProcedureCatalog> = loadedProcedures?.source === source
+    ? loadedProcedures : { source, loading: Boolean(resource) };
+  const supplements: CatalogState<ChartSupplementCatalog> = loadedSupplements?.source === source
+    ? loadedSupplements : { source, loading: true };
 
   useEffect(() => {
+    const { feature, resource, revision, savedSupplement } = source;
     let current = true;
-    setProcedures({ loading: Boolean(resource) });
-    setSupplements({ loading: true });
+    setProcedures({ source, loading: Boolean(resource) });
+    setSupplements({ source, loading: true });
     if (resource) fetchProcedureCatalog(resource).then(catalog => {
-      if (current) setProcedures({ catalog, loading: false });
+      if (current) setProcedures({ source, catalog, loading: false });
     }, (error: unknown) => {
-      if (current) setProcedures({ loading: false, error: errorMessage(error, 'Procedures unavailable') });
+      if (current) setProcedures({ source, loading: false, error: errorMessage(error, 'Procedures unavailable') });
     });
-    if (savedSupplement) setSupplements({ loading: false,
+    if (savedSupplement) setSupplements({ source, loading: false,
       ...(savedSupplement.catalog ? { catalog: savedSupplement.catalog } : {}) });
     else fetchAirportSupplements(revision, feature).then(catalog => {
-      if (current) setSupplements(catalog ? { catalog, loading: false } : {
-        loading: false, error: 'Chart Supplement index is not published for this cycle yet.',
+      if (current) setSupplements(catalog ? { source, catalog, loading: false } : {
+        source, loading: false, error: 'Chart Supplement index is not published for this cycle yet.',
       });
     }, (error: unknown) => {
-      if (current) setSupplements({ loading: false, error: errorMessage(error, 'Chart Supplements unavailable') });
+      if (current) setSupplements({ source, loading: false, error: errorMessage(error, 'Chart Supplements unavailable') });
     });
     return () => { current = false; };
-  }, [resource, revision, feature, savedSupplement?.catalog, savedSupplement?.url]);
+  }, [source]);
 
   const groups = airportPlateGroups(feature,
     procedures.catalog && resource ? { catalog: procedures.catalog, url: resource.url } : undefined,

@@ -1,0 +1,6619 @@
+{
+  "type": "ZLayerApproachRoutes",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/",
+    "schemaVersion": 2
+  },
+  "procedures": [
+    {
+      "id": "KAPC:I01LZ",
+      "airport": "KAPC",
+      "ident": "I01LZ",
+      "magneticVariation": 15,
+      "transitions": [
+        {
+          "id": "REBAS",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:REBAS:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "REBAS",
+                "coordinate": [
+                  -122.38366666666667,
+                  37.94068333333333
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "VI",
+              "id": "A:REBAS:020",
+              "waypointDescriptor": "    ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02600",
+                "second": ""
+              },
+              "magneticCourse": 320.7
+            },
+            {
+              "path": "CF",
+              "id": "A:REBAS:030",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IAPC:KAPC",
+                "ident": "IAPC",
+                "type": "localizer",
+                "coordinate": [
+                  -122.27734444444444,
+                  38.22448888888889
+                ],
+                "declination": 15
+              },
+              "radial": 185.7,
+              "rhoNm": 12.5,
+              "altitude": {
+                "restriction": "+",
+                "first": "02600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FESAV",
+                "coordinate": [
+                  -122.37087777777776,
+                  38.029125
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 5.7,
+              "distance": 3.9
+            }
+          ]
+        },
+        {
+          "id": "SGD",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SGD:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "SGD",
+                "coordinate": [
+                  -122.37315277777778,
+                  38.179361111111106
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SGD:020",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FESAV",
+                "coordinate": [
+                  -122.37087777777776,
+                  38.029125
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:SGD:030",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "PI:K2:IAPC:KAPC",
+                "ident": "IAPC",
+                "type": "localizer",
+                "coordinate": [
+                  -122.27734444444444,
+                  38.22448888888889
+                ],
+                "declination": 15
+              },
+              "radial": 185.7,
+              "rhoNm": 12.5,
+              "altitude": {
+                "restriction": "+",
+                "first": "02600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FESAV",
+                "coordinate": [
+                  -122.37087777777776,
+                  38.029125
+                ],
+                "role": "IAF"
+              },
+              "turn": "R",
+              "magneticCourse": 5.7,
+              "holdMinutes": 1
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IAPC:KAPC",
+            "ident": "IAPC",
+            "type": "localizer",
+            "coordinate": [
+              -122.27734444444444,
+              38.22448888888889
+            ],
+            "declination": 15
+          },
+          "radial": 185.7,
+          "rhoNm": 12.5,
+          "altitude": {
+            "restriction": "J",
+            "first": "02600",
+            "second": "01800"
+          },
+          "fix": {
+            "ident": "FESAV",
+            "coordinate": [
+              -122.37087777777776,
+              38.029125
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IAPC:KAPC",
+            "ident": "IAPC",
+            "type": "localizer",
+            "coordinate": [
+              -122.27734444444444,
+              38.22448888888889
+            ],
+            "declination": 15
+          },
+          "radial": 185.7,
+          "rhoNm": 6.5,
+          "altitude": {
+            "restriction": "H",
+            "first": "01800",
+            "second": "01800"
+          },
+          "fix": {
+            "ident": "CIKPI",
+            "coordinate": [
+              -122.32603055555555,
+              38.122933333333336
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 6,
+          "distance": 6
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IAPC:KAPC",
+            "ident": "IAPC",
+            "type": "localizer",
+            "coordinate": [
+              -122.27734444444444,
+              38.22448888888889
+            ],
+            "declination": 15
+          },
+          "radial": 185.7,
+          "rhoNm": 1.1,
+          "altitude": {
+            "restriction": "",
+            "first": "00065",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW01L",
+            "coordinate": [
+              -122.28527222222222,
+              38.20797777777778
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 6,
+          "distance": 5.5
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00500",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 5.7
+        },
+        {
+          "path": "DF",
+          "id": "I::050",
+          "waypointDescriptor": "V   ",
+          "fix": {
+            "ident": "SGD",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ]
+          },
+          "missed": true,
+          "turn": "L"
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 230,
+          "rhoNm": 11.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "03200",
+            "second": ""
+          },
+          "fix": {
+            "ident": "BURDE",
+            "coordinate": [
+              -122.59306388888888,
+              38.1054
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 230,
+          "distance": 11.3
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03200",
+            "second": ""
+          },
+          "fix": {
+            "ident": "BURDE",
+            "coordinate": [
+              -122.59306388888888,
+              38.1054
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 230,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KAPC:S06",
+      "airport": "KAPC",
+      "ident": "S06",
+      "magneticVariation": 15,
+      "transitions": [
+        {
+          "id": "PYE",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:PYE:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "PYE",
+                "coordinate": [
+                  -122.86782777777778,
+                  38.07975555555556
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:PYE:020",
+              "waypointDescriptor": "EE B",
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BURDE",
+                "coordinate": [
+                  -122.59306388888888,
+                  38.1054
+                ],
+                "role": "IF"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SAU",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SAU:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "SAU",
+                "coordinate": [
+                  -122.52275277777778,
+                  37.855333333333334
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SAU:020",
+              "waypointDescriptor": "EE B",
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BURDE",
+                "coordinate": [
+                  -122.59306388888888,
+                  38.1054
+                ],
+                "role": "IF"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SGD",
+          "legs": [
+            {
+              "path": "PI",
+              "id": "A:SGD:010",
+              "waypointDescriptor": "VE A",
+              "reference": {
+                "id": "D:K2:SGD:",
+                "ident": "SGD",
+                "type": "navaid",
+                "coordinate": [
+                  -122.37315277777778,
+                  38.179361111111106
+                ],
+                "dmeCoordinate": [
+                  -122.37315277777778,
+                  38.179361111111106
+                ],
+                "declination": 17
+              },
+              "radial": 0,
+              "rhoNm": 0,
+              "altitude": {
+                "restriction": "+",
+                "first": "03500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SGD",
+                "coordinate": [
+                  -122.37315277777778,
+                  38.179361111111106
+                ],
+                "role": "IAF"
+              },
+              "turn": "R",
+              "magneticCourse": 185,
+              "distance": 10
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "S::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 230,
+          "rhoNm": 11.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "04000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "BURDE",
+            "coordinate": [
+              -122.59306388888888,
+              38.1054
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "S::011",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 230,
+          "rhoNm": 4,
+          "altitude": {
+            "restriction": "+",
+            "first": "02600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "JATPO",
+            "coordinate": [
+              -122.45094166666667,
+              38.15325833333333
+            ]
+          },
+          "magneticCourse": 50,
+          "distance": 7.3
+        },
+        {
+          "path": "CF",
+          "id": "S::020",
+          "waypointDescriptor": "V  F",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "01600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "SGD",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 50,
+          "distance": 4
+        },
+        {
+          "path": "CF",
+          "id": "S::030",
+          "waypointDescriptor": "EY M",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 50,
+          "rhoNm": 3.8,
+          "altitude": {
+            "restriction": "",
+            "first": "00280",
+            "second": ""
+          },
+          "fix": {
+            "ident": "JUNUV",
+            "coordinate": [
+              -122.30016666666667,
+              38.20380277777778
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 50,
+          "distance": 3.8
+        },
+        {
+          "path": "CA",
+          "id": "S::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00436",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 50
+        },
+        {
+          "path": "VI",
+          "id": "S::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 305
+        },
+        {
+          "path": "CF",
+          "id": "S::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 347,
+          "rhoNm": 18.4,
+          "altitude": {
+            "restriction": "+",
+            "first": "07000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "POPES",
+            "coordinate": [
+              -122.34587777777777,
+              38.48594722222222
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 347,
+          "distance": 10.9
+        },
+        {
+          "path": "HM",
+          "id": "S::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "07000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "POPES",
+            "coordinate": [
+              -122.34587777777777,
+              38.48594722222222
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 167,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KAVX:VDM-B",
+      "airport": "KAVX",
+      "ident": "VDM-B",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "SXC",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SXC:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "SXC",
+                "coordinate": [
+                  -118.41991111111112,
+                  33.375055555555555
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SXC:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RIGLI",
+                "coordinate": [
+                  -118.40776944444445,
+                  33.45791388888889
+                ]
+              },
+              "magneticCourse": 352,
+              "distance": 5
+            },
+            {
+              "path": "PI",
+              "id": "A:SXC:030",
+              "waypointDescriptor": "E  A",
+              "reference": {
+                "id": "D:K2:SXC:",
+                "ident": "SXC",
+                "type": "navaid",
+                "coordinate": [
+                  -118.41991111111112,
+                  33.375055555555555
+                ],
+                "dmeCoordinate": [
+                  -118.41991111111112,
+                  33.375055555555555
+                ],
+                "declination": 15
+              },
+              "radial": 352,
+              "rhoNm": 5,
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RIGLI",
+                "coordinate": [
+                  -118.40776944444445,
+                  33.45791388888889
+                ],
+                "role": "IAF"
+              },
+              "turn": "R",
+              "magneticCourse": 307,
+              "distance": 10
+            },
+            {
+              "path": "CF",
+              "id": "A:SXC:040",
+              "waypointDescriptor": "EE  ",
+              "reference": {
+                "id": "D:K2:SXC:",
+                "ident": "SXC",
+                "type": "navaid",
+                "coordinate": [
+                  -118.41991111111112,
+                  33.375055555555555
+                ],
+                "dmeCoordinate": [
+                  -118.41991111111112,
+                  33.375055555555555
+                ],
+                "declination": 15
+              },
+              "radial": 352,
+              "rhoNm": 5,
+              "altitude": {
+                "restriction": "+",
+                "first": "02300",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RIGLI",
+                "coordinate": [
+                  -118.40776944444445,
+                  33.45791388888889
+                ]
+              },
+              "magneticCourse": 172,
+              "distance": 6
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "D::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:SXC:",
+            "ident": "SXC",
+            "type": "navaid",
+            "coordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ],
+            "dmeCoordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ],
+            "declination": 15
+          },
+          "radial": 352,
+          "rhoNm": 5,
+          "altitude": {
+            "restriction": "+",
+            "first": "02300",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RIGLI",
+            "coordinate": [
+              -118.40776944444445,
+              33.45791388888889
+            ],
+            "role": "FAF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "D::030",
+          "waypointDescriptor": "EY M",
+          "reference": {
+            "id": "D:K2:SXC:",
+            "ident": "SXC",
+            "type": "navaid",
+            "coordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ],
+            "dmeCoordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ],
+            "declination": 15
+          },
+          "radial": 352,
+          "rhoNm": 2.8,
+          "altitude": {
+            "restriction": "",
+            "first": "01602",
+            "second": ""
+          },
+          "fix": {
+            "ident": "MAFPI",
+            "coordinate": [
+              -118.4131138888889,
+              33.42146111111111
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 172,
+          "distance": 2.2
+        },
+        {
+          "path": "DF",
+          "id": "D::040",
+          "waypointDescriptor": "VYM ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "SXC",
+            "coordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ]
+          },
+          "missed": true
+        },
+        {
+          "path": "HM",
+          "id": "D::050",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "SXC",
+            "coordinate": [
+              -118.41991111111112,
+              33.375055555555555
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 15,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KCEC:D12",
+      "airport": "KCEC",
+      "ident": "D12",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "CEC",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CEC:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "CEC",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CEC:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02300",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ROZEY",
+                "coordinate": [
+                  -124.30481666666667,
+                  41.847833333333334
+                ]
+              }
+            },
+            {
+              "path": "PI",
+              "id": "A:CEC:030",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 311,
+              "rhoNm": 5,
+              "altitude": {
+                "restriction": "+",
+                "first": "01600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ROZEY",
+                "coordinate": [
+                  -124.30481666666667,
+                  41.847833333333334
+                ],
+                "role": "IAF"
+              },
+              "turn": "R",
+              "magneticCourse": 266,
+              "distance": 10
+            }
+          ]
+        },
+        {
+          "id": "CHIDE",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CHIDE:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "CHIDE",
+                "coordinate": [
+                  -124.2397888888889,
+                  41.59675277777778
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "AF",
+              "id": "A:CHIDE:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 311,
+              "rhoNm": 11,
+              "altitude": {
+                "restriction": "+",
+                "first": "01600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WEROB",
+                "coordinate": [
+                  -124.38209444444443,
+                  41.93002222222222
+                ],
+                "role": "IF"
+              },
+              "turn": "R",
+              "magneticCourse": 165.8,
+              "center": [
+                -124.240625,
+                41.780175
+              ],
+              "radiusNm": 11
+            }
+          ]
+        },
+        {
+          "id": "WIPOG",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:WIPOG:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "WIPOG",
+                "coordinate": [
+                  -124.22820277777778,
+                  42.071219444444445
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:WIPOG:020",
+              "waypointDescriptor": "E   ",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 347.8,
+              "rhoNm": 11,
+              "altitude": {
+                "restriction": "+",
+                "first": "04500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GUKTE",
+                "coordinate": [
+                  -124.2329,
+                  41.96349722222222
+                ]
+              }
+            },
+            {
+              "path": "AF",
+              "id": "A:WIPOG:030",
+              "waypointDescriptor": "E   ",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 325,
+              "rhoNm": 11,
+              "altitude": {
+                "restriction": "+",
+                "first": "02800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TAPUE",
+                "coordinate": [
+                  -124.32913055555555,
+                  41.951238888888895
+                ]
+              },
+              "turn": "L",
+              "magneticCourse": 347.9,
+              "center": [
+                -124.240625,
+                41.780175
+              ],
+              "radiusNm": 11
+            },
+            {
+              "path": "AF",
+              "id": "A:WIPOG:040",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 311,
+              "rhoNm": 11,
+              "altitude": {
+                "restriction": "+",
+                "first": "01600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WEROB",
+                "coordinate": [
+                  -124.38209444444443,
+                  41.93002222222222
+                ],
+                "role": "IF"
+              },
+              "turn": "L",
+              "magneticCourse": 325,
+              "center": [
+                -124.240625,
+                41.780175
+              ],
+              "radiusNm": 11
+            }
+          ]
+        },
+        {
+          "id": "YOBUN",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:YOBUN:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "YOBUN",
+                "coordinate": [
+                  -124.30388611111111,
+                  41.602986111111115
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "AF",
+              "id": "A:YOBUN:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "D:K2:CEC:",
+                "ident": "CEC",
+                "type": "navaid",
+                "coordinate": [
+                  -124.24084722222223,
+                  41.779577777777774
+                ],
+                "dmeCoordinate": [
+                  -124.240625,
+                  41.780175
+                ],
+                "declination": 14
+              },
+              "radial": 311,
+              "rhoNm": 11,
+              "altitude": {
+                "restriction": "+",
+                "first": "01600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WEROB",
+                "coordinate": [
+                  -124.38209444444443,
+                  41.93002222222222
+                ],
+                "role": "IF"
+              },
+              "turn": "R",
+              "magneticCourse": 181,
+              "center": [
+                -124.240625,
+                41.780175
+              ],
+              "radiusNm": 11
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "D::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "D:K2:CEC:",
+            "ident": "CEC",
+            "type": "navaid",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ],
+            "dmeCoordinate": [
+              -124.240625,
+              41.780175
+            ],
+            "declination": 14
+          },
+          "radial": 311,
+          "rhoNm": 11,
+          "altitude": {
+            "restriction": "+",
+            "first": "01600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "WEROB",
+            "coordinate": [
+              -124.38209444444443,
+              41.93002222222222
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "D::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:CEC:",
+            "ident": "CEC",
+            "type": "navaid",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ],
+            "dmeCoordinate": [
+              -124.240625,
+              41.780175
+            ],
+            "declination": 14
+          },
+          "radial": 311,
+          "rhoNm": 5,
+          "altitude": {
+            "restriction": "+",
+            "first": "01600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "ROZEY",
+            "coordinate": [
+              -124.30481666666667,
+              41.847833333333334
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 131,
+          "distance": 6
+        },
+        {
+          "path": "CF",
+          "id": "D::030",
+          "waypointDescriptor": "EY M",
+          "reference": {
+            "id": "D:K2:CEC:",
+            "ident": "CEC",
+            "type": "navaid",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ],
+            "dmeCoordinate": [
+              -124.240625,
+              41.780175
+            ],
+            "declination": 14
+          },
+          "radial": 311,
+          "rhoNm": 0.3,
+          "altitude": {
+            "restriction": "",
+            "first": "00107",
+            "second": ""
+          },
+          "fix": {
+            "ident": "FEPDU",
+            "coordinate": [
+              -124.24447222222223,
+              41.783452777777775
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 131,
+          "distance": 4.7
+        },
+        {
+          "path": "CA",
+          "id": "D::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00461",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 131
+        },
+        {
+          "path": "FA",
+          "id": "D::050",
+          "waypointDescriptor": "V   ",
+          "reference": {
+            "id": "D:K2:CEC:",
+            "ident": "CEC",
+            "type": "navaid",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ],
+            "dmeCoordinate": [
+              -124.240625,
+              41.780175
+            ],
+            "declination": 14
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CEC",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 166
+        },
+        {
+          "path": "DF",
+          "id": "D::060",
+          "waypointDescriptor": "VY  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CEC",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ]
+          },
+          "missed": true,
+          "turn": "R"
+        },
+        {
+          "path": "HM",
+          "id": "D::070",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CEC",
+            "coordinate": [
+              -124.24084722222223,
+              41.779577777777774
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 345.8,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KCMA:S26",
+      "airport": "KCMA",
+      "ident": "S26",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "CMA",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CMA:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "CMA",
+                "coordinate": [
+                  -119.09435555555555,
+                  34.212522222222226
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CMA:020",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:CMA:030",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "04400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 247,
+              "holdMinutes": 1
+            },
+            {
+              "path": "TF",
+              "id": "A:CMA:040",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BAINE",
+                "coordinate": [
+                  -118.87537777777777,
+                  34.23786944444444
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "FIM",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:FIM:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "FIM",
+                "coordinate": [
+                  -118.88129166666666,
+                  34.35669444444444
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FIM:020",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:FIM:030",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "04400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 247,
+              "holdMinutes": 1
+            },
+            {
+              "path": "TF",
+              "id": "A:FIM:040",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BAINE",
+                "coordinate": [
+                  -118.87537777777777,
+                  34.23786944444444
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "VNY",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:VNY:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "VNY",
+                "coordinate": [
+                  -118.491675,
+                  34.22345833333333
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:VNY:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:VNY:030",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BAINE",
+                "coordinate": [
+                  -118.87537777777777,
+                  34.23786944444444
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "VTU",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:VTU:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "VTU",
+                "coordinate": [
+                  -119.0495,
+                  34.11506388888889
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:VTU:020",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:VTU:030",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "04400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "COOGA",
+                "coordinate": [
+                  -118.79571666666666,
+                  34.24699722222222
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 247,
+              "holdMinutes": 1
+            },
+            {
+              "path": "TF",
+              "id": "A:VTU:040",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BAINE",
+                "coordinate": [
+                  -118.87537777777777,
+                  34.23786944444444
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "S::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "D:K2:CMA:",
+            "ident": "CMA",
+            "type": "navaid",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "dmeCoordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "declination": 15
+          },
+          "radial": 67,
+          "rhoNm": 11,
+          "altitude": {
+            "restriction": "+",
+            "first": "03400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "BAINE",
+            "coordinate": [
+              -118.87537777777777,
+              34.23786944444444
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "S::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:CMA:",
+            "ident": "CMA",
+            "type": "navaid",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "dmeCoordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "declination": 15
+          },
+          "radial": 67,
+          "rhoNm": 5.4,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CECEE",
+            "coordinate": [
+              -118.98687222222222,
+              34.225005555555555
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 247,
+          "distance": 5.6
+        },
+        {
+          "path": "CF",
+          "id": "S::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "D:K2:CMA:",
+            "ident": "CMA",
+            "type": "navaid",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "dmeCoordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "declination": 15
+          },
+          "radial": 67.1,
+          "rhoNm": 0.5,
+          "altitude": {
+            "restriction": "",
+            "first": "00125",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW26",
+            "coordinate": [
+              -119.08441111111111,
+              34.21367777777778
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 247,
+          "distance": 4.9
+        },
+        {
+          "path": "CA",
+          "id": "S::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00477",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 247
+        },
+        {
+          "path": "FA",
+          "id": "S::050",
+          "waypointDescriptor": "V   ",
+          "reference": {
+            "id": "D:K2:CMA:",
+            "ident": "CMA",
+            "type": "navaid",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "dmeCoordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ],
+            "declination": 15
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CMA",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 265
+        },
+        {
+          "path": "DF",
+          "id": "S::060",
+          "waypointDescriptor": "VY  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "04400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CMA",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ]
+          },
+          "missed": true,
+          "turn": "L"
+        },
+        {
+          "path": "HM",
+          "id": "S::070",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "04400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CMA",
+            "coordinate": [
+              -119.09435555555555,
+              34.212522222222226
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 67,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KLAX:I25L",
+      "airport": "KLAX",
+      "ident": "I25L",
+      "magneticVariation": 12,
+      "transitions": [
+        {
+          "id": "CLPUR",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CLPUR:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "CLPUR",
+                "coordinate": [
+                  -117.67691388888889,
+                  33.9502
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WITZZ",
+                "coordinate": [
+                  -117.74872500000001,
+                  33.94325
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JUDOH",
+                "coordinate": [
+                  -117.81618888888889,
+                  33.936769444444444
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KENZO",
+                "coordinate": [
+                  -117.90164722222222,
+                  33.928475
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "06300",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SNNAK",
+                "coordinate": [
+                  -117.96418333333334,
+                  33.92256666666666
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WUNAR",
+                "coordinate": [
+                  -118.04987777777778,
+                  33.96740555555556
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:070",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GAATE",
+                "coordinate": [
+                  -118.07456388888889,
+                  33.96845277777778
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:CLPUR:080",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ILAX:KLAX",
+                "ident": "ILAX",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4224638888889,
+                  33.93329444444444
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HUNDA",
+                "coordinate": [
+                  -118.16212222222222,
+                  33.959719444444445
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.4
+            }
+          ]
+        },
+        {
+          "id": "CRCUS",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CRCUS:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "B",
+                "first": "14000",
+                "second": "12000"
+              },
+              "fix": {
+                "ident": "CRCUS",
+                "coordinate": [
+                  -117.49843888888888,
+                  34.07320277777778
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KRAIN",
+                "coordinate": [
+                  -117.68279722222222,
+                  34.006841666666666
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TAROC",
+                "coordinate": [
+                  -117.75175,
+                  34.00018333333333
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DYMMO",
+                "coordinate": [
+                  -117.81931666666667,
+                  33.99356111111111
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FUELR",
+                "coordinate": [
+                  -117.89688611111112,
+                  33.986019444444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GAATE",
+                "coordinate": [
+                  -118.07456388888889,
+                  33.96845277777778
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:CRCUS:070",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ILAX:KLAX",
+                "ident": "ILAX",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4224638888889,
+                  33.93329444444444
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HUNDA",
+                "coordinate": [
+                  -118.16212222222222,
+                  33.959719444444445
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.4
+            }
+          ]
+        },
+        {
+          "id": "GAATE",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:GAATE:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GAATE",
+                "coordinate": [
+                  -118.07456388888889,
+                  33.96845277777778
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:GAATE:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ILAX:KLAX",
+                "ident": "ILAX",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4224638888889,
+                  33.93329444444444
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HUNDA",
+                "coordinate": [
+                  -118.16212222222222,
+                  33.959719444444445
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.4
+            }
+          ]
+        },
+        {
+          "id": "SEAVU",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SEAVU:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "B",
+                "first": "14000",
+                "second": "12000"
+              },
+              "fix": {
+                "ident": "SEAVU",
+                "coordinate": [
+                  -117.48848611111111,
+                  33.97241388888889
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KRAIN",
+                "coordinate": [
+                  -117.68279722222222,
+                  34.006841666666666
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TAROC",
+                "coordinate": [
+                  -117.75175,
+                  34.00018333333333
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DYMMO",
+                "coordinate": [
+                  -117.81931666666667,
+                  33.99356111111111
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FUELR",
+                "coordinate": [
+                  -117.89688611111112,
+                  33.986019444444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GAATE",
+                "coordinate": [
+                  -118.07456388888889,
+                  33.96845277777778
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:SEAVU:070",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ILAX:KLAX",
+                "ident": "ILAX",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4224638888889,
+                  33.93329444444444
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HUNDA",
+                "coordinate": [
+                  -118.16212222222222,
+                  33.959719444444445
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.4
+            }
+          ]
+        },
+        {
+          "id": "TRNDO",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:TRNDO:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TRNDO",
+                "coordinate": [
+                  -118.10693055555555,
+                  33.89206111111111
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TRNDO:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HIGHT",
+                "coordinate": [
+                  -118.10919166666666,
+                  33.92834722222222
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TRNDO:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "OUTDO",
+                "coordinate": [
+                  -118.1374388888889,
+                  33.95868333333333
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TRNDO:040",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ILAX:KLAX",
+                "ident": "ILAX",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4224638888889,
+                  33.93329444444444
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03600",
+                "second": ""
+              },
+              "fix": {
+                "ident": "HUNDA",
+                "coordinate": [
+                  -118.16212222222222,
+                  33.959719444444445
+                ],
+                "role": "IF"
+              }
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:ILAX:KLAX",
+            "ident": "ILAX",
+            "type": "localizer",
+            "coordinate": [
+              -118.4224638888889,
+              33.93329444444444
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 13.1,
+          "altitude": {
+            "restriction": "J",
+            "first": "03600",
+            "second": "01900"
+          },
+          "fix": {
+            "ident": "HUNDA",
+            "coordinate": [
+              -118.16212222222222,
+              33.959719444444445
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:ILAX:KLAX",
+            "ident": "ILAX",
+            "type": "localizer",
+            "coordinate": [
+              -118.4224638888889,
+              33.93329444444444
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 7.5,
+          "altitude": {
+            "restriction": "H",
+            "first": "01900",
+            "second": "01900"
+          },
+          "fix": {
+            "ident": "GIGII",
+            "coordinate": [
+              -118.27356666666667,
+              33.94846111111111
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 251,
+          "distance": 5.6
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:ILAX:KLAX",
+            "ident": "ILAX",
+            "type": "localizer",
+            "coordinate": [
+              -118.4224638888889,
+              33.93329444444444
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 2,
+          "altitude": {
+            "restriction": "",
+            "first": "00152",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW25L",
+            "coordinate": [
+              -118.38271388888889,
+              33.93736388888889
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 251,
+          "distance": 5.5
+        },
+        {
+          "path": "VR",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "radial": 160,
+          "missed": true,
+          "magneticCourse": 251
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "magneticCourse": 236
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "radial": 194.8,
+          "rhoNm": 15.8,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CATLY",
+            "coordinate": [
+              -118.61280555555555,
+              33.782044444444445
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 194.7,
+          "distance": 9
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CATLY",
+            "coordinate": [
+              -118.61280555555555,
+              33.782044444444445
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 194.7,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KLAX:I25R",
+      "airport": "KLAX",
+      "ident": "I25R",
+      "magneticVariation": 12,
+      "transitions": [
+        {
+          "id": "CLPUR",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CLPUR:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "CLPUR",
+                "coordinate": [
+                  -117.67691388888889,
+                  33.9502
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WITZZ",
+                "coordinate": [
+                  -117.74872500000001,
+                  33.94325
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JUDOH",
+                "coordinate": [
+                  -117.81618888888889,
+                  33.936769444444444
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KENZO",
+                "coordinate": [
+                  -117.90164722222222,
+                  33.928475
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "06300",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SNNAK",
+                "coordinate": [
+                  -117.96418333333334,
+                  33.92256666666666
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CLPUR:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FALLT",
+                "coordinate": [
+                  -118.06882777777777,
+                  33.97123611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:CLPUR:070",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ICFN:KLAX",
+                "ident": "ICFN",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4240638888889,
+                  33.93534722222222
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.6,
+              "altitude": {
+                "restriction": "+",
+                "first": "03700",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SHELL",
+                "coordinate": [
+                  -118.15438055555556,
+                  33.96268611111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.3
+            }
+          ]
+        },
+        {
+          "id": "CRCUS",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:CRCUS:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "B",
+                "first": "14000",
+                "second": "12000"
+              },
+              "fix": {
+                "ident": "CRCUS",
+                "coordinate": [
+                  -117.49843888888888,
+                  34.07320277777778
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LYCOM",
+                "coordinate": [
+                  -117.6824388888889,
+                  34.00908611111111
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TAANK",
+                "coordinate": [
+                  -117.75182222222222,
+                  34.00236944444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JURPE",
+                "coordinate": [
+                  -117.81991666666666,
+                  33.99575277777778
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "MUSIK",
+                "coordinate": [
+                  -117.89746944444445,
+                  33.988175
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:CRCUS:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FALLT",
+                "coordinate": [
+                  -118.06882777777777,
+                  33.97123611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:CRCUS:070",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ICFN:KLAX",
+                "ident": "ICFN",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4240638888889,
+                  33.93534722222222
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.6,
+              "altitude": {
+                "restriction": "+",
+                "first": "03700",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SHELL",
+                "coordinate": [
+                  -118.15438055555556,
+                  33.96268611111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.3
+            }
+          ]
+        },
+        {
+          "id": "FALLT",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:FALLT:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "FALLT",
+                "coordinate": [
+                  -118.06882777777777,
+                  33.97123611111111
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:FALLT:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ICFN:KLAX",
+                "ident": "ICFN",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4240638888889,
+                  33.93534722222222
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.6,
+              "altitude": {
+                "restriction": "+",
+                "first": "03700",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SHELL",
+                "coordinate": [
+                  -118.15438055555556,
+                  33.96268611111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.3
+            }
+          ]
+        },
+        {
+          "id": "SEAVU",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SEAVU:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "B",
+                "first": "14000",
+                "second": "12000"
+              },
+              "fix": {
+                "ident": "SEAVU",
+                "coordinate": [
+                  -117.48848611111111,
+                  33.97241388888889
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "10000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LYCOM",
+                "coordinate": [
+                  -117.6824388888889,
+                  34.00908611111111
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "09000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TAANK",
+                "coordinate": [
+                  -117.75182222222222,
+                  34.00236944444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "08000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JURPE",
+                "coordinate": [
+                  -117.81991666666666,
+                  33.99575277777778
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:050",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "07000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "MUSIK",
+                "coordinate": [
+                  -117.89746944444445,
+                  33.988175
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SEAVU:060",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "FALLT",
+                "coordinate": [
+                  -118.06882777777777,
+                  33.97123611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:SEAVU:070",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ICFN:KLAX",
+                "ident": "ICFN",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4240638888889,
+                  33.93534722222222
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.6,
+              "altitude": {
+                "restriction": "+",
+                "first": "03700",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SHELL",
+                "coordinate": [
+                  -118.15438055555556,
+                  33.96268611111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 251,
+              "distance": 4.3
+            }
+          ]
+        },
+        {
+          "id": "TRNDO",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:TRNDO:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "",
+                "first": "05000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "TRNDO",
+                "coordinate": [
+                  -118.10693055555555,
+                  33.89206111111111
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TRNDO:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ICFN:KLAX",
+                "ident": "ICFN",
+                "type": "localizer",
+                "coordinate": [
+                  -118.4240638888889,
+                  33.93534722222222
+                ],
+                "declination": 12
+              },
+              "radial": 71,
+              "rhoNm": 13.6,
+              "altitude": {
+                "restriction": "+",
+                "first": "03700",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SHELL",
+                "coordinate": [
+                  -118.15438055555556,
+                  33.96268611111111
+                ],
+                "role": "IF"
+              }
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:ICFN:KLAX",
+            "ident": "ICFN",
+            "type": "localizer",
+            "coordinate": [
+              -118.4240638888889,
+              33.93534722222222
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 13.6,
+          "altitude": {
+            "restriction": "J",
+            "first": "03700",
+            "second": "01900"
+          },
+          "fix": {
+            "ident": "SHELL",
+            "coordinate": [
+              -118.15438055555556,
+              33.96268611111111
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:ICFN:KLAX",
+            "ident": "ICFN",
+            "type": "localizer",
+            "coordinate": [
+              -118.4240638888889,
+              33.93534722222222
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 7.6,
+          "altitude": {
+            "restriction": "H",
+            "first": "01900",
+            "second": "01900"
+          },
+          "fix": {
+            "ident": "FOGLA",
+            "coordinate": [
+              -118.27369166666666,
+              33.95066388888889
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 251,
+          "distance": 6
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:ICFN:KLAX",
+            "ident": "ICFN",
+            "type": "localizer",
+            "coordinate": [
+              -118.4240638888889,
+              33.93534722222222
+            ],
+            "declination": 12
+          },
+          "radial": 71,
+          "rhoNm": 2.1,
+          "altitude": {
+            "restriction": "",
+            "first": "00151",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW25R",
+            "coordinate": [
+              -118.38290833333333,
+              33.93955833333333
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 250,
+          "distance": 5.5
+        },
+        {
+          "path": "VR",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "radial": 160,
+          "missed": true,
+          "magneticCourse": 251
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "missed": true,
+          "magneticCourse": 236
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "radial": 194.7,
+          "rhoNm": 15.7,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CATLY",
+            "coordinate": [
+              -118.61280555555555,
+              33.782044444444445
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 194.7,
+          "distance": 12.9
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "CATLY",
+            "coordinate": [
+              -118.61280555555555,
+              33.782044444444445
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 194.7,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KMOD:I28R",
+      "airport": "KMOD",
+      "ident": "I28R",
+      "magneticVariation": 16,
+      "transitions": [
+        {
+          "id": "FRA",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:FRA:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "FRA",
+                "coordinate": [
+                  -119.59544444444444,
+                  37.104422222222226
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FRA:020",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "07500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KALEI",
+                "coordinate": [
+                  -120.47864444444444,
+                  37.369994444444444
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:FRA:030",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IMOD:KMOD",
+                "ident": "IMOD",
+                "type": "localizer",
+                "coordinate": [
+                  -120.963575,
+                  37.63161111111111
+                ],
+                "declination": 16
+              },
+              "radial": 108.1,
+              "rhoNm": 18,
+              "altitude": {
+                "restriction": "+",
+                "first": "03500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DLRAY",
+                "coordinate": [
+                  -120.65214166666667,
+                  37.463075
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 288.1,
+              "distance": 10
+            }
+          ]
+        },
+        {
+          "id": "MOD",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:MOD:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "MOD",
+                "coordinate": [
+                  -120.95786944444444,
+                  37.627375
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:MOD:020",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZELAT",
+                "coordinate": [
+                  -120.85244999999999,
+                  37.57164166666667
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:MOD:030",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "PI:K2:IMOD:KMOD",
+                "ident": "IMOD",
+                "type": "localizer",
+                "coordinate": [
+                  -120.963575,
+                  37.63161111111111
+                ],
+                "declination": 16
+              },
+              "radial": 108.1,
+              "rhoNm": 6.4,
+              "altitude": {
+                "restriction": "+",
+                "first": "01800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZELAT",
+                "coordinate": [
+                  -120.85244999999999,
+                  37.57164166666667
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 288.1,
+              "holdMinutes": 1
+            }
+          ]
+        },
+        {
+          "id": "PXN",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:PXN:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "PXN",
+                "coordinate": [
+                  -120.77868333333333,
+                  36.71545833333334
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:PXN:020",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "07500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "KALEI",
+                "coordinate": [
+                  -120.47864444444444,
+                  37.369994444444444
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:PXN:030",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IMOD:KMOD",
+                "ident": "IMOD",
+                "type": "localizer",
+                "coordinate": [
+                  -120.963575,
+                  37.63161111111111
+                ],
+                "declination": 16
+              },
+              "radial": 108.1,
+              "rhoNm": 18,
+              "altitude": {
+                "restriction": "+",
+                "first": "03500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DLRAY",
+                "coordinate": [
+                  -120.65214166666667,
+                  37.463075
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 288.1,
+              "distance": 10
+            }
+          ]
+        },
+        {
+          "id": "WRAPS",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:WRAPS:010",
+              "waypointDescriptor": "E   ",
+              "fix": {
+                "ident": "WRAPS",
+                "coordinate": [
+                  -120.78374444444444,
+                  37.85794444444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:WRAPS:020",
+              "waypointDescriptor": "V   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "MOD",
+                "coordinate": [
+                  -120.95786944444444,
+                  37.627375
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:WRAPS:030",
+              "waypointDescriptor": "EY  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZELAT",
+                "coordinate": [
+                  -120.85244999999999,
+                  37.57164166666667
+                ]
+              }
+            },
+            {
+              "path": "HF",
+              "id": "A:WRAPS:040",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "PI:K2:IMOD:KMOD",
+                "ident": "IMOD",
+                "type": "localizer",
+                "coordinate": [
+                  -120.963575,
+                  37.63161111111111
+                ],
+                "declination": 16
+              },
+              "radial": 108.1,
+              "rhoNm": 6.4,
+              "altitude": {
+                "restriction": "+",
+                "first": "01800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZELAT",
+                "coordinate": [
+                  -120.85244999999999,
+                  37.57164166666667
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 288.1,
+              "holdMinutes": 1
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IMOD:KMOD",
+            "ident": "IMOD",
+            "type": "localizer",
+            "coordinate": [
+              -120.963575,
+              37.63161111111111
+            ],
+            "declination": 16
+          },
+          "radial": 108.1,
+          "rhoNm": 18,
+          "altitude": {
+            "restriction": "J",
+            "first": "03500",
+            "second": "01800"
+          },
+          "fix": {
+            "ident": "DLRAY",
+            "coordinate": [
+              -120.65214166666667,
+              37.463075
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IMOD:KMOD",
+            "ident": "IMOD",
+            "type": "localizer",
+            "coordinate": [
+              -120.963575,
+              37.63161111111111
+            ],
+            "declination": 16
+          },
+          "radial": 108.1,
+          "rhoNm": 6.4,
+          "altitude": {
+            "restriction": "H",
+            "first": "01800",
+            "second": "01800"
+          },
+          "fix": {
+            "ident": "ZELAT",
+            "coordinate": [
+              -120.85244999999999,
+              37.57164166666667
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 288,
+          "distance": 11.6
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IMOD:KMOD",
+            "ident": "IMOD",
+            "type": "localizer",
+            "coordinate": [
+              -120.963575,
+              37.63161111111111
+            ],
+            "declination": 16
+          },
+          "radial": 108.1,
+          "rhoNm": 1.2,
+          "altitude": {
+            "restriction": "",
+            "first": "00134",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW28R",
+            "coordinate": [
+              -120.94322777777778,
+              37.620647222222225
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 288,
+          "distance": 5.2
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "01500",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 288.1
+        },
+        {
+          "path": "DF",
+          "id": "I::050",
+          "waypointDescriptor": "VY  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "MOD",
+            "coordinate": [
+              -120.95786944444444,
+              37.627375
+            ]
+          },
+          "missed": true,
+          "turn": "R"
+        },
+        {
+          "path": "HM",
+          "id": "I::060",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "MOD",
+            "coordinate": [
+              -120.95786944444444,
+              37.627375
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 284.6,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KNUQ:I32R",
+      "airport": "KNUQ",
+      "ident": "I32R",
+      "magneticVariation": 16,
+      "transitions": [
+        {
+          "id": "ZAPEP",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:ZAPEP:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "05500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZAPEP",
+                "coordinate": [
+                  -121.87833333333333,
+                  37.08426111111111
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:ZAPEP:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:INUQ:KNUQ",
+                "ident": "INUQ",
+                "type": "localizer",
+                "coordinate": [
+                  -122.05583333333333,
+                  37.431308333333334
+                ],
+                "declination": 16
+              },
+              "radial": 141.7,
+              "rhoNm": 18.8,
+              "altitude": {
+                "restriction": "+",
+                "first": "05200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "AGAPE",
+                "coordinate": [
+                  -121.90738333333334,
+                  37.141275
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 321.7,
+              "distance": 3.6
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 18.8,
+          "altitude": {
+            "restriction": "J",
+            "first": "05200",
+            "second": "02100"
+          },
+          "fix": {
+            "ident": "AGAPE",
+            "coordinate": [
+              -121.90738333333334,
+              37.141275
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::011",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 15.2,
+          "altitude": {
+            "restriction": "+",
+            "first": "04400",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RIROC",
+            "coordinate": [
+              -121.93541388888889,
+              37.19624722222222
+            ]
+          },
+          "magneticCourse": 322,
+          "distance": 3.5
+        },
+        {
+          "path": "CF",
+          "id": "I::012",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 12.7,
+          "altitude": {
+            "restriction": "+",
+            "first": "03600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "ORZOS",
+            "coordinate": [
+              -121.95530000000001,
+              37.235175
+            ]
+          },
+          "magneticCourse": 322,
+          "distance": 2.5
+        },
+        {
+          "path": "CF",
+          "id": "I::013",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 10.8,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "JULUD",
+            "coordinate": [
+              -121.97015,
+              37.26421388888889
+            ]
+          },
+          "magneticCourse": 322,
+          "distance": 1.9
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 8,
+          "altitude": {
+            "restriction": "H",
+            "first": "02100",
+            "second": "02100"
+          },
+          "fix": {
+            "ident": "EBIYI",
+            "coordinate": [
+              -121.99281666666667,
+              37.30848888888889
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 322,
+          "distance": 2.9
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:INUQ:KNUQ",
+            "ident": "INUQ",
+            "type": "localizer",
+            "coordinate": [
+              -122.05583333333333,
+              37.431308333333334
+            ],
+            "declination": 16
+          },
+          "radial": 141.7,
+          "rhoNm": 1.6,
+          "altitude": {
+            "restriction": "",
+            "first": "00088",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW32R",
+            "coordinate": [
+              -122.04284722222222,
+              37.40603888888889
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 322,
+          "distance": 6.3
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00700",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 321.7
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "magneticCourse": 310
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "VY  ",
+          "reference": {
+            "id": "D:K2:OAK:",
+            "ident": "OAK",
+            "type": "navaid",
+            "coordinate": [
+              -122.22359166666666,
+              37.725925000000004
+            ],
+            "dmeCoordinate": [
+              -122.22359166666666,
+              37.725925000000004
+            ],
+            "declination": 17
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "04000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "OAK",
+            "coordinate": [
+              -122.22359166666666,
+              37.725925000000004
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 319,
+          "distance": 19
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "04000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "OAK",
+            "coordinate": [
+              -122.22359166666666,
+              37.725925000000004
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 139,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KOAK:I28R",
+      "airport": "KOAK",
+      "ident": "I28R",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "BBUBB",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:BBUBB:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "06000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "BBUBB",
+                "coordinate": [
+                  -121.83846944444444,
+                  37.670716666666664
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:BBUBB:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "NAGVY",
+                "coordinate": [
+                  -121.93081944444445,
+                  37.63565277777778
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:BBUBB:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SKYLN",
+                "coordinate": [
+                  -121.96090277777778,
+                  37.64548611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:BBUBB:040",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IOAK:KOAK",
+                "ident": "IOAK",
+                "type": "localizer",
+                "coordinate": [
+                  -122.22635277777778,
+                  37.73181944444445
+                ],
+                "declination": 14
+              },
+              "radial": 98.2,
+              "rhoNm": 12.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GROVE",
+                "coordinate": [
+                  -121.99099166666667,
+                  37.65531111111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 278.2,
+              "distance": 1.6
+            }
+          ]
+        },
+        {
+          "id": "FFIST",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:FFIST:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "B",
+                "first": "09000",
+                "second": "07000"
+              },
+              "fix": {
+                "ident": "FFIST",
+                "coordinate": [
+                  -121.68677222222223,
+                  37.61566666666667
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FFIST:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "NAGVY",
+                "coordinate": [
+                  -121.93081944444445,
+                  37.63565277777778
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FFIST:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SKYLN",
+                "coordinate": [
+                  -121.96090277777778,
+                  37.64548611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:FFIST:040",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IOAK:KOAK",
+                "ident": "IOAK",
+                "type": "localizer",
+                "coordinate": [
+                  -122.22635277777778,
+                  37.73181944444445
+                ],
+                "declination": 14
+              },
+              "radial": 98.2,
+              "rhoNm": 12.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GROVE",
+                "coordinate": [
+                  -121.99099166666667,
+                  37.65531111111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 278.2,
+              "distance": 1.6
+            }
+          ]
+        },
+        {
+          "id": "MYSHN",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:MYSHN:010",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "06200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "MYSHN",
+                "coordinate": [
+                  -121.77480555555556,
+                  37.53151666666667
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:MYSHN:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05300",
+                "second": ""
+              },
+              "fix": {
+                "ident": "CYMBL",
+                "coordinate": [
+                  -121.84363055555555,
+                  37.57088055555556
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:MYSHN:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04200",
+                "second": ""
+              },
+              "fix": {
+                "ident": "NAGVY",
+                "coordinate": [
+                  -121.93081944444445,
+                  37.63565277777778
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:MYSHN:040",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03800",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SKYLN",
+                "coordinate": [
+                  -121.96090277777778,
+                  37.64548611111111
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:MYSHN:050",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IOAK:KOAK",
+                "ident": "IOAK",
+                "type": "localizer",
+                "coordinate": [
+                  -122.22635277777778,
+                  37.73181944444445
+                ],
+                "declination": 14
+              },
+              "radial": 98.2,
+              "rhoNm": 12.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03400",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GROVE",
+                "coordinate": [
+                  -121.99099166666667,
+                  37.65531111111111
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 278.2,
+              "distance": 1.6
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IOAK:KOAK",
+            "ident": "IOAK",
+            "type": "localizer",
+            "coordinate": [
+              -122.22635277777778,
+              37.73181944444445
+            ],
+            "declination": 14
+          },
+          "radial": 98.2,
+          "rhoNm": 12.1,
+          "altitude": {
+            "restriction": "J",
+            "first": "03400",
+            "second": "01500"
+          },
+          "fix": {
+            "ident": "GROVE",
+            "coordinate": [
+              -121.99099166666667,
+              37.65531111111111
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::011",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "PI:K2:IOAK:KOAK",
+            "ident": "IOAK",
+            "type": "localizer",
+            "coordinate": [
+              -122.22635277777778,
+              37.73181944444445
+            ],
+            "declination": 14
+          },
+          "radial": 98.2,
+          "rhoNm": 9.8,
+          "altitude": {
+            "restriction": "+",
+            "first": "02700",
+            "second": ""
+          },
+          "fix": {
+            "ident": "URZAF",
+            "coordinate": [
+              -122.03585,
+              37.669941666666666
+            ]
+          },
+          "magneticCourse": 278,
+          "distance": 2.3
+        },
+        {
+          "path": "CF",
+          "id": "I::012",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "PI:K2:IOAK:KOAK",
+            "ident": "IOAK",
+            "type": "localizer",
+            "coordinate": [
+              -122.22635277777778,
+              37.73181944444445
+            ],
+            "declination": 14
+          },
+          "radial": 98.2,
+          "rhoNm": 7.8,
+          "altitude": {
+            "restriction": "+",
+            "first": "02100",
+            "second": ""
+          },
+          "fix": {
+            "ident": "NIXDE",
+            "coordinate": [
+              -122.07489722222222,
+              37.68265833333333
+            ]
+          },
+          "magneticCourse": 278,
+          "distance": 2
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IOAK:KOAK",
+            "ident": "IOAK",
+            "type": "localizer",
+            "coordinate": [
+              -122.22635277777778,
+              37.73181944444445
+            ],
+            "declination": 14
+          },
+          "radial": 98.2,
+          "rhoNm": 5.6,
+          "altitude": {
+            "restriction": "H",
+            "first": "01500",
+            "second": "01500"
+          },
+          "fix": {
+            "ident": "CUVSA",
+            "coordinate": [
+              -122.11668888888889,
+              37.696275
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 278,
+          "distance": 2.2
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IOAK:KOAK",
+            "ident": "IOAK",
+            "type": "localizer",
+            "coordinate": [
+              -122.22635277777778,
+              37.73181944444445
+            ],
+            "declination": 14
+          },
+          "radial": 98.2,
+          "rhoNm": 1.1,
+          "altitude": {
+            "restriction": "",
+            "first": "00059",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW28R",
+            "coordinate": [
+              -122.20470833333334,
+              37.72481388888889
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 278,
+          "distance": 4.5
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "01900",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 278.2
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "magneticCourse": 340
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 165,
+          "rhoNm": 14.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "REBAS",
+            "coordinate": [
+              -122.38366666666667,
+              37.94068333333333
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 345,
+          "distance": 10
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "REBAS",
+            "coordinate": [
+              -122.38366666666667,
+              37.94068333333333
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 345,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KPOC:VOR-A",
+      "airport": "KPOC",
+      "ident": "VOR-A",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "LAHAB",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:LAHAB:010",
+              "waypointDescriptor": "E  A",
+              "fix": {
+                "ident": "LAHAB",
+                "coordinate": [
+                  -117.92589444444445,
+                  33.92565277777778
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:LAHAB:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "PRADO",
+                "coordinate": [
+                  -117.78380555555556,
+                  33.92316944444444
+                ]
+              },
+              "magneticCourse": 76,
+              "distance": 7.1
+            },
+            {
+              "path": "TF",
+              "id": "A:LAHAB:030",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GOLDI",
+                "coordinate": [
+                  -117.78597222222223,
+                  34.02667777777778
+                ]
+              },
+              "turn": "L",
+              "magneticCourse": 344,
+              "distance": 6.3
+            }
+          ]
+        },
+        {
+          "id": "PDZ",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:PDZ:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "PDZ",
+                "coordinate": [
+                  -117.52999722222222,
+                  33.91833611111111
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:PDZ:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "PRADO",
+                "coordinate": [
+                  -117.78380555555556,
+                  33.92316944444444
+                ]
+              },
+              "magneticCourse": 256,
+              "distance": 12.7
+            },
+            {
+              "path": "TF",
+              "id": "A:PDZ:030",
+              "waypointDescriptor": "EE  ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GOLDI",
+                "coordinate": [
+                  -117.78597222222223,
+                  34.02667777777778
+                ]
+              },
+              "magneticCourse": 344,
+              "distance": 6.3
+            }
+          ]
+        },
+        {
+          "id": "POM",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:POM:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "POM",
+                "coordinate": [
+                  -117.78707222222222,
+                  34.078388888888895
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:POM:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GOLDI",
+                "coordinate": [
+                  -117.78597222222223,
+                  34.02667777777778
+                ]
+              },
+              "magneticCourse": 164,
+              "distance": 3
+            },
+            {
+              "path": "PI",
+              "id": "A:POM:030",
+              "waypointDescriptor": "E  A",
+              "reference": {
+                "id": "D:K2:POM:",
+                "ident": "POM",
+                "type": "navaid",
+                "coordinate": [
+                  -117.78707222222222,
+                  34.078388888888895
+                ],
+                "dmeCoordinate": [
+                  -117.78707222222222,
+                  34.078388888888895
+                ],
+                "declination": 15
+              },
+              "radial": 164,
+              "rhoNm": 3.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "04000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GOLDI",
+                "coordinate": [
+                  -117.78597222222223,
+                  34.02667777777778
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 209,
+              "distance": 10
+            },
+            {
+              "path": "CF",
+              "id": "A:POM:040",
+              "waypointDescriptor": "EE  ",
+              "reference": {
+                "id": "D:K2:POM:",
+                "ident": "POM",
+                "type": "navaid",
+                "coordinate": [
+                  -117.78707222222222,
+                  34.078388888888895
+                ],
+                "dmeCoordinate": [
+                  -117.78707222222222,
+                  34.078388888888895
+                ],
+                "declination": 15
+              },
+              "radial": 164,
+              "rhoNm": 3.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "02500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "GOLDI",
+                "coordinate": [
+                  -117.78597222222223,
+                  34.02667777777778
+                ]
+              },
+              "magneticCourse": 344,
+              "distance": 6
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "S::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:POM:",
+            "ident": "POM",
+            "type": "navaid",
+            "coordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "dmeCoordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "declination": 15
+          },
+          "altitude": {
+            "restriction": "+",
+            "first": "02500",
+            "second": ""
+          },
+          "fix": {
+            "ident": "GOLDI",
+            "coordinate": [
+              -117.78597222222223,
+              34.02667777777778
+            ],
+            "role": "FAF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "S::030",
+          "waypointDescriptor": "VY M",
+          "reference": {
+            "id": "D:K2:POM:",
+            "ident": "POM",
+            "type": "navaid",
+            "coordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "dmeCoordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "declination": 15
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "",
+            "first": "01014",
+            "second": ""
+          },
+          "fix": {
+            "ident": "POM",
+            "coordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 344,
+          "distance": 3
+        },
+        {
+          "path": "CA",
+          "id": "S::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "01414",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 344
+        },
+        {
+          "path": "CF",
+          "id": "S::050",
+          "waypointDescriptor": "EE  ",
+          "reference": {
+            "id": "D:K2:POM:",
+            "ident": "POM",
+            "type": "navaid",
+            "coordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "dmeCoordinate": [
+              -117.78707222222222,
+              34.078388888888895
+            ],
+            "declination": 15
+          },
+          "radial": 164,
+          "rhoNm": 9.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "04000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "PRADO",
+            "coordinate": [
+              -117.78380555555556,
+              33.92316944444444
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 164,
+          "distance": 6
+        }
+      ]
+    },
+    {
+      "id": "KRDD:I35",
+      "airport": "KRDD",
+      "ident": "I35",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "ITMOR",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:ITMOR:010",
+              "waypointDescriptor": "E   ",
+              "fix": {
+                "ident": "ITMOR",
+                "coordinate": [
+                  -122.06091388888889,
+                  40.597875
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:ITMOR:020",
+              "waypointDescriptor": "V   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RDD",
+                "coordinate": [
+                  -122.29169999999999,
+                  40.50456388888889
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:ITMOR:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LASSN",
+                "coordinate": [
+                  -122.295075,
+                  40.38811666666667
+                ]
+              }
+            },
+            {
+              "path": "PI",
+              "id": "A:ITMOR:040",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "PI:K2:IRDD:KRDD",
+                "ident": "IRDD",
+                "type": "localizer",
+                "coordinate": [
+                  -122.29485,
+                  40.523066666666665
+                ],
+                "declination": 14
+              },
+              "radial": 166.1,
+              "rhoNm": 8.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LASSN",
+                "coordinate": [
+                  -122.295075,
+                  40.38811666666667
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 211.1,
+              "distance": 15
+            }
+          ]
+        },
+        {
+          "id": "RBL",
+          "legs": [
+            {
+              "path": "FC",
+              "id": "A:RBL:010",
+              "waypointDescriptor": "V  A",
+              "reference": {
+                "id": "D:K2:RBL:",
+                "ident": "RBL",
+                "type": "navaid",
+                "coordinate": [
+                  -122.23635,
+                  40.098911111111114
+                ],
+                "dmeCoordinate": [
+                  -122.23635,
+                  40.098911111111114
+                ],
+                "declination": 18
+              },
+              "radial": 0,
+              "rhoNm": 0,
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RBL",
+                "coordinate": [
+                  -122.23635,
+                  40.098911111111114
+                ],
+                "role": "IAF"
+              },
+              "magneticCourse": 321.9,
+              "distance": 7.9
+            },
+            {
+              "path": "CF",
+              "id": "A:RBL:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:IRDD:KRDD",
+                "ident": "IRDD",
+                "type": "localizer",
+                "coordinate": [
+                  -122.29485,
+                  40.523066666666665
+                ],
+                "declination": 14
+              },
+              "radial": 166.1,
+              "rhoNm": 18,
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DIBLE",
+                "coordinate": [
+                  -122.29541944444445,
+                  40.22281388888889
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 321.9,
+              "distance": 2
+            }
+          ]
+        },
+        {
+          "id": "TAYTO",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:TAYTO:010",
+              "waypointDescriptor": "E   ",
+              "fix": {
+                "ident": "TAYTO",
+                "coordinate": [
+                  -122.44809166666667,
+                  40.60744444444445
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TAYTO:020",
+              "waypointDescriptor": "V   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "05500",
+                "second": ""
+              },
+              "fix": {
+                "ident": "RDD",
+                "coordinate": [
+                  -122.29169999999999,
+                  40.50456388888889
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:TAYTO:030",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LASSN",
+                "coordinate": [
+                  -122.295075,
+                  40.38811666666667
+                ]
+              }
+            },
+            {
+              "path": "PI",
+              "id": "A:TAYTO:040",
+              "waypointDescriptor": "EE A",
+              "reference": {
+                "id": "PI:K2:IRDD:KRDD",
+                "ident": "IRDD",
+                "type": "localizer",
+                "coordinate": [
+                  -122.29485,
+                  40.523066666666665
+                ],
+                "declination": 14
+              },
+              "radial": 166.1,
+              "rhoNm": 8.1,
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "LASSN",
+                "coordinate": [
+                  -122.295075,
+                  40.38811666666667
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 211.1,
+              "distance": 15
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IRDD:KRDD",
+            "ident": "IRDD",
+            "type": "localizer",
+            "coordinate": [
+              -122.29485,
+              40.523066666666665
+            ],
+            "declination": 14
+          },
+          "radial": 166.1,
+          "rhoNm": 18,
+          "altitude": {
+            "restriction": "J",
+            "first": "03000",
+            "second": "02700"
+          },
+          "fix": {
+            "ident": "DIBLE",
+            "coordinate": [
+              -122.29541944444445,
+              40.22281388888889
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IRDD:KRDD",
+            "ident": "IRDD",
+            "type": "localizer",
+            "coordinate": [
+              -122.29485,
+              40.523066666666665
+            ],
+            "declination": 14
+          },
+          "radial": 166.1,
+          "rhoNm": 8.1,
+          "altitude": {
+            "restriction": "H",
+            "first": "02700",
+            "second": "02700"
+          },
+          "fix": {
+            "ident": "LASSN",
+            "coordinate": [
+              -122.295075,
+              40.38811666666667
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 346,
+          "distance": 9.9
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IRDD:KRDD",
+            "ident": "IRDD",
+            "type": "localizer",
+            "coordinate": [
+              -122.29485,
+              40.523066666666665
+            ],
+            "declination": 14
+          },
+          "radial": 166.1,
+          "rhoNm": 1.3,
+          "altitude": {
+            "restriction": "",
+            "first": "00542",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW35",
+            "coordinate": [
+              -122.29488611111111,
+              40.50111388888889
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 346,
+          "distance": 6.8
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02400",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 346.1
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 110
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:RDD:",
+            "ident": "RDD",
+            "type": "navaid",
+            "coordinate": [
+              -122.29169999999999,
+              40.50456388888889
+            ],
+            "dmeCoordinate": [
+              -122.29169999999999,
+              40.50456388888889
+            ],
+            "declination": 18
+          },
+          "radial": 44,
+          "rhoNm": 12,
+          "altitude": {
+            "restriction": "+",
+            "first": "05000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "ITMOR",
+            "coordinate": [
+              -122.06091388888889,
+              40.597875
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 44,
+          "distance": 7
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "05000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "ITMOR",
+            "coordinate": [
+              -122.06091388888889,
+              40.597875
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 357,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KTOA:I29R",
+      "airport": "KTOA",
+      "ident": "I29R",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "ALBAS",
+          "legs": [
+            {
+              "path": "FC",
+              "id": "A:ALBAS:010",
+              "waypointDescriptor": "E  A",
+              "reference": {
+                "id": "D:K2:LAX:",
+                "ident": "LAX",
+                "type": "navaid",
+                "coordinate": [
+                  -118.43201388888889,
+                  33.93315
+                ],
+                "dmeCoordinate": [
+                  -118.43243611111112,
+                  33.933425
+                ],
+                "declination": 15
+              },
+              "radial": 123.3,
+              "rhoNm": 26.7,
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ALBAS",
+                "coordinate": [
+                  -118.07782222222222,
+                  33.59963333333334
+                ],
+                "role": "IAF"
+              },
+              "magneticCourse": 303.3,
+              "distance": 6.2
+            },
+            {
+              "path": "CF",
+              "id": "A:ALBAS:020",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ITOA:KTOA",
+                "ident": "ITOA",
+                "type": "localizer",
+                "coordinate": [
+                  -118.34689444444444,
+                  33.80887222222222
+                ],
+                "declination": 14
+              },
+              "radial": 114.5,
+              "rhoNm": 10.3,
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DRIFY",
+                "coordinate": [
+                  -118.18588055555556,
+                  33.70186944444445
+                ],
+                "role": "IF"
+              },
+              "magneticCourse": 303.3,
+              "distance": 2
+            }
+          ]
+        },
+        {
+          "id": "SLI",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:SLI:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "SLI",
+                "coordinate": [
+                  -118.05475833333333,
+                  33.7833
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:SLI:020",
+              "waypointDescriptor": "E   ",
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ODEQY",
+                "coordinate": [
+                  -118.1497638888889,
+                  33.67785277777777
+                ]
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:SLI:030",
+              "waypointDescriptor": "EE B",
+              "reference": {
+                "id": "PI:K2:ITOA:KTOA",
+                "ident": "ITOA",
+                "type": "localizer",
+                "coordinate": [
+                  -118.34689444444444,
+                  33.80887222222222
+                ],
+                "declination": 14
+              },
+              "radial": 114.5,
+              "rhoNm": 10.3,
+              "altitude": {
+                "restriction": "+",
+                "first": "02000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "DRIFY",
+                "coordinate": [
+                  -118.18588055555556,
+                  33.70186944444445
+                ],
+                "role": "IF"
+              },
+              "turn": "R",
+              "magneticCourse": 294.5,
+              "distance": 2.3
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:ITOA:KTOA",
+            "ident": "ITOA",
+            "type": "localizer",
+            "coordinate": [
+              -118.34689444444444,
+              33.80887222222222
+            ],
+            "declination": 14
+          },
+          "radial": 114.5,
+          "rhoNm": 10.3,
+          "altitude": {
+            "restriction": "J",
+            "first": "02000",
+            "second": "02000"
+          },
+          "fix": {
+            "ident": "DRIFY",
+            "coordinate": [
+              -118.18588055555556,
+              33.70186944444445
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:ITOA:KTOA",
+            "ident": "ITOA",
+            "type": "localizer",
+            "coordinate": [
+              -118.34689444444444,
+              33.80887222222222
+            ],
+            "declination": 14
+          },
+          "radial": 114.4,
+          "rhoNm": 5.9,
+          "altitude": {
+            "restriction": "H",
+            "first": "02000",
+            "second": "02000"
+          },
+          "fix": {
+            "ident": "ZILBA",
+            "coordinate": [
+              -118.25389444444444,
+              33.74716111111111
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 294,
+          "distance": 4.4
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:ITOA:KTOA",
+            "ident": "ITOA",
+            "type": "localizer",
+            "coordinate": [
+              -118.34689444444444,
+              33.80887222222222
+            ],
+            "declination": 14
+          },
+          "radial": 114.5,
+          "rhoNm": 0.8,
+          "altitude": {
+            "restriction": "",
+            "first": "00149",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW29R",
+            "coordinate": [
+              -118.33416944444444,
+              33.80043611111111
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 294,
+          "distance": 5.1
+        },
+        {
+          "path": "VR",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "reference": {
+            "id": "D:K2:LAX:",
+            "ident": "LAX",
+            "type": "navaid",
+            "coordinate": [
+              -118.43201388888889,
+              33.93315
+            ],
+            "dmeCoordinate": [
+              -118.43243611111112,
+              33.933425
+            ],
+            "declination": 15
+          },
+          "radial": 150,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 294
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "magneticCourse": 250
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:LAX:",
+            "ident": "LAX",
+            "type": "navaid",
+            "coordinate": [
+              -118.43201388888889,
+              33.93315
+            ],
+            "dmeCoordinate": [
+              -118.43243611111112,
+              33.933425
+            ],
+            "declination": 15
+          },
+          "radial": 192,
+          "rhoNm": 12,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "INISH",
+            "coordinate": [
+              -118.54132222222222,
+              33.75391111111111
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 192,
+          "distance": 7
+        },
+        {
+          "path": "HM",
+          "id": "I::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "INISH",
+            "coordinate": [
+              -118.54132222222222,
+              33.75391111111111
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 71,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KVNY:I16RZ",
+      "airport": "KVNY",
+      "ident": "I16RZ",
+      "magneticVariation": 12,
+      "transitions": [
+        {
+          "id": "FIM",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:FIM:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "FIM",
+                "coordinate": [
+                  -118.88129166666666,
+                  34.35669444444444
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FIM:020",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "06000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZIDOM",
+                "coordinate": [
+                  -118.594625,
+                  34.45385
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:FIM:030",
+              "waypointDescriptor": "E  B",
+              "altitude": {
+                "restriction": "+",
+                "first": "06000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "UMBER",
+                "coordinate": [
+                  -118.516025,
+                  34.48034166666667
+                ],
+                "role": "IF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:FIM:040",
+              "waypointDescriptor": "EE  ",
+              "reference": {
+                "id": "PI:K2:IVNY:KVNY",
+                "ident": "IVNY",
+                "type": "localizer",
+                "coordinate": [
+                  -118.48893333333334,
+                  34.194538888888886
+                ],
+                "declination": 12
+              },
+              "radial": 343.5,
+              "rhoNm": 13.2,
+              "altitude": {
+                "restriction": "+",
+                "first": "04900",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JINAT",
+                "coordinate": [
+                  -118.5097,
+                  34.413719444444446
+                ]
+              },
+              "turn": "R",
+              "magneticCourse": 163.5,
+              "distance": 4
+            }
+          ]
+        },
+        {
+          "id": "VNY",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:VNY:010",
+              "waypointDescriptor": "V   ",
+              "fix": {
+                "ident": "VNY",
+                "coordinate": [
+                  -118.491675,
+                  34.22345833333333
+                ]
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:VNY:020",
+              "waypointDescriptor": "E  A",
+              "altitude": {
+                "restriction": "+",
+                "first": "06000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "ZIDOM",
+                "coordinate": [
+                  -118.594625,
+                  34.45385
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:VNY:030",
+              "waypointDescriptor": "E  B",
+              "altitude": {
+                "restriction": "+",
+                "first": "06000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "UMBER",
+                "coordinate": [
+                  -118.516025,
+                  34.48034166666667
+                ],
+                "role": "IF"
+              }
+            },
+            {
+              "path": "CF",
+              "id": "A:VNY:040",
+              "waypointDescriptor": "EE  ",
+              "reference": {
+                "id": "PI:K2:IVNY:KVNY",
+                "ident": "IVNY",
+                "type": "localizer",
+                "coordinate": [
+                  -118.48893333333334,
+                  34.194538888888886
+                ],
+                "declination": 12
+              },
+              "radial": 343.5,
+              "rhoNm": 13.2,
+              "altitude": {
+                "restriction": "+",
+                "first": "04900",
+                "second": ""
+              },
+              "fix": {
+                "ident": "JINAT",
+                "coordinate": [
+                  -118.5097,
+                  34.413719444444446
+                ]
+              },
+              "turn": "R",
+              "magneticCourse": 163.5,
+              "distance": 4
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IVNY:KVNY",
+            "ident": "IVNY",
+            "type": "localizer",
+            "coordinate": [
+              -118.48893333333334,
+              34.194538888888886
+            ],
+            "declination": 12
+          },
+          "radial": 343.5,
+          "rhoNm": 13.2,
+          "altitude": {
+            "restriction": "J",
+            "first": "04900",
+            "second": "03800"
+          },
+          "fix": {
+            "ident": "JINAT",
+            "coordinate": [
+              -118.5097,
+              34.413719444444446
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IVNY:KVNY",
+            "ident": "IVNY",
+            "type": "localizer",
+            "coordinate": [
+              -118.48893333333334,
+              34.194538888888886
+            ],
+            "declination": 12
+          },
+          "radial": 343.5,
+          "rhoNm": 9.2,
+          "altitude": {
+            "restriction": "H",
+            "first": "03800",
+            "second": "03800"
+          },
+          "fix": {
+            "ident": "FURRY",
+            "coordinate": [
+              -118.5034111111111,
+              34.34747222222222
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 164,
+          "distance": 4
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IVNY:KVNY",
+            "ident": "IVNY",
+            "type": "localizer",
+            "coordinate": [
+              -118.48893333333334,
+              34.194538888888886
+            ],
+            "declination": 12
+          },
+          "radial": 343.5,
+          "rhoNm": 1.2,
+          "altitude": {
+            "restriction": "",
+            "first": "00842",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW16R",
+            "coordinate": [
+              -118.49086944444444,
+              34.21498888888889
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 164,
+          "distance": 8
+        },
+        {
+          "path": "CD",
+          "id": "I::040",
+          "waypointDescriptor": "  M ",
+          "reference": {
+            "id": "D:K2:VNY:",
+            "ident": "VNY",
+            "type": "navaid",
+            "coordinate": [
+              -118.491675,
+              34.22345833333333
+            ],
+            "dmeCoordinate": [
+              -118.491725,
+              34.224022222222224
+            ],
+            "declination": 15
+          },
+          "altitude": {
+            "restriction": "-",
+            "first": "01750",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 163.5,
+          "distance": 1.5
+        },
+        {
+          "path": "CF",
+          "id": "I::050",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:VNY:",
+            "ident": "VNY",
+            "type": "navaid",
+            "coordinate": [
+              -118.491675,
+              34.22345833333333
+            ],
+            "dmeCoordinate": [
+              -118.491725,
+              34.224022222222224
+            ],
+            "declination": 15
+          },
+          "radial": 152,
+          "rhoNm": 8,
+          "fix": {
+            "ident": "HIRVI",
+            "coordinate": [
+              -118.45555555555556,
+              34.09331111111111
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 152,
+          "distance": 6
+        },
+        {
+          "path": "DF",
+          "id": "I::060",
+          "waypointDescriptor": "V   ",
+          "altitude": {
+            "restriction": "+",
+            "first": "04600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "SMO",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ]
+          },
+          "missed": true
+        },
+        {
+          "path": "CF",
+          "id": "I::070",
+          "waypointDescriptor": "VY  ",
+          "reference": {
+            "id": "D:K2:SMO:",
+            "ident": "SMO",
+            "type": "navaid",
+            "coordinate": [
+              -118.45671666666667,
+              34.010244444444446
+            ],
+            "dmeCoordinate": [
+              -118.45638055555555,
+              34.010425
+            ],
+            "declination": 15
+          },
+          "radial": 267.2,
+          "rhoNm": 30.2,
+          "altitude": {
+            "restriction": "+",
+            "first": "04600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "VTU",
+            "coordinate": [
+              -119.0495,
+              34.11506388888889
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 267.2,
+          "distance": 30.2
+        },
+        {
+          "path": "HM",
+          "id": "I::080",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "04600",
+            "second": ""
+          },
+          "fix": {
+            "ident": "VTU",
+            "coordinate": [
+              -119.0495,
+              34.11506388888889
+            ]
+          },
+          "missed": true,
+          "turn": "L",
+          "magneticCourse": 130.6,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "KWLW:S34",
+      "airport": "KWLW",
+      "ident": "S34",
+      "magneticVariation": 14,
+      "transitions": [
+        {
+          "id": "ILA",
+          "legs": [
+            {
+              "path": "IF",
+              "id": "A:ILA:010",
+              "waypointDescriptor": "V  A",
+              "fix": {
+                "ident": "ILA",
+                "coordinate": [
+                  -122.02726944444444,
+                  39.071175000000004
+                ],
+                "role": "IAF"
+              }
+            },
+            {
+              "path": "TF",
+              "id": "A:ILA:020",
+              "waypointDescriptor": "EE B",
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "WUNIP",
+                "coordinate": [
+                  -122.13465277777779,
+                  39.31301388888889
+                ],
+                "role": "IF"
+              }
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "S::010",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "D:K2:ILA:",
+            "ident": "ILA",
+            "type": "navaid",
+            "coordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "dmeCoordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "declination": 18
+          },
+          "radial": 323,
+          "rhoNm": 15.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "WUNIP",
+            "coordinate": [
+              -122.13465277777779,
+              39.31301388888889
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "S::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:ILA:",
+            "ident": "ILA",
+            "type": "navaid",
+            "coordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "dmeCoordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "declination": 18
+          },
+          "radial": 323,
+          "rhoNm": 22.1,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "WETEM",
+            "coordinate": [
+              -122.18186944444444,
+              39.418775
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 323,
+          "distance": 6.7
+        },
+        {
+          "path": "CF",
+          "id": "S::030",
+          "waypointDescriptor": "EY M",
+          "reference": {
+            "id": "D:K2:ILA:",
+            "ident": "ILA",
+            "type": "navaid",
+            "coordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "dmeCoordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "declination": 18
+          },
+          "radial": 323,
+          "rhoNm": 27.3,
+          "altitude": {
+            "restriction": "",
+            "first": "00317",
+            "second": ""
+          },
+          "fix": {
+            "ident": "UVXUZ",
+            "coordinate": [
+              -122.21914722222222,
+              39.502069444444444
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 323,
+          "distance": 5.3
+        },
+        {
+          "path": "CA",
+          "id": "S::040",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "00541",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 323
+        },
+        {
+          "path": "VI",
+          "id": "S::050",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 200
+        },
+        {
+          "path": "CF",
+          "id": "S::060",
+          "waypointDescriptor": "EY  ",
+          "reference": {
+            "id": "D:K2:ILA:",
+            "ident": "ILA",
+            "type": "navaid",
+            "coordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "dmeCoordinate": [
+              -122.02726944444444,
+              39.071175000000004
+            ],
+            "declination": 18
+          },
+          "radial": 323,
+          "rhoNm": 15.3,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "WUNIP",
+            "coordinate": [
+              -122.13465277777779,
+              39.31301388888889
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 143,
+          "distance": 12
+        },
+        {
+          "path": "HM",
+          "id": "S::070",
+          "waypointDescriptor": "EE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "WUNIP",
+            "coordinate": [
+              -122.13465277777779,
+              39.31301388888889
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 323,
+          "holdMinutes": 1
+        }
+      ]
+    },
+    {
+      "id": "O69:S29",
+      "airport": "O69",
+      "ident": "S29",
+      "magneticVariation": 16,
+      "transitions": [
+        {
+          "id": "SGD",
+          "legs": [
+            {
+              "path": "HF",
+              "id": "A:SGD:010",
+              "waypointDescriptor": "VE A",
+              "altitude": {
+                "restriction": "+",
+                "first": "03000",
+                "second": ""
+              },
+              "fix": {
+                "ident": "SGD",
+                "coordinate": [
+                  -122.37315277777778,
+                  38.179361111111106
+                ],
+                "role": "IAF"
+              },
+              "turn": "L",
+              "magneticCourse": 275.9,
+              "holdMinutes": 1
+            }
+          ]
+        }
+      ],
+      "final": [
+        {
+          "path": "IF",
+          "id": "S::010",
+          "waypointDescriptor": "V  I",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "03000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "SGD",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "S::020",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 275.9,
+          "rhoNm": 7,
+          "altitude": {
+            "restriction": "+",
+            "first": "01900",
+            "second": ""
+          },
+          "fix": {
+            "ident": "AFTIN",
+            "coordinate": [
+              -122.50949722222222,
+              38.224786111111115
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 275.9,
+          "distance": 7
+        },
+        {
+          "path": "CF",
+          "id": "S::030",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 275.9,
+          "rhoNm": 11.7,
+          "altitude": {
+            "restriction": "",
+            "first": "00132",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW29",
+            "coordinate": [
+              -122.60021944444443,
+              38.254925
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 275.9,
+          "distance": 4.7
+        },
+        {
+          "path": "FA",
+          "id": "S::040",
+          "waypointDescriptor": "G M ",
+          "reference": {
+            "id": "D:K2:SGD:",
+            "ident": "SGD",
+            "type": "navaid",
+            "coordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "dmeCoordinate": [
+              -122.37315277777778,
+              38.179361111111106
+            ],
+            "declination": 17
+          },
+          "radial": 275.9,
+          "rhoNm": 11.7,
+          "altitude": {
+            "restriction": "+",
+            "first": "02000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW29",
+            "coordinate": [
+              -122.60021944444443,
+              38.254925
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 275.9
+        },
+        {
+          "path": "DF",
+          "id": "S::050",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "03500",
+            "second": ""
+          },
+          "fix": {
+            "ident": "PYE",
+            "coordinate": [
+              -122.86782777777778,
+              38.07975555555556
+            ]
+          },
+          "missed": true,
+          "turn": "L"
+        }
+      ]
+    }
+  ],
+  "unavailable": []
+}

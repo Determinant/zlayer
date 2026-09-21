@@ -10,13 +10,18 @@ const nm = (value: number | undefined) => value === undefined ? '—' : value < 
 /** Freeze stowed route calculations without losing the selected leg. */
 export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
   state: AhrsSnapshot; route?: Pick<RoutePlan, 'legs'> | undefined; active?: boolean;
-  magneticModel?: MagneticModel | null;
+  magneticModel?: MagneticModel | null | undefined;
 }) {
-  const legs = useMemo<HsiLeg[]>(() => (route?.legs ?? []).map((leg, index) => ({
-    key: JSON.stringify([index, leg.from.ident, leg.to.ident, leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates]),
-    from: leg.from.ident, to: leg.to.ident,
-    start: leg.from.feature.geometry.coordinates, end: leg.to.feature.geometry.coordinates,
-  })), [route?.legs]);
+  // The CDI has no procedure sequencing or curved-path model. Never replace an
+  // approach/hold/arc with endpoint guidance that cuts across its depicted path.
+  const legs = useMemo<HsiLeg[]>(() => (route?.legs ?? []).flatMap((leg, index) =>
+    leg.approachPhase || leg.owners.some(owner => owner.kind === 'approach') || (leg.geometry && leg.geometry.length > 2)
+      ? [] : [{
+        key: JSON.stringify([index, leg.from.ident, leg.to.ident, leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates]),
+        from: leg.from.ident, to: leg.to.ident,
+        start: leg.from.feature.geometry.coordinates, end: leg.to.feature.geometry.coordinates,
+      }]), [route?.legs]);
+  const omittedLegs = (route?.legs.length ?? 0) - legs.length;
   const [selection, setSelection] = useState('auto');
   const selected = legs.find(leg => leg.key === selection);
   const inertialLive = state.phase === 'ready' && state.attitude !== null && Number.isFinite(state.attitude.yaw) &&
@@ -25,12 +30,14 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     state.attitude!.attitudeStd[2] <= 20 && state.attitude!.status !== 'degraded';
   const heading = headingValid ? state.attitude!.yaw : null;
   const track = state.gpsLive && (state.speed ?? 0) >= 1 && Number.isFinite(state.track) ? state.track : null;
-  const geographicReference = heading ?? track;
+  // GPS course is a separate geographic marker, never the rotating card's source.
+  // Keep live AHRS yaw while north alignment is uncertain, explicitly marked REL.
+  const reference = inertialLive ? state.attitude!.yaw : null;
   const guidance = useMemo(() => state.gpsLive && state.position
     ? selected ? legGuidance(selected, state.position) : nearestLeg(legs, state.position, track) : null,
   [state.gpsLive, state.position, selected, legs, track]);
-  const relative = geographicReference === null && inertialLive;
-  const referenceName = relative ? 'REL' : heading === null && track !== null ? 'TRK' : 'HDG';
+  const relative = heading === null && inertialLive;
+  const referenceName = relative ? 'REL' : 'HDG';
   // Variation changes slowly: evaluate once per fix/height/day, not at IMU cadence.
   const longitude = state.position?.[0], latitude = state.position?.[1];
   const day = Math.floor(Date.now() / 86_400_000) * 86_400_000;
@@ -39,33 +46,33 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
   [magneticModel, longitude, latitude, state.altitude, day]);
   // Use TRUE in both NOAA caution/blackout zones and at the geographic poles.
   const declination = field && field.horizontal >= 6000 && Math.abs(latitude!) < 90 ? field.declination : null;
-  const magnetic = !relative && declination !== null;
+  const magnetic = heading !== null && declination !== null;
   // The empty instrument defaults to magnetic heading; TRUE requires an actual reading.
-  const trueReference = !magnetic && geographicReference !== null;
+  const trueReference = !magnetic && heading !== null;
   const suffix = trueReference ? 'T' : 'M', referenceLabel = trueReference ? 'true' : 'magnetic';
   const bearing = (value: number | null) => value === null ? null : magneticBearing(value, magnetic ? declination! : 0);
-  const reference = geographicReference ?? (relative ? state.attitude!.yaw : null);
   const variationNote = relative ? 'Relative direction · heading unverified'
     : magnetic ? `VAR ${Math.abs(declination!).toFixed(1)}° ${declination! >= 0 ? 'E' : 'W'}`
     : magneticModel && day >= Date.parse(magneticModel.validUntil) ? 'Magnetic model expired'
     : field && (field.horizontal < 6000 || Math.abs(latitude!) === 90) ? 'Magnetic reference weak'
     : 'Magnetic variation unavailable';
   const warning = !state.gpsLive || !state.position ? 'No GPS' : !state.gpsUsable ? 'Low Speed'
-    : !legs.length ? 'No route' : !guidance ? 'No usable leg' : '';
+    : !inertialLive ? state.phase === 'ready' ? 'Motion' : 'Calibration' : heading === null ? 'Heading'
+    : !legs.length && !omittedLegs ? 'No route' : !guidance ? 'No usable leg' : '';
   // A geographic course cannot be oriented against unaligned relative yaw.
-  const available = guidance !== null && geographicReference !== null;
+  const available = guidance !== null && heading !== null;
   const card = bearing(reference) ?? 0;
   const trueCard = reference ?? 0;
   const courseRotation = guidance ? guidance.course - trueCard : 0;
   const side = guidance && Math.abs(guidance.crossTrackNm) >= .005 ? guidance.crossTrackNm > 0 ? 'R' : 'L' : '';
   const direction = relative ? `Relative direction ${degrees(reference)}. Heading unverified.`
-    : reference !== null ? `${referenceName === 'HDG' ? 'Heading' : 'Track'} ${degrees(bearing(reference))} ${referenceLabel}.` : '';
+    : reference !== null ? `Heading ${degrees(bearing(reference))} ${referenceLabel}.` : '';
   const description = available
     ? `${warning ? `${warning}. ` : ''}${direction} Course ${degrees(bearing(guidance.course))} ${referenceLabel}, ${guidance.leg.from} to ${guidance.leg.to}. ${nm(guidance.distanceNm)} nautical miles to waypoint. ${side ? `${Math.abs(guidance.crossTrackNm).toFixed(2)} nautical miles ${side === 'R' ? 'right' : 'left'} of course.` : 'On course.'}${heading !== null ? ` True heading ${degrees(heading)}.` : ''}${heading !== null && track !== null ? ` GPS track ${degrees(bearing(track))} ${referenceLabel}.` : ''}`
     : `${warning}.${direction ? ` ${direction}` : ''}`;
   return <section className="ahrs-hsi" aria-label="Horizontal situation indicator">
     <div className="ahrs-hsi-heading"><strong>HSI</strong><span>{relative ? 'IMU · REL'
-      : `${heading !== null ? 'IMU' : 'GPS'} · ${trueReference ? 'TRUE' : 'MAG'}`}</span></div>
+      : `IMU · ${trueReference ? 'TRUE' : 'MAG'}`}</span></div>
     <div className={`ahrs-hsi-readout${heading !== null || relative ? ' ahrs-hsi-heading-value' : ''}`}>
       {referenceName} {degrees(bearing(reference))}{!relative && ` ${suffix}`}
     </div>
@@ -85,7 +92,7 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
         <title>{relative ? `Relative direction ${degrees(reference)} — heading unverified` : `True heading ${degrees(heading)} T`}</title>
         <path d="m-5 -73 5 8 5-8Z" fill="#ffdb80" stroke="#0a1520" strokeWidth=".8" />
       </g>}
-      {track !== null && reference !== null && <path d="m0 -68 4 5-4 5-4-5Z" fill="#dcecf2"
+      {track !== null && heading !== null && <path d="m0 -68 4 5-4 5-4-5Z" fill="#dcecf2"
         transform={`translate(160 94) rotate(${track - trueCard})`} data-testid="hsi-track" />}
       {available && <g className="ahrs-hsi-course" transform={`translate(160 94) rotate(${courseRotation})`} data-testid="hsi-course">
         <path d="M0 -56V-24M0 24V63" stroke="currentColor" strokeWidth="1.8" />
@@ -122,12 +129,13 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     <div className="ahrs-hsi-target ahrs-hsi-course">
       {available ? `${guidance.from ? 'FROM' : 'TO'} ${guidance.leg.to}` : 'ROUTE GUIDANCE UNAVAILABLE'}
     </div>
+    {omittedLegs > 0 && <p className="ahrs-hsi-empty">Approach and curved legs are shown on the map. HSI guidance covers straight route legs only.</p>}
     {legs.length > 0 ? <label className="ahrs-hsi-leg"><span>Route leg</span>
       <select aria-label="HSI route leg" value={selected?.key ?? 'auto'} onChange={event => setSelection(event.target.value)}>
         <option value="auto">Auto · nearest{guidance ? ` · ${guidance.leg.from} → ${guidance.leg.to}` : ''}</option>
         {legs.map((leg, i) => <option key={leg.key} value={leg.key}>{i + 1}. {leg.from} → {leg.to}</option>)}
       </select>
-    </label> : <div className="ahrs-hsi-empty">Add a route to show its magenta course.</div>}
+    </label> : <div className="ahrs-hsi-empty">{omittedLegs ? 'No supported route legs.' : 'Add a route to show its magenta course.'}</div>}
   </section>;
 }, (previous, next) => next.active === false ||
   (previous.active === next.active && previous.state === next.state && previous.route === next.route &&

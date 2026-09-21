@@ -21,14 +21,16 @@ later implementation changes.
 
 - [Date, time, and currency labels](date-time-display.md)
 - [Routes and recommendations](routes.md), [SID/STAR previews](terminal-procedures.md)
+- [Approach geometry](approach-geometry-plan.md),
+  [coverage, source evidence and remaining work](approach-coverage.md)
 - [Fix display](fix-display.md), [route terrain](route-terrain.md), [GPS aircraft](gps-aircraft.md)
 - [Route obstructions](route-obstructions.md)
 - [Experimental AHRS toolbox](../src/layers/ahrs/README.md),
   [calibration and attitude-display policy](../src/layers/ahrs/README.md#calibration-and-validity),
   [attitude uncertainty, including yaw](../src/layers/ahrs/estimator/uncertainty.md),
   [magnetic vector fusion and calibration policy](../src/layers/ahrs/estimator/magnetic-fusion.md),
-  [kinematic AHRS algorithm revision](reviews/ahrs-algorithm-2026-09-19.md),
-  [local recordings and JSON Lines downloads](../src/layers/ahrs/recording.md)
+  [AHRS validation and remaining evidence](ahrs-validation.md),
+  [local recordings, GPX tracks and JSON Lines downloads](../src/layers/ahrs/recording.md)
 - [Airport plates](offline-procedures.md), [offline storage and regional downloads](offline-storage.md)
 - [PWA releases and update prompts](pwa-updates.md)
 - [Installed-app Back navigation](pwa-navigation.md)
@@ -40,11 +42,17 @@ later implementation changes.
 - [Responsive layout and recovery](responsive-checks.md)
 - [Typography review](typography-checks.md), [proposed color system](color-system.md)
 - [Graphics compatibility and browser matrix](graphics-compatibility.md)
-- [Memory/resource review and preprocessing opportunities](memory-resources.md)
-- [iPhone memory and AHRS scrolling review](reviews/iphone-memory-ahrs-2026-09-20.md)
-- [AHRS magnetic aiding implementation review](reviews/ahrs-magnetic-aiding-2026-09-19.md)
+- [Memory/resource behavior and preprocessing opportunities](memory-resources.md)
+- [Recovery and source-identity invariants](implementation.md#recovery-and-source-identity)
+- [Active reviews and evidence retention](reviews/README.md)
 - [Hosting contract, local verification and remaining gates](deployment-readiness.md)
 - [Bundled map glyphs](../public/fonts/README.md)
+
+Resolved review findings belong in the owning feature or engineering guide. Keep
+dated reviews for still-actionable investigations, and retain final evidence under
+`docs/evidence/` when a guide depends on it. Superseded reports, duplicate inventories
+and intermediate downloads are not a second source of current status. Review
+dates and test counts must remain explicitly historical after consolidation.
 
 ## Decisions
 

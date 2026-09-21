@@ -30,10 +30,13 @@ export function featureDetailRows(feature: GeoPointFeature, includeWeather = tru
 }
 
 function coordinateRow(feature: GeoPointFeature): FeatureDetailRow | undefined {
-  if (!['navaid', 'fix', 'vfr-waypoint'].includes(feature.properties.kind ?? '')) return undefined;
+  if (!['navaid', 'fix', 'vfr-waypoint', 'coordinate'].includes(feature.properties.kind ?? '')) return undefined;
   const [longitude, latitude] = feature.geometry.coordinates;
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(latitude) > 90) return undefined;
-  const coordinate = routeCoordinateFeature(feature.geometry.coordinates).properties.ident?.replace(
+  // GPS identifiers retain the exact saved seconds even after map geometry is rounded.
+  const ident = feature.properties.kind === 'coordinate' ? feature.properties.ident
+    : routeCoordinateFeature(feature.geometry.coordinates).properties.ident;
+  const coordinate = ident?.replace(
     /^(\d{2})(\d{2})(\d{2})([NS])(\d{3})(\d{2})(\d{2})([EW])$/, '$1°$2′$3″$4 $5°$6′$7″$8',
   );
   return row('Coordinates', coordinate, true);

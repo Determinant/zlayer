@@ -13,8 +13,10 @@ test('airport and fix headers offer one clearly labelled append-to-route action 
     { properties: { kind: 'landing-facility', icaoId: 'KHWD', faaId: 'HWD' }, ident: 'KHWD' },
     { properties: { kind: 'landing-facility', faaId: '0Q3' }, ident: '0Q3' },
     { properties: { kind: 'fix', ident: 'SUNOL' }, ident: 'SUNOL' },
+    { properties: { kind: 'coordinate', ident: '374529N1223030W', name: 'GPS waypoint' },
+      ident: '374529N1223030W', label: '37°45′N 122°30′W' },
   ];
-  for (const { properties, ident } of cases) {
+  for (const { properties, ident, label = ident } of cases) {
     const feature: GeoPointFeature = {
       type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] }, properties,
     };
@@ -25,11 +27,14 @@ test('airport and fix headers offer one clearly labelled append-to-route action 
     }));
     const heading = html.match(/<div class="feature-card-heading">(.*?)<\/div>/)?.[1];
     assert.ok(heading, `${ident} has a heading row`);
-    assert.ok(heading.includes(`<h2>${ident}</h2>`));
-    const label = `aria-label="Add ${ident} to end of route"`;
-    const action = heading.match(/<button\b[^>]*>/g)?.find(button => button.includes(label));
+    assert.ok(heading.includes(`>${label}</h2>`));
+    if (properties.kind === 'coordinate') {
+      assert.ok(html.includes('37°45′29″N 122°30′30″W'), 'fix info retains the saved seconds rather than rounded map geometry');
+    }
+    const actionLabel = `aria-label="Add ${ident} to end of route"`;
+    const action = heading.match(/<button\b[^>]*>/g)?.find(button => button.includes(actionLabel));
     assert.ok(action?.includes('type="button"'), 'a named button belongs beside the identifier');
-    assert.equal(html.split(label).length - 1, 1, 'the append action is not duplicated elsewhere');
+    assert.equal(html.split(actionLabel).length - 1, 1, 'the append action is not duplicated elsewhere');
   }
 });
 

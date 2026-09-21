@@ -13,9 +13,10 @@ hosts must provide the following hosting contract:
 | Chart, navigation, TPP and CS feed | Set `VITE_ZLAYERS_CHART_ROOT` to a readable chart feed. A same-origin `/chart-data` prefix needs a static mapping or proxy, including `cycles.json` for discovery. Cross-origin feeds need chart-host CORS. |
 | `/faa-procedures/<cycle>/<filename>.PDF` | Narrow proxy to `https://aeronav.faa.gov/d-tpp/<cycle>/<filename>.PDF`. Restrict cycles to four digits and filenames to the existing development rule; never expose an arbitrary URL relay. Preserve query parameters. |
 | `/weather/metars.geojson` | Proxy to `https://aviationweather.gov/api/data/metar`, preserving query parameters. This supplies live METARs; failures must leave cached observations usable and visibly stale. |
-| `/weather/tafs.json` | Proxy to `https://aviationweather.gov/api/data/taf`, preserving query parameters (`ids`, `format=json`). Configure the route before publishing the TAF UI; frontend deployment alone does not add it. |
-| USGS terrain basemap | External raster service; only viewed resources are cached. Regional downloads do not promise offline terrain coverage. Review provider terms before public release. |
-| Route-terrain elevation | Mapzen Terrarium tiles on AWS by default, or `VITE_ZLAYERS_TERRAIN_TILE_URL`. A replacement must provide readable 256px Terrarium PNG tiles. This is independent of the basemap and has no regional offline-download guarantee. |
+| `/weather/tafs.json` | Proxy to `https://aviationweather.gov/api/data/taf`, preserving query parameters (`ids`, `bbox`, `format=json`) for selected and bounded nearby stations. Configure the route before publishing the TAF UI; frontend deployment alone does not add it. |
+| USGS terrain basemap | External raster service; only viewed resources are cached. Regional downloads do not promise offline basemap coverage. Review provider terms before public release. |
+| Terrain elevation | Prefer the chart feed's `terrain/manifest.json` and versioned USGS 3DEP packages; regional saves include published packages at supported DEM zooms. Without a packaged source, use Mapzen Terrarium tiles on AWS or `VITE_ZLAYERS_TERRAIN_TILE_URL`; a replacement must provide readable 256px Terrarium PNG tiles. Elevation is independent of the basemap, and fallback PNG coverage is not a regional offline guarantee. See [terrain](route-terrain.md). |
+| FAA obstructions | Optional chart-feed `obstacles/manifest.json` and its compressed Daily DOF export. Cached on demand, independently versioned, and outside regional offline completeness. See [obstructions](route-obstructions.md). |
 | GPS aircraft | Device Geolocation API on HTTPS with user permission. No location backend is required; provider availability and installed-device behavior need separate checks. |
 | Experimental AHRS | Device Motion API on HTTPS, with explicit permission where required. Shared GPS supports aiding and GPS instruments; a fix is optional for calibration and live attitude under the [warning cross](../src/layers/ahrs/README.md#calibration-and-validity). Optional WMM coefficients come from the chart feed; without a usable model the HSI uses true north. Sensor and flight behavior need separate validation. |
 | Map-label glyphs | Identifier-label glyphs are bundled locally and precached with the shell. Custom external map styles may have additional dependencies. |
@@ -72,7 +73,9 @@ These remain release gates:
   attitude beneath the cross with no fix, low-speed GPS and prolonged high tilt
   uncertainty; usable GPS should clear the cross only once tilt uncertainty is
   acceptable. Simulation and desktop emulation do not establish flight accuracy;
-  see the [AHRS policy and limits](../src/layers/ahrs/README.md#calibration-and-validity).
+  see the [AHRS policy and limits](../src/layers/ahrs/README.md#calibration-and-validity),
+  [statistical/reference validation work](ahrs-validation.md#remaining-validation-work)
+  and [combined-resource scrolling checks](memory-resources.md#ahrs-session-memory-and-scrolling).
 - Full reset on installed devices, including other open windows, interruption and
   offline completion; confirm a fresh online start afterward.
 - Real keyboards, folding/rotation, PDF gestures and physical GPU behavior:
@@ -93,8 +96,35 @@ PDF.js or GPU memory on devices. See [offline storage](offline-storage.md#storag
 
 ## Recorded local verification
 
-These are historical local checks, not fresh verification of the working tree or
-any production host. Test counts describe only the build and environment tested.
+These local records apply only to the build and environment tested, not subsequent
+working-tree changes or any production host. Preserve their dates when comparing
+test counts, measurements or release evidence.
+
+The 2026-09-20 commit-readiness check ran `npm run verify:full` in
+`mcr.microsoft.com/playwright:v1.63.0-noble`, using Node 24.20.0, Chromium
+153.0.8010.12, WebKit 26.6 and Firefox 155.0:
+
+- Import boundaries, TypeScript checks, all 1,231 unit tests and the production
+  build passed.
+- The complete Chromium suite passed 502 of 504 cases. Both failures were test
+  defects: the regional-rendering expectation omitted the new incomplete-tile
+  count, and a pinch check captured coordinates before the shared panel finished
+  sliding. After correction, the regional case passed; all five Chromium pinch
+  cases passed three consecutive repetitions, retaining their precision checks.
+- The subsequent Chromium, WebKit and Retina WebKit graphics matrix passed 121
+  cases with two existing skips. Firefox passed 40 with one existing skip. The
+  three skips cover native multitouch injection, which requires Chromium's CDP;
+  shared gesture handling ran on every engine.
+- `npm audit --omit=dev` reported no known production dependency vulnerabilities.
+  Documentation checks found no broken targets among 287 local links, including
+  80 heading links, across 56 Markdown files. Tracked changes and new text files
+  passed whitespace checks.
+
+Application sources, fixtures and build inputs stayed unchanged during this run
+and its focused reruns. Only the two browser specs above were corrected after the
+full run began. The full command therefore exited with a failed Chromium stage;
+it was not rerun end to end after those test-only corrections. The passing evidence
+combines the full run, the focused reruns and the subsequent graphics matrices.
 
 A 2026-09-16 production-build check resolved all 54 feed-covered regions without
 missing-book warnings. Alabama saved 188 files (358.7 MiB), including KMGM's

@@ -29,6 +29,7 @@ text/import → draft entries → scoped segments → constrained points → res
 | `packages/domain/src/route.ts` | Index navigation, orchestrate expansion, match requirements and build connected legs/distances |
 | `packages/domain/src/airways.ts` | Published V/T airway paths and inferred airway transitions |
 | `packages/domain/src/terminal-procedures.ts` | Airport/transition matching and discontinuous SID/STAR waypoint previews |
+| `packages/domain/src/departures.ts` | Airport-attached SID branches, exits and filing-text import |
 | `packages/domain/src/tec-routes.ts` | Local airport-pair matching and scoped published children |
 | `packages/domain/src/preferred-routes.ts` | Published route imports and typed point constraints |
 | `src/layers/routes/draft.ts` | Atomic edits by entry ID |
@@ -50,9 +51,20 @@ consumes the resulting plan rather than interpreting route text again.
 
 ### Drafts and direct edits
 
+- In the route input strip, swipe across any chip to scroll with native momentum
+  on touch devices; drag across a chip or the strip gaps to scroll with a mouse.
+  Click or tap a chip for actions; hold it for 450 ms until it lifts, then drag to reorder.
+  A swipe stays a scroll until release. Dragging near either edge scrolls
+  continuously, and cancellation or a second finger never commits a move.
+  Mouse and touch share the same hold-to-reorder behavior; right-click and keyboard menus also work.
 - Input is case-insensitive. Whitespace, dots, commas, slashes, hyphens and `>`
   separate tokens; `DCT` and `DIRECT` are connectors. Unknown tokens stay visible
   and break connectivity rather than silently disappearing.
+- GPS labels in the route input, stash, map and fix headings show degrees and
+  minutes, omitting seconds without rounding. Fix info includes a full coordinate
+  with seconds. Stored identifiers, positions and
+  exports retain their full precision. Map labels use an apostrophe for minutes
+  from the bundled offline font; other displays use the prime symbol.
 - A map-selected feature contributes one usable identifier. Display names and
   empty identifiers cannot create tokens or displace pins. Draft mutations move,
   replace or remove complete entries. Editing a missing ID is a no-op.
@@ -74,7 +86,7 @@ consumes the resulting plan rather than interpreting route text again.
 
 ### Anchored approaches
 
-Right-click or long-press an airport chip and choose **Choose approach…**. Choose
+Tap or right-click an airport chip and choose **Choose approach…**. Choose
 a chart, then a published entry or **Vectors to final (VTF)**, preview it on the
 main map and press **Add to route**. No entry is chosen implicitly. The green segment precedes the
 airport in one box and shows a compact name plus the entry (for example,
@@ -100,11 +112,30 @@ CIFP primary records by the faa-regs navigation builder. This shares existing
 download, cache, edition and offline verification machinery. Old exports still
 load but cannot supply approach entries; they must be rebuilt and published.
 Chart title matching is conservative and keeps runway and Y/Z variants distinct.
+Combined VOR/VOR-DME/NDB or GPS and VOR or TACAN titles use their conventional
+coded counterpart. This does not provide separate GPS/TACAN avionics behavior.
+Supported continuation pages and SA CAT I charts retain their original titles
+while using their corresponding coded routes. A small set of plate-reviewed
+identifier exceptions is restricted to its reviewed data edition. Helicopter
+and fixed-wing titles remain distinct. Shared parallel-runway charts can reuse
+identical complete source routes; otherwise the picker requires a runway choice
+and saves its exact route ID and runway label. Picker and saved-route expansion
+use the same association logic. See the
+[reviewed associations](approach-coverage.md#reviewed-associations) for evidence and limitations.
 Charts with no unambiguous coded counterpart offer **View plate**, not an invented entry.
 Entry choices use the published fix names, including coded IAFs within feeder
-routes. When a fix starts multiple branches, the next fix distinguishes them
+routes and outbound FC feeder starts even when an IAF role is absent. A procedure
+with no other entry and no straight VTF final can expose its explicitly coded
+initial IF, labeled `(IF)`, retaining the curved final and the plate's entry requirements.
+When a fix starts multiple branches, the next fix distinguishes them
 (for example, `SNS via AANNE` and `SNS via ARTYY`). Selecting an internal IAF
 omits its incoming feeder leg and retains any coded hold or procedure turn.
+Transitions join only to the inbound approach, never to a same-name missed fix.
+Reference- and course-constrained reversal joins retain the FAF and intermediate
+fixes within the coded turn extent. A feeder can follow one explicit onward
+transition; ambiguous continuations remain gaps. Separate ILS DME positions need
+the rebuilt navigation export. See the
+[geometry validation guide](approach-coverage.md#geometry-lessons-retained-in-the-implementation).
 Previously saved regions retain their pinned data; use **Verify / update** to
 include approach routes added by a newer export of the same FAA cycle.
 
@@ -127,6 +158,15 @@ center, and AF follows the published radius around the DME antenna. Arcs with
 missing or inconsistent geometry stay gaps. Older exports need rebuilding to
 include AF centers and radii. The export also retains airport magnetic variation,
 explicit true courses and holding leg times separately from distances.
+Approach geometry comes from one ordered interpreter shared by the preview and saved
+route. It produces source-constrained fixed spans, declared schematic spans, and
+explained gaps. The FAA export preserves scoped station/localizer references,
+station declination, radial/range conditions, altitude constraints and leg IDs.
+FC legs advance their own coded distance before the following leg is interpreted;
+a surveyed CF endpoint within 0.05 NM can absorb distance-field rounding. Older
+exports retain the bounded shared-track fallback when both distances agree.
+Fixed spans count toward route distance and terrain eligibility; no synthetic
+named waypoint is added for an intermediate termination.
 Published holds appear as oriented racetracks: initial holds are solid and missed
 holds are dashed, with one small outbound direction chevron per racetrack at local
 zoom levels. Labels show the suggested direct, parallel or teardrop entry after
@@ -137,31 +177,46 @@ Preview labels retain the connected arrival when switching from VTF or an explic
 filed entry fix; missing arrival/course information displays `ENTRY ?`. These are planning suggestions
 without wind correction, and sector boundaries allow pilot discretion
 ([FAA AIM 5-3-8](https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap5_section_3.html)).
-Their turn radii and timed-leg sizes are schematic; distance-coded
-straight legs retain their published length. An altitude-terminated missed climb
-(CA/VA) followed by a fixed TF/CF/DF leg receives a dashed schematic connection.
-A climb followed by one heading/course-to-intercept leg (VI/CI) and a known CF
-inbound course also receives a schematic connection, preserving the intermediate
-heading and joining the inbound course (for example, NUQ ILS or LOC 32R to OAK).
-Climb lengths and intercept positions are illustrative, not computed flight paths.
-These depictions are separate from route legs and excluded from route distance and
-terrain corridors. The picker and route details explain this distinction. No hold
-entry maneuver is drawn. Unknown courses, open-ended vectors, unsupported procedure turns
-and missing geometry stay gaps. A trailing open-ended leg cannot become
+Holds, procedure turns, heading intercepts, DME plan-view approximations and
+altitude-dependent paths are schematic. Radial/DME conditions use the referenced
+station, and successive climbs carry their synthetic endpoint into the next
+instruction, including a direct return to the same station. A bounded policy can
+adjust climb length to reach the following forward intercept without changing
+published courses. Procedure turns retain the coded side, orientation and extent.
+The arbitrary missed-climb spline fallback has been removed.
+These depictions are excluded from route distance, terrain corridors and ordinary
+waypoint decomposition. No hold-entry maneuver is drawn. Unknown references,
+open-ended legs and inconsistent constraints retain a specific diagnostic.
+A trailing open-ended leg cannot become
 an onward connector. Approach children remain owned by the airport bundle and
 cannot be dragged or removed individually. Direct to a landing fix can decompose
 the remaining approach as described below; otherwise remove/change the bundle
 to edit it. Filing text remains unchanged while attached. Legacy chart-only attachments prompt
 for an entry before supplying route connections.
 
-The Route menu provides **Undo route edit** and **Redo route edit** for the last
-50 edits in the current session. Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z work while a route
-control is focused; text fields retain their native text undo. Each approach
-selection, switch or removal is one edit, and undo/redo save immediately.
+Approach fixes reuse an existing navigation fix or navaid when its identifier
+matches and its position is within 0.01 NM (allowing reference rounding). Ambiguous
+matches keep the coded approach point. Previews follow the same rule, preserving
+the existing entity's details and one map label/nearby-picker entry while keeping
+each approach occurrence and its role. Older coded pins and saved selections
+continue to resolve when a matching navigation entity becomes available.
+
+The [coverage guide](approach-coverage.md) retains source examples, final inventories,
+audit commands and remaining chart/entry gaps. Its latest FAA 2609 national scan
+finds 9,079 of 10,980 U.S. chart records whose offered entries have no unresolved
+diagnostics (82.69%); 1,854 chart records remain unmatched. The audit distinguishes
+chart records from distinct coded routes and includes the recorded radar/source
+review exceptions.
+This is automated screening of available entries, not full chart coverage or
+manual validation of every plate. An unresolved connection still retains subsequent
+known fixes and
+available hold depictions, with a route warning and unknown hold entry when the
+arrival is missing. The [geometry design](approach-geometry-plan.md)
+describes the shared interpretation and its limits.
 
 ### Direct to
 
-With a fresh GPS fix, right-click or long-press a resolved route waypoint and choose
+With a fresh GPS fix, tap or right-click a resolved route waypoint and choose
 **Direct to**. The route starts at a snapshot of the current GPS position, removes
 everything before that occurrence, and keeps the target and the remaining route.
 Feature details offer the standard **D→** Direct to icon immediately before **ID**.
@@ -184,8 +239,7 @@ position, inserts that fix and the remaining landing fixes before the airport in
 the route input, and removes the airport's green approach bundle. The missed
 branch and VTF extension are removed; entries after the airport stay intact. The
 new ordinary waypoints pin the exact coded fixes, including runway points, and
-survive reloads with the same approach data available. Undo restores the bundle
-and the previous route in one step. A missed-approach fix is not a landing target;
+survive reloads with the same approach data available. A missed-approach fix is not a landing target;
 remaining gaps, holds or curved legs prevent decomposition because ordinary
 waypoints cannot preserve them. An unresolved final endpoint or trailing vector
 also prevents decomposition, even when there is no later fix to expose the gap.
@@ -300,21 +354,31 @@ the same longitude-unwrapping rule.
 
 ## Route actions
 
-The Route icon and label open a menu for Copy route, native Share when supported,
-Open in ForeFlight on iPhone/iPad, and Clear route. On phones the menu trigger
+The Route icon and label open a menu for Copy Route, native Share when supported,
+Open in ForeFlight on iPhone/iPad, Save Route, Manage Routes, and Clear Route. On phones the menu trigger
 starts the second row before Advise; wider layouts keep it before the input.
 Clearing returns focus to the empty route editor. Clipboard failures offer selected
-text for manual copying. Exports expand resolved TEC designators to their published
-route text, preserve unknown entries, and use ForeFlight's Maps URL scheme for the
+text for manual copying. Exports expand airport-attached SIDs to `SID exit` and
+resolved TEC designators to their published route text, preserve unknown entries, and use ForeFlight's Maps URL scheme for the
 app handoff. **Open in ForeFlight** automatically uses ForeFlight coordinate
 syntax. The menu does not detect whether ForeFlight is installed.
 
-**Copy route** and **Share…** each expand a format submenu on desktop, iOS/iPadOS
+**Copy Route** and **Share…** each expand a format submenu on desktop, iOS/iPadOS
 (including the desktop-style iPad user agent), and Android. Share passes the
 selected format to the native share sheet. Arrow Right opens either format menu;
 Arrow Left or Escape returns to its parent action, and a second Escape closes the
 route menu. Clipboard fallback text uses the chosen format. Cancelling native
-sharing keeps the format menu available for retry; a failure offers Copy route.
+sharing keeps the format menu available for retry; a failure offers Copy Route.
+
+**Save Route** asks for an optional name and saves a snapshot of the current draft,
+including pending input, exact coordinates, pinned waypoints, and attached
+SIDs and approaches. Empty names stay hidden. **Manage Routes** opens the **Route Stash**,
+where Load replaces the active draft. Edit changes
+a saved route's name or filing text without changing the active draft; unchanged
+entries retain their pins and procedure attachments. Remove deletes the saved route, and
+Move up / Move down persist the list order with buttons usable by touch and keyboard.
+The dialogs use the shared confirmation typography, native modal focus handling,
+and a scrollable list that fits phone and tablet screens.
 
 The [Web Share API deliberately hides the chosen destination app](https://www.w3.org/TR/web-share/#privacy-considerations),
 so a PWA cannot switch formats after the user picks an app in the system sheet.
@@ -376,6 +440,18 @@ text and index-based pins migrate once on read. Subsequent reloads preserve entr
 IDs. Invalid duplicate IDs or malformed entries are rejected, and storage failures
 do not disable in-memory editing.
 
+The route stash is stored separately on this device under
+`zlayer-route-stash-v1` as `{ version: 1, routes }`. Each saved route contains a
+stable ID, optional name, and a structured draft; entry validation is shared with
+active-draft persistence. Mutations read the latest saved list, and only publish
+success after storage accepts the write. Unreadable records are left untouched.
+A Web Lock covers each complete read/change/write so simultaneous windows cannot
+overwrite unrelated saves. If another window holds the lock or browser coordination
+is unavailable, the operation reports an error without writing. Dialog actions are
+disabled while a write is pending. Storage events refresh an open stash across tabs;
+saving an edit rejects a route changed or removed in another tab. Site storage reset
+also clears the stash.
+
 The resolver still accepts filing text with optional legacy pins at the import
 boundary. The application passes structured drafts directly. Published imports
 resolve their typed entries once and attach pins before entering the draft or a
@@ -392,8 +468,13 @@ After primary identifier matching, unpinned ordinary identifiers use the existin
 layer-priority/nearest-previous selection heuristic; published ambiguity is handled
 more conservatively.
 
-SID/STAR rendering does not reconstruct runway branches, vectors, arcs or full
-flight-guidance paths. See [procedure previews](terminal-procedures.md). Lines
+Route actions have no application-level Undo/Redo history. Loading a saved Route
+Stash snapshot restores that draft, including its attached approaches and pins.
+
+SID selection attaches a runway/branch and exit to its airport, using the same
+picker and bundle interaction as approaches; see [procedure previews](terminal-procedures.md).
+SID/STAR rendering does not reconstruct vectors, arcs or full flight-guidance paths.
+STAR runway branches remain unselected. Lines
 join published waypoint coordinates; long direct legs are not densified into
 great-circle polylines, although distance uses great-circle calculations.
 

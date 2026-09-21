@@ -35,7 +35,7 @@ test('route tokens show only their identifier while retaining accessible actions
   assert.deepEqual(tokens.map(match => match[1]), ['<strong>KSFO</strong>', '<strong>BAD</strong>', '<strong>KSJC</strong>']);
   for (const [token] of tokens) {
     assert.match(token, /aria-haspopup="menu"/);
-    assert.match(token, /Drag to reorder; open context menu for actions/);
+    assert.match(token, /Click or tap for actions; drag to scroll; hold then drag to reorder/);
   }
 });
 

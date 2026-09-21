@@ -24,7 +24,7 @@ import {
 import {
   RouteBar, useRoutePlan, useRouteDraft, useDirectTo, DirectToDialog, appendRouteText, EMPTY_ROUTE_DRAFT,
   insertRouteFeature, insertRouteTextBefore, moveRouteEntry, removeRouteEntry,
-  replaceRouteFeature, replaceRouteText, setRouteApproach, type RouteMapPreview,
+  replaceRouteFeature, replaceRouteText, setRouteApproach, setRouteDeparture, type RouteMapPreview,
 } from './layers/routes';
 import { createWorkspaceLayers } from './workspace/products';
 import { LayerMenu } from './shell/layer-menu';
@@ -106,7 +106,7 @@ export function App() {
   const [query, setQuery] = useState('');
   const { warning, report, clear, dismiss } = useResourceWarning(online);
   const reportChartError = useCallback((message: string, code?: ResourceErrorCode) => report('Chart unavailable', message, code), [report]);
-  const [routeDraft, setRouteDraft, routeUndo] = useRouteDraft();
+  const [routeDraft, setRouteDraft] = useRouteDraft();
   const [routeFocusNonce, setRouteFocusNonce] = useState(0);
   const [recommendations, setRecommendations] = useState<RouteMapPreview>();
   const [approachPreview, setApproachPreview] = useState<RouteMapPreview>();
@@ -116,12 +116,13 @@ export function App() {
   const route = useRoutePlan(
     context?.routing,
     routeDraft,
+    setRouteDraft,
   );
   useEffect(() => {
     if (!selectionContext) return;
     const feature = restoreApproachSelection(route.plan, selectionContext.feature);
     if (feature === selectionContext.feature) return;
-    const point = routePointForFeature(route.plan, selectionContext.feature)!;
+    const point = routePointForFeature(route.plan, selectionContext.feature, selectionContext.routePointId)!;
     const routePointId = routePointKeys(route.plan).get(point)!;
     setSelectionContext({ ...selectionContext, feature, routePointId });
     setSavedFeature(feature);
@@ -263,13 +264,14 @@ export function App() {
 
       <RouteBar
         plan={route.plan}
+        navigationData={route.data}
         status={route.status}
         catalog={context.routing}
         onUseRoute={setRouteDraft}
         onDirectTo={directTo}
         onApproachChange={(entry, approach) => setRouteDraft(current => setRouteApproach(current, entry, approach))}
+        onDepartureChange={(entry, departure) => setRouteDraft(current => setRouteDeparture(current, entry, departure))}
         onOpenPlate={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
-        undo={routeUndo}
         onRecommendationPreview={setRecommendations}
         onApproachPreview={setApproachPreview}
         onAppendInput={(input) => setRouteDraft((current) => appendRouteText(current, input))}

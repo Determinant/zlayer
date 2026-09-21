@@ -1,5 +1,5 @@
 import type { PreferredRouteRecord } from '@zlayer/contracts';
-import type { RouteEntry } from './route-model.js';
+import type { RouteDeparture, RouteEntry } from './route-model.js';
 
 /** The user's entry remains the source even inside nested published expansions. */
 export type RouteSource = { entryId: string; tokenIndex: number; token: string };
@@ -14,6 +14,7 @@ export type RouteAtom = {
   owners: RouteOwner[];
   incomingOwners: RouteOwner[];
   blocked?: boolean;
+  departure?: RouteDeparture;
 };
 export type RouteSegment = {
   kind: 'tec'; owner: RouteOwner; origin: RouteAtom; destination: RouteAtom;

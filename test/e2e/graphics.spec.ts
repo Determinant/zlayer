@@ -100,8 +100,8 @@ test('saved region boundaries keep the right chart edition and leave unavailable
     await import(path);
     return (globalThis as unknown as { regionalTestPixels: (missing: boolean) => Promise<unknown> }).regionalTestPixels(missing);
   }, missing);
-  expect(await read(false)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 255, 0, 255] });
-  expect(await read(true)).toEqual({ truckee: [0, 0, 255, 255], reno: clear });
+  expect(await read(false)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 255, 0, 255], incomplete: 0 });
+  expect(await read(true)).toEqual({ truckee: [0, 0, 255, 255], reno: clear, incomplete: 1 });
 });
 
 test('PDF pixels keep their orientation and colors after zooming and tablet rotation', async ({ page }, testInfo) => {
@@ -130,6 +130,7 @@ test('PDF pixels keep their orientation and colors after zooming and tablet rota
   await check();
   await page.screenshot({ path: testInfo.outputPath('pdf-retina-landscape.png') });
   await page.getByRole('button', { name: 'Close plate', exact: true }).click();
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await check();
 });

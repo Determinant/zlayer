@@ -11,6 +11,8 @@ export const ROUTE_EXPORT_FORMATS: ReadonlyArray<{ id: RouteExportFormat; label:
 export function routeExportText(plan: RoutePlan, format: RouteExportFormat = 'skyvector'): string {
   const tecByToken = new Map(plan.tecRoutes.map(tec => [tec.tokenIndex, tec.route]));
   return plan.entries.map((entry, index) => {
+    if (entry.departure) return [entry.text, entry.departure.ident,
+      ...(plan.entries[index + 1]?.text === entry.departure.transition ? [] : [entry.departure.transition])].join(' ');
     const tec = tecByToken.get(index);
     if (!tec) return entry.text;
     const origin = plan.waypoints.find(point => point.tokenIndex === index - 1)?.feature;

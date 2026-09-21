@@ -22,6 +22,18 @@ export type RouteEntry = {
   readonly text: string;
   readonly pinnedFeatureId?: string;
   readonly approach?: RouteApproach;
+  readonly departure?: RouteDeparture;
+};
+/** A SID belongs to its airport occurrence. Imported filing text can lack a branch. */
+export type RouteDeparture = {
+  readonly airportId: string;
+  readonly procedureId: string;
+  readonly ident: string;
+  readonly name: string;
+  readonly effectiveDate: string;
+  readonly transition: string;
+  readonly branchId?: string;
+  readonly branchName?: string;
 };
 export type RouteDraft = { readonly entries: readonly RouteEntry[] };
 export type RouteEditTarget =
@@ -90,7 +102,7 @@ export type RoutePlan = {
   approachDepictions?: ApproachDepiction[];
 };
 export type ApproachDepiction = {
-  kind: 'hold' | 'missed';
+  kind: 'hold' | 'missed' | 'intercept' | 'procedure-turn';
   phase: 'approach' | 'missed';
   coordinates: PointGeometry['coordinates'][];
   arrow?: { coordinate: PointGeometry['coordinates']; bearing: number };

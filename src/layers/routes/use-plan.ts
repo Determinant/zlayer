@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AirwayDataResponse, CatalogResponse, NavigationData, TerminalProceduresData, PreferredRoutesData } from '@zlayer/contracts';
-import type { RouteDraft, RoutePlan } from '@zlayer/domain';
+import { attachRouteDepartures, type RouteDraft, type RoutePlan } from '@zlayer/domain';
 import { loadRouteResources, routeResourceKey } from './resources';
 import { routeResolver } from './resolver';
 import { useOnline } from '../../core/use-online';
+import { useInventoryVersion } from '../../offline/use-inventory-version';
 
 export type RouteLoadStatus = 'idle' | 'loading' | 'ready' | 'partial' | 'error';
 type LoadedRouteData = {
@@ -20,9 +21,11 @@ const RETRY_DELAY_MS = 3_000;
 export function useRoutePlan(
   catalog: CatalogResponse | undefined,
   draft: RouteDraft,
+  onNormalize?: (edit: (current: RouteDraft) => RouteDraft) => void,
 ): { plan: RoutePlan; data: NavigationData; status: RouteLoadStatus } {
   const active = draft.entries.length > 0;
   const online = useOnline();
+  const inventoryVersion = useInventoryVersion();
   const [loaded, setLoaded] = useState<LoadedRouteData>();
   const key = catalog ? routeResourceKey(catalog, 'plan') : '';
 
@@ -58,7 +61,7 @@ export function useRoutePlan(
       cancelled = true;
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [active, catalog, key, online]);
+  }, [active, catalog, key, online, inventoryVersion]);
 
   const current = loaded?.key === key ? loaded : undefined;
   const data = current?.data ?? EMPTY_DATA;
@@ -67,6 +70,9 @@ export function useRoutePlan(
   const preferred = current?.preferred;
   // GPS coordinates resolve independently of navigation-resource availability.
   const resolver = useMemo(() => routeResolver(data, airways, terminal, preferred), [data, airways, terminal, preferred]);
-  const plan = useMemo(() => resolver(draft), [draft, resolver]);
+  const resolved = useMemo(() => resolver(draft), [draft, resolver]);
+  const normalized = useMemo(() => attachRouteDepartures(draft, resolved, terminal), [draft, resolved, terminal]);
+  useEffect(() => { if (normalized !== draft) onNormalize?.(current => current === draft ? normalized : current); }, [draft, normalized, onNormalize]);
+  const plan = useMemo(() => normalized === draft ? resolved : resolver(normalized), [draft, normalized, resolved, resolver]);
   return { plan, data, status: !active ? 'idle' : current?.status ?? 'loading' };
 }

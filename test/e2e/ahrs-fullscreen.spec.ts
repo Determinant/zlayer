@@ -19,6 +19,8 @@ async function openAhrs(page: Page) {
     });
   });
   await page.goto('/');
+  // At 320 × 568 the initially open terrain panel covers the other tool tabs.
+  await page.getByRole('button', { name: 'Hide terrain toolbox', exact: true }).click();
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
   return page.getByRole('region', { name: 'AHRS toolbox', exact: true });
 }

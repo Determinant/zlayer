@@ -19,8 +19,13 @@ test.use({ serviceWorkers: 'block' });
 const MiB = 1024 * 1024;
 
 async function seed(page: Page, sizes: number[]) {
+  // These cases deliberately block service workers; chart archives require one.
+  // Use the basemap-only workspace so chart preparation cannot gate recorder UI.
+  await page.addInitScript(() => localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({
+    chartBase: '', ownshipEnabled: false,
+  })));
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Show AHRS toolbox', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show AHRS toolbox', exact: true })).toBeEnabled();
   const recordings = await page.evaluate(async sizes => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('zlayer-offline', 1);

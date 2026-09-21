@@ -1,0 +1,55 @@
+.route-stash-dialog {
+  width: min(560px, calc(var(--safe-width) - 24px));
+  max-height: calc(var(--safe-height) - 24px);
+  padding: 0; overflow: hidden; font-size: 15px; line-height: 1.5;
+  text-transform: none; letter-spacing: normal;
+}
+.route-stash-dialog[open] { display: flex; flex-direction: column; }
+.route-stash-heading {
+  display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; border-bottom: 1px solid #253b4e; background: #0b1b2b;
+}
+.route-stash-dialog button {
+  min-height: 44px; padding: 8px 12px; border: 1px solid #46606e; border-radius: 6px;
+  color: #e5edf1; background: #1b3242; font: inherit; font-size: 14px; cursor: pointer;
+}
+.route-stash-dialog button:not(:disabled):hover { background: #274556; }
+.route-stash-dialog button:disabled { opacity: .45; cursor: default; }
+.route-stash-dialog :is(button, input, textarea):focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
+.route-stash-dialog svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.route-stash-dialog .route-stash-close, .route-stash-dialog .route-stash-icon, .route-stash-order button {
+  display: grid; place-items: center; flex: 0 0 44px; width: 44px; padding: 0;
+}
+.route-stash-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px; }
+.route-stash-dialog .route-stash-note { margin: 0 0 8px; font-size: 14px; }
+.route-stash-status { color: #9ce0cb; font-size: 14px; }
+.route-stash-status:empty { display: none; }
+.route-stash-status:not(:empty) { margin-bottom: 8px; }
+.route-stash-list { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
+.route-stash-list > li { min-width: 0; padding-bottom: 10px; border-bottom: 1px solid #253b4e; }
+.route-stash-list > li:last-child { padding-bottom: 0; border-bottom: 0; }
+.route-stash-list h3 { margin: 0 0 6px; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.route-stash-path { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.route-stash-entry { --touch-target: 26px; position: relative; display: flex; align-items: center; min-width: 0; max-width: 100%; }
+.route-stash-chip { isolation: isolate; max-width: 100%; cursor: default; user-select: text; }
+.route-stash-chip strong { overflow: hidden; text-overflow: ellipsis; }
+.route-stash-approach { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0 6px; color: #b7f4dc; font-size: 11px; }
+.route-stash-approach > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-stash-approach + .route-stash-chip { flex-shrink: 0; }
+.route-stash-dialog .route-stash-approach svg { flex: 0 0 14px; width: 14px; height: 14px; stroke: #51e0af; stroke-width: 1.4; }
+.route-stash-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; }
+.route-stash-dialog .route-stash-load, .route-stash-dialog .confirmation-primary { color: #0d292e; background: #8ad7cb; border-color: #8ad7cb; }
+.route-stash-dialog :is(.route-stash-load, .confirmation-primary):not(:disabled):hover { background: #a3e6db; }
+.route-stash-dialog .route-stash-remove { color: #ffc4bd; }
+.route-stash-order { display: flex; gap: 4px; }
+.route-stash-form { display: flex; flex-direction: column; min-height: 0; }
+.route-stash-field { display: block; margin-bottom: 16px; color: #dcecf5; font-size: 14px; }
+.route-stash-field > span { color: #afc2cd; }
+.route-stash-field :is(input, textarea) {
+  display: block; width: 100%; min-height: 44px; padding: 10px; margin-top: 6px;
+  border: 1px solid #46606e; border-radius: 6px; color: #e5edf1; background: #091725;
+  font: inherit; font-size: 16px; line-height: 1.5;
+}
+.route-stash-field textarea { resize: vertical; }
+.route-stash-footer { flex-shrink: 0; padding: 12px 16px; border-top: 1px solid #253b4e; background: #0b1b2b; }
+.route-stash-dialog .route-stash-error { margin: 12px 0; color: #ffc4bd; font-size: 14px; }

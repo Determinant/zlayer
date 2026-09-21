@@ -126,7 +126,9 @@ test('a second window waits for the revived worker to rebuild its shell before d
     await other.getByRole('link', { name: 'Open ZLayer' }).click();
     expect(await other.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
     await expect.poll(() => worker.evaluate(() => (globalThis as unknown as ShellGate).preparations)).toBe(2);
-    await expect(other.getByText('Opening chart workspace…', { exact: true })).toBeVisible();
+    await expect(other.getByRole('dialog', { name: 'ZLayer', exact: true })).toBeVisible();
+    // Downloads stays unavailable until shell preparation completes.
+    await expect(other.getByLabel('Settings and offline downloads')).toHaveCount(0);
     expect(await worker.evaluate(() => (globalThis as unknown as ShellGate).shellBuilds)).toBe(1);
   } finally {
     await worker.evaluate(() => (globalThis as unknown as ShellGate).releaseShell());

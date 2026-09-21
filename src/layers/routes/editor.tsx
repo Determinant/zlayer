@@ -7,27 +7,32 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
 
-import type { RouteApproach, RouteEntry as DraftEntry, RoutePlan, RouteWaypoint } from '@zlayer/domain';
-import type { ProcedureResourceRecord } from '@zlayer/contracts';
+import type { RouteApproach, RouteDeparture, RouteEntry as DraftEntry, RoutePlan, RouteWaypoint } from '@zlayer/domain';
+import type { NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
 
 import { RouteMenu } from './menu';
 import { backspaceRouteTokenIndex, updateRouteEntry } from './entry';
+import { formatWaypointLabel } from '../../core/format/coordinates';
+import type { RouteDraft } from './draft';
 import type { RouteLoadStatus } from './use-plan';
 import { useEditorGestures, type DragVisual } from './use-editor-gestures';
 import type { DirectToAction } from './direct-to';
 import { DirectToIcon } from './direct-to-icon';
 import { RouteApproachPicker } from './approach-picker';
+import { RouteDeparturePicker } from './departure-picker';
 import type { RouteMapPreview } from './map-preview';
 import type { ProcedureSelection } from '../plates/data';
-import type { RouteUndo } from './use-draft';
 
 type RouteEditorProps = {
   plan: RoutePlan;
+  navigationData?: NavigationData | undefined;
   status: RouteLoadStatus;
+  onUseRoute: (draft: RouteDraft) => void;
   onAppendInput: (input: string) => void;
   onInsertInput: (beforeEntryId: string, input: string) => void;
   onReplaceInput: (entryId: string, input: string) => void;
@@ -40,15 +45,17 @@ type RouteEditorProps = {
   approachRouteResource?: import('@zlayer/contracts').TerminalProceduresResource | undefined;
   revision?: string | undefined;
   onApproachChange?: ((entry: DraftEntry, approach: RouteApproach | undefined) => void) | undefined;
+  onDepartureChange?: ((entry: DraftEntry, departure: RouteDeparture | undefined) => void) | undefined;
   onApproachPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
   onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
-  undo?: RouteUndo | undefined;
   tools: ReactNode;
 };
 
 export function RouteEditor({
   plan,
+  navigationData,
   status,
+  onUseRoute,
   onAppendInput,
   onInsertInput,
   onReplaceInput,
@@ -61,17 +68,18 @@ export function RouteEditor({
   approachRouteResource,
   revision: dataRevision,
   onApproachChange,
+  onDepartureChange,
   onApproachPreview,
   onOpenPlate,
-  undo,
   tools,
 }: RouteEditorProps) {
   const [entry, setEntry] = useState('');
   const revision = plan.revision;
-  const { drag, menu, setMenu, formRef, editorRef, inputRef, menuButtonRef, openMenu, beginPointer, movePointer, finishPointer } =
+  const { drag, scrolling, menu, setMenu, formRef, editorRef, inputRef, menuButtonRef,
+    openMenu, clickToken, captureClick, beginPointer, movePointer, finishPointer } =
     useEditorGestures(revision, onMoveEntry);
   const [inlineEdit, setInlineEdit] = useState<{ entryId: string; mode: 'insert' | 'replace'; originalText: string }>();
-  const [approachPicker, setApproachPicker] = useState<{ entry: DraftEntry; point: RouteWaypoint }>();
+  const [approachPicker, setApproachPicker] = useState<{ kind: 'approach' | 'departure'; entry: DraftEntry; point: RouteWaypoint }>();
   const scrollTargetRef = useRef<string | undefined>(undefined);
   const previousEntryCountRef = useRef<number | undefined>(undefined);
   const waypointByToken = useMemo(
@@ -95,6 +103,7 @@ export function RouteEditor({
   const directToPoint = menu && plan.waypoints.find(point => point.edit?.entryId === menu.entryId);
   const menuEntry = menu && plan.entries.find(entry => entry.id === menu.entryId);
   const canChooseApproach = !!onApproachChange && directToPoint?.layer === 'airports';
+  const canChooseDeparture = !!onDepartureChange && directToPoint?.layer === 'airports';
   const activePicker = approachPicker && plan.entries.includes(approachPicker.entry) &&
     plan.waypoints.some(point => point.edit?.entryId === approachPicker.entry.id && point.layer === 'airports' &&
       point.feature.id === approachPicker.point.feature.id) ? approachPicker : undefined;
@@ -176,13 +185,19 @@ export function RouteEditor({
     [...editorRef.current?.querySelectorAll<HTMLElement>('[data-route-entry]') ?? []]
       .find(element => element.dataset.routeEntry === entryId)?.querySelector<HTMLButtonElement>('.route-token')?.focus();
   };
-  const chooseApproach = (entry: DraftEntry, point: RouteWaypoint) => {
+  const chooseProcedure = (kind: 'approach' | 'departure', entry: DraftEntry, point: RouteWaypoint) => {
     setMenu(undefined);
     focusToken(entry.id);
-    setApproachPicker({ entry, point });
+    setApproachPicker({ kind, entry, point });
   };
   const changeApproach = (entry: DraftEntry, approach: RouteApproach | undefined) => {
     onApproachChange?.(entry, approach);
+    setMenu(undefined);
+    setApproachPicker(undefined);
+    requestAnimationFrame(() => focusToken(entry.id));
+  };
+  const changeDeparture = (entry: DraftEntry, departure: RouteDeparture | undefined) => {
+    onDepartureChange?.(entry, departure);
     setMenu(undefined);
     setApproachPicker(undefined);
     requestAnimationFrame(() => focusToken(entry.id));
@@ -192,14 +207,6 @@ export function RouteEditor({
     <form
       className="route-input"
       ref={formRef}
-      onKeyDown={event => {
-        if (!undo || !(event.ctrlKey || event.metaKey) || event.altKey ||
-          (event.target as HTMLElement).matches('input, textarea, [contenteditable="true"]')) return;
-        const key = event.key.toLowerCase();
-        if (key !== 'z' && key !== 'y') return;
-        event.preventDefault();
-        if (event.shiftKey || key === 'y') undo.redo(); else undo.undo();
-      }}
       onSubmit={(event) => {
         event.preventDefault();
         if (entry) commitEntry();
@@ -207,7 +214,12 @@ export function RouteEditor({
         else if (canFit) onFit();
       }}
     >
-      <RouteMenu plan={plan} undo={undo} onOpen={() => setMenu(undefined)} onClear={() => {
+      <RouteMenu plan={plan} onOpen={() => setMenu(undefined)} onLoadRoute={draft => {
+        setEntry('');
+        setInlineEdit(undefined);
+        setMenu(undefined);
+        onUseRoute(draft);
+      }} onClear={() => {
         setEntry('');
         setMenu(undefined);
         setInlineEdit(undefined);
@@ -215,8 +227,15 @@ export function RouteEditor({
         requestAnimationFrame(() => inputRef.current?.focus());
       }} />
       <div
-        className="route-editor"
+        className={`route-editor${scrolling ? ' is-scrolling' : ''}`}
         ref={editorRef}
+        title="Drag to scroll · Hold to reorder"
+        onPointerDown={(event) => beginPointer(event)}
+        onPointerMove={movePointer}
+        onPointerUp={(event) => finishPointer(event, false)}
+        onPointerCancel={(event) => finishPointer(event, true)}
+        onLostPointerCapture={(event) => finishPointer(event, true)}
+        onClickCapture={captureClick}
         onClick={() => inputRef.current?.focus()}
       >
         <ol className="route-token-list" aria-label="Route entries">
@@ -250,19 +269,20 @@ export function RouteEditor({
                   entryId={item.id}
                   ident={ident}
                   approach={item.approach}
-                  onChooseApproach={onApproachChange && waypoint?.layer === 'airports' ? () => chooseApproach(item, waypoint) : undefined}
+                  departure={item.departure}
+                  onChooseDeparture={onDepartureChange && waypoint?.layer === 'airports' ? () => chooseProcedure('departure', item, waypoint) : undefined}
+                  onRemoveDeparture={onDepartureChange ? () => changeDeparture(item, undefined) : undefined}
+                  onChooseApproach={onApproachChange && waypoint?.layer === 'airports' ? () => chooseProcedure('approach', item, waypoint) : undefined}
                   onRemoveApproach={onApproachChange ? () => changeApproach(item, undefined) : undefined}
                   waypoint={waypoint}
                   airway={airwayByToken.get(tokenIndex)}
-                  procedure={procedureByToken.get(tokenIndex)}
+                  procedure={item.departure ? undefined : procedureByToken.get(tokenIndex)}
                   tec={tecByToken.get(tokenIndex)}
                   invalid={issueTokenIndexes.has(tokenIndex)}
                   pending={status === 'loading'}
                   drag={drag}
-                  onPointerDown={(event) => beginPointer(event, item.id, ident)}
-                  onPointerMove={movePointer}
-                  onPointerUp={(event) => finishPointer(event, false)}
-                  onPointerCancel={(event) => finishPointer(event, true)}
+                  onPointerDown={(event) => beginPointer(event, item.id)}
+                  onClick={(event) => clickToken(event, item.id, ident)}
                   onOpenMenu={(element) => openMenu(item.id, ident, element)}
                 />}
               </Fragment>
@@ -324,13 +344,20 @@ export function RouteEditor({
             }}><DirectToIcon />Direct to</button>}
           {canChooseApproach && menuEntry && directToPoint && <button type="button" role="menuitem"
             ref={onDirectTo && directToPoint ? undefined : menuButtonRef}
-            onClick={() => chooseApproach(menuEntry, directToPoint)}>
+            onClick={() => chooseProcedure('approach', menuEntry, directToPoint)}>
             {menuEntry.approach ? 'Change approach…' : 'Choose approach…'}
           </button>}
           {menuEntry?.approach && onApproachChange && <button type="button" role="menuitem" className="route-menu-remove"
             onClick={() => changeApproach(menuEntry, undefined)}>Remove approach</button>}
-          <button
+          {canChooseDeparture && menuEntry && directToPoint && <button type="button" role="menuitem"
             ref={onDirectTo && directToPoint || canChooseApproach ? undefined : menuButtonRef}
+            onClick={() => chooseProcedure('departure', menuEntry, directToPoint)}>
+            {menuEntry.departure ? 'Change SID…' : 'Choose SID…'}
+          </button>}
+          {menuEntry?.departure && onDepartureChange && <button type="button" role="menuitem" className="route-menu-remove"
+            onClick={() => changeDeparture(menuEntry, undefined)}>Remove SID</button>}
+          <button
+            ref={onDirectTo && directToPoint || canChooseApproach || canChooseDeparture ? undefined : menuButtonRef}
             type="button"
             className="route-menu-add"
             role="menuitem"
@@ -355,7 +382,8 @@ export function RouteEditor({
           </button>
         </div>
       )}
-      {activePicker && <RouteApproachPicker ident={activePicker.point.ident} feature={activePicker.point.feature}
+      {activePicker?.kind === 'approach' && <RouteApproachPicker ident={activePicker.point.ident} feature={activePicker.point.feature}
+        navigationData={navigationData}
         resource={approachResource} selected={activePicker.entry.approach}
         routeResource={approachRouteResource} revision={dataRevision}
         arrival={plan.waypoints.find(point => point.edit?.entryId === activePicker.entry.id)?.approachArrival}
@@ -364,6 +392,13 @@ export function RouteEditor({
           if (restoreFocus) requestAnimationFrame(() => focusToken(activePicker.entry.id));
         }} onOpenPlate={onOpenPlate} onPreviewChange={onApproachPreview}
         onSelect={approach => changeApproach(activePicker.entry, approach)} />}
+      {activePicker?.kind === 'departure' && <RouteDeparturePicker ident={activePicker.point.ident} feature={activePicker.point.feature}
+        navigationData={navigationData} resource={approachResource} selected={activePicker.entry.departure}
+        routeResource={approachRouteResource} revision={dataRevision} onOpenPlate={onOpenPlate} onPreviewChange={onApproachPreview}
+        onClose={(restoreFocus = true) => {
+          setApproachPicker(undefined);
+          if (restoreFocus) requestAnimationFrame(() => focusToken(activePicker.entry.id));
+        }} onSelect={departure => changeDeparture(activePicker.entry, departure)} />}
     </form>
   );
 }
@@ -403,6 +438,9 @@ type RouteTokenProps = {
   entryId: string;
   ident: string;
   approach: RouteApproach | undefined;
+  departure: RouteDeparture | undefined;
+  onChooseDeparture: (() => void) | undefined;
+  onRemoveDeparture: (() => void) | undefined;
   onChooseApproach: (() => void) | undefined;
   onRemoveApproach: (() => void) | undefined;
   waypoint: RouteWaypoint | undefined;
@@ -413,9 +451,7 @@ type RouteTokenProps = {
   pending: boolean;
   drag: DragVisual | undefined;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   onOpenMenu: (element: HTMLButtonElement) => void;
 };
 
@@ -423,6 +459,9 @@ function RouteToken({
   entryId,
   ident,
   approach,
+  departure,
+  onChooseDeparture,
+  onRemoveDeparture,
   onChooseApproach,
   onRemoveApproach,
   waypoint,
@@ -433,12 +472,11 @@ function RouteToken({
   pending,
   drag,
   onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
+  onClick,
   onOpenMenu,
 }: RouteTokenProps) {
   const stateClass = routeTokenStateClass({ waypoint, airway, procedure, tec, invalid, pending });
+  const label = formatWaypointLabel(ident);
   const description = tec ? `${ident} · TEC · ${tec.route.originId} → ${tec.route.destinationId}` : procedure
     ? `${ident} · ${procedure.kind === 'departure' ? 'SID' : 'STAR'} · ${procedure.airport} · ${procedure.transition} transition · waypoint preview`
     : airway ? `${ident} · ${airway.entry} → ${airway.exit}` : ident;
@@ -449,17 +487,17 @@ function RouteToken({
     ? drag.before ? 'is-drop-before' : 'is-drop-after'
     : '';
   return (
-    <li className={`${dropClass}${approach ? ' route-approach-bundle' : ''}${isDragging ? ' is-entry-dragging' : ''}`}
+    <li className={`${dropClass}${approach || departure ? ' route-approach-bundle' : ''}${departure ? ' has-departure' : ''}${approach ? ' has-approach' : ''}${isDragging ? ' is-entry-dragging' : ''}`}
       style={isDragging ? { transform: `translate3d(${drag.offsetX}px, 0, 0)` } : undefined}
       data-route-entry={entryId}>
-      {approach && <span className="route-approach-outline" aria-hidden="true" />}
+      {(approach || departure) && <span className="route-approach-outline" aria-hidden="true" />}
       {approach && <>
         <button type="button" className="route-attached-approach" title={`${approach.name}${approach.entry ? ` · ${approach.entry.name}` : ''}`}
           aria-label={`Change approach for ${ident}: ${approach.name}`} disabled={!onChooseApproach}
           aria-description={approach.entry ? `Entry: ${approach.entry.name}` : 'Choose an approach entry'}
           onClick={event => { event.stopPropagation(); onChooseApproach?.(); }}
           onContextMenu={event => { event.preventDefault(); onOpenMenu(event.currentTarget); }}>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h4v5h7M10 5l3 3-3 3" /></svg>
+          <svg viewBox="0 0 16 16" aria-hidden="true" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v3a5 5 0 0 0 5 5h4M10 7l3 3-3 3" /></svg>
           <span>{approach.name.replace(/\b(?:RWY|RUNWAY)\s+/gi, '')}{approach.entry ? ` · ${approach.entry.name}` : ''}</span>
         </button>
         {onRemoveApproach && <button type="button" className="route-detach-approach"
@@ -470,31 +508,37 @@ function RouteToken({
         type="button"
         className={`route-token ${stateClass}${isDragging ? ' is-dragging' : ''}`}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onLostPointerCapture={onPointerCancel}
         onContextMenu={(event) => {
           event.preventDefault();
           onOpenMenu(event.currentTarget);
         }}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (event.detail === 0) onOpenMenu(event.currentTarget);
-        }}
+        onClick={onClick}
         onKeyDown={(event) => {
           if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
             event.preventDefault();
             onOpenMenu(event.currentTarget);
           }
         }}
-        aria-label={`${description}${statusDescription}. Drag to reorder; open context menu for actions.`}
+        aria-label={`${description}${statusDescription}. Click or tap for actions; drag to scroll; hold then drag to reorder.`}
         aria-invalid={unresolved || undefined}
         aria-haspopup="menu"
-        title={`${description}${statusDescription} · drag to reorder`}
+        title={`${description}${statusDescription} · Click or tap for actions · Drag to scroll · Hold to reorder`}
       >
-        <strong>{ident}</strong>
+        <strong>{label}</strong>
       </button>
+      {departure && <>
+        <button type="button" className="route-attached-departure" title={`${departure.name} · ${departure.branchName ?? 'Choose runway/branch'} · ${departure.transition}`}
+          aria-label={`Change SID for ${ident}: ${departure.ident}`} disabled={!onChooseDeparture}
+          aria-description={`${departure.branchName ?? 'Choose a runway/branch'} · Exit: ${departure.transition}`}
+          onClick={event => { event.stopPropagation(); onChooseDeparture?.(); }}
+          onContextMenu={event => { event.preventDefault(); onOpenMenu(event.currentTarget); }}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h3a5 5 0 0 0 5-5V3M7 6l3-3 3 3" /></svg>
+          <span>{departure.ident} · {departure.branchName?.split(' · ')[0] ?? 'Choose branch'} · {departure.transition}</span>
+        </button>
+        {onRemoveDeparture && <button type="button" className="route-detach-departure"
+          aria-label={`Remove ${departure.ident} SID from ${ident}`} title="Remove SID"
+          onClick={event => { event.stopPropagation(); onRemoveDeparture(); }}>×</button>}
+      </>}
     </li>
   );
 }

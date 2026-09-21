@@ -5,6 +5,60 @@ async function selectAirport(page: Page, id: string) {
   await page.locator('.search-results button').filter({ hasText: id }).click();
 }
 
+for (const touch of [false, true]) test.describe(`airport map selection (${touch ? 'phone touch' : 'mouse'})`, () => {
+  test.use(touch
+    ? { hasTouch: true, deviceScaleFactor: 2, viewport: { width: 390, height: 844 } }
+    : { hasTouch: false });
+
+  for (const tier of ['major', 'regional', 'local', 'weather']) test(`${tier} airport info opens from its marker and label`, async ({ page, context }) => {
+    await context.route('**/nav/airports.geojson*', async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const airport = body.features.find((feature: { properties: { ident: string } }) => feature.properties.ident === 'KSMO');
+      Object.assign(airport.properties, {
+        facilityType: 'A', use: tier === 'local' ? 'PR' : 'PU', towered: tier === 'major' || tier === 'weather',
+        elevationFt: 170, longestRunwayFt: 3500, frequencies: [{ type: 'ATIS', frequencyMHz: 119.15 }],
+      });
+      await route.fulfill({ response, json: body });
+    });
+    await context.route('**/weather/metars.geojson?*', route => route.fulfill({ json: {
+      type: 'FeatureCollection', features: tier === 'weather' ? [{
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-118.45, 34.02] },
+        properties: { id: 'KSMO', obsTime: Date.now() / 1000, fltcat: 'VFR', rawOb: 'KSMO TEST METAR' },
+      }] : [],
+    } }));
+    await page.addInitScript(() => {
+      localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-118.45, 34.02], zoom: 12 }));
+      // Keep the phone's label clear of the initially open terrain toolbox.
+      localStorage.setItem('zlayer-ui:edge-tool', JSON.stringify({ version: 1, value: null }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+    const canvas = page.locator('.maplibregl-canvas');
+    const box = (await canvas.boundingBox())!;
+    const facts = page.locator('.feature-facts');
+    for (const label of [false, true]) {
+      // At zoom 12 the label sits below the airport. Its center is outside
+      // both the airport circle and the weather marker's hit area.
+      const target = { x: box.x + box.width / 2, y: box.y + box.height / 2 + (label ? 26 : 0) };
+      if (touch) await page.touchscreen.tap(target.x, target.y);
+      else {
+        await page.mouse.move(target.x, target.y);
+        await expect(canvas).toHaveCSS('cursor', 'pointer');
+        await page.mouse.click(target.x, target.y);
+      }
+      await expect(page.locator('.feature-card')).toContainText('KSMO TEST AIRPORT');
+      await expect(facts).toContainText('170 ft');
+      await expect(facts).toContainText('119.15 MHz');
+      if (tier === 'weather') await expect(page.getByRole('region', { name: 'METAR', exact: true })).toContainText('KSMO TEST METAR');
+      const close = page.getByRole('button', { name: 'Close detail', exact: true });
+      if (touch) await close.tap();
+      else await close.click();
+      await expect(page.locator('.feature-card')).toBeHidden();
+    }
+  });
+});
+
 test('airport summary shows elevation, runway and local frequencies on desktop, phone, and offline reload', async ({ page, context }, testInfo) => {
   await context.route('**/nav/airports.geojson*', async route => {
     const response = await route.fetch();

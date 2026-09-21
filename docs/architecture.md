@@ -7,7 +7,8 @@ Local state lives in browser storage.
 ```text
 FAA sources ──► faa-regs builder ──► dated static files ──► charts.tedyin.com ──► PWA
 AWC API ─────────────────────────────────────► Vite / production nginx proxy ───────┘
-Terrarium elevation tiles ───────────────────► route-terrain worker ────────────────┘
+USGS 3DEP / FAA Daily DOF ──► packaged static feed ──► terrain / obstruction workers ┘
+Terrarium elevation tiles ───────────────────► terrain fallback worker ─────────────┘
 Device Geolocation API ──────────────────────► shared GPS source ─► map / AHRS ──────┘
 Device Motion API ──────────────────────────► experimental AHRS toolbox ────────────┘
 ```
@@ -17,7 +18,9 @@ Device Motion API ────────────────────�
 ### Publishers
 
 - `faa-regs` builds chart MBTiles, normalized navigation GeoJSON, airway JSON, the
-  complete d-TPP catalog, and combined electronic paper TPPs.
+  complete d-TPP catalog, and combined electronic paper TPPs. Optional exports include
+  preferred/TEC routes, terminal/approach geometry, route history and magnetic-model
+  coefficients. Feed-wide terrain and obstruction products have independent versions.
 - Planned scheduled jobs fetch AWC/WPC/NOAA products, preserve raw fields and times, and
   publish immutable snapshots plus an atomic `current.json` pointer.
 - Publishers validate schemas, bounds, cycles, checksums, and source freshness once
@@ -53,7 +56,7 @@ retention and retry after failure. Navigation caches raw exports before deriving
 coverage views. Route planning and recommendations share resource loading and reuse
 resolvers for identical inputs while preserving their distinct product/retry policies.
 `WorkerClient` owns RPC deadlines, error/messageerror handling and termination for
-package decoding, legacy SQLite and route history. A failed shared initialization
+package decoding, legacy SQLite, route history, terrain and obstructions. A failed shared initialization
 drains healthy calls; a crash settles all calls and permits fresh reader-pool retries.
 
 ## Layer modules
@@ -62,8 +65,8 @@ A layer is a whole workspace feature: its data, behavior, presentation, and life
 Its presentation can be map imagery, weather circles and airport details, or a sliding
 procedure panel. A MapLibre style layer is only a rendering primitive within a product.
 
-Source is grouped by product under `src/layers/`: `charts/`, `metar/`, `taf/`,
-`plates/`, `navigation/`, `routes/`, `terrain/`, `ownship/`, and `ahrs/`. Each folder
+Source is grouped by product under `src/layers/`: `charts/`, `metar-taf/`,
+`plates/`, `navigation/`, `routes/`, `terrain/`, `obstructions/`, `ownship/`, and `ahrs/`. Each folder
 exposes internal entry points; these are still evolving, not a stable framework API.
 Map adapters and the chart service-worker adapter have separate entry points so the
 PDF viewer and map runtime remain lazy-loaded. `core/` holds reusable request, storage,
@@ -78,8 +81,9 @@ renderers, data-only entries and workers without UI dependencies. Compatibility 
 is only reachable through its designated offline persistence entry points.
 
 Map contributions share one WebGL map. METAR owns visible demand, cached observations,
-and timed refresh. Plates owns its selection and lazy viewer panel independently of
-the map. React observes product snapshots through `useLayerSnapshot` and sends actions.
+and timed refresh. Plates owns its selection and lazy viewer panel, plus an optional
+georeferenced IAP map overlay. The viewer and overlay have independent lifecycles.
+React observes product snapshots through `useLayerSnapshot` and sends actions.
 
 See [Layer by layer](layer-modules.md) for the implemented boundaries, registration
 points and responsibilities. Packaging products separately remains a design question.
@@ -88,6 +92,8 @@ points and responsibilities. Packaging products separately remains a design ques
 
 ```text
 charts/cycles.json                # available edition dates
+charts/terrain/manifest.json      # feed-wide, versioned elevation packages
+charts/obstacles/manifest.json    # feed-wide FAA Daily DOF dataset
 charts/<cycle>/
 ├── *.pdf / *.tif
 ├── mbtiles/
@@ -113,6 +119,8 @@ charts/<cycle>/
 ```
 
 Weather currently uses same-origin METAR/TAF proxies and product-owned caches.
+Optional approach and magnetic-model exports are located through the navigation
+manifest rather than fixed client-side filenames.
 The proposed `weather/<product>/<revision>/...` snapshots and `current.json`
 pointers belong to the future shared publisher, not the current feed contract.
 
@@ -130,14 +138,15 @@ Every dated manifest is validated against that requested cycle.
 1. Continuous USGS topography/shaded-relief basemap, or a configured replacement
 2. Exclusive VFR sectional / IFR low chart base, then an optional terminal-area or
    flyway overlay requiring the sectional base (coverage-limited, whole-file cached)
-3. Route-corridor terrain fill and contours
-4. Route lines, beneath navigation symbols
-5. FAA airport, NAVAID, VFR waypoint and IFR fix symbols
-6. METAR airport circles
-7. Foreground terrain, selection and route labels/interaction resources
-8. Optional GPS aircraft, accuracy and projection
+3. Optional georeferenced IAP image
+4. Route-corridor terrain fill and contours, or viewport elevation shading
+5. Route lines, beneath navigation symbols
+6. FAA obstruction, airport, NAVAID, VFR waypoint and IFR fix symbols
+7. METAR airport circles
+8. Foreground terrain, selection, route and navaid-identification labels/interaction resources
+9. Optional GPS aircraft, accuracy and projection
 
-The map host mounts chart, terrain, navigation, weather, route and ownship slots in
+The map host mounts chart, plates, terrain, navigation, weather, route and ownship slots in
 order. Explicit anchors keep route lines below navigation, and foreground resources
 are raised after mounting. Airways and SID/STARs appear through resolved route
 geometry; there is no standalone national airway layer. Radar/satellite, WPC analysis,
@@ -155,11 +164,13 @@ all zooms. The region planner deduplicates shared files, totals download bytes, 
 requires every exact content identity for completeness. Publisher regions default
 to FAA chart footprints. **Settings** instead selects U.S. state/territory
 envelopes against that same archive grid, always including VFR/IFR low, navigation
-and all applicable whole plate/supplement books, with sizes, progress, pause/resume, retry,
+and all applicable whole plate/supplement books, individual-only plates and published
+terrain packages at supported DEM detail levels, with sizes, progress, pause/resume, retry,
 and removal. Cache Storage holds the same verified files used on demand; IndexedDB
 holds catalog/selection records, not duplicate blobs. StorageManager reports quota
 and persistence, and Web Locks coordinate windows. Basemap coverage is only saved as
-viewed; weather remains time-stamped and visibly stale. See
+viewed; weather remains time-stamped and visibly stale. The obstruction dataset is
+cached on demand and is not part of regional completeness. See
 [offline storage](offline-storage.md) for guarantees, limits, and release checks.
 Committed regional snapshots retain their edition online and offline; staged updates
 activate only after verification. Route drafts, camera and workspace presentation
@@ -186,7 +197,9 @@ Route-corridor downloads and automatic cycle migration remain future work.
 - MapLibre, PDF.js and worker decoders load through separate entries. Settings code
   is bundled with the shell; its content mounts on first open and stays mounted so
   downloads survive closing the dialog.
-- Source failure degrades one product, never the complete workspace.
+- Source failure degrades one product, never the complete workspace. Optional runtime
+  cache failures fall back to the network; verified chart storage, shell installation
+  and explicit offline saves still require successful persistence.
 
 ### Chart I/O invariant
 

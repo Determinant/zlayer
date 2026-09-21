@@ -28,6 +28,6 @@ export function ObstructionControls({ enabled, status, onToggle }: {
     </div>
     {enabled && <p className="obstruction-key">Taller structures appear farther out. Routes also show ≥500 ft AGL with a 4 NM core / 8 NM fade.
       {' '}Elevation MSL · (height AGL), feet. UC: unverified.
-      {status.sourceDate && <> Source {formatDate(status.sourceDate)}.</>}</p>}
+      {status.sourceDate && <> Source {formatDate(Date.parse(status.sourceDate))}.</>}</p>}
   </section>;
 }

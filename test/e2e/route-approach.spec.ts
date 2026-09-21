@@ -2,10 +2,44 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import catalog from '../fixtures/route-approaches.json' with { type: 'json' };
 import legs from '../fixtures/route-approach-legs.json' with { type: 'json' };
 import moffett from '../fixtures/route-approach-nuq.json' with { type: 'json' };
+import northBay from '../fixtures/route-approach-north-bay.json' with { type: 'json' };
 import published from '../fixtures/route-approach-published.json' with { type: 'json' };
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
 test.use({ hasTouch: true });
+
+for (const [airportId, name, entry, kind] of [
+  ['O69', 'VOR RWY 29', 'SGD', 'approach-missed'],
+  ['KAPC', 'ILS Z OR LOC Z RWY 01L', 'REBAS', 'approach-intercept'],
+  ['KSTS', 'ILS OR LOC RWY 32', 'PYE', 'leg'],
+] as const) test(`${airportId} bounded approach connection appears in preview and survives reload`, async ({ page }, testInfo) => {
+  const template = catalog.airports[0]!;
+  await page.route('**/route-approaches.json', route => route.fulfill({ json: { ...catalog, airports: [
+    { ...template, id: airportId, faaId: airportId, icaoId: airportId === 'O69' ? null : airportId,
+      procedures: [{ ...template.procedures.find(p => p.id === 'ils')!, name }] },
+  ] } }));
+  await page.route('**/route-approach-legs.json', route => route.fulfill({ json: northBay }));
+  const hasConnection = () => page.evaluate(({ kind }) => {
+    const map = (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit;
+    return map.queryRenderedFeatures({ layers: ['route-missed-line', 'route-approach-line'] })
+      .some(f => f.properties.routeKind === kind && f.geometry.type === 'LineString' && (kind === 'leg'
+        // MapLibre can simplify the collinear FC split; the line must still reach PYE.
+        ? f.geometry.coordinates.some(p => Math.abs(p[0]! + 122.867828) < .001 && Math.abs(p[1]! - 38.079756) < .001)
+        : f.geometry.coordinates.length > 2));
+  }, { kind });
+  await page.goto(`/test/browser/routes.html?map&north-bay=${airportId}`);
+  await choose(page);
+  await page.getByRole('button', { name, exact: true }).click();
+  await page.getByRole('radio', { name: entry, exact: true }).check();
+  await expect.poll(hasConnection).toBe(true);
+  await expect(page.getByRole('dialog', { name: 'Choose entry', exact: true })).not.toContainText('Gaps remain');
+  await page.getByRole('button', { name: 'Add to route', exact: true }).click();
+  await expect.poll(hasConnection).toBe(true);
+  await page.reload();
+  await expect.poll(hasConnection).toBe(true);
+  await expect(page.locator('.route-token.is-error')).toHaveCount(0);
+  await page.getByLabel('Approach map', { exact: true }).screenshot({ path: testInfo.outputPath(`${airportId}-connected-approach.png`) });
+});
 
 for (const touch of [false, true]) test(`dragging the leg into an approach inserts a waypoint and preserves its bundle (${touch ? 'touch' : 'mouse'})`, async ({ page, request }, testInfo) => {
   await request.post('/__test/published-approaches');
@@ -52,19 +86,14 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
       await page.mouse.move(end.x, end.y, { steps: 8 });
       await page.mouse.up();
     }
-    await expect(tokens).toHaveText(['362729N1220000W', /^\d{6}N\d{7}W$/, 'KSNS']);
+    await expect(tokens).toHaveText(['36°27′N 122°00′W', /^\d{2}°\d{2}′N \d{3}°\d{2}′W$/, 'KSNS']);
     await expect(bundle).toHaveText('ILS 31 · ARTYY');
     await expect(page.locator('.route-token.is-error')).toHaveCount(0);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[2])).toEqual(airport);
     const inserted = await tokens.nth(1).textContent();
     await page.screenshot({ path: testInfo.outputPath('approach-connector-insertion.png') });
-    await history(page, 'Undo');
-    await expect(tokens).toHaveText(['362729N1220000W', 'KSNS']);
-    await expect(bundle).toHaveText('ILS 31 · ARTYY');
-    await history(page, 'Redo');
-    await expect(tokens).toHaveText(['362729N1220000W', inserted!, 'KSNS']);
     await page.reload();
-    await expect(tokens).toHaveText(['362729N1220000W', inserted!, 'KSNS']);
+    await expect(tokens).toHaveText(['36°27′N 122°00′W', inserted!, 'KSNS']);
     await expect(bundle).toHaveText('ILS 31 · ARTYY');
     await expect(page.getByLabel('Approach map details', { exact: true })).toBeVisible();
   } finally { await request.post('/__test/reset'); }
@@ -234,21 +263,12 @@ async function selectEntry(page: Page, name = 'ARCHI') {
   await expect(picker).toContainText('Preview on map');
   await picker.getByRole('button', { name: /^(Add to route|Replace approach)$/ }).click();
 }
-async function history(page: Page, action: 'Undo' | 'Redo') {
-  await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: `${action} route edit`, exact: true }).click();
-}
-async function longPress(page: Page, token: Locator) {
-  await token.scrollIntoViewIfNeeded();
-  const box = (await token.boundingBox())!;
-  const session = await page.context().newCDPSession(page);
-  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
+async function tapAirport(page: Page, token: Locator) {
+  await token.tap();
   await expect(page.getByRole('menuitem', { name: 'Choose approach…', exact: true })).toBeVisible();
-  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await session.detach();
 }
 
-for (const width of [320, 1280]) test(`attach, switch, restore, detach and undo an approach at ${width}px`, async ({ page }, testInfo) => {
+for (const width of [320, 1280]) test(`attach, switch, reload and detach an approach at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 844 });
   await page.goto('/test/browser/routes.html');
   const tokens = page.locator('.route-token');
@@ -281,10 +301,6 @@ for (const width of [320, 1280]) test(`attach, switch, restore, detach and undo 
   await change.getByRole('button', { name: 'ILS OR LOC RWY 28R', exact: true }).click();
   await selectEntry(page);
   await expect(page.locator('.route-attached-approach')).toHaveText('ILS OR LOC 28R · ARCHI');
-  await history(page, 'Undo');
-  await expect(page.locator('.route-attached-approach')).toHaveText('RNAV (GPS) 28L · ARCHI');
-  await history(page, 'Redo');
-  await expect(page.locator('.route-attached-approach')).toHaveText('ILS OR LOC 28R · ARCHI');
   await page.reload();
   await expect(page.locator('.route-attached-approach')).toHaveText('ILS OR LOC 28R · ARCHI');
   expect(await page.locator('[data-route-entry]').evaluateAll(items => items.map(item => (item as HTMLElement).dataset.routeEntry))).toEqual(ids);
@@ -293,7 +309,9 @@ for (const width of [320, 1280]) test(`attach, switch, restore, detach and undo 
   await remove.click();
   await expect(page.locator('.route-attached-approach')).toHaveCount(0);
   await expect(tokens.locator('strong')).toHaveText(['KSFO', 'UNKNOWN', 'KSJC']);
-  await history(page, 'Undo');
+  await choose(page);
+  await page.getByRole('button', { name: 'ILS OR LOC RWY 28R', exact: true }).click();
+  await selectEntry(page);
   await expect(page.locator('.route-attached-approach')).toHaveText('ILS OR LOC 28R · ARCHI');
   await tokens.first().click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Remove approach', exact: true }).click();
@@ -310,7 +328,7 @@ test('touch and keyboard menus handle empty airports, cancel, and remove from th
   await tokens.nth(1).click({ button: 'right' });
   await expect(page.getByRole('menuitem', { name: 'Choose approach…', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await longPress(page, tokens.last());
+  await tapAirport(page, tokens.last());
   await page.getByRole('menuitem', { name: 'Choose approach…', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('No approaches published for KSJC');
   await page.keyboard.press('Escape');
@@ -327,8 +345,9 @@ test('touch and keyboard menus handle empty airports, cancel, and remove from th
   await page.getByRole('button', { name: 'Remove approach', exact: true }).click();
   await expect(page.locator('.route-attached-approach')).toHaveCount(0);
   await expect(tokens.first()).toBeFocused();
-  await tokens.first().press('Control+z');
-  await expect(page.locator('.route-attached-approach')).toHaveText('RNAV (GPS) 28L · ARCHI');
+  await page.reload();
+  await expect(tokens.locator('strong')).toHaveText(['KSFO', 'UNKNOWN', 'KSJC']);
+  await expect(page.locator('.route-attached-approach')).toHaveCount(0);
 });
 
 test('approach remains attached to its occurrence through drag and replacement clears it', async ({ page }) => {
@@ -342,6 +361,7 @@ test('approach remains attached to its occurrence through drag and replacement c
   const destination = (await tokens.last().boundingBox())!;
   await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
   await page.mouse.down();
+  await expect(tokens.first()).toHaveClass(/is-dragging/);
   await page.mouse.move(destination.x + destination.width - 2, destination.y + destination.height / 2, { steps: 10 });
   await page.mouse.up();
   await expect(tokens.locator('strong')).toHaveText(['UNKNOWN', 'KSJC', 'KSFO', 'KSJC', 'KSFO']);
@@ -497,7 +517,7 @@ test('published entries, route depiction and approach switching survive a cold o
     await expect.poll(() => magentaPixels(cold)).toBeGreaterThan(30);
     await expect(cold.getByLabel('Approach map details')).toBeVisible();
     await cold.getByLabel('Approach map details').click();
-    await expect(cold.locator('.route-issues')).toContainText('Holding racetracks and altitude-dependent missed turns are schematic');
+    await expect(cold.locator('.route-issues')).toContainText('Holds, procedure turns, intercepts and altitude-dependent paths are schematic');
     await cold.getByLabel('Approach map details').click();
     await cold.screenshot({ path: testInfo.outputPath('salinas-cold-offline-arc.png') });
     await cold.locator('.route-attached-approach').click();

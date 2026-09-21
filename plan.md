@@ -19,14 +19,19 @@ It remains a supplemental planning tool, not an official briefing source or cert
 `nav/`, plate indexes in `tpp/` and `cs/`, and original PDF books at the cycle root.
 Intermediate sheet MBTiles stay outside the publish tree. See the
 [feed contract](docs/chart-feed.md) for layout, identity and publication rules.
+Feed-wide `terrain/` and `obstacles/` products have independent versions.
 
 ZLayer renders VFR/IFR low charts, searchable FAA features, current/cached METARs,
 selected-airport TAFs, and exact-page PDF.js plates/Chart Supplements. Persisted route
-drafts support direct and Victor/Tango legs, compact TEC entries and SID/STAR previews;
+drafts support direct and Victor/Tango legs, compact TEC entries, SID/STAR previews
+and anchored approaches with published entries or vectors to final;
 recommendations include historical, preferred and TEC routes. Routes can be copied
-as text or shared where supported. Route terrain shows elevation and manual altitude
-comparisons; optional device GPS shows position and track. The experimental AHRS
-toolbox adds attitude, GPS instruments, an HSI and local JSON Lines recordings.
+as text or shared where supported, and named snapshots can be saved, managed and
+loaded through the local Route Stash. Georeferenced IAPs can be placed on the map.
+Route/viewport terrain shows elevation and manual altitude comparisons, with packaged
+elevation available offline; FAA obstructions have a separate map layer. Optional
+device GPS shows position and track. The experimental AHRS toolbox adds attitude,
+GPS instruments, HSI guidance for straight route legs and local recordings with GPX and JSON Lines downloads.
 It still needs device and flight validation.
 
 Settings saves complete state/territory selections with progress, retry, shared-file
@@ -36,6 +41,10 @@ the camera, panels and plate reading state. Chart selection does not move the ma
 Settings also offers a confirmed full reset of local app data across open windows.
 
 ## Next
+
+The [approach geometry redesign](docs/approach-geometry-plan.md) is implemented
+and locally verified. [Coverage and rollout evidence](docs/approach-coverage.md)
+tracks publication, unmatched charts and remaining national diagnostics.
 
 The [color-system plan](docs/color-system.md) defines the shared palette, navigation
 and weather color roles, contrast targets, and staged interface migration.

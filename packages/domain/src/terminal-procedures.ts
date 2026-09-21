@@ -1,5 +1,6 @@
 import type { TerminalProcedure, TerminalProcedurePoint, TerminalProceduresData } from '@zlayer/contracts';
 import { expansionOwner, expansionMessage, sourceIssue, type RouteAtom, type ExpandedRoutePoint, type PointRequirement } from './route-source.js';
+import { departureBranches } from './departures.js';
 
 export type ResolvedRouteProcedure = {
   tokenIndex: number;
@@ -34,8 +35,9 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
       const point = points[index]!;
       const atom = point.atom;
       if (!atom || atom.pinnedFeatureId || atom.blocked) continue;
+      const selected = atom.departure;
       const records = byIdent.get(point.ident);
-      if (!records) continue;
+      if (!records && !selected) continue;
       const owner = expansionOwner('procedure', atom);
       const tokenIndex = atom.source.tokenIndex;
       const at = atoms.indexOf(atom);
@@ -45,7 +47,9 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
       const airportAtom = departure ? origin : destination;
       const airport = airportAtom && airportAt(airportAtom);
       const kind = departure ? 'departure' : 'arrival';
-      const eligible = records.filter(record => record.kind === kind && airport && record.airports.includes(airport));
+      const eligible = (records ?? []).filter(record => record.kind === kind && airport && record.airports.includes(airport) &&
+        (!selected || selected.airportId === airport && selected.procedureId === record.id &&
+          selected.effectiveDate === data?.metadata.effectiveDate));
       const report = (code: ProcedureRouteIssue['code'], message: string) =>
         issues.push(sourceIssue(atom.source, code, expansionMessage(owner, `${point.ident}: ${message}`)));
       const fail = (code: ProcedureRouteIssue['code'], message: string) => {
@@ -53,6 +57,9 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
         if (points[index + 1]) points[index + 1]!.incoming.connected = false;
         points.splice(index--, 1);
       };
+      if (selected && !eligible.length) {
+        fail('procedure-branch', 'selected SID is unavailable for this airport in this data edition'); continue;
+      }
       if ((!departure && !arrival) || !eligible.length) {
         fail('procedure-placement', 'must follow its departure airport or precede its arrival airport'); continue;
       }
@@ -61,7 +68,11 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
       if (!neighbour || !neighbourAtom || neighbour.atom !== neighbourAtom) {
         fail('procedure-transition', 'an explicit entry/exit fix is required next to the procedure'); continue;
       }
-      const paths = eligible.flatMap(record => pathsFor(record, airport!, neighbour.ident));
+      const branch = selected?.branchId ? departureBranches(eligible[0]!, airport!).find(entry => entry.id === selected.branchId) : undefined;
+      if (selected?.branchId && !branch) {
+        fail('procedure-branch', 'selected runway/branch is unavailable in this data edition'); continue;
+      }
+      const paths = eligible.flatMap(record => pathsFor(record, airport!, neighbour.ident, branch?.route));
       if (!paths.length) { fail('procedure-transition', `no published ${departure ? 'exit' : 'entry'} at ${neighbour.ident} for ${airport}`); continue; }
       const common = sharedPath(paths, departure);
       const partial = paths.some(path => path.length !== common.length);
@@ -98,9 +109,11 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
   };
 }
 
-function pathsFor(procedure: TerminalProcedure, airport: string, anchor: string): TerminalProcedurePoint[][] {
+function pathsFor(procedure: TerminalProcedure, airport: string, anchor: string,
+  branch?: TerminalProcedure['routes'][number]): TerminalProcedurePoint[][] {
   const departure = procedure.kind === 'departure';
-  const bodies = procedure.routes.filter(route => route.kind === 'body' && route.airports.some(entry => entry.ident === airport));
+  const bodies = procedure.routes.filter(route => route.kind === 'body' && route.airports.some(entry => entry.ident === airport) &&
+    (!branch || route === branch));
   const transitions = procedure.routes.filter(route => route.kind === 'transition' &&
     (departure ? route.points.at(-1) : route.points[0])?.ident === anchor);
   const paths: TerminalProcedurePoint[][] = [];

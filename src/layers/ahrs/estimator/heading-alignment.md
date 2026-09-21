@@ -11,10 +11,11 @@ GPS/IMU motion. `headingStatus` governs navigation fusion:
 | `recovering` | Arbitrary local-level frame | The same fresh evidence paths as initial acquisition |
 
 There is no saved manual-heading measurement to apply again. A north-referenced
-HSI heading also requires sufficiently small uncertainty. When neither that
-heading nor GPS track is available, live IMU yaw still drives a crossed **REL**
-card; it is not a geographic reference for route guidance. GPS track and route
-guidance remain independent of these modes. The recorder includes the status,
+HSI heading also requires sufficiently small uncertainty. Without that confident
+heading, live IMU yaw still drives a crossed **REL** card, including with GPS
+available. GPS track never replaces yaw as the card reference. The geographic
+track marker and route guidance require confident heading alignment; relative yaw
+cannot orient them. The recorder includes the status,
 reason and previous source in each attitude snapshot.
 
 Heading acquisition is not a prerequisite for IMU calibration or visible pitch
@@ -157,6 +158,6 @@ Altitude-plus-recovery regressions also cover an overconfident 90° heading erro
 with immediate and 1.1-second-delayed GPS. The broader numerical checks are in
 `test/ahrs-mathematics.test.ts`. Current numerical results and the preserved
 turn-accuracy limits are recorded in the
-[v6 review](../../../../docs/reviews/ahrs-algorithm-2026-09-19.md#v6-beta-verification).
+[v6 review](../../../../docs/ahrs-validation.md#v6-beta-verification).
 Simulations do not replace validation with recorded phone/aircraft data or prove
 consistency of every mode transition.

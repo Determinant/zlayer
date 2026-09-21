@@ -2,9 +2,28 @@ import { hasUniqueStrings, isIsoDate, isNonEmptyString as text, isRecord } from 
 
 export type ApproachCoordinate = [number, number];
 export type ApproachFix = { ident: string; coordinate: ApproachCoordinate; role?: 'IAF' | 'IF' | 'FAF' | 'MAP' };
+export type ApproachReference = {
+  /** Scoped ARINC identity, including airport for terminal facilities. */
+  id: string;
+  ident: string;
+  type: 'navaid' | 'localizer';
+  coordinate?: ApproachCoordinate;
+  dmeCoordinate?: ApproachCoordinate;
+  /** Published station alignment, east positive; not current regional variation. */
+  declination?: number;
+};
 /** Coded legs retain discontinuities; altitude/vector legs have no invented endpoint. */
 export type ApproachLeg = {
   path: string;
+  /** Source branch and sequence; stable within an edition. */
+  id?: string;
+  reference?: ApproachReference;
+  /** ARINC theta/rho, distinct from the flown course and leg distance. */
+  radial?: number;
+  rhoNm?: number;
+  /** Preserve the source constraint, including FL versus feet, without inventing a trajectory. */
+  altitude?: { restriction: string; first: string; second: string };
+  waypointDescriptor?: string;
   fix?: ApproachFix;
   missed?: boolean;
   turn?: 'L' | 'R';
@@ -29,8 +48,10 @@ export type ApproachRoute = {
 };
 export type ApproachRoutesData = {
   type: 'ZLayerApproachRoutes';
-  metadata: { effectiveDate: string; source: string };
+  metadata: { effectiveDate: string; source: string; schemaVersion?: 2 };
   procedures: ApproachRoute[];
+  /** Main branches requiring an explicit association remain accounted for. */
+  unavailable?: { id: string; airport: string; ident: string; reason: 'multiple-main-branches' | 'missing-main-branch'; branches: { id: string; legs: ApproachLeg[] }[] }[];
 };
 
 function coordinate(value: unknown): value is ApproachCoordinate {
@@ -39,6 +60,18 @@ function coordinate(value: unknown): value is ApproachCoordinate {
 }
 function leg(value: unknown): value is ApproachLeg {
   return isRecord(value) && typeof value.path === 'string' && /^[A-Z]{2}$/.test(value.path) &&
+    (value.id === undefined || text(value.id)) &&
+    (value.reference === undefined || (isRecord(value.reference) && text(value.reference.id) && text(value.reference.ident) &&
+      ['navaid', 'localizer'].includes(String(value.reference.type)) &&
+      (value.reference.coordinate === undefined || coordinate(value.reference.coordinate)) &&
+      (value.reference.dmeCoordinate === undefined || coordinate(value.reference.dmeCoordinate)) &&
+      (value.reference.declination === undefined || typeof value.reference.declination === 'number' && Number.isFinite(value.reference.declination) && Math.abs(value.reference.declination) <= 180))) &&
+    (value.radial === undefined || typeof value.radial === 'number' && Number.isFinite(value.radial) && value.radial >= 0 && value.radial < 360) &&
+    (value.rhoNm === undefined || typeof value.rhoNm === 'number' && Number.isFinite(value.rhoNm) && value.rhoNm >= 0) &&
+    (value.altitude === undefined || (isRecord(value.altitude) && typeof value.altitude.restriction === 'string' && value.altitude.restriction.length <= 1 &&
+      typeof value.altitude.first === 'string' && /^(?:\d{5}|-\d{4}|FL\d{3}|)$/.test(value.altitude.first) &&
+      typeof value.altitude.second === 'string' && /^(?:\d{5}|-\d{4}|FL\d{3}|)$/.test(value.altitude.second))) &&
+    (value.waypointDescriptor === undefined || typeof value.waypointDescriptor === 'string' && value.waypointDescriptor.length === 4) &&
     (value.fix === undefined || (isRecord(value.fix) && text(value.fix.ident) && coordinate(value.fix.coordinate) &&
       (value.fix.role === undefined || ['IAF', 'IF', 'FAF', 'MAP'].includes(String(value.fix.role))))) &&
     (value.missed === undefined || typeof value.missed === 'boolean') &&
@@ -54,6 +87,10 @@ function leg(value: unknown): value is ApproachLeg {
 export function isApproachRoutesData(value: unknown, revision?: string): value is ApproachRoutesData {
   return isRecord(value) && value.type === 'ZLayerApproachRoutes' && isRecord(value.metadata) &&
     isIsoDate(value.metadata.effectiveDate) && (revision === undefined || value.metadata.effectiveDate === revision) &&
+    (value.metadata.schemaVersion === undefined || value.metadata.schemaVersion === 2) &&
+    (value.unavailable === undefined || Array.isArray(value.unavailable) && value.unavailable.every(p => isRecord(p) &&
+      text(p.id) && text(p.airport) && text(p.ident) && ['multiple-main-branches', 'missing-main-branch'].includes(String(p.reason)) &&
+      Array.isArray(p.branches) && p.branches.length > 0 && p.branches.every(b => isRecord(b) && text(b.id) && Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every(leg)))) &&
     text(value.metadata.source) && Array.isArray(value.procedures) && value.procedures.every(p =>
       isRecord(p) && text(p.id) && text(p.airport) && text(p.ident) &&
       (p.magneticVariation === undefined || typeof p.magneticVariation === 'number' && Number.isFinite(p.magneticVariation) && Math.abs(p.magneticVariation) <= 180) &&

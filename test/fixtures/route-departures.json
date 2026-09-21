@@ -1,0 +1,234 @@
+{
+  "type": "ZLayerTerminalProcedures",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA 28-day NASR DP/STAR subscription"
+  },
+  "procedures": [
+    {
+      "id": "terminal:DP:TRUKN2.TRUKN:ZOA",
+      "ident": "TRUKN2",
+      "kind": "departure",
+      "name": "TRUKN TWO",
+      "computerCode": "TRUKN2.TRUKN",
+      "airports": [
+        "SFO"
+      ],
+      "routes": [
+        {
+          "name": "TRUKN",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SFO",
+              "runway": "28L"
+            },
+            {
+              "ident": "SFO",
+              "runway": "28R"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "TYDYE-TRUKN",
+          "kind": "body",
+          "bodySequence": 1,
+          "airports": [
+            {
+              "ident": "SFO",
+              "runway": "01L"
+            },
+            {
+              "ident": "SFO",
+              "runway": "01R"
+            }
+          ],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TYDYE",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TRUKN"
+            },
+            {
+              "sequence": 20,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "DEDHD TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.DEDHD",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "DEDHD"
+            },
+            {
+              "sequence": 20,
+              "ident": "DEDHD",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "GRTFL TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.GRTFL",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "GRTFL"
+            },
+            {
+              "sequence": 20,
+              "ident": "GRTFL",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "MOGEE TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.MOGEE",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "HYPEE"
+            },
+            {
+              "sequence": 20,
+              "ident": "HYPEE",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "MOGEE"
+            },
+            {
+              "sequence": 30,
+              "ident": "MOGEE",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "ORRCA TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.ORRCA",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "HYPEE"
+            },
+            {
+              "sequence": 20,
+              "ident": "HYPEE",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "ORRCA"
+            },
+            {
+              "sequence": 30,
+              "ident": "ORRCA",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "SYRAH TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.SYRAH",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "COSMC"
+            },
+            {
+              "sequence": 20,
+              "ident": "COSMC",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "SYRAH"
+            },
+            {
+              "sequence": 30,
+              "ident": "SYRAH",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        },
+        {
+          "name": "TIPRE TRANSITION",
+          "kind": "transition",
+          "bodySequence": 1,
+          "transition": "TRUKN2.TIPRE",
+          "airports": [],
+          "points": [
+            {
+              "sequence": 10,
+              "ident": "TRUKN",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "COSMC"
+            },
+            {
+              "sequence": 20,
+              "ident": "COSMC",
+              "type": "WP",
+              "icaoRegion": "K2",
+              "next": "TIPRE"
+            },
+            {
+              "sequence": 30,
+              "ident": "TIPRE",
+              "type": "WP",
+              "icaoRegion": "K2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -380,6 +380,8 @@ for (const comparison of [false, true]) {
     syncRoute(renderMap as unknown as MapLibreMap, plan, undefined,
       comparison ? { selectedKey: 'preview', routes: [{ key: 'preview', plan }] } : undefined);
     const point = rendered.find(feature => feature.geometry.type === 'Point')!;
+    assert.equal(point.properties.displayIdent, 'KSFO', 'map labels retain their formatted value');
+    Object.assign(point.properties, { approachRole: 'IAF', holdLabelOnRight: true, approachPoint: true });
     const { map, touch, click, selections, edits, setEditable, setRoute } = setup(t);
     setRoute(plan);
     setEditable(!comparison);

@@ -75,5 +75,5 @@ export function createRecommendationModel(
 /** Equal paths share one map overlay, even when listed in more than one section. */
 export function recommendationGeometryKey(plan: RoutePlan | undefined): string | undefined {
   return plan?.legs.length ? JSON.stringify(plan.legs.map(leg =>
-    [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates])) : undefined;
+    leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates])) : undefined;
 }

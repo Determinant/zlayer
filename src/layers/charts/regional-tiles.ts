@@ -19,7 +19,8 @@ export function regionalTileParts(catalog: CatalogReadSource, tile: TileCoordina
 }
 
 export async function renderRegionalTile(parts: RegionalTilePart[], read: (catalog: CatalogResponse) =>
-  Promise<ArrayBuffer | ImageBitmap | null>, signal: AbortSignal): Promise<ArrayBuffer | ImageBitmap | null> {
+  Promise<ArrayBuffer | ImageBitmap | null>, signal: AbortSignal,
+  onIncomplete: () => void = () => {}): Promise<ArrayBuffer | ImageBitmap | null> {
   if (parts.length === 1) return read(parts[0]!.catalog);
   return renderRasterBitmap(256, signal, async context => {
     // One decode per source edition, even when its area has several disjoint pieces.
@@ -29,7 +30,7 @@ export async function renderRegionalTile(parts: RegionalTilePart[], read: (catal
       signal.throwIfAborted();
       let data: ArrayBuffer | ImageBitmap | null;
       try { data = await read(catalog); readable = true; }
-      catch (error) { signal.throwIfAborted(); failure = error; continue; }
+      catch (error) { signal.throwIfAborted(); failure = error; onIncomplete(); continue; }
       if (!data) continue;
       const bitmap = data instanceof ArrayBuffer ? await createImageBitmap(new Blob([data])) : data;
       try {

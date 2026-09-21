@@ -26,6 +26,16 @@ const packages = new ArchiveReaderPool(openPackageReader, MAX_RESIDENT_PACKAGES)
 let packageArchive: ReturnType<typeof createChartPackageIndex> | undefined;
 let installed = false;
 let registeredCatalog: CatalogReadSource | undefined;
+const failureListeners = new Set<(chartId: string) => void>();
+
+/** Also report partially rendered regional tiles: MapLibre sees those as successes. */
+export function observeChartFailures(listener: (chartId: string) => void): () => void {
+  failureListeners.add(listener);
+  return () => { failureListeners.delete(listener); };
+}
+function reportChartFailure(chartId: string): void {
+  for (const listener of failureListeners) listener(chartId);
+}
 
 export function registerMbtilesArchives(catalog: CatalogReadSource): void {
   if (registeredCatalog === catalog) return;
@@ -44,11 +54,19 @@ export function mbtilesTileUrl(chartId: string): string {
 
 const loadTile: AddProtocolAction = async ({ url }, abortController) => {
   const tile = parseTileUrl(url);
+  try { return await readTile(tile, abortController.signal); }
+  catch (error) {
+    if (!abortController.signal.aborted) reportChartFailure(tile.chartId);
+    throw error;
+  }
+};
+
+async function readTile(tile: ReturnType<typeof parseTileUrl>, signal: AbortSignal) {
   const family = tile.chartId.startsWith('@') ? tile.chartId.slice(1) as ChartKind : undefined;
   if (family && registeredCatalog && regionalBundles(registeredCatalog).length) {
     const parts = regionalTileParts(registeredCatalog, tile);
     return { data: await renderRegionalTile(parts, async catalog => {
-      if (!catalog.chartPackages) return readLegacyFamily(catalog, family, tile, abortController.signal);
+      if (!catalog.chartPackages) return readLegacyFamily(catalog, family, tile, signal);
       let index = packageIndexes.get(catalog);
       if (!index && catalog.chartPackages) {
         index = createChartPackageIndex(catalog, document.baseURI);
@@ -57,17 +75,17 @@ const loadTile: AddProtocolAction = async ({ url }, abortController) => {
       const archiveUrl = index?.(family, tile);
       if (!archiveUrl) return null;
       const pool = Number(new URL(archiveUrl).searchParams.get('bytes')) <= MAX_FAST_PACKAGE_BYTES ? packages : readers;
-      return pool.use(archiveUrl, ({ read }) => read(tile, abortController.signal), abortController.signal);
-    }, abortController.signal) };
+      return pool.use(archiveUrl, ({ read }) => read(tile, signal), signal);
+    }, signal, () => reportChartFailure(tile.chartId)) };
   }
   const archiveUrl = family ? packageArchive?.(family, tile) : archives.get(tile.chartId);
   if (family && !archiveUrl) return { data: null };
   if (!archiveUrl) throw new Error(`Unknown MBTiles archive: ${tile.chartId}`);
-  abortController.signal.throwIfAborted();
+  signal.throwIfAborted();
   const pool = family && Number(new URL(archiveUrl).searchParams.get('bytes')) <= MAX_FAST_PACKAGE_BYTES
     ? packages : readers;
-  return pool.use(archiveUrl, async ({ read }) => ({ data: await read(tile, abortController.signal) }), abortController.signal);
-};
+  return pool.use(archiveUrl, async ({ read }) => ({ data: await read(tile, signal) }), signal);
+}
 
 /** A legacy browsing catalog can coexist with newer saved regional packages. */
 async function readLegacyFamily(catalog: CatalogResponse, family: ChartKind, tile: TileCoordinate,

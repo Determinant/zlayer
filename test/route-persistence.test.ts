@@ -48,7 +48,7 @@ test('legacy drafts migrate once; entry identity and pins survive reload and den
   assert.deepEqual(render()[0], draft);
 });
 
-test('approach selection, switching, removal and undo persist immediately while malformed attachments retain their airport', t => {
+test('approach selection, switching and removal persist immediately while malformed attachments retain their airport', t => {
   let saved: string | null = null;
   const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
@@ -66,22 +66,18 @@ test('approach selection, switching, removal and undo persist immediately while 
   assert.deepEqual(JSON.parse(saved!).entries[1].approach, approach);
   const attached = restart()[0];
   assert.deepEqual(attached.entries[1]!.approach, approach);
-  assert.equal(render()[2].canUndo, false, 'undo history is scoped to this session');
   const alternate = { ...approach, procedureId: 'ils', name: 'ILS RWY 30L' };
   render()[1](current => setRouteApproach(current, current.entries[1]!, alternate));
+  assert.deepEqual(JSON.parse(saved!).entries[1].approach, alternate);
+  assert.deepEqual(restart()[0].entries[1]!.approach, alternate);
   render()[1](current => setRouteApproach(current, current.entries[1]!, undefined));
   assert.equal(JSON.parse(saved!).entries[1].approach, undefined);
-  render()[2].undo();
-  assert.deepEqual(JSON.parse(saved!).entries[1].approach, alternate);
-  render()[2].undo();
-  assert.deepEqual(render()[0], attached);
-  render()[2].redo();
-  assert.deepEqual(render()[0].entries[1]!.approach, alternate);
+  assert.equal(restart()[0].entries[1]!.approach, undefined);
+  render()[1](current => setRouteApproach(current, current.entries[1]!, alternate));
   render()[1](current => replaceRouteText(current, current.entries[1]!.id, 'KSFO'));
-  assert.equal(render()[2].canRedo, false);
   assert.equal(render()[0].entries[1]!.approach, undefined);
-  render()[2].undo();
-  assert.deepEqual(restart()[0].entries[1]!.approach, alternate);
+  assert.equal(restart()[0].entries[1]!.approach, undefined);
+  assert.equal(render()[0].entries[1]!.text, 'KSFO');
   for (const invalid of [null, 'rnav', {}, { ...approach, cycle: 2609 }, { ...approach, name: '' }]) {
     saved = JSON.stringify({ version: 2, entries: [{ ...draft.entries[1], approach: invalid }] });
     assert.deepEqual(restart()[0].entries, [draft.entries[1]]);

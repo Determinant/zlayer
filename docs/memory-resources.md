@@ -1,4 +1,4 @@
-# Memory and resource review
+# Memory and resource behavior
 
 Reviewed 2026-09-20, starting from `3940014`. The reporter confirmed that bounded
 obstruction decompression substantially reduced iPhone crashes, with occasional
@@ -101,6 +101,73 @@ after later editions replace them.
 | METAR/TAF | Station/area caches bounded; visible-demand refresh and aborts; handlers removed on unmount | Weather snapshots/joins still allocate per update, now with the early airport filter. |
 | AHRS | Sensor lifecycle tied to activity/visibility; bounded recording buffer (2 Mi characters), 128 Ki-character chunks, one storage writer; capture stops when storage falls behind. GPX/debug exports read 64 KiB pieces in a worker and append to an OPFS temporary file; unavailable/full storage falls back to at most 8 MiB. Repeated downloads reuse the recent URL; a different export releases the prior fallback payload first. | Estimator matrices produce short-lived allocations. Limits bound application buffers, not total browser memory; long-session capture/export still needs physical iPhone measurement. |
 | Map | One resize owner; sources/layers removed on detach; terrain/chart bitmap cleanup covered by graphics tests | MapLibre caches and framebuffer size scale with viewport/device density. No new global density or tile-cache limits were imposed without an allocation profile. |
+
+## AHRS session memory and scrolling
+
+Stop/cancel and beginning a new calibration release estimator replay checkpoints
+and the independent heading trajectory. Completing calibration discards the raw
+calibration window and stops adding later GPS fixes to it. Background operation
+and automatic recovery retain the active state they need. The removed retention
+was the last session's history in a mounted layer, not unbounded accumulation
+across sessions.
+
+A 2026-09-20 Node 24.15.0 probe exercised the production layer for 120 simulated
+seconds with synthetic 60 Hz level IMU input, no GPS and no recording. After an
+event-loop turn and forced collection, process ArrayBuffer totals were:
+
+| State | Before history cleanup | After history cleanup |
+| --- | ---: | ---: |
+| Active, at 30/60/90/120 seconds | 5,310,106 bytes | 5,310,106 bytes |
+| Stopped, layer still mounted | 5,310,106 bytes | 36,466 bytes |
+
+The stopped case released about **5.03 MiB**; the active sequence plateaued.
+These are isolated Node process totals, not Safari RAM, peak allocations or GPU
+memory. Compare active/stopped values in the same environment:
+
+```sh
+node --expose-gc --import=tsx tools/benchmark-ahrs-memory.ts
+```
+
+The layer has no scroll handler that deliberately pauses AHRS. Motion callbacks
+and estimator work run on the main thread. The horizon and HSI share a capped
+60 FPS animation clock; status controls publish at 20 Hz. Hidden displays stop
+their display work while Background operation continues sensor processing.
+
+Distinguish two symptoms when investigating a frozen horizon:
+
+- Missing/delayed motion events retain the last observed attitude. Sensor age over
+  0.5 seconds produces **Motion**; calibration retains progress without counting
+  missing intervals, and calibrated operation resumes with uncertainty for the gap.
+- Delayed rendering can freeze the visible instrument while sensor events still
+  arrive. If the main thread cannot execute, its stale warning cannot update either.
+  Record event and callback receipt times alongside CPU/render activity to separate
+  input delivery from display delay. A prolonged foreground freeze, forced
+  recalibration or reload needs device investigation.
+
+Main-thread painting contention is a possible explanation, not a demonstrated
+cause of every iPhone freeze. Use the [WebKit CPU timeline](https://webkit.org/blog/8993/cpu-timeline-in-web-inspector/)
+and [memory tools](https://webkit.org/blog/6425/memory-debugging-with-web-inspector/)
+on the actual device. The limits in the table above are overlapping local bounds,
+not a shared RAM budget or a worst-case sum. Measure cold load with charts,
+terrain, PDFs and AHRS together, then repeated toggles, panning, scrolling, Stop
+and background/foreground cycles. Heap size alone omits image and layer memory.
+
+The recorded cleanup pass passed 257 AHRS unit cases and eight focused cases in
+each of Linux WebKit and Chromium, covering queued motion, scrolling recovery at
+390×844 and 744×1133, visibility, Background operation and Stop with a separate GPS
+lease. The WebKit fixture supplies an Event-based motion constructor when the
+native interface cannot be constructed. Synthetic scrolling/sensor events do not
+reproduce physical iOS scheduling, thermal conditions or process limits.
+
+```sh
+npx playwright test test/e2e/ahrs.spec.ts --browser=webkit \
+  --grep 'scrolling|queued motion|page visibility|Background freezes|stop clears GPS'
+```
+
+Repeat with `--browser=chromium`. These are dated focused results, not a current
+full-suite pass. [AHRS validation](ahrs-validation.md) owns the estimator evidence;
+[deployment readiness](deployment-readiness.md#verification-and-remaining-release-gates)
+owns the outstanding physical-device checks.
 
 ## Publisher preprocessing is the largest next reduction
 

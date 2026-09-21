@@ -275,5 +275,7 @@ test('reopening cancels a close in progress and a reload commits a requested clo
   await page.reload();
   await expect(page.getByLabel('Aviation chart map')).toBeVisible();
   await expect(page.locator('.procedure-panel')).toHaveCount(0);
+  await settled(page.locator('.side-panels'), null);
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await settled(page.locator('.side-panels'), 'details');
 });

@@ -1,15 +1,18 @@
 # Product brief
 
-Status: product direction; implementation status reviewed 2026-09-18
+Status: product direction; implementation status reviewed from source 2026-09-20
 Initial research date: 2026-09-12
 
 The scope and acceptance scenario below include planned capabilities. The current
 app provides VFR/IFR low charts, FAA navigation, persisted routes and recommendations,
-METARs/TAFs, plates, regional offline snapshots, route terrain and optional device GPS.
-An experimental AHRS toolbox provides attitude, GPS instruments, an HSI and local
-recordings; device and flight validation remain outstanding. The camera, open panels
+METARs/TAFs, plates with optional georeferenced map overlays, anchored approach previews,
+regional offline snapshots, packaged route/viewport terrain, FAA obstructions and optional
+device GPS. An experimental AHRS toolbox provides attitude, GPS instruments,
+HSI guidance for straight route legs and local recordings with GPX/JSON Lines downloads; device and
+flight validation remain outstanding. The camera, open panels
 and plate reading state restore across reloads. Settings offers a full reset of local
-app data. Text route copying and sharing are implemented; shareable route/view URLs,
+app data. A local Route Stash saves and manages named structured route snapshots.
+Text route copying and sharing are implemented; shareable route/view URLs,
 the shared timeline, advisories, radar/satellite and route-corridor downloads remain
 planned. See the [roadmap](roadmap.md) for the implemented baseline and
 remaining work, and [deployment readiness](deployment-readiness.md) for release gates.
@@ -106,9 +109,11 @@ IMU readings keep the attitude indicator visible and moving. No fix or GPS below
 speed shows a red cross over that live indication. Usable GPS and acceptable tilt
 uncertainty remove the cross; high uncertainty keeps it without hiding attitude.
 The HSI also stays visible and follows live IMU yaw beneath its GPS warning cross,
-including before the first GPS fix. If north alignment and GPS track are unavailable,
+including before the first GPS fix. If north alignment is unavailable or uncertain,
 it explicitly shows **REL**, without cardinal directions or magnetic/true labels.
-Route guidance remains unavailable until fresh GPS and a geographic direction return.
+GPS availability never changes the compass card's source to ground track. The HSI
+and horizon share the current AHRS snapshot on the animation clock, capped at 60 FPS.
+Route guidance remains unavailable until fresh GPS and confident heading alignment return.
 This policy applies in both the toolbox and full screen. Scrolling and temporary
 sensor pauses must not force repeated calibration: hold the last attitude beneath
 a **Motion** warning, then resume from it with increased uncertainty when readings

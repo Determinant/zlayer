@@ -1,6 +1,6 @@
-/** Focused counterexamples for docs/reviews/ahrs-methodology-2026-09-18.md.
+/** Focused counterexamples for docs/ahrs-validation.md.
  * Run: node --import=tsx tools/ahrs-review-probes.ts
- * Prints measurements, not assertions that would enshrine the current defects.
+ * Prints measurements, not an operational-accuracy specification.
  * No browser, network, recording, or persistent storage is used.
  */
 import { createAhrsLayer } from '../src/layers/ahrs/layer';

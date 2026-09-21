@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createRouteResolver } from '@zlayer/domain';
 import { Ahrs } from './estimator/ahrs';
 import { fromEuler, RAD } from './estimator/math';
 import { AhrsInstruments } from './instruments';
-import { Hsi } from './hsi';
 import { METERS_PER_FOOT, METERS_PER_KNOT_SECOND } from './instrument-display';
 import type { AhrsSnapshot } from './layer';
 import type { MagneticModel } from './magnetic-model';
@@ -42,16 +41,8 @@ function createInstrumentTest() {
 
 export function InstrumentTest({ active, magneticModel }: { active: boolean; magneticModel: MagneticModel | null }) {
   const [source] = useState(createInstrumentTest);
-  const [state, setState] = useState(source.getSnapshot);
-  useEffect(() => {
-    if (!active) return;
-    setState(source.getSnapshot());
-    const timer = setInterval(() => setState(source.getSnapshot()), 50);
-    return () => clearInterval(timer);
-  }, [active, source]);
   return <section aria-label="Instrument test" className="ahrs-display ahrs-test-display">
     <p className="ahrs-test-banner" role="status">Test mode · simulated readings</p>
-    <AhrsInstruments layer={source} active={active} />
-    <Hsi state={state} route={source.route} active={active} magneticModel={magneticModel} />
+    <AhrsInstruments layer={source} active={active} route={source.route} magneticModel={magneticModel} />
   </section>;
 }

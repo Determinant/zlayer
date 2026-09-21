@@ -1,52 +1,21 @@
-import type { ApproachCoordinate as Coordinate, ApproachFix, ApproachLeg, ApproachRoute, ApproachRoutesData, GeoPointFeature } from '@zlayer/contracts';
-import type { ApproachArrival, ApproachDepiction, RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
+import type { ApproachFix, ApproachLeg, ApproachRoute, ApproachRoutesData, GeoPointFeature } from '@zlayer/contracts';
+import type { ApproachArrival, RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
 import type { RouteOwner } from './route-source.js';
 import { distanceNm, geographicMidpoint } from './route.js';
-import { approachCourse, arrivalBearing, bearing, destination, holdingEntry, holdingPattern, missedClimb, radiusArc } from './approach-geometry.js';
+import { arrivalBearing, bearing, destination, holdingEntry } from './approach-geometry.js';
+import { findApproachRoutes } from './approach-matching.js';
+export { approachIdent, findApproachRoute, findApproachRoutes } from './approach-matching.js';
+import { joinApproachTransition } from './approach-joining.js';
 
 export type ApproachEntryOption = { id: string; name: string; kind: 'fix' | 'vectors' };
-export type ApproachPreview = {
-  points: (ApproachFix & { hold?: 'L' | 'R' | 'unknown'; holdLength?: string; holdCourse?: number; arrivalCourse?: number; missed?: boolean })[];
-  segments: { from: number; to: number; coordinates: Coordinate[]; phase: 'approach' | 'missed' }[];
-  depictions: ApproachDepiction[];
-  extension?: Coordinate[];
-  exit?: number;
-  /** Last resolved landing endpoint, absent when its tail is open or unavailable. */
-  landingEnd?: number;
-  incomplete: boolean;
-};
+export type { ApproachPreview } from './approach-path.js';
+import { resolveApproachLegs, type ApproachPreview } from './approach-path.js';
 
 /** A coded fix can remain pinned after its airport bundle is decomposed. The
  * coordinate distinguishes local runway names and identically named fixes. */
 export function approachFixFeature(fix: ApproachFix): GeoPointFeature {
   return { type: 'Feature', id: `approach-fix:${JSON.stringify([fix.ident, ...fix.coordinate])}`,
     geometry: { type: 'Point', coordinates: fix.coordinate }, properties: { ident: fix.ident, name: fix.ident } };
-}
-
-/** Restrict matching to unambiguous published titles; never guess from a nearby runway. */
-export function approachIdent(name: string): string | undefined {
-  let normalized = name.trim().toUpperCase();
-  const combined = /^ILS(?: ([A-Z]))? OR LOC(?:\/DME)?(?: ([A-Z]))? ((?:RWY\s+)?\d{1,2}[LCR]?)$/.exec(normalized);
-  if (combined) {
-    if (combined[1] && combined[2] && combined[1] !== combined[2]) return undefined;
-    const variant = combined[1] ?? combined[2];
-    normalized = `ILS ${variant ? `${variant} ` : ''}${combined[3]}`;
-  }
-  const circle = /^(RNAV \(GPS\)|VOR\/DME|VOR|LOC BC|LOC|LDA|NDB|GPS)-([A-Z])$/.exec(normalized);
-  if (circle) return `${({ 'RNAV (GPS)': 'RNV', 'VOR/DME': 'VDM', 'LOC BC': 'LBC' } as Record<string, string>)[circle[1]!] ?? circle[1]}-${circle[2]}`;
-  const match = /^(ILS(?: OR LOC)?|LOC(?:\/DME)?(?: BC)?|LDA(?:\/DME)?|SDF|RNAV \((?:GPS|RNP)\)|GPS|VOR(?:\/DME)?|NDB(?:\/DME)?)\s+(?:([A-Z])\s+)?(?:RWY\s+)?(\d{1,2}[LCR]?)$/.exec(normalized);
-  if (!match) return undefined;
-  const type = match[1]!.startsWith('ILS') ? 'I' : match[1]!.includes('BC') ? 'B' : match[1]!.startsWith('LOC') ? 'L'
-    : match[1]!.startsWith('LDA') ? 'X' : match[1] === 'SDF' ? 'U'
-    : match[1]!.includes('RNP') ? 'H' : match[1]!.startsWith('RNAV') ? 'R'
-    : match[1] === 'VOR/DME' ? 'D' : match[1] === 'VOR' ? 'S' : match[1] === 'NDB/DME' ? 'Q' : match[1] === 'NDB' ? 'N' : 'P';
-  const runway = match[3]!.replace(/^(\d)(?=[LCR]|$)/, '0$1');
-  return `${type}${runway}${match[2] ? `${runway.length === 2 ? '-' : ''}${match[2]}` : ''}`;
-}
-
-export function findApproachRoute(data: ApproachRoutesData | undefined, airport: string, name: string): ApproachRoute | undefined {
-  const ident = approachIdent(name);
-  return ident ? data?.procedures.find(procedure => procedure.airport === airport && procedure.ident === ident) : undefined;
 }
 
 export function approachEntryOptions(procedure: ApproachRoute): ApproachEntryOption[] {
@@ -60,21 +29,16 @@ function entrySelections(procedure: ApproachRoute): (ApproachEntryOption & { leg
     const first = legs[0];
     if (!first?.fix) return;
     // The incoming leg ends at the chosen fix. Preserve holds and outbound legs.
-    if (['IF', 'TF', 'CF', 'DF', 'RF', 'AF'].includes(first.path)) legs = [{ path: 'IF', fix: first.fix }, ...legs.slice(1)];
-    const signature = JSON.stringify(legs);
+    if (['IF', 'TF', 'CF', 'DF', 'RF', 'AF'].includes(first.path)) legs = [{ path: 'IF', fix: first.fix, ...(first.id ? { id: first.id } : {}) }, ...legs.slice(1)];
+    const signature = JSON.stringify(legs.map(({ id: _source, ...leg }) => leg));
     if (deduplicate && signatures.has(signature)) return;
     signatures.add(signature);
     entries.push({ id, name: first.fix.ident, kind: 'fix', legs });
   };
-  const joined = (legs: ApproachLeg[]) => {
-    const end = legs.at(-1)?.fix;
-    const junction = end ? procedure.final.findIndex(leg => leg.fix && sameFix(leg.fix, end)) : -1;
-    // A failed join stays a discontinuity; it must not become an arbitrary direct leg.
-    return [...legs, ...(junction >= 0 ? procedure.final.slice(junction) : [{ path: 'XX' }, ...procedure.final])];
-  };
+  const joined = (legs: ApproachLeg[]) => joinApproachTransition(procedure, legs);
   for (const transition of procedure.transitions) {
     const first = transition.legs[0];
-    if (first?.path === 'IF' || first?.fix?.role === 'IAF') add(`transition:${transition.id}`, joined(transition.legs), false);
+    if (first?.path === 'IF' || first?.path === 'FC' || first?.fix?.role === 'IAF') add(`transition:${transition.id}`, joined(transition.legs), false);
   }
   const addInitialFixes = (legs: ApproachLeg[], id: (index: number) => string, join: (legs: ApproachLeg[]) => ApproachLeg[], hasStart = false) => {
     for (const [index, leg] of legs.entries()) {
@@ -87,7 +51,7 @@ function entrySelections(procedure: ApproachRoute): (ApproachEntryOption & { leg
   for (const transition of procedure.transitions) {
     const first = transition.legs[0];
     addInitialFixes(transition.legs, index => `transition-fix:${transition.id}:${index}`, joined,
-      first?.path === 'IF' || first?.fix?.role === 'IAF');
+      first?.path === 'IF' || first?.path === 'FC' || first?.fix?.role === 'IAF');
   }
   addInitialFixes(procedure.final, index => `final:${index}`, legs => legs);
   const names = entries.map(entry => entry.name);
@@ -106,84 +70,26 @@ function entrySelections(procedure: ApproachRoute): (ApproachEntryOption & { leg
   }
   const vector = finalCourse(procedure);
   if (vector) entries.push({ id: 'vectors', name: 'VTF', kind: 'vectors', legs: procedure.final.slice(vector.index) });
+  // A radar-entry procedure can begin at an IF and have a curved final that
+  // cannot accept VTF. Expose its coded start without inventing a straight final.
+  const start = procedure.final[0];
+  if (!entries.length && start?.path === 'IF' && start.fix?.role === 'IF' && !start.missed) {
+    add('final:0', procedure.final);
+    entries[0]!.name += ' (IF)';
+  }
   return entries;
 }
 
+export function approachEntryLegs(procedure: ApproachRoute, entryId: string): ApproachLeg[] | undefined {
+  return entrySelections(procedure).find(entry => entry.id === entryId)?.legs;
+}
+
 export function approachPreview(procedure: ApproachRoute, entryId: string): ApproachPreview | undefined {
-  const entry = entrySelections(procedure).find(entry => entry.id === entryId);
-  if (!entry) return undefined;
+  const legs = approachEntryLegs(procedure, entryId);
+  if (!legs) return undefined;
   const vector = entryId === 'vectors' ? finalCourse(procedure) : undefined;
-  const result: ApproachPreview = { points: [], segments: [], depictions: [], incomplete: false };
+  const result = resolveApproachLegs(procedure, legs);
   if (vector) result.extension = [destination(vector.fix.coordinate, vector.course + 180, 30), vector.fix.coordinate];
-  let previous: number | undefined;
-  let missedStarted = false;
-  let climb: { from: number; leg: ApproachLeg; intercept?: ApproachLeg } | undefined;
-  const addHold = (leg: ApproachLeg, index: number) => {
-    result.points[index]!.hold = leg.turn ?? 'unknown';
-    if (leg.missed) result.points[index]!.missed = true;
-    const length = leg.holdMinutes !== undefined ? `${leg.holdMinutes} MIN` : leg.distance !== undefined ? `${leg.distance} NM` : undefined;
-    if (length) result.points[index]!.holdLength = length;
-    const inbound = approachCourse(leg, procedure);
-    if (inbound !== undefined) result.points[index]!.holdCourse = inbound;
-    const pattern = holdingPattern(leg, procedure);
-    if (pattern) result.depictions.push({ kind: 'hold', phase: leg.missed ? 'missed' : 'approach', ...pattern });
-    else result.incomplete = true;
-  };
-  for (const leg of entry.legs) {
-    // Capture the landing tail before missed legs can replace its endpoint.
-    // A final leg without a fix (or an open-ended path) leaves previous unset.
-    if (leg.missed && !missedStarted) {
-      if (previous !== undefined) result.landingEnd = previous;
-      missedStarted = true;
-    }
-    const fix = leg.fix;
-    if (climb) {
-      // A heading/course-to-intercept is bounded only by a following CF leg.
-      // Keep it with the climb until that course is known; never bridge vectors.
-      if (!fix && leg.missed && !climb.intercept && ['VI', 'CI'].includes(leg.path)) {
-        climb.intercept = leg; continue;
-      }
-      const coordinates = leg.missed && missedClimb(result.points[climb.from]!.coordinate, climb.leg, leg, procedure, climb.intercept);
-      if (coordinates) result.depictions.push({ kind: 'missed', phase: 'missed', coordinates });
-      else result.incomplete = true;
-      climb = undefined;
-    }
-    if (!fix && leg.missed && previous !== undefined && ['CA', 'VA'].includes(leg.path)) {
-      climb = { from: previous, leg }; previous = undefined; continue;
-    }
-    if (!fix) { previous = undefined; result.incomplete = true; continue; }
-    const last = previous === undefined ? undefined : result.points[previous];
-    if (last && sameFix(last, fix)) {
-      if (fix.role && !(last.role === 'IAF' && fix.role === 'IF')) last.role = fix.role;
-      if (leg.path === 'HM' || leg.path === 'HF' || leg.path === 'HA') addHold(leg, previous!);
-      else if (!['IF', 'TF', 'CF', 'DF'].includes(leg.path)) { previous = undefined; result.incomplete = true; }
-      continue;
-    }
-    const index = result.points.length;
-    result.points.push({ ...fix, ...(leg.missed ? { missed: true } : {}) });
-    // A CF specifies its arrival course even when the earlier climb/turn is variable.
-    let arrival = leg.path === 'CF' ? approachCourse(leg, procedure) : undefined;
-    if (previous !== undefined && last) {
-      const arc = leg.path === 'RF' || leg.path === 'AF' && leg.radiusNm !== undefined;
-      const coordinates = arc && leg.center && leg.turn
-        ? radiusArc(last.coordinate, fix.coordinate, leg.center, leg.turn, leg.path === 'AF' ? leg.radiusNm : undefined)
-        : ['TF', 'CF', 'DF'].includes(leg.path) ? [last.coordinate, fix.coordinate] : undefined;
-      if (coordinates) {
-        result.segments.push({ from: previous, to: index, coordinates, phase: leg.missed ? 'missed' : 'approach' });
-        arrival ??= arc && leg.center && leg.turn
-          ? (bearing(fix.coordinate, leg.center) + (leg.turn === 'R' ? 270 : 90)) % 360
-          : arrivalBearing(coordinates.at(-2)!, coordinates.at(-1)!);
-      }
-      else result.incomplete = true;
-    }
-    if (arrival !== undefined) result.points[index]!.arrivalCourse = arrival;
-    if (['HM', 'HF', 'HA'].includes(leg.path)) addHold(leg, index);
-    if (['IF', 'TF', 'CF', 'DF', 'RF', 'AF', 'HM', 'HF', 'HA'].includes(leg.path)) previous = index;
-    else { previous = undefined; result.incomplete = true; }
-  }
-  if (climb) result.incomplete = true;
-  if (previous !== undefined) result.exit = previous;
-  if (!missedStarted && previous !== undefined) result.landingEnd = previous;
   return result;
 }
 
@@ -195,7 +101,8 @@ function finalCourse(procedure: ApproachRoute) {
 }
 
 /** Replace the airport's route connections, keeping its editable marker and the complete bundle. */
-export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData): void {
+export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData,
+  resolveFix?: (fix: ApproachFix) => Pick<RouteWaypoint, 'layer' | 'feature'> | undefined): void {
   const replacements = new Map<RouteWaypoint, { first?: RouteWaypoint; last?: RouteWaypoint; children: RouteWaypoint[] }>();
   const legs: RouteLeg[] = [];
   for (const airport of plan.waypoints) {
@@ -203,8 +110,9 @@ export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData
     if (!selected || airport.layer !== 'airports' || !airport.edit) continue;
     const selection = selected.entry;
     const procedure = selection && data?.metadata.effectiveDate === selection.effectiveDate
-      ? data.procedures.find(p => p.id === selection.routeId && p.ident === approachIdent(selected.name) &&
-        [airport.ident, airport.feature.properties.icaoId, airport.feature.properties.faaId].includes(p.airport)) : undefined;
+      ? [airport.ident, airport.feature.properties.icaoId, airport.feature.properties.faaId]
+        .filter((id): id is string => typeof id === 'string')
+        .flatMap(id => findApproachRoutes(data, id, selected.name)).find(p => p.id === selection.routeId) : undefined;
     const preview = procedure && approachPreview(procedure, selection!.transitionId);
     if (!preview) {
       // Older chart-only attachments still need an explicit entry; do not silently pick one.
@@ -216,13 +124,13 @@ export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData
     }
     const owner: RouteOwner = { kind: 'approach', source: airport.source, ident: selected.name };
     const children = preview.points.map((fix, index): RouteWaypoint => ({ source: airport.source, owners: [owner],
-      ident: fix.ident, layer: 'fixes', approachRole: fix.role ?? '', approachPhase: fix.missed ? 'missed' : 'approach',
+      ident: fix.ident, approachRole: fix.role ?? '', approachPhase: fix.missed ? 'missed' : 'approach',
       ...(index === preview.landingEnd ? { approachLandingEnd: true } : {}),
       ...(fix.hold ? { approachHold: { turn: fix.hold, missedEnd: Boolean(fix.missed && index === preview.exit),
         ...(fix.holdCourse !== undefined ? { inboundCourse: fix.holdCourse } : {}),
         ...(fix.arrivalCourse !== undefined ? { arrivalCourse: fix.arrivalCourse } : {}),
         ...(fix.holdLength ? { length: fix.holdLength } : {}) } } : {}),
-      feature: approachFixFeature(fix) }));
+      ...(resolveFix?.(fix) ?? { layer: 'fixes', feature: approachFixFeature(fix) }) }));
     for (const segment of preview.segments) {
       const from = children[segment.from]!, to = children[segment.to]!;
       legs.push({ from, to, owners: [owner], approachPhase: segment.phase, geometry: segment.coordinates,
@@ -234,7 +142,7 @@ export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData
     if (preview.extension) (plan.approachExtensions ??= []).push(preview.extension);
     if (preview.depictions.length) (plan.approachDepictions ??= []).push(...preview.depictions);
     if (preview.incomplete) plan.issues.push({ ...airport.source, code: 'approach-discontinuity',
-      message: `${airport.ident}: some approach legs or hold details cannot be depicted; gaps remain on the map. See the plate.` });
+      message: `${airport.ident}: ${[...new Set(preview.issues.map(i => i.message))].join(' ')} See the plate.` });
   }
   // Keep preview arrival context independently of the selected approach. VTF and
   // coincident entry fixes intentionally remove their connecting map leg.

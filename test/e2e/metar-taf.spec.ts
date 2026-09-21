@@ -151,6 +151,17 @@ test('cached reports open idle offline, resume on reconnect, and stop refreshing
   await expect(observation).toContainText('METAR KLAX');
   await expect(forecast).toContainText('TAF KLAX');
   await expect.poll(() => nearbyRequests).toBe(2);
+  await expect(observation).toHaveAttribute('aria-busy', 'false');
+  await expect(forecast).toHaveAttribute('aria-busy', 'false');
+  // Stowing retains the mounted card and station choices, but releases demand.
+  await page.getByRole('button', { name: 'Hide KSMO details', exact: true }).click();
+  await expect(observation).toHaveCount(0);
+  await page.clock.runFor(6 * 60_000);
+  expect(nearbyRequests).toBe(2);
+  await page.getByRole('button', { name: 'Show KSMO details', exact: true }).click();
+  await expect(observation.getByRole('combobox')).toHaveValue('KLAX');
+  await expect(forecast.getByRole('combobox')).toHaveValue('KLAX');
+  await expect.poll(() => nearbyRequests).toBe(4);
 });
 
 test('hidden cards stay idle, cancel delayed nearby reports, and resume cleanly when visible', async ({ page, context }) => {

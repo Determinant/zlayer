@@ -25,28 +25,28 @@ export function useNavigationData(
   }>>>({});
   const online = useOnline();
   const inventoryVersion = useInventoryVersion();
-  const [airwayState, setAirwayState] = useState<{ revision: string; url: string; data: AirwayDataResponse | undefined }>();
+  const [airwayState, setAirwayState] = useState<{ key: string; data: AirwayDataResponse | undefined }>();
   const routing = catalog ? routingCatalog(catalog) : undefined;
+  const airwayKey = routing?.airways ? JSON.stringify([routing.revision, routing.airways]) : undefined;
 
   useEffect(() => {
-    if (!routing || !visibility.fixes) return;
+    if (!routing || !visibility.fixes || !airwayKey) return;
     const resource = routing.airways;
     if (!resource) return;
     let cancelled = false;
     const load = () => {
       void fetchAirways(resource, routing.revision).then(data => {
-        if (!cancelled) setAirwayState({ revision: routing.revision, url: resource.url, data });
+        if (!cancelled) setAirwayState({ key: airwayKey, data });
       }).catch(() => {
         // Chart-use tags still provide enroute filtering offline. A failed
         // optional airway request must also settle the initial loading state.
-        if (!cancelled) setAirwayState(current => current?.revision === routing.revision && current.url === resource.url
-          ? current : { revision: routing.revision, url: resource.url, data: undefined });
+        if (!cancelled) setAirwayState(current => current?.key === airwayKey
+          ? current : { key: airwayKey, data: undefined });
       });
     };
     load();
-    window.addEventListener('online', load);
-    return () => { cancelled = true; window.removeEventListener('online', load); };
-  }, [routing, visibility.fixes]);
+    return () => { cancelled = true; };
+  }, [routing, airwayKey, visibility.fixes, online, inventoryVersion]);
 
   useEffect(() => {
     if (!catalog) return;
@@ -86,7 +86,7 @@ export function useNavigationData(
     }
     return { data, loadState, issues, loading };
   }, [catalog, loaded, visibility]);
-  const airwaysCurrent = airwayState?.revision === routing?.revision && airwayState?.url === routing?.airways?.url;
+  const airwaysCurrent = airwayKey !== undefined && airwayState?.key === airwayKey;
   return { data, loadState, issues, loading: loading || !!(visibility.fixes && routing?.airways && !airwaysCurrent),
     airways: airwaysCurrent ? airwayState?.data : undefined };
 }

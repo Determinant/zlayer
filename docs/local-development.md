@@ -37,7 +37,8 @@ On first launch, the camera centers KPAO at zoom 9, independently of feed orderi
 after that, center, zoom, bearing and pitch are restored, including when refresh
 interrupts camera movement. Panel visibility, selected airport/tab, recommendations
 and the plate reader also resume; see the [workspace persistence contract](contracts.md#workspace-persistence).
-Chart bases, overlays, fix display, FAA/METAR switches, terrain visibility/altitude mode and GPS
+Chart bases, overlays, fix display, FAA/METAR switches, terrain visibility/scope/altitude mode,
+obstruction visibility and GPS
 visibility restore from `zlayers-map-preferences-v1`
 (localStorage schema version 2) before map creation, including offline. The historical
 `VITE_ZLAYERS_*` names and storage keys intentionally survive the ZLayer rename.
@@ -95,8 +96,10 @@ motion permission where required; calibration can finish without a GPS fix.
 After calibration, live IMU attitude stays visible under the red cross with no fix,
 low-speed GPS or high tilt uncertainty. Usable GPS clears the cross only while tilt
 uncertainty is acceptable; see the [display policy](../src/layers/ahrs/README.md#calibration-and-validity).
-Stowing the toolbox keeps the session running;
-Stop releases its sensor subscriptions. AHRS remains experimental and has not been
+Stowing the toolbox offers **Stop**, **Background** and **Cancel**, with Stop as the
+prominent default. Stop ends sensing/recording, releases its GPS lease and clears
+calibration; Background explicitly keeps processing while stowed, with display
+updates paused. Cancel leaves it open. AHRS remains experimental and has not been
 validated in flight. See [terrain](route-terrain.md), [GPS](gps-aircraft.md) and
 [AHRS](../src/layers/ahrs/README.md).
 
@@ -111,14 +114,14 @@ These are observations, not a weather-history archive.
 The open airport Info card independently checks its METAR on opening and every
 minute while online and visible, even when map weather or Airports is hidden.
 Without a current local observation it searches within 50 NM and offers nearby
-stations from the shared METAR cache. Closing the card, changing airport, or opening
+stations from the shared METAR cache. Closing or stowing the card, changing airport, or opening
 Plates cancels card demand; any visible-map demand continues independently. Nearby
 reports stay in the labeled weather section and do not supply the selected
 airport's map category or runway wind.
 
 TAF demand follows the open airport Info card, independently of map weather visibility.
 The selected ICAO station is checked on opening and every five minutes while online
-and visible. Closing the card, changing airport, or opening Plates cancels its request.
+and visible. Closing or stowing the card, changing airport, or opening Plates cancels its request.
 Up to 200 forecasts are persisted; restored reports are revalidated, and cached,
 expired, cancelled, missing and failed-refresh states are shown explicitly.
 The raw text appears below METAR, one colored line per forecast period; no decoded

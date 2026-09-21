@@ -1,18 +1,19 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
-import type { RoutePlan } from '@zlayer/domain';
+import type { RouteDraft, RoutePlan } from '@zlayer/domain';
 import { foreFlightRouteUrl, routeExportText, ROUTE_EXPORT_FORMATS, type RouteExportFormat } from './export';
-import type { RouteUndo } from './use-draft';
+import { RouteStashDialog, type RouteStashView } from './stash-dialog';
 
 type ExportAction = 'copy' | 'share';
 
-export function RouteMenu({ plan, onOpen, onClear, undo }: {
-  plan: RoutePlan; onOpen: () => void; onClear: () => void; undo?: RouteUndo | undefined;
+export function RouteMenu({ plan, onOpen, onClear, onLoadRoute }: {
+  plan: RoutePlan; onOpen: () => void; onClear: () => void; onLoadRoute: (draft: RouteDraft) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [manualCopy, setManualCopy] = useState<string>();
   const [exportAction, setExportAction] = useState<ExportAction>();
+  const [stash, setStash] = useState<RouteStashView>();
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -129,7 +130,7 @@ export function RouteMenu({ plan, onOpen, onClear, undo }: {
       if (request !== exportRequestRef.current) return;
       if (rootRef.current?.contains(source)) source.focus();
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setMessage('Sharing is unavailable. Use Copy route.');
+        setMessage('Sharing is unavailable. Use Copy Route.');
       }
     } finally {
       sharingRef.current = undefined;
@@ -170,7 +171,7 @@ export function RouteMenu({ plan, onOpen, onClear, undo }: {
           aria-haspopup="menu" aria-expanded={exportAction === 'copy'}
           aria-controls={exportAction === 'copy' ? `${id}-copy-formats` : undefined}
           onClick={() => exportAction === 'copy' ? closeFormats() : showFormats('copy')}>
-          Copy route<span className="route-export-chevron" aria-hidden="true">{exportAction === 'copy' ? '▾' : '▸'}</span>
+          Copy Route<span className="route-export-chevron" aria-hidden="true">{exportAction === 'copy' ? '▾' : '▸'}</span>
         </button>
         {formats('copy')}
         {isAppleMobile && <button type="button" role="menuitem" disabled={!text}
@@ -183,16 +184,20 @@ export function RouteMenu({ plan, onOpen, onClear, undo }: {
         </button>}
         {formats('share')}
         <div role="separator" />
-        {undo && <>
-          <button type="button" role="menuitem" disabled={!undo.canUndo} onClick={() => { undo.undo(); close(); }}>Undo route edit</button>
-          <button type="button" role="menuitem" disabled={!undo.canRedo} onClick={() => { undo.redo(); close(); }}>Redo route edit</button>
-          <div role="separator" />
-        </>}
+        <button type="button" role="menuitem" disabled={!plan.entries.length} onClick={() => {
+          setOpen(false); setStash({ mode: 'save', draft: structuredClone({ entries: plan.entries }) });
+        }}>Save Route</button>
+        <button type="button" role="menuitem" onClick={() => { setOpen(false); setStash({ mode: 'list' }); }}>Manage Routes</button>
+        <div role="separator" />
         <button type="button" role="menuitem" className="route-menu-clear" disabled={!text}
-          onClick={() => { setOpen(false); onClear(); }}>Clear route</button>
+          onClick={() => { setOpen(false); onClear(); }}>Clear Route</button>
       </div>
       <div role="status">{message}</div>
       {manualCopy !== undefined && <textarea ref={textRef} aria-label="Route text to copy" value={manualCopy} readOnly rows={3} />}
     </div>}
+    {stash && <RouteStashDialog initial={stash} onLoad={onLoadRoute} onClose={() => {
+      setStash(undefined);
+      requestAnimationFrame(() => buttonRef.current?.focus());
+    }} />}
   </div>;
 }

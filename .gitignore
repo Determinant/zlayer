@@ -14,6 +14,9 @@ playwright-report/
 *.log
 *.tsbuildinfo
 
+# Local audit downloads, intermediate exports and scratch scripts.
+/tmp/
+
 # Keep infrastructure checkouts, local credentials and history backups private.
 /ops/
 /zlayer-ops/

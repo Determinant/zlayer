@@ -72,19 +72,12 @@ test(`approach Direct to at ${width}px (${mode})`, async ({ page, request }, tes
       await problem.getByRole('button', { name: 'Close', exact: true }).click();
       return;
     }
-    const expected = ['363000N1213000W', 'FREZZ', 'DEBBS', 'RW31', 'KSNS'];
+    const expected = ['36°30′N 121°30′W', 'FREZZ', 'DEBBS', 'RW31', 'KSNS'];
     await expect(tokens).toHaveText(expected);
     await expect(bundle).toHaveCount(0);
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
     await expect(page.locator('.route-token.is-error')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('approach-direct-to.png') });
-    await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Undo route edit', exact: true }).click();
-    await expect(tokens).toHaveText(['KSMO', 'KSNS']);
-    await expect(bundle).toHaveText('ILS 31 · ARTYY');
-    await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Redo route edit', exact: true }).click();
-    await expect(tokens).toHaveText(expected);
     await page.reload();
     await expect(tokens).toHaveText(expected);
     await expect(bundle).toHaveCount(0);
@@ -93,44 +86,38 @@ test(`approach Direct to at ${width}px (${mode})`, async ({ page, request }, tes
   } finally { await request.post('/__test/reset'); }
 });
 
-async function openWaypointMenu(page: Page, token: Locator, touch: boolean) {
+async function openWaypointMenu(token: Locator, touch: boolean) {
   if (!touch) { await token.click({ button: 'right' }); return; }
-  await token.scrollIntoViewIfNeeded();
-  const box = (await token.boundingBox())!;
-  const session = await page.context().newCDPSession(page);
-  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
-  await expect(page.getByRole('menuitem', { name: 'Add waypoint before', exact: true })).toBeVisible();
-  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await session.detach();
+  await token.tap();
 }
 
 for (const touch of [false, true]) {
-  test(`Direct to uses the selected occurrence and latest fix via ${touch ? 'long press' : 'right click'}`, async ({ page }, testInfo) => {
+  test(`Direct to uses the selected occurrence and latest fix via ${touch ? 'tap' : 'right click'}`, async ({ page }, testInfo) => {
     if (touch) await page.setViewportSize({ width: 390, height: 844 });
     await mockGps(page);
     await page.goto('/test/browser/routes.html?gps');
     await expect.poll(() => countWatches(page)).toBe(1);
     const tokens = page.locator('.route-token');
     const direct = page.getByRole('menuitem', { name: 'Direct to', exact: true });
-    await openWaypointMenu(page, tokens.first(), touch);
+    await openWaypointMenu(tokens.first(), touch);
     await expect(direct).toHaveCount(0);
     await sendFix(page);
     await expect(direct).toBeVisible();
     await page.keyboard.press('Escape');
-    await openWaypointMenu(page, tokens.nth(1), touch);
+    await openWaypointMenu(tokens.nth(1), touch);
     await expect(direct).toHaveCount(0); // UNKNOWN has no navigable target.
     await page.keyboard.press('Escape');
     await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('KSFO KSJC');
-    await openWaypointMenu(page, tokens.nth(3), touch);
+    await openWaypointMenu(tokens.nth(3), touch);
     await expect(direct).toBeVisible();
     await page.locator('.route-token-menu').screenshot({ path: testInfo.outputPath('direct-to-menu.png') });
     await sendFix(page, { latitude: 38, longitude: -123 });
     await direct.click();
-    await expect(tokens.locator('strong')).toHaveText(['380000N1230000W', 'KSFO', 'KSJC']);
+    await expect(tokens.locator('strong')).toHaveText(['38°00′N 123°00′W', 'KSFO', 'KSJC']);
     await expect(page.getByRole('textbox', { name: 'Add route waypoint', exact: true })).toBeFocused();
     await sendFix(page, { latitude: 39, longitude: -124 });
-    await expect(tokens.locator('strong')).toHaveText(['380000N1230000W', 'KSFO', 'KSJC']);
-    await openWaypointMenu(page, tokens.last(), touch);
+    await expect(tokens.locator('strong')).toHaveText(['38°00′N 123°00′W', 'KSFO', 'KSJC']);
+    await openWaypointMenu(tokens.last(), touch);
     await expect(direct).toBeVisible();
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 2 })));
     await expect(direct).toHaveCount(0);
@@ -146,7 +133,7 @@ test('Direct to is keyboard accessible from the waypoint context menu', async ({
   await page.keyboard.press('Shift+F10');
   await expect(page.getByRole('menuitem', { name: 'Direct to', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.locator('.route-token strong')).toHaveText(['370000N1220000W', 'KSJC']);
+  await expect(page.locator('.route-token strong')).toHaveText(['37°00′N 122°00′W', 'KSJC']);
 });
 
 async function restoreFeature(page: Page, ident: string, coordinates: [number, number]) {
@@ -181,13 +168,13 @@ test('the entity icon precedes ID, trims the route, and persists the GPS origin 
   const dialogs: string[] = [];
   page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
   await direct.tap();
-  await expect(page.locator('.route-token strong')).toHaveText(['370000N1220000W', '350000N1190000W', '360000N1200000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['37°00′N 122°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   expect(dialogs).toEqual([]);
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[0].text))
     .toBe('370000N1220000W');
   await page.reload();
-  await expect(page.locator('.route-token strong')).toHaveText(['370000N1220000W', '350000N1190000W', '360000N1200000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['37°00′N 122°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   await expect(direct).toHaveCount(0);
 });
 
@@ -217,18 +204,18 @@ for (const width of [320, 1280]) test(`off-route Direct to uses an in-app confir
   await cancel.click();
   await expect(popup).toBeHidden();
   await expect(direct).toBeFocused();
-  await expect(tokens).toHaveText(['340000N1180000W', '350000N1190000W', '360000N1200000W']);
+  await expect(tokens).toHaveText(['34°00′N 118°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   await direct.click();
   await cancel.press('Escape');
   await expect(popup).toBeHidden();
   await expect(direct).toBeFocused();
-  await expect(tokens).toHaveText(['340000N1180000W', '350000N1190000W', '360000N1200000W']);
+  await expect(tokens).toHaveText(['34°00′N 118°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   await direct.click();
   await expect(popup).toBeVisible();
   await sendFix(page, { latitude: 38, longitude: -123 });
   await confirm.click();
   await expect(popup).toBeHidden();
-  await expect(tokens).toHaveText(['380000N1230000W', '330000N1170000W']);
+  await expect(tokens).toHaveText(['38°00′N 123°00′W', '33°00′N 117°00′W']);
   expect(dialogs).toEqual([]);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 1 })));
   await expect(direct).toHaveCount(0);
@@ -244,12 +231,12 @@ test('Direct to confirmation waits for GPS recovery and uses the recovered posit
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 2 })));
   await expect(confirm).toBeDisabled();
   await expect(popup.getByRole('status')).toHaveText('Waiting for a fresh GPS fix.');
-  await expect(page.locator('.route-token strong')).toHaveText(['340000N1180000W', '350000N1190000W', '360000N1200000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['34°00′N 118°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   await sendFix(page, { latitude: 38, longitude: -123 });
   await expect(confirm).toBeEnabled();
   await confirm.click();
   await expect(popup).toBeHidden();
-  await expect(page.locator('.route-token strong')).toHaveText(['380000N1230000W', '330000N1170000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['38°00′N 123°00′W', '33°00′N 117°00′W']);
 });
 
 test('an expanded airway waypoint on the map directs to its remaining path', async ({ page }) => {

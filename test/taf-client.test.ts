@@ -9,6 +9,23 @@ const report = (fields: Partial<TafReport> = {}): TafReport => ({ icaoId: 'KSFO'
   validTimeFrom: now / 1000, validTimeTo: now / 1000 + 86400, rawTAF: 'TAF KSFO TEST', fcsts: [], ...fields });
 const signal = () => new AbortController().signal;
 
+for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} TAF refresh recovers after the wall clock moves backward`, async () => {
+  let time = now, calls = 0;
+  const client = new TafClient(endpoint, { now: () => time, fetch: async () => {
+    calls++;
+    return Response.json([report({ lat: 37, lon: -122 })]);
+  } });
+  const refresh = () => nearby ? client.refreshNearby([-122, 37], signal()) : client.refresh('KSFO', signal());
+  await refresh();
+  await refresh();
+  assert.equal(calls, 1);
+  time -= 60 * 60_000;
+  await refresh();
+  assert.equal(calls, 2);
+  assert.equal(client.get('KSFO')?.checkedAt, time);
+  assert.ok(client.get('KSFO')?.report);
+});
+
 test('requests only the selected station, selects the latest amendment, and throttles successful checks', async () => {
   let time = now;
   const calls: URL[] = [];

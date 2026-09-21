@@ -1,0 +1,386 @@
+{
+  "source": {
+    "cifpUrl": "https://aeronav.faa.gov/Upload_313-d/cifp/CIFP_260903.zip",
+    "plateUrls": [
+      "https://aeronav.faa.gov/d-tpp/2609/06368VDGB.PDF",
+      "https://aeronav.faa.gov/d-tpp/2609/00236RR12.PDF",
+      "https://aeronav.faa.gov/d-tpp/2609/00665LBC12.PDF"
+    ]
+  },
+  "type": "ZLayerTerminalProcedures",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "FAA 28-day NASR DP/STAR subscription"
+  },
+  "procedures": [],
+  "approaches": {
+    "type": "ZLayerApproachRoutes",
+    "metadata": {
+      "effectiveDate": "2026-09-03",
+      "source": "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/"
+    },
+    "procedures": [
+      {
+        "id": "KAVX:VDM-B",
+        "airport": "KAVX",
+        "ident": "VDM-B",
+        "magneticVariation": 14,
+        "transitions": [
+          {
+            "id": "SXC",
+            "legs": [
+              {
+                "path": "IF",
+                "fix": {
+                  "ident": "SXC",
+                  "coordinate": [
+                    -118.41991111111112,
+                    33.375055555555555
+                  ]
+                }
+              },
+              {
+                "path": "TF",
+                "fix": {
+                  "ident": "RIGLI",
+                  "coordinate": [
+                    -118.40776944444445,
+                    33.45791388888889
+                  ]
+                },
+                "magneticCourse": 352,
+                "distance": 5
+              },
+              {
+                "path": "PI",
+                "fix": {
+                  "ident": "RIGLI",
+                  "coordinate": [
+                    -118.40776944444445,
+                    33.45791388888889
+                  ],
+                  "role": "IAF"
+                },
+                "turn": "R",
+                "magneticCourse": 307,
+                "distance": 10
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "RIGLI",
+                  "coordinate": [
+                    -118.40776944444445,
+                    33.45791388888889
+                  ]
+                },
+                "magneticCourse": 172,
+                "distance": 6
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "RIGLI",
+              "coordinate": [
+                -118.40776944444445,
+                33.45791388888889
+              ],
+              "role": "FAF"
+            }
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "MAFPI",
+              "coordinate": [
+                -118.4131138888889,
+                33.42146111111111
+              ],
+              "role": "MAP"
+            },
+            "magneticCourse": 172,
+            "distance": 2.2
+          },
+          {
+            "path": "DF",
+            "fix": {
+              "ident": "SXC",
+              "coordinate": [
+                -118.41991111111112,
+                33.375055555555555
+              ]
+            },
+            "missed": true
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "SXC",
+              "coordinate": [
+                -118.41991111111112,
+                33.375055555555555
+              ]
+            },
+            "missed": true,
+            "turn": "L",
+            "magneticCourse": 15,
+            "holdMinutes": 1
+          }
+        ]
+      },
+      {
+        "id": "KLGB:H12",
+        "airport": "KLGB",
+        "ident": "H12",
+        "magneticVariation": 14,
+        "transitions": [],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "BREKE",
+              "coordinate": [
+                -118.239475,
+                33.762797222222225
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "JUXAT",
+              "coordinate": [
+                -118.25733611111112,
+                33.81580555555555
+              ]
+            }
+          },
+          {
+            "path": "RF",
+            "fix": {
+              "ident": "WRYAN",
+              "coordinate": [
+                -118.23040277777778,
+                33.85746666666667
+              ],
+              "role": "FAF"
+            },
+            "turn": "R",
+            "magneticCourse": 58.4,
+            "distance": 3.1,
+            "center": [
+              -118.21808055555556,
+              33.82501944444445
+            ]
+          },
+          {
+            "path": "RF",
+            "fix": {
+              "ident": "TIDOY",
+              "coordinate": [
+                -118.18939444444445,
+                33.84921666666667
+              ]
+            },
+            "turn": "R",
+            "magneticCourse": 120.7,
+            "distance": 2.2,
+            "center": [
+              -118.21808055555556,
+              33.82501944444445
+            ]
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "RW12",
+              "coordinate": [
+                -118.15837777777779,
+                33.823594444444446
+              ],
+              "role": "MAP"
+            }
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "GUNEY",
+              "coordinate": [
+                -118.07545833333333,
+                33.754983333333335
+              ]
+            },
+            "missed": true
+          },
+          {
+            "path": "RF",
+            "fix": {
+              "ident": "LUVCI",
+              "coordinate": [
+                -118.05102222222222,
+                33.67511388888889
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 182.6,
+            "distance": 5.2,
+            "center": [
+              -118.14311111111111,
+              33.69795277777777
+            ]
+          },
+          {
+            "path": "TF",
+            "fix": {
+              "ident": "ALBAS",
+              "coordinate": [
+                -118.07782222222222,
+                33.59963333333334
+              ]
+            },
+            "missed": true
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "ALBAS",
+              "coordinate": [
+                -118.07782222222222,
+                33.59963333333334
+              ]
+            },
+            "missed": true,
+            "turn": "L",
+            "magneticCourse": 352,
+            "distance": 4
+          }
+        ]
+      },
+      {
+        "id": "KMCE:B12",
+        "airport": "KMCE",
+        "ident": "B12",
+        "magneticVariation": 15,
+        "transitions": [
+          {
+            "id": "MOD",
+            "legs": [
+              {
+                "path": "FC",
+                "fix": {
+                  "ident": "MOD",
+                  "coordinate": [
+                    -120.95786944444444,
+                    37.627375
+                  ]
+                },
+                "magneticCourse": 114,
+                "distance": 15.5
+              },
+              {
+                "path": "CF",
+                "fix": {
+                  "ident": "AJOJO",
+                  "coordinate": [
+                    -120.68195,
+                    37.43603611111111
+                  ]
+                },
+                "magneticCourse": 114,
+                "distance": 2
+              }
+            ]
+          }
+        ],
+        "final": [
+          {
+            "path": "IF",
+            "fix": {
+              "ident": "AJOJO",
+              "coordinate": [
+                -120.68195,
+                37.43603611111111
+              ],
+              "role": "IF"
+            }
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "JENED",
+              "coordinate": [
+                -120.59863888888889,
+                37.36113888888889
+              ],
+              "role": "FAF"
+            },
+            "magneticCourse": 123,
+            "distance": 6
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "ZIPTO",
+              "coordinate": [
+                -120.53945833333333,
+                37.30779444444444
+              ]
+            },
+            "magneticCourse": 123,
+            "distance": 4.3
+          },
+          {
+            "path": "CF",
+            "fix": {
+              "ident": "REFER",
+              "coordinate": [
+                -120.52930555555555,
+                37.298630555555555
+              ],
+              "role": "MAP"
+            },
+            "magneticCourse": 123,
+            "distance": 0.7
+          },
+          {
+            "path": "CA",
+            "missed": true,
+            "magneticCourse": 123.5
+          },
+          {
+            "path": "DF",
+            "fix": {
+              "ident": "MOD",
+              "coordinate": [
+                -120.95786944444444,
+                37.627375
+              ]
+            },
+            "missed": true,
+            "turn": "R"
+          },
+          {
+            "path": "HM",
+            "fix": {
+              "ident": "MOD",
+              "coordinate": [
+                -120.95786944444444,
+                37.627375
+              ]
+            },
+            "missed": true,
+            "turn": "R",
+            "magneticCourse": 114,
+            "holdMinutes": 1
+          }
+        ]
+      }
+    ]
+  }
+}

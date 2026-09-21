@@ -92,7 +92,8 @@ export class MetarClient {
     signal.throwIfAborted();
     const key = boxes.join(';');
     const previous = this.#areas.get(key);
-    if (previous?.attemptedAt !== undefined && this.#now() - previous.attemptedAt < METAR_REFRESH_MS) return;
+    const age = previous?.attemptedAt === undefined ? undefined : this.#now() - previous.attemptedAt;
+    if (age !== undefined && age >= 0 && age < METAR_REFRESH_MS) return;
     try {
       const reports = new Map<string, MetarFeature>();
       for (const bbox of boxes) {
@@ -101,8 +102,7 @@ export class MetarClient {
           const id = reportStationId(report);
           const distance = stationDistance(point, report);
           if (!id || !/^[A-Z0-9]{4}$/.test(id) || !Number.isFinite(distance) || distance > NEARBY_STATION_RADIUS_NM) continue;
-          const current = reports.get(id);
-          if (!current || observationTime(report) >= observationTime(current)) reports.set(id, report);
+          reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
         }
       }
       signal.throwIfAborted();
@@ -130,7 +130,7 @@ export class MetarClient {
     const batches = stationIdBatches(stationIds.filter((id) => {
       const cached = this.#stations.get(normalizeIdentifier(id) ?? '');
       const attemptedAt = cached?.attemptedAt;
-      return attemptedAt === undefined || now - attemptedAt >= METAR_REFRESH_MS;
+      return attemptedAt === undefined || now < attemptedAt || now - attemptedAt >= METAR_REFRESH_MS;
     }));
     let nextBatch = 0;
     const worker = async () => {
@@ -143,9 +143,7 @@ export class MetarClient {
           const reports = new Map<string, MetarFeature>();
           for (const report of collection.features) {
             const id = reportStationId(report);
-            if (id && (!reports.has(id) || observationTime(report) >= observationTime(reports.get(id)!))) {
-              reports.set(id, report);
-            }
+            if (id) reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
           }
           for (const id of batch) this.#accept(id, reports.get(id));
         } catch (error) {
@@ -204,10 +202,11 @@ export class MetarClient {
 
   #accept(id: string, received: MetarFeature | undefined): void {
     const previous = this.get(id)?.report;
-    const report = previous && (!received || observationTime(previous) > observationTime(received)) ? previous : received;
+    const now = this.#now();
+    const report = preferredReport(previous, received, now);
     this.#stations.delete(id);
     this.#stations.set(id, {
-      ...(report ? { report } : {}), checkedAt: this.#now(), attemptedAt: this.#now(),
+      ...(report ? { report } : {}), checkedAt: now, attemptedAt: now,
       missing: !received || report !== received,
     });
   }
@@ -224,6 +223,16 @@ export class MetarClient {
     }
     for (const listener of this.#listeners) listener();
   }
+}
+
+/** Prefer usable timestamps before chronological order, both within a response
+ * and against saved data. A future report must not permanently outrank valid data. */
+function preferredReport(previous: MetarFeature | undefined, received: MetarFeature | undefined,
+  now: number): MetarFeature | undefined {
+  if (!previous || !received) return received ?? previous;
+  const oldTime = observationTime(previous), newTime = observationTime(received);
+  if ((oldTime > now) !== (newTime > now)) return oldTime > now ? received : previous;
+  return newTime >= oldTime ? received : previous;
 }
 
 class MetarHttpError extends Error {

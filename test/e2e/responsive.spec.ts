@@ -53,6 +53,7 @@ for (const [width, height] of [
     await inside(cycle, { left: 0, top: 0, right: width, bottom: height });
     await expect(page.getByRole('button', { name: 'About ZLayer', exact: true })).toBeVisible();
     await page.getByLabel('Close settings').click();
+    await page.getByRole('button', { name: 'Hide terrain toolbox', exact: true }).click();
     await expect(page.locator('.maplibregl-ctrl-zoom-in')).toBeVisible();
     const attribution = page.locator('.maplibregl-ctrl-attrib-inner');
     const attributionToggle = page.getByLabel('Toggle attribution');

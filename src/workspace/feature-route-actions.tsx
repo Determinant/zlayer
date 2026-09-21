@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../core/ui/pwa-back';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import { appendRouteFeature, removeRouteEntry, setRouteApproach } from '../layers/routes/draft';
+import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture } from '../layers/routes/draft';
 import { routePointForFeature } from '../layers/routes/selection';
 import { removeRoutePoint, routeItemsForPoint } from '../layers/routes/removal';
 import type { DirectToAction } from '../layers/routes/direct-to';
@@ -22,10 +22,14 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
   const point = routePointForFeature(plan, feature, pointId);
   const approach = point?.owners.find(owner => owner.kind === 'approach');
   const approachEntry = approach && plan.entries[approach.source.tokenIndex]!;
+  const departureEntry = point && !point.edit && plan.entries[point.source.tokenIndex]?.departure ? plan.entries[point.source.tokenIndex] : undefined;
   const addLabel = `Add ${ident} to end of route`;
   return <>
     {approachEntry ? <button type="button" className="remove-route-button" aria-label={`Remove approach from ${approachEntry.text}`}
       title={`Remove approach from ${approachEntry.text}`} onClick={() => update(draft => setRouteApproach(draft, approachEntry, undefined))}>
+      <RouteActionIcon add={false} />
+    </button> : departureEntry ? <button type="button" className="remove-route-button" aria-label={`Remove SID from ${departureEntry.text}`}
+      title={`Remove SID from ${departureEntry.text}`} onClick={() => update(draft => setRouteDeparture(draft, departureEntry, undefined))}>
       <RouteActionIcon add={false} />
     </button> : point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
       items={routeItemsForPoint(plan, point)}

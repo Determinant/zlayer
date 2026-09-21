@@ -16,20 +16,21 @@ export async function regionalPixels(missingNevada: boolean) {
   });
   const catalog = createWorkspaceReadContext(browsing, bundles);
   const tile = { z: 7, x: 21, y: 48 };
+  let incomplete = 0;
   const bitmap = await renderRegionalTile(regionalTileParts(catalog, tile), async source => {
     if (source === nv && missingNevada) throw new Error('Nevada archive unavailable');
     const canvas = new OffscreenCanvas(256, 256), context = canvas.getContext('2d')!;
     context.fillStyle = source === ca ? '#0000ff' : source === nv ? '#00ff00' : '#ff0000';
     context.fillRect(0, 0, 256, 256);
     return canvas.transferToImageBitmap();
-  }, new AbortController().signal) as ImageBitmap;
+  }, new AbortController().signal, () => incomplete++) as ImageBitmap;
   const canvas = new OffscreenCanvas(256, 256), context = canvas.getContext('2d')!;
   context.drawImage(bitmap, 0, 0); bitmap.close();
   const at = (point: [number, number]) => {
     const [x, y] = worldPoint(point);
     return [...context.getImageData(Math.floor((x * 128 - tile.x) * 256), Math.floor((y * 128 - tile.y) * 256), 1, 1).data];
   };
-  return { truckee: at([-120.15, 39.33]), reno: at([-119.7681, 39.4991]) };
+  return { truckee: at([-120.15, 39.33]), reno: at([-119.7681, 39.4991]), incomplete };
 }
 
 // Vite app entries do not preserve unused exports; expose this test-only entry.

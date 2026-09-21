@@ -151,7 +151,7 @@ test('tab toggles persist through pointer movement, and Escape returns to the ha
   await expect(altitude).toHaveValue('7200');
   // The terrain tab stays usable without a route, including when shading is off.
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await expect(terrain).toBeVisible();
   await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
   await page.getByRole('button', { name: 'Viewport', exact: true }).click();

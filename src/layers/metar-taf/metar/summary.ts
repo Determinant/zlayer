@@ -3,10 +3,10 @@ import { formatCheckedAt, formatDataAge } from '../../../core/format/time';
 
 export function metarReportSummary(entry: CachedMetar | undefined, now = Date.now()) {
   const observedAt = entry?.report ? observationTime(entry.report) : 0;
-  const age = observedAt ? Math.max(0, now - observedAt) : undefined;
+  const age = observedAt ? now - observedAt : undefined;
   const cached = Boolean(entry?.report && (
     entry.error || entry.missing || entry.checkedAt === undefined ||
-    now - entry.checkedAt > 90_000 || age === undefined || age > 2 * 60 * 60_000
+    entry.checkedAt > now || now - entry.checkedAt > 90_000 || age === undefined || age < 0 || age > 2 * 60 * 60_000
   ));
   const label = entry?.report ? cached ? 'Cached report' : 'Updated' : 'No report';
   const details: string[] = [];

@@ -1,5 +1,6 @@
 import type {
   AirwayDataResponse,
+  ApproachFix,
   FeatureCollectionResponse,
   GeoPointFeature,
   NavigationLayerId,
@@ -8,6 +9,7 @@ import type {
   PreferredRoutesData,
 } from '@zlayer/contracts';
 import { createProcedureExpander } from './terminal-procedures.js';
+import { departureAtoms } from './departures.js';
 import { createTecInterpreter } from './tec-routes.js';
 import { approachFixFeature, expandRouteApproaches } from './approaches.js';
 
@@ -45,13 +47,23 @@ export function createRouteResolver(
   preferredData?: PreferredRoutesData,
 ): RouteResolver {
   const indexes = buildIndexes(collections);
+  const resolveApproachFix = (fix: ApproachFix): Candidate | undefined => {
+    // A shared name alone is insufficient: runway names and navigation homonyms
+    // can refer to different places. Allow only a small reference-rounding gap.
+    const matches = indexes.byIdentifier.get(normalizeRouteToken(fix.ident))?.filter(candidate =>
+      (candidate.layer === 'fixes' || candidate.layer === 'navaids') &&
+      routeTokenForFeature(candidate.feature) === normalizeRouteToken(fix.ident) &&
+      candidate.feature.properties.type?.trim().toUpperCase() !== 'VOT' &&
+      distanceNm(candidate.feature.geometry.coordinates, fix.coordinate) < 0.01);
+    return matches?.length === 1 ? matches[0] : undefined;
+  };
   // Only explicit pins use coded approach fixes. Do not introduce ambiguous
   // runway names or change ordinary navigation identifier resolution.
   for (const procedure of terminalData?.approaches?.procedures ?? []) {
     for (const leg of [...procedure.transitions.flatMap(transition => transition.legs), ...procedure.final]) {
       if (!leg.fix) continue;
       const feature = approachFixFeature(leg.fix);
-      indexes.byFeatureId.set(feature.id!, { layer: 'fixes', feature });
+      indexes.byFeatureId.set(feature.id!, resolveApproachFix(leg.fix) ?? { layer: 'fixes', feature });
     }
   }
   const resolveAirwayChain = createAirwayChainResolver(airwayData);
@@ -64,7 +76,7 @@ export function createRouteResolver(
       ? { entries: routeEntriesFromText(input, pinnedFeatureIds, index => `token:${index}`) } : input;
     const plan = emptyRoutePlan(draft);
     const tec = interpretTec(routeAtoms(draft.entries));
-    const atoms = tec.atoms;
+    const atoms = departureAtoms(tec.atoms);
     const expansion = expandAirwayRoute(atoms, resolveAirwayChain, (token, index) =>
       !!atoms[index]!.pinnedFeatureId || !!parseRouteCoordinate(token) || (indexes.byIdentifier.has(token) &&
         (index === 0 || index === atoms.length - 1 || !airwayIdentifiers.has(token))));
@@ -119,15 +131,16 @@ export function createRouteResolver(
       plan.waypoints.push(waypoint);
       if (previous && point.incoming.connected) {
         const from = previous.feature.geometry.coordinates, to = waypoint.feature.geometry.coordinates;
-        const editable = point.incoming.owners.length === 0 && previous.edit && waypoint.edit &&
+        const afterEntryId = previous.edit?.entryId ?? (plan.entries[previous.source.tokenIndex]?.departure ? previous.source.entryId : undefined);
+        const editable = point.incoming.owners.length === 0 && afterEntryId && waypoint.edit &&
           point.source.tokenIndex === previous.source.tokenIndex + 1;
         plan.legs.push({ owners: point.incoming.owners,
-          ...(editable ? { edit: { kind: 'leg', afterEntryId: previous.edit!.entryId } as const } : {}),
+          ...(editable ? { edit: { kind: 'leg', afterEntryId } as const } : {}),
           from: previous, to: waypoint, midpoint: geographicMidpoint(from, to), distanceNm: distanceNm(from, to) });
       }
       previous = waypoint;
     }
-    expandRouteApproaches(plan, terminalData?.approaches);
+    expandRouteApproaches(plan, terminalData?.approaches, resolveApproachFix);
     plan.issues.sort((a, b) => a.tokenIndex - b.tokenIndex);
     plan.unresolved = [...new Set(plan.issues.map(issue => issue.token))];
     plan.distanceNm = plan.legs.reduce((total, leg) => total + leg.distanceNm, 0);

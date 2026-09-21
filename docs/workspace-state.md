@@ -14,6 +14,7 @@ download, live sensor, route resolution, or render is still valid.
 | Layer choices | Chart base and overlay; airports, VFR waypoints, navaids and fixes; fix detail/airspace; METAR, GPS, terrain and obstructions; terrain route/viewport coverage and selected altitude | `shell/use-map-preferences.ts`; `zlayers-map-preferences-v1`, record version 2 |
 | Terrain toolbox | Last clearance altitude while elevation coloring is selected | `layers/terrain/controls.tsx`; UI `terrain-last-altitude` |
 | Route | Ordered entry IDs, text, feature pins and approach attachments; route summary expansion | `layers/routes/use-draft.ts`; `zlayer-route-draft-v1`, record version 2; UI `route-summary-open` |
+| Route stash | Named structured route snapshots, stable save IDs and list order; loading replaces the active draft | `layers/routes/stash.ts`; `zlayer-route-stash-v1`, record version 1 |
 | Recommendations | Open state, aircraft filter, selection scoped to airport pair/data edition/filter, expanded conditions and row limits | `layers/routes`; UI `recommendation-*` / `recommendations-open` |
 | Edge panels | Selected left toolbox or stowed state; selected right panel or stowed state | `shell/map-edge-tools.tsx` / `app.tsx`; UI `edge-tool` / `side-panel` |
 | Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates tab, navaid identification overlay | `app.tsx` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
@@ -29,12 +30,17 @@ though their current record schema is version 2.
 
 ## Saving and restoration
 
-- UI, route and layer changes save synchronously in the action, through
+- UI, active-route and layer changes save synchronously in the action, through
   `core/ui/use-persistent-state.ts`. An immediate reload does not need a React
   effect to commit them. Default/fallback values do not overwrite storage merely
   because a component mounted. A valid legacy route is migrated once to preserve
   its generated entry IDs; legacy chart choices are read compatibly and written
   in the current format on the next change. Unknown record versions are ignored.
+- Route-stash mutations acquire a Web Lock before reading and writing the shared
+  list. Success is shown only after storage accepts the write; contention or
+  unavailable coordination leaves saved routes untouched. Open stash dialogs
+  refresh on storage events, and edits reject a changed or removed save. The dialog's
+  unfinished name/text and open state are session-only. See [route persistence](routes.md#persistence-and-compatibility).
 - Camera writes happen at movement completion, page hiding and teardown, without
   rerendering the workspace. Reader scroll/zoom writes are debounced and flushed
   on page hiding/unmount, sampling the live scroll position even if the final
@@ -56,22 +62,25 @@ though their current record schema is version 2.
   the selection and shows **Retry IAP** and **Hide IAP from map**. The existing
   slow-start escape remains available. A missing PDF never silently substitutes a
   different approach or data edition.
-- Corrupt records and unavailable/full storage leave session controls usable.
+- Corrupt UI records and unavailable/full storage leave session controls usable.
+  The stash preserves unreadable saved records and reports an error instead of
+  overwriting them; it cannot confirm a save when persistent storage fails.
   [Full local reset](offline-storage.md#full-local-reset) clears all of these app
   keys and caches. UI persistence does not guarantee against browser eviction.
 
 ## Deliberate boundaries
 
-Search text, unfinished route text fields, undo history, manual METAR/TAF station choices, context menus, gestures,
+Search text, unfinished route text fields, manual METAR/TAF station choices, context menus, gestures,
 loading/errors, feature-list scroll positions, and pending confirmations are
 session state. AHRS calibration, test mode, entered initial heading, live attitude,
 GPS fixes and active recording do not resume after reload. Saved recordings have
 their own recovery lifecycle.
 
-These records are local to the browser's storage partition, without cloud sync or
-live cross-window synchronization. Separate windows save their own actions to the
-same keys when they share storage; the last write to each record wins. They are
-independent feature records, not a transaction across the entire workspace.
+These records are local to the browser's storage partition, without cloud sync.
+Presentation preferences and the active draft do not synchronize live across
+windows: the last write to each record wins. The route stash coordinates writes
+and refreshes open lists across windows as described above. Feature records remain
+independent, without a transaction across the entire workspace.
 Per-feature and per-document presentation records currently remain until full
 reset; there is no age-based pruning of those small UI records.
 

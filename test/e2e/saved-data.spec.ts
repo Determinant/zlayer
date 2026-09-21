@@ -67,9 +67,11 @@ test('an open airport keeps its edition and plate targets when a newer saved reg
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.getByText('Open original ↗')).toHaveAttribute('href', /\/2026-08-06\//);
   await page.getByLabel('Close plate').click();
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await page.locator('.procedure-group button').filter({ hasText: 'Chart Supplement' }).click();
   await expect(page.getByText('Open original ↗')).toHaveAttribute('href', /\/2026-08-06\//);
   await page.getByLabel('Close plate').click();
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await page.getByLabel('Close detail').click();
   await openAirportPlates(page);
   await expect(page.locator('.feature-edition')).toHaveText('FAA Sep 3');

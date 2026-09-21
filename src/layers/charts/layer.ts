@@ -1,7 +1,8 @@
 import type { CatalogReadSource } from '../../workspace/read-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { installChartLayers, syncChartSelection, chartResourceIds } from './renderer';
-import { registerMbtilesArchives } from './mbtiles-protocol';
+import { observeChartFailures, registerMbtilesArchives } from './mbtiles-protocol';
+import { observeOfflineInventory } from '../../offline/inventory-events';
 import { chartSourceKey } from './source-key';
 import { NO_CHARTS, type ChartFamilyDefinition, type ChartSelection } from './overlays';
 import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
@@ -13,19 +14,37 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
   let map: MapLibreMap | undefined;
   let selection: ChartSelection = NO_CHARTS;
   let sourceKey = chartSourceKey(catalog, definition.id);
+  let failed = false;
+  let stopObservingFailures: (() => void) | undefined;
+  let stopObservingInventory: (() => void) | undefined;
   const sync = () => { if (map) syncChartSelection(map, catalog, selection, definition.id); };
+  const retry = () => {
+    if (!map || !failed) return;
+    failed = false;
+    const ids = chartResourceIds(catalog, definition.id);
+    removeLayerResources(map, ids, ids);
+    installChartLayers(map, catalog, selection, definition.id);
+    sync();
+  };
   return {
     id: definition.id, slot: 'charts',
     mount(target) {
       map = target;
       installChartLayers(map, catalog, selection, definition.id);
       map.on('move', sync);
+      stopObservingFailures = observeChartFailures(chartId => {
+        if (chartId === `@${definition.id}` || catalog.charts.some(chart =>
+          chart.id === chartId && chart.kind === definition.id)) failed = true;
+      });
+      stopObservingInventory = observeOfflineInventory(retry);
+      window.addEventListener('online', retry);
     },
     update(value) {
       selection = value.selection;
       if (catalog !== value.catalog) {
         const nextKey = chartSourceKey(value.catalog, definition.id);
         const changed = nextKey !== sourceKey;
+        if (changed) failed = false;
         if (map && changed) {
           const ids = chartResourceIds(catalog, definition.id);
           removeLayerResources(map, ids, ids);
@@ -40,6 +59,10 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
       sync();
     },
     unmount() {
+      stopObservingFailures?.(); stopObservingFailures = undefined;
+      stopObservingInventory?.(); stopObservingInventory = undefined;
+      window.removeEventListener('online', retry);
+      failed = false;
       if (!map) return;
       map.off('move', sync);
       const ids = chartResourceIds(catalog, definition.id);

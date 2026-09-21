@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useBackDismiss } from '../core/ui/pwa-back';
+import { formatWaypointLabel } from '../core/format/coordinates';
 import type { NearbyFeature, SelectFeature } from './feature-selection';
 import { featureIdent, featureKey, featureSubtitle, normalizeNavaidType } from '@zlayer/domain';
 import './nearby-feature-picker.css';
@@ -69,7 +70,7 @@ export function NearbyFeaturePicker({ features, point, onSelect, onClose }: {
         return <button
           key={routeIndex === undefined ? `feature:${featureKey(feature)}` : `route:${routePointId}:${routeIndex}`} type="button"
           onClick={() => onSelect(feature, routePointId)}>
-          <strong>{featureIdent(feature)}</strong>
+          <strong>{formatWaypointLabel(featureIdent(feature))}</strong>
           <span>{category}{routeIndex !== undefined && ` · On route · point ${routeIndex + 1}`} · {featureSubtitle(feature)}</span>
         </button>;
       })}

@@ -16,6 +16,27 @@ const report = (id: string, obsTime = '2026-09-15T17:00:00Z'): MetarFeature => (
 const response = (...features: MetarFeature[]) => Response.json({ type: 'FeatureCollection', features });
 const ids = (input: Parameters<typeof fetch>[0]) => new URL(String(input)).searchParams.get('ids')!.split(',');
 
+for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} refresh replaces a future METAR and recovers after clock rollback`, async () => {
+  const current = report('KSFO'), future = report('KSFO', '2026-09-16T17:00:00Z');
+  let now = Date.parse('2026-09-15T18:00:00Z'), calls = 0;
+  let records = [future, current];
+  const storage = { getItem: () => JSON.stringify({ type: 'FeatureCollection', features: [future] }), setItem() {} };
+  const client = new MetarClient(endpoint, { storage, now: () => now,
+    fetch: async () => { calls++; return response(...records); } });
+  const refresh = () => nearby ? client.refreshNearby([-122, 37], signal()) : client.refresh(['KSFO'], signal());
+  await refresh();
+  assert.equal(client.get('KSFO')?.report?.properties.obsTime, current.properties.obsTime);
+  assert.equal(client.get('KSFO')?.missing, false, 'valid current data replaces the bad saved timestamp');
+  await refresh();
+  assert.equal(calls, 1, 'normal refresh throttling still applies');
+  now -= 60 * 60_000;
+  records = [current, future];
+  await refresh();
+  assert.equal(calls, 2, 'clock rollback does not suppress revalidation');
+  assert.equal(client.get('KSFO')?.report?.properties.obsTime, current.properties.obsTime,
+    'batch order cannot promote a future report');
+});
+
 test('fetches only requested stations, caches overlaps and empty results, and refreshes after one minute', async () => {
   let now = 1_000;
   const requested: string[][] = [];

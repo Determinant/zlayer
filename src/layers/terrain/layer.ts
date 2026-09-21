@@ -1,6 +1,7 @@
 import { addProtocol, removeProtocol, type ErrorEvent, type Map as MapLibreMap } from 'maplibre-gl';
 import type { RoutePlan } from '@zlayer/domain';
 import { WorkerClient } from '../../core/data/worker-client';
+import { observeOfflineInventory } from '../../offline/inventory-events';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { contourInterval, MIN_TERRAIN_ZOOM, terrainTileZoom } from './detail';
 import { DEFAULT_ELEVATION_URL } from './elevation';
@@ -20,6 +21,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   const protocol = `route-terrain-${nextProtocol++}`;
   let map: MapLibreMap | undefined;
   let client: WorkerClient<TerrainWorker> | undefined;
+  let stopObservingInventory: (() => void) | undefined;
   let input: TerrainInput = { routes: [], enabled: true };
   let segments: Segment[] = [];
   let sources = terrainSources(undefined);
@@ -126,7 +128,9 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     }
     refreshView();
   };
-  const retry = () => { if (hasVisibleFailure()) { key = ''; refresh(); } };
+  // Repair also invalidates incomplete tiles outside the current view, so they
+  // cannot reappear from MapLibre's raster cache after a later pan.
+  const retry = () => { if (failedTiles.size) { key = ''; refresh(); } };
 
   const renderTile = async (tile: Tile, controller: AbortController): Promise<{ data: ImageBitmap | null }> => {
     const requestedMode = mode();
@@ -204,6 +208,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       map.on('error', sourceError);
       map.on('render', recoverVectors);
       window.addEventListener('online', retry);
+      stopObservingInventory = observeOfflineInventory(retry);
       key = ''; refresh();
     },
     update(next) {
@@ -226,6 +231,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       if (colorFrame !== undefined) cancelAnimationFrame(colorFrame);
       colorFrame = undefined; appliedAltitude = undefined; appliedInterval = undefined;
       window.removeEventListener('online', retry);
+      stopObservingInventory?.(); stopObservingInventory = undefined;
       if (map) {
         map.off('move', refreshView); map.off('zoomend', refreshView); map.off('moveend', refreshView); map.off('resize', refreshView); map.off('sourcedata', status);
         map.off('error', sourceError);

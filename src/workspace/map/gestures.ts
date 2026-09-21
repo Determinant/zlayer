@@ -376,7 +376,8 @@ function toPointFeature(feature: MapPointFeature): GeoPointFeature {
     : typeof feature.id === 'string' ? feature.id : undefined;
   delete properties.mapFeatureId;
   if (feature.source === ROUTE_SOURCE_ID) {
-    for (const key of ['routeKind', 'routePointId', 'navigationLayer', 'editKind', 'editEntryId', 'planRevision', 'dragging', 'snapped']) {
+    for (const key of ['routeKind', 'routePointId', 'navigationLayer', 'editKind', 'editEntryId', 'planRevision', 'dragging', 'snapped',
+      'displayIdent', 'approachRole', 'holdLabelOnRight', 'approachPoint']) {
       delete properties[key];
     }
   }

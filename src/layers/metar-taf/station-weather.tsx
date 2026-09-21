@@ -19,9 +19,10 @@ type StationClient<Report extends WeatherReport> = {
 };
 
 /** Each mounted report owns its selection, refresh cadence and cleanup. */
-export function StationWeather<Report extends WeatherReport>({ feature, client, name, intervalMs, refreshStation, View }: {
+export function StationWeather<Report extends WeatherReport>({ feature, client, active = true, name, intervalMs, refreshStation, View }: {
   feature: GeoPointFeature;
   client: StationClient<Report> | undefined;
+  active?: boolean;
   name: 'METAR' | 'TAF';
   intervalMs: number;
   refreshStation: (stationId: string, signal: AbortSignal) => Promise<void> | undefined;
@@ -53,7 +54,9 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
     }
   });
   useEffect(() => {
-    if (!client) return;
+    if (!client || !active) return;
+    // Reopening offline must also pick up cache changes made while stowed.
+    update();
     const unsubscribe = client.subscribe?.(update);
     const refresh = new OnDemandRefresh({
       intervalMs, debounceMs: 0,
@@ -78,7 +81,7 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
       window.removeEventListener('online', demand);
       window.removeEventListener('offline', demand);
     };
-  }, [client, intervalMs, stationId, longitude, latitude]);
+  }, [client, active, intervalMs, stationId, longitude, latitude]);
   const ownCurrent = hasCurrentReport(data.own?.report, now);
   const choices = !ownCurrent || selectedId !== undefined ? stationChoices(data.own?.report, data.nearby, now) : [];
   const selected = choices.find(station => station.stationId === selectedId) ?? choices[0];

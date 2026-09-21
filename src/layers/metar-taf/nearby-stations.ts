@@ -16,7 +16,7 @@ export function hasCurrentReport(report: WeatherReport | undefined, now: number)
   if (!report || !usable(report)) return false;
   if (!isMetar(report)) return report.validTimeTo * 1000 > now;
   const observedAt = metarObservationTime(report);
-  return observedAt > 0 && now - observedAt <= METAR_LOOKBACK_HOURS * 60 * 60_000;
+  return observedAt > 0 && observedAt <= now && now - observedAt <= METAR_LOOKBACK_HOURS * 60 * 60_000;
 }
 
 function coordinates(report: WeatherReport): Point | undefined {

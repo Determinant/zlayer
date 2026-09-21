@@ -2,8 +2,8 @@
 
 A ZLayer layer is a complete workspace feature: its data, behavior, presentation,
 and lifecycle. VFR/IFR imagery, METAR information, and procedure plates are all layers.
-A plate that slides in from the side is a layer even though it draws nothing on the
-map. A MapLibre style layer is a lower-level rendering resource owned by a product.
+A plate viewer is a layer independently of whether its optional georeferenced map
+overlay is enabled. A MapLibre style layer is a lower-level rendering resource owned by a product.
 
 Keep related behavior together. Loading, caching, refresh, status, UI, and cleanup
 belong with the feature they serve. The application composes products and connects
@@ -27,11 +27,11 @@ src/
     metar-taf/             airport reports, station selection, nearby ranking, refresh lifecycle
       metar/               observation client, visible demand, map circles, decoded reports
       taf/                 forecast client, validity, raw colored periods
-    plates/                procedure catalog, selection, sliding panel, PDF viewer
+    plates/                procedure catalog, selection, PDF viewer and georeferenced map overlay
     navigation/            FAA data, search, airport details, map presentation
     routes/                route draft, planning, editor, map presentation
       history/             history client, store, worker and draft/query conversion
-    terrain/               route corridor DEM demand, worker, contours, fill and labels
+    terrain/               route/viewport DEM demand, packaged elevation, worker, contours and fill
     obstructions/          FAA Daily DOF loader, compact worker index, viewport/route symbols
     ownship/               shared device GPS watch, ground track, one-minute projection and status
     ahrs/                  estimator, calibration, attitude/GPS instruments, HSI and recording
@@ -57,7 +57,7 @@ pull in airport cards, viewers or their React hooks. Tests can import internals
 directly. Files inside a folder can stay focused without scattering a feature across
 the source root.
 
-Charts, navigation, routes, terrain, obstructions and GPS expose separate `map.ts` entries; METAR exposes its
+Charts, plates, navigation, routes, terrain, obstructions and GPS expose separate `map.ts` entries; METAR exposes its
 lightweight adapter as `.map` on the product instance. Charts also exposes `worker.ts`
 for its service-worker contribution. These entries preserve environment and loading
 boundaries: importing a chart selector must not load SQLite or MapLibre;
@@ -106,10 +106,10 @@ there is no mandatory map dependency or universal refresh timer.
 | --- | --- | --- |
 | Charts | Selection/cache UI and `map.ts` adapters, one per VFR/IFR family | Tile demand, archive selection, verified cache, bounded readers and map resources |
 | METAR/TAF | `metar-taf/index.ts`: METAR `.map` and snapshot subscription, combined `AirportWeather` detail contribution | Shared station selection, nearby ranking and detail lifecycle; METAR minute refresh and map circles; TAF five-minute refresh and colored forecast periods |
-| Plates | `open(selection)`, `close()`, snapshot and `Panel` | Selected plate, catalog access, lazy PDF viewer, page/zoom state and cleanup |
+| Plates | Viewer/overlay commands, snapshot, `Panel`, `MapControl` and `map.ts` | Selected plate, catalog access, lazy PDF viewer, page/zoom state, georeferenced map image and cleanup |
 | Navigation | Data/search hooks, airport/runway details UI and map adapter | Shared FAA references, runway metadata, search, static point presentation |
-| Routes | Draft actions, planning/editor UI and map adapter | User route, airway resolution and route presentation |
-| Terrain | Controls/legend and `map.ts` adapter | Visible route DEM demand, bounded decoding cache, contours, fading and sampled-high labels |
+| Routes | Draft actions, planning/editor UI and map adapter | User route, airway/TEC resolution, SID/STAR and approach previews, recommendations and route presentation |
+| Terrain | Controls/legend and `map.ts` adapter | Route/viewport DEM demand, packaged elevation and fallback tiles, bounded decoding cache, contours, fading and sampled-high labels |
 | Obstructions | Controls/legend and `map.ts` adapter | Validated FAA Daily DOF, worker index, viewport height thresholds, route corridor fading and source date |
 | GPS aircraft | Controls/status, snapshot subscription, shared GPS leases and `map.ts` adapter | Device location watch, fix freshness, ground track and one-minute projection |
 | AHRS | `AhrsTool`, calibration/stop commands and snapshot subscription | Local estimator, motion permission, flight leveling/gyro calibration, GPS instruments, HSI and recordings |
@@ -128,7 +128,9 @@ tool, without a right-hand layer toggle. The lease does not require a GPS fix fo
 calibration or live attitude: the cross warns of missing/slow GPS or high tilt
 uncertainty without hiding a calibrated, working IMU indication. The HSI also
 retains its moving IMU card under the GPS cross, explicitly labeled **REL** when
-neither confident heading nor GPS track is available. Calibration accepts small
+confident heading is unavailable, even with GPS track available. GPS track appears
+as a separate marker on the aligned heading card. The horizon and HSI share the
+60 FPS display clock; status controls retain their 20 Hz publication timer. Calibration accepts small
 movements and vibration around the pilot-confirmed level pose. Its estimator and
 feature code live in `src/layers/ahrs/`; see the
 [AHRS display policy](../src/layers/ahrs/README.md#calibration-and-validity) for
@@ -204,7 +206,7 @@ inside the product.
 `core/map/layer.ts` defines `MapLayerModule<Input>`:
 
 - `id`: adapter identity, distinct from individual MapLibre style-layer IDs.
-- `slot`: chart, terrain, navigation, weather, route, or ownship rendering order.
+- `slot`: charts, plates, terrain, navigation, weather, route, or ownship rendering order.
 - `mount(map)`: attach owned sources, style layers, and listeners.
 - `update(input)`: accept typed configuration or reference data without remounting.
   Inputs can arrive before mounting.
@@ -219,7 +221,8 @@ It isolates lifecycle failures so a failed map contribution reports an error whi
 other contributions remain mounted. A later map attachment can retry it.
 
 `workspace/map/registry.ts` registers built-in map contributions. It includes the METAR
-product's `.map` adapter; plates has no map adapter and does not enter this registry.
+product's `.map` adapter, the optional plates controller's map adapter, obstructions
+and navaid-identification connections.
 `MapRuntime` owns the WebGL map, camera and resizing; `workspace/map/gestures.ts` owns
 selection, route dragging/snapping and gesture cleanup. Catalog refreshes update
 chart resources in place, beneath a stable chart-slot anchor, without destroying
@@ -249,7 +252,16 @@ worker/HTTP cache on that fetch. Mutable manifests revalidate with a validated
 offline fallback. Regional saves reuse the same cache and require successful storage.
 Search keeps healthy products and identifies unavailable ones; navigation loaders
 ignore superseded requests, include chart coverage in their request identity, and
-retry when connectivity returns. `core/use-online.ts` supplies shared connectivity.
+retry when connectivity returns or saved-file inventory changes. Airways also key
+visible results by the complete resource identity, including its digest and cache-only
+policy. Route planning and failed terrain requests observe inventory changes so
+repairing a saved download can recover an open view. Chart families also track
+failed reads, including a regional tile rendered with only some of its source
+editions. Inventory changes or reconnect rebuild the affected family's map sources
+to discard cached gaps; healthy families keep their sources. Local inventory
+delivery remains available when the browser denies cross-window BroadcastChannel
+access, and notification failure does not fail an already committed save.
+`core/use-online.ts` supplies shared connectivity.
 
 Contract validation is split by product under `packages/contracts/src/guards/`,
 with shared primitives in `validation.ts`. Strict package rectangles and legacy
@@ -275,15 +287,19 @@ An open airport Info card adds independent METAR and TAF demand through
 Each report checks the airport's station on opening and at its own interval while
 online and visible. If the local report is absent or no longer current, a nearby
 search covers 50 NM; a manually selected alternative keeps nearby refreshes active.
-Changing airport, closing the card, or opening Plates cancels these requests without
-stopping map demand. The card and map share the METAR client and cache. Nearby
+Changing airport, closing or stowing the card, or opening Plates cancels these requests without
+stopping map demand. Stowing preserves the selected stations and resumes demand
+when the card reopens. The card and map share the METAR client and cache. Nearby
 reports are labeled with their source and never substitute for the selected
 airport's map category or runway wind.
 
 Latest-known observations survive viewport changes and map remounts; browser storage
 restores up to 5,000 stations across page loads. Observation time and successful-check
 time remain separate. Empty or failed refreshes retain the previous observation and
-expose its cached status in airport details. Requests use `cache: 'no-store'` so the
+expose its cached status in airport details. A valid observation replaces a
+future-dated cached report even if its timestamp is earlier; response batches use
+the same preference. Both weather clients treat negative cache age after a clock
+rollback as eligible for refresh. Requests use `cache: 'no-store'` so the
 service worker cannot turn a failed refresh into a successful cached response. The
 product owns that fallback and its labeling.
 

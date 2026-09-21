@@ -184,7 +184,9 @@ checks source ETags on subsequent builds. Schema 2 publishes a geographic grid
 anchored at (-180, 90), with **2.45 arc-seconds** in both axes at native level 11.
 Levels 10–1 double that spacing successively. These geographic levels are distinct
 from the displayed Web Mercator zoom. Default U.S. coverage is approximately
-25,956 archive pairs / 25.3 GiB of maximum and surface grids before compression, plus indexes/provenance.
+25,956 archive pairs / 25.3 GiB of maximum and surface grids before compression. The earlier maximum-only national build verified
+on 2026-09-21 used 2.91 GB compressed, including indexes/provenance; retained
+older versions consume additional disk space.
 
 Each `ZDEM0002` archive contains four adjacent 256×256 grids of gzip-compressed
 little-endian **int16 metres**, with -32768 reserved for missing data. The builder
@@ -273,9 +275,11 @@ failed tiles at the current view and zoom, and missing elevation inside the rout
 corridor. Missing samples elsewhere in a downloaded tile do not trigger the
 warning unless interpolation spreads the gap into the corridor.
 Successful tile retries clear their failures; returning to an unresolved gap
-shows the warning again. Re-enabling terrain or reconnecting while the current
-view is incomplete retries failures. Healthy views are not invalidated by focus
-or reconnect events. New region downloads include published terrain at DEM zooms
+shows the warning again. Re-enabling terrain retries failures. Reconnecting or
+changing the saved-file inventory also retries while any failed tiles remain,
+including offscreen failures, so repaired data cannot leave a cached gap on a later
+pan. With no failures, these events do not invalidate terrain; focus alone does
+not trigger a refresh. New region downloads include published terrain at DEM zooms
 1–13, including the low zooms used by viewport shading. Preparation expands the
 region's immutable indices into required DEM files before quota checks and transfer.
 Completion and later verification require retained files and index membership;

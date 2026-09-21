@@ -189,7 +189,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         setCacheState(cached ? 'cached' : 'unavailable');
         const range = new BlobRangeTransport(blob, error => {
           if (current) setViewer({ error: error instanceof Error ? error.message : 'Unable to read saved PDF' });
-          void task?.destroy();
+          void task?.destroy().catch(() => {});
         });
         task = getDocument({ range, disableStream: true, disableAutoFetch: true,
           verbosity: VerbosityLevel.ERRORS, useSystemFonts: true });
@@ -203,6 +203,8 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         }
       })
       .catch((error: unknown) => {
+        // A target lookup can fail after PDF.js has opened the document.
+        void task?.destroy().catch(() => {});
         if (current) {
           setCacheState(state => state === 'saving' ? 'unavailable' : state);
           setViewer({ error: error instanceof Error ? error.message : 'Unable to open PDF' });
@@ -210,7 +212,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
       });
     return () => {
       current = false;
-      void task?.destroy();
+      void task?.destroy().catch(() => {});
     };
   }, [source]);
 
@@ -260,6 +262,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
       }
     })().catch((error: unknown) => {
       if (!current || isRenderCancellation(error)) return;
+      void pdf.loadingTask.destroy().catch(() => {});
       setRendering(false);
       setViewer({ error: error instanceof Error ? error.message : 'Unable to render PDF page' });
     });

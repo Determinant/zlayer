@@ -23,8 +23,83 @@ export function radiusArc(from: Coordinate, to: Coordinate, center: Coordinate, 
 }
 
 export function approachCourse(leg: ApproachLeg, procedure: ApproachRoute): number | undefined {
-  return leg.trueCourse ?? (leg.magneticCourse !== undefined && procedure.magneticVariation !== undefined
-    ? (leg.magneticCourse + procedure.magneticVariation + 360) % 360 : undefined);
+  if (leg.trueCourse !== undefined) return leg.trueCourse;
+  const course = leg.magneticCourse;
+  if (course === undefined) return undefined;
+  const reference = leg.reference;
+  // A recommended station can locate a fix without defining the flown course.
+  // Only use its alignment when the course follows its radial or starts there.
+  if (!leg.path.startsWith('V') && reference?.declination !== undefined) {
+    const parallel = leg.radial !== undefined && Math.abs((course - leg.radial + 450) % 180 - 90) < 1;
+    const fromStation = ['FC', 'FA', 'PI', 'CF', 'HM', 'HA', 'HF'].includes(leg.path) && leg.fix && reference.coordinate && distanceNm(leg.fix.coordinate, reference.coordinate) < .02;
+    if (parallel || fromStation || leg.path === 'PI') {
+      if (parallel && leg.path === 'CF' && reference.coordinate && leg.fix && distanceNm(reference.coordinate, leg.fix.coordinate) > .1) {
+        const toward = Math.abs((course - leg.radial! + 540) % 360 - 180) > 90;
+        return (bearing(leg.fix.coordinate, reference.coordinate) + (toward ? 0 : 180)) % 360;
+      }
+      return (course + reference.declination + 360) % 360;
+    }
+  }
+  return procedure.magneticVariation === undefined ? undefined : (course + procedure.magneticVariation + 360) % 360;
+}
+
+/** Consecutive FC/CF legs on the same published course form one bounded track.
+ * Use the surveyed endpoints: a VOR's station declination can differ from the
+ * airport variation. Check the coded lengths before treating them as one line.
+ */
+export function courseFromFix(leg: ApproachLeg, next: ApproachLeg, procedure: ApproachRoute): Coordinate[] | undefined {
+  const from = leg.fix?.coordinate, to = next.fix?.coordinate;
+  const course = leg.trueCourse ?? leg.magneticCourse, inbound = next.trueCourse ?? next.magneticCourse;
+  if (leg.path !== 'FC' || next.path !== 'CF' || !from || !to || !leg.distance || !next.distance ||
+      course === undefined || inbound === undefined || (leg.trueCourse === undefined) !== (next.trueCourse === undefined) ||
+      Math.abs((course - inbound + 540) % 360 - 180) > 0.1) return undefined;
+  const length = distanceNm(from, to);
+  if (leg.distance >= length || Math.abs(length - leg.distance - next.distance) > 0.2) return undefined;
+  const heading = approachCourse(leg, procedure);
+  // Only a direction sanity check: allow station/airport declination differences.
+  if (heading === undefined || Math.abs((bearing(from, to) - heading + 540) % 360 - 180) > 10) return undefined;
+  return [from, destination(from, bearing(from, to), leg.distance), to];
+}
+
+/** No-wind CI/VI preview, bounded by the following CF course and fix. */
+export function courseIntercept(from: Coordinate, leg: ApproachLeg, next: ApproachLeg, procedure: ApproachRoute): Coordinate[] | undefined {
+  const outbound = approachCourse(leg, procedure), inbound = approachCourse(next, procedure), to = next.fix?.coordinate;
+  if (!['CI', 'VI'].includes(leg.path) || leg.fix || next.path !== 'CF' || !to || outbound === undefined || inbound === undefined) return undefined;
+  type Vector = [number, number, number];
+  const cross = (a: Vector, b: Vector): Vector => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const normal = ([lon, lat]: Coordinate, course: number): Vector => {
+    const x = lon * radians, y = lat * radians, h = course * radians;
+    const point: Vector = [Math.cos(y) * Math.cos(x), Math.cos(y) * Math.sin(x), Math.sin(y)];
+    const tangent: Vector = [-Math.sin(y) * Math.cos(x) * Math.cos(h) - Math.sin(x) * Math.sin(h),
+      -Math.sin(y) * Math.sin(x) * Math.cos(h) + Math.cos(x) * Math.sin(h), Math.cos(y) * Math.cos(h)];
+    return cross(point, tangent);
+  };
+  const axis = cross(normal(from, outbound), normal(to, inbound));
+  if (Math.hypot(...axis) < 1e-6) return undefined;
+  const angle = (a: number, b: number) => Math.abs((a - b + 540) % 360 - 180);
+  const limit = Math.min(100, Math.max(10, distanceNm(from, to) * 3));
+  for (const sign of [1, -1]) {
+    const intersection: Coordinate = [Math.atan2(sign * axis[1], sign * axis[0]) / radians,
+      Math.atan2(sign * axis[2], Math.hypot(axis[0], axis[1])) / radians];
+    const before = distanceNm(from, intersection), after = distanceNm(to, intersection);
+    // Reject intersections behind either ray, beyond the fix or implausibly far away.
+    if (before < 0.01 || after < 0.01 || before + after > limit ||
+        angle(bearing(from, intersection), outbound) > 0.01 || angle(bearing(to, intersection), (inbound + 180) % 360) > 0.01) continue;
+    // A small rounded corner illustrates turn anticipation; it is not a flyable radius.
+    const turn = (bearing(intersection, to) - (bearing(intersection, from) + 180) + 540) % 360 - 180;
+    if (next.turn && next.turn !== (turn < 0 ? 'L' : 'R')) return undefined;
+    const trim = Math.min(0.6, before / 4, after / 4);
+    const a = destination(intersection, bearing(intersection, from), trim);
+    const b = destination(intersection, bearing(intersection, to), trim);
+    const unwrap = (p: Coordinate): Coordinate => [a[0] + ((p[0] - a[0] + 540) % 360 - 180), p[1]];
+    const control = unwrap(intersection), end = unwrap(b);
+    const curve = Array.from({ length: 12 }, (_, i): Coordinate => {
+      const t = (i + 1) / 12, u = 1 - t;
+      return [0, 1].map(axis => u * u * a[axis]! + 2 * u * t * control[axis]! + t * t * end[axis]!) as Coordinate;
+    });
+    return [from, a, ...curve.slice(0, -1), b, to];
+  }
+  return undefined;
 }
 
 export function arrivalBearing(from: Coordinate, to: Coordinate): number | undefined {
@@ -62,40 +137,4 @@ export function holdingPattern(leg: ApproachLeg, procedure: ApproachRoute): {
   const coordinate = geographicMidpoint(first.at(-1)!, second[0]!);
   return { coordinates: [fix, ...first.slice(1), ...second, fix],
     arrow: { coordinate, bearing: bearing(coordinate, second[0]!) } };
-}
-
-/** Illustrate an altitude-terminated climb, optional bounded intercept, and next fix. */
-export function missedClimb(from: Coordinate, climb: ApproachLeg, next: ApproachLeg, procedure: ApproachRoute, intercept?: ApproachLeg): Coordinate[] | undefined {
-  const outbound = approachCourse(climb, procedure), to = next.fix?.coordinate;
-  if (outbound === undefined || !to || !['TF', 'CF', 'DF'].includes(next.path)) return undefined;
-  if (intercept && (intercept.fix || !['VI', 'CI'].includes(intercept.path) || next.path !== 'CF')) return undefined;
-  const distance = distanceNm(from, to);
-  if (distance < 0.1) return undefined;
-  const start = destination(from, outbound, Math.min(1.5, distance / 4));
-  const inbound = next.path === 'CF' ? approachCourse(next, procedure) : bearing(start, to);
-  if (inbound === undefined) return undefined;
-  const heading = intercept ? approachCourse(intercept, procedure) : inbound;
-  if (heading === undefined) return undefined;
-  const shortest = (heading - outbound + 540) % 360 - 180, direction = (intercept ?? next).turn;
-  const side = direction === 'R' ? 1 : direction === 'L' ? -1 : shortest < 0 ? -1 : 1;
-  const sweep = side > 0 ? (heading - outbound + 360) % 360 : -((outbound - heading + 360) % 360);
-  const radius = Math.min(0.7, distance / 8), center = destination(start, outbound + side * 90, radius);
-  const count = Math.max(1, Math.ceil(Math.abs(sweep) / 6));
-  const turn = Array.from({ length: count + 1 }, (_, i) => destination(center, outbound - side * 90 + sweep * i / count, radius));
-  if (intercept) turn.push(destination(turn.at(-1)!, heading, Math.min(1.5, distance / 8)));
-  const end = turn.at(-1)!;
-  // Climb length and intercept position depend on altitude, wind and aircraft.
-  // Show the intervening heading and a smooth join onto the known inbound course,
-  // without claiming an exact geographic intersection or creating a route leg.
-  const target = intercept ? destination(to, inbound + 180, Math.min(distance, distanceNm(end, to)) / 2) : to;
-  const control = Math.min(2, distanceNm(end, target) / 3);
-  const a = destination(end, heading, control), b = destination(target, inbound + 180, control);
-  // Unwrap longitudes while interpolating so date-line procedures stay local.
-  const unwrap = (p: Coordinate): Coordinate => [end[0] + ((p[0] - end[0] + 540) % 360 - 180), p[1]];
-  const controls = [end, unwrap(a), unwrap(b), unwrap(target)];
-  const join = Array.from({ length: 24 }, (_, i): Coordinate => {
-    const t = (i + 1) / 24, u = 1 - t, weights = [u ** 3, 3 * u * u * t, 3 * u * t * t, t ** 3];
-    return [0, 1].map(axis => controls.reduce((sum, p, j) => sum + p[axis]! * weights[j]!, 0)) as Coordinate;
-  });
-  return [from, start, ...turn.slice(1), ...join.slice(0, -1), target, ...(intercept ? [to] : [])];
 }

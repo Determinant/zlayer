@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
-import { routeEntryPins, type RouteApproach, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import type { CatalogResponse } from '@zlayer/contracts';
+import { routeEntryPins, type RouteApproach, type RouteDeparture, type RouteEntry, type RoutePlan } from '@zlayer/domain';
+import type { CatalogResponse, NavigationData } from '@zlayer/contracts';
 
 import { RouteEditor } from './editor';
 import type { RouteLoadStatus } from './use-plan';
@@ -11,13 +11,13 @@ import type { RouteDraft } from './draft';
 import type { RouteMapPreview } from './map-preview';
 import { routeConditions } from './conditions';
 import type { DirectToAction } from './direct-to';
-import type { RouteUndo } from './use-draft';
 import type { ProcedureSelection } from '../plates/data';
 
 type RouteBarProps = {
   plan: RoutePlan;
   status: RouteLoadStatus;
   catalog: CatalogResponse;
+  navigationData?: NavigationData | undefined;
   onUseRoute: (draft: RouteDraft) => void;
   onRecommendationPreview?: (preview: RouteMapPreview | undefined) => void;
   onApproachPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
@@ -30,14 +30,15 @@ type RouteBarProps = {
   onFit: () => void;
   onDirectTo?: DirectToAction | undefined;
   onApproachChange?: ((entry: RouteEntry, approach: RouteApproach | undefined) => void) | undefined;
+  onDepartureChange?: ((entry: RouteEntry, departure: RouteDeparture | undefined) => void) | undefined;
   onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
-  undo?: RouteUndo | undefined;
 };
 
 export function RouteBar({
   plan,
   status,
   catalog,
+  navigationData,
   onUseRoute,
   onRecommendationPreview,
   onApproachPreview,
@@ -50,14 +51,16 @@ export function RouteBar({
   onFit,
   onDirectTo,
   onApproachChange,
+  onDepartureChange,
   onOpenPlate,
-  undo,
 }: RouteBarProps) {
   return (
     <section className="route-bar" aria-label="Flight route planner">
       <RouteEditor
         plan={plan}
+        navigationData={navigationData}
         status={status}
+        onUseRoute={onUseRoute}
         onAppendInput={onAppendInput}
         onInsertInput={onInsertInput}
         onReplaceInput={onReplaceInput}
@@ -70,9 +73,9 @@ export function RouteBar({
         approachRouteResource={catalog.terminalProcedures}
         revision={catalog.revision}
         onApproachChange={onApproachChange}
+        onDepartureChange={onDepartureChange}
         onApproachPreview={onApproachPreview}
         onOpenPlate={onOpenPlate}
-        undo={undo}
         tools={<>
           <RouteRecommendations catalog={catalog} tokens={plan.tokens} pins={routeEntryPins(plan.entries)} onUseRoute={onUseRoute}
             {...(onRecommendationPreview ? { onPreviewChange: onRecommendationPreview } : {})} />
@@ -107,7 +110,7 @@ function RouteSummary({ plan, status }: Pick<RouteBarProps, 'plan' | 'status'>) 
     'Published TEC definition; eligibility and ATC clearance are not verified.',
   ]);
   const approachDetails = plan.approachDepictions?.length
-    ? ['Holding racetracks and altitude-dependent missed turns are schematic and excluded from route distance and terrain corridors. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.'] : [];
+    ? ['Holds, procedure turns, intercepts and altitude-dependent paths are schematic and excluded from route distance and terrain corridors. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.'] : [];
   if (messages.length > 0 || tecDetails.length > 0 || approachDetails.length > 0) {
     const warning = messages.length > 0;
     return (

@@ -33,8 +33,10 @@ export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasR
       canvas.style.width = `${pinch.width * next / pinch.zoom}px`;
       canvas.style.height = `${pinch.height * next / pinch.zoom}px`;
       const rect = canvas.getBoundingClientRect();
-      stage.scrollLeft += rect.left + pinch.x * rect.width - x;
-      stage.scrollTop += rect.top + pinch.y * rect.height - y;
+      // WebKit truncates fractional scroll offsets. Choose the nearest pixel so
+      // the page stays centered under the fingers instead of drifting one way.
+      stage.scrollLeft = Math.round(stage.scrollLeft + rect.left + pinch.x * rect.width - x);
+      stage.scrollTop = Math.round(stage.scrollTop + rect.top + pinch.y * rect.height - y);
       currentZoom.current = next;
       onZoom(next);
     };

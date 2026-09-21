@@ -183,6 +183,9 @@ existing `zlayer-offline` database. Listing sessions reads metadata only. Export
 an active session gives a snapshot of its committed prefix. An interrupted or
 active GPX export is still a complete XML document, with `complete="false"`.
 Separate windows use unique session IDs.
+The list validates format version, ID, representable timestamps, status and
+positive safe-integer counters before rendering a saved entry. Malformed metadata
+is omitted from the list without deleting its stored metadata or sample chunks.
 
 Both exports run in a dedicated worker. Input is read sequentially in at most
 64 KiB pieces; GPX uses two passes so track points precede independently timed

@@ -30,18 +30,18 @@ test.beforeEach(async ({ page }) => {
 test('iPad tap opens Copy formats and copies with user activation after focus loss', async ({ page }) => {
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.tap();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).tap();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).tap();
   const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
   await expect(formats).toBeVisible();
   const format = formats.getByRole('menuitem', { name: /^ForeFlight/ });
   await format.tap();
   await expect(page.locator('body')).toHaveAttribute('data-copied-route', 'KSFO UNKNOWN KSJC 374529N/1223030W');
   await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
-  await expect(page.locator('.route-token strong').last()).toHaveText('374529N1223030W');
+  await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
   await expect(format).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(formats).toHaveCount(0);
-  await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
@@ -63,7 +63,7 @@ test('iPad clipboard denial keeps manual copying available after focus loss', as
     navigator.clipboard.writeText = async () => { throw new DOMException('Denied', 'NotAllowedError'); };
   });
   await page.getByRole('button', { name: 'Route actions', exact: true }).tap();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).tap();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).tap();
   await page.getByRole('menuitem', { name: /^ForeFlight/ }).tap();
   const fallback = page.getByRole('textbox', { name: 'Route text to copy', exact: true });
   await expect(fallback).toHaveValue('KSFO UNKNOWN KSJC 374529N/1223030W');
@@ -74,13 +74,13 @@ test('iPad clipboard denial keeps manual copying available after focus loss', as
 
 test('iPad route menu still dismisses on outside taps, keyboard focus and Escape', async ({ page }) => {
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
-  const copy = page.getByRole('menuitem', { name: 'Copy route', exact: true });
+  const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
   await trigger.tap();
   await copy.tap();
   await page.locator('header').tap();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await trigger.tap();
-  await page.getByRole('menuitem', { name: 'Clear route', exact: true }).focus();
+  await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).focus();
   await page.keyboard.press('Tab');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await trigger.tap();

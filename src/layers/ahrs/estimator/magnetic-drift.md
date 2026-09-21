@@ -5,5 +5,5 @@ The former 20-second yaw-bias-only implementation has been replaced by
 aid observable attitude and bias directions through a persistent joint reference;
 browser compass inputs use a restricted heading model.
 
-See the current [calibration policy](magnetic-fusion.md#calibration-and-the-figure-eight-question).
+See the current [calibration policy](magnetic-fusion.md#recovery-frames-and-calibration-gestures).
 This path remains as a documentation redirect for older reviews and links.

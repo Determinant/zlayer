@@ -4,13 +4,7 @@ test.use({ hasTouch: true });
 
 async function replaceItem(page: Page, token: Locator, touch = false) {
   if (touch) {
-    await token.scrollIntoViewIfNeeded();
-    const box = (await token.boundingBox())!;
-    const session = await page.context().newCDPSession(page);
-    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] });
-    await expect(page.getByRole('menuitem', { name: 'Replace route item', exact: true })).toBeVisible();
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await session.detach();
+    await token.tap();
   } else {
     await token.click({ button: 'right' });
   }
@@ -73,7 +67,7 @@ for (const width of [320, 360, 390, 430, 480, 600, 601, 744, 832, 1280]) {
       }
     }
     await routeMenu.click();
-    await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
     await expect(tokens).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Add route waypoint', exact: true })).toHaveValue('');
     await expect(page.getByRole('textbox', { name: 'Add route waypoint', exact: true })).toBeFocused();
@@ -106,7 +100,7 @@ test('replacement cancels on Escape or empty input, commits on blur, and accepts
   await expect(page.locator('output')).toHaveText('1 legs; 1 issues');
   await replaceItem(page, tokens.nth(1));
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await expect(tokens).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Add route waypoint', exact: true })).toBeVisible();
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('KSFO KSJC');

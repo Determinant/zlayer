@@ -11,6 +11,20 @@ for (const touch of [false, true]) {
       const map = (window as unknown as { routeMapAudit?: { map: MapLibreMap } }).routeMapAudit?.map;
       return map?.getLayer('route-waypoints') && map.queryRenderedFeatures({ layers: ['route-waypoints'] }).length === 3;
     });
+    expect(await page.evaluate(() => {
+      const map = (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map;
+      return map.queryRenderedFeatures({ layers: ['route-waypoints'] })
+        .find(feature => feature.properties.ident === '350000N1190000W')?.properties.displayIdent;
+    })).toBe("35°00'N 119°00'W");
+    await page.evaluate(() => {
+      (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map.setZoom(7);
+    });
+    await expect.poll(() => page.evaluate(() => {
+      const map = (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map;
+      return map.queryRenderedFeatures({ layers: ['route-waypoint-labels'] })
+        .some(feature => feature.properties.displayIdent === "35°00'N 119°00'W");
+    })).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('gps-waypoint-map.png') });
     const point = await page.evaluate(() => {
       const map = (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map;
       // Planned points must be available even without visible symbols or labels.
@@ -28,9 +42,12 @@ for (const touch of [false, true]) {
       await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await session.detach();
     }
-    await chooser.getByRole('button', { name: /350000N1190000W.*On route · point 2/ }).click();
+    await chooser.getByRole('button', { name: /35°00′N 119°00′W.*On route · point 2/ }).click();
     await expect(chooser).toHaveCount(0);
     const card = page.locator('.feature-card');
+    await expect(card.getByRole('heading', { level: 2 })).toHaveText('35°00′N 119°00′W');
+    await expect(card.locator('.feature-facts > div').filter({ has: page.getByText('Coordinates', { exact: true }) }))
+      .toHaveText('Coordinates35°00′00″N 119°00′00″W');
     const remove = card.getByRole('button', { name: 'Remove 350000N1190000W from route', exact: true });
     const append = card.getByRole('button', { name: 'Add 350000N1190000W to end of route', exact: true });
     await expect(remove).toBeVisible();
@@ -89,7 +106,7 @@ test('nearby duplicate waypoints remove only the selected route occurrence', asy
   });
   await page.mouse.click(point.x, point.y, { button: 'right' });
   const chooser = page.getByRole('dialog', { name: 'Nearby map features' });
-  await expect(chooser.getByRole('button', { name: /350000N1190000W/ })).toHaveCount(2);
+  await expect(chooser.getByRole('button', { name: /35°00′N 119°00′W/ })).toHaveCount(2);
   await chooser.getByRole('button', { name: /On route · point 4/ }).click();
   await page.getByRole('button', { name: 'Remove 350000N1190000W from route', exact: true }).click();
   await expect(page.getByLabel('Route', { exact: true })).toHaveText('KSBA 350000N1190000W KSMX');
@@ -182,14 +199,14 @@ test('a restored detail panel retains the selected occurrence of a repeated GPS 
   await expect(remove).toBeVisible();
   await page.reload();
   await remove.click();
-  await expect(page.locator('.route-token strong')).toHaveText(['350000N1190000W', '360000N1200000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['35°00′N 119°00′W', '36°00′N 120°00′W']);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries
     .map((entry: { id: string }) => entry.id))).toEqual(['first', 'middle']);
   await page.reload();
   await expect(page.locator('.route-token')).toHaveCount(2);
   await expect(remove).toBeVisible();
   await remove.click();
-  await expect(page.locator('.route-token strong')).toHaveText(['360000N1200000W']);
+  await expect(page.locator('.route-token strong')).toHaveText(['36°00′N 120°00′W']);
   await expect(remove).toHaveCount(0);
 });
 

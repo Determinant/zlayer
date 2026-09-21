@@ -34,7 +34,7 @@ Display scaling and browser chrome can change the available viewport.
   so overlay bounds do not duplicate guessed offsets for each device.
 - At widths up to 600px and heights of at least 400px, the route editor gets its
   own full-width row. Advise, Fit and warnings sit below it. The Route heading opens
-  a menu with copying, supported sharing actions and Clear route. Layout uses CSS
+  a menu with copying, supported sharing actions and Clear Route. Layout uses CSS
   viewport size, covering ordinary phone widths and folded cover screens. Short landscape windows
   keep one row to preserve map space. The Route menu stays outside the scrolling
   editor, and resizing preserves an in-progress edit.
@@ -154,14 +154,18 @@ availability and focus restoration before the renderer is ready.
 Two-finger pinching inside the PDF updates the viewer's 50–400% zoom, anchored
 between the fingers. The current bitmap previews the gesture immediately; PDF.js
 redraws sharply after release. Non-passive touch and Safari gesture handlers prevent
-browser magnification over the plate while preserving one-finger scrolling. The
-same viewer handles Safari tabs and Home Screen apps. Trackpad wheel gestures use
+browser magnification over the plate while preserving one-finger scrolling.
+Anchor correction rounds scroll offsets to the nearest CSS pixel because WebKit
+truncates fractional offsets; this keeps the zoom centered without a directional bias.
+The same viewer handles Safari tabs and Home Screen apps. Trackpad wheel gestures use
 the same zoom state. External browser magnification still increases the backing
 resolution without changing the PDF layout. Each canvas is limited to 8,388,608
 pixels (32 MiB), with at most one temporary buffer alongside the displayed canvas.
 Tests cover live zoom percentages, finger anchoring, cancellation, remaining-finger
 panning, zoom buttons after pinching, cold offline reopening, no repeated PDF fetch,
 and the allocation bound.
+Pinch geometry checks wait for the shared edge panel to finish sliding before
+capturing canvas coordinates.
 Chromium receives native multitouch input through CDP; WebKit tests touch/gesture
 event handling. Physical iOS/Android gesture checks remain necessary.
 

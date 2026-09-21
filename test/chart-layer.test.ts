@@ -7,14 +7,30 @@ import { CHART_LAYER_ANCHOR } from '../src/core/map/layer';
 import { CHART_FAMILIES, type ChartSelection } from '../src/layers/charts/overlays';
 import { createWorkspaceReadContext, type CatalogReadSource } from '../src/workspace/read-context';
 import type { SavedBundle } from '../src/offline/bundle-repository';
+import { notifyOfflineInventory } from '../src/offline/inventory-events';
 
 const registered: CatalogReadSource[] = [];
-Object.assign(globalThis, { chartRegistrations: registered });
+const failures = new Set<(chartId: string) => void>();
+Object.assign(globalThis, { chartRegistrations: registered, chartFailures: failures });
+const restoreGlobals: Array<() => void> = [];
+test.beforeEach(() => {
+  for (const [name, value] of Object.entries({ window: new EventTarget(), BroadcastChannel: undefined })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    restoreGlobals.push(() => { if (previous) Object.defineProperty(globalThis, name, previous); else Reflect.deleteProperty(globalThis, name); });
+  }
+  failures.clear();
+});
+test.afterEach(() => { for (const restore of restoreGlobals.splice(0)) restore(); });
 const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier === './mbtiles-protocol' && context.parentURL?.includes('/charts/')) return {
     shortCircuit: true, url: 'data:text/javascript,' + encodeURIComponent(`
       export const registerMbtilesArchives = catalog => globalThis.chartRegistrations.push(catalog);
       export const mbtilesTileUrl = id => 'mbtiles://' + id;
+      export const observeChartFailures = listener => {
+        globalThis.chartFailures.add(listener);
+        return () => globalThis.chartFailures.delete(listener);
+      };
     `),
   };
   return next(specifier, context);
@@ -28,6 +44,32 @@ const chart: ChartRecord = { id: 'sectional', title: 'Sectional', kind: 'vfr-sec
 const catalog: CatalogResponse = { schemaVersion: 1, revision: chart.revision, generatedAt: '2026-09-16T00:00:00Z',
   charts: [chart], navigation: [], weather: [] };
 const sectionalOnly: ChartSelection = { base: 'vfr-sectional', overlay: '' };
+
+for (const event of ['inventory', 'online']) test(`${event} rebuilds only failed chart families and unmount releases recovery listeners`, () => {
+  const { map, added, layers } = mapFixture();
+  const current = { ...catalog, charts: [chart, { ...chart, id: 'terminal', kind: 'vfr-terminal' as const }] };
+  const selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
+  const products = CHART_FAMILIES.map(family => createChartLayer(current, family));
+  products.forEach(product => { product.update({ catalog: current, selection }); product.mount(map); });
+  const retry = () => event === 'inventory' ? notifyOfflineInventory() : window.dispatchEvent(new Event('online'));
+  const order = [...layers];
+  retry();
+  assert.equal(added(), 2, 'healthy sources are preserved');
+  for (const chartId of ['@vfr-terminal', 'terminal']) {
+    const before = added();
+    for (const listener of failures) listener(chartId);
+    retry();
+    assert.equal(added(), before + 1, 'only the failed family is reinstalled');
+    assert.deepEqual(layers, order, 'repair preserves chart and navigation stacking');
+    retry();
+    assert.equal(added(), before + 1, 'a retry clears the failure until a new read fails');
+  }
+  products.forEach(product => product.unmount());
+  assert.equal(failures.size, 0);
+  const before = added();
+  retry();
+  assert.equal(added(), before, 'detached maps never reinstall resources');
+});
 
 function mapFixture() {
   const layers = [CHART_LAYER_ANCHOR, 'navigation'];

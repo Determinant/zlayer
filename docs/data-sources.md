@@ -1,6 +1,6 @@
 # Data-source register
 
-Initial research: 2026-09-12. Implementation status reviewed 2026-09-18;
+Initial research: 2026-09-12. Implementation status reviewed from source 2026-09-20;
 AWC API limits and OSMF/COD access policies rechecked on 2026-09-18.
 
 This register separates a useful product idea from permission to automate it. Each
@@ -13,12 +13,13 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 |---|---|---|---|---|
 | P0 | VFR sectional/TAC/flyway; IFR low charts | `faa-regs` output at `https://charts.tedyin.com/charts/` | coverage-limited raster layers | Whole-file spatial/zoom packages and legacy sheets implemented; IFR high remains planned |
 | P0 | US airports, runways, NAVAIDs, fixes, airways | FAA 28-day NASR subscription via `faa-regs` | search/detail + GeoJSON map features and route geometry | Cycle-aware navigation, decluttering and V/T airway expansion implemented; vector tiles remain an option for measured density needs |
-| P0 | Airport diagrams, approaches, departures, arrivals, and minima | FAA d-TPP XML/PDF via `faa-regs` | airport procedure catalog + selected PDFs | Exact-page books, individual FAA fallbacks and regional offline saves implemented |
+| P0 | Airport diagrams, approaches, departures, arrivals, and minima | FAA d-TPP XML/PDF via `faa-regs` | airport procedure catalog + selected PDFs | Exact-page books, individual FAA fallbacks, georeferenced IAP overlays and regional offline saves implemented |
 | P0 | Chart Supplements | FAA d-CS XML/books via `faa-regs` | airport/page catalog + whole PDF books | Exact-page viewer and saved regional targets implemented; independent supplement interval retained |
 | P0 | Preferred/TEC routes and SID/STAR topology | FAA preferred-route and NASR exports via `faa-regs` | recommendations and compact route previews | Optional national references shared by route planning and regional saves |
 | P0 | Historical filed routes | Aeronautic AQ snapshot packaged by `faa-regs` | frequency-ranked recommendations | Gzip JSON decoded/indexed in a worker; source observation range retained |
 | P0 | METAR, TAF | AWC Data API; AWC full-dataset caches where appropriate | colored airport pins + detail | METAR map observations and selected-airport raw TAF periods implemented; shared static snapshot publisher remains |
-| P0 | Route terrain | Packaged elevation from the chart feed; Mapzen Terrain Tiles on AWS (Terrarium) fallback | 500/1,000 ft contours and translucent elevation bands | [4/8 NM route corridor](route-terrain.md), visible demand, bounded worker cache; regional saves include terrain packages |
+| P0 | Terrain | Packaged elevation from the chart feed; Mapzen Terrain Tiles on AWS (Terrarium) fallback | 500/1,000 ft route contours and translucent elevation bands; viewport elevation shading | [4/8 NM route corridor or viewport](route-terrain.md), visible demand, bounded worker cache; regional saves include terrain packages |
+| P0 | Obstructions | FAA Daily DOF packaged by `faa-regs` | worker-indexed point symbols with source date | [Viewport/route decluttering](route-obstructions.md) and on-demand caching implemented; excluded from regional completeness |
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
 | P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |

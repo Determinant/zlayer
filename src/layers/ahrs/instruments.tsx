@@ -1,14 +1,20 @@
 import { memo, useEffect, useState } from 'react';
+import type { RoutePlan } from '@zlayer/domain';
 import type { AhrsLayer } from './layer';
+import type { MagneticModel } from './magnetic-model';
 import { Horizon } from './horizon';
+import { Hsi } from './hsi';
+import { AhrsDiagnostics } from './diagnostics';
 import { FlightReadings } from './flight-readings';
 import { InstrumentDisplay, type InstrumentValues } from './instrument-display';
 import { startDisplayFrames } from './display-frames';
 
-/** One display clock for the horizon, tapes and drums. The parent status updates
+/** One display clock for the horizon, HSI, tapes and drums. The parent status updates
  * do not trigger extra instrument renders or change sensor/calibration timing. */
-export const AhrsInstruments = memo(function AhrsInstruments({ layer, active }: {
+export const AhrsInstruments = memo(function AhrsInstruments({ layer, active, route, magneticModel, diagnostics = false }: {
   layer: Pick<AhrsLayer, 'getSnapshot' | 'readDisplaySnapshot' | 'subscribe'>; active: boolean;
+  route?: Pick<RoutePlan, 'legs'> | undefined; magneticModel?: MagneticModel | null;
+  diagnostics?: boolean;
 }) {
   const [view, setView] = useState(() => ({ state: layer.getSnapshot(),
     values: { altitudeFeet: null, groundspeedKnots: null, verticalSpeed: null } as InstrumentValues }));
@@ -22,7 +28,15 @@ export const AhrsInstruments = memo(function AhrsInstruments({ layer, active }: 
         ? { time: state.gpsTime, speed: state.speed, altitude: state.altitude, altitudeAccuracy: state.altitudeAccuracy } : null, milliseconds / 1000);
       setView(previous => previous.state.attitude?.roll === state.attitude?.roll &&
         previous.state.attitude?.pitch === state.attitude?.pitch &&
+        previous.state.attitude?.yaw === state.attitude?.yaw &&
+        previous.state.attitude?.status === state.attitude?.status &&
+        previous.state.attitude?.headingStatus === state.attitude?.headingStatus &&
+        previous.state.attitude?.attitudeStd[2] === state.attitude?.attitudeStd[2] &&
+        previous.state.phase === state.phase &&
         previous.state.crossed === state.crossed && previous.state.warning === state.warning &&
+        previous.state.gpsLive === state.gpsLive && previous.state.gpsUsable === state.gpsUsable &&
+        previous.state.position === state.position && previous.state.track === state.track &&
+        previous.state.speed === state.speed && previous.state.altitude === state.altitude &&
         previous.values.altitudeFeet === values.altitudeFeet &&
         previous.values.verticalSpeed?.feetPerMinute === values.verticalSpeed?.feetPerMinute &&
         previous.values.verticalSpeed?.roundedFeetPerMinute === values.verticalSpeed?.roundedFeetPerMinute &&
@@ -39,7 +53,13 @@ export const AhrsInstruments = memo(function AhrsInstruments({ layer, active }: 
     sync();
     return () => { unsubscribe(); cancel?.(); };
   }, [layer, active]);
-  return <InstrumentPanel state={view.state} values={view.values} />;
+  return <>
+    <div className="ahrs-primary-display">
+      <InstrumentPanel state={view.state} values={view.values} />
+      {diagnostics && view.state.phase === 'ready' && <AhrsDiagnostics layer={layer} active={active} />}
+    </div>
+    <Hsi state={view.state} route={route} active={active} magneticModel={magneticModel} />
+  </>;
 });
 
 /** Shared layout for live instruments, the Test demo and geometry checks. */

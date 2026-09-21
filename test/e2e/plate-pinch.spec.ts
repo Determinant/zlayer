@@ -10,13 +10,21 @@ async function openPlate(page: Page) {
   // An unreachable origin can require two bounded catalog fallbacks in WebKit.
   await page.getByRole('button', { name: /TEST APPROACH/ }).click({ timeout: 30_000 });
   await ready(page);
-  await page.locator('.procedure-viewer').evaluate(element =>
-    Promise.all(element.getAnimations().map(animation => animation.finished)));
+  await settledPanel(page);
 }
 
 async function ready(page: Page) {
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.procedure-page-stage canvas')).toBeVisible();
+}
+
+async function settledPanel(page: Page) {
+  // The ancestor drives the slide; the viewer itself has no position animation.
+  await expect.poll(() => page.locator('.procedure-panel').evaluate(panel => {
+    const group = panel.closest('.edge-panels');
+    return !!group && Number(getComputedStyle(group).getPropertyValue('--edge-panel-reveal')) === 1 &&
+      group.getAnimations().every(animation => animation.playState !== 'running');
+  })).toBe(true);
 }
 
 type Point = { id: number; x: number; y: number };
@@ -98,6 +106,7 @@ test('pinch bounds, remaining-finger pan, cancellation and reopening keep a usab
   await ready(page);
   await page.getByRole('button', { name: 'Close plate' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await ready(page);
   // Closing and reopening retains the plate's saved reading state.
@@ -128,8 +137,7 @@ test('a saved plate supports pinch zoom after a fresh offline app start', async 
     // Cold startup restores the selected plate without another airport search.
     await offline.goto('/');
     await ready(offline);
-    await offline.locator('.procedure-viewer').evaluate(element =>
-      Promise.all(element.getAnimations().map(animation => animation.finished)));
+    await settledPanel(offline);
     const rect = (await offline.locator('.procedure-page-stage canvas').boundingBox())!;
     const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
     await touch(offline, 'touchstart', [{ id: 1, x: x - 50, y }, { id: 2, x: x + 50, y }]);

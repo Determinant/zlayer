@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { GeoPointFeature, ProcedureCatalog, ProcedureResourceRecord, TerminalProceduresData, TerminalProceduresResource } from '@zlayer/contracts';
-import { approachEntryOptions, approachPreview, createRouteResolver, findApproachRoute, updateApproachHoldEntries, type ApproachArrival, type RouteApproach } from '@zlayer/domain';
+import type { GeoPointFeature, NavigationData, ProcedureCatalog, ProcedureResourceRecord, TerminalProceduresData, TerminalProceduresResource } from '@zlayer/contracts';
+import { approachEntryOptions, approachPreview, createRouteResolver, findApproachRoutes, updateApproachHoldEntries, type ApproachArrival, type RouteApproach } from '@zlayer/domain';
 import { fetchTerminalProcedures } from './api';
 import type { RouteMapPreview } from './map-preview';
 import { usePreviewPanel } from './use-preview-panel';
@@ -12,6 +12,7 @@ import './approach-picker.css';
 type Props = {
   ident: string;
   feature: GeoPointFeature;
+  navigationData?: NavigationData | undefined;
   resource: ProcedureResourceRecord | undefined;
   routeResource?: TerminalProceduresResource | undefined;
   revision?: string | undefined;
@@ -25,7 +26,7 @@ type Props = {
 
 const NO_PREVIEW = () => {};
 
-export function RouteApproachPicker({ ident, feature, resource, routeResource, revision, arrival, selected, onSelect, onClose,
+export function RouteApproachPicker({ ident, feature, navigationData, resource, routeResource, revision, arrival, selected, onSelect, onClose,
   onOpenPlate, onPreviewChange = NO_PREVIEW }: Props) {
   const dialog = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -34,6 +35,7 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
   const [attempt, retry] = useState(0);
   const [pendingId, setPendingId] = useState<string>();
   const [entryId, setEntryId] = useState<string>();
+  const [branchId, setBranchId] = useState<string>();
   const [routes, setRoutes] = useState<{ key: string; data?: TerminalProceduresData; error?: boolean }>();
   const routeKey = JSON.stringify([revision, routeResource]);
   const currentRoutes = routes?.key === routeKey ? routes : undefined;
@@ -47,21 +49,25 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
     ? approaches.find(procedure => procedure.id === selected?.procedureId && airport?.id === selected.airportId) : undefined;
   const pending = approaches.find(procedure => procedure.id === pendingId);
   const routeData = currentRoutes?.data?.approaches;
-  const procedure = pending && routeData?.metadata.effectiveDate === catalog?.effectiveDate
-    ? findApproachRoute(routeData, airport?.icaoId ?? airport?.faaId ?? '', pending.name) : undefined;
+  const procedures = pending && routeData?.metadata.effectiveDate === catalog?.effectiveDate
+    ? findApproachRoutes(routeData, airport?.icaoId ?? airport?.faaId ?? '', pending.name) : [];
+  const procedure = procedures.length === 1 ? procedures[0] : procedures.find(p => p.id === branchId);
   const entries = procedure ? approachEntryOptions(procedure) : [];
   const entry = entries.find(option => option.id === entryId);
   const preview = useMemo(() => procedure && entryId ? approachPreview(procedure, entryId) : undefined, [procedure, entryId]);
   const inset = usePreviewPanel(true, dialog, closeButton, onClose);
   const candidate = useMemo<RouteApproach | undefined>(() => entry && procedure && pending && catalog && airport && routeData
     ? { airportId: airport.id, procedureId: pending.id, name: pending.name, cycle: catalog.cycle,
-      entry: { routeId: procedure.id, transitionId: entry.id, name: entry.name, effectiveDate: routeData.metadata.effectiveDate } }
-    : undefined, [procedure, pending, catalog, airport, routeData, entry?.id, entry?.name]);
+      entry: { routeId: procedure.id, transitionId: entry.id,
+        name: procedures.length > 1 ? `${entry.name} · RWY ${procedure.ident.slice(1)}` : entry.name,
+        effectiveDate: routeData.metadata.effectiveDate } }
+    : undefined, [procedure, procedures.length, pending, catalog, airport, routeData, entry?.id, entry?.name]);
   // Use the same procedure expansion and map renderer as an attached approach.
-  // This small resolver needs only this airport and the already cached procedure data.
+  // Share navigation entities with the map in previews as well as attached approaches.
   const resolvePreview = useMemo(() => currentRoutes?.data && revision ? createRouteResolver([
     { type: 'FeatureCollection', features: [feature], meta: { layer: 'airports', revision, returned: 1, truncated: false } },
-  ], undefined, currentRoutes.data) : undefined, [feature, currentRoutes?.data, revision]);
+    ...Object.values(navigationData ?? {}).filter(collection => collection.meta.layer !== 'airports'),
+  ], undefined, currentRoutes.data) : undefined, [feature, navigationData, currentRoutes?.data, revision]);
   const mapPreview = useMemo<RouteMapPreview | undefined>(() => {
     if (!candidate || !preview || !resolvePreview) return;
     const plan = resolvePreview({ entries: [{ id: 'approach-preview', text: ident,
@@ -124,7 +130,7 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
           {catalog && !selectedProcedure && <small>This selection is not in the loaded edition (saved cycle {selected.cycle}).</small>}</div>
         <div className="route-approach-current-actions">
           {selectedProcedure && <button type="button" onClick={() => {
-            setPendingId(selectedProcedure.id); setEntryId(selected.entry?.transitionId);
+            setPendingId(selectedProcedure.id); setEntryId(selected.entry?.transitionId); setBranchId(selected.entry?.routeId);
           }}>Change entry</button>}
           {selectedProcedure && onOpenPlate && <button type="button" onClick={() => openPlate(selectedProcedure)}>View plate</button>}
           <button type="button" className="route-approach-remove" onClick={() => onSelect(undefined)}>Remove approach</button>
@@ -142,6 +148,7 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
             {matches.map(procedure => <li key={procedure.id}>
               <button type="button" aria-pressed={procedure === selectedProcedure} onClick={() => {
                 setPendingId(procedure.id);
+                setBranchId(procedure === selectedProcedure ? selected?.entry?.routeId : undefined);
                 setEntryId(procedure === selectedProcedure && selected?.entry?.effectiveDate === routeData?.metadata.effectiveDate
                   ? selected?.entry?.transitionId : undefined);
               }}>
@@ -156,8 +163,16 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
         <div className="route-approach-step-heading"><button type="button" onClick={() => setPendingId(undefined)}>‹ Approaches</button>
           {onOpenPlate && <button type="button" onClick={() => openPlate(pending)}>View plate</button>}</div>
         <h3>{pending.name}</h3>
+        {procedures.length > 1 && <fieldset><legend>Select runway</legend>
+          <div className="route-approach-entry-options">{procedures.map(branch => <label key={branch.id}>
+            <input type="radio" name="approach-runway" value={branch.id} checked={branchId === branch.id}
+              onChange={() => { setBranchId(branch.id); setEntryId(undefined); }} />
+            <span>Runway {branch.ident.slice(1)}</span>
+          </label>)}</div>
+        </fieldset>}
         {routeResource && !currentRoutes?.data && !currentRoutes?.error ? <p role="status">Loading published entries…</p>
           : currentRoutes?.error ? <div role="alert"><p>Published entries could not be loaded.</p><button type="button" onClick={() => retry(value => value + 1)}>Retry entries</button></div>
+          : procedures.length > 1 && !procedure ? <p role="status">Choose a runway to see its published entries.</p>
           : !procedure || !entries.length ? <p role="status">Published entry data is unavailable for this approach in this edition. View the plate for the procedure.</p>
           : <>
             <fieldset><legend>Select a published entry or vectors to final</legend>
@@ -168,8 +183,8 @@ export function RouteApproachPicker({ ident, feature, resource, routeResource, r
             </fieldset>
             {preview ? <>
               <p className="route-approach-legend" role="status">Preview on map · Magenta: approach · Dashed: missed approach{preview.extension ? ' · Light: extended final' : ''}</p>
-              {preview.depictions.length > 0 && <p className="route-approach-note">Holding racetracks and altitude-dependent turns are schematic. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.</p>}
-              {preview.incomplete && <p className="route-approach-note" role="status">Some legs or hold details cannot be depicted. Gaps remain in the preview; refer to the plate.</p>}
+              {preview.depictions.length > 0 && <p className="route-approach-note">Holds, procedure turns, heading intercepts and altitude-dependent paths are schematic and excluded from route distance and terrain. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.</p>}
+              {preview.incomplete && <p className="route-approach-note" role="status">{[...new Set(preview.issues.map(i => i.message))].join(' ')} Refer to the plate.</p>}
             </> : <p>Choose an entry to preview it on the map.</p>}
           </>}
       </section>}

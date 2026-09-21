@@ -36,6 +36,30 @@ implementation details. Changes must preserve them or document a measured reason
 to revise the design. Opportunistic caching must never imply verified regional
 completeness.
 
+## Recovery and source identity
+
+- Expose asynchronous results only for the complete current resource identity,
+  including digest and cache policy. A same-cycle replacement must not display
+  old results against a new source URL.
+- Treat reconnect and saved-file inventory changes as recovery signals for open
+  views. Invalidate failed or partially rendered cache entries so repairing bytes
+  can repair the view. Release observers and failed tasks during teardown.
+- Optional cache/notification failures must not prevent a usable network response
+  or turn an already committed save into failure. Verified offline persistence
+  still requires successful storage.
+- Coordinate shared read/change/write operations across windows; rereading just
+  before writing is not atomic. Keep conflict checks inside the lock.
+- Treat clock rollback and future timestamps explicitly. A future cached report
+  must not permanently displace valid observations or suppress refresh.
+- Remove renderer-only labels, styling and gesture metadata when turning a map
+  hit into a reusable navigation feature. Display properties must not leak into
+  route pins or saved selections.
+
+These invariants came from the source reviews and now belong to the implementation
+contract. Product details live in [layer recovery and freshness](layer-modules.md#demand-and-freshness),
+[workspace persistence](workspace-state.md), [PDF handling](offline-procedures.md)
+and [recording storage](../src/layers/ahrs/recording.md).
+
 ## Where to look
 
 - [Architecture](architecture.md): runtime, rendering order and chart I/O invariant.
@@ -47,9 +71,10 @@ completeness.
 - [AHRS](../src/layers/ahrs/README.md): experimental sensors, instruments and recordings.
 - [Roadmap](roadmap.md): implemented baseline versus remaining work.
 
-Before committing, run `npm run verify`; run `npm run test:browser` for the built-app
-regressions used in CI. Rendering changes also need the targeted
-[graphics matrix](graphics-compatibility.md#run-the-checks). Browser focus, touch/layout, installed-device offline behavior
+Before committing, run `npm run verify:full`, which combines `npm run verify`,
+all built-app regressions from `npm run test:browser`, and the complete configured
+[graphics matrix](graphics-compatibility.md#run-the-checks). The individual commands
+remain useful during development. Browser focus, touch/layout, installed-device offline behavior
 and performance also need the separate checks in
 [responsive checks](responsive-checks.md), [offline release checks](offline-storage.md#release-checks)
 and [deployment readiness](deployment-readiness.md); a passing Node suite is not device certification.

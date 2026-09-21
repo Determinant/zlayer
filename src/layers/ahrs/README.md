@@ -30,10 +30,11 @@ false rotation; visibility therefore only reduces display work. The browser
 controls the available sensor rate.
 Display subscriptions and animation frames stop while the toolbox or page is
 hidden. Reopening reads the current attitude and resets display-only tape/drum
-smoothing. The horizon, tapes and drums share one animation clock capped at
+smoothing. The horizon, HSI, tapes and drums share one animation clock capped at
 60 FPS, including on higher-refresh screens; idle/stopped instruments schedule
-no animation frames. Status controls and the HSI publish at 20 Hz while visible;
-their timer, snapshots and route calculations pause while hidden. Reopening
+no animation frames. The HSI reads the same current estimator snapshot as the horizon;
+it does not wait for the 20 Hz status-control publication timer. Display frames,
+status snapshots and route calculations pause while hidden. Reopening
 immediately publishes a fresh snapshot and preserves the selected HSI leg.
 There is no entry in the right-hand layer menu.
 
@@ -202,9 +203,10 @@ HSI below the attitude display uses magenta for the resolved route's desired
 track and course-deviation bar. The thin course pointer spans the compass rim
 from arrowhead to tail, with the moving CDI between its fixed shaft segments.
 Its compass rose is centered at 80% of the toolbox content width. The heading
-readout sits above the rose. It uses **HDG** for a confident aligned heading,
-**TRK** when GPS track supplies the geographic direction, or **REL** for live IMU
-yaw when neither is available. Before calibration or after a motion fault, an
+readout sits above the rose. The card always follows live AHRS yaw: **HDG** for a
+confident aligned heading, or **REL** while north alignment is unverified, including
+when GPS is available. GPS track never replaces AHRS yaw as the rotating reference.
+Before calibration or after a motion fault, an
 unavailable heading is shown instead. Separate track and reference details sit
 underneath. Typography uses the shared B612 UI stack and caption sizes; the full-width route-leg selector
 uses the shared 14 px / 16 px touch control size. It shows distance to the selected leg's endpoint,
@@ -212,8 +214,11 @@ TO/FROM, cross-track error (L/R is the aircraft's side of the route), and a fixe
 ±2 NM full-scale CDI. Great-circle calculations handle dateline crossings and
 the changing local course along a leg.
 
-The default leg is explicitly **Auto · nearest**, with a selector to choose any
-resolved leg. It is a geometric route display, not a procedure navigator: it has
+The default leg is explicitly **Auto · nearest**, with a selector to choose a
+supported straight route leg. Approach legs and legs with intermediate geometry
+are excluded: reducing them to an endpoint-to-endpoint great circle would give
+misleading guidance. Their map depiction remains available, and the HSI reports
+when legs are omitted. It is a geometric route display, not a procedure navigator: it has
 no turn anticipation, approach sensitivity changes, or managed flight-plan
 sequencing. Editing the route immediately updates its available legs.
 
@@ -222,14 +227,18 @@ geographic variation are available. The rose, **HDG … M**, **TRK … M**, and 
 all use the same local east-positive declination (`magnetic = true − declination`).
 The gold heading triangle retains its true-heading tooltip and **TRUE HDG … T**
 readout, and **VAR** reports magnetic variation below the rose. The white diamond
-shows GPS ground track separately, preserving the drift angle. Otherwise the
-compass prefers GPS ground track over unaligned AHRS yaw.
-Heading can be initialized manually or established by GPS/inertial motion. The
-HSI falls back to track if estimated heading uncertainty exceeds 20°.
+shows GPS ground track separately, preserving the drift angle when heading is
+aligned. Heading can be initialized manually or established by GPS/inertial motion.
+An acquiring/recovering heading, estimated heading uncertainty above 20°, or degraded
+attitude changes the card to **REL** while retaining live yaw. Geographic course/CDI
+guidance and the track diamond require a confident heading: neither can be placed
+on an unaligned relative card. With usable GPS but unverified heading, the cross
+is labelled **Heading**. Before motion/calibration is ready, GPS alone cannot provide
+an HSI heading.
 Route geometry and CDI deflection remain in true geographic coordinates.
 
 After calibration, missing GPS never removes or freezes the HSI's live inertial
-direction. If no confident aligned heading or usable track exists, its rotating
+direction. If no confident aligned heading exists, its rotating
 card uses **REL** and **IMU · REL**, with numeric marks instead of N/E/S/W and no
 magnetic/true suffix. This is relative yaw, not a claim of north alignment. The
 **No GPS** cross remains over the moving card, including throughout prolonged
@@ -262,8 +271,8 @@ The coefficient fixture is the published chart export of
 GPS loss flags the HSI and removes live course/deviation guidance while keeping
 its IMU-driven card visible and moving. This also applies if calibration completes
 before the first GPS fix, in both the toolbox and full screen. GPS recovery can
-restore track and route guidance without recalibration. A route, a fresh position,
-and a geographic heading/track reference are required for guidance; relative yaw
+restore track and route guidance without recalibration when heading remains confident.
+A route, a fresh position and a confident AHRS heading are required for guidance; relative yaw
 alone cannot produce CDI, distance, or cross-track guidance.
 Custom GPS ports can provide optional `coordinates` as `[longitude, latitude]`;
 omitting position leaves attitude support intact.
@@ -307,7 +316,7 @@ delay both sensor delivery and drawing. A sensor gap above 0.5 seconds shows
 **Motion** when the display next runs; if rendering itself is stalled, the warning
 cannot paint until it resumes. A brief freeze is therefore possible and does not
 by itself establish a memory leak. Repeated or persistent foreground freezes need
-an on-device CPU/memory trace. See the [iPhone resource review](../../../docs/reviews/iphone-memory-ahrs-2026-09-20.md).
+an on-device CPU/memory trace. See the [AHRS memory and scrolling](../../../docs/memory-resources.md#ahrs-session-memory-and-scrolling).
 
 With the device secured in its selected mount, the pilot confirms a roughly steady,
 level pose; in flight this means straight, level flight at a steady speed, not
@@ -488,9 +497,9 @@ The cross label explains the current limitation:
 Calibration and motion faults take priority over GPS limitations. Specific sensor
 problems appear in the explanatory text. The HSI uses the current GPS gates
 independently and also distinguishes No GPS from Low Speed. With a fresh position,
-usable route leg and valid heading or ground track, the HSI keeps its magenta
+usable route leg and confident AHRS heading, the HSI keeps its magenta
 course, CDI, distance and cross-track readings at low speed, showing **Low Speed**
-below the dial without crossing out the course. Without heading or track, it
+below the dial without crossing out the course. Without confident heading, it
 stays in **REL** beneath the **Low Speed** cross and hides route guidance.
 Without a fresh position, route guidance is hidden and the calibrated IMU card
 remains visible beneath the cross; **REL** identifies an unverified heading reference.
@@ -544,12 +553,12 @@ keeping the calibrated means does not keep their old confidence indefinitely.
 
 ## Verification
 
-The v6 correction passes the complete unit suite, import/type checks,
-production build and browser/graphics verification. The original turn-accuracy,
-compass-drift and layer uncertainty limits were retained. See the current
-[test results](../../../docs/reviews/ahrs-algorithm-2026-09-19.md#v6-beta-verification)
-for measured errors, additional vibration/gap checks and the historical failure
-triage. These checks do not substitute for recorded phone/aircraft data.
+The recorded v6 verification passed its unit suite, import/type checks,
+production build and browser/graphics checks. The original turn-accuracy,
+compass-drift and layer uncertainty limits were retained. See the
+[dated test results](../../../docs/ahrs-validation.md#v6-beta-verification)
+for measured errors, vibration/gap checks and remaining statistical evidence.
+These checks do not substitute for recorded phone/aircraft data.
 
 - `test/ahrs-calibration.test.ts`: stationary sensor noise, level-flight rocking and
   vibration at multiple and changing sample rates with/without GPS, measured

@@ -186,4 +186,4 @@ guard defect: unqualified tilt must stop reacquisition rather than fall through
 to ordinary tracking. The guard is now explicit for all providers. Browser
 verification also motivated the pre-CI innovation gate above. Current numerical
 results are recorded in the
-[v6 review](../../../../docs/reviews/ahrs-algorithm-2026-09-19.md#v6-beta-verification).
+[v6 review](../../../../docs/ahrs-validation.md#v6-beta-verification).

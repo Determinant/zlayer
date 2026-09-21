@@ -13,14 +13,14 @@ test('route menu copies current edits, supports keyboard dismissal and clears th
   const input = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
   await input.fill('KSFO');
   await trigger.click();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
   await page.getByRole('menuitem', { name: /^SkyVector \/ ZLayer/ }).click();
   await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('KSFO UNKNOWN KSJC KSFO');
   await page.keyboard.press('ArrowLeft');
-  await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
   await page.keyboard.press('End');
-  await expect(page.getByRole('menuitem', { name: 'Clear route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Clear Route', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -28,12 +28,12 @@ test('route menu copies current edits, supports keyboard dismissal and clears th
   await page.locator('header').click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await trigger.click();
-  await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await expect(input).toBeFocused();
   await expect(page.locator('.route-token')).toHaveCount(0);
   await trigger.click();
-  await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeDisabled();
-  await expect(page.getByRole('menuitem', { name: 'Clear route', exact: true })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Clear Route', exact: true })).toBeDisabled();
 });
 
 test('clipboard failure offers selected route text for manual copying', async ({ page }) => {
@@ -42,7 +42,7 @@ test('clipboard failure offers selected route text for manual copying', async ({
   });
   await page.goto('/test/browser/routes.html');
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
   await page.getByRole('menuitem', { name: /^ForeFlight/ }).click();
   const fallback = page.getByRole('textbox', { name: 'Route text to copy', exact: true });
   await expect(fallback).toHaveValue('KSFO UNKNOWN KSJC');
@@ -53,7 +53,7 @@ test('clipboard failure offers selected route text for manual copying', async ({
   await expect(fallback).toBeFocused();
   await fallback.press('Escape');
   await expect(fallback).toHaveCount(0);
-  await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
 });
 
 test('desktop copy expands a keyboard-accessible format menu and copies the selected coordinate syntax', async ({ page }, testInfo) => {
@@ -62,7 +62,7 @@ test('desktop copy expands a keyboard-accessible format menu and copies the sele
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('374529N1223030W');
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.click();
-  const copy = page.getByRole('menuitem', { name: 'Copy route', exact: true });
+  const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
   await expect(copy).toBeFocused();
   await page.keyboard.press('ArrowRight');
   const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
@@ -78,7 +78,7 @@ test('desktop copy expands a keyboard-accessible format menu and copies the sele
     await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`KSFO UNKNOWN KSJC ${token}`);
   }
-  await expect(page.locator('.route-token strong').last()).toHaveText('374529N1223030W');
+  await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
   await page.keyboard.press('Home');
   await expect(formats.getByRole('menuitem', { name: /^ForeFlight/ })).toBeFocused();
   await page.keyboard.press('ArrowDown');
@@ -99,7 +99,7 @@ test('manual copying uses the chosen format and a narrow desktop menu stays on s
   await page.goto('/test/browser/routes.html');
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('374529N1223030W');
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
   await page.getByRole('menuitem', { name: /^ICAO \/ 1800WX/ }).click();
   const fallback = page.getByRole('textbox', { name: 'Route text to copy', exact: true });
   await expect(fallback).toHaveValue('KSFO UNKNOWN KSJC 3745N12231W');
@@ -123,7 +123,7 @@ for (const platform of ['Android', 'iPhone', 'iPad']) {
     await page.goto('/test/browser/routes.html');
     await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('374529N1223030W');
     await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-    const copy = page.getByRole('menuitem', { name: 'Copy route', exact: true });
+    const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
     await expect(copy).toHaveAttribute('aria-haspopup', 'menu');
     await copy.click();
     const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
@@ -132,7 +132,7 @@ for (const platform of ['Android', 'iPhone', 'iPad']) {
       await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`KSFO UNKNOWN KSJC ${token}`);
     }
-    await expect(page.locator('.route-token strong').last()).toHaveText('374529N1223030W');
+    await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
   });
 }
 
@@ -171,7 +171,7 @@ for (const platform of ['Desktop', 'Android', 'iPhone', 'iPad']) {
       await expect(page.locator('body')).toHaveAttribute('data-shared-route', JSON.stringify({ text: `KSFO UNKNOWN KSJC ${token}` }));
       await expect(trigger).toHaveAttribute('aria-expanded', 'false');
       await expect(trigger).toBeFocused();
-      await expect(page.locator('.route-token strong').last()).toHaveText('374529N1223030W');
+      await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
     }
     await trigger.click();
     await page.getByRole('menuitem', { name: 'Share…', exact: true }).click();
@@ -180,9 +180,9 @@ for (const platform of ['Desktop', 'Android', 'iPhone', 'iPad']) {
     expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     await page.screenshot({ path: testInfo.outputPath(`${platform.toLowerCase()}-share-formats.png`) });
-    await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
     await trigger.click();
-    await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeDisabled();
+    await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeDisabled();
     await expect(page.getByRole('menuitem', { name: 'Share…', exact: true })).toBeDisabled();
   });
 }
@@ -225,8 +225,8 @@ test('share failure offers copying and switching actions clears stale feedback',
   await page.getByRole('menuitem', { name: 'Share…', exact: true }).click();
   await page.getByRole('menuitem', { name: /^ICAO/ }).click();
   const status = page.locator('.route-menu').getByRole('status');
-  await expect(status).toHaveText('Sharing is unavailable. Use Copy route.');
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+  await expect(status).toHaveText('Sharing is unavailable. Use Copy Route.');
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
   await expect(page.getByRole('menu', { name: 'Share route format', exact: true })).toHaveCount(0);
   await expect(status).toBeEmpty();
   await page.getByRole('menuitem', { name: /^ICAO/ }).click();
@@ -247,7 +247,7 @@ test('late clipboard failure cannot replace the Share menu with stale fallback t
   });
   await page.goto('/test/browser/routes.html');
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
   await page.getByRole('menuitem', { name: /^ForeFlight/ }).click();
   await page.getByRole('menuitem', { name: 'Share…', exact: true }).click();
   await page.evaluate(() => window.dispatchEvent(new Event('reject-copy')));
@@ -274,7 +274,7 @@ for (const outcome of ['success', 'failure']) {
     await page.getByRole('menuitem', { name: /^ForeFlight/ }).click();
     await page.locator('header').click();
     await trigger.click();
-    await page.getByRole('menuitem', { name: 'Copy route', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
     const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
     await page.evaluate(outcome => window.dispatchEvent(new CustomEvent('settle-share', { detail: outcome })), outcome);
     await expect(formats).toBeVisible();
@@ -310,7 +310,7 @@ test('route menu replaces a token menu and stays within a short landscape viewpo
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.focus();
   await trigger.press('ArrowDown');
-  await expect(page.getByRole('menuitem', { name: 'Copy route', exact: true })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
   await expect(page.getByRole('menuitem', { name: 'Replace route item', exact: true })).toHaveCount(0);
   const popover = (await page.locator('.route-menu-popover').boundingBox())!;
   expect(popover.y + popover.height).toBeLessThanOrEqual(320);

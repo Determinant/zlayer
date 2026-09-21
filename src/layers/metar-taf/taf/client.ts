@@ -45,7 +45,7 @@ export class TafClient {
     const key = boxes.join(';');
     const previous = this.#areas.get(key);
     const now = (this.options.now ?? Date.now)();
-    if (previous?.checkedAt !== undefined && !previous.error && now - previous.checkedAt < TAF_REFRESH_MS) return;
+    if (previous?.checkedAt !== undefined && !previous.error && now >= previous.checkedAt && now - previous.checkedAt < TAF_REFRESH_MS) return;
     try {
       const reports = new Map<string, TafReport>();
       for (const box of boxes) {
@@ -82,7 +82,7 @@ export class TafClient {
     signal.throwIfAborted();
     const previous = this.get(id);
     const now = (this.options.now ?? Date.now)();
-    if (previous?.checkedAt !== undefined && !previous.error && now - previous.checkedAt < TAF_REFRESH_MS) return;
+    if (previous?.checkedAt !== undefined && !previous.error && now >= previous.checkedAt && now - previous.checkedAt < TAF_REFRESH_MS) return;
     const url = new URL(this.endpoint);
     url.searchParams.delete('bbox');
     url.searchParams.set('ids', id);
@@ -95,6 +95,7 @@ export class TafClient {
     } catch (error) {
       signal.throwIfAborted();
       this.#stations.set(id, { ...this.get(id), error: error instanceof Error ? error.message : 'Unable to load AWC TAFs' });
+      this.#trim();
     }
   }
 
@@ -121,8 +122,12 @@ export class TafClient {
     });
   }
 
-  #save(): void {
+  #trim(): void {
     while (this.#stations.size > MAX_CACHED_STATIONS) this.#stations.delete(this.#stations.keys().next().value!);
+  }
+
+  #save(): void {
+    this.#trim();
     try {
       // Revalidate restored forecasts rather than persisting a claim of freshness.
       this.options.storage?.setItem(CACHE_KEY, JSON.stringify([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : [])));

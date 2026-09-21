@@ -7,8 +7,6 @@ import type { Mount } from './estimator/device-frame';
 import type { FlightAlignmentReason } from './estimator/flight-alignment';
 import type { AhrsLayer, AhrsSnapshot } from './layer';
 import { AhrsInstruments } from './instruments';
-import { AhrsDiagnostics } from './diagnostics';
-import { Hsi } from './hsi';
 import { InstrumentTest } from './instrument-test';
 import { useMagneticModel } from './use-magnetic-model';
 import { AhrsWindow, AhrsFullScreenButton } from './full-screen';
@@ -115,11 +113,8 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
       </header>
       <div className="ahrs-content panel-scroll">
         <div hidden={testing} className="ahrs-display">
-          <div className="ahrs-primary-display">
-            <AhrsInstruments layer={layer} active={active && !testing} />
-            {state.phase === 'ready' && <AhrsDiagnostics layer={layer} active={active && !testing} />}
-          </div>
-          <Hsi state={state} route={route} active={active && !testing} magneticModel={magneticModel} />
+          <AhrsInstruments layer={layer} active={active && !testing} route={route}
+            magneticModel={magneticModel} diagnostics />
         </div>
         {testing && <div ref={testDisplay}><InstrumentTest active={active} magneticModel={magneticModel} /></div>}
         {setup ? <form className="ahrs-setup" onSubmit={event => {

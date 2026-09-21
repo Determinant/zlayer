@@ -69,7 +69,7 @@ worker.addEventListener('fetch', (event) => {
     // may start after the reset handshake, including stale-while-revalidate work.
     event.respondWith(applicationPage
       ? applicationPageResponse(event.request)
-      : (async () => (await caches.match(event.request)) ?? fetch(event.request))());
+      : (async () => (await caches.match(event.request).catch(() => undefined)) ?? fetch(event.request))());
     return;
   }
   const respond = (response: Promise<Response>) => event.respondWith(trackWork(response));
@@ -271,8 +271,10 @@ async function matchesApplicationRelease(page: Response): Promise<boolean> {
 }
 
 async function cachedApplicationPage(): Promise<Response | undefined> {
-  const page = await caches.match(shellPageUrl, { cacheName: shellCache });
-  return page && await matchesApplicationRelease(page) ? page : undefined;
+  try {
+    const page = await caches.match(shellPageUrl, { cacheName: shellCache });
+    return page && await matchesApplicationRelease(page) ? page : undefined;
+  } catch { return undefined; }
 }
 
 async function applicationPageResponse(request: Request): Promise<Response> {
@@ -282,15 +284,16 @@ async function applicationPageResponse(request: Request): Promise<Response> {
 }
 
 async function shellAssetResponse(request: Request): Promise<Response> {
-  return (await caches.match(request)) ?? cacheFirst(request, shellCache);
+  return (await caches.match(request).catch(() => undefined)) ?? cacheFirst(request, shellCache);
 }
 
 async function cacheFirst(request: Request, cacheName: string): Promise<Response> {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  // Optional runtime caching must not turn a storage failure into a network outage.
+  const cache = await caches.open(cacheName).catch(() => undefined);
+  const cached = await cache?.match(request).catch(() => undefined);
   if (cached) return cached;
   const response = await fetch(request);
-  if (response.status === 200 || response.type === 'opaque') {
+  if (cache && (response.status === 200 || response.type === 'opaque')) {
     await cache.put(request, response.clone()).catch(() => {});
   }
   return response;
@@ -300,17 +303,18 @@ async function networkFirst(
   request: Request,
   cacheName: string,
 ): Promise<Response> {
-  const cache = await caches.open(cacheName);
-  if (worker.navigator?.onLine === false) return (await cache.match(request)) ?? Response.error();
+  const cache = await caches.open(cacheName).catch(() => undefined);
+  const saved = () => cache?.match(request).catch(() => undefined);
+  if (worker.navigator?.onLine === false) return (await saved()) ?? Response.error();
   try {
     const response = await fetch(request, { signal: AbortSignal.timeout(8_000) });
     if (response.ok) {
-      await cache.put(request, response.clone()).catch(() => {});
+      await cache?.put(request, response.clone()).catch(() => {});
       return response;
     }
-    return (await cache.match(request)) ?? response;
+    return (await saved()) ?? response;
   } catch {
-    return (await cache.match(request)) ?? Response.error();
+    return (await saved()) ?? Response.error();
   }
 }
 
@@ -318,10 +322,10 @@ async function staleWhileRevalidate(
   event: FetchEvent,
   cacheName: string,
 ): Promise<Response> {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(event.request);
+  const cache = await caches.open(cacheName).catch(() => undefined);
+  const cached = await cache?.match(event.request).catch(() => undefined);
   const update = fetch(event.request).then(async (response) => {
-    if (response.ok) await cache.put(event.request, response.clone()).catch(() => {});
+    if (response.ok) await cache?.put(event.request, response.clone()).catch(() => {});
     return response;
   });
   if (cached) {

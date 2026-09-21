@@ -1,4 +1,5 @@
 import { offlineRecords, readOfflineRecord, writeOfflineRecords } from '../../core/storage/database';
+import { isRecord } from '@zlayer/contracts';
 
 export type RecordingInfo = {
   version: 1;
@@ -21,6 +22,16 @@ const chunkPrefix = (id: string) => `ahrs-samples:${id}:`;
 const chunkKey = (id: string, index: number) => `${chunkPrefix(id)}${index}`;
 export const RECORDING_MIME = 'application/x-ndjson';
 
+function isRecordingInfo(value: unknown): value is RecordingInfo {
+  if (!isRecord(value)) return false;
+  const timestamp = (time: unknown) => typeof time === 'number' && Number.isFinite(time) && Math.abs(time) <= 8.64e15;
+  const count = (number: unknown) => typeof number === 'number' && Number.isSafeInteger(number) && number > 0;
+  return value.version === 1 && typeof value.id === 'string' && value.id.length > 0 &&
+    timestamp(value.startedAt) && timestamp(value.updatedAt) &&
+    (value.status === 'recording' || value.status === 'complete') &&
+    count(value.chunks) && count(value.events) && count(value.bytes);
+}
+
 /** Metadata and each bounded chunk commit atomically in the app's resettable DB. */
 export const recordingStorage: RecordingStorage = {
   async save(info, chunk) {
@@ -33,11 +44,7 @@ export const recordingStorage: RecordingStorage = {
   },
   async list() {
     const records = await offlineRecords(PREFIX);
-    return records.filter((value): value is RecordingInfo => {
-      const record = value as RecordingInfo | null;
-      return record?.version === 1 && typeof record.id === 'string' &&
-        Number.isFinite(record.startedAt) && Number.isSafeInteger(record.chunks) && record.chunks > 0;
-    }).sort((a, b) => b.startedAt - a.startedAt);
+    return records.filter(isRecordingInfo).sort((a, b) => b.startedAt - a.startedAt);
   },
   async *read(info) {
     for (let index = 0; index < info.chunks; index++) {

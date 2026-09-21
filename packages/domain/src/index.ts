@@ -14,4 +14,5 @@ export * from './preferred-routes.js';
 export * from './route-history.js';
 export * from './taf.js';
 export * from './route-draft.js';
+export * from './departures.js';
 export type { RouteOwner, RouteSource } from './route-source.js';

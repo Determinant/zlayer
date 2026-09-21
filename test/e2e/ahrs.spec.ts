@@ -565,9 +565,10 @@ test('level-flight vibration calibrates without GPS and the crossed HSI keeps mo
     window.dispatchEvent(new Event('test-ahrs-gps-restored'));
   });
   await page.clock.runFor(1100);
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^TRK \d{3}° [MT]$/);
-  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL \d{3}°$/);
+  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-track')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-invalid')).toHaveText('Heading');
   await page.evaluate(() => {
     window.dispatchEvent(new Event('test-ahrs-gps-lost'));
     window.dispatchEvent(new Event('test-ahrs-yaw'));
@@ -739,7 +740,7 @@ test('gravity fusion bounds uncertainty under Low Speed', async ({ page }) => {
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
-test('gravity fusion keeps heading unaligned and preserves HSI track guidance', async ({ page }, testInfo) => {
+test('gravity fusion keeps heading unaligned and HSI geographic guidance unavailable', async ({ page }, testInfo) => {
   await page.clock.install();
   await openAhrs(page);
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('370000N1230000W 370000N1210000W');
@@ -753,8 +754,9 @@ test('gravity fusion keeps heading unaligned and preserves HSI track guidance', 
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
   await expect(diagnostics.locator('.ahrs-fusion-counts')).toContainText('0 used');
   await expect(page.getByTestId('hsi-heading')).toHaveCount(0);
-  await expect(page.getByTestId('hsi-deviation')).toHaveCount(1);
-  await expect(page.getByRole('img', { name: /^HSI\. Track / })).toBeVisible();
+  await expect(page.getByTestId('hsi-deviation')).toHaveCount(0);
+  await expect(page.getByTestId('hsi-track')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: /^HSI\. Heading\. Relative direction / })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 568 });
   await diagnostics.screenshot({ path: testInfo.outputPath('tilt-aiding-mobile.png') });
   expect(await diagnostics.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
@@ -770,6 +772,8 @@ test('gravity fusion keeps heading unaligned and preserves HSI track guidance', 
   await page.clock.runFor(12_000);
   await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
+  await expect(page.getByTestId('hsi-invalid')).toHaveText('Heading');
+  await expect(page.getByTestId('hsi-deviation')).toHaveCount(0);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
@@ -1156,7 +1160,7 @@ test('denied motion permission explains how to retry without starting GPS', asyn
   expect(await countWatches(page)).toBe(0);
 });
 
-test('stationary HSI stays relative until usable GPS track returns', async ({ page }, testInfo) => {
+test('HSI retains live inertial yaw when GPS track returns without heading alignment', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-09-18T12:00:00Z') });
   await openAhrs(page);
   const route = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
@@ -1184,17 +1188,26 @@ test('stationary HSI stays relative until usable GPS track returns', async ({ pa
   await page.getByRole('combobox', { name: 'HSI route leg' }).selectOption({ index: 2 });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 5 })));
   await page.clock.runFor(1100);
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('TRK 077° M');
-  await expect(hsi.getByRole('img')).toHaveAttribute('aria-label', /Course 347° magnetic/);
-  await expect(hsi.getByTestId('hsi-caution')).toHaveText('Low Speed');
-  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL /);
+  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Low Speed');
+  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-track')).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 120 * 1852 / 3600 })));
+  await page.clock.runFor(1100);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL /);
+  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Heading');
+  const movingCompass = await hsi.getByTestId('hsi-compass').getAttribute('transform');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-yaw')));
+  await page.clock.runFor(100);
+  await expect(hsi.getByTestId('hsi-compass')).not.toHaveAttribute('transform', movingCompass!);
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-lost')));
   await page.clock.runFor(3200);
   await expect(hsi.getByTestId('hsi-invalid')).toContainText('No GPS');
   await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-restored')));
   await page.clock.runFor(1100);
-  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
+  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-relative-heading')).toBeVisible();
 });
 
 test('compact HSI follows the route, supports a selected leg, and flags lost GPS', async ({ page }, testInfo) => {
@@ -1267,7 +1280,7 @@ test('compact HSI follows the route, supports a selected leg, and flags lost GPS
   await expect(page.getByTestId('hsi-course')).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await expect(hsi).toContainText('Add a route');
   await expect(page.getByTestId('hsi-course')).toHaveCount(0);
 });
@@ -1283,18 +1296,20 @@ test.describe('magnetic model recovery', () => {
     });
     await page.clock.install({ time: new Date('2026-09-18T12:00:00Z') });
     await openAhrs(page);
+    await page.getByText('True heading (optional)', { exact: true }).click();
+    await page.getByRole('spinbutton', { name: 'True heading · degrees' }).fill('75');
     await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
     await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
     await page.clock.runFor(12_000);
     await expect.poll(() => requests).toBe(1);
     const hsi = page.getByRole('region', { name: 'Horizontal situation indicator', exact: true });
-    await expect(hsi.locator('.ahrs-hsi-heading')).toHaveText('HSIGPS · TRUE');
+    await expect(hsi.locator('.ahrs-hsi-heading')).toHaveText('HSIIMU · TRUE');
     await expect(hsi.locator('.ahrs-hsi-variation')).toContainText('Magnetic variation unavailable · using TRUE');
-    await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('TRK 090° T');
+    await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('HDG 075° T');
     unavailable = false;
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    await expect(hsi.locator('.ahrs-hsi-heading')).toHaveText('HSIGPS · MAG');
-    await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('TRK 077° M');
+    await expect(hsi.locator('.ahrs-hsi-heading')).toHaveText('HSIIMU · MAG');
+    await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('HDG 062° M');
     await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
     expect(await countWatches(page)).toBe(1);
   });

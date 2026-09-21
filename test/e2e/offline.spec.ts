@@ -105,7 +105,7 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
   })).toBe(true);
   await cold.getByLabel('Close plate').click();
   await cold.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await cold.getByRole('menuitem', { name: 'Clear route', exact: true }).click();
+  await cold.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await cold.reload();
   await expect(cold.locator('[data-route-entry]')).toHaveCount(0);
   await expect(cold.getByRole('button', { name: 'Dismiss warning' })).toHaveCount(0);
@@ -219,6 +219,7 @@ test('an older saved region overrides latest browsing online and after an offlin
   await expect(page.locator('.download-card')).toHaveCount(0);
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.saved-editions')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await expect(page.locator('.feature-edition')).toHaveText('FAA Aug 6');
   await page.getByLabel('Close detail').click();
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
@@ -482,8 +483,8 @@ test('state boundary clipping renders matching editions and leaves a missing reg
     await import(modulePath);
     return (globalThis as unknown as { regionalTestPixels: (value: boolean) => Promise<unknown> }).regionalTestPixels(missing);
   }, missing);
-  expect(await pixels(false)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 255, 0, 255] });
-  expect(await pixels(true)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 0, 0, 0] });
+  expect(await pixels(false)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 255, 0, 255], incomplete: 0 });
+  expect(await pixels(true)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 0, 0, 0], incomplete: 1 });
 });
 
 test('a lost regional airport export preserves healthy search and recovers on reconnect without changing edition', async ({ page, request, context }) => {

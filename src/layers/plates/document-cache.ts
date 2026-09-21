@@ -85,6 +85,7 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
           return { blob, cached: true };
         }
         catch { /* It may be a valid older edition; do not relabel or delete it. */ }
+        finally { discardResponseBody(legacy); }
       }
     }
   } catch { /* Denied storage must not prevent online viewing. */ }

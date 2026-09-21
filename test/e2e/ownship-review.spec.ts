@@ -157,6 +157,7 @@ for (const [width, height] of [[320, 568], [568, 320]] as const) {
     await expect.poll(() => countWatches(page)).toBe(1);
     await sendFix(page);
     const map = (await page.getByLabel('Aviation chart map').boundingBox())!;
+    await page.getByRole('button', { name: 'Hide terrain toolbox', exact: true }).tap();
     await page.getByRole('button', { name: 'Show GPS status', exact: true }).tap();
     const toggle = page.getByRole('switch', { name: 'GPS aircraft' });
     await expect(toggle).toHaveAttribute('aria-checked', 'true');

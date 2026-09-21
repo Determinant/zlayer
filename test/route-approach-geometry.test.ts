@@ -74,7 +74,11 @@ test('uploaded branches use published fix names and expose IAFs within feeder ro
 test('entries preserve outbound course legs and discard the incoming arc at a selected IAF', () => {
   const atlantic = published.approaches!.procedures.find(p => p.id === 'KACY:I13-Z')!;
   assert.ok(approachEntryOptions(atlantic).some(entry => entry.name === 'VCN'));
-  assert.equal(approachPreview(atlantic, 'transition:VCN')!.incomplete, true, 'an outbound FC leg remains a gap');
+  const outbound = approachPreview(atlantic, 'transition:VCN')!;
+  assert.equal(outbound.incomplete, false);
+  assert.deepEqual(outbound.points.slice(0, 2).map(p => p.ident), ['VCN', 'CARYL']);
+  assert.ok(Math.abs(distanceNm(outbound.segments[0]!.coordinates[0]!, outbound.segments[0]!.coordinates[1]!) - 6.1) < 1e-8,
+    'retain the outbound FC distance before the following CF');
   const missoula = published.approaches!.procedures.find(p => p.id === 'KMSO:H12-Z')!;
   const options = approachEntryOptions(missoula).filter(entry => entry.name.startsWith('NABNE'));
   assert.equal(options.length, 1, 'equivalent IAF suffixes deduplicate independently of the incoming leg');
@@ -231,7 +235,8 @@ test('KSNS missed approach and holds are displayed without inventing route legs 
   assert.equal(mahf.ident, 'MARNA');
   assert.equal(mahf.holdLength, '1 MIN');
   assert.ok(missed.coordinates[1]![0] < map.coordinate[0] && missed.coordinates[1]![1] > map.coordinate[1], 'initial climb follows the coded northwest course');
-  assert.ok(missed.coordinates.length > 20);
+  assert.ok(missed.coordinates.length > 3, 'the missed path includes a sampled turn');
+  assert.ok(preview.spans.some(s => s.assumptions.includes('altitude-dependent') && s.assumptions.includes('turn-radius')));
   assert.ok(!preview.segments.some(s => preview.points[s.from]!.ident === 'RW31'));
   const art = approachPreview(salinas, 'transition-fix:SNS2:1')!;
   assert.equal(art.depictions.filter(d => d.kind === 'hold').length, 1, 'ARTYY NoPT entry does not acquire the AANNE hold');
@@ -343,7 +348,7 @@ test('missing hold data and open-ended vectors do not fabricate patterns or miss
     assert.equal(preview.incomplete, true);
     if (missing === 'turn') assert.equal(preview.points.at(-1)!.hold, 'unknown');
   }
-  for (const path of ['VM', 'VI', 'FM', 'XX']) {
+  for (const path of ['VM', 'FM', 'XX']) {
     const procedure = structuredClone(salinas);
     procedure.final.find(l => l.path === 'CA')!.path = path;
     const preview = approachPreview(procedure, 'vectors')!;

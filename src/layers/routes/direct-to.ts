@@ -4,7 +4,7 @@ import { createRouteEntry, routeCoordinateFeature, routeTokenForFeature,
 import type { OwnshipSnapshot } from '../ownship/layer';
 import { GPS_STALE_MS } from '../ownship/position';
 import { routeItemsForPoint } from './removal';
-import { sameRouteApproach } from './draft';
+import { sameRouteApproach, sameRouteDeparture } from './draft';
 
 export type DirectToAction = (feature: GeoPointFeature, point?: RouteWaypoint) => void;
 
@@ -18,7 +18,7 @@ export function routeDraftMatchesPlan(draft: RouteDraft, plan: RoutePlan): boole
   return draft.entries.length === plan.entries.length && draft.entries.every((entry, index) => {
     const resolved = plan.entries[index]!;
     return entry.id === resolved.id && entry.text === resolved.text && entry.pinnedFeatureId === resolved.pinnedFeatureId &&
-      sameRouteApproach(entry.approach, resolved.approach);
+      sameRouteApproach(entry.approach, resolved.approach) && sameRouteDeparture(entry.departure, resolved.departure);
   });
 }
 
@@ -101,6 +101,7 @@ function directToExpansion(plan: RoutePlan, point: RouteWaypoint): Set<string> {
 
 function expansionProblem(plan: RoutePlan, point: RouteWaypoint, remaining: RouteWaypoint[], expand: Set<string>): string | undefined {
   if (point.edit && plan.entries[point.source.tokenIndex]?.approach?.entry) return 'Remove the attached approach before going directly to the airport.';
+  if (point.edit && plan.entries[point.source.tokenIndex]?.departure) return 'Remove the attached SID before going directly to the airport.';
   const issue = plan.issues.find(issue => issue.tokenIndex >= point.source.tokenIndex &&
     expand.has(plan.entries[issue.tokenIndex]!.id));
   if (issue) return `Direct to cannot preserve the remaining ${issue.token} route: ${issue.message}.`;

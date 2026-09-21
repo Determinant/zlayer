@@ -51,8 +51,7 @@ for (const [width, height] of [[1280, 900], [320, 568]] as const) {
     await page.waitForFunction(() => !!navigator.serviceWorker.controller);
     await context.setOffline(true);
     await page.reload();
-    await expect(identify).toHaveAttribute('aria-pressed', 'false');
-    await identify.click();
+    await expect(identify).toHaveAttribute('aria-pressed', 'true');
     await expect(references).toContainText('MB 345°');
     await expect(references).toContainText('47.3');
   });
@@ -85,7 +84,7 @@ test('an older cached export keeps TB visible while magnetic alignment is missin
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await context.setOffline(true);
   await page.reload();
-  await identify.click();
+  await expect(identify).toHaveAttribute('aria-pressed', 'true');
   await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 · VOR/DMEMB —TB 360°47.3');
   await expect(references).toContainText('TB 360°');
   await expect(references).not.toContainText('MB 360°');
@@ -114,12 +113,12 @@ test('a restored GPS point adopts a rebuilt navigation export after catalog reva
   await context.unroute('**/nav/manifest.json');
   await context.unroute('**/nav/navaids.geojson*');
   await page.reload();
-  await identify.click();
+  await expect(identify).toHaveAttribute('aria-pressed', 'true');
   await expect(references).toContainText('MB 345°');
   await expect(references).toContainText('TB 360°');
   await context.setOffline(true);
   await page.reload();
-  await identify.click();
+  await expect(identify).toHaveAttribute('aria-pressed', 'true');
   await expect(references).toContainText('MB 345°');
 });
 
@@ -166,7 +165,7 @@ for (const entity of ['GPS point', 'airport'] as const) {
       await page.waitForFunction(() => !!navigator.serviceWorker.controller);
       await context.setOffline(true);
       await page.reload();
-      await identify.click();
+      await expect(identify).toHaveAttribute('aria-pressed', 'true');
       await expect(row.locator('.navaid-magnetic')).toHaveText(magneticBearing);
       await expect(row.locator('.navaid-true')).toHaveText(trueBearing);
       expect(await savedBytes()).toEqual(pinned);

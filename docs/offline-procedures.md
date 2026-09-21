@@ -40,6 +40,8 @@ not supply airport/page lookup; publish the index too.
 The airport **Plates** tab groups procedures by type. Airport diagrams come first,
 followed by Chart Supplement entries; supplements also appear at VFR-only airports.
 TPP and supplement metadata load independently so one failed source does not hide the other.
+Results remain tied to the selected airport and exact catalog resources; changing
+editions hides the previous results immediately, before replacement requests finish.
 
 A row opens a slide-in dialog immediately; a loading skeleton remains visible while
 the PDF.js renderer and document load:
@@ -48,6 +50,8 @@ the PDF.js renderer and document load:
 - Individual FAA fallbacks use the same viewer, through a narrow FAA-only proxy.
 - Shared minima open at the named destination or validated page.
 - Only the current page renders; closing/changing documents cancels obsolete rendering.
+  Document-load, target-resolution and page-render failures release the PDF.js loading
+  task and worker; cleanup rejections do not create an unhandled promise rejection.
 - Two-finger pinch and trackpad gestures change viewer zoom from 50–400%, anchored
   at the gesture. The current bitmap previews the movement; PDF.js redraws after
   release. Selection, page, zoom, fullscreen and scroll position restore locally.

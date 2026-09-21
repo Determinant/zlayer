@@ -363,6 +363,7 @@ textarea::placeholder {
 
 .product-panel-error {
   position: fixed;
+  pointer-events: auto;
   z-index: 100;
   top: 20px;
   right: 20px;

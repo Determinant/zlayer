@@ -1,6 +1,7 @@
 import { EdgePanelFrame, useEdgePanel } from '../core/ui/edge-panels';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { formatDate } from '../core/format/time';
+import { formatWaypointLabel } from '../core/format/coordinates';
 import type { SavedSupplement } from './read-context';
 
 import type { GeoPointFeature, ProcedureResourceRecord } from '@zlayer/contracts';
@@ -47,13 +48,13 @@ export function FeatureDetailsPanel({
   const [tab, setTab] = usePersistentState<'info' | 'plates'>(`feature-tab:${featureKey(feature)}`, 'info',
     (value): value is 'info' | 'plates' => value === 'info' || value === 'plates');
   const ident = featureIdent(feature);
-  const coordinateLabel = feature.properties.kind === 'coordinate' && /^(\d{6}[NS])(\d{7}[EW])$/.exec(ident);
+  const label = formatWaypointLabel(ident);
   const hasRunways = Array.isArray(feature.properties.runways);
   const hasPlates = hasAirportPlates(feature);
   const detailRows = featureDetailRows(feature, false);
 
   return (
-    <EdgePanelFrame panel={panel} label={`${ident} details`} tab={{ edge: 'bottom', order: 1 }}
+    <EdgePanelFrame panel={panel} label={`${label} details`} tab={{ edge: 'bottom', order: 1 }}
       className={`feature-details-panel${hasPlates ? ' has-plates' : ''}`}
       icon={<><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.01" /></>}>
       <article {...panel.bodyProps}
@@ -62,7 +63,7 @@ export function FeatureDetailsPanel({
           ×
         </button>
         <div className="feature-card-heading">
-          <h2>{coordinateLabel ? <>{coordinateLabel[1]}<wbr />{coordinateLabel[2]}</> : ident}</h2>
+          <h2 title={label === ident ? undefined : ident}>{label}</h2>
           <div className="feature-card-actions">
             <FeatureRouteActions feature={feature} route={route} />
             <button className="identify-feature-button" type="button" aria-pressed={!!identification}
@@ -111,7 +112,7 @@ export function FeatureDetailsPanel({
                     </div>
                   ))}
                 </dl>}
-                <AirportWeather feature={feature} client={metarClient} />
+                <AirportWeather feature={feature} client={metarClient} active={panel.open} />
                 {hasRunways && <AirportRunways feature={feature} />}
               </>
             ) : editionUnavailable ? (

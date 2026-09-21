@@ -99,7 +99,8 @@ export function useCatalog() {
     ...(isSupportedCycle(state.selection) ? [state.selection] : [])])].sort().reverse();
   const latest = state.revisions[0];
   const cycleNotice = [
-    state.loadingCycle ? `Loading FAA cycle ${formatDate(state.loadingCycle)}…` : undefined,
+    state.loadingCycle ? state.loadingCycle === 'latest' ? 'Loading latest FAA cycle…'
+      : `Loading FAA cycle ${formatDate(state.loadingCycle)}…` : undefined,
     state.error,
     state.stale ? 'Cycle list unavailable online. Using saved editions; reconnect and reload to check for newer charts.' : undefined,
     state.catalog && ((latest && state.catalog.revision !== latest) ||

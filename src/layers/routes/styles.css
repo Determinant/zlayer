@@ -108,16 +108,30 @@
   min-width: 0;
   height: var(--route-editor-height);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding: 1px 5px;
   border: 1px solid rgba(78, 179, 247, 0.28);
   border-radius: 9px;
-  background: rgba(18, 42, 62, 0.74);
+  /* Local covers reveal the edge shadows only when content is offscreen. */
+  background:
+    linear-gradient(to right, #122a3e, transparent) left / 16px 100% local,
+    linear-gradient(to left, #122a3e, transparent) right / 16px 100% local,
+    linear-gradient(to right, #020b14aa, transparent) left / 10px 100% scroll,
+    linear-gradient(to left, #020b14aa, transparent) right / 10px 100% scroll,
+    rgba(18, 42, 62, 0.74);
+  background-repeat: no-repeat;
   scrollbar-width: none;
+  cursor: grab;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .route-editor::-webkit-scrollbar {
   display: none;
+}
+
+.route-editor.is-scrolling,
+.route-editor.is-scrolling .route-token {
+  cursor: grabbing;
 }
 
 .route-editor:focus-within {
@@ -148,17 +162,19 @@
   pointer-events: none;
 }
 .route-approach-bundle .route-token::before { border-radius: 0 7px 7px 0; }
-.route-attached-approach, .route-detach-approach {
+.route-approach-bundle.has-departure .route-token::before { border-radius: 7px 0 0 7px; }
+.route-approach-bundle.has-departure.has-approach .route-token::before { border-radius: 0; }
+:is(.route-attached-approach, .route-attached-departure), :is(.route-detach-approach, .route-detach-departure) {
   display: flex; align-items: center; justify-content: center; gap: 5px;
   min-height: max(26px, var(--touch-target)); padding: 0 7px; border: 0; border-radius: 5px;
   color: #b7f4dc; background: transparent; cursor: pointer; font: inherit; font-size: 11px;
 }
-.route-attached-approach span { max-width: min(210px, calc(100vw - 200px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-attached-approach svg { flex: 0 0 16px; width: 16px; height: 16px; fill: none; stroke: #51e0af; stroke-width: 1.4; }
-.route-detach-approach { min-width: max(26px, var(--touch-target)); padding: 0; font-size: 19px; }
-.route-attached-approach:hover, .route-detach-approach:hover { background: #51e0af1a; }
-.route-attached-approach:focus-visible, .route-detach-approach:focus-visible { outline: 2px solid #51e0af; outline-offset: -2px; }
-.route-attached-approach:disabled { cursor: default; }
+:is(.route-attached-approach, .route-attached-departure) span { max-width: min(210px, calc(100vw - 200px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.route-attached-approach, .route-attached-departure) svg { flex: 0 0 16px; width: 16px; height: 16px; fill: none; stroke: #51e0af; stroke-width: 1.4; }
+:is(.route-detach-approach, .route-detach-departure) { min-width: max(26px, var(--touch-target)); padding: 0; font-size: 19px; }
+:is(.route-attached-approach, .route-attached-departure):hover, :is(.route-detach-approach, .route-detach-departure):hover { background: #51e0af1a; }
+:is(.route-attached-approach, .route-attached-departure):focus-visible, :is(.route-detach-approach, .route-detach-departure):focus-visible { outline: 2px solid #51e0af; outline-offset: -2px; }
+:is(.route-attached-approach, .route-attached-departure):disabled { cursor: default; }
 
 .route-token-list .route-inline-entry {
   width: 146px;
@@ -189,7 +205,8 @@
   color: color-mix(in srgb, var(--token-color) 25%, #f4faff);
   background: transparent;
   cursor: grab;
-  touch-action: none;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
   user-select: none;
   transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
@@ -227,6 +244,7 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .route-token.is-dragging {
