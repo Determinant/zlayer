@@ -4,7 +4,9 @@ import { LngLatBounds, type Map as MapLibreMap } from 'maplibre-gl';
 import { featureFilter } from '@maplibre/maplibre-gl-style-spec';
 import type { LayerSpecification } from 'maplibre-gl';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
-import { createRouteResolver } from '@zlayer/domain';
+import { createRouteResolver, routeCoordinateFeature, routeDraftFromText, routeDraftText } from '@zlayer/domain';
+import { insertRouteFeature } from '../src/layers/routes/draft';
+import { createRouteRemovalResolver } from './helpers/route-removal';
 import { unwrapRouteCoordinates } from '../src/layers/routes/geometry';
 import { routeEditProperties, routeEditTarget } from '../src/layers/routes/editing';
 import { installRouteLayers, syncRoute, ROUTE_SOURCE_ID, RECOMMENDATION_SOURCE_ID } from '../src/layers/routes/renderer';
@@ -19,6 +21,27 @@ test('edit targets reject old plan revisions even when geometry and entry IDs ar
   assert.deepEqual(routeEditTarget(properties, first), target);
   assert.equal(routeEditTarget(properties, next), undefined);
   assert.equal(routeEditTarget({ ...properties, editEntryId: 'missing' }, first), undefined);
+});
+
+for (const [route, from, to, expected] of [
+  ['KSBA CMA ENTRY ARR1 KSMX', 'CMA', 'ENTRY', 'KSBA CMA 343000N1193000W ENTRY ARR1 KSMX'],
+  ['KSBA DEP1 EXIT CMA KSMX', 'EXIT', 'CMA', 'KSBA DEP1 EXIT 343000N1193000W CMA KSMX'],
+  ['KSBA CMA ENTRY V1 EXIT KSMX', 'CMA', 'ENTRY', 'KSBA CMA 343000N1193000W ENTRY V1 EXIT KSMX'],
+  ['CMA KSBA TEST1 KSMX', 'CMA', 'KSBA', 'CMA 343000N1193000W KSBA TEST1 KSMX'],
+] as const) test(`a connecting leg beside a published route keeps its insertion point: ${route}`, () => {
+  const resolve = createRouteRemovalResolver(), draft = routeDraftFromText(route), plan = resolve(draft);
+  const connector = plan.legs.find(leg => leg.from.ident === from && leg.to.ident === to)!;
+  assert.ok(connector.edit);
+  const waypoint = routeCoordinateFeature([-119.5, 34.5]);
+  const next = insertRouteFeature(draft, connector.edit.afterEntryId, waypoint), updated = resolve(next);
+  assert.equal(routeDraftText(next), expected);
+  assert.ok(draft.entries.every(entry => next.entries.includes(entry)));
+  assert.ok(updated.legs.some(leg => leg.from.ident === from && leg.to.ident === waypoint.properties.ident));
+  assert.ok(updated.legs.some(leg => leg.from.ident === waypoint.properties.ident && leg.to.ident === to));
+  const published = (route: typeof plan) => route.legs.filter(leg => leg.owners.length).map(leg => [leg.from.ident, leg.to.ident]);
+  assert.deepEqual(published(updated), published(plan));
+  assert.deepEqual(updated.unresolved, plan.unresolved);
+  assert.ok(updated.legs.filter(leg => leg.owners.length).every(leg => !leg.edit));
 });
 
 test('procedure previews remain dashed in primary and alternative routes, without editable implicit legs', () => {

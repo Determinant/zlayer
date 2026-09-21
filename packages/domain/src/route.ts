@@ -9,7 +9,7 @@ import type {
 } from '@zlayer/contracts';
 import { createProcedureExpander } from './terminal-procedures.js';
 import { createTecInterpreter } from './tec-routes.js';
-import { expandRouteApproaches } from './approaches.js';
+import { approachFixFeature, expandRouteApproaches } from './approaches.js';
 
 import type { RouteDraft, RouteFeaturePins, RoutePlan, RouteResolver, RouteWaypoint } from './route-model.js';
 import { normalizeRouteToken, routeTokenForFeature } from './route-text.js';
@@ -45,6 +45,15 @@ export function createRouteResolver(
   preferredData?: PreferredRoutesData,
 ): RouteResolver {
   const indexes = buildIndexes(collections);
+  // Only explicit pins use coded approach fixes. Do not introduce ambiguous
+  // runway names or change ordinary navigation identifier resolution.
+  for (const procedure of terminalData?.approaches?.procedures ?? []) {
+    for (const leg of [...procedure.transitions.flatMap(transition => transition.legs), ...procedure.final]) {
+      if (!leg.fix) continue;
+      const feature = approachFixFeature(leg.fix);
+      indexes.byFeatureId.set(feature.id!, { layer: 'fixes', feature });
+    }
+  }
   const resolveAirwayChain = createAirwayChainResolver(airwayData);
   const expandProcedures = createProcedureExpander(terminalData);
   const interpretTec = createTecInterpreter(Object.fromEntries(collections.map(collection => [collection.meta.layer, collection])), preferredData);

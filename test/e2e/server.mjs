@@ -31,7 +31,7 @@ await build({ build: { outDir: directory, rolldownOptions: {
     : chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js' },
 } }, logLevel: 'error' });
 const fixtures = await fixtureFiles();
-for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic']]) {
+for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic'], ['terrain-geographic-fine', 'terrain-geographic-fine']]) {
   for (const file of await readdir(new URL(`../fixtures/${directory}/`, import.meta.url))) {
     if (!/\.(json|terrain|dem)$/.test(file)) continue;
     fixtures.set(`/chart-data/${route}/${file}`, {
@@ -96,7 +96,7 @@ const server = createServer(async (request, response) => {
       manifest.products.find(product => product.id === 'navaids').count = data.features.length;
       fixtures.set(`${root}/manifest.json`, { type: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
       fixtures.set(`${root}/navaids.geojson`, { type: 'application/geo+json', body: Buffer.from(JSON.stringify(data)) });
-    } else if (path === '/__test/published-approaches') {
+    } else if (path === '/__test/published-approaches' || path === '/__test/published-approaches-missing-final-fix') {
       const root = '/chart-data/2026-09-03';
       const setJson = (path, value) => fixtures.set(path, { type: 'application/json', body: Buffer.from(JSON.stringify(value)) });
       const navigation = JSON.parse(originalFixtures.get(`${root}/nav/airports.geojson`).body);
@@ -108,7 +108,12 @@ const server = createServer(async (request, response) => {
       manifest.products.find(product => product.id === 'airports').count = navigation.features.length;
       manifest.products.push({ id: 'terminal-procedures', file: 'terminal-procedures.json', count: 0 });
       setJson(`${root}/nav/manifest.json`, manifest);
-      setJson(`${root}/nav/terminal-procedures.json`, publishedApproaches.terminal);
+      const terminal = structuredClone(publishedApproaches.terminal);
+      if (path.endsWith('-missing-final-fix')) {
+        const procedure = terminal.approaches.procedures.find(procedure => procedure.id === 'KSNS:I31');
+        delete procedure.final.find(leg => leg.fix?.ident === 'RW31').fix;
+      }
+      setJson(`${root}/nav/terminal-procedures.json`, terminal);
       const catalog = JSON.parse(originalFixtures.get(`${root}/tpp/catalog.json`).body);
       const airport = structuredClone(publishedApproaches.airports.find(airport => airport.id === 'KSNS'));
       // Real published titles and IDs, with the small local test book replacing the PDF volume.

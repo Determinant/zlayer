@@ -7,21 +7,22 @@ test('the initial camera is centered on KPAO at a regional zoom', () => {
   assert.deepEqual(DEFAULT_MAP_VIEW, { center: [-122.11504666, 37.46112138], zoom: 9 });
 });
 
-test('the default basemap draws attributed relief beneath translucent topo', () => {
+test('the default basemap uses attributed opaque topo without separate relief requests', () => {
   const style = mapStyle({});
   assert.ok(typeof style !== 'string');
   const rasters = style.layers.filter((layer) => layer.type === 'raster');
-  assert.equal(rasters.length, 2);
-  const [relief, topo] = rasters;
-  assert.ok(relief && topo);
-  assert.ok(Number(relief.paint?.['raster-contrast']) > 0);
-  const opacity = Number(topo.paint?.['raster-opacity']);
-  assert.ok(opacity > 0 && opacity < 1);
-  for (const source of Object.values(style.sources)) {
-    assert.ok(source.type === 'raster');
-    assert.equal(source.attribution, 'USGS The National Map');
-    assert.ok(source.tiles?.[0]?.startsWith('https://basemap.nationalmap.gov/'));
-  }
+  assert.equal(rasters.length, 1);
+  const [topo] = rasters;
+  assert.ok(topo);
+  assert.equal(topo.source, 'zlayer-basemap');
+  assert.equal(topo.paint?.['raster-opacity'], 1);
+  assert.deepEqual(Object.keys(style.sources), ['zlayer-basemap']);
+  const source = style.sources['zlayer-basemap'];
+  assert.ok(source?.type === 'raster');
+  assert.equal(source.attribution, 'USGS The National Map');
+  assert.deepEqual(source.tiles, [
+    'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+  ]);
 });
 
 test('preserves a custom basemap without mixing in default relief', () => {

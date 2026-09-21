@@ -6,6 +6,8 @@ import { terrainDetail } from './detail';
 import type { Tile } from './geometry';
 import type { TerrainPackage } from './packages';
 
+const formatKey = (source: TerrainSource) => `${source.schemaVersion}:${source.maxZoom}`;
+
 /** Saved indices take precedence over a newer feed, including offline reloads. */
 export function terrainSources(catalog: CatalogReadSource | undefined): TerrainSource[] {
   if (!catalog) return [];
@@ -25,13 +27,13 @@ export function terrainSources(catalog: CatalogReadSource | undefined): TerrainS
  * Metadata, storage health and shadowed sources do not invalidate already loaded tiles. */
 export function terrainSourceKey(sources: readonly TerrainSource[], base: string): string {
   const selected = new Set<string>();
-  const groups: Array<{ schemaVersion: TerrainSource['schemaVersion']; shards: Array<[string, string]> }> = [];
+  const groups: Array<{ format: string; shards: Array<[string, string]> }> = [];
   for (const source of sources) {
     if (!source.shards.length) continue;
-    const root = new URL(source.root, base).href;
+    const root = new URL(source.root, base).href, format = formatKey(source);
     const shards: Array<[string, string]> = [];
     for (const shard of source.shards) {
-      const key = `${source.schemaVersion}:${terrainShardKey(shard.zoom, shard.x, shard.y)}`;
+      const key = `${format}:${terrainShardKey(shard.zoom, shard.x, shard.y)}`;
       if (!selected.has(key)) {
         selected.add(key);
         shards.push([key, terrainArchiveUrl(root, shard)]);
@@ -40,8 +42,8 @@ export function terrainSourceKey(sources: readonly TerrainSource[], base: string
     if (!shards.length) continue;
     // Consecutive sources of one format have no remaining overlap after deduplication.
     const previous = groups.at(-1);
-    if (previous?.schemaVersion === source.schemaVersion) previous.shards.push(...shards);
-    else groups.push({ schemaVersion: source.schemaVersion, shards });
+    if (previous?.format === format) previous.shards.push(...shards);
+    else groups.push({ format, shards });
   }
   for (const group of groups) group.shards.sort(([a], [b]) => a.localeCompare(b));
   return jsonIdentity(groups);
@@ -59,12 +61,12 @@ export function packagesForTerrainTile(sources: readonly TerrainSource[], tile: 
         index = new Map(source.shards.map(shard => [terrainShardKey(shard.zoom, shard.x, shard.y), shard]));
         indexes.set(source, index);
       }
-      const tiles = source.schemaVersion === 2 ? geographicTiles(demTile) : [demTile];
+      const tiles = source.schemaVersion === 2 ? geographicTiles(demTile, source.maxZoom) : [demTile];
       for (const t of tiles) {
-        const key = terrainShardKey(t.z, t.x, t.y), identity = `${source.schemaVersion}:${key}`;
+        const key = terrainShardKey(t.z, t.x, t.y), identity = `${formatKey(source)}:${key}`;
         const shard = index.get(key);
         if (shard && !result.has(identity)) result.set(identity, { root: new URL(source.root, base).href, shard,
-          ...(source.schemaVersion === 2 ? { grid: 'EPSG:4326' as const } : {}), priority });
+          ...(source.schemaVersion === 2 ? { grid: 'EPSG:4326' as const, maxZoom: source.maxZoom } : {}), priority });
       }
     }
   }

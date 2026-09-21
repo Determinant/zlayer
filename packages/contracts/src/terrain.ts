@@ -5,10 +5,9 @@ import { isRecord, isSha256, hasValidDate } from './validation.js';
 export type TerrainArchive = { zoom: number; x: number; y: number; file: string; byteLength: number; sha256: string };
 export type TerrainFormat = {
   schemaVersion: 1; encoding: 'float32-feet-gzip'; minZoom: 1; maxZoom: 13;
-} | {
-  schemaVersion: 2; encoding: 'int16-metres-gzip'; minZoom: 1; maxZoom: 10;
-  grid: 'EPSG:4326'; resolutionArcSeconds: 4.9;
-};
+} | ({
+  schemaVersion: 2; encoding: 'int16-metres-gzip'; minZoom: 1; grid: 'EPSG:4326';
+} & ({ maxZoom: 10; resolutionArcSeconds: 4.9 } | { maxZoom: 11; resolutionArcSeconds: 2.45 }));
 export type TerrainIndex = TerrainFormat & { archives: TerrainArchive[] };
 export type TerrainShard = { zoom: number; x: number; y: number; file: string; byteLength: number; sha256: string };
 export type TerrainManifest = TerrainFormat & { generatedAt: string; shards: TerrainShard[] };
@@ -42,7 +41,7 @@ export function terrainArchiveUrl(root: string, archive: Pick<TerrainArchive, 'f
 
 /** Split dateline-crossing regions into separate bounds before calling. */
 export function terrainRegionKeys(bounds: readonly Bounds[], format?: TerrainFormat): Set<string> {
-  if (format?.schemaVersion === 2) return new Set(terrainRegionBlocks([{ bounds }])
+  if (format?.schemaVersion === 2) return new Set(terrainRegionBlocks([{ bounds }], format.minZoom, format.maxZoom)
     .map(a => terrainArchiveKey(a.zoom, a.x, a.y)));
   const keys = new Set<string>();
   for (let zoom = 1; zoom <= 13; zoom++) {
@@ -79,17 +78,18 @@ export function isTerrainManifest(value: unknown): value is TerrainManifest {
 function isTerrainFormat(value: Record<string, unknown>): value is Record<string, unknown> & TerrainFormat {
   return value.minZoom === 1 && (value.schemaVersion === 1
     ? value.encoding === 'float32-feet-gzip' && value.maxZoom === 13
-    : value.schemaVersion === 2 && value.encoding === 'int16-metres-gzip' && value.maxZoom === 10 &&
-      value.grid === 'EPSG:4326' && value.resolutionArcSeconds === 4.9);
+    : value.schemaVersion === 2 && value.encoding === 'int16-metres-gzip' && value.grid === 'EPSG:4326' &&
+      ((value.maxZoom === 10 && value.resolutionArcSeconds === 4.9) ||
+       (value.maxZoom === 11 && value.resolutionArcSeconds === 2.45)));
 }
 const gridSize = (format: TerrainFormat, zoom: number) => format.schemaVersion === 2 ? terrainGridSize(zoom)
   : { columns: 2 ** zoom, rows: 2 ** zoom };
 
 /** Keep geometry synchronized with faa-regs lib/terrain-grid.ts.
- * Geographic cells are anchored at (-180, 90); zoom 10 is exactly 4.9 arc-seconds.
+ * Geographic cells are anchored at (-180, 90); zoom 11 is exactly 2.45 arc-seconds.
  * Coarser levels double that spacing. Tile and archive edges never shift the grid. */
-export const TERRAIN_RESOLUTION_ARC_SECONDS = 4.9;
-export const TERRAIN_MAX_ZOOM = 10;
+export const TERRAIN_RESOLUTION_ARC_SECONDS = 2.45;
+export const TERRAIN_MAX_ZOOM = 11;
 export const TERRAIN_NODATA = -32768;
 export const terrainSpacing = (zoom: number) => TERRAIN_RESOLUTION_ARC_SECONDS / 3600 * 2 ** (TERRAIN_MAX_ZOOM - zoom);
 export const terrainGridSize = (zoom: number) => ({

@@ -1,0 +1,1 @@
+{"schemaVersion":2,"encoding":"int16-metres-gzip","grid":"EPSG:4326","resolutionArcSeconds":2.45,"minZoom":1,"maxZoom":11,"archives":[{"zoom":5,"x":4,"y":4,"file":"b789beda5ec27e6c41bb6afcddc5d57887416939506b341be9d671c7b29cf646.dem","sha256":"b789beda5ec27e6c41bb6afcddc5d57887416939506b341be9d671c7b29cf646","byteLength":740}]}

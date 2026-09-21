@@ -28,6 +28,14 @@ export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Ro
   position: PointGeometry['coordinates']): RouteDraft {
   const index = plan.waypoints.indexOf(point);
   if (index < 0 || !routeDraftMatchesPlan(draft, plan)) return draft;
+  if (point.owners.some(owner => owner.kind === 'approach')) {
+    const { points, airport, problem } = approachRemainder(plan, point);
+    if (problem || !airport) return draft;
+    const { approach: _approach, ...entry } = draft.entries[point.source.tokenIndex]!;
+    return { entries: [entryForPoint(routeCoordinateFeature(position)), ...points.map(point => entryForPoint(point.feature)),
+      { ...entry, ...(airport.feature.id ? { pinnedFeatureId: airport.feature.id } : {}) },
+      ...draft.entries.slice(point.source.tokenIndex + 1)] };
+  }
   const remaining = plan.waypoints.slice(index);
   const expand = directToExpansion(plan, point);
   if (expansionProblem(plan, point, remaining, expand)) return draft;
@@ -46,7 +54,35 @@ export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Ro
  * Explain refusals before editing; the draft operation enforces the same guard. */
 export function directToRouteProblem(plan: RoutePlan, point: RouteWaypoint): string | undefined {
   const index = plan.waypoints.indexOf(point);
-  return index < 0 ? undefined : expansionProblem(plan, point, plan.waypoints.slice(index), directToExpansion(plan, point));
+  if (index < 0) return undefined;
+  return point.owners.some(owner => owner.kind === 'approach') ? approachRemainder(plan, point).problem
+    : expansionProblem(plan, point, plan.waypoints.slice(index), directToExpansion(plan, point));
+}
+
+/** A landing route ends at the airport, without the bundle's missed branch.
+ * Check only the retained portion: an earlier gap or a missed leg is cut away. */
+function approachRemainder(plan: RoutePlan, point: RouteWaypoint) {
+  const airport = plan.waypoints.find(candidate => candidate.edit?.entryId === point.source.entryId && candidate.layer === 'airports');
+  const points = plan.waypoints.slice(plan.waypoints.indexOf(point))
+    .filter(candidate => candidate.source.entryId === point.source.entryId && candidate.approachPhase === 'approach');
+  let problem: string | undefined;
+  if (!airport || point.approachPhase !== 'approach') {
+    problem = 'Choose a fix before the missed approach to create a direct route to the airport.';
+  } else if (!points.at(-1)?.approachLandingEnd) {
+    problem = `Direct to cannot preserve the incomplete final approach to ${airport.ident}.`;
+  } else {
+    for (const [index, to] of points.entries()) {
+      if (to.approachHold) { problem = `Direct to cannot preserve the hold at ${to.ident} as ordinary waypoints.`; break; }
+      if (!index) continue;
+      const from = points[index - 1]!;
+      const leg = plan.legs.find(leg => leg.from === from && leg.to === to);
+      if (!leg) { problem = `Direct to would connect ${from.ident} to ${to.ident} across a route discontinuity.`; break; }
+      if (leg.geometry && leg.geometry.length > 2) {
+        problem = `Direct to cannot preserve the curved leg from ${from.ident} to ${to.ident} as ordinary waypoints.`; break;
+      }
+    }
+  }
+  return { points, airport, problem };
 }
 
 function directToExpansion(plan: RoutePlan, point: RouteWaypoint): Set<string> {
@@ -64,7 +100,6 @@ function directToExpansion(plan: RoutePlan, point: RouteWaypoint): Set<string> {
 }
 
 function expansionProblem(plan: RoutePlan, point: RouteWaypoint, remaining: RouteWaypoint[], expand: Set<string>): string | undefined {
-  if (point.owners.some(owner => owner.kind === 'approach')) return 'Choose an approach entry from the airport’s approach bundle to preserve the published procedure.';
   if (point.edit && plan.entries[point.source.tokenIndex]?.approach?.entry) return 'Remove the attached approach before going directly to the airport.';
   const issue = plan.issues.find(issue => issue.tokenIndex >= point.source.tokenIndex &&
     expand.has(plan.entries[issue.tokenIndex]!.id));

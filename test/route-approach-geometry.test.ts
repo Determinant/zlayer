@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { isTerminalProceduresData, type ApproachRoute, type FeatureCollectionResponse, type TerminalProceduresData } from '@zlayer/contracts';
-import { approachEntryOptions, approachIdent, approachPreview, createRouteResolver, distanceNm, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
+import { approachEntryOptions, approachIdent, approachPreview, createRouteResolver, distanceNm, routeCoordinateFeature, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
 import { syncRoute, ROUTE_SOURCE_ID } from '../src/layers/routes/renderer';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
-import { sameRouteApproach, setRouteApproach } from '../src/layers/routes/draft';
+import { insertRouteFeature, sameRouteApproach, setRouteApproach } from '../src/layers/routes/draft';
 import { removeRoutePoint } from '../src/layers/routes/removal';
 import { directToRoutePoint } from '../src/layers/routes/direct-to';
 import { corridorDistance, project, routeSegments } from '../src/layers/terrain/geometry';
@@ -155,13 +155,32 @@ test('approach connections enter the selected fix and continue from the missed h
   assert.deepEqual(plan.legs.map(leg => leg.from.ident), ['KSJC', 'ARCHI', 'ZILED', 'GIRRR', 'DUMBA', 'CEPIN', 'AXMUL', 'RW28R', 'VIKYU']);
 });
 
+test('approach connectors insert before and after the airport bundle without editing its published legs', () => {
+  const original = draft(), plan = resolve(original);
+  const waypoint = routeCoordinateFeature([-122, 37.5]);
+  for (const [from, to, entryIndex] of [['KSJC', 'ARCHI', 0], ['VIKYU', 'KOAK', 1]] as const) {
+    const connector = plan.legs.find(leg => leg.from.ident === from && leg.to.ident === to)!;
+    assert.deepEqual(connector.edit, { kind: 'leg', afterEntryId: original.entries[entryIndex]!.id });
+    const next = insertRouteFeature(original, connector.edit!.afterEntryId, waypoint);
+    assert.equal(next.entries[entryIndex + 1]!.text, waypoint.properties.ident);
+    assert.equal(next.entries.find(entry => entry.id === original.entries[1]!.id), original.entries[1]);
+    const updated = resolve(next);
+    assert.deepEqual(updated.issues, []);
+    assert.ok(updated.legs.some(leg => leg.from.ident === from && leg.to.ident === waypoint.properties.ident));
+    assert.ok(updated.legs.some(leg => leg.from.ident === waypoint.properties.ident && leg.to.ident === to));
+    assert.deepEqual(updated.legs.filter(leg => leg.approachPhase).map(leg => [leg.from.ident, leg.to.ident, leg.geometry]),
+      plan.legs.filter(leg => leg.approachPhase).map(leg => [leg.from.ident, leg.to.ident, leg.geometry]));
+    assert.ok(updated.legs.filter(leg => leg.approachPhase).every(leg => !leg.edit));
+  }
+});
+
 test('VTF extends final and never connects the preceding waypoint straight to the FAF', () => {
   const selection = { ...selected, entry: { ...selected.entry!, transitionId: 'vectors', name: 'VTF' } };
   const plan = resolve(draft(selection));
   assert.equal(plan.approachExtensions?.length, 1);
   assert.deepEqual(plan.waypoints.filter(p => p.owners.length).map(p => p.ident), ['AXMUL', 'RW28R', 'VIKYU']);
   assert.ok(!plan.legs.some(leg => leg.from.ident === 'KSJC'));
-  assert.ok(plan.legs.some(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'KOAK'));
+  assert.equal(plan.legs.find(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'KOAK')?.edit?.afterEntryId, plan.entries[1]!.id);
   assert.equal(sameRouteApproach(selected, selection), false);
 });
 
@@ -175,7 +194,14 @@ test('consecutive approaches preserve the previous missed endpoint as the next p
   assert.deepEqual(nextAirport.approachArrival?.coordinate, previousExit.feature.geometry.coordinates);
   assert.ok(!plan.legs.some(leg => leg.from === previousExit), 'VTF retains arrival context without a fabricated connector');
   const connected = resolve(setRouteApproach(both, both.entries[2]!, selected));
-  assert.ok(connected.legs.some(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'ARCHI'));
+  const connector = connected.legs.find(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'ARCHI')!;
+  assert.equal(connector.edit?.afterEntryId, first.entries[1]!.id);
+  const coordinate = routeCoordinateFeature([-122, 37.5]);
+  const inserted = insertRouteFeature(connected, connector.edit!.afterEntryId, coordinate);
+  assert.equal(inserted.entries[2]!.text, coordinate.properties.ident);
+  assert.equal(inserted.entries[1], connected.entries[1]);
+  assert.equal(inserted.entries[3], connected.entries[2]);
+  assert.ok(resolve(inserted).legs.some(leg => leg.from.ident === coordinate.properties.ident && leg.to.ident === 'ARCHI'));
 });
 
 test('altitude depictions stay out of route legs; stale or absent editions never silently select an entry', () => {
@@ -370,12 +396,12 @@ test('map source carries selected geometry, missed styling, VTF extension and fi
   assert.ok(source!.features.filter(f => f.properties?.approachPoint).every(f => f.properties?.editKind === undefined));
 });
 
-test('procedure children cannot flatten or resurrect stale selections; terrain follows curved geometry', () => {
+test('procedure children cannot be removed individually or resurrect stale selections; terrain follows curved geometry', () => {
   const original = draft(), plan = resolve(original);
   const child = plan.waypoints.find(point => point.ident === 'ARCHI')!;
   assert.equal(removeRoutePoint(original, plan, child), original);
-  assert.equal(directToRoutePoint(original, plan, child, [-122, 37]), original);
   const changed = setRouteApproach(original, original.entries[1]!, { ...selected, entry: { ...selected.entry!, transitionId: 'vectors', name: 'VTF' } });
+  assert.equal(directToRoutePoint(changed, plan, child, [-122, 37]), changed);
   assert.equal(removeRoutePoint(changed, plan, plan.waypoints.find(point => point.ident === 'KSFO')!), changed);
   const curved = { ...plan, legs: [{ ...plan.legs[0]!, geometry: [[0, .1], [.07, .07], [.1, 0]] as [number, number][] }] };
   assert.equal(corridorDistance(project([.07, .07]), routeSegments([curved])), 0, 'terrain samples the displayed bend, not the endpoint chord');

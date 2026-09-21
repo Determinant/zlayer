@@ -1,4 +1,4 @@
-import type { ApproachCoordinate as Coordinate, ApproachFix, ApproachLeg, ApproachRoute, ApproachRoutesData } from '@zlayer/contracts';
+import type { ApproachCoordinate as Coordinate, ApproachFix, ApproachLeg, ApproachRoute, ApproachRoutesData, GeoPointFeature } from '@zlayer/contracts';
 import type { ApproachArrival, ApproachDepiction, RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
 import type { RouteOwner } from './route-source.js';
 import { distanceNm, geographicMidpoint } from './route.js';
@@ -11,8 +11,17 @@ export type ApproachPreview = {
   depictions: ApproachDepiction[];
   extension?: Coordinate[];
   exit?: number;
+  /** Last resolved landing endpoint, absent when its tail is open or unavailable. */
+  landingEnd?: number;
   incomplete: boolean;
 };
+
+/** A coded fix can remain pinned after its airport bundle is decomposed. The
+ * coordinate distinguishes local runway names and identically named fixes. */
+export function approachFixFeature(fix: ApproachFix): GeoPointFeature {
+  return { type: 'Feature', id: `approach-fix:${JSON.stringify([fix.ident, ...fix.coordinate])}`,
+    geometry: { type: 'Point', coordinates: fix.coordinate }, properties: { ident: fix.ident, name: fix.ident } };
+}
 
 /** Restrict matching to unambiguous published titles; never guess from a nearby runway. */
 export function approachIdent(name: string): string | undefined {
@@ -107,6 +116,7 @@ export function approachPreview(procedure: ApproachRoute, entryId: string): Appr
   const result: ApproachPreview = { points: [], segments: [], depictions: [], incomplete: false };
   if (vector) result.extension = [destination(vector.fix.coordinate, vector.course + 180, 30), vector.fix.coordinate];
   let previous: number | undefined;
+  let missedStarted = false;
   let climb: { from: number; leg: ApproachLeg; intercept?: ApproachLeg } | undefined;
   const addHold = (leg: ApproachLeg, index: number) => {
     result.points[index]!.hold = leg.turn ?? 'unknown';
@@ -120,6 +130,12 @@ export function approachPreview(procedure: ApproachRoute, entryId: string): Appr
     else result.incomplete = true;
   };
   for (const leg of entry.legs) {
+    // Capture the landing tail before missed legs can replace its endpoint.
+    // A final leg without a fix (or an open-ended path) leaves previous unset.
+    if (leg.missed && !missedStarted) {
+      if (previous !== undefined) result.landingEnd = previous;
+      missedStarted = true;
+    }
     const fix = leg.fix;
     if (climb) {
       // A heading/course-to-intercept is bounded only by a following CF leg.
@@ -167,6 +183,7 @@ export function approachPreview(procedure: ApproachRoute, entryId: string): Appr
   }
   if (climb) result.incomplete = true;
   if (previous !== undefined) result.exit = previous;
+  if (!missedStarted && previous !== undefined) result.landingEnd = previous;
   return result;
 }
 
@@ -199,13 +216,13 @@ export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData
     }
     const owner: RouteOwner = { kind: 'approach', source: airport.source, ident: selected.name };
     const children = preview.points.map((fix, index): RouteWaypoint => ({ source: airport.source, owners: [owner],
-      ident: fix.ident, layer: 'fixes', approachRole: fix.role ?? '',
+      ident: fix.ident, layer: 'fixes', approachRole: fix.role ?? '', approachPhase: fix.missed ? 'missed' : 'approach',
+      ...(index === preview.landingEnd ? { approachLandingEnd: true } : {}),
       ...(fix.hold ? { approachHold: { turn: fix.hold, missedEnd: Boolean(fix.missed && index === preview.exit),
         ...(fix.holdCourse !== undefined ? { inboundCourse: fix.holdCourse } : {}),
         ...(fix.arrivalCourse !== undefined ? { arrivalCourse: fix.arrivalCourse } : {}),
         ...(fix.holdLength ? { length: fix.holdLength } : {}) } } : {}),
-      feature: { type: 'Feature', id: `approach:${airport.source.entryId}:${index}:${fix.ident}`,
-        geometry: { type: 'Point', coordinates: fix.coordinate }, properties: { ident: fix.ident, name: fix.ident } } }));
+      feature: approachFixFeature(fix) }));
     for (const segment of preview.segments) {
       const from = children[segment.from]!, to = children[segment.to]!;
       legs.push({ from, to, owners: [owner], approachPhase: segment.phase, geometry: segment.coordinates,
@@ -235,7 +252,10 @@ export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData
     const to = replacements.has(leg.to) ? replacements.get(leg.to)!.first : leg.to;
     if (!from || !to || sameFix({ ident: from.ident, coordinate: from.feature.geometry.coordinates }, { ident: to.ident, coordinate: to.feature.geometry.coordinates })) return [];
     if (from === leg.from && to === leg.to) return [leg];
+    // The connector still inserts between the same draft entries, even when
+    // its displayed endpoints are children of an attached approach.
     return [{ from, to, owners: [...leg.owners, ...from.owners, ...to.owners],
+      ...(leg.edit ? { edit: leg.edit } : {}),
       midpoint: geographicMidpoint(from.feature.geometry.coordinates, to.feature.geometry.coordinates),
       distanceNm: distanceNm(from.feature.geometry.coordinates, to.feature.geometry.coordinates) }];
   });

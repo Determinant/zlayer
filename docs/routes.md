@@ -116,6 +116,12 @@ final-course extension, leaving the preceding route disconnected; loading VTF
 does not activate a present-position direct-to. Its workflow follows the entry
 selection and final-extension conventions in the [ForeFlight pilot guide](https://cloudfront.foreflight.com/docs/ff/14.10/ForeFlight%20Mobile%20Pilot%27s%20Guide%20v14.10.pdf).
 
+Drag a connecting leg into or out of an approach to insert a waypoint before or
+after its airport bundle. The approach stays attached and its published legs stay
+intact. The same drag insertion works on ordinary connections beside SID, STAR,
+airway and TEC route items. Published internal legs and disconnected portions
+(including the arrival into VTF) do not become editable connections.
+
 This is a route preview. TF/CF/DF show waypoint connections, RF uses its coded
 center, and AF follows the published radius around the DME antenna. Arcs with
 missing or inconsistent geometry stay gaps. Older exports need rebuilding to
@@ -143,8 +149,9 @@ terrain corridors. The picker and route details explain this distinction. No hol
 entry maneuver is drawn. Unknown courses, open-ended vectors, unsupported procedure turns
 and missing geometry stay gaps. A trailing open-ended leg cannot become
 an onward connector. Approach children remain owned by the airport bundle and
-cannot be dragged or flattened to ordinary waypoints. Remove/change the bundle
-to edit it. Filing text remains unchanged. Legacy chart-only attachments prompt
+cannot be dragged or removed individually. Direct to a landing fix can decompose
+the remaining approach as described below; otherwise remove/change the bundle
+to edit it. Filing text remains unchanged while attached. Legacy chart-only attachments prompt
 for an entry before supplying route connections.
 
 The Route menu provides **Undo route edit** and **Redo route edit** for the last
@@ -171,6 +178,20 @@ If that expansion would remove a warning or connect across a missing waypoint or
 route discontinuity, Direct to leaves the route unchanged and explains the problem.
 This includes procedure previews with an open connection to the airport. An intact
 published suffix can still be retained, or the target can be chosen after the gap.
+
+Selecting a displayed approach fix and pressing **D→** starts at the current GPS
+position, inserts that fix and the remaining landing fixes before the airport in
+the route input, and removes the airport's green approach bundle. The missed
+branch and VTF extension are removed; entries after the airport stay intact. The
+new ordinary waypoints pin the exact coded fixes, including runway points, and
+survive reloads with the same approach data available. Undo restores the bundle
+and the previous route in one step. A missed-approach fix is not a landing target;
+remaining gaps, holds or curved legs prevent decomposition because ordinary
+waypoints cannot preserve them. An unresolved final endpoint or trailing vector
+also prevents decomposition, even when there is no later fix to expose the gap.
+Gaps before the target or in the discarded missed branch do not prevent Direct to.
+Saved map selections from older approach IDs rebind to their original airport
+entry and child occurrence once the route loads, and persist the current fix ID.
 
 ### Nearby navaid identification
 

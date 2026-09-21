@@ -44,6 +44,9 @@ export type RouteWaypoint = {
   /** Original connected arrival, retained when VTF or a coincident entry removes its connector. */
   approachArrival?: ApproachArrival;
   approachRole?: string;
+  approachPhase?: 'approach' | 'missed';
+  /** The landing path reaches this endpoint without an unresolved tail. */
+  approachLandingEnd?: true;
   approachHold?: {
     turn: 'L' | 'R' | 'unknown';
     inboundCourse?: number;

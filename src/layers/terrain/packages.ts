@@ -8,7 +8,7 @@ import { InvalidDataError, ResourceError } from '../../core/data/errors';
 import { readTerrainArchive } from './archive';
 import type { Tile } from './geometry';
 
-export type TerrainPackage = { root: string; shard: TerrainShard; grid?: 'EPSG:4326'; priority?: number };
+export type TerrainPackage = { root: string; shard: TerrainShard; grid?: 'EPSG:4326'; maxZoom?: 10 | 11; priority?: number };
 const archives = new WholeFileChartCache(undefined, 8, 4);
 type ParsedIndex = { data: TerrainIndex; byTile: ReadonlyMap<string, TerrainArchive> };
 // Cache at most 8,192 archive descriptors. Pending parses share the same budget.
@@ -64,7 +64,9 @@ async function parseIndex(blob: Blob, shard: TerrainShard): Promise<ParsedIndex>
 export async function readPackagedElevation(tile: Tile, source: TerrainPackage, signal: AbortSignal, version: 1 | 2 = 1): Promise<Float32Array> {
   const index = await readIndex(source, signal);
   signal.throwIfAborted();
-  if (index.data.schemaVersion !== version) throw new InvalidDataError('Terrain grid format mismatch');
+  if (index.data.schemaVersion !== version || (source.maxZoom !== undefined && index.data.maxZoom !== source.maxZoom)) {
+    throw new InvalidDataError('Terrain grid format mismatch');
+  }
   const archive = index.byTile.get(terrainArchiveKey(tile.z, tile.x, tile.y));
   if (!archive) throw new ResourceError('request', 'Terrain elevation is unavailable for this area');
   const url = terrainArchiveUrl(source.root, archive);

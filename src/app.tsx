@@ -2,6 +2,7 @@ import { FeatureDetailsPanel } from './workspace/feature-details-panel';
 import { EdgePanels } from './core/ui/edge-panels';
 import { formatDate } from './core/format/time';
 import { featureKey, restoreRouteCoordinate } from '@zlayer/domain';
+import { restoreApproachSelection, routePointForFeature, routePointKeys } from './layers/routes/selection';
 import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react';
 
 import type {
@@ -116,6 +117,16 @@ export function App() {
     context?.routing,
     routeDraft,
   );
+  useEffect(() => {
+    if (!selectionContext) return;
+    const feature = restoreApproachSelection(route.plan, selectionContext.feature);
+    if (feature === selectionContext.feature) return;
+    const point = routePointForFeature(route.plan, selectionContext.feature)!;
+    const routePointId = routePointKeys(route.plan).get(point)!;
+    setSelectionContext({ ...selectionContext, feature, routePointId });
+    setSavedFeature(feature);
+    setSavedRoutePointId(routePointId);
+  }, [route.plan, selectionContext, setSavedFeature, setSavedRoutePointId]);
   const { action: directTo, confirmation: directToConfirmation } = useDirectTo(ownshipLayer, route.plan, setRouteDraft);
   const { metars, state: metarState, weatherAirportCount } = metarSnapshot;
   const search = useNavigationSearch(context, query, metars);

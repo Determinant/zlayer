@@ -2,9 +2,73 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import catalog from '../fixtures/route-approaches.json' with { type: 'json' };
 import legs from '../fixtures/route-approach-legs.json' with { type: 'json' };
 import moffett from '../fixtures/route-approach-nuq.json' with { type: 'json' };
+import published from '../fixtures/route-approach-published.json' with { type: 'json' };
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
 test.use({ hasTouch: true });
+
+for (const touch of [false, true]) test(`dragging the leg into an approach inserts a waypoint and preserves its bundle (${touch ? 'touch' : 'mouse'})`, async ({ page, request }, testInfo) => {
+  await request.post('/__test/published-approaches');
+  try {
+    await page.setViewportSize({ width: touch ? 390 : 1280, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-09-20T23:00:00Z'));
+    const procedure = published.airports.find(airport => airport.id === 'KSNS')!.procedures.find(procedure => procedure.name === 'ILS RWY 31')!;
+    const entry = published.terminal.approaches.procedures.find(procedure => procedure.id === 'KSNS:I31')!
+      .transitions.find(transition => transition.id === 'SNS2')!.legs.find(leg => leg.fix?.ident === 'ARTYY')!.fix!;
+    await page.addInitScript(({ procedure, entry }) => {
+      if (localStorage.getItem('zlayer-route-draft-v1')) return;
+      localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: false }));
+      localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1,
+        center: [(-122 + entry.coordinate[0]!) / 2, entry.coordinate[1]], zoom: 9, bearing: 0, pitch: 0 }));
+      localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+        { id: 'origin', text: '362729N1220000W' },
+        { id: 'airport', text: 'KSNS', approach: { airportId: 'KSNS', procedureId: procedure.id,
+          name: procedure.name, cycle: '2609', entry: { routeId: 'KSNS:I31', transitionId: 'transition-fix:SNS2:1',
+            name: 'ARTYY', effectiveDate: '2026-09-03' } } },
+      ] }));
+    }, { procedure, entry });
+    await page.goto('/');
+    const bundle = page.locator('.route-attached-approach'), tokens = page.locator('.route-token strong');
+    await expect(bundle).toHaveText('ILS 31 · ARTYY');
+    await expect(page.getByLabel('Approach map details', { exact: true })).toBeVisible();
+    const hideTerrain = page.getByLabel('Hide terrain toolbox', { exact: true });
+    if (await hideTerrain.isVisible()) await hideTerrain.click();
+    const airport = await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[1]);
+    const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
+    const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const end = { x: start.x + 60, y: start.y + 70 };
+    await expect(async () => {
+      await page.mouse.move(start.x, start.y);
+      await expect(canvas).toHaveCSS('cursor', 'grab');
+    }).toPass();
+    if (touch) {
+      const session = await page.context().newCDPSession(page);
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await session.detach();
+    } else {
+      await page.mouse.down();
+      await page.mouse.move(end.x, end.y, { steps: 8 });
+      await page.mouse.up();
+    }
+    await expect(tokens).toHaveText(['362729N1220000W', /^\d{6}N\d{7}W$/, 'KSNS']);
+    await expect(bundle).toHaveText('ILS 31 · ARTYY');
+    await expect(page.locator('.route-token.is-error')).toHaveCount(0);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[2])).toEqual(airport);
+    const inserted = await tokens.nth(1).textContent();
+    await page.screenshot({ path: testInfo.outputPath('approach-connector-insertion.png') });
+    await history(page, 'Undo');
+    await expect(tokens).toHaveText(['362729N1220000W', 'KSNS']);
+    await expect(bundle).toHaveText('ILS 31 · ARTYY');
+    await history(page, 'Redo');
+    await expect(tokens).toHaveText(['362729N1220000W', inserted!, 'KSNS']);
+    await page.reload();
+    await expect(tokens).toHaveText(['362729N1220000W', inserted!, 'KSNS']);
+    await expect(bundle).toHaveText('ILS 31 · ARTYY');
+    await expect(page.getByLabel('Approach map details', { exact: true })).toBeVisible();
+  } finally { await request.post('/__test/reset'); }
+});
 
 for (const width of [320, 1280]) test(`NUQ missed approach connects to the OAK hold before and after reload at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });

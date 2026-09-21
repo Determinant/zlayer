@@ -20,7 +20,7 @@ loader.deregister();
 
 const point = project([-180 + 166.5 * 256 * terrainSpacing(10), 90 - 152.5 * 256 * terrainSpacing(10)]);
 const tile: Tile = { z: 13, x: Math.floor(point[0] * 8192), y: Math.floor(point[1] * 8192) };
-assert.deepEqual(geographicTiles(tile), [{ z: 10, x: 166, y: 152 }], 'fixture needs exactly one geographic grid');
+assert.deepEqual(geographicTiles(tile, 10), [{ z: 10, x: 166, y: 152 }], 'fixture needs exactly one geographic grid');
 
 type GridRead = { signal: AbortSignal; deferAbort: boolean; finish: (height?: number) => void; fail: (error: Error) => void };
 function fixture(t: test.TestContext) {

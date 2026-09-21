@@ -4,14 +4,17 @@ import { createBrowserDownloads } from '../../src/offline/browser-downloads';
 import type { DownloadPlan } from '../../src/offline/downloads';
 import { terrainArchiveUrl } from '@zlayer/contracts';
 
-const source = async (geographic = false) => {
-  const root = new URL(`/chart-data/${geographic ? 'terrain-geographic' : 'terrain-fixture'}`, location.href).href;
+type Fixture = boolean | 'fine';
+const fixtureName = (geographic: Fixture) => geographic === 'fine' ? 'terrain-geographic-fine'
+  : geographic ? 'terrain-geographic' : 'terrain-fixture';
+const source = async (geographic: Fixture = false) => {
+  const root = new URL(`/chart-data/${fixtureName(geographic)}`, location.href).href;
   return { ...await fetchJson(`${root}/manifest.json`, isTerrainManifest, 'Test terrain'), root };
 };
-const id = (geographic: boolean) => geographic ? 'terrain-geographic-fixture' : 'terrain-browser-fixture';
+const id = (geographic: Fixture) => `${fixtureName(geographic)}-selection`;
 const downloads = createBrowserDownloads(async () => { throw new Error('Unexpected PDF'); });
 
-export async function save(geographic = false) {
+export async function save(geographic: Fixture = false) {
   const terrain = await source(geographic), root = terrain.root, shard = terrain.shards[0]!;
   const plan: DownloadPlan = { id: id(geographic), regionId: id(geographic), title: 'Terrain fixture',
     revision: '2026-09-03', terrain: true, bounds: [[-122.01, 37.01, -122.009, 37.011]],
@@ -22,12 +25,12 @@ export async function save(geographic = false) {
   return downloads.snapshot().find(job => job.id === id(geographic));
 }
 
-export async function check(geographic = false) {
+export async function check(geographic: Fixture = false) {
   await downloads.restore();
   return downloads.snapshot().find(job => job.id === id(geographic));
 }
 
-export async function probe(zoom: number, geographic = false): Promise<number[]> {
+export async function probe(zoom: number, geographic: Fixture = false): Promise<number[]> {
   const terrain = await source(geographic), root = terrain.root;
   const worker = new Worker(new URL('./terrain-storage.worker.ts', import.meta.url), { type: 'module' });
   try {

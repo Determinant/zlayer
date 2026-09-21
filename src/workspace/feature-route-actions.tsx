@@ -21,22 +21,19 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
   const ident = featureIdent(feature);
   const point = routePointForFeature(plan, feature, pointId);
   const approach = point?.owners.find(owner => owner.kind === 'approach');
-  if (approach) {
-    const entry = plan.entries[approach.source.tokenIndex]!;
-    return <button type="button" className="remove-route-button" aria-label={`Remove approach from ${entry.text}`}
-      title={`Remove approach from ${entry.text}`} onClick={() => update(draft => setRouteApproach(draft, entry, undefined))}>
-      <RouteActionIcon add={false} />
-    </button>;
-  }
+  const approachEntry = approach && plan.entries[approach.source.tokenIndex]!;
   const addLabel = `Add ${ident} to end of route`;
   return <>
-    {point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
+    {approachEntry ? <button type="button" className="remove-route-button" aria-label={`Remove approach from ${approachEntry.text}`}
+      title={`Remove approach from ${approachEntry.text}`} onClick={() => update(draft => setRouteApproach(draft, approachEntry, undefined))}>
+      <RouteActionIcon add={false} />
+    </button> : point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
       items={routeItemsForPoint(plan, point)}
       onRemove={item => update(draft => item ? removeRouteEntry(draft, item.id) : removeRoutePoint(draft, plan, point))} />}
-    <button className="append-route-button" type="button" aria-label={addLabel} title={addLabel}
+    {!approach && <button className="append-route-button" type="button" aria-label={addLabel} title={addLabel}
       onClick={() => update(draft => appendRouteFeature(draft, feature))}>
       <RouteActionIcon add />
-    </button>
+    </button>}
     {onDirectTo && <button className="direct-to-button" type="button" aria-label={`Direct to ${ident}`}
       title={`Direct to ${ident}`} aria-haspopup={point ? undefined : 'dialog'}
       onClick={() => onDirectTo(feature, point)}><DirectToIcon /></button>}

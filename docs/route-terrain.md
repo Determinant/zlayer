@@ -159,10 +159,10 @@ permanent failures and cancellation do not retry. Missing samples remain missing
 
 `faa-regs`'s `build:terrain` reads current USGS 3DEP **1-arc-second** GeoTIFFs and
 checks source ETags on subsequent builds. Schema 2 publishes a geographic grid
-anchored at (-180, 90), with **4.9 arc-seconds** in both axes at native level 10.
-Levels 9–1 double that spacing successively. These geographic levels are distinct
+anchored at (-180, 90), with **2.45 arc-seconds** in both axes at native level 11.
+Levels 10–1 double that spacing successively. These geographic levels are distinct
 from the displayed Web Mercator zoom. Default U.S. coverage is approximately
-6,834 archives / 3.3 GiB of grids before compression, plus indexes/provenance.
+25,956 archives / 12.7 GiB of grids before compression, plus indexes/provenance.
 
 Each `ZDEM0002` archive contains four adjacent 256×256 grids of gzip-compressed
 little-endian **int16 metres**, with -32768 reserved for missing data. The builder
@@ -174,7 +174,8 @@ per-source datums, revisions, grid spacing and processing provenance.
 
 The browser converts metres to feet on read. The worker maps geographic cells onto
 the requested Mercator tile and retains maxima over each display pixel footprint.
-Close-up display zooms reuse native level 10 instead of downloading finer grids.
+Close-up display zooms reuse the finest level advertised by the source (11 for
+2.45 arc-seconds, 10 for saved 4.9-arc-second terrain).
 Adjacent tiles share a bounded 32-grid / 8 MiB decoded geographic cache. Pending
 reads stay separate from that cache, with at most four native geographic reads
 active. Canceling one consumer preserves its peers; canceling the last stops the
@@ -185,9 +186,10 @@ data is rejected. Route contours still come from the resulting numeric heights.
 
 The reader also accepts schema 1 `ZDEM0001` float32-feet Mercator packages at zooms
 1–13, so saved selections survive the transition. Saved sources retain precedence
-over browsing sources across both formats. **Verify / update** prepares the new
-geographic archive set; it does not request nonexistent finer native levels.
-Publish the updated client before the schema-2 terrain manifest. Old immutable
+over browsing sources across formats and geographic resolutions. The 2.45-arc-second
+extension preserves levels 1–10 exactly and adds native level 11. Saved 4.9-arc-second
+selections continue to work; **Verify / update** acquires the finer archive set.
+Publish the updated client before the 2.45-arc-second terrain manifest. Old immutable
 archives and source caches are retained until explicit cleanup.
 
 The top manifest contains spatial index identities, not millions of individual tile

@@ -18,7 +18,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P0 | Preferred/TEC routes and SID/STAR topology | FAA preferred-route and NASR exports via `faa-regs` | recommendations and compact route previews | Optional national references shared by route planning and regional saves |
 | P0 | Historical filed routes | Aeronautic AQ snapshot packaged by `faa-regs` | frequency-ranked recommendations | Gzip JSON decoded/indexed in a worker; source observation range retained |
 | P0 | METAR, TAF | AWC Data API; AWC full-dataset caches where appropriate | colored airport pins + detail | METAR map observations and selected-airport raw TAF periods implemented; shared static snapshot publisher remains |
-| P0 | Route terrain | Mapzen Terrain Tiles on AWS (Terrarium) | 500/1,000 ft contours and translucent elevation bands | [4/8 NM route corridor](route-terrain.md), visible demand, bounded worker cache; no explicit offline terrain package |
+| P0 | Route terrain | Packaged elevation from the chart feed; Mapzen Terrain Tiles on AWS (Terrarium) fallback | 500/1,000 ft contours and translucent elevation bands | [4/8 NM route corridor](route-terrain.md), visible demand, bounded worker cache; regional saves include terrain packages |
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
 | P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |
@@ -311,11 +311,13 @@ References:
 
 ## Basemap policy
 
-The current local style uses USGS Topo over USGS shaded relief, with USGS attribution
-and bundled identifier glyphs. `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces those default
-tiles; `VITE_ZLAYERS_BASEMAP_STYLE_URL` replaces the complete style. Route terrain
-uses a separate Mapzen Terrarium source, as described in [route terrain](route-terrain.md).
-Neither source is bulk-downloaded by regional saves.
+The current local style uses opaque USGS Topo tiles, which include shaded relief,
+with USGS attribution and bundled identifier glyphs. It does not request the separate
+USGS shaded-relief service. `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces those default
+tiles; `VITE_ZLAYERS_BASEMAP_STYLE_URL` replaces the complete style. These basemap tiles
+are not bulk-downloaded by regional saves. Route terrain uses separate elevation
+packages from the chart feed, including saved regional packages, with Mapzen Terrarium
+as a fallback when no packaged source is available; see [route terrain](route-terrain.md).
 
 OpenStreetMap was the initial preferred basemap data source and remains a provider
 option, not the current default or an unlimited production tile host. Both OSM
@@ -331,6 +333,7 @@ of the regional FAA chart-overlay feed.
 
 References:
 
+- [USGS Topo service and included themes](https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer)
 - [OSMF raster tile policy](https://operations.osmfoundation.org/policies/tiles/)
 - [OSMF vector tile policy](https://operations.osmfoundation.org/policies/vector/)
 - [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)

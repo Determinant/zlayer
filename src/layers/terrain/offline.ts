@@ -18,6 +18,9 @@ export async function regionTerrainFiles(bounds: NonNullable<DownloadPlan['bound
     const shard = shards.get(group);
     if (!shard) throw new Error('Terrain coverage is incomplete for this region. Retry after the terrain feed is updated.');
     const index = await readTerrainIndex({ root, shard }, signal, cacheOnly);
+    if (index.schemaVersion !== source.schemaVersion || index.maxZoom !== source.maxZoom) {
+      throw new Error('Terrain index format disagrees with its manifest');
+    }
     files.push({ kind: 'terrain', url: terrainArchiveUrl(root, shard), byteLength: shard.byteLength, sha256: shard.sha256 });
     const archives = new Map(index.archives.map(a => [terrainArchiveKey(a.zoom, a.x, a.y), a]));
     for (const key of keys) {

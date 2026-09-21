@@ -78,14 +78,16 @@ Individual-only FAA plates, including military HIGH procedures, remain required 
 when all bound TPP books are hosted. See [deployment readiness](deployment-readiness.md)
 for exact host requirements and known release gaps.
 
-The default basemap softens USGS Topo over shaded relief.
+The default basemap uses opaque USGS Topo tiles, which already include shaded relief.
+It does not request the separate USGS shaded-relief service.
 `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces it with one opaque raster source;
 `VITE_ZLAYERS_BASEMAP_STYLE_URL` supplies a complete style, including attribution.
 This is not SkyVector's tile service. Review provider/offline terms before public release.
 
-Route terrain uses a separate Terrarium elevation source, configurable with
-`VITE_ZLAYERS_TERRAIN_TILE_URL`; blank uses Mapzen terrain on AWS. Basemap settings
-do not change the route DEM. Terrain has no explicit offline-download guarantee.
+Route terrain uses separate elevation packages from the chart feed, preferring saved
+regional packages when available. Without a packaged source, it falls back to Terrarium
+tiles configured with `VITE_ZLAYERS_TERRAIN_TILE_URL` (Mapzen terrain on AWS by default).
+Basemap settings do not change the route DEM; see [route terrain](route-terrain.md).
 GPS uses the device Geolocation API with permission and requires HTTPS or localhost.
 It starts enabled unless the user saved an Off preference. AHRS acquires the same
 GPS watch when activated, even with the map marker off. Its Calibrate action requests

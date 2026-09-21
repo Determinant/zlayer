@@ -7,8 +7,8 @@ import type { Tile } from './geometry';
 
 /** Map each Mercator pixel footprint to geographic cells. Maxima over all
  * intersecting cells keep thin peaks from falling between display samples. */
-export function geographicSamples(tile: Tile) {
-  const zoom = Math.min(TERRAIN_MAX_ZOOM, tile.z), step = terrainSpacing(zoom), n = 2 ** tile.z;
+export function geographicSamples(tile: Tile, maxZoom: number = TERRAIN_MAX_ZOOM) {
+  const zoom = Math.min(maxZoom, tile.z), step = terrainSpacing(zoom), n = 2 ** tile.z;
   const size = terrainGridSize(zoom);
   const longitudeEdges = Array.from({ length: 257 }, (_, x) => (tile.x + x / 256) / n * 360 / step);
   const latitudeEdges = Array.from({ length: 257 }, (_, y) => {
@@ -21,8 +21,8 @@ export function geographicSamples(tile: Tile) {
     columnEnds: ends(longitudeEdges, size.columns * 256), rowEnds: ends(latitudeEdges, size.rows * 256) };
 }
 
-export function geographicTiles(tile: Tile): Tile[] {
-  const { zoom, columns, rows, columnEnds, rowEnds } = geographicSamples(tile);
+export function geographicTiles(tile: Tile, maxZoom: number = TERRAIN_MAX_ZOOM): Tile[] {
+  const { zoom, columns, rows, columnEnds, rowEnds } = geographicSamples(tile, maxZoom);
   const result: Tile[] = [];
   for (let y = Math.floor(rows[0]! / 256); y <= Math.floor(rowEnds[255]! / 256); y++) {
     for (let x = Math.floor(columns[0]! / 256); x <= Math.floor(columnEnds[255]! / 256); x++) result.push({ z: zoom, x, y });
@@ -30,14 +30,20 @@ export function geographicTiles(tile: Tile): Tile[] {
   return result;
 }
 
-/** Preserve source order across saved legacy and geographic packages. */
+/** Preserve source order across saved formats and geographic resolutions. */
 export function packagesForElevationTile(packages: readonly TerrainPackage[], tile: Tile): TerrainPackage[] {
-  const keys = new Set(geographicTiles(tile).map(t => terrainShardKey(t.z, t.x, t.y)));
+  const geographicKeys = new Map<number, Set<string>>();
   const legacyKey = terrainShardKey(tile.z, tile.x, tile.y);
-  const candidates = packages.filter(p => p.grid ? keys.has(terrainShardKey(p.shard.zoom, p.shard.x, p.shard.y))
-    : terrainShardKey(p.shard.zoom, p.shard.x, p.shard.y) === legacyKey)
-    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
-  return candidates[0]?.grid ? candidates.filter(p => p.grid) : candidates.slice(0, 1);
+  const candidates = packages.filter(p => {
+    const key = terrainShardKey(p.shard.zoom, p.shard.x, p.shard.y);
+    if (!p.grid) return key === legacyKey;
+    const maxZoom = p.maxZoom ?? 10; // Packages saved before the finer grid used level 10.
+    let keys = geographicKeys.get(maxZoom);
+    if (!keys) geographicKeys.set(maxZoom, keys = new Set(geographicTiles(tile, maxZoom).map(t => terrainShardKey(t.z, t.x, t.y))));
+    return keys.has(key);
+  }).sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  const first = candidates[0];
+  return first?.grid ? candidates.filter(p => p.grid && p.shard.zoom === first.shard.zoom) : candidates.slice(0, 1);
 }
 
 // 32 completed geographic grids = 8 MiB. Keep pending reads separate so cache
@@ -78,9 +84,10 @@ async function geographicGrid(tile: Tile, source: TerrainPackage, signal: AbortS
 
 export async function readGeographicElevation(tile: Tile, sources: readonly TerrainPackage[], signal: AbortSignal, onIncomplete?: () => void): Promise<Float32Array> {
   signal.throwIfAborted();
-  const samples = geographicSamples(tile), values = new Float32Array(256 * 256).fill(NaN);
+  const maxZoom = sources[0]?.maxZoom ?? 10;
+  const samples = geographicSamples(tile, maxZoom), values = new Float32Array(256 * 256).fill(NaN);
   const grids = new Map<string, Float32Array>();
-  const loaded = await Promise.allSettled(geographicTiles(tile).map(async t => {
+  const loaded = await Promise.allSettled(geographicTiles(tile, maxZoom).map(async t => {
     const key = terrainShardKey(t.z, t.x, t.y);
     const source = sources.find(s => terrainShardKey(s.shard.zoom, s.shard.x, s.shard.y) === key);
     if (source) grids.set(`${t.x}/${t.y}`, await geographicGrid(t, source, signal));

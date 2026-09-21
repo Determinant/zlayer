@@ -19,6 +19,13 @@ const files = new Map(await Promise.all((await readdir(directory)).filter(n => !
 const manifest: unknown = JSON.parse(files.get('manifest.json')!.toString());
 assert.ok(isTerrainManifest(manifest));
 const source: TerrainSource = { ...manifest, root: 'https://terrain.test/geographic' };
+const fineDirectory = new URL('./fixtures/terrain-geographic-fine/', import.meta.url);
+for (const name of (await readdir(fineDirectory)).filter(n => !n.endsWith('.md') && n !== 'manifest.json')) {
+  files.set(name, await readFile(new URL(name, fineDirectory)));
+}
+const fineManifest: unknown = JSON.parse(await readFile(new URL('manifest.json', fineDirectory), 'utf8'));
+assert.ok(isTerrainManifest(fineManifest));
+const fineSource: TerrainSource = { ...fineManifest, root: 'https://terrain.test/geographic-fine' };
 const bounds: [number, number, number, number][] = [[-122.01, 37.01, -122.009, 37.011]];
 const signal = () => new AbortController().signal;
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -42,7 +49,9 @@ function storage(t: test.TestContext) {
   return { saved, offline: () => { online = false; }, requests: () => requests };
 }
 
-test('reads builder-produced geographic archives at every level, with bounded integer heights and NoData', async () => {
+for (const [fixtureSource, height] of [[source, 321], [fineSource, 654]] as const) test(`${fixtureSource.maxZoom === 10 ? 4.9 : 2.45} arc-seconds: reads builder-produced geographic archives at every level, with bounded integer heights and NoData`, async () => {
+  const source = fixtureSource;
+  assert.equal(source.schemaVersion, 2);
   for (const shard of source.shards) {
     const bytes = files.get(shard.file)!;
     assert.equal(hash(bytes), shard.sha256);
@@ -58,7 +67,7 @@ test('reads builder-produced geographic archives at every level, with bounded in
         assert.equal(values[0], Math.fround(-12 / 0.3048));
         assert.ok(Number.isNaN(values[1]));
         assert.equal(values[2], Math.fround(10000 / 0.3048));
-        assert.equal(values[3], Math.fround(321 / 0.3048));
+        assert.equal(values[3], Math.fround(height / 0.3048));
       }
       await assert.rejects(readTerrainArchive(blob, a, { z: a.zoom, x: a.x, y: a.y }), /Invalid terrain elevation archive/);
     }
@@ -66,19 +75,21 @@ test('reads builder-produced geographic archives at every level, with bounded in
   for (const change of [{ resolutionArcSeconds: 5 }, { grid: 'EPSG:3857' }, { maxZoom: 13 }, { encoding: 'float32-feet-gzip' }]) {
     assert.equal(isTerrainManifest({ ...source, ...change }), false);
   }
-  assert.equal(terrainRegionKeys(bounds, source).size, 10);
+  assert.equal(terrainRegionKeys(bounds, source).size, source.maxZoom);
   assert.equal(terrainRegionKeys(bounds).size, 13, 'legacy selections keep their original geometry');
 });
 
-test('geographic source pixels stay local at the date line and poles; high display zooms reuse level 10', () => {
+test('geographic source pixels stay local at the date line and poles at both supported resolutions', () => {
   assert.equal(terrainSpacing(10) * 3600, 4.9);
+  assert.equal(terrainSpacing(11) * 3600, 2.45);
+  for (const maxZoom of [10, 11])
   for (const tile of [{ z: 13, x: 0, y: 0 }, { z: 13, x: 8191, y: 8191 }, { z: 1, x: 0, y: 0 }]) {
-    const tiles = geographicTiles(tile);
+    const tiles = geographicTiles(tile, maxZoom);
     assert.ok(tiles.length <= 6);
     for (const t of tiles) {
       const size = terrainGridSize(t.z);
       assert.ok(t.x >= 0 && t.x < size.columns && t.y >= 0 && t.y < size.rows);
-      assert.equal(t.z, Math.min(10, tile.z));
+      assert.equal(t.z, Math.min(maxZoom, tile.z));
     }
   }
   const samples = geographicSamples({ z: 10, x: 512, y: 512 });
@@ -87,16 +98,30 @@ test('geographic source pixels stay local at the date line and poles; high displ
   for (let y = 1; y < 256; y++) assert.ok(samples.rows[y]! <= samples.rowEnds[y - 1]! + 1);
 });
 
-test('new offline selections store only geographic levels and render close-up Mercator tiles with no PNG reads', async t => {
+test('geographic manifests and indices accept only aligned resolution/level pairs', () => {
+  for (const format of [{ maxZoom: 10, resolutionArcSeconds: 2.45 }, { maxZoom: 11, resolutionArcSeconds: 4.9 },
+    { maxZoom: 12, resolutionArcSeconds: 1.225 }]) {
+    assert.equal(isTerrainManifest({ ...source, ...format }), false);
+    const index = JSON.parse(files.get(source.shards[0]!.file)!.toString());
+    assert.equal(isTerrainIndex({ ...index, ...format }), false);
+  }
+  const oldKeys = terrainRegionKeys(bounds, source), newKeys = terrainRegionKeys(bounds, fineSource);
+  assert.ok([...oldKeys].every(key => newKeys.has(key)), 'the finer set extends the original levels without shifting them');
+  assert.equal(newKeys.size, oldKeys.size + 1);
+});
+
+for (const [fixtureSource, height] of [[source, 321], [fineSource, 654]] as const) test(`${fixtureSource.maxZoom === 10 ? 4.9 : 2.45} arc-seconds: offline selections render close-up Mercator tiles with no PNG reads`, async t => {
+  const source = fixtureSource;
+  assert.equal(source.schemaVersion, 2);
   const cache = storage(t);
   const plan = await regionTerrainFiles(bounds, source, source.root, signal());
-  assert.equal(plan.length, 20);
+  assert.equal(plan.length, source.maxZoom * 2);
   for (const shard of source.shards) {
     const index = JSON.parse(files.get(shard.file)!.toString());
     for (const a of index.archives) await readPackagedElevation({ z: a.zoom, x: a.x, y: a.y },
-      { root: source.root, shard, grid: 'EPSG:4326' }, signal(), 2);
+      { root: source.root, shard, grid: 'EPSG:4326', maxZoom: source.maxZoom }, signal(), 2);
   }
-  assert.equal(cache.saved.size, 20);
+  assert.equal(cache.saved.size, source.maxZoom * 2);
   cache.offline();
   const before = cache.requests();
   assert.deepEqual(await regionTerrainFiles(bounds, source, source.root, signal(), true), plan);
@@ -104,16 +129,26 @@ test('new offline selections store only geographic levels and render close-up Me
   const y = Math.floor((1 - Math.asinh(Math.tan(37.01 * Math.PI / 180)) / Math.PI) / 2 * 2 ** z);
   const tile = { z, x, y };
   const packages = packagesForElevationTile(packagesForTerrainTile([source], tile, source.root), tile);
-  assert.ok(packages.length > 0 && packages.every(p => p.grid === 'EPSG:4326'));
+  assert.ok(packages.length > 0 && packages.every(p => p.grid === 'EPSG:4326' && p.shard.zoom === source.maxZoom));
   const values = await new ElevationTiles().read(tile, 'https://unexpected.test/{z}/{x}/{y}.png', signal(), packages);
   assert.ok(values.filter(Number.isFinite).length > 60000);
-  assert.equal(values[128 * 256 + 128], Math.fround(321 / 0.3048));
+  assert.equal(values[128 * 256 + 128], Math.fround(height / 0.3048));
   assert.equal(cache.requests(), before, 'all inputs came from the saved archives');
   const controller = new AbortController(); controller.abort();
   await assert.rejects(readGeographicElevation(tile, packages, controller.signal), { name: 'AbortError' });
   const shard = source.shards[0]!;
   await (await caches.open(CHART_CACHE)).delete(terrainArchiveUrl(source.root, shard));
   await assert.rejects(regionTerrainFiles(bounds, source, source.root, signal(), true), /Saved terrain index is missing/);
+});
+
+test('mismatched geographic manifest and index resolutions are rejected', async t => {
+  storage(t);
+  await assert.rejects(regionTerrainFiles(bounds, { ...fineSource, shards: source.shards }, source.root, signal()),
+    /Terrain index format disagrees/);
+  const shard = source.shards.find(s => s.zoom === 10)!;
+  const archive = JSON.parse(files.get(shard.file)!.toString()).archives[0];
+  await assert.rejects(readPackagedElevation({ z: archive.zoom, x: archive.x, y: archive.y },
+    { root: source.root, shard, grid: 'EPSG:4326', maxZoom: 11 }, signal(), 2), /Terrain grid format mismatch/);
 });
 
 test('saved source precedence remains stable across the geographic format transition', () => {
@@ -138,6 +173,25 @@ test('saved source precedence remains stable across the geographic format transi
   assert.equal(select([elsewhere, source, legacy])[0]!.root, source.root);
   assert.equal(select([elsewhere, legacy, source])[0]!.root, legacy.root);
   assert.notEqual(key([elsewhere, source, legacy]), key([elsewhere, legacy, source]));
+});
+
+test('saved geographic resolution wins over browsing data without mixing native levels', async t => {
+  storage(t);
+  const tile = { z: 13, x: 1319, y: 3188 };
+  const select = (sources: TerrainSource[]) => packagesForElevationTile(packagesForTerrainTile(sources, tile, source.root), tile);
+  const key = (sources: TerrainSource[]) => terrainSourceKey(sources, source.root);
+  for (const [sources, zoom, height] of [[[source, fineSource], 10, 321], [[fineSource, source], 11, 654]] as const) {
+    const packages = select([...sources]);
+    assert.ok(packages.length && packages.every(p => p.shard.zoom === zoom));
+    const values = await new ElevationTiles().read(tile, 'https://unexpected.test/{z}/{x}/{y}.png', signal(), packages);
+    assert.equal(values[128 * 256 + 128], Math.fround(height / 0.3048));
+  }
+  assert.notEqual(key([source, fineSource]), key([fineSource, source]));
+  const equivalent = { ...fineSource, generatedAt: '2026-09-22T00:00:00Z', shards: [...fineSource.shards].reverse() };
+  assert.equal(key([source, fineSource]), key([source, equivalent]));
+  assert.equal(key([source, fineSource]), key([source, fineSource, { ...fineSource, root: '/shadowed' }]));
+  const elsewhere = { ...fineSource, shards: fineSource.shards.filter(s => s.zoom < 11) };
+  assert.ok(select([elsewhere, source]).every(p => p.shard.zoom === 10), 'unavailable finer coverage must not hide saved terrain');
 });
 
 for (const height of [9322, -32768]) test(`Mercator footprints preserve ${height === -32768 ? 'NoData' : 'peaks'} between pixel centres`, async t => {
