@@ -1,0 +1,82 @@
+{
+  "edition": "2026-09-03",
+  "resources": [
+    {
+      "id": "airports",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/airports.4dbf7b90f8c1c150e99fe6cad214e2c210ad2397b5b87b5781c89fa6beb54fa1.geojson",
+      "jsonSha256": "242bc2333b3718cc9d56436ee58bc9cf4377069c6e6c3bb6a365589b538b8ff5"
+    },
+    {
+      "id": "vfr-waypoints",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/vfr-waypoints.73d0477eedeae6cf19d14aec088f11e0a8f089bd835193298a252e44ddfccd80.geojson",
+      "jsonSha256": "60d45ded0a3ce7170af886d2de7f0a72b249cb5450827f8745dd25e71c89b98a"
+    },
+    {
+      "id": "navaids",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/navaids.af1862dee0b99c4440720aaeb563c4b6828dea8cc5b11c0a909e17d9a5418d38.geojson",
+      "jsonSha256": "e6a38c5598a1589cf7bba433eabf4b702b2c68bff87f1fe760c14c4ba001b63f"
+    },
+    {
+      "id": "fixes",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/fixes.77c9608efce18b4c5bddc4761f2e64cbb2a46935a1c215347ef7e67c914ba3e4.geojson",
+      "jsonSha256": "a0d250643463f824bfde61dfc6b199cb3b36d5852d5e8fb9770ad9705a543902"
+    },
+    {
+      "id": "airways",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/airways.edcf0d4fed943e59de62d869a709ebe31ed9cd5f98c251b0ffd64bdc5069ee9e.json",
+      "jsonSha256": "562b6a03c13a9b7b373195061c682fdfacaa7c4b0ace6977befbf7c7b39af6d7"
+    },
+    {
+      "id": "preferred-routes",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/preferred-routes.bb2496994a03cf4725ccca165a1505253a6600c7d9f36b8b444a8f9d3b744f72.json",
+      "jsonSha256": "9cd7dd0a5f84a7dc454c25fb5a3c8612f121503e75ad52065b88105d7f2d6934"
+    },
+    {
+      "id": "terminal-procedures",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/terminal-procedures.0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a.json",
+      "jsonSha256": "6331003cad4bc1a39fe6eef50d072edfad4221f93edb12edbbf2d71852891592"
+    },
+    {
+      "id": "route-history",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/nav/route-history.json.ece14305fd57be61bb5b4edbb082b5433fc44719cdfb858f28ce53c6ca44f29c.gz",
+      "jsonSha256": "cab3e1f438a77fd5c2cdb0801081cb36451f28c4712192877faa313a102f0788"
+    },
+    {
+      "id": "procedures",
+      "url": "https://charts.tedyin.com/charts/2026-09-03/tpp/catalog.44d68f310f90e866b819b9e8d5c5d9dfcabbee9a1ad6d193a67dccad754230a0.json",
+      "jsonSha256": "2538c834a6bc81c5e1e7dec9696f03670b19f34e1503a36c3af163c15885df10"
+    }
+  ],
+  "terminalCoverage": {
+    "departures": 1159,
+    "arrivals": 690,
+    "approaches": 10234,
+    "unavailableApproaches": 0,
+    "codedDepartures": 2193,
+    "codedArrivals": 1916,
+    "sourceLegs": {
+      "departure": 34309,
+      "arrival": 44563,
+      "approach": 122204
+    },
+    "exportedLegs": {
+      "departure": 34309,
+      "arrival": 44563,
+      "approach": 122204
+    },
+    "continuationRecords": 6744,
+    "exportedContinuations": 6744,
+    "unresolvedReferences": 2
+  },
+  "associations": {
+    "matched": 9183,
+    "ambiguous": 1,
+    "unmatched": 1956
+  },
+  "reviewedAssociations": 26,
+  "supplements": {
+    "expected": 5292,
+    "available": 5292,
+    "books": 9
+  }
+}

@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { GeoPointFeature, NavigationData, ProcedureCatalog, ProcedureResourceRecord, TerminalProceduresData, TerminalProceduresResource } from '@zlayer/contracts';
-import { approachEntryOptions, approachPreview, createRouteResolver, findApproachRoutes, updateApproachHoldEntries, type ApproachArrival, type RouteApproach } from '@zlayer/domain';
-import { fetchTerminalProcedures } from './api';
+import type { ApproachRoute, ProcedureRecord, GeoPointFeature, NavigationData, ProcedureResourceRecord, TerminalProceduresResource } from '@zlayer/contracts';
+import { codedApproachLabel, approachEntryOptions, approachEntryLegs, terminalConstraint, approachPreview, findApproachRoutes, publishedApproachRoutes, type ApproachArrival, type RouteApproach } from '@zlayer/domain';
+import { useProcedureResources } from './use-procedure-resources';
+import { useProcedurePreview } from './use-procedure-preview';
 import type { RouteMapPreview } from './map-preview';
 import { usePreviewPanel } from './use-preview-panel';
-import { fetchProcedureCatalog } from '../plates/api';
 import { findProcedureAirport, groupProcedures, procedureDocument, type ProcedureSelection } from '../plates/data';
 import { formatDateRange } from '../../core/format/time';
 import './approach-picker.css';
@@ -32,80 +32,57 @@ export function RouteApproachPicker({ ident, feature, navigationData, resource, 
   const closeButton = useRef<HTMLButtonElement>(null);
   const title = useId();
   const [query, setQuery] = useState('');
-  const [attempt, retry] = useState(0);
   const [pendingId, setPendingId] = useState<string>();
   const [entryId, setEntryId] = useState<string>();
   const [branchId, setBranchId] = useState<string>();
-  const [routes, setRoutes] = useState<{ key: string; data?: TerminalProceduresData; error?: boolean }>();
-  const routeKey = JSON.stringify([revision, routeResource]);
-  const currentRoutes = routes?.key === routeKey ? routes : undefined;
-  const [loaded, setLoaded] = useState<{ resource: ProcedureResourceRecord; catalog?: ProcedureCatalog; error?: string }>();
-  const current = loaded?.resource === resource ? loaded : undefined;
-  const catalog = current?.catalog;
+  const { key: routeKey, routes: currentRoutes, plates: current, retry } = useProcedureResources(resource, routeResource, revision);
+  const catalog = current?.data;
   const airport = catalog && findProcedureAirport(catalog, feature);
-  const approaches = airport ? groupProcedures(airport).find(group => group.kind === 'approach')?.procedures ?? [] : [];
-  const matches = approaches.filter(procedure => procedure.name.toLowerCase().includes(query.trim().toLowerCase()));
-  const selectedProcedure = selected?.cycle === catalog?.cycle
-    ? approaches.find(procedure => procedure.id === selected?.procedureId && airport?.id === selected.airportId) : undefined;
-  const pending = approaches.find(procedure => procedure.id === pendingId);
   const routeData = currentRoutes?.data?.approaches;
-  const procedures = pending && routeData?.metadata.effectiveDate === catalog?.effectiveDate
-    ? findApproachRoutes(routeData, airport?.icaoId ?? airport?.faaId ?? '', pending.name) : [];
+  const aliases = [ident, feature.properties.icaoId, feature.properties.faaId];
+  const charts = airport ? groupProcedures(airport).find(group => group.kind === 'approach')?.procedures ?? [] : [];
+  const chartRoutes = (chart: ProcedureRecord) => resource?.associationStatus !== undefined
+    ? publishedApproachRoutes(routeData, catalog?.associations, chart.id, routeResource?.jsonSha256)
+    : findApproachRoutes(routeData, airport?.icaoId ?? airport?.faaId ?? '', chart.name);
+  const covered = new Set(catalog?.effectiveDate === routeData?.metadata.effectiveDate ? charts.flatMap(chart =>
+    chartRoutes(chart).map(p => p.id)) : []);
+  type Option = { id: string; name: string; plate?: ProcedureRecord; route?: ApproachRoute };
+  const approaches: Option[] = [
+    ...charts.map(plate => ({ id: plate.id, name: plate.name, plate })),
+    ...(routeData?.procedures.filter(p => aliases.includes(p.airport) && (!covered.has(p.id) ||
+      pendingId === `cifp:${p.id}` || selected?.source === 'cifp' && selected.entry?.routeId === p.id)) ?? [])
+      .map(route => ({ id: `cifp:${route.id}`, name: codedApproachLabel(route.ident), route })),
+  ];
+  const matches = approaches.filter(p => p.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const selectedProcedure = approaches.find(p => p.id === selected?.procedureId && (selected.source === 'cifp'
+    ? selected.entry?.effectiveDate === routeData?.metadata.effectiveDate && p.route?.airport === selected.airportId
+    : selected.cycle === catalog?.cycle && airport?.id === selected.airportId));
+  const pending = approaches.find(p => p.id === pendingId);
+  const procedures = pending?.route ? [pending.route] : pending && routeData?.metadata.effectiveDate === catalog?.effectiveDate
+    ? pending.plate ? chartRoutes(pending.plate) : [] : [];
   const procedure = procedures.length === 1 ? procedures[0] : procedures.find(p => p.id === branchId);
+  const services = [...new Set(procedure?.final.flatMap(l => l.continuations?.flatMap(c => c.services?.filter(s => s.authorization === 'A' && s.name).map(s => s.name) ?? []) ?? []) ?? [])];
   const entries = procedure ? approachEntryOptions(procedure) : [];
   const entry = entries.find(option => option.id === entryId);
   const preview = useMemo(() => procedure && entryId ? approachPreview(procedure, entryId) : undefined, [procedure, entryId]);
   const inset = usePreviewPanel(true, dialog, closeButton, onClose);
-  const candidate = useMemo<RouteApproach | undefined>(() => entry && procedure && pending && catalog && airport && routeData
-    ? { airportId: airport.id, procedureId: pending.id, name: pending.name, cycle: catalog.cycle,
+  const candidate = useMemo<RouteApproach | undefined>(() => entry && procedure && pending && routeData && (pending.route || catalog && airport)
+    ? { airportId: pending.route ? procedure.airport : airport!.id, procedureId: pending.id, name: pending.name, cycle: catalog?.cycle ?? routeData.metadata.effectiveDate,
+      kind: 'approach', source: pending.route ? 'cifp' : 'chart',
       entry: { routeId: procedure.id, transitionId: entry.id,
         name: procedures.length > 1 ? `${entry.name} · RWY ${procedure.ident.slice(1)}` : entry.name,
         effectiveDate: routeData.metadata.effectiveDate } }
     : undefined, [procedure, procedures.length, pending, catalog, airport, routeData, entry?.id, entry?.name]);
-  // Use the same procedure expansion and map renderer as an attached approach.
-  // Share navigation entities with the map in previews as well as attached approaches.
-  const resolvePreview = useMemo(() => currentRoutes?.data && revision ? createRouteResolver([
-    { type: 'FeatureCollection', features: [feature], meta: { layer: 'airports', revision, returned: 1, truncated: false } },
-    ...Object.values(navigationData ?? {}).filter(collection => collection.meta.layer !== 'airports'),
-  ], undefined, currentRoutes.data) : undefined, [feature, navigationData, currentRoutes?.data, revision]);
-  const mapPreview = useMemo<RouteMapPreview | undefined>(() => {
-    if (!candidate || !preview || !resolvePreview) return;
-    const plan = resolvePreview({ entries: [{ id: 'approach-preview', text: ident,
-      ...(feature.id ? { pinnedFeatureId: feature.id } : {}), approach: candidate }] });
-    updateApproachHoldEntries(plan, arrival);
-    const key = JSON.stringify(candidate);
-    return { routes: [{ key, plan }], selectedKey: key, inset };
-  }, [candidate, preview, resolvePreview, ident, feature.id, inset, arrival]);
-  useEffect(() => { onPreviewChange(mapPreview); }, [mapPreview, onPreviewChange]);
-  useEffect(() => () => onPreviewChange(undefined), [onPreviewChange]);
+  useProcedurePreview({ ident, feature, navigationData, data: currentRoutes?.data, revision,
+    selection: candidate, inset, onChange: onPreviewChange, arrival });
+  useEffect(() => { setPendingId(undefined); setEntryId(undefined); setBranchId(undefined); }, [routeKey, feature.id]);
   const openPlate = (procedure: NonNullable<typeof pending>) => {
-    if (!catalog || !airport || !resource || !onOpenPlate) return;
-    const selection: ProcedureSelection = { airport, procedure,
-      document: procedureDocument(catalog, procedure, resource.url, window.location.href),
+    if (!catalog || !airport || !resource || !onOpenPlate || !procedure.plate) return;
+    const selection: ProcedureSelection = { airport, procedure: procedure.plate,
+      document: procedureDocument(catalog, procedure.plate, resource.url, window.location.href),
       cycle: catalog.cycle, effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate };
     onClose(false); onOpenPlate(selection);
   };
-
-  useEffect(() => {
-    if (!resource) return;
-    let active = true;
-    setLoaded({ resource });
-    void fetchProcedureCatalog(resource).then(catalog => {
-      if (active) setLoaded({ resource, catalog });
-    }, () => {
-      if (active) setLoaded({ resource, error: 'Approaches could not be loaded. Connect to download the airport’s approach list, then retry.' });
-    });
-    return () => { active = false; };
-  }, [resource, attempt]);
-  useEffect(() => {
-    if (!routeResource || !revision) return;
-    let active = true;
-    setRoutes({ key: routeKey });
-    void fetchTerminalProcedures(routeResource, revision).then(data => {
-      if (active) setRoutes({ key: routeKey, data });
-    }, () => { if (active) setRoutes({ key: routeKey, error: true }); });
-    return () => { active = false; };
-  }, [routeResource, revision, routeKey, attempt]);
 
   return <div ref={dialog} className="route-preview-panel route-approach-picker" role="dialog" aria-labelledby={title}
     onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}
@@ -132,15 +109,16 @@ export function RouteApproachPicker({ ident, feature, navigationData, resource, 
           {selectedProcedure && <button type="button" onClick={() => {
             setPendingId(selectedProcedure.id); setEntryId(selected.entry?.transitionId); setBranchId(selected.entry?.routeId);
           }}>Change entry</button>}
-          {selectedProcedure && onOpenPlate && <button type="button" onClick={() => openPlate(selectedProcedure)}>View plate</button>}
+          {selectedProcedure?.plate && onOpenPlate && <button type="button" onClick={() => openPlate(selectedProcedure)}>View plate</button>}
           <button type="button" className="route-approach-remove" onClick={() => onSelect(undefined)}>Remove approach</button>
         </div>
       </section>}
-      {resource && !catalog && !current?.error && <p role="status">Loading approaches…</p>}
-      {!resource && <p role="status">Approach data is unavailable for this route’s data edition.</p>}
-      {current?.error && <div role="alert"><p>{current.error}</p><button type="button" onClick={() => retry(value => value + 1)}>Retry</button></div>}
-      {catalog && !pending && <>
-        <p className="route-approach-edition">Effective {formatDateRange(catalog.effectiveDate, catalog.expirationDate)}</p>
+      {resource && !catalog && !current?.error && <p role="status">Loading approach plates…</p>}
+      {!resource && <p role="status">Approach plates are unavailable for this route’s data edition.</p>}
+      {routeResource && !currentRoutes && <p role="status">Loading approach routes…</p>}
+      {current?.error && <div role="alert"><p>Approach plates could not be loaded. Connect to download the airport’s plate list, then retry.</p><button type="button" onClick={() => retry(value => value + 1)}>Retry</button></div>}
+      {(catalog || routeData) && !pending && <>
+        <p className="route-approach-edition">Effective {catalog ? formatDateRange(catalog.effectiveDate, catalog.expirationDate) : routeData?.metadata.effectiveDate}</p>
         {approaches.length > 0 ? <>
           <input type="search" aria-label="Filter approaches" placeholder="Filter approaches" value={query}
             onChange={event => setQuery(event.target.value)} />
@@ -161,8 +139,9 @@ export function RouteApproachPicker({ ident, feature, navigationData, resource, 
       </>}
       {pending && <section className="route-approach-entry-step">
         <div className="route-approach-step-heading"><button type="button" onClick={() => setPendingId(undefined)}>‹ Approaches</button>
-          {onOpenPlate && <button type="button" onClick={() => openPlate(pending)}>View plate</button>}</div>
+          {pending.plate && onOpenPlate && <button type="button" onClick={() => openPlate(pending)}>View plate</button>}</div>
         <h3>{pending.name}</h3>
+        {services.length > 0 && <p>Published services: {services.join(", ")}</p>}
         {procedures.length > 1 && <fieldset><legend>Select runway</legend>
           <div className="route-approach-entry-options">{procedures.map(branch => <label key={branch.id}>
             <input type="radio" name="approach-runway" value={branch.id} checked={branchId === branch.id}
@@ -173,7 +152,9 @@ export function RouteApproachPicker({ ident, feature, navigationData, resource, 
         {routeResource && !currentRoutes?.data && !currentRoutes?.error ? <p role="status">Loading published entries…</p>
           : currentRoutes?.error ? <div role="alert"><p>Published entries could not be loaded.</p><button type="button" onClick={() => retry(value => value + 1)}>Retry entries</button></div>
           : procedures.length > 1 && !procedure ? <p role="status">Choose a runway to see its published entries.</p>
-          : !procedure || !entries.length ? <p role="status">Published entry data is unavailable for this approach in this edition. View the plate for the procedure.</p>
+          : !procedure || !entries.length ? <p role="status">{!routeData
+            ? 'This navigation edition does not include approach routes. Refresh the navigation download to check for an updated edition.'
+            : 'No matching procedure path is available in this navigation edition. The plate remains available.'}</p>
           : <>
             <fieldset><legend>Select a published entry or vectors to final</legend>
               <div className="route-approach-entry-options">{entries.map(option => <label key={option.id}>
@@ -183,7 +164,10 @@ export function RouteApproachPicker({ ident, feature, navigationData, resource, 
             </fieldset>
             {preview ? <>
               <p className="route-approach-legend" role="status">Preview on map · Magenta: approach · Dashed: missed approach{preview.extension ? ' · Light: extended final' : ''}</p>
-              {preview.depictions.length > 0 && <p className="route-approach-note">Holds, procedure turns, heading intercepts and altitude-dependent paths are schematic and excluded from route distance and terrain. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.</p>}
+              {preview.depictions.length > 0 && <p className="route-approach-note">Holds, procedure turns, heading intercepts and altitude-dependent paths are schematic. They contribute terrain coverage but are excluded from route distance. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.</p>}
+              <details><summary>Published restrictions</summary><ul>{(approachEntryLegs(procedure, entryId!) ?? []).map((leg, i) => {
+                const constraint = terminalConstraint(leg); return constraint ? <li key={i}>{leg.fix?.ident ?? leg.path}: {constraint}</li> : null;
+              })}</ul></details>
               {preview.incomplete && <p className="route-approach-note" role="status">{[...new Set(preview.issues.map(i => i.message))].join(' ')} Refer to the plate.</p>}
             </> : <p>Choose an entry to preview it on the map.</p>}
           </>}

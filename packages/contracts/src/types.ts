@@ -60,6 +60,8 @@ export type ProcedureKind =
   | 'other';
 
 export type ProcedureResourceRecord = JsonReferenceIdentity & {
+  /** Local JSON pins do not imply a publisher association contract. */
+  associationStatus?: 'available' | 'unavailable';
   id: 'procedures';
   title: string;
   cycle: string;
@@ -130,6 +132,7 @@ export type ProcedureVolume = {
 };
 
 export type ProcedureCatalog = {
+  associations?: import('./approach-associations.js').ApproachAssociations;
   schemaVersion: 1;
   builderVersion: number;
   cycle: string;

@@ -1,0 +1,6215 @@
+{
+  "generatedAt": "2026-09-21T20:51:00.516Z",
+  "effectiveDate": "2026-09-03",
+  "sha256": "0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a",
+  "sourceSha256": "fbea2179a990e1d371d77439961d137e83252582b3c67b6ec85b8d9d11c76cad",
+  "implementation": {
+    "coded-terminals.ts": "50df356a0f2a845b4869f4670ecfa9be0f66b105bdee6b19494eb4341fc751a1",
+    "approaches.ts": "be55f1406e74040cfc5822160b6b054f9fb5196bce8585ce6d06c7d4a52dd326",
+    "approach-path.ts": "7e49fed6a23887df58122b5b61f8ceb32ea2d6cd8a81a18c2d6093637670da9a",
+    "approach-geometry.ts": "2400f321195f4a22fbf5c56754f43727f59798df2844554e3a0b483bfa7b90ef",
+    "approach-path-geometry.ts": "d1572594da4e87aa40932a8023680c59f7d54c7c9e934b19d39fab8e8a965493",
+    "approach-joining.ts": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a"
+  },
+  "sourceCoverage": {
+    "departures": 1159,
+    "arrivals": 690,
+    "approaches": 10234,
+    "unavailableApproaches": 0,
+    "codedDepartures": 2193,
+    "codedArrivals": 1916,
+    "sourceLegs": {
+      "departure": 34309,
+      "arrival": 44563,
+      "approach": 122204
+    },
+    "exportedLegs": {
+      "departure": 34309,
+      "arrival": 44563,
+      "approach": 122204
+    },
+    "continuationRecords": 6744,
+    "exportedContinuations": 6744,
+    "unresolvedReferences": 2
+  },
+  "sourceCounts": {
+    "departure": 34309,
+    "arrival": 44563,
+    "approach": 122204
+  },
+  "exportedCounts": {
+    "departure": 34309,
+    "arrival": 44563,
+    "approach": 122204
+  },
+  "continuationCounts": {
+    "source": 6744,
+    "exported": 6744
+  },
+  "summaries": {
+    "departure": {
+      "procedures": 2193,
+      "paths": 19927,
+      "withoutDiagnostics": 16512,
+      "manualOnly": 3322,
+      "needsReview": 93,
+      "issues": {
+        "manual-termination:VM": 3129,
+        "manual-termination:FM": 244,
+        "no-forward-intersection:VI": 21,
+        "no-forward-intersection:CI": 1,
+        "missing-reference:FA": 1,
+        "geometry-review:CA": 3,
+        "geometry-review:VA": 15,
+        "geometry-review:FA": 1,
+        "missing-reference:VA": 36,
+        "geometry-review:VR": 2,
+        "geometry-review:VD": 2,
+        "missing-reference:VI": 15
+      }
+    },
+    "arrival": {
+      "procedures": 1916,
+      "paths": 10429,
+      "withoutDiagnostics": 1873,
+      "manualOnly": 8556,
+      "needsReview": 0,
+      "issues": {
+        "manual-termination:FM": 6615,
+        "manual-termination:VM": 1941
+      }
+    },
+    "approach": {
+      "procedures": 10234,
+      "paths": 37836,
+      "withoutDiagnostics": 37635,
+      "manualOnly": 0,
+      "needsReview": 201,
+      "issues": {
+        "no-forward-intersection:VI": 102,
+        "missing-reference:PI": 19,
+        "missing-reference:XX": 16,
+        "missing-reference:VI": 8,
+        "inconsistent-constraints:DF": 10,
+        "geometry-review:CA": 22,
+        "missing-reference:CI": 8,
+        "unsupported-leg:XX": 14,
+        "geometry-review:FC": 4,
+        "inconsistent-constraints:AF": 6,
+        "missing-reference:FA": 10,
+        "missing-reference:VA": 8,
+        "manual-termination:VM": 8
+      }
+    }
+  },
+  "unusedBranches": [],
+  "withoutEntries": [],
+  "unavailableApproaches": [],
+  "review": [
+    {
+      "kind": "departure",
+      "procedure": "KBFI:departure:KENT1",
+      "selection": {
+        "branches": [
+          "T:RW14R"
+        ],
+        "runway": "RW14R"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "T:RW14R:010",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KCOE:departure:COE2",
+      "selection": {
+        "branches": [
+          "1:RW06"
+        ],
+        "runway": "RW06"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "CI",
+          "source": "1:RW06:020",
+          "message": "The heading does not meet the published outbound course ahead."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "FA",
+          "source": "1:RW06:030",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KCPR:departure:ALCOS6",
+      "selection": {
+        "branches": [
+          "1:RW08",
+          "3:CKW"
+        ],
+        "runway": "RW08"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "CA",
+          "source": "1:RW08:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KCPR:departure:ALCOS6",
+      "selection": {
+        "branches": [
+          "1:RW08",
+          "3:MBW"
+        ],
+        "runway": "RW08"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "CA",
+          "source": "1:RW08:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KEVW:departure:FBR1",
+      "selection": {
+        "branches": [
+          "1:RW23"
+        ],
+        "runway": "RW23"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW23:020",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KHLN:departure:HLN5",
+      "selection": {
+        "branches": [
+          "1:RW05"
+        ],
+        "runway": "RW05"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW05:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KHLN:departure:HLN5",
+      "selection": {
+        "branches": [
+          "1:RW27"
+        ],
+        "runway": "RW27"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW27:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KILE:departure:LAMPS9",
+      "selection": {
+        "branches": [
+          "1:RW01",
+          "3:ACT"
+        ],
+        "runway": "RW01"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW01:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KILE:departure:LAMPS9",
+      "selection": {
+        "branches": [
+          "1:RW01",
+          "3:STV"
+        ],
+        "runway": "RW01"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW01:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KLMT:departure:CRATR1",
+      "selection": {
+        "branches": [
+          "1:RW26"
+        ],
+        "runway": "RW26"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW26:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KLMT:departure:CRATR1",
+      "selection": {
+        "branches": [
+          "1:RW32"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW32:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KMSO:departure:GRZLY4",
+      "selection": {
+        "branches": [
+          "1:RW12"
+        ],
+        "runway": "RW12"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "CA",
+          "source": "1:RW12:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KMSO:departure:GRZLY4",
+      "selection": {
+        "branches": [
+          "1:RW30"
+        ],
+        "runway": "RW30"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 0,
+          "path": "FA",
+          "source": "1:RW30:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:ATLIC"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:KALDA"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:OUTLA"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:ATLIC"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:KALDA"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:HOLND1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:OUTLA"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:EYOBI"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:HCM"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:HYTRA"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:KELLE"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:PBCUP"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:RDU"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:SHLBK"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:THHMP"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:EYOBI"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:HCM"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:HYTRA"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:KELLE"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:PBCUP"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:RDU"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:SHLBK"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:NUTIY1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:THHMP"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:CHIEZ"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:ECG"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:ELLDE"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:JOHAR"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:KOOKI"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:PRONI"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW14",
+          "5:",
+          "6:SKARP"
+        ],
+        "runway": "RW14"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW14:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW14:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:CHIEZ"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:ECG"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:ELLDE"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:JOHAR"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:KOOKI"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:PRONI"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KORF:departure:SWOPE1",
+      "selection": {
+        "branches": [
+          "4:RW32",
+          "5:",
+          "6:SKARP"
+        ],
+        "runway": "RW32"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "VA",
+          "source": "4:RW32:010",
+          "message": "The start of this maneuver is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 1,
+          "path": "VM",
+          "source": "4:RW32:020",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW07L",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW07L"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW07L:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW07L",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW07L"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW07L:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW07R",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW07R"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW07R:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW07R",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW07R"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW07R:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW08",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW08"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW08:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW08",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW08"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW08:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW25L",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW25L"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW25L:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW25L",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW25L"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW25L:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW25R",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW25R"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW25R:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW25R",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW25R"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW25R:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW26",
+          "2:",
+          "3:ACH"
+        ],
+        "runway": "RW26"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW26:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPHX:departure:BALDY3",
+      "selection": {
+        "branches": [
+          "1:RW26",
+          "2:",
+          "3:CNX"
+        ],
+        "runway": "RW26"
+      },
+      "issues": [
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW26:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        },
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "2::030",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPRB:departure:BRALY1",
+      "selection": {
+        "branches": [
+          "1:RW13"
+        ],
+        "runway": "RW13"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW13:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPRB:departure:JEDGI2",
+      "selection": {
+        "branches": [
+          "1:RW31"
+        ],
+        "runway": "RW31"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW31:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPRB:departure:PRB2",
+      "selection": {
+        "branches": [
+          "1:RW13"
+        ],
+        "runway": "RW13"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW13:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPRB:departure:PRB2",
+      "selection": {
+        "branches": [
+          "1:RW31"
+        ],
+        "runway": "RW31"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW31:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPSP:departure:CATH1",
+      "selection": {
+        "branches": [
+          "1:RW31B",
+          "2:"
+        ],
+        "runway": "RW31L"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VR",
+          "source": "1:RW31B:010",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KPSP:departure:CATH1",
+      "selection": {
+        "branches": [
+          "1:RW31B",
+          "2:"
+        ],
+        "runway": "RW31R"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VR",
+          "source": "1:RW31B:010",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSAN:departure:BRDR7",
+      "selection": {
+        "branches": [
+          "1:RW27",
+          "3:IPL"
+        ],
+        "runway": "RW27"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VD",
+          "source": "1:RW27:010",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSAN:departure:BRDR7",
+      "selection": {
+        "branches": [
+          "1:RW27",
+          "3:JLI"
+        ],
+        "runway": "RW27"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VD",
+          "source": "1:RW27:010",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:MONTN2",
+      "selection": {
+        "branches": [
+          "1:RW34C"
+        ],
+        "runway": "RW34C"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW34C:010",
+          "message": "The courses have no bounded forward intercept."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW34C:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW16C",
+          "3:BKE"
+        ],
+        "runway": "RW16C"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW16C:010",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW16C",
+          "3:LKV"
+        ],
+        "runway": "RW16C"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW16C:010",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW16L",
+          "3:BKE"
+        ],
+        "runway": "RW16L"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW16L:010",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW16L",
+          "3:LKV"
+        ],
+        "runway": "RW16L"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW16L:010",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW34C",
+          "3:BKE"
+        ],
+        "runway": "RW34C"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW34C:010",
+          "message": "The courses have no bounded forward intercept."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW34C:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSEA:departure:SUMMA2",
+      "selection": {
+        "branches": [
+          "1:RW34C",
+          "3:LKV"
+        ],
+        "runway": "RW34C"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 1,
+          "path": "VI",
+          "source": "1:RW34C:010",
+          "message": "The courses have no bounded forward intercept."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "1:RW34C:030",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW02",
+          "3:FLW"
+        ],
+        "runway": "RW02"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW02:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW02",
+          "3:FRAMS"
+        ],
+        "runway": "RW02"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW02:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "3:FRAMS:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW02",
+          "3:GVO"
+        ],
+        "runway": "RW02"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW02:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW02",
+          "3:RZS"
+        ],
+        "runway": "RW02"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW02:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW12",
+          "3:FLW"
+        ],
+        "runway": "RW12"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW12:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW12",
+          "3:FRAMS"
+        ],
+        "runway": "RW12"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW12:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "3:FRAMS:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW12",
+          "3:GVO"
+        ],
+        "runway": "RW12"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW12:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW12",
+          "3:RZS"
+        ],
+        "runway": "RW12"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW12:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW30",
+          "3:FLW"
+        ],
+        "runway": "RW30"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW30:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW30",
+          "3:FRAMS"
+        ],
+        "runway": "RW30"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW30:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "3:FRAMS:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW30",
+          "3:GVO"
+        ],
+        "runway": "RW30"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW30:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KSMX:departure:BUELT4",
+      "selection": {
+        "branches": [
+          "1:RW30",
+          "3:RZS"
+        ],
+        "runway": "RW30"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VI",
+          "source": "1:RW30:020",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KXWA:departure:ISN6",
+      "selection": {
+        "branches": [
+          "1:RW04",
+          "3:FONIA"
+        ],
+        "runway": "RW04"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW04:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KXWA:departure:ISN6",
+      "selection": {
+        "branches": [
+          "1:RW04",
+          "3:FORBI"
+        ],
+        "runway": "RW04"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW04:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KXWA:departure:ISN6",
+      "selection": {
+        "branches": [
+          "1:RW04",
+          "3:GINBE"
+        ],
+        "runway": "RW04"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW04:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KXWA:departure:ISN6",
+      "selection": {
+        "branches": [
+          "1:RW04",
+          "3:HASOS"
+        ],
+        "runway": "RW04"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW04:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "departure",
+      "procedure": "KXWA:departure:ISN6",
+      "selection": {
+        "branches": [
+          "1:RW04",
+          "3:OFEGY"
+        ],
+        "runway": "RW04"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 1,
+          "path": "VA",
+          "source": "1:RW04:010",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:I20RY",
+      "selection": {
+        "id": "transition:ENA",
+        "name": "ENA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:I20RY",
+      "selection": {
+        "id": "transition:ROJAR",
+        "name": "ROJAR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:I20RY",
+      "selection": {
+        "id": "transition:TWIGI",
+        "name": "TWIGI",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:I20RY",
+      "selection": {
+        "id": "transition-fix:ENA:2",
+        "name": "TBONE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:I20RY",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:L20RY",
+      "selection": {
+        "id": "transition:ENA",
+        "name": "ENA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:L20RY",
+      "selection": {
+        "id": "transition:ROJAR",
+        "name": "ROJAR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:L20RY",
+      "selection": {
+        "id": "transition:TWIGI",
+        "name": "TWIGI",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:L20RY",
+      "selection": {
+        "id": "transition-fix:ENA:2",
+        "name": "TBONE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAEN:L20RY",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAKN:I12-Y",
+      "selection": {
+        "id": "transition:AKN",
+        "name": "AKN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:AKN:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAKN:L12-Y",
+      "selection": {
+        "id": "transition:AKN",
+        "name": "AKN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:AKN:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:I28-Z",
+      "selection": {
+        "id": "transition:IHIH1",
+        "name": "IHIHI via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:IHIH1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:I28-Z",
+      "selection": {
+        "id": "transition:JESZ1",
+        "name": "JESZU via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:JESZ1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:I28-Z",
+      "selection": {
+        "id": "transition:LILE1",
+        "name": "LILES via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:LILE1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:L28-Z",
+      "selection": {
+        "id": "transition:IHIH1",
+        "name": "IHIHI via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:IHIH1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:L28-Z",
+      "selection": {
+        "id": "transition:JESZ1",
+        "name": "JESZU via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:JESZ1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "PAOM:L28-Z",
+      "selection": {
+        "id": "transition:LILE1",
+        "name": "LILES via OME",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:LILE1:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "2G9:L25",
+      "selection": {
+        "id": "transition:IZYUR",
+        "name": "IZYUR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "2G9:L25",
+      "selection": {
+        "id": "transition:JST",
+        "name": "JST",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "2G9:L25",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:I06",
+      "selection": {
+        "id": "transition:ETX",
+        "name": "ETX",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:I06",
+      "selection": {
+        "id": "transition-fix:ETX:2",
+        "name": "JISTO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:I06",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:L06",
+      "selection": {
+        "id": "transition:ETX",
+        "name": "ETX",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:L06",
+      "selection": {
+        "id": "transition-fix:ETX:2",
+        "name": "JISTO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABE:L06",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABY:S17",
+      "selection": {
+        "id": "transition:PZD",
+        "name": "PZD",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KABY:S17",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAIK:I07",
+      "selection": {
+        "id": "transition:CAE",
+        "name": "CAE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAIK:I07",
+      "selection": {
+        "id": "transition:IRQ",
+        "name": "IRQ",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAIK:I07",
+      "selection": {
+        "id": "transition-fix:CAE:2",
+        "name": "VIXLY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAIK:I07",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KARR:L33",
+      "selection": {
+        "id": "transition:JOT",
+        "name": "JOT",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KARR:L33",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:I35",
+      "selection": {
+        "id": "transition:MCW",
+        "name": "MCW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:I35",
+      "selection": {
+        "id": "transition:RST",
+        "name": "RST",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:I35",
+      "selection": {
+        "id": "transition-fix:RST:2",
+        "name": "FARUN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:I35",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:L35",
+      "selection": {
+        "id": "transition:MCW",
+        "name": "MCW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:L35",
+      "selection": {
+        "id": "transition:RST",
+        "name": "RST",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:L35",
+      "selection": {
+        "id": "transition-fix:RST:2",
+        "name": "FARUN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KAUM:L35",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:I33",
+      "selection": {
+        "id": "transition:BGR",
+        "name": "BGR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:I33",
+      "selection": {
+        "id": "transition-fix:BGR:2",
+        "name": "ELSUH",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:I33",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:L33",
+      "selection": {
+        "id": "transition:BGR",
+        "name": "BGR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:L33",
+      "selection": {
+        "id": "transition-fix:BGR:2",
+        "name": "ELSUH",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBGR:L33",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBLV:I32R",
+      "selection": {
+        "id": "transition:ENL",
+        "name": "ENL",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBLV:I32R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBLV:L32R",
+      "selection": {
+        "id": "transition:ENL",
+        "name": "ENL",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBLV:L32R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:I34",
+      "selection": {
+        "id": "transition:GOLLF",
+        "name": "GOLLF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 6,
+          "path": "DF",
+          "source": "I::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:I34",
+      "selection": {
+        "id": "transition:JIPKO",
+        "name": "JIPKO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 6,
+          "path": "DF",
+          "source": "I::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:I34",
+      "selection": {
+        "id": "transition:LAREW",
+        "name": "LAREW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 7,
+          "path": "DF",
+          "source": "I::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:I34",
+      "selection": {
+        "id": "transition-fix:LAREW:2",
+        "name": "IRIYA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 5,
+          "path": "DF",
+          "source": "I::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:I34",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 3,
+          "path": "DF",
+          "source": "I::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:L34",
+      "selection": {
+        "id": "transition:GOLLF",
+        "name": "GOLLF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 7,
+          "path": "DF",
+          "source": "L::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:L34",
+      "selection": {
+        "id": "transition:JIPKO",
+        "name": "JIPKO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 7,
+          "path": "DF",
+          "source": "L::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:L34",
+      "selection": {
+        "id": "transition:LAREW",
+        "name": "LAREW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 8,
+          "path": "DF",
+          "source": "L::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:L34",
+      "selection": {
+        "id": "transition-fix:LAREW:2",
+        "name": "IRIYA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 6,
+          "path": "DF",
+          "source": "L::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBRD:L34",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 4,
+          "path": "DF",
+          "source": "L::050",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBWI:I15L",
+      "selection": {
+        "id": "transition:KRENE",
+        "name": "KRENE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBWI:I15L",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBWI:L15L",
+      "selection": {
+        "id": "transition:KRENE",
+        "name": "KRENE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KBWI:L15L",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:I35",
+      "selection": {
+        "id": "transition:DVV",
+        "name": "DVV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:I35",
+      "selection": {
+        "id": "transition:FQF",
+        "name": "FQF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:I35",
+      "selection": {
+        "id": "transition-fix:DVV:2",
+        "name": "ARRES",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:I35",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:L35",
+      "selection": {
+        "id": "transition:DVV",
+        "name": "DVV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:L35",
+      "selection": {
+        "id": "transition:FQF",
+        "name": "FQF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:L35",
+      "selection": {
+        "id": "transition-fix:DVV:2",
+        "name": "ARRES",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCFO:L35",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "transition:CLASS",
+        "name": "CLASS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 7,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "transition:DIANN",
+        "name": "DIANN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 7,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "transition:GEG",
+        "name": "GEG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "transition:HILIE",
+        "name": "HILIE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 7,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "transition-fix:CLASS:3",
+        "name": "POBIY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 4,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:I06",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "transition:CLASS",
+        "name": "CLASS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 8,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "transition:DIANN",
+        "name": "DIANN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 8,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "transition:GEG",
+        "name": "GEG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 6,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "transition:HILIE",
+        "name": "HILIE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 8,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "transition-fix:CLASS:3",
+        "name": "POBIY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCOE:L06",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 3,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:I05",
+      "selection": {
+        "id": "transition:ECG",
+        "name": "ECG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:I05",
+      "selection": {
+        "id": "transition:NALDE",
+        "name": "NALDE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:I05",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:L05",
+      "selection": {
+        "id": "transition:ECG",
+        "name": "ECG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:L05",
+      "selection": {
+        "id": "transition:NALDE",
+        "name": "NALDE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KCPK:L05",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:I35R",
+      "selection": {
+        "id": "transition:BOSSS",
+        "name": "BOSSS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 10,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:I35R",
+      "selection": {
+        "id": "transition:LDORA",
+        "name": "LDORA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 11,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:I35R",
+      "selection": {
+        "id": "transition:PURRL",
+        "name": "PURRL",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 9,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:I35R",
+      "selection": {
+        "id": "transition:TELLR",
+        "name": "TELLR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 9,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:I35R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:L35R",
+      "selection": {
+        "id": "transition:BOSSS",
+        "name": "BOSSS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 11,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:L35R",
+      "selection": {
+        "id": "transition:LDORA",
+        "name": "LDORA",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 12,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:L35R",
+      "selection": {
+        "id": "transition:PURRL",
+        "name": "PURRL",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 10,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:L35R",
+      "selection": {
+        "id": "transition:TELLR",
+        "name": "TELLR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 10,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDEN:L35R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDGW:S29",
+      "selection": {
+        "id": "transition:IIP",
+        "name": "IIP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDGW:S29",
+      "selection": {
+        "id": "transition:POKSY",
+        "name": "POKSY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDGW:S29",
+      "selection": {
+        "id": "transition:POLDE",
+        "name": "POLDE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KDGW:S29",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KFMN:I25",
+      "selection": {
+        "id": "transition:RSK",
+        "name": "RSK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:RSK:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KFMN:L25",
+      "selection": {
+        "id": "transition:RSK",
+        "name": "RSK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:RSK:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KGEG:I03",
+      "selection": {
+        "id": "transition:GEG",
+        "name": "GEG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:GEG:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KGEG:L03",
+      "selection": {
+        "id": "transition:GEG",
+        "name": "GEG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:GEG:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KGKT:D10",
+      "selection": {
+        "id": "transition:VXV",
+        "name": "VXV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "CI",
+          "source": "D::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KGKT:D10",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "CI",
+          "source": "D::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Y",
+      "selection": {
+        "id": "transition:FALDE",
+        "name": "FALDE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Y",
+      "selection": {
+        "id": "transition:HLN",
+        "name": "HLN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Y",
+      "selection": {
+        "id": "transition:SWEDD",
+        "name": "SWEDD",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Y",
+      "selection": {
+        "id": "transition-fix:FALDE:2",
+        "name": "HAU",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Z",
+      "selection": {
+        "id": "transition:HLN",
+        "name": "HLN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHLN:I27-Z",
+      "selection": {
+        "id": "transition-fix:HLN:2",
+        "name": "HAU",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHOB:I04",
+      "selection": {
+        "id": "transition:HOB",
+        "name": "HOB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:HOB:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHOB:L04",
+      "selection": {
+        "id": "transition:HOB",
+        "name": "HOB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:HOB:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:I24",
+      "selection": {
+        "id": "transition:LFV",
+        "name": "LFV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:I24",
+      "selection": {
+        "id": "transition-fix:LFV:2",
+        "name": "BOGEY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:I24",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:L24",
+      "selection": {
+        "id": "transition:LFV",
+        "name": "LFV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:L24",
+      "selection": {
+        "id": "transition-fix:LFV:2",
+        "name": "BOGEY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KHYA:L24",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KILM:I24-Y",
+      "selection": {
+        "id": "transition:GM",
+        "name": "GM",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KILM:L24",
+      "selection": {
+        "id": "transition:GM",
+        "name": "GM",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KJYO:I17",
+      "selection": {
+        "id": "transition:MRB",
+        "name": "MRB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KJYO:I17",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KJYO:L17",
+      "selection": {
+        "id": "transition:MRB",
+        "name": "MRB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KJYO:L17",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLAN:I28L",
+      "selection": {
+        "id": "transition:QUBEE",
+        "name": "QUBEE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLAN:I28L",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLAN:L28L",
+      "selection": {
+        "id": "transition:QUBEE",
+        "name": "QUBEE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLAN:L28L",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLNK:I18-Y",
+      "selection": {
+        "id": "transition:LNK",
+        "name": "LNK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:LNK:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLNK:L18-Y",
+      "selection": {
+        "id": "transition:LNK",
+        "name": "LNK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:LNK:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:I07",
+      "selection": {
+        "id": "transition:DJB",
+        "name": "DJB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:I07",
+      "selection": {
+        "id": "transition-fix:DJB:2",
+        "name": "RAWLS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 3,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:I07",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "CA",
+          "source": "I::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:L07",
+      "selection": {
+        "id": "transition:DJB",
+        "name": "DJB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 5,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:L07",
+      "selection": {
+        "id": "transition-fix:DJB:2",
+        "name": "RAWLS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 3,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLPR:L07",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "CA",
+          "source": "L::040",
+          "message": "The schematic path crosses itself and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMFR:I14",
+      "selection": {
+        "id": "transition:SAMIE",
+        "name": "SAMIE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMFR:I14",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "I::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMFR:L14",
+      "selection": {
+        "id": "transition:SAMIE",
+        "name": "SAMIE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 8,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMFR:L14",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMKJ:L26",
+      "selection": {
+        "id": "transition:PSK",
+        "name": "PSK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMKJ:L26",
+      "selection": {
+        "id": "transition:WUZUR",
+        "name": "WUZUR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMKJ:L26",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "L::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMPV:I17",
+      "selection": {
+        "id": "transition:MPV",
+        "name": "MPV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 2,
+          "path": "AF",
+          "source": "A:MPV:030",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMPV:I17",
+      "selection": {
+        "id": "transition-fix:MPV:1",
+        "name": "TJAYS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 1,
+          "path": "AF",
+          "source": "A:MPV:030",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMPV:L17",
+      "selection": {
+        "id": "transition:MPV",
+        "name": "MPV",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 2,
+          "path": "AF",
+          "source": "A:MPV:030",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMPV:L17",
+      "selection": {
+        "id": "transition-fix:MPV:1",
+        "name": "TJAYS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 1,
+          "path": "AF",
+          "source": "A:MPV:030",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMSO:VOR-A",
+      "selection": {
+        "id": "transition:SPUNK",
+        "name": "SPUNK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:SPUNK:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMSO:VOR-A",
+      "selection": {
+        "id": "transition:SQIDS",
+        "name": "SQIDS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:SQIDS:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMSO:VOR-A",
+      "selection": {
+        "id": "transition:TAGOE",
+        "name": "TAGOE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "PI",
+          "source": "A:TAGOE:030",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMWL:I31",
+      "selection": {
+        "id": "transition:MQP",
+        "name": "MQP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:MQP:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KMWL:L31",
+      "selection": {
+        "id": "transition:MQP",
+        "name": "MQP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 0,
+          "path": "PI",
+          "source": "A:MQP:010",
+          "message": "The procedure-turn side, extent or inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 1,
+          "path": "XX",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:I35R",
+      "selection": {
+        "id": "transition:IRW",
+        "name": "IRW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:I35R",
+      "selection": {
+        "id": "transition-fix:IRW:2",
+        "name": "JAVXE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:I35R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "I::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:L35R",
+      "selection": {
+        "id": "transition:IRW",
+        "name": "IRW",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:L35R",
+      "selection": {
+        "id": "transition-fix:IRW:2",
+        "name": "JAVXE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 5,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KOKC:L35R",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 2,
+          "path": "VI",
+          "source": "L::040",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPBF:I18",
+      "selection": {
+        "id": "transition:PBF",
+        "name": "PBF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:PBF:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPBF:L18",
+      "selection": {
+        "id": "transition:PBF",
+        "name": "PBF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:PBF:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:PIH",
+        "name": "PIH",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:TANOY",
+        "name": "TANOY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:YERUP",
+        "name": "YERUP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 4,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "transition:DSD",
+        "name": "DSD",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 4,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "transition:EENIE",
+        "name": "EENIE",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "transition:HORRN",
+        "name": "HORRN",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 7,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "transition:MLLRR",
+        "name": "MLLRR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "transition-fix:HORRN:1",
+        "name": "BLAST",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 6,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRDM:VOR-A",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "no-forward-intersection",
+          "leg": 3,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The courses have no bounded forward intercept."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:I07",
+      "selection": {
+        "id": "transition:FOORD",
+        "name": "FOORD",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 4,
+          "path": "VA",
+          "source": "I::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 5,
+          "path": "VM",
+          "source": "I::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:I07",
+      "selection": {
+        "id": "transition:HENOR",
+        "name": "HENOR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VA",
+          "source": "I::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 6,
+          "path": "VM",
+          "source": "I::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:I07",
+      "selection": {
+        "id": "transition:SOSSO",
+        "name": "SOSSO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VA",
+          "source": "I::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 6,
+          "path": "VM",
+          "source": "I::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:I07",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "VA",
+          "source": "I::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 3,
+          "path": "VM",
+          "source": "I::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:L07",
+      "selection": {
+        "id": "transition:FOORD",
+        "name": "FOORD",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VA",
+          "source": "L::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 6,
+          "path": "VM",
+          "source": "L::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:L07",
+      "selection": {
+        "id": "transition:HENOR",
+        "name": "HENOR",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VA",
+          "source": "L::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 7,
+          "path": "VM",
+          "source": "L::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:L07",
+      "selection": {
+        "id": "transition:SOSSO",
+        "name": "SOSSO",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VA",
+          "source": "L::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 7,
+          "path": "VM",
+          "source": "L::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRFD:L07",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "VA",
+          "source": "L::040",
+          "message": "The climb course or following endpoint is unavailable."
+        },
+        {
+          "code": "manual-termination",
+          "leg": 4,
+          "path": "VM",
+          "source": "L::050",
+          "message": "This leg has no fixed endpoint; follow the plate and ATC instructions."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:I09",
+      "selection": {
+        "id": "transition:FGT",
+        "name": "FGT",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:I09",
+      "selection": {
+        "id": "transition:GEP",
+        "name": "GEP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:I09",
+      "selection": {
+        "id": "transition-fix:FGT:2",
+        "name": "RG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:L09",
+      "selection": {
+        "id": "transition:FGT",
+        "name": "FGT",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:L09",
+      "selection": {
+        "id": "transition:GEP",
+        "name": "GEP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 3,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRGK:L09",
+      "selection": {
+        "id": "transition-fix:FGT:2",
+        "name": "RG",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "unsupported-leg",
+          "leg": 1,
+          "path": "XX",
+          "message": "This maneuver cannot be depicted from the available data."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KRVS:VDM-A",
+      "selection": {
+        "id": "transition:KEVIL",
+        "name": "KEVIL",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 1,
+          "path": "AF",
+          "source": "A:KEVIL:020",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "transition:ALB",
+        "name": "ALB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 8,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "transition-fix:ALB:2",
+        "name": "HANLY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "transition:ALB",
+        "name": "ALB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 8,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "transition-fix:ALB:2",
+        "name": "HANLY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSWO:D35",
+      "selection": {
+        "id": "transition:LASTS",
+        "name": "LASTS",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "inconsistent-constraints",
+          "leg": 1,
+          "path": "AF",
+          "source": "A:LASTS:020",
+          "message": "The coded course, arc or turn cannot connect these endpoints."
+        }
+      ]
+    }
+  ]
+}

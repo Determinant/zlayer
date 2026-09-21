@@ -142,8 +142,9 @@ export async function fixtureFiles() {
           volumeTarget: { volumeId: 'SW2', section: null, printedPage: '1', pageIndex: 0 },
           source: { ...source, chartSequence: '1', chartCode: 'IAP', extraFields: {} } }] }],
     });
-    add(`${root}/cs/catalog.json`, { schemaVersion: 1, builderVersion: 1, effectiveDate: revision, expirationDate, generatedAt,
+    add(`${root}/cs/catalog.json`, { schemaVersion: 2, builderVersion: 2, effectiveDate: revision, expirationDate, generatedAt,
       sourceXml: { url: 'test', sha256: 'a'.repeat(64) }, volumes: [{ ...volume, id: 'SW' }],
+      expected: [{ faaId: 'SBA', state: 'CALIFORNIA', volumeId: 'SW', printedPage: '1' }],
       airports: [{ faaId: 'SBA', name: 'TEST AIRPORT', city: 'SANTA BARBARA', state: 'CALIFORNIA',
         volumeId: 'SW', printedPage: '1', pageIndex: 0 }] });
   }

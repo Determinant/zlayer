@@ -43,14 +43,17 @@ export function preferredRoutesDocumentGuard(resource: PreferredRoutesResource, 
 
 export function terminalProceduresDocumentGuard(resource: TerminalProceduresResource, revision: string) {
   return (value: unknown): value is TerminalProceduresData =>
-    isTerminalProceduresData(value, revision) && value.procedures.length === resource.count && matchesJsonIdentity(resource, value);
+    isTerminalProceduresData(value, revision) && value.procedures.length === resource.count &&
+    (resource.schemaVersion === undefined || value.metadata.schemaVersion === resource.schemaVersion &&
+      value.coverage !== undefined && resource.coverage !== undefined &&
+      jsonIdentity(value.coverage) === jsonIdentity(resource.coverage)) && matchesJsonIdentity(resource, value);
 }
 
 export function procedureCatalogGuard(resource: ProcedureResourceRecord) {
-  // The cycle/counts describe many possible exports. The publisher's v parameter
-  // identifies the particular build whose PDF identities and page targets were saved.
+  // Preserve legacy timestamp expectations; new resources also carry a publisher digest.
   const version = new URL(resource.url, 'https://reference.invalid/').searchParams.get('v');
   return (value: unknown): value is ProcedureCatalog => isProcedureCatalog(value, resource.effectiveDate) &&
+    (resource.associationStatus === undefined || (resource.associationStatus === 'available') === (value.associations !== undefined)) &&
     (version === null || value.generatedAt === version) &&
     value.cycle === resource.cycle && value.expirationDate === resource.expirationDate &&
     value.airports.length === resource.airportCount &&

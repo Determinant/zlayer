@@ -53,6 +53,7 @@ export function RouteNavLog({ id, open, onToggle, plan, status, revision }: {
               <tr className={`route-navlog-row${row.waypoint.approachPhase === 'missed' ? ' is-missed' : ''}`}>
                 <th scope="row" title={row.waypoint.ident}>
                   <span className={`route-navlog-waypoint ${routeWaypointClass(row.waypoint)}`}><strong>{formatWaypointLabel(row.waypoint.ident)}</strong>
+                    {row.waypoint.procedureConstraint && <small>{row.waypoint.procedureConstraint}</small>}
                     {(row.waypoint.approachHold || row.waypoint.approachRole) && <small>
                       {row.waypoint.approachHold ? `HOLD ${row.waypoint.approachHold.turn === 'unknown' ? '?' : row.waypoint.approachHold.turn}` : row.waypoint.approachRole}
                     </small>}

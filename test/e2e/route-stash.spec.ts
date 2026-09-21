@@ -31,7 +31,8 @@ test('save includes pending input; blank names stay hidden and load restores the
   await expect(dialog.locator('.route-stash-approach')).toHaveText('ILS OR LOC 28R · ARCHI');
   const snapshot = (await saved(page))[0];
   expect(snapshot.name).toBe('');
-  expect(snapshot.draft.entries.slice(0, 2)).toEqual(entries);
+  expect(snapshot.draft.entries.slice(0, 2)).toEqual(entries.map(entry => entry.approach
+    ? { ...entry, approach: { ...entry.approach, kind: 'approach', source: 'chart' } } : entry));
   await page.screenshot({ path: testInfo.outputPath('stash-desktop.png') });
   await dialog.getByRole('button', { name: 'Close route stash' }).click();
   await expect(page.getByRole('button', { name: 'Route actions', exact: true })).toBeFocused();

@@ -1,4 +1,5 @@
 import { hasJsonReferenceIdentity } from '../json-reference.js';
+import { isApproachAssociations } from '../approach-associations.js';
 import type { ProcedureAirport, ProcedureCatalog, ProcedureKind, ProcedureRecord, ProcedureResourceRecord, ProcedureVolume, ProcedureVolumeTarget } from '../types.js';
 import { isRecord, isNonEmptyString, isNonNegativeInteger, isPositiveInteger, isCycle, isSha256, isStringRecord, isOptionalNullableString, hasValidDate, isIsoDate, hasUniqueStrings } from '../validation.js';
 
@@ -33,6 +34,16 @@ export function isProcedureCatalog(
     airport.procedures.map((procedure) => procedure.id)
   );
   if (!hasUniqueStrings(procedureIds)) return false;
+  if (value.associations !== undefined) {
+    const associations = value.associations;
+    if (!isApproachAssociations(associations) || associations.effectiveDate !== value.effectiveDate ||
+        associations.sources.chartXmlSha256 !== value.sourceXml.sha256) return false;
+    const charts = new Map(value.airports.flatMap(airport => airport.procedures
+      .filter(p => p.kind === 'approach' && p.source.userAction !== 'D')
+      .map(p => [p.id, { airport: airport.icaoId || airport.faaId, title: p.name }])));
+    if (charts.size !== associations.records.length || associations.records.some(r =>
+      charts.get(r.procedureId)?.airport !== r.airport || charts.get(r.procedureId)?.title !== r.title)) return false;
+  }
 
   const volumes = new Map(value.volumes.map((volume) => [volume.id, volume]));
   const targetCounts = new Map<string, { resolved: number; unresolved: number }>();
@@ -58,6 +69,7 @@ export function isProcedureCatalog(
 
 export function isProcedureResourceRecord(value: unknown): value is ProcedureResourceRecord {
   return isRecord(value) &&
+    (value.associationStatus === undefined || value.associationStatus === 'available' || value.associationStatus === 'unavailable') &&
     value.id === 'procedures' &&
     isNonEmptyString(value.title) &&
     isCycle(value.cycle) &&

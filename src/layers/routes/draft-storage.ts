@@ -1,37 +1,54 @@
 import { isRecord } from '@zlayer/contracts';
-import { routeTokensFromText, type RouteDraft, type RouteEntry } from '@zlayer/domain';
+import { routeTokensFromText, type RouteApproach, type RouteDraft, type RouteEntry, type RouteTerminal } from '@zlayer/domain';
 
-/** Shared boundary for active drafts and saved routes. Never mutates stored records. */
+/** Shared boundary for active drafts and saved routes. Legacy attachments acquire
+ * explicit source/kind here; malformed attachments never discard their airport. */
 export function parseRouteEntries(value: unknown): RouteDraft | undefined {
   if (!Array.isArray(value)) return undefined;
-  const ids = new Set<string>();
-  const entries: RouteEntry[] = [];
+  const ids = new Set<string>(), entries: RouteEntry[] = [];
   for (const entry of value) {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id || ids.has(entry.id) ||
       typeof entry.text !== 'string' || routeTokensFromText(entry.text).length !== 1 ||
       routeTokensFromText(entry.text)[0] !== entry.text) return undefined;
     ids.add(entry.id);
-    const approach = entry.approach;
-    const departure = entry.departure;
-    const approachEntry = isRecord(approach) && isRecord(approach.entry) ? approach.entry : undefined;
+    const approach = approachSelection(entry.approach);
+    const departure = terminalSelection(entry.departure, 'departure'), arrival = terminalSelection(entry.arrival, 'arrival');
     entries.push({ id: entry.id, text: entry.text,
       ...(typeof entry.pinnedFeatureId === 'string' && entry.pinnedFeatureId ? { pinnedFeatureId: entry.pinnedFeatureId } : {}),
-      ...(isRecord(departure) && ['airportId', 'procedureId', 'ident', 'name', 'effectiveDate', 'transition'].every(field =>
-        typeof departure[field] === 'string' && departure[field].trim().length > 0)
-        ? { departure: { airportId: departure.airportId as string, procedureId: departure.procedureId as string,
-          ident: departure.ident as string, name: departure.name as string, effectiveDate: departure.effectiveDate as string,
-          transition: departure.transition as string,
-          ...(typeof departure.branchId === 'string' && departure.branchId ? { branchId: departure.branchId } : {}),
-          ...(typeof departure.branchName === 'string' && departure.branchName ? { branchName: departure.branchName } : {}) } } : {}),
-      // Discard a malformed attachment without discarding the airport or route.
-      ...(isRecord(approach) && ['airportId', 'procedureId', 'name', 'cycle'].every(field =>
-        typeof approach[field] === 'string' && approach[field].trim().length > 0)
-        ? { approach: { airportId: approach.airportId as string, procedureId: approach.procedureId as string,
-          name: approach.name as string, cycle: approach.cycle as string,
-          ...(approachEntry && ['routeId', 'transitionId', 'name', 'effectiveDate'].every(field =>
-            typeof approachEntry[field] === 'string' && (approachEntry[field] as string).trim().length > 0)
-            ? { entry: { routeId: approachEntry.routeId as string, transitionId: approachEntry.transitionId as string,
-              name: approachEntry.name as string, effectiveDate: approachEntry.effectiveDate as string } } : {}) } } : {}) });
+      ...(approach ? { approach } : {}), ...(departure?.kind === 'departure' ? { departure } : {}),
+      ...(arrival?.kind === 'arrival' ? { arrival } : {}) });
   }
   return { entries };
+}
+const textFields = (value: Record<string, unknown>, fields: string[]) =>
+  fields.every(field => typeof value[field] === 'string' && value[field].trim().length > 0);
+
+function approachSelection(value: unknown): RouteApproach | undefined {
+  if (!isRecord(value) || !textFields(value, ['airportId', 'procedureId', 'name', 'cycle']) ||
+      value.kind !== undefined && value.kind !== 'approach' ||
+      value.source !== undefined && value.source !== 'chart' && value.source !== 'cifp') return;
+  const entry = isRecord(value.entry) && textFields(value.entry, ['routeId', 'transitionId', 'name', 'effectiveDate'])
+    ? { routeId: value.entry.routeId as string, transitionId: value.entry.transitionId as string,
+      name: value.entry.name as string, effectiveDate: value.entry.effectiveDate as string } : undefined;
+  return { kind: 'approach', source: value.source === 'cifp' ? 'cifp' : 'chart',
+    airportId: value.airportId as string, procedureId: value.procedureId as string,
+    name: value.name as string, cycle: value.cycle as string, ...(entry ? { entry } : {}) };
+}
+function terminalSelection(value: unknown, kind: 'departure' | 'arrival'): RouteTerminal | undefined {
+  if (!isRecord(value) || !textFields(value, ['airportId', 'procedureId', 'ident', 'name', 'effectiveDate']) ||
+      typeof value.transition !== 'string' || value.kind !== undefined && value.kind !== kind) return;
+  const source = value.source ?? (value.codedBranches === undefined ? 'nasr' : 'cifp');
+  if (source !== 'nasr' && source !== 'cifp') return;
+  const fields = { kind, airportId: value.airportId as string, procedureId: value.procedureId as string,
+    ident: value.ident as string, name: value.name as string, effectiveDate: value.effectiveDate as string, transition: value.transition,
+    ...(typeof value.branchName === 'string' && value.branchName ? { branchName: value.branchName } : {}) };
+  if (source === 'nasr') {
+    if (value.codedBranches !== undefined || value.codedRunway !== undefined || !value.transition.trim()) return;
+    return { ...fields, source, ...(typeof value.branchId === 'string' && value.branchId ? { branchId: value.branchId } : {}) };
+  }
+  if (!textFields(value, ['branchId']) || !Array.isArray(value.codedBranches) || !value.codedBranches.length ||
+      !value.codedBranches.every(id => typeof id === 'string' && id.length > 0) ||
+      new Set(value.codedBranches).size !== value.codedBranches.length) return;
+  return { ...fields, source, branchId: value.branchId as string, codedBranches: value.codedBranches as string[],
+    ...(typeof value.codedRunway === 'string' && value.codedRunway ? { codedRunway: value.codedRunway } : {}) };
 }

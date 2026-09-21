@@ -1,0 +1,30 @@
+{
+  "effectiveDate": "2026-09-03",
+  "node": "v24.15.0",
+  "measurements": [
+    {
+      "name": "one-airport-first-terminal-use",
+      "milliseconds": 4.6720169999999825,
+      "retainedMiB": 0.610687255859375,
+      "waypoints": 1
+    },
+    {
+      "name": "one-airport-shared-terminal-index",
+      "milliseconds": 0.05837799999994786,
+      "retainedMiB": -0.000946044921875,
+      "waypoints": 1
+    },
+    {
+      "name": "national-navigation-first-use",
+      "milliseconds": 80.48975600000006,
+      "retainedMiB": 28.984176635742188,
+      "waypoints": 1
+    },
+    {
+      "name": "airport-preview-shared-navigation",
+      "milliseconds": 0.0870710000000372,
+      "retainedMiB": -0.00051116943359375,
+      "waypoints": 1
+    }
+  ]
+}

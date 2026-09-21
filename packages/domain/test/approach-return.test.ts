@@ -88,7 +88,9 @@ test('an unresolved missed intercept retains the holding fix and racetrack witho
     assert.equal(hold.holdCourse, 13);
     assert.equal(hold.arrivalCourse, undefined);
     assert.ok(result.depictions.some(d => d.kind === 'hold' && d.phase === 'missed'));
-    assert.ok(!result.depictions.some(d => d.kind === 'missed'));
+    assert.ok(result.spans.filter(s => s.symbol === 'missed').every(s =>
+      s.to === undefined && s.assumptions.includes('open-termination')),
+    'retain a known prefix without inventing a completed return');
     assert.ok(!result.segments.some(s => s.phase === 'missed'));
     assert.equal(result.points[result.landingEnd!]!.ident, 'RW30C');
   }

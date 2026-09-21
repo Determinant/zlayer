@@ -1,0 +1,267 @@
+{
+  "metadata": {
+    "state": "*",
+    "cycle": "2609",
+    "effectiveDate": "2026-09-03",
+    "catalogSha256": "44d68f310f90e866b819b9e8d5c5d9dfcabbee9a1ad6d193a67dccad754230a0",
+    "routesSha256": "0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a",
+    "cifpSha256": "fbea2179a990e1d371d77439961d137e83252582b3c67b6ec85b8d9d11c76cad",
+    "rendererSha256": "be55f1406e74040cfc5822160b6b054f9fb5196bce8585ce6d06c7d4a52dd326",
+    "matchingSha256": "cf588c3c978f8102e81a03d444ff8c1e372c7a0091db85f13a26bef88b243034",
+    "joiningSha256": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a",
+    "geometrySha256": "4d2e4bd93f050bc81e2df9f6378b895b52ef2955c2961230fc878f43e851617b",
+    "schemaVersion": 2,
+    "scope": "Every non-deleted catalog approach record in the state, all offered entries; automated screening, not plate certification.",
+    "geometryThresholds": {
+      "courseMismatchDegrees": 15,
+      "sharpBendDegrees": 90,
+      "detour": "length > 2 * endpoint distance + 3 NM, except bounded reversals and altitude-dependent paths"
+    }
+  },
+  "summary": {
+    "airports": 3182,
+    "catalogApproachRecords": 11140,
+    "instrumentChartRecords": 11089,
+    "statuses": {
+      "matched": 9184,
+      "no-exact-coded-match": 1005,
+      "unmatched-title": 900,
+      "visual-chart": 51
+    },
+    "unmatchedReasons": {
+      "airport-without-coded-approaches": 998,
+      "faa-listed-omission": 458,
+      "no-exact-source-record": 5,
+      "outside-published-cifp-scope": 304,
+      "special-family-without-verified-association": 140
+    },
+    "availableTitleCandidates": 0,
+    "faaExcludedRecords": 463,
+    "matchedWithoutEntries": 0,
+    "unofferedTransitions": 8,
+    "entries": 34214,
+    "incompleteEntries": 134,
+    "chartsWithGaps": 48,
+    "airportsWithGaps": 43,
+    "warningEntries": 134,
+    "warningEntriesMarkedComplete": 0,
+    "warningCounts": {
+      "no-forward-intersection": 69,
+      "missing-reference": 33,
+      "inconsistent-constraints": 9,
+      "geometry-review": 13,
+      "schematic-self-crossing": 11,
+      "unsupported-leg": 10,
+      "schematic-detour": 2,
+      "manual-termination": 8
+    }
+  },
+  "kvgt": {
+    "id": "KVGT",
+    "name": "NORTH LAS VEGAS",
+    "state": "NV",
+    "rawProcedureIds": [
+      "KVGT:I12L",
+      "KVGT:L12L",
+      "KVGT:R12R"
+    ],
+    "charts": [
+      {
+        "id": "2609:KVGT:114390866cc2402a",
+        "name": "ILS OR LOC RWY 12L",
+        "url": "https://aeronav.faa.gov/d-tpp/2609/06970IL12L.PDF",
+        "status": "matched",
+        "associationRule": "canonical",
+        "codedId": "KVGT:I12L",
+        "codedIds": [
+          "KVGT:I12L"
+        ],
+        "availableTitleCandidate": null,
+        "faaExcluded": false,
+        "faaExcludedIds": [],
+        "unmatchedReason": null,
+        "rawBranches": [
+          "I:"
+        ],
+        "unofferedTransitions": [],
+        "entries": [
+          {
+            "id": "vectors",
+            "name": "VTF",
+            "incomplete": false,
+            "policy": {
+              "version": 3,
+              "climbScale": 1
+            },
+            "assumptions": [
+              "altitude-dependent",
+              "turn-radius",
+              "no-wind-heading",
+              "course-capture",
+              "holding-pattern"
+            ],
+            "issues": [],
+            "points": 4,
+            "segments": 1,
+            "schematics": [
+              "missed",
+              "hold"
+            ],
+            "warnings": [],
+            "routeId": "KVGT:I12L"
+          }
+        ]
+      },
+      {
+        "id": "2609:KVGT:4009cc263e135db8",
+        "name": "RNAV (GPS) RWY 12R",
+        "url": "https://aeronav.faa.gov/d-tpp/2609/06970R12R.PDF",
+        "status": "matched",
+        "associationRule": "canonical",
+        "codedId": "KVGT:R12R",
+        "codedIds": [
+          "KVGT:R12R"
+        ],
+        "availableTitleCandidate": null,
+        "faaExcluded": false,
+        "faaExcludedIds": [],
+        "unmatchedReason": null,
+        "rawBranches": [
+          "A:ECAKO",
+          "R:"
+        ],
+        "unofferedTransitions": [],
+        "entries": [
+          {
+            "id": "transition:ECAKO",
+            "name": "ECAKO",
+            "incomplete": false,
+            "policy": {
+              "version": 3,
+              "climbScale": 1
+            },
+            "assumptions": [
+              "altitude-dependent",
+              "turn-radius",
+              "holding-pattern"
+            ],
+            "issues": [],
+            "points": 8,
+            "segments": 6,
+            "schematics": [
+              "missed",
+              "hold"
+            ],
+            "warnings": [],
+            "routeId": "KVGT:R12R"
+          },
+          {
+            "id": "vectors",
+            "name": "VTF",
+            "incomplete": false,
+            "policy": {
+              "version": 3,
+              "climbScale": 1
+            },
+            "assumptions": [
+              "altitude-dependent",
+              "turn-radius",
+              "holding-pattern"
+            ],
+            "issues": [],
+            "points": 5,
+            "segments": 3,
+            "schematics": [
+              "missed",
+              "hold"
+            ],
+            "warnings": [],
+            "routeId": "KVGT:R12R"
+          }
+        ]
+      }
+    ]
+  },
+  "unofferedTransitions": [
+    {
+      "airport": "KDAF",
+      "chart": "RNAV (GPS) RWY 36",
+      "routes": [
+        "KDAF:R36"
+      ],
+      "transitions": [
+        "CMY"
+      ]
+    },
+    {
+      "airport": "KDXE",
+      "chart": "RNAV (GPS) RWY 18",
+      "routes": [
+        "KDXE:R18"
+      ],
+      "transitions": [
+        "GENTE"
+      ]
+    },
+    {
+      "airport": "KDXE",
+      "chart": "RNAV (GPS) RWY 36",
+      "routes": [
+        "KDXE:R36"
+      ],
+      "transitions": [
+        "GADLE"
+      ]
+    },
+    {
+      "airport": "KERI",
+      "chart": "ILS OR LOC RWY 24",
+      "routes": [
+        "KERI:I24"
+      ],
+      "transitions": [
+        "JONLI"
+      ]
+    },
+    {
+      "airport": "KGSP",
+      "chart": "ILS OR LOC RWY 04",
+      "routes": [
+        "KGSP:I04"
+      ],
+      "transitions": [
+        "OXABY"
+      ]
+    },
+    {
+      "airport": "KGSP",
+      "chart": "ILS OR LOC RWY 22",
+      "routes": [
+        "KGSP:I22"
+      ],
+      "transitions": [
+        "RAYCE"
+      ]
+    },
+    {
+      "airport": "KGSP",
+      "chart": "ILS RWY 04 (SA CAT I)",
+      "routes": [
+        "KGSP:I04"
+      ],
+      "transitions": [
+        "OXABY"
+      ]
+    },
+    {
+      "airport": "PASM",
+      "chart": "LOC RWY 17",
+      "routes": [
+        "PASM:L17"
+      ],
+      "transitions": [
+        "SAWNY"
+      ]
+    }
+  ]
+}

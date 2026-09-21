@@ -16,7 +16,7 @@ const navigation: FeatureCollectionResponse = { type: 'FeatureCollection', featu
   type: 'Feature', id: ident, geometry: { type: 'Point', coordinates: [-122.35 + i * 0.25, 37.5 - (i === 2 ? 0.3 : 0)] }, properties: { ident },
 })), meta: { layer: 'airports', revision: '2026-09-03', returned: 3, truncated: false } };
 const resolve = createRouteResolver([navigation]);
-const initialRoute = resolve('AAAA BBBB CCCC');
+const initialRoute = resolve(new URLSearchParams(location.search).has('gaps') ? 'AAAA UNKNOWN BBBB UNKNOWN CCCC' : 'AAAA BBBB CCCC');
 const initialCatalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-03T00:00:00Z',
   charts: [], navigation: [], weather: [] };
 

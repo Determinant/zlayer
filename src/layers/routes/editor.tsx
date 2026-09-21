@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { RouteApproach, RouteDeparture, RouteEntry as DraftEntry, RoutePlan, RouteWaypoint } from '@zlayer/domain';
+import type { RouteApproach, RouteTerminal, RouteEntry as DraftEntry, RoutePlan, RouteWaypoint } from '@zlayer/domain';
 import type { NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
 
 import { RouteMenu } from './menu';
@@ -25,7 +25,7 @@ import { useEditorGestures, type DragVisual } from './use-editor-gestures';
 import type { DirectToAction } from './direct-to';
 import { DirectToIcon } from './direct-to-icon';
 import { RouteApproachPicker } from './approach-picker';
-import { RouteDeparturePicker } from './departure-picker';
+import { RouteTerminalPicker } from './terminal-picker';
 import type { RouteMapPreview } from './map-preview';
 import type { ProcedureSelection } from '../plates/data';
 
@@ -49,7 +49,8 @@ type RouteEditorProps = {
   approachRouteResource?: import('@zlayer/contracts').TerminalProceduresResource | undefined;
   revision?: string | undefined;
   onApproachChange?: ((entry: DraftEntry, approach: RouteApproach | undefined) => void) | undefined;
-  onDepartureChange?: ((entry: DraftEntry, departure: RouteDeparture | undefined) => void) | undefined;
+  onArrivalChange?: ((entry: DraftEntry, arrival: RouteTerminal | undefined) => void) | undefined;
+  onDepartureChange?: ((entry: DraftEntry, departure: RouteTerminal | undefined) => void) | undefined;
   onApproachPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
   onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
   tools: ReactNode;
@@ -76,6 +77,7 @@ export function RouteEditor({
   revision: dataRevision,
   onApproachChange,
   onDepartureChange,
+  onArrivalChange,
   onApproachPreview,
   onOpenPlate,
   tools,
@@ -86,7 +88,7 @@ export function RouteEditor({
     openMenu, clickToken, captureClick, beginPointer, movePointer, finishPointer } =
     useEditorGestures(revision, onMoveEntry);
   const [inlineEdit, setInlineEdit] = useState<{ entryId: string; mode: 'insert' | 'replace'; originalText: string }>();
-  const [approachPicker, setApproachPicker] = useState<{ kind: 'approach' | 'departure'; entry: DraftEntry; point: RouteWaypoint }>();
+  const [approachPicker, setApproachPicker] = useState<{ kind: 'approach' | 'departure' | 'arrival'; entry: DraftEntry; point: RouteWaypoint }>();
   const scrollTargetRef = useRef<string | undefined>(undefined);
   const previousEntryCountRef = useRef<number | undefined>(undefined);
   const waypointByToken = useMemo(
@@ -110,6 +112,7 @@ export function RouteEditor({
   const directToPoint = menu && plan.waypoints.find(point => point.edit?.entryId === menu.entryId);
   const menuEntry = menu && plan.entries.find(entry => entry.id === menu.entryId);
   const canChooseApproach = !!onApproachChange && directToPoint?.layer === 'airports';
+  const canChooseArrival = !!onArrivalChange && directToPoint?.layer === 'airports';
   const canChooseDeparture = !!onDepartureChange && directToPoint?.layer === 'airports';
   const activePicker = approachPicker && plan.entries.includes(approachPicker.entry) &&
     plan.waypoints.some(point => point.edit?.entryId === approachPicker.entry.id && point.layer === 'airports' &&
@@ -192,7 +195,7 @@ export function RouteEditor({
     [...editorRef.current?.querySelectorAll<HTMLElement>('[data-route-entry]') ?? []]
       .find(element => element.dataset.routeEntry === entryId)?.querySelector<HTMLButtonElement>('.route-token')?.focus();
   };
-  const chooseProcedure = (kind: 'approach' | 'departure', entry: DraftEntry, point: RouteWaypoint) => {
+  const chooseProcedure = (kind: 'approach' | 'departure' | 'arrival', entry: DraftEntry, point: RouteWaypoint) => {
     setMenu(undefined);
     focusToken(entry.id);
     setApproachPicker({ kind, entry, point });
@@ -203,7 +206,12 @@ export function RouteEditor({
     setApproachPicker(undefined);
     requestAnimationFrame(() => focusToken(entry.id));
   };
-  const changeDeparture = (entry: DraftEntry, departure: RouteDeparture | undefined) => {
+  const changeArrival = (entry: DraftEntry, arrival: RouteTerminal | undefined) => {
+    onArrivalChange?.(entry, arrival);
+    setMenu(undefined); setApproachPicker(undefined);
+    requestAnimationFrame(() => focusToken(entry.id));
+  };
+  const changeDeparture = (entry: DraftEntry, departure: RouteTerminal | undefined) => {
     onDepartureChange?.(entry, departure);
     setMenu(undefined);
     setApproachPicker(undefined);
@@ -277,6 +285,9 @@ export function RouteEditor({
                   entryId={item.id}
                   ident={ident}
                   approach={item.approach}
+                  arrival={item.arrival}
+                  onChooseArrival={onArrivalChange && waypoint?.layer === 'airports' ? () => chooseProcedure('arrival', item, waypoint) : undefined}
+                  onRemoveArrival={onArrivalChange ? () => changeArrival(item, undefined) : undefined}
                   departure={item.departure}
                   onChooseDeparture={onDepartureChange && waypoint?.layer === 'airports' ? () => chooseProcedure('departure', item, waypoint) : undefined}
                   onRemoveDeparture={onDepartureChange ? () => changeDeparture(item, undefined) : undefined}
@@ -362,6 +373,12 @@ export function RouteEditor({
             onClick={() => chooseProcedure('departure', menuEntry, directToPoint)}>
             {menuEntry.departure ? 'Change SID…' : 'Choose SID…'}
           </button>}
+          {canChooseArrival && menuEntry && directToPoint && <button type="button" role="menuitem"
+            onClick={() => chooseProcedure('arrival', menuEntry, directToPoint)}>
+            {menuEntry.arrival ? 'Change STAR…' : 'Choose STAR…'}
+          </button>}
+          {menuEntry?.arrival && onArrivalChange && <button type="button" role="menuitem" className="route-menu-remove"
+            onClick={() => changeArrival(menuEntry, undefined)}>Remove STAR</button>}
           {menuEntry?.departure && onDepartureChange && <button type="button" role="menuitem" className="route-menu-remove"
             onClick={() => changeDeparture(menuEntry, undefined)}>Remove SID</button>}
           <button
@@ -400,13 +417,13 @@ export function RouteEditor({
           if (restoreFocus) requestAnimationFrame(() => focusToken(activePicker.entry.id));
         }} onOpenPlate={onOpenPlate} onPreviewChange={onApproachPreview}
         onSelect={approach => changeApproach(activePicker.entry, approach)} />}
-      {activePicker?.kind === 'departure' && <RouteDeparturePicker ident={activePicker.point.ident} feature={activePicker.point.feature}
-        navigationData={navigationData} resource={approachResource} selected={activePicker.entry.departure}
+      {activePicker && activePicker.kind !== 'approach' && <RouteTerminalPicker kind={activePicker.kind} ident={activePicker.point.ident} feature={activePicker.point.feature}
+        navigationData={navigationData} resource={approachResource} selected={activePicker.entry[activePicker.kind]}
         routeResource={approachRouteResource} revision={dataRevision} onOpenPlate={onOpenPlate} onPreviewChange={onApproachPreview}
         onClose={(restoreFocus = true) => {
           setApproachPicker(undefined);
           if (restoreFocus) requestAnimationFrame(() => focusToken(activePicker.entry.id));
-        }} onSelect={departure => changeDeparture(activePicker.entry, departure)} />}
+        }} onSelect={selection => activePicker.kind === 'arrival' ? changeArrival(activePicker.entry, selection) : changeDeparture(activePicker.entry, selection)} />}
     </form>
   );
 }
@@ -446,7 +463,10 @@ type RouteTokenProps = {
   entryId: string;
   ident: string;
   approach: RouteApproach | undefined;
-  departure: RouteDeparture | undefined;
+  arrival: RouteTerminal | undefined;
+  onChooseArrival: (() => void) | undefined;
+  onRemoveArrival: (() => void) | undefined;
+  departure: RouteTerminal | undefined;
   onChooseDeparture: (() => void) | undefined;
   onRemoveDeparture: (() => void) | undefined;
   onChooseApproach: (() => void) | undefined;
@@ -468,6 +488,9 @@ function RouteToken({
   ident,
   approach,
   departure,
+  arrival,
+  onChooseArrival,
+  onRemoveArrival,
   onChooseDeparture,
   onRemoveDeparture,
   onChooseApproach,
@@ -495,10 +518,19 @@ function RouteToken({
     ? drag.before ? 'is-drop-before' : 'is-drop-after'
     : '';
   return (
-    <li className={`${dropClass}${approach || departure ? ' route-approach-bundle' : ''}${departure ? ' has-departure' : ''}${approach ? ' has-approach' : ''}${isDragging ? ' is-entry-dragging' : ''}`}
+    <li className={`${dropClass}${approach || departure || arrival ? ' route-approach-bundle' : ''}${departure ? ' has-departure' : ''}${approach || arrival ? ' has-approach' : ''}${isDragging ? ' is-entry-dragging' : ''}`}
       style={isDragging ? { transform: `translate3d(${drag.offsetX}px, 0, 0)` } : undefined}
       data-route-entry={entryId}>
-      {(approach || departure) && <span className="route-approach-outline" aria-hidden="true" />}
+      {(approach || departure || arrival) && <span className="route-approach-outline" aria-hidden="true" />}
+      {arrival && <>
+        <button type="button" className="route-attached-departure route-attached-arrival" title={`${arrival.name} · ${arrival.branchName ?? ''} · ${arrival.transition}`}
+          aria-label={`Change STAR for ${ident}: ${arrival.ident}`} disabled={!onChooseArrival}
+          onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onChooseArrival?.(); }}>
+          <span>{arrival.ident} · {arrival.branchName ?? ''} · {arrival.transition || 'Vectors'}</span>
+        </button>
+        {onRemoveArrival && <button type="button" className="route-detach-departure" aria-label={`Remove ${arrival.ident} STAR from ${ident}`}
+          onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onRemoveArrival(); }}>×</button>}
+      </>}
       {approach && <>
         <button type="button" className="route-attached-approach" title={`${approach.name}${approach.entry ? ` · ${approach.entry.name}` : ''}`}
           aria-label={`Change approach for ${ident}: ${approach.name}`} disabled={!onChooseApproach}

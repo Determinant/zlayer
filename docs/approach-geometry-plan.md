@@ -44,8 +44,8 @@ retains its source branch/leg IDs and approach/missed phase:
 | Outcome | Meaning | Consumers |
 | --- | --- | --- |
 | `fixed` | Source-constrained map geometry with resolved start, termination and reference; no aircraft-performance or wind assumption. | Map, route distance and terrain, subject to existing consumer eligibility. |
-| `schematic` | Representative geometry using identified assumptions such as no wind, climb length or turn radius. | Map and explanatory details; excluded from route distance, terrain and guidance. |
-| `gap` | No justified finite connection, with a reason and source location. | Visible discontinuity and explanation; never an implicit direct leg. |
+| `schematic` | Representative geometry using identified assumptions such as no wind, climb length or turn radius. | Map, terrain coverage and explanatory details; excluded from route distance and guidance. |
+| `gap` | No justified finite connection, with a reason and source location. | Preserve the diagnostic. A separate dotted planning connection joins known endpoints for map and terrain coverage, without becoming a route leg. |
 
 An IF contributes an anchor, not an artificial line. Holds contribute maneuver
 depictions and do not advance the route to a different fix. A span may account for
@@ -139,6 +139,42 @@ the intended turn side, forward motion, endpoint and joining course. An arbitrar
 Bezier curve must not conceal a missed intersection. If no bounded representation
 satisfies those constraints, emit a gap with its reason.
 
+Policy 5 retains the **earliest practical capture** objective introduced in policy 4.
+A schematic CF join minimizes distance flown before establishing the
+defined inbound course, then follows that course to its terminating fix. It must
+retain the entering direction, coded turn side, drawing radius, forward inbound
+ray and endpoint. Moving a downstream fix farther along the same course must not
+pull the capture point toward that fix. Earlier capture must also avoid crossing
+the preceding schematic chain. If no acceptable candidate remains, keep a gap.
+
+The shared join uses a bounded set of circular-turn/tangent candidates in a plane
+centered on the destination fix, where its inbound great-circle ray is straight.
+It evaluates the capture-length extrema and tangent/turn boundaries for each
+allowed turn combination. It does not sample arbitrary waypoints or fix capture
+at a distance before the destination. A short final course segment retains the
+arrival direction within the existing endpoint tolerance. The policy applies to
+approach, missed-approach, SID and STAR joins through the shared interpreter.
+Prescribed headings, fixed radial/DME terminations, procedure-turn bounds and
+altitude conditions still constrain the sequence; this objective does not shorten
+those instructions or calculate aircraft performance.
+
+The same tangent construction captures courses outbound from a referenced fix
+for FA legs. It ends at the capture point and then extends along that ray for the
+illustrative climb; it never substitutes a parallel heading. CI/VI can also
+intercept an outbound FA/FM ray in IAPs as well as SIDs and STARs. Detour screening
+allows the distance required by coded FC outbound legs before a reversal.
+
+If a later leg fails, retain the finite known prefix as an open schematic span.
+The dotted planning connection starts at that span's endpoint and continues to
+the next known waypoint. Map and terrain use the same continuation, and the
+unresolved leg retains its diagnostic and remains excluded from route distance.
+This applies to approaches, SIDs and STARs through the shared interpreter.
+
+The [KVGT regression and national screening](evidence/approaches/2026-09-21/intercept-capture/README.md)
+record the R-330 return case, including preview/save/reload checks and the remaining
+diagnostics. In that fixture, capture moves from 1 NM before LAS to approximately
+9.65 NM before LAS while the geometry remains schematic.
+
 ## Keep availability separate from geometry
 
 The catalog inventory accounts for every chart, including charts with no route.
@@ -164,8 +200,9 @@ of source fields. Raw-CIFP fixtures check units, signs and region-scoped referen
 Preview, attached routes and the audit consume the same result; there is no second
 pending-leg resolver. Picker/route messages consume its diagnostics.
 
-Preserve distance/terrain exclusions, straight-leg HSI eligibility and direct-to
-restrictions; a displayed schematic must never become ordinary waypoint legs.
+Preserve distance exclusions, straight-leg HSI eligibility and direct-to
+restrictions; a displayed schematic must never become ordinary waypoint legs. Terrain covers
+all displayed curves and planning connections between successive known waypoints.
 Coordinate client support with publisher revisions, preserve pinned offline editions,
 and use explicit Verify/update. Old exports remain usable without inventing fields
 they did not retain.

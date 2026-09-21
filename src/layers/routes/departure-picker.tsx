@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { GeoPointFeature, NavigationData, ProcedureCatalog, ProcedureResourceRecord, TerminalProceduresData, TerminalProceduresResource } from '@zlayer/contracts';
-import { createRouteResolver, departureBranches, departureExits, type RouteDeparture } from '@zlayer/domain';
-import { fetchTerminalProcedures } from './api';
+import type { GeoPointFeature, NavigationData, ProcedureResourceRecord, TerminalProceduresResource } from '@zlayer/contracts';
+import { departureBranches, departureExits, type RouteTerminal, type RouteDeparture } from '@zlayer/domain';
+import { useProcedureResources } from './use-procedure-resources';
+import { useProcedurePreview } from './use-procedure-preview';
 import { usePreviewPanel } from './use-preview-panel';
 import type { RouteMapPreview } from './map-preview';
-import { fetchProcedureCatalog } from '../plates/api';
 import { findProcedureAirport, groupProcedures, procedureDocument, type ProcedureSelection } from '../plates/data';
 import { formatDate } from '../../core/format/time';
 import './approach-picker.css';
@@ -16,8 +16,8 @@ type Props = {
   resource: ProcedureResourceRecord | undefined;
   routeResource?: TerminalProceduresResource | undefined;
   revision?: string | undefined;
-  selected: RouteDeparture | undefined;
-  onSelect: (departure: RouteDeparture | undefined) => void;
+  selected: RouteTerminal | undefined;
+  onSelect: (departure: RouteTerminal | undefined) => void;
   onClose: (restoreFocus?: boolean) => void;
   onPreviewChange?: ((preview: RouteMapPreview | undefined) => void) | undefined;
   onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
@@ -29,14 +29,10 @@ export function RouteDeparturePicker({ ident, feature, navigationData, resource,
   const dialog = useRef<HTMLDivElement>(null), closeButton = useRef<HTMLButtonElement>(null);
   const title = useId();
   const [query, setQuery] = useState('');
-  const [attempt, retry] = useState(0);
   const [pendingId, setPendingId] = useState<string>();
   const [branchId, setBranchId] = useState<string>();
   const [exit, setExit] = useState<string>();
-  const [loaded, setLoaded] = useState<{ key: string; data?: TerminalProceduresData; error?: boolean }>();
-  const [plates, setPlates] = useState<{ resource: ProcedureResourceRecord; catalog: ProcedureCatalog }>();
-  const key = JSON.stringify([revision, routeResource]);
-  const current = loaded?.key === key ? loaded : undefined;
+  const { key, routes: current, plates, retry } = useProcedureResources(resource, routeResource, revision);
   const data = current?.data;
   const airportId = feature.properties.faaId ?? ident;
   const departures = data?.procedures.filter(procedure => procedure.kind === 'departure' && procedure.airports.includes(airportId)) ?? [];
@@ -48,37 +44,14 @@ export function RouteDeparturePicker({ ident, feature, navigationData, resource,
   const branch = branches.find(branch => branch.id === branchId);
   const exits = pending && branch ? departureExits(pending, branch) : [];
   const candidate = useMemo<RouteDeparture | undefined>(() => pending && branch && exit && exits.includes(exit) && data
-    ? { airportId, procedureId: pending.id, ident: pending.ident, name: pending.name, effectiveDate: data.metadata.effectiveDate,
+    ? { kind: 'departure', source: 'nasr', airportId, procedureId: pending.id, ident: pending.ident, name: pending.name, effectiveDate: data.metadata.effectiveDate,
       branchId: branch.id, branchName: branch.name, transition: exit } : undefined,
   [pending, branch?.id, branch?.name, exit, data, airportId]);
   const inset = usePreviewPanel(true, dialog, closeButton, onClose);
-  const resolve = useMemo(() => data && revision ? createRouteResolver([
-    { type: 'FeatureCollection', features: [feature], meta: { layer: 'airports', revision, returned: 1, truncated: false } },
-    ...Object.values(navigationData ?? {}).filter(collection => collection.meta.layer !== 'airports'),
-  ], undefined, data) : undefined, [data, revision, feature, navigationData]);
-  const plan = useMemo(() => candidate && resolve ? resolve({ entries: [{ id: 'departure-preview', text: ident,
-    ...(feature.id ? { pinnedFeatureId: feature.id } : {}), departure: candidate }] }) : undefined, [candidate, resolve, ident, feature.id]);
-  const preview = useMemo<RouteMapPreview | undefined>(() => plan && candidate
-    ? { routes: [{ key: JSON.stringify(candidate), plan }], selectedKey: JSON.stringify(candidate), inset } : undefined, [plan, candidate, inset]);
-  useEffect(() => { onPreviewChange(preview); }, [preview, onPreviewChange]);
-  useEffect(() => () => onPreviewChange(undefined), [onPreviewChange]);
+  const plan = useProcedurePreview({ ident, feature, navigationData, data, revision, selection: candidate, inset,
+    onChange: onPreviewChange });
   useEffect(() => { setPendingId(undefined); setBranchId(undefined); setExit(undefined); }, [key, feature.id]);
-  useEffect(() => {
-    if (!routeResource || !revision) return;
-    let active = true;
-    setLoaded({ key });
-    void fetchTerminalProcedures(routeResource, revision).then(data => {
-      if (active) setLoaded({ key, data });
-    }, () => { if (active) setLoaded({ key, error: true }); });
-    return () => { active = false; };
-  }, [routeResource, revision, key, attempt]);
-  useEffect(() => {
-    if (!resource) return;
-    let active = true;
-    void fetchProcedureCatalog(resource).then(catalog => { if (active) setPlates({ resource, catalog }); }, () => {});
-    return () => { active = false; };
-  }, [resource, attempt]);
-  const catalog = plates && plates.resource === resource && plates.catalog.effectiveDate === data?.metadata.effectiveDate ? plates.catalog : undefined;
+  const catalog = plates?.data?.effectiveDate === data?.metadata.effectiveDate ? plates?.data : undefined;
   const airport = catalog && findProcedureAirport(catalog, feature);
   const plateName = (name: string) => name.replace(/\([^)]*\)/g, '').trim().toUpperCase();
   const plate = airport && pending && groupProcedures(airport).find(group => group.kind === 'departure')?.procedures

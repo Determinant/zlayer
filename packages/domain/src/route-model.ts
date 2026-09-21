@@ -6,6 +6,8 @@ import type { RouteOwner, RouteSource } from './route-source.js';
 
 /** Chart identity and an explicit published entry, pinned to the coded data edition. */
 export type RouteApproach = {
+  readonly kind: 'approach';
+  readonly source: 'chart' | 'cifp';
   readonly airportId: string;
   readonly procedureId: string;
   readonly name: string;
@@ -23,9 +25,10 @@ export type RouteEntry = {
   readonly pinnedFeatureId?: string;
   readonly approach?: RouteApproach;
   readonly departure?: RouteDeparture;
+  readonly arrival?: RouteArrival;
 };
 /** A SID belongs to its airport occurrence. Imported filing text can lack a branch. */
-export type RouteDeparture = {
+type TerminalSelectionFields = {
   readonly airportId: string;
   readonly procedureId: string;
   readonly ident: string;
@@ -35,6 +38,14 @@ export type RouteDeparture = {
   readonly branchId?: string;
   readonly branchName?: string;
 };
+export type RouteTerminal = TerminalSelectionFields & ({ readonly kind: 'departure' } | { readonly kind: 'arrival' }) & (
+  { readonly source: 'nasr'; readonly codedBranches?: never; readonly codedRunway?: never } |
+  { readonly source: 'cifp'; readonly branchId: string; readonly codedBranches: readonly string[]; readonly codedRunway?: string }
+);
+export type RouteDeparture = Extract<RouteTerminal, { kind: 'departure' }>;
+export type RouteArrival = Extract<RouteTerminal, { kind: 'arrival' }>;
+/** Source and kind establish capabilities. Persistence adapts legacy shapes once. */
+export type TerminalSelection = RouteApproach | RouteTerminal;
 export type RouteDraft = { readonly entries: readonly RouteEntry[] };
 export type RouteEditTarget =
   | { kind: 'waypoint'; entryId: string }
@@ -67,6 +78,9 @@ export type RouteWaypoint = {
     missedEnd: boolean;
     entry?: 'Direct' | 'Parallel' | 'Teardrop';
   };
+  procedureConstraint?: string;
+  /** A coded STAR ends at this fixed point; absent for an open vector ending. */
+  arrivalEnd?: true;
 };
 export type RouteLeg = {
   owners: RouteOwner[];
@@ -98,8 +112,16 @@ export type RoutePlan = {
   unresolved: string[];
   distanceNm: number;
   approachExtensions?: PointGeometry['coordinates'][][];
-  /** Planning symbols only: excluded from route distance and terrain corridors. */
+  /** Connect known points across unresolved paths for map and terrain coverage only. */
+  planningConnections?: { from: RouteWaypoint; to: RouteWaypoint;
+    /** Continue from a known maneuver's open end instead of bypassing it. */
+    start?: PointGeometry['coordinates'] }[];
+  /** Planning symbols: included in terrain coverage, excluded from route distance. */
   approachDepictions?: ApproachDepiction[];
+  /** Source-preserving terminal geometry, including schematic spans and open gaps. */
+  terminalPaths?: { kind: 'departure' | 'arrival' | 'approach'; owner: RouteOwner;
+    spans: import('./approach-path.js').ApproachSpan[]; issues: import('./approach-path.js').ApproachPathIssue[];
+    policy: import('./approach-path.js').ApproachPreview['policy'] }[];
 };
 export type ApproachDepiction = {
   kind: 'hold' | 'missed' | 'intercept' | 'procedure-turn';

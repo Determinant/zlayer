@@ -1,3 +1,4 @@
+import codedTerminal from '../fixtures/coded-terminal-procedures.json';
 // Local, network-free route editor fixture. Not included in production builds.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
@@ -13,7 +14,8 @@ import approachRoutes from '../fixtures/route-approach-legs.json';
 import moffettRoutes from '../fixtures/route-approach-nuq.json';
 import northBayRoutes from '../fixtures/route-approach-north-bay.json';
 import { arizonaTerminal } from '../fixtures/route-approach-arizona';
-import { refinementTerminal } from '../fixtures/route-approach-refinement';
+import { refinementTerminal, refinementPublishedCatalog } from '../fixtures/route-approach-refinement';
+import { jsonIdentity } from '../../src/core/data/json-identity';
 import departures from '../fixtures/route-departures.json';
 import { departureNavigation } from '../fixtures/route-departure-navigation';
 import { attachRouteDepartures, createRouteResolver } from '@zlayer/domain';
@@ -23,7 +25,7 @@ import { createOwnshipLayer } from '../../src/layers/ownship/layer';
 import { useDirectTo } from '../../src/layers/routes/use-direct-to';
 import { useRouteDraft } from '../../src/layers/routes/use-draft';
 import { appendRouteText, insertRouteTextBefore, moveRouteEntry, removeRouteEntry, replaceRouteText,
-  routeDraftFromText, setRouteApproach, setRouteDeparture } from '../../src/layers/routes/draft';
+  routeDraftFromText, setRouteApproach, setRouteDeparture, setRouteArrival } from '../../src/layers/routes/draft';
 import '../../src/styles.css';
 import '@fontsource/b612/400.css';
 import '@fontsource/b612/700.css';
@@ -31,6 +33,7 @@ import '@fontsource/b612/700.css';
 const moffett = new URLSearchParams(location.search).has('nuq');
 const sid = new URLSearchParams(location.search).has('sid');
 const northBay = new URLSearchParams(location.search).get('north-bay');
+const coded = new URLSearchParams(location.search).has('coded');
 const arizona = new URLSearchParams(location.search).has('arizona');
 const refinement = new URLSearchParams(location.search).get('refinement');
 const refinedTerminal = refinement ? refinementTerminal(refinement) : undefined;
@@ -41,10 +44,16 @@ const navigation: FeatureCollectionResponse = { type: 'FeatureCollection', featu
     [-122.375, 37.619], [-121.929, 37.362], [-122.049, 37.416], [-122.605, 38.258], [-122.281, 38.213], [-122.813, 38.509], refinedCenter ?? [-111.655, 33.307],
   ][i]! as [number, number] }, properties: { ident, ...(sid ? { faaId: ident.replace(/^K/, ''), icaoId: ident } : {}) },
 })), meta: { layer: 'airports', revision: '2026-09-03', returned: arizona || refined ? 7 : 6, truncated: false } };
-const rawTerminal = sid ? departures : refinedTerminal ?? (arizona ? arizonaTerminal(new URLSearchParams(location.search).has('missing-intercept'))
+if (coded) {
+  navigation.features.push({ type: 'Feature', id: 'KSNA', properties: { ident: 'KSNA', faaId: 'SNA', icaoId: 'KSNA' },
+    geometry: { type: 'Point', coordinates: [-117.868, 33.676] } });
+  navigation.meta.returned++;
+}
+const rawTerminal = coded ? codedTerminal : sid ? departures : refinedTerminal ?? (arizona ? arizonaTerminal(new URLSearchParams(location.search).has('missing-intercept'))
   : northBay ? northBayRoutes : moffett ? moffettRoutes : approachRoutes);
 if (!isTerminalProceduresData(rawTerminal)) throw new Error('Invalid approach fixture');
 const terminal: TerminalProceduresData = rawTerminal;
+const publishedCatalog = refinement ? refinementPublishedCatalog(refinement, new URLSearchParams(location.search).get('plate') ?? '') : undefined;
 const references: NavigationData = { airports: navigation };
 if (sid) references.fixes = departureNavigation;
 if (new URLSearchParams(location.search).has('navigation')) {
@@ -68,9 +77,11 @@ if (new URLSearchParams(location.search).has('entities')) {
 const resolve = createRouteResolver(Object.values(references), undefined, terminal);
 const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-16T00:00:00Z',
   navigation: [], charts: [], weather: [], terminalProcedures: {
-    id: 'terminal-procedures', title: 'Published procedure routes', url: '/route-approach-legs.json', count: sid ? 1 : 0, sourceCount: sid ? 1 : 0,
+    id: 'terminal-procedures', title: 'Published procedure routes', url: '/route-approach-legs.json', count: terminal.procedures.length, sourceCount: terminal.procedures.length,
+    ...(publishedCatalog ? { jsonSha256: jsonIdentity(terminal) } : {}),
   }, procedures: {
     id: 'procedures', title: 'Test approaches', url: '/route-approaches.json', cycle: '2609',
+    ...(publishedCatalog ? { associationStatus: 'available', jsonSha256: jsonIdentity(publishedCatalog) } : {}),
     effectiveDate: '2026-09-03', expirationDate: '2026-10-01', airportCount: 1, sourceAirportCount: 1,
     procedureCount: moffett || northBay || arizona || refined ? 1 : 4, sourceProcedureCount: moffett || northBay || arizona || refined ? 1 : 4,
   } };
@@ -107,6 +118,7 @@ function Fixture() {
       onDirectTo={directTo}
       onApproachChange={(entry, approach) => setDraft(current => setRouteApproach(current, entry, approach))}
       onDepartureChange={(entry, departure) => setDraft(current => setRouteDeparture(current, entry, departure))}
+      onArrivalChange={(entry, arrival) => setDraft(current => setRouteArrival(current, entry, arrival))}
       onApproachPreview={setPreview}
       onOpenPlate={selection => setPlate(selection.procedure.name)}
       onUseRoute={setDraft} onClear={() => setDraft(routeDraftFromText(''))} onFit={() => {}}

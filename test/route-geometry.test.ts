@@ -10,6 +10,8 @@ import { createRouteRemovalResolver } from './helpers/route-removal';
 import { unwrapRouteCoordinates } from '../src/layers/routes/geometry';
 import { routeEditProperties, routeEditTarget } from '../src/layers/routes/editing';
 import { installRouteLayers, syncRoute, ROUTE_SOURCE_ID, ROUTE_DRAG_SOURCE_ID, RECOMMENDATION_SOURCE_ID } from '../src/layers/routes/renderer';
+import { routeSegments } from '../src/layers/terrain/geometry';
+import type { FeatureCollection } from 'geojson';
 
 const coordinates: [number, number][] = [[-176.64248222, 51.88358277], [174.11358888, 52.71225833]];
 
@@ -77,6 +79,38 @@ const airports: FeatureCollectionResponse = { type: 'FeatureCollection', feature
   type: 'Feature', id: String(i), geometry: { type: 'Point', coordinates: coordinate },
   properties: { ident: i === 0 ? 'PADK' : 'PASY' },
 })), meta: { layer: 'airports', revision: 'test', returned: 2, truncated: false } };
+
+test('gap connections wrap the dateline, follow waypoint drags, and stay distinct in previews', () => {
+  const resolve = createRouteResolver([airports]), plan = resolve('PADK UNKNOWN PASY');
+  const layers: LayerSpecification[] = [], sources = new Map<string, FeatureCollection>();
+  const map = { addSource() {}, addImage() {}, setGlobalStateProperty() {}, addLayer: (layer: LayerSpecification) => layers.push(layer),
+    getSource: (id: string) => ({ setData: (data: FeatureCollection) => sources.set(id, data) }),
+  } as unknown as MapLibreMap;
+  installRouteLayers(map);
+  const check = (source: string) => {
+    const connection = sources.get(source)!.features.find(f => f.properties?.routeKind === 'planning-connection')!;
+    assert.equal(connection.properties!.editKind, undefined);
+    assert.equal(connection.geometry.type, 'LineString');
+    if (connection.geometry.type !== 'LineString') throw new Error('Expected a connection');
+    assert.ok(Math.abs(connection.geometry.coordinates[1]![0]! - connection.geometry.coordinates[0]![0]!) < 10);
+    return { ...connection, geometry: connection.geometry };
+  };
+  syncRoute(map, plan);
+  check(ROUTE_SOURCE_ID);
+  const [segment] = routeSegments([plan]);
+  assert.ok(Math.abs(segment![1][0] - segment![0][0]) < 10 / 360);
+  syncRoute(map, plan, { target: plan.waypoints[0]!.edit!, revision: plan.revision, coordinate: [179, 52], snapped: false });
+  assert.deepEqual(check(ROUTE_SOURCE_ID).geometry.coordinates[0], [179, 52]);
+  const direct = resolve('PADK PASY');
+  syncRoute(map, direct, undefined, { selectedKey: 'direct', routes: [{ key: 'direct', plan: direct }, { key: 'gap', plan }] });
+  const feature = check(RECOMMENDATION_SOURCE_ID);
+  for (const id of ['route-planning-connection', 'route-alternative-planning-connection', 'route-leg-hits', 'route-alternative-line']) {
+    const layer = layers.find(l => l.id === id)!;
+    assert.ok(layer.type === 'line');
+    assert.equal(featureFilter(layer.filter, id).filter({ zoom: 8 }, { type: 'LineString', properties: feature.properties! }),
+      id.endsWith('planning-connection'));
+  }
+});
 
 test('dateline routes render and fit the short crossing, forward and reverse', () => {
   const resolve = createRouteResolver([airports]);

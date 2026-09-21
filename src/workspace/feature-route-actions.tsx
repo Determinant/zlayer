@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../core/ui/pwa-back';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture } from '../layers/routes/draft';
+import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture, setRouteArrival } from '../layers/routes/draft';
 import { routePointForFeature } from '../layers/routes/selection';
 import { removeRoutePoint, routeItemsForPoint } from '../layers/routes/removal';
 import type { DirectToAction } from '../layers/routes/direct-to';
@@ -22,7 +22,12 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
   const point = routePointForFeature(plan, feature, pointId);
   const approach = point?.owners.find(owner => owner.kind === 'approach');
   const approachEntry = approach && plan.entries[approach.source.tokenIndex]!;
-  const departureEntry = point && !point.edit && plan.entries[point.source.tokenIndex]?.departure ? plan.entries[point.source.tokenIndex] : undefined;
+  const attached = (kind: 'departure' | 'arrival') => {
+    const entry = point && !point.edit ? plan.entries[point.source.tokenIndex] : undefined;
+    return entry?.[kind] && point?.owners.some(o => o.kind === 'procedure' && o.source.entryId === entry.id &&
+      o.ident === entry[kind]!.ident) ? entry : undefined;
+  };
+  const departureEntry = attached('departure'), arrivalEntry = attached('arrival');
   const addLabel = `Add ${ident} to end of route`;
   return <>
     {approachEntry ? <button type="button" className="remove-route-button" aria-label={`Remove approach from ${approachEntry.text}`}
@@ -30,6 +35,9 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
       <RouteActionIcon add={false} />
     </button> : departureEntry ? <button type="button" className="remove-route-button" aria-label={`Remove SID from ${departureEntry.text}`}
       title={`Remove SID from ${departureEntry.text}`} onClick={() => update(draft => setRouteDeparture(draft, departureEntry, undefined))}>
+      <RouteActionIcon add={false} />
+    </button> : arrivalEntry ? <button type="button" className="remove-route-button" aria-label={`Remove STAR from ${arrivalEntry.text}`}
+      title={`Remove STAR from ${arrivalEntry.text}`} onClick={() => update(draft => setRouteArrival(draft, arrivalEntry, undefined))}>
       <RouteActionIcon add={false} />
     </button> : point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
       items={routeItemsForPoint(plan, point)}

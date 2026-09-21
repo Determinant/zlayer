@@ -2,7 +2,7 @@ import type { ApproachCoordinate as Coordinate, ApproachFix, ApproachLeg, Approa
 import type { ApproachDepiction } from './route-model.js';
 import { distanceNm } from './route.js';
 import { approachCourse, arrivalBearing, bearing, courseFromFix, courseIntercept, destination, holdingPattern, radiusArc } from './approach-geometry.js';
-import { approachSchematicPolicy, difference, joinCourse, rangeIntersection, rayIntersection, selfCrosses, turnToFix, turnToHeading } from './approach-path-geometry.js';
+import { approachSchematicPolicy, difference, joinCourse, joinOutboundCourse, rangeIntersection, rayIntersection, selfCrosses, turnToFix, turnToHeading } from './approach-path-geometry.js';
 
 export type ApproachPathIssue = {
   code: 'missing-reference' | 'unsupported-leg' | 'inconsistent-constraints' | 'no-forward-intersection' | 'manual-termination' | 'geometry-review';
@@ -49,13 +49,13 @@ const altitudeFloor = (leg: ApproachLeg) => leg.altitude && ['', '+'].includes(l
  * independent route legs. The adapters below are the only place spans become map
  * depictions or distance/terrain geometry.
  */
-export function resolveApproachLegs(procedure: ApproachRoute, legs: readonly ApproachLeg[]): ApproachPreview {
-  let result = interpret(procedure, legs, 1);
+export function resolveApproachLegs(procedure: Pick<ApproachRoute, 'magneticVariation'>, legs: readonly ApproachLeg[], options: { terminal?: boolean } = {}): ApproachPreview {
+  let result = interpret(procedure, legs, 1, options.terminal);
   // A fixed display climb length can miss an otherwise valid subsequent intercept.
   // Retry a small, deterministic set of scales, never change published courses.
   if (result.issues.some(i => i.code === 'no-forward-intersection' && i.path === 'VI') && legs.some(l => ['CA', 'VA', 'FA'].includes(l.path))) {
     for (const scale of approachSchematicPolicy.climbScales) {
-      const candidate = interpret(procedure, legs, scale);
+      const candidate = interpret(procedure, legs, scale, options.terminal);
       if (candidate.issues.length < result.issues.length) result = candidate;
       if (!result.issues.length) break;
     }
@@ -63,7 +63,7 @@ export function resolveApproachLegs(procedure: ApproachRoute, legs: readonly App
   return result;
 }
 
-function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climbScale: number): ApproachPreview {
+function interpret(procedure: Pick<ApproachRoute, 'magneticVariation'>, legs: readonly ApproachLeg[], climbScale: number, terminal = false): ApproachPreview {
   const points: ApproachPreview['points'] = [], spans: ApproachSpan[] = [], issues: ApproachPathIssue[] = [];
   const climbReturns = new Map<ApproachSpan, [number, number]>();
   let position: Coordinate | undefined, anchor: number | undefined, course: number | undefined, courseLeg: ApproachLeg | undefined;
@@ -75,6 +75,12 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
   };
   const gap = (index: number, code: ApproachPathIssue['code'], message: string) => {
     issue(index, code, message);
+    if (chain && chain.coordinates.length > 1) {
+      const end = chain.coordinates.at(-1)!;
+      spans.push({ ...chain, kind: 'schematic', symbol: chain.symbol ?? 'intercept',
+        assumptions: [...chain.assumptions, 'open-termination'],
+        arrow: { coordinate: end, bearing: bearing(chain.coordinates.at(-2)!, end) } });
+    }
     spans.push({ kind: 'gap', phase, ...(anchor === undefined ? {} : { from: anchor }), coordinates: [],
       legs: [...(chain?.legs ?? []), index], sources: [...(chain?.sources ?? []), ...(legs[index]?.id ? [legs[index]!.id!] : [])], assumptions: [] });
     chain = undefined; position = undefined; anchor = undefined; course = undefined; courseLeg = undefined;
@@ -150,7 +156,14 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
       }
       continue;
     }
-    if (['FM', 'VM'].includes(leg.path)) { gap(i, 'manual-termination', 'This leg has no fixed endpoint; follow the plate and ATC instructions.'); continue; }
+    if (['FM', 'VM'].includes(leg.path)) {
+      const heading = resolvedCourse(leg);
+      if (terminal && position && heading !== undefined) {
+        const turn = course === undefined ? [position] : turnToHeading(position, course, heading, leg.turn);
+        append(i, [...turn, destination(turn.at(-1)!, heading, 3)], ['manual-termination', 'no-wind-heading'], 'intercept');
+      }
+      gap(i, 'manual-termination', 'This leg has no fixed endpoint; follow the plate and ATC instructions.'); continue;
+    }
     if (!position) { gap(i, 'missing-reference', 'The start of this maneuver is unavailable.'); continue; }
     const start = position;
     if (holds.has(leg.path)) {
@@ -172,12 +185,24 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
     }
     if (['CA', 'VA', 'FA'].includes(leg.path)) {
       const h = resolvedCourse(leg), target = nextEndpoint(i);
-      if (h === undefined || !target || leg.path === 'FA' && !fix) { gap(i, 'missing-reference', 'The climb course or following endpoint is unavailable.'); continue; }
-      const distance = distanceNm(start, target.coordinate);
+      if (h === undefined || !target && !terminal || leg.path === 'FA' && !fix) { gap(i, 'missing-reference', 'The climb course or following endpoint is unavailable.'); continue; }
+      const distance = target ? distanceNm(start, target.coordinate) : 0;
       const length = (distance < .5 ? approachSchematicPolicy.climbNm : Math.min(approachSchematicPolicy.climbNm, Math.max(.5, distance / 4))) * climbScale;
-      const turn = course === undefined ? [start] : turnToHeading(start, course, h, leg.turn, Math.min(.7, length / 2));
-      append(i, [...turn, destination(turn.at(-1)!, h, length)], ['altitude-dependent', ...(turn.length > 1 ? ['turn-radius'] : [])], phase === 'missed' ? 'missed' : 'intercept');
-      course = h; courseLeg = leg; continue;
+      // FA defines a course from its fix, not a parallel heading from the end
+      // of the previous climb. Establish that outbound ray before extending it.
+      const onOutbound = leg.path === 'FA' && (same(start, fix!.coordinate) ||
+        Math.abs(difference(bearing(fix!.coordinate, start), h)) < .01);
+      const captureOutbound = leg.path === 'FA' && (!onOutbound || course !== undefined && Math.abs(difference(course, h)) > .1);
+      const turn = captureOutbound
+        ? joinOutboundCourse(start, course ?? bearing(start, fix!.coordinate), fix!.coordinate, h, leg.turn, chain?.coordinates)
+        : course === undefined ? [start] : turnToHeading(start, course, h, leg.turn, Math.min(.7, length / 2));
+      if (!turn) { gap(i, 'inconsistent-constraints', 'The climb cannot capture its published outbound course.'); continue; }
+      const captured = turn.at(-1)!;
+      const onward = leg.path === 'FA' ? arrivalBearing(fix!.coordinate, captured) ?? h : h;
+      append(i, [...turn, destination(captured, onward, length)], ['altitude-dependent',
+        ...(captureOutbound ? ['course-capture'] : []),
+        ...(turn.length > 1 ? ['turn-radius'] : [])], phase === 'missed' ? 'missed' : 'intercept');
+      course = onward; courseLeg = leg; continue;
     }
     if (leg.path === 'FC') {
       let h = resolvedCourse(leg);
@@ -197,11 +222,31 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
     }
     if (['CI', 'VI'].includes(leg.path)) {
       const next = legs[i + 1], h = resolvedCourse(leg);
+      // Intercepts can join an outbound course from a navaid. Its fix is
+      // the ray origin, not a fix the aircraft visits before climbing/vectoring.
+      if (!leg.fix && h !== undefined && next?.fix && ['FA', 'FM'].includes(next.path) && Boolean(next.missed) === Boolean(leg.missed)) {
+        const onward = approachCourse(next, procedure);
+        let coordinates: Coordinate[] | undefined;
+        if (onward !== undefined) for (const radius of [.7, .35, .15, .05]) {
+          const turn = course === undefined ? [start] : turnToHeading(start, course, h, leg.turn, radius);
+          const intersection = rayIntersection(turn.at(-1)!, h, next.fix.coordinate, onward);
+          if (intersection) { coordinates = [...turn, intersection]; break; }
+        }
+        if (!coordinates) { gap(i, 'no-forward-intersection', 'The heading does not meet the published outbound course ahead.'); continue; }
+        append(i, coordinates, ['course-capture', 'no-wind-heading'], 'intercept');
+        course = onward; courseLeg = next; continue;
+      }
       if (leg.fix || !next?.fix || next.path !== 'CF' || Boolean(next.missed) !== Boolean(leg.missed) || h === undefined) {
         gap(i, 'missing-reference', 'The intercept heading or following inbound course is unavailable.'); continue;
       }
       let coordinates: Coordinate[] | undefined;
+      const nextCourse = approachCourse(next, procedure);
+      // Collinear departure legs can differ by source rounding at a surveyed
+      // runway. Accept only the encoded course precision, as a schematic join.
+      if (terminal && nextCourse !== undefined && Math.abs(difference(h, nextCourse)) < .11 &&
+          Math.abs(difference(bearing(start, next.fix.coordinate), h)) < .11) coordinates = [start, next.fix.coordinate];
       for (const radius of [.7, .35, .15, .05]) {
+        if (coordinates) break;
         const turn = course === undefined ? [start] : turnToHeading(start, course, h, leg.turn, radius);
         const join = courseIntercept(turn.at(-1)!, { ...leg, trueCourse: h }, next, procedure);
         if (join) { coordinates = [...turn, ...join.slice(1)]; break; }
@@ -291,15 +336,15 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
       let coordinates: Coordinate[] | undefined, assumptions: string[] = [];
       if (['AF', 'RF'].includes(leg.path)) {
         coordinates = leg.center && leg.turn && (leg.path !== 'AF' || leg.radiusNm !== undefined)
-          ? radiusArc(start, fix.coordinate, leg.center, leg.turn, leg.path === 'AF' ? leg.radiusNm : undefined) : undefined;
+          ? radiusArc(start, fix.coordinate, leg.center, leg.turn, leg.radiusNm) : undefined;
       } else if (same(start, fix.coordinate)) coordinates = [start, fix.coordinate];
       else if (assumed || leg.path === 'DF' && leg.turn && course !== undefined) {
-        coordinates = leg.path === 'CF' && inbound !== undefined ? joinCourse(start, course ?? bearing(start, fix.coordinate), fix.coordinate, inbound, leg.turn)
+        coordinates = leg.path === 'CF' && inbound !== undefined ? joinCourse(start, course ?? bearing(start, fix.coordinate), fix.coordinate, inbound, leg.turn, chain?.coordinates)
           : turnToFix(start, course ?? bearing(start, fix.coordinate), fix.coordinate, leg.turn);
         assumptions = ['turn-radius'];
       } else if (leg.path === 'CF' && inbound !== undefined && distanceNm(start, fix.coordinate) > approachSchematicPolicy.endpointToleranceNm &&
           Math.abs(difference(arrivalBearing(start, fix.coordinate)!, inbound)) > 10) {
-        coordinates = joinCourse(start, course ?? bearing(start, fix.coordinate), fix.coordinate, inbound, leg.turn);
+        coordinates = joinCourse(start, course ?? bearing(start, fix.coordinate), fix.coordinate, inbound, leg.turn, chain?.coordinates);
         assumptions = ['course-capture'];
       } else coordinates = [start, fix.coordinate];
       if (!coordinates) { gap(i, 'inconsistent-constraints', 'The coded course, arc or turn cannot connect these endpoints.'); atFix(fix, leg); continue; }
@@ -325,7 +370,8 @@ function interpret(procedure: ApproachRoute, legs: readonly ApproachLeg[], climb
       else issue(span.legs[0]!, 'geometry-review', 'The schematic path crosses itself and needs review.');
     }
     const length = span.coordinates.slice(1).reduce((sum, p, i) => sum + distanceNm(span.coordinates[i]!, p), 0);
-    if (!span.assumptions.includes('altitude-dependent') && length > 2 * distanceNm(span.coordinates[0]!, span.coordinates.at(-1)!) + 3)
+    const outboundDistance = span.legs.reduce((sum, index) => sum + (legs[index]?.path === 'FC' ? legs[index]!.distance ?? 0 : 0), 0);
+    if (!span.assumptions.includes('altitude-dependent') && length > 2 * (distanceNm(span.coordinates[0]!, span.coordinates.at(-1)!) + outboundDistance) + 3)
       issue(span.legs[0]!, 'geometry-review', 'The schematic path takes a long detour and needs review.');
   }
   const segments: ApproachPreview['segments'] = spans.flatMap(s => s.kind === 'fixed' && s.from !== undefined && s.to !== undefined

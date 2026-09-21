@@ -23,6 +23,8 @@ import { jsonIdentity } from '../src/core/data/json-identity';
 import { bookUrl, type CatalogResponse } from '@zlayer/contracts';
 import type { DownloadPlan } from '../src/offline/downloads';
 import { OFFLINE_REGIONS } from '../src/offline/regions';
+import { snapshotFilesIncluded } from '../src/offline/plan-records';
+import { isChartSupplementCatalog } from '@zlayer/contracts';
 
 import {
   findProcedureAirport,
@@ -163,11 +165,12 @@ test('finds an airport and groups only current procedures', () => {
 });
 
 const supplements: ChartSupplementCatalog = {
-  schemaVersion: 1, builderVersion: 1, generatedAt: catalog.generatedAt,
+  schemaVersion: 2, builderVersion: 2, generatedAt: catalog.generatedAt,
   effectiveDate: '2026-09-03', expirationDate: '2026-10-29', sourceXml: catalog.sourceXml,
   volumes: [{ id: 'SW', url: '../cs-sw.pdf', pageCount: 831, byteLength: 49_209_653, sha256: 'c'.repeat(64) }],
   airports: [{ faaId: 'HWD', name: 'HAYWARD EXEC', city: 'HAYWARD', state: 'CALIFORNIA',
     volumeId: 'SW', printedPage: '174', pageIndex: 175 }],
+  expected: [{ faaId: 'HWD', state: 'CALIFORNIA', volumeId: 'SW', printedPage: '174' }],
 };
 const supplementResource = { catalog: supplements, url: '/chart-data/2026-09-03/cs/catalog.json' };
 
@@ -231,6 +234,18 @@ test('regional plates include individual-only PDFs, share books, and reject genu
   assert.equal(result.files[0]!.byteLength, catalog.volumes[0]!.byteLength);
   assert.match(result.files[0]!.url, /sha256=b{64}/);
   assert.equal(result.references.length, 2);
+  assert.equal(snapshotFilesIncluded(result), true);
+  assert.equal(snapshotFilesIncluded({ ...result, references: result.references.filter(r => r.id !== 'chart-supplements') }), false,
+    'removing the entire supplement snapshot must not erase the regional requirement');
+  const northeastTarget = { faaId: 'JFK', state: 'NEW YORK', volumeId: 'NE', printedPage: '100' };
+  const partial = { ...sharedSupplements, volumes: [{ ...sharedSupplements.volumes[0]!, id: 'NE' }],
+    airports: [{ ...supplements.airports[0]!, ...northeastTarget }],
+    expected: [...supplements.expected!, northeastTarget] };
+  assert.equal(isChartSupplementCatalog(partial), true, 'partial catalogs remain usable for browsing');
+  assert.throws(() => withRegionPlates(plan, region, { ...index, supplements: partial }, feed, 'https://zlayer.test/'),
+    /Chart Supplement coverage is incomplete \(SW\)/);
+  assert.doesNotThrow(() => withRegionPlates(plan, OFFLINE_REGIONS.find(r => r.code === 'NY')!,
+    { ...index, supplements: partial }, feed, 'https://zlayer.test/'), 'an unrelated missing book does not block a covered region');
   assert.equal(withRegionPlates(plan, OFFLINE_REGIONS.find(region => region.code === 'NY')!, index, feed, 'https://zlayer.test/').files.length, 0);
   assert.equal(withRegionPlates(plan, region, { ...index, airports: [] }, feed, 'https://zlayer.test/').files.length, 1,
     'catalog state membership includes books even when NASR has no matching airport');
@@ -238,12 +253,14 @@ test('regional plates include individual-only PDFs, share books, and reject genu
   assert.equal(withRegionPlates(plan, region, { ...index,
     airports: [{ ...feature, geometry: { type: 'Point', coordinates: [-119.7681, 39.4991] }, properties: { ...feature.properties, state: 'NV' } }],
     procedures: { ...index.procedures, airports: [{ ...airport, state: 'NV' }] },
-    supplements: { ...sharedSupplements, airports: [{ ...supplements.airports[0]!, state: 'NEVADA' }] },
+    supplements: { ...sharedSupplements, airports: [{ ...supplements.airports[0]!, state: 'NEVADA' }],
+      expected: [{ ...supplements.expected![0]!, state: 'NEVADA' }] },
   }, feed, 'https://zlayer.test/').files.length, 0, 'neighboring state books are not selected merely by the chart rectangle');
   const pacific = { ...index,
     airports: [{ ...feature, geometry: { type: 'Point' as const, coordinates: [144.8, 13.49] as [number, number] }, properties: { ...feature.properties, state: 'GU' } }],
     procedures: { ...index.procedures, airports: [{ ...airport, state: 'XX' }] },
-    supplements: { ...sharedSupplements, airports: [{ ...supplements.airports[0]!, state: 'GUAM' }] },
+    supplements: { ...sharedSupplements, airports: [{ ...supplements.airports[0]!, state: 'GUAM' }],
+      expected: [{ ...supplements.expected![0]!, state: 'GUAM' }] },
   };
   assert.equal(withRegionPlates(plan, OFFLINE_REGIONS.find(r => r.code === 'GU')!, pacific, feed, 'https://zlayer.test/').files.length, 1,
     'Pacific XX procedures use NASR territory membership and share their supplement book');

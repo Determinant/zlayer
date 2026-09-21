@@ -99,7 +99,7 @@ test('route lines stay below markers and waypoint labels stay above circles acro
     // Chart replacement uses its own anchor and must not cover route lines.
     map.addLayer({ id: 'refreshed-chart', type: 'background' }, CHART_LAYER_ANCHOR);
     const lines = [...layers.values()].filter(layer => layer.type === 'line' && layer.id !== 'route-leg-hits');
-    assert.equal(lines.length, 16, 'route, alternative and drag lines, including procedure/approach/missed styling and halos');
+    assert.equal(lines.length, 18, 'route, alternative and drag lines, including procedure/approach/missed styling, planning connections and halos');
     for (const line of lines) {
       assert.ok(order.indexOf('refreshed-chart') < order.indexOf(line.id));
       for (const marker of markers) {

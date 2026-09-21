@@ -1,6 +1,7 @@
 import type { TerminalProcedure, TerminalProcedurePoint, TerminalProceduresData } from '@zlayer/contracts';
 import { expansionOwner, expansionMessage, sourceIssue, type RouteAtom, type ExpandedRoutePoint, type PointRequirement } from './route-source.js';
 import { departureBranches } from './departures.js';
+import { terminalIndex } from './terminal-index.js';
 
 export type ResolvedRouteProcedure = {
   tokenIndex: number;
@@ -20,12 +21,7 @@ export type ProcedureRouteIssue = {
 };
 
 export function createProcedureExpander(data?: TerminalProceduresData) {
-  const byIdent = new Map<string, TerminalProcedure[]>();
-  for (const procedure of data?.procedures ?? []) {
-    const entries = byIdent.get(procedure.ident) ?? [];
-    entries.push(procedure);
-    byIdent.set(procedure.ident, entries);
-  }
+  const byIdent = data ? terminalIndex(data).nasrByIdent : undefined;
   return (atoms: readonly RouteAtom[], source: readonly ExpandedRoutePoint[],
     airportAt: (atom: RouteAtom) => string | undefined) => {
     const points = source.map(point => ({ ...point, requirements: [...point.requirements], incoming: { ...point.incoming } }));
@@ -36,7 +32,7 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
       const atom = point.atom;
       if (!atom || atom.pinnedFeatureId || atom.blocked) continue;
       const selected = atom.departure;
-      const records = byIdent.get(point.ident);
+      const records = byIdent?.get(point.ident);
       if (!records && !selected) continue;
       const owner = expansionOwner('procedure', atom);
       const tokenIndex = atom.source.tokenIndex;

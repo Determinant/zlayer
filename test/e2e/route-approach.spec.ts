@@ -8,6 +8,42 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 
 test.use({ hasTouch: true });
 
+for (const width of [320, 1280]) test(`VTF connects the incoming route and preserves other gap connections at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('zlayer-route-draft-v1')) localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+      entries: ['KSJC', 'KSFO', 'UNKNOWN', 'KNUQ'].map((text, i) => ({ id: `entry-${i}`, text })) }));
+  });
+  const connections = () => page.evaluate(async () => {
+    const map = (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit;
+    const source = map.getSource('route-plan') as import('maplibre-gl').GeoJSONSource | undefined;
+    const data = await source?.getData();
+    return data?.type === 'FeatureCollection' ? data.features.filter(f => f.properties?.routeKind === 'planning-connection')
+      .map(f => f.geometry.type === 'LineString' ? f.geometry.coordinates : []) : [];
+  });
+  await page.goto('/test/browser/routes.html?map');
+  await choose(page, page.locator('.route-token').nth(1));
+  await page.getByRole('button', { name: 'ILS OR LOC RWY 28R', exact: true }).click();
+  await page.getByRole('radio', { name: 'Vectors to final (VTF)', exact: true }).check();
+  const route = legs.approaches.procedures.find(p => p.id === 'KSFO:I28R')!;
+  const expected = [[[-121.929, 37.362], route.final.find(l => l.fix?.role === 'FAF')!.fix!.coordinate],
+    [route.final.find(l => l.fix?.ident === 'VIKYU')!.fix!.coordinate, [-122.049, 37.416]]];
+  // The picker isolates the procedure. Its FAF has no preceding route point.
+  await expect.poll(connections).toEqual([]);
+  await page.getByRole('button', { name: 'Add to route', exact: true }).click();
+  await expect.poll(connections).toEqual(expected);
+  await page.reload();
+  await expect.poll(connections).toEqual(expected);
+  await page.evaluate(points => {
+    const map = (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit;
+    map.fitBounds([[Math.min(...points.map(p => p[0]!)), Math.min(...points.map(p => p[1]!))],
+      [Math.max(...points.map(p => p[0]!)), Math.max(...points.map(p => p[1]!))]], { padding: 45, duration: 0 });
+  }, expected.flat());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit
+    .queryRenderedFeatures({ layers: ['route-planning-connection'] }).length)).toBeGreaterThan(0);
+  await page.getByLabel('Approach map', { exact: true }).screenshot({ path: testInfo.outputPath(`vtf-connections-${width}.png`) });
+});
+
 for (const [airportId, name, entry, kind] of [
   ['O69', 'VOR RWY 29', 'SGD', 'approach-missed'],
   ['KAPC', 'ILS Z OR LOC Z RWY 01L', 'REBAS', 'approach-intercept'],
@@ -89,7 +125,8 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
     await expect(tokens).toHaveText(['36°27′N 122°00′W', /^\d{2}°\d{2}′N \d{3}°\d{2}′W$/, 'KSNS']);
     await expect(bundle).toHaveText('ILS 31 · ARTYY');
     await expect(page.locator('.route-token.is-error')).toHaveCount(0);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[2])).toEqual(airport);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[2])).toEqual({ ...airport,
+      approach: { ...airport.approach, kind: 'approach', source: 'chart' } });
     const inserted = await tokens.nth(1).textContent();
     await page.screenshot({ path: testInfo.outputPath('approach-connector-insertion.png') });
     await page.reload();
@@ -246,7 +283,7 @@ test('entry data failure retries without attaching; missing coded data offers th
   await page.reload();
   await page.locator('.route-attached-approach').click();
   await page.getByRole('button', { name: 'Change entry', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('Published entry data is unavailable');
+  await expect(page.getByRole('dialog')).toContainText('This navigation edition does not include approach routes');
   await expect(page.getByRole('button', { name: 'View plate', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Replace approach', exact: true })).toHaveCount(0);
 });
@@ -382,7 +419,7 @@ test('failed catalog loads can retry and unavailable saved approaches remain rem
   }] })));
   await page.goto('/test/browser/routes.html');
   await page.locator('.route-attached-approach').click();
-  await expect(page.getByRole('alert')).toContainText('Approaches could not be loaded');
+  await expect(page.getByRole('alert')).toContainText('Approach plates could not be loaded');
   fail = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('not in the loaded edition');
@@ -397,7 +434,7 @@ test('a cancelled load leaves the route intact and cached approaches reopen offl
   await page.route('**/route-approaches.json', async route => { await pending; await route.fulfill({ json: catalog }); });
   await page.goto('/test/browser/routes.html');
   await choose(page);
-  await expect(page.getByRole('dialog')).toContainText('Loading approaches');
+  await expect(page.getByRole('dialog')).toContainText('Loading approach plates');
   await page.getByRole('button', { name: 'Close approach picker', exact: true }).click();
   finish!();
   await expect(page.locator('.route-attached-approach')).toHaveCount(0);
@@ -421,7 +458,7 @@ test('the production route bar offers the plate when an approach has no coded en
   await expect(airport).toHaveClass(/is-airports/);
   await choose(page, airport);
   await page.getByRole('button', { name: 'TEST APPROACH', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('Published entry data is unavailable');
+  await expect(page.getByRole('dialog')).toContainText('This navigation edition does not include approach routes');
   await expect(page.locator('.route-attached-approach')).toHaveCount(0);
   await page.getByRole('button', { name: 'View plate', exact: true }).click();
   await expect(page.getByRole('dialog', { name: /TEST APPROACH/ })).toBeVisible();

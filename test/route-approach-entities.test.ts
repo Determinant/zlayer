@@ -9,7 +9,7 @@ import { restoreApproachSelection, routePointForFeature, routePointKeys } from '
 
 const terminal: unknown = JSON.parse(readFileSync(new URL('./fixtures/route-approach-legs.json', import.meta.url), 'utf8'));
 assert.ok(isTerminalProceduresData(terminal));
-const selected: RouteApproach = { airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
+const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
   entry: { routeId: 'KSFO:I28R', transitionId: 'transition:ARCHI', name: 'ARCHI', effectiveDate: '2026-09-03' } };
 function collection(layer: FeatureCollectionResponse['meta']['layer'], features: GeoPointFeature[]): FeatureCollectionResponse {
   return { type: 'FeatureCollection', features, meta: { layer, revision: 'test', returned: features.length, truncated: false } };

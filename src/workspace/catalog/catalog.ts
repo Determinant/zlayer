@@ -9,7 +9,8 @@ import type {
 } from '@zlayer/contracts';
 import { isRouteHistoryResource, type RouteHistoryResource, isChartPackageIndex, type ChartPackageIndex } from '@zlayer/contracts';
 import { chartRoot } from './feed';
-import { isTerrainManifest } from '@zlayer/contracts';
+import { isTerrainManifest, isNavigationManifest, isSha256, type NavigationManifest, type NavigationProduct } from '@zlayer/contracts';
+import { matchesJsonIdentity } from '../../core/data/references';
 import { isSupportedCycle } from './cycles';
 import { fetchJson, JsonResponseError } from '../../core/data/fetch-json';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
@@ -25,21 +26,10 @@ const PUBLISHED_CHART_KINDS = new Set<Exclude<ChartKind, 'unknown'>>([
   'ifr-low',
 ]);
 
-type NavigationProduct = {
-  id: string;
-  file: string;
-  count: number;
-  compression?: unknown; routeCount?: unknown; bytes?: unknown; uncompressedBytes?: unknown;
-  source?: unknown; observationRange?: unknown;
-};
-
-type NavigationManifest = {
-  effectiveDate: string;
-  generatedAt: string;
-  products: NavigationProduct[];
-};
-
 type ProcedureManifest = {
+  associationStatus?: 'available' | 'unavailable';
+  schemaVersion: 1 | 2;
+  file?: string; jsonSha256?: string;
   cycle: string;
   effectiveDate: string;
   expirationDate: string;
@@ -98,15 +88,15 @@ export async function fetchMagneticModelResource(revision: string, signal?: Abor
   if (!isSupportedCycle(revision)) throw new Error(`Unsupported FAA cycle: ${revision}`);
   const manifest = await fetchNavigationManifest(revision, signal);
   const product = requiredProduct(new Map(manifest.products.map(item => [item.id, item])), 'magnetic-model');
-  return { count: product.count,
-    url: `${chartRoot()}/${revision}/nav/${product.file}?v=${encodeURIComponent(manifest.generatedAt)}` };
+  return { count: product.count, ...jsonIdentityFields(product),
+    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
 }
 
 function navigationLayer(revision: string, manifest: NavigationManifest,
   definition: NavigationDefinition): NavigationLayerRecord {
   const product = requiredProduct(new Map(manifest.products.map(product => [product.id, product])), definition.id);
-  return { ...definition, count: product.count, sourceCount: product.count,
-    url: `${chartRoot()}/${revision}/nav/${product.file}?v=${encodeURIComponent(manifest.generatedAt)}` };
+  return { ...definition, count: product.count, sourceCount: product.count, ...jsonIdentityFields(product),
+    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
 }
 
 export function isInsideChartCoverage(
@@ -166,8 +156,8 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
   signal?.throwIfAborted();
   const chartManifest = charts?.manifest;
 
-  // Same-cycle rebuilds can add reference fields. Give each export its own cache key.
-  const navigationVersion = encodeURIComponent(navigation?.generatedAt ?? '');
+  // Immutable filenames already identify the bytes. Legacy paths still need a build key.
+  const navigationVersion = navigation?.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(navigation?.generatedAt ?? '')}`;
   const products = new Map(navigation?.products.map((product) => [product.id, product]));
   const navigationLayers = navigation ? NAVIGATION.map(definition => navigationLayer(revision, navigation, definition)) : [];
   const airways = products.get('airways');
@@ -177,7 +167,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
   let routeHistory: RouteHistoryResource | undefined;
   if (history) {
     const candidate = { ...history, title: 'Historical filed routes',
-      url: `${revisionRoot}/nav/${history.file}?v=${navigationVersion}` };
+      url: `${revisionRoot}/nav/${history.file}${navigationVersion}` };
     if (isRouteHistoryResource(candidate)) routeHistory = candidate;
     else issues.push({ product: 'route-history', message: 'Route history metadata is invalid' });
   }
@@ -219,7 +209,8 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       title: 'Victor and Tango airways',
       count: airways.count,
       sourceCount: airways.count,
-      url: `${revisionRoot}/nav/${airways.file}?v=${navigationVersion}`,
+      ...jsonIdentityFields(airways),
+      url: `${revisionRoot}/nav/${airways.file}${navigationVersion}`,
     } } : {}),
     ...(procedures ? { procedures: {
       id: 'procedures',
@@ -231,20 +222,25 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       sourceAirportCount: procedures.airportCount,
       procedureCount: procedures.procedureCount,
       sourceProcedureCount: procedures.procedureCount,
-      url: `${revisionRoot}/tpp/catalog.json?v=${encodeURIComponent(procedures.generatedAt)}`,
+      ...jsonIdentityFields(procedures),
+      ...(procedures.associationStatus ? { associationStatus: procedures.associationStatus } : {}),
+      url: `${revisionRoot}/tpp/${procedures.file ?? 'catalog.json'}${procedures.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(procedures.generatedAt)}`}`,
     } } : {}),
     ...(preferredRoutes ? { preferredRoutes: {
       id: 'preferred-routes',
       title: 'FAA preferred and TEC routes',
       count: preferredRoutes.count,
       sourceCount: preferredRoutes.count,
-      url: `${revisionRoot}/nav/${preferredRoutes.file}?v=${navigationVersion}`,
+      ...jsonIdentityFields(preferredRoutes),
+      url: `${revisionRoot}/nav/${preferredRoutes.file}${navigationVersion}`,
     } } : {}),
     ...(routeHistory ? { routeHistory } : {}),
     ...(terminal ? { terminalProcedures: {
       id: 'terminal-procedures', title: 'FAA terminal procedure routes',
       count: terminal.count, sourceCount: terminal.count,
-      url: `${revisionRoot}/nav/${terminal.file}?v=${navigationVersion}`,
+      ...jsonIdentityFields(terminal),
+      ...(navigation?.schemaVersion === 2 ? { schemaVersion: 2 as const, coverage: terminal.coverage! } : {}),
+      url: `${revisionRoot}/nav/${terminal.file}${navigationVersion}`,
     } } : {}),
     weather: [
       { id: 'awc.metar', title: 'METAR flight categories', status: 'current' },
@@ -320,13 +316,8 @@ function requiredProduct(
   return product;
 }
 
-function isNavigationManifest(value: unknown): value is NavigationManifest {
-  return isRecord(value) && value.schemaVersion === 1 &&
-    isIsoDate(value.effectiveDate) && isTimestamp(value.generatedAt) &&
-    Array.isArray(value.products) && value.products.every((product) =>
-      isRecord(product) && isNonEmptyString(product.id) &&
-      isSafeFilename(product.file) && isCount(product.count)
-    ) && hasUniqueStrings(value.products.map((product) => product.id));
+function jsonIdentityFields(value: { jsonSha256?: string }) {
+  return value.jsonSha256 ? { jsonSha256: value.jsonSha256 } : {};
 }
 
 function isChartManifest(value: unknown): value is ChartManifest {
@@ -353,12 +344,14 @@ function isPublishedChart(value: unknown): value is PublishedChart {
 }
 
 function isProcedureManifest(value: unknown): value is ProcedureManifest {
-  return isRecord(value) && value.schemaVersion === 1 &&
+  return isRecord(value) && (value.schemaVersion === 1 || value.schemaVersion === 2) &&
     typeof value.cycle === 'string' && /^\d{4}$/.test(value.cycle) &&
     isIsoDate(value.effectiveDate) && isIsoDate(value.expirationDate) &&
     isTimestamp(value.generatedAt) &&
     value.effectiveDate < value.expirationDate &&
-    isCount(value.airportCount) && isCount(value.procedureCount);
+    isCount(value.airportCount) && isCount(value.procedureCount) &&
+    (value.schemaVersion === 1 || (value.associationStatus === 'available' || value.associationStatus === 'unavailable') && isSafeFilename(value.file) && isSha256(value.jsonSha256) &&
+      isSha256(value.sha256) && value.file.includes(`.${value.sha256}.`));
 }
 
 function newestTimestamp(values: readonly string[]): string {
@@ -379,6 +372,6 @@ function isTimestamp(value: unknown): value is string {
 export async function fetchMagneticModel(revision: string, signal?: AbortSignal): Promise<MagneticModel> {
   const resource = await fetchMagneticModelResource(revision, signal);
   return fetchJson(resource.url, (value): value is MagneticModel => isMagneticModel(value) &&
-    value.effectiveDate === revision && value.coefficients.length === resource.count,
+    value.effectiveDate === revision && value.coefficients.length === resource.count && matchesJsonIdentity(resource, value),
   'Geographic magnetic model', signal ? { signal } : {});
 }

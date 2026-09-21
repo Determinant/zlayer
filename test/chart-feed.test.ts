@@ -254,3 +254,34 @@ test('concurrent dates validate and cache their own manifests, rejecting an edit
     'rejecting an older date does not evict the newer date');
   await assert.rejects(fetchChartCatalog('2026-07-09'), /Unsupported FAA cycle/);
 });
+
+test('versioned publication retains publisher identities, coverage and association capabilities with stable immutable URLs', async t => {
+  cacheFixture(t);
+  const { REQUIRED_NAVIGATION_PRODUCTS } = await import('@zlayer/contracts');
+  const coverage = { departures: 0, arrivals: 0, approaches: 0, unavailableApproaches: 0, codedDepartures: 0, codedArrivals: 0,
+    sourceLegs: { departure: 0, arrival: 0, approach: 0 }, exportedLegs: { departure: 0, arrival: 0, approach: 0 },
+    continuationRecords: 0, exportedContinuations: 0, unresolvedReferences: 0 };
+  const hash = 'a'.repeat(64), jsonSha256 = 'b'.repeat(64);
+  let generatedAt = '2026-09-21T00:00:00Z';
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    const url = String(input), shared = { schemaVersion: 2, effectiveDate: '2026-09-03', generatedAt };
+    if (url.endsWith('/nav/manifest.json')) return Response.json({ ...shared,
+      products: REQUIRED_NAVIGATION_PRODUCTS.map(id => ({ id, count: 0, file: `${id}.${hash}.json`, bytes: 1, sha256: hash, jsonSha256,
+        ...(id === 'terminal-procedures' ? { schemaVersion: 2, coverage } : {}) })) });
+    if (url.endsWith('/tpp/manifest.json')) return Response.json({ ...shared, cycle: '2609', expirationDate: '2026-10-01',
+      file: `catalog.${hash}.json`, sha256: hash, jsonSha256, airportCount: 0, procedureCount: 0, associationStatus: 'available' });
+    return new Response(null, { status: 404 });
+  });
+  const first = await fetchChartCatalog('2026-09-03');
+  assert.equal(first.navigation.length, 4);
+  assert.deepEqual(first.terminalProcedures?.coverage, coverage);
+  assert.equal(first.terminalProcedures?.schemaVersion, 2);
+  assert.equal(first.terminalProcedures?.jsonSha256, jsonSha256);
+  assert.equal(first.procedures?.associationStatus, 'available');
+  assert.equal(first.procedures?.jsonSha256, jsonSha256);
+  assert.equal(new URL(first.procedures!.url).search, '');
+  generatedAt = '2026-09-21T01:00:00Z';
+  const second = await fetchChartCatalog('2026-09-03');
+  assert.deepEqual(second.navigation, first.navigation);
+  assert.equal(second.terminalProcedures?.url, first.terminalProcedures?.url);
+});

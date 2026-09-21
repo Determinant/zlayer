@@ -61,7 +61,8 @@ consumes the resulting plan rather than interpreting route text again.
   Mouse and touch share the same hold-to-reorder behavior; right-click and keyboard menus also work.
 - Input is case-insensitive. Whitespace, dots, commas, slashes, hyphens and `>`
   separate tokens; `DCT` and `DIRECT` are connectors. Unknown tokens stay visible
-  and break connectivity rather than silently disappearing.
+  and interrupt resolved legs. Dotted planning connections bridge the known points
+  on either side for map and terrain coverage.
 - GPS labels in the route input, stash, map and fix headings show degrees and
   minutes, omitting seconds without rounding. Fix info includes a full coordinate
   with seconds. Stored identifiers, positions and
@@ -172,19 +173,21 @@ The selected entry decompresses on the map into magenta approach legs, named
 fixes/roles and dashed missed-approach legs. The preceding route connects to the
 chosen entry, and a subsequent waypoint connects from the last known missed
 endpoint (usually its holding fix). VTF starts at the FAF and adds a light 30 NM
-final-course extension, leaving the preceding route disconnected; loading VTF
-does not activate a present-position direct-to. Its workflow follows the entry
+final-course extension. A dotted planning connection joins the preceding known
+waypoint to the FAF for terrain coverage; loading VTF does not activate a
+present-position direct-to. Its workflow follows the entry
 selection and final-extension conventions in the [ForeFlight pilot guide](https://cloudfront.foreflight.com/docs/ff/14.10/ForeFlight%20Mobile%20Pilot%27s%20Guide%20v14.10.pdf).
 
 Drag a connecting leg into or out of an approach to insert a waypoint before or
 after its airport bundle. The approach stays attached and its published legs stay
 intact. The same drag insertion works on ordinary connections beside SID, STAR,
-airway and TEC route items. Published internal legs and disconnected portions
+airway and TEC route items. Published internal legs and dotted planning connections
 (including the arrival into VTF) do not become editable connections.
 
 This is a route preview. TF/CF/DF show waypoint connections, RF uses its coded
 center, and AF follows the published radius around the DME antenna. Arcs with
-missing or inconsistent geometry stay gaps. Older exports need rebuilding to
+missing or inconsistent geometry retain a diagnostic and use a dotted planning
+connection between their known endpoints. Older exports need rebuilding to
 include AF centers and radii. The export also retains airport magnetic variation,
 explicit true courses and holding leg times separately from distances.
 Approach geometry comes from one ordered interpreter shared by the preview and saved
@@ -213,11 +216,14 @@ instruction, including a direct return to the same station. A bounded policy can
 adjust climb length to reach the following forward intercept without changing
 published courses. Procedure turns retain the coded side, orientation and extent.
 The arbitrary missed-climb spline fallback has been removed.
-These depictions are excluded from route distance, terrain corridors and ordinary
-waypoint decomposition. No hold-entry maneuver is drawn. Unknown references,
+These depictions contribute terrain coverage but are excluded from route distance
+and ordinary waypoint decomposition. Dotted planning connections cover remaining
+gaps between successive known waypoints without cutting across existing curves
+or routing back through attached airport markers. No hold-entry maneuver is drawn. Unknown references,
 open-ended legs and inconsistent constraints retain a specific diagnostic.
 A trailing open-ended leg cannot become
-an onward connector. Approach children remain owned by the airport bundle and
+an ordinary onward leg; a planning connection can still reach the next known
+waypoint. Approach children remain owned by the airport bundle and
 cannot be dragged or removed individually. Direct to a landing fix can decompose
 the remaining approach as described below; otherwise remove/change the bundle
 to edit it. Filing text remains unchanged while attached. Legacy chart-only attachments prompt
@@ -352,8 +358,9 @@ the connections. The view is temporary and starts closed on reload.
   an individual displayed point by expanding the affected segment. Explicit airports
   and ordinary connecting legs remain draggable.
 - Unknown or unavailable points, missing airway segments and procedure
-  discontinuities leave gaps. A missing feature pin never falls back to a different
-  feature. Reported distance is the sum of resolved legs.
+  discontinuities retain their diagnostics. Dotted planning connections bridge known
+  points for map and terrain coverage. A missing feature pin never falls back to a
+  different feature. Reported distance is the sum of resolved legs.
 
 Adjacent airway tokens form one bounded chain between entry and exit fixes. Traversal
 can run in either direction but cannot cross a published gap or disconnected
@@ -482,8 +489,8 @@ highlighting the first with normal route styling and fading alternatives to gray
 row highlights its path without editing the draft; **Use** loads it and closes the
 list. Closing without Use restores the editable route. Matching paths share an
 overlay while preserving the selected result's labels and procedure details.
-Procedure segments remain dashed; unknown segments leave gaps and partial previews
-are labeled. An exact, unique historical TEC code can use the current FAA definition,
+Procedure segments remain dashed; dotted planning connections bridge known points
+across unknown segments, and partial previews are labeled. An exact, unique historical TEC code can use the current FAA definition,
 labeled **current TEC** while retaining the original filed text and counts.
 
 The camera leaves room for the list, which becomes a bottom sheet on phones.

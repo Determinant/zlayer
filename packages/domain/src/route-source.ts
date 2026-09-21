@@ -1,4 +1,4 @@
-import type { PreferredRouteRecord } from '@zlayer/contracts';
+import type { ApproachFix, PreferredRouteRecord } from '@zlayer/contracts';
 import type { RouteDeparture, RouteEntry } from './route-model.js';
 
 /** The user's entry remains the source even inside nested published expansions. */
@@ -10,6 +10,8 @@ export type RouteAtom = {
   source: RouteSource;
   entry?: RouteEntry;
   pinnedFeatureId?: string;
+  /** An endpoint from the selected coded branch, before airway expansion. */
+  terminalFix?: ApproachFix;
   scope: RouteScope;
   owners: RouteOwner[];
   incomingOwners: RouteOwner[];

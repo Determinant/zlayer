@@ -1,0 +1,37 @@
+{
+  "originalRoutes": 161956,
+  "currentRoutes": 163299,
+  "retainedOriginalRoutes": 161923,
+  "missingOriginalRoutes": 33,
+  "additionalRoutes": 1376,
+  "note": "The cleanup rebuild retained the original source snapshot. A separate navigation rebuild subsequently selected a newer history source. Both immutable artifacts remain available; route-set differences below are between source snapshots.",
+  "generations": [
+    {
+      "file": "route-history.json.81b3674776c5142ef08c24bb9f92b0383286dfb6084c451bfa233481989031b4.gz",
+      "sha256": "81b3674776c5142ef08c24bb9f92b0383286dfb6084c451bfa233481989031b4",
+      "source": {
+        "name": "Aeronautic AQ",
+        "url": "https://aq.aeronautic.ai/",
+        "downloadUrl": "https://aeronautiql.s3.amazonaws.com/databases/routes.sqlite.zst",
+        "filename": "2ff8449e34cad706a3176904ff32f0c66da75d4a9e0b189cd4dcaac6e1e4d7fd.sqlite.zst",
+        "sha256": "a68a969d78e98246604a411b9278e0efc8ccdf12335c5e4dfb1539e723aee432"
+      },
+      "pairs": 84669,
+      "routes": 161956
+    },
+    {
+      "file": "route-history.json.ece14305fd57be61bb5b4edbb082b5433fc44719cdfb858f28ce53c6ca44f29c.gz",
+      "sha256": "ece14305fd57be61bb5b4edbb082b5433fc44719cdfb858f28ce53c6ca44f29c",
+      "source": {
+        "name": "Aeronautic AQ",
+        "url": "https://aq.aeronautic.ai/",
+        "downloadUrl": "https://aeronautiql.s3.amazonaws.com/databases/routes.sqlite.zst",
+        "etag": "\"5055906fbf3d71282da6624ba07fc3aa-6\"",
+        "lastModified": "2026-09-21T20:15:03.000Z",
+        "sha256": "d34f018874e0c74ea2e6e04480bfe8aa1cf41dc0cb703f6731b4dd8a290303bb"
+      },
+      "pairs": 85244,
+      "routes": 163299
+    }
+  ]
+}

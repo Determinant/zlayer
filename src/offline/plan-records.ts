@@ -1,4 +1,4 @@
-import { bookUrl, isCatalogResponse, isRecord, isStrictBounds } from '@zlayer/contracts';
+import { bookUrl, isCatalogResponse, isRecord, isStrictBounds, isSupplementTarget, supplementTargetKey } from '@zlayer/contracts';
 import { isReferenceResource } from '../core/data/references';
 import type { DownloadPlan } from './downloads';
 
@@ -7,6 +7,7 @@ export const REGION_PREFIX = 'region:';
 export function isDownloadPlan(value: unknown): value is DownloadPlan {
   if (!value || typeof value !== 'object') return false;
   const plan = value as DownloadPlan;
+  if (plan.supplementTargets !== undefined && (!Array.isArray(plan.supplementTargets) || !plan.supplementTargets.every(isSupplementTarget))) return false;
   return (plan.terrain === undefined || typeof plan.terrain === 'boolean') && typeof plan.id === 'string' && typeof plan.title === 'string' && typeof plan.regionId === 'string' &&
     (plan.bounds === undefined || (Array.isArray(plan.bounds) && plan.bounds.length > 0 && plan.bounds.every(isStrictBounds))) &&
     (plan.catalog === undefined || (isCatalogResponse(plan.catalog) && plan.catalog.revision === plan.revision)) &&
@@ -26,6 +27,9 @@ export function isDownloadPlan(value: unknown): value is DownloadPlan {
 
 export function snapshotFilesIncluded(plan: DownloadPlan): boolean {
   try {
+    const targets = new Set(plan.references.flatMap(reference => reference.id === 'chart-supplements'
+      ? reference.snapshot?.airports.map(supplementTargetKey) ?? [] : []));
+    if (plan.supplementTargets?.some(target => !targets.has(supplementTargetKey(target)))) return false;
     return plan.references.every(reference => reference.id !== 'chart-supplements' || !reference.snapshot ||
       reference.snapshot.volumes.every(volume => plan.files.some(file => file.kind === 'pdf' &&
         file.url === bookUrl(volume, reference.url) && file.sha256 === volume.sha256 && file.byteLength === volume.byteLength)));

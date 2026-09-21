@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
-import { routeEntryPins, type RouteApproach, type RouteDeparture, type RouteEntry, type RoutePlan } from '@zlayer/domain';
+import { routeEntryPins, type RouteApproach, type RouteTerminal, type RouteEntry, type RoutePlan } from '@zlayer/domain';
 import type { CatalogResponse, NavigationData } from '@zlayer/contracts';
 
 import { RouteEditor } from './editor';
@@ -31,7 +31,8 @@ type RouteBarProps = {
   onFit: () => void;
   onDirectTo?: DirectToAction | undefined;
   onApproachChange?: ((entry: RouteEntry, approach: RouteApproach | undefined) => void) | undefined;
-  onDepartureChange?: ((entry: RouteEntry, departure: RouteDeparture | undefined) => void) | undefined;
+  onArrivalChange?: ((entry: RouteEntry, arrival: RouteTerminal | undefined) => void) | undefined;
+  onDepartureChange?: ((entry: RouteEntry, departure: RouteTerminal | undefined) => void) | undefined;
   onOpenPlate?: ((selection: ProcedureSelection) => void) | undefined;
 };
 
@@ -53,6 +54,7 @@ export function RouteBar({
   onDirectTo,
   onApproachChange,
   onDepartureChange,
+  onArrivalChange,
   onOpenPlate,
 }: RouteBarProps) {
   // Mount on first opening, then retain the drawer for its closing animation.
@@ -82,6 +84,7 @@ export function RouteBar({
         revision={catalog.revision}
         onApproachChange={onApproachChange}
         onDepartureChange={onDepartureChange}
+        onArrivalChange={onArrivalChange}
         onApproachPreview={onApproachPreview}
         onOpenPlate={onOpenPlate}
         tools={<>
@@ -111,7 +114,7 @@ export function RouteBar({
 function RouteSummary({ plan, status }: Pick<RouteBarProps, 'plan' | 'status'>) {
   if (status === 'loading') return <Summary muted>Loading FAA index…</Summary>;
   const messages = plan.issues.map(issue => issue.message);
-  if (plan.procedures.length) messages.push('SID/STAR waypoint preview only: airport connections, vectors, turn paths and constraints are not depicted. Consult the plates.');
+  if (plan.procedures.length) messages.push('SID/STAR planning preview: paths and restrictions depend on the available procedure data. Consult the plates.');
   if (status === 'error') messages.unshift('Route data unavailable. Connect to download the FAA index.');
   if (status === 'partial') messages.unshift('Some route data is unavailable; the route may be incomplete.');
   const tecDetails = plan.tecRoutes.flatMap(({ route }) => [
@@ -120,20 +123,22 @@ function RouteSummary({ plan, status }: Pick<RouteBarProps, 'plan' | 'status'>) 
     'Published TEC definition; eligibility and ATC clearance are not verified.',
   ]);
   const approachDetails = plan.approachDepictions?.length
-    ? ['Holds, procedure turns, intercepts and altitude-dependent paths are schematic and excluded from route distance and terrain corridors. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.'] : [];
-  if (messages.length > 0 || tecDetails.length > 0 || approachDetails.length > 0) {
+    ? ['Holds, procedure turns, intercepts and altitude-dependent paths are schematic. They contribute terrain coverage but are excluded from route distance. Entry types use the planned arrival course; “ENTRY ?” needs an incoming leg. Follow the plate for timing, altitudes and turns.'] : [];
+  const connectionDetails = plan.planningConnections?.length
+    ? ['Dotted lines connect known waypoints across gaps for map and terrain planning. Route distance uses resolved legs.'] : [];
+  if (messages.length > 0 || tecDetails.length > 0 || approachDetails.length > 0 || connectionDetails.length > 0) {
     const warning = messages.length > 0;
     return (
       <PersistentDetails storageKey="route-summary-open" className={`route-summary${warning ? ' is-error' : ''}${approachDetails.length ? ' has-approach-details' : ''}`}>
-        <summary aria-label={warning ? `Route issues (${messages.length}): ${messages[0]}` : approachDetails.length ? 'Approach map details' : 'TEC route details and published conditions'}>
+        <summary aria-label={warning ? `Route issues (${messages.length}): ${messages[0]}` : approachDetails.length ? 'Approach map details' : tecDetails.length ? 'TEC route details and published conditions' : 'Route map details'}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {warning ? <path d="M12 3 2 21h20Z M12 9v5 M12 17v1" />
               : <><circle cx="12" cy="12" r="9" /><path d="M12 11v6 M12 7v1" /></>}
           </svg>
-          <span>{warning ? messages[0] : `${Math.round(plan.distanceNm).toLocaleString()} NM · ${approachDetails.length ? 'Approach' : 'TEC'} details`}</span>
+          <span>{warning ? messages[0] : `${Math.round(plan.distanceNm).toLocaleString()} NM · ${approachDetails.length ? 'Approach' : tecDetails.length ? 'TEC' : 'Route'} details`}</span>
         </summary>
         <ul id="route-summary" className="route-issues" aria-live="polite">
-          {[...messages, ...tecDetails, ...approachDetails].map((message, index) => <li key={index}>{message}</li>)}
+          {[...messages, ...tecDetails, ...approachDetails, ...connectionDetails].map((message, index) => <li key={index}>{message}</li>)}
         </ul>
       </PersistentDetails>
     );

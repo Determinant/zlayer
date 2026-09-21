@@ -10,7 +10,7 @@ test('route and preview hold entries follow the arriving route, with no default 
   assert.ok(isTerminalProceduresData(terminal));
   const procedure = terminal.approaches!.procedures.find(p => p.id === 'KSNS:I31')!;
   const fix = procedure.transitions[0]!.legs.at(-1)!.fix!;
-  const selected: RouteApproach = { airportId: 'KSNS', procedureId: 'ils31', name: 'ILS RWY 31', cycle: '2609',
+  const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSNS', procedureId: 'ils31', name: 'ILS RWY 31', cycle: '2609',
     entry: { routeId: procedure.id, transitionId: 'transition-fix:SNS1:2', name: 'AANNE', effectiveDate: '2026-09-03' } };
   const { entry: _entry, ...legacy } = selected;
   const previousApproaches: (RouteApproach | undefined)[] = [undefined, selected,

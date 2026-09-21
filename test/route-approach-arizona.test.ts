@@ -13,7 +13,7 @@ const airports: FeatureCollectionResponse = { type: 'FeatureCollection', meta: {
   layer: 'airports', revision: '2026-09-03', returned: 1, truncated: false,
 }, features: [{ type: 'Feature', id: 'KIWA', properties: { ident: 'KIWA' },
   geometry: { type: 'Point', coordinates: [-111.655, 33.307] } }] };
-const selected: RouteApproach = { airportId: 'KIWA', procedureId: 'ils', name: 'ILS OR LOC RWY 30C', cycle: '2609',
+const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KIWA', procedureId: 'ils', name: 'ILS OR LOC RWY 30C', cycle: '2609',
   entry: { routeId: 'KIWA:I30C', transitionId: 'vectors', name: 'VTF', effectiveDate: '2026-09-03' } };
 
 for (const missing of [false, true]) test(`KIWA saved route renders its hold ${missing ? 'after a gap' : 'after the schematic return'}`, () => {
@@ -32,13 +32,21 @@ for (const missing of [false, true]) test(`KIWA saved route renders its hold ${m
     assert.equal(hold.approachHold!.arrivalCourse, missing ? undefined : 208);
     assert.ok(!plan.legs.some(l => l.approachPhase === 'missed'));
     assert.equal(plan.distanceNm, plan.legs.reduce((sum, l) => sum + l.distanceNm, 0));
-    assert.deepEqual(routeSegments([plan]), routeSegments([{ ...plan, approachDepictions: [] }]));
+    assert.ok(routeSegments([plan]).length > routeSegments([{ ...plan, approachDepictions: [] }]).length);
+    assert.deepEqual(plan.planningConnections?.map(c => [c.from.approachRole, c.to.ident]), missing ? [['MAP', 'IWA']] : []);
     let rendered: FeatureCollection | undefined;
     syncRoute({ setGlobalStateProperty() {}, getSource: (id: string) => ({ setData(data: FeatureCollection) {
       if (id === ROUTE_SOURCE_ID) rendered = data;
     } }) } as unknown as MapLibreMap, plan);
     assert.ok(rendered!.features.some(f => f.geometry.type === 'Point' && f.properties?.ident === 'IWA'));
     assert.ok(rendered!.features.some(f => f.properties?.routeKind === 'approach-hold' && f.properties.approachPhase === 'missed'));
-    assert.equal(rendered!.features.filter(f => f.properties?.routeKind === 'approach-missed').length, missing ? 0 : 1);
+    const missed = rendered!.features.filter(f => f.properties?.routeKind === 'approach-missed');
+    assert.equal(missed.length, 1, 'retain the known climb even if the return is unresolved');
+    if (missing) {
+      assert.equal(missed[0]!.geometry.type, 'LineString');
+      const coordinates = (missed[0]!.geometry as { coordinates: number[][] }).coordinates;
+      assert.deepEqual(plan.planningConnections![0]!.start, coordinates.at(-1));
+      assert.notDeepEqual(coordinates.at(-1), hold.feature.geometry.coordinates);
+    }
   }
 });

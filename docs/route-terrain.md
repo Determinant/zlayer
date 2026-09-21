@@ -5,8 +5,13 @@ controls and map lifecycle. Workspace composition passes the displayed route pla
 and saved visibility/coverage/altitude preferences. Terrain is enabled by default (including
 older preferences without a terrain setting); an explicit saved Off choice is respected.
 Coverage defaults to **Route**. In Route mode it has no demand
-until a resolved leg is displayed. Expanded airway/procedure legs and displayed
-route recommendations participate; unresolved route gaps do not.
+until route geometry is displayed. Expanded airway/procedure legs and displayed
+route recommendations participate. Coverage follows fixed and schematic geometry,
+including holds and VTF extensions. Dotted planning connections bridge successive
+known waypoints across VTF, missing tokens and procedure gaps. They extend terrain
+coverage without contributing to route distance or erasing source diagnostics.
+When a known maneuver ends at a gap, the connection continues from its open end
+so terrain follows the maneuver as well as the remaining connection.
 
 ## Route display
 
@@ -315,6 +320,9 @@ explicitly states that their downloads exclude terrain. PNG fallback HTTP cachin
 remains opportunistic. See [offline storage](offline-storage.md) for rollout details.
 
 ## Verification
+
+The [planning-connection evidence](evidence/approaches/2026-09-21/planning-connections/README.md)
+records VTF and unresolved-token coverage through the map and terrain worker.
 
 `test/terrain.test.ts` covers units, masks, overlap, latitude, wrapping, route gaps,
 nodata inside/outside the rendered corridor, flat region colors/opacity, zoom work

@@ -3,7 +3,7 @@ import { bearing, destination } from './approach-geometry.js';
 import { distanceNm } from './route.js';
 
 /** One deterministic drawing policy. These dimensions are not a performance model. */
-export const approachSchematicPolicy = Object.freeze({ version: 3, climbNm: 1.5, turnRadiusNm: .7, maxExtentNm: 100,
+export const approachSchematicPolicy = Object.freeze({ version: 5, climbNm: 1.5, turnRadiusNm: .7, maxExtentNm: 100,
   endpointToleranceNm: .05,
   climbScales: [.5, 1.5, 2, 3, 4, 6, 8] as readonly number[] });
 const rad = Math.PI / 180;
@@ -69,36 +69,82 @@ export function turnToFix(from: Coordinate, heading: number, to: Coordinate, dir
   return [...arc(center, from, tangent, side, radius), to];
 }
 
-/** Bounded arc/straight/arc join between poses in a local tangent plane. The last
- * straight section retains the defined arrival course. All turns are schematic.
+/** Capture the defined course as early as the bounded drawing radius allows,
+ * then follow it to the fix. Minimize distance before capture, not distance to
+ * an arbitrary near-fix pose. All turns remain schematic.
  */
-export function joinCourse(from: Coordinate, heading: number, to: Coordinate, inbound: number, direction?: 'L' | 'R'): Coordinate[] | undefined {
+export function joinCourse(from: Coordinate, heading: number, to: Coordinate, inbound: number, direction?: 'L' | 'R', preceding: readonly Coordinate[] = []): Coordinate[] | undefined {
+  return captureCourse(from, heading, to, inbound, direction, preceding, false);
+}
+
+/** Capture a course outbound from its fix; the last point is the capture, not
+ * the fix behind it. Altitude/manual termination determines the onward length. */
+export function joinOutboundCourse(from: Coordinate, heading: number, origin: Coordinate, outbound: number, direction?: 'L' | 'R', preceding: readonly Coordinate[] = []): Coordinate[] | undefined {
+  return captureCourse(from, heading, origin, outbound, direction, preceding, true);
+}
+
+function captureCourse(from: Coordinate, heading: number, to: Coordinate, inbound: number, direction: 'L' | 'R' | undefined, preceding: readonly Coordinate[], outbound: boolean): Coordinate[] | undefined {
   const distance = distanceNm(from, to);
-  if (distance < .02) return [from, to];
+  if (!outbound && distance < .02) return [from, to];
   if (distance > approachSchematicPolicy.maxExtentNm) return undefined;
-  const radius = Math.min(approachSchematicPolicy.turnRadiusNm, distance / 6);
-  const end = destination(to, inbound + 180, Math.min(1, distance / 4));
-  const xy = (p: Coordinate): Coordinate => { const h = bearing(from, p) * rad, d = distanceNm(from, p); return [d * Math.sin(h), d * Math.cos(h)]; };
-  const geo = ([x, y]: Coordinate) => destination(from, Math.atan2(x, y) / rad, Math.hypot(x, y));
+  const radius = outbound ? approachSchematicPolicy.turnRadiusNm : Math.min(approachSchematicPolicy.turnRadiusNm, distance / 6);
+  const minOffset = outbound ? 0 : -approachSchematicPolicy.maxExtentNm;
+  const maxOffset = outbound ? approachSchematicPolicy.maxExtentNm : -Math.min(.05, distance / 4);
+  // Center the plane at the fix so its inbound great-circle ray is exactly a
+  // straight line. Transport the initial heading into that plane.
+  const xy = (p: Coordinate): Coordinate => { const h = bearing(to, p) * rad, d = distanceNm(to, p); return [d * Math.sin(h), d * Math.cos(h)]; };
+  const geo = ([x, y]: Coordinate) => destination(to, Math.atan2(x, y) / rad, Math.hypot(x, y));
   const shift = (p: Coordinate, h: number, d: number): Coordinate => [p[0] + Math.sin(h * rad) * d, p[1] + Math.cos(h * rad) * d];
+  const start = xy(from), ahead = xy(destination(from, heading, .01));
+  const initial = Math.atan2(ahead[0] - start[0], ahead[1] - start[1]) / rad;
+  const along: Coordinate = [Math.sin(inbound * rad), Math.cos(inbound * rad)], right: Coordinate = [along[1], -along[0]];
+  const project = (p: Coordinate, axis: Coordinate) => p[0] * axis[0] + p[1] * axis[1];
   const sample = (center: Coordinate, start: Coordinate, finish: Coordinate, side: number) => {
     const angle = (p: Coordinate) => Math.atan2(p[0] - center[0], p[1] - center[1]) / rad;
     const a = angle(start), b = angle(finish), sweep = side > 0 ? (b - a + 360) % 360 : -((a - b + 360) % 360);
     const count = Math.max(1, Math.ceil(Math.abs(sweep) / 5));
     return Array.from({ length: count + 1 }, (_, i) => !i ? start : i === count ? finish : shift(center, a + sweep * i / count, radius));
   };
-  let best: Coordinate[] | undefined, length = Infinity;
+  let best: Coordinate[] | undefined, earliest = Infinity, length = Infinity;
   for (const first of direction === 'L' ? [-1] : direction === 'R' ? [1] : [-1, 1]) for (const last of [-1, 1]) {
-    const start: Coordinate = [0, 0], target = xy(end);
-    const c0 = shift(start, heading + first * 90, radius), c1 = shift(target, inbound + last * 90, radius);
-    const dx = c1[0] - c0[0], dy = c1[1] - c0[1], d = Math.hypot(dx, dy);
-    if (d < .001 || Math.abs((first - last) * radius / d) > 1) continue;
-    const tangent = Math.atan2(dx, dy) / rad + Math.asin((first - last) * radius / d) / rad;
-    const a = shift(c0, tangent - first * 90, radius), b = shift(c1, tangent - last * 90, radius);
-    const coords = [...sample(c0, start, a, first), ...sample(c1, b, target, last)].map(geo);
-    coords[0] = from; coords[coords.length - 1] = end; coords.push(to);
-    const total = coords.slice(1).reduce((sum, p, i) => sum + distanceNm(coords[i]!, p), 0);
-    if (total < length && total < distance * 3 + 6) { best = coords; length = total; }
+    const c0 = shift(start, initial + first * 90, radius), base = shift([0, 0], inbound + last * 90, radius);
+    const delta: Coordinate = [base[0] - c0[0], base[1] - c0[1]];
+    const x = project(delta, along), y = project(delta, right), k = (first - last) * radius;
+    // On each continuous arc/straight/arc branch, capture length has derivative
+    // cos(tangent - inbound). Its minima are perpendicular tangents or branch
+    // boundaries: no initial turn, no straight, or the bounded inbound ray ends.
+    const offsets = [minOffset, maxOffset, Math.sign(y) * k - x];
+    if (Math.abs(y) <= Math.abs(k)) {
+      const tangent = Math.sqrt(Math.max(0, k * k - y * y));
+      offsets.push(tangent - x, -tangent - x);
+    }
+    const angle = (initial - inbound) * rad;
+    if (Math.abs(Math.sin(angle)) > 1e-7) {
+      const straight = (y + k * Math.cos(angle)) / Math.sin(angle);
+      if (straight >= 0) offsets.push(straight * Math.cos(angle) + k * Math.sin(angle) - x);
+    }
+    for (const offset of offsets) {
+      if (offset < minOffset || offset > maxOffset) continue;
+      const target = shift([0, 0], inbound, offset), c1 = shift(base, inbound, offset);
+      const dx = c1[0] - c0[0], dy = c1[1] - c0[1], d = Math.hypot(dx, dy);
+      let path: Coordinate[];
+      if (d < 1e-7 && first === last) path = sample(c0, start, target, first);
+      else {
+        if (d < 1e-7 || Math.abs(k) > d + 1e-7) continue;
+        const tangent = Math.atan2(dx, dy) / rad + Math.asin(Math.max(-1, Math.min(1, k / d))) / rad;
+        const a = shift(c0, tangent - first * 90, radius), b = shift(c1, tangent - last * 90, radius);
+        path = [...sample(c0, start, a, first), ...sample(c1, b, target, last)];
+      }
+      const coords = path.map(geo);
+      coords[0] = from;
+      if (!outbound) coords.push(to);
+      const total = coords.slice(1).reduce((sum, p, i) => sum + distanceNm(coords[i]!, p), 0);
+      const capture = outbound ? total : total + offset;
+      if (total >= distance * 3 + 6 || selfCrosses([...preceding.slice(0, -1), ...coords])) continue;
+      if (capture < earliest - 1e-7 || Math.abs(capture - earliest) < 1e-7 && total < length) {
+        best = coords; earliest = capture; length = total;
+      }
+    }
   }
   return best;
 }

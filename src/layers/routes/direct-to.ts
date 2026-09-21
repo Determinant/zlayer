@@ -23,7 +23,7 @@ export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Ro
   if (point.owners.some(owner => owner.kind === 'approach')) {
     const { points, airport, problem } = approachRemainder(plan, point);
     if (problem || !airport) return draft;
-    const { approach: _approach, ...entry } = draft.entries[point.source.tokenIndex]!;
+    const { approach: _approach, arrival: _arrival, ...entry } = draft.entries[point.source.tokenIndex]!;
     return { entries: [entryForPoint(routeCoordinateFeature(position)), ...points.map(point => entryForPoint(point.feature)),
       { ...entry, ...(airport.feature.id ? { pinnedFeatureId: airport.feature.id } : {}) },
       ...draft.entries.slice(point.source.tokenIndex + 1)] };
@@ -93,6 +93,8 @@ function directToExpansion(plan: RoutePlan, point: RouteWaypoint): Set<string> {
 
 function expansionProblem(plan: RoutePlan, point: RouteWaypoint, remaining: RouteWaypoint[], expand: Set<string>): string | undefined {
   if (point.edit && plan.entries[point.source.tokenIndex]?.approach?.entry) return 'Remove the attached approach before going directly to the airport.';
+  if (plan.entries[point.source.tokenIndex]?.arrival) return 'Remove the attached STAR before going directly to one of its points.';
+  if (!point.edit && plan.entries[point.source.tokenIndex]?.departure?.codedBranches) return 'Remove the attached SID before going directly to one of its points.';
   if (point.edit && plan.entries[point.source.tokenIndex]?.departure) return 'Remove the attached SID before going directly to the airport.';
   const issue = plan.issues.find(issue => issue.tokenIndex >= point.source.tokenIndex &&
     expand.has(plan.entries[issue.tokenIndex]!.id));

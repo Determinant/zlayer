@@ -5,7 +5,7 @@ import { fetchNavigation } from '../navigation/api';
 import { fetchProcedureCatalog } from './api';
 import { fetchChartSupplements, supplementCatalogUrl } from './supplements';
 import { bookDocument, procedureDocument } from './data';
-import { regionAirportIds, supplementSnapshot } from './supplement-snapshot';
+import { regionAirportIds, requiredSupplementTargets, supplementSnapshot } from './supplement-snapshot';
 import { jsonIdentity } from '../../core/data/json-identity';
 
 // An immutable national index is shared across every region planned in Settings.
@@ -35,6 +35,7 @@ export function withRegionPlates(plan: DownloadPlan, region: OfflineRegion, inde
   if (!jsonSha256) { jsonSha256 = jsonIdentity(index.procedures); procedureIdentities.set(index.procedures, jsonSha256); }
   const procedures = { ...catalog.procedures!, jsonSha256 };
   const identifiers = regionAirportIds(index.airports, region);
+  const supplementTargets = requiredSupplementTargets(index.supplements, region, identifiers);
   const snapshot = supplementSnapshot(index.supplements, region, identifiers);
   const files = new Map(plan.files.map(file => [file.url, file]));
   const volumeIds = new Set(index.procedures.airports
@@ -63,7 +64,7 @@ export function withRegionPlates(plan: DownloadPlan, region: OfflineRegion, inde
       files.set(file.url, file);
     }
   }
-  return { ...plan, catalog: { ...catalog, procedures }, files: [...files.values()],
+  return { ...plan, supplementTargets, catalog: { ...catalog, procedures }, files: [...files.values()],
     references: [...plan.references, procedures,
       ...(snapshot ? [{ id: 'chart-supplements' as const, url: supplementCatalogUrl(catalog.revision), snapshot }] : [])]
       .map(resource => ({ ...resource, url: new URL(resource.url, baseUrl).href })),

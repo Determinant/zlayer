@@ -1,0 +1,254 @@
+{
+  "type": "ZLayerApproachRoutes",
+  "metadata": {
+    "effectiveDate": "2026-09-03",
+    "source": "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/",
+    "schemaVersion": 2
+  },
+  "procedures": [
+    {
+      "id": "KVGT:I12L",
+      "airport": "KVGT",
+      "ident": "I12L",
+      "magneticVariation": 14,
+      "transitions": [],
+      "final": [
+        {
+          "path": "IF",
+          "id": "I::010",
+          "transitionAltitude": "18000",
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "E  I",
+          "reference": {
+            "id": "PI:K2:IHWG:KVGT",
+            "ident": "IHWG",
+            "type": "localizer",
+            "coordinate": [
+              -115.18502500000001,
+              36.2034
+            ],
+            "declination": 14,
+            "dmeCoordinate": [
+              -115.18435277777778,
+              36.203897222222224
+            ]
+          },
+          "radial": 300.3,
+          "rhoNm": 12.6,
+          "altitude": {
+            "restriction": "J",
+            "first": "06200",
+            "second": "05500"
+          },
+          "fix": {
+            "ident": "JOKUS",
+            "coordinate": [
+              -115.37145833333332,
+              36.350636111111115
+            ],
+            "role": "IF"
+          }
+        },
+        {
+          "path": "CF",
+          "id": "I::020",
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "E  F",
+          "reference": {
+            "id": "PI:K2:IHWG:KVGT",
+            "ident": "IHWG",
+            "type": "localizer",
+            "coordinate": [
+              -115.18502500000001,
+              36.2034
+            ],
+            "declination": 14,
+            "dmeCoordinate": [
+              -115.18435277777778,
+              36.203897222222224
+            ]
+          },
+          "radial": 300.3,
+          "rhoNm": 10.4,
+          "altitude": {
+            "restriction": "H",
+            "first": "05500",
+            "second": "05500"
+          },
+          "fix": {
+            "ident": "KIGGE",
+            "coordinate": [
+              -115.33809722222222,
+              36.32435277777778
+            ],
+            "role": "FAF"
+          },
+          "magneticCourse": 120,
+          "distance": 2.3
+        },
+        {
+          "path": "CF",
+          "id": "I::030",
+          "verticalAngle": -3.2,
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "GY M",
+          "reference": {
+            "id": "PI:K2:IHWG:KVGT",
+            "ident": "IHWG",
+            "type": "localizer",
+            "coordinate": [
+              -115.18502500000001,
+              36.2034
+            ],
+            "declination": 14,
+            "dmeCoordinate": [
+              -115.18435277777778,
+              36.203897222222224
+            ]
+          },
+          "radial": 300.3,
+          "rhoNm": 0.8,
+          "altitude": {
+            "restriction": "",
+            "first": "02237",
+            "second": ""
+          },
+          "fix": {
+            "ident": "RW12L",
+            "coordinate": [
+              -115.19641944444444,
+              36.21242222222222
+            ],
+            "role": "MAP"
+          },
+          "magneticCourse": 120,
+          "distance": 9.6
+        },
+        {
+          "path": "CA",
+          "id": "I::040",
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "  M ",
+          "altitude": {
+            "restriction": "+",
+            "first": "02660",
+            "second": ""
+          },
+          "missed": true,
+          "magneticCourse": 120.3
+        },
+        {
+          "path": "VI",
+          "id": "I::050",
+          "turnDirectionValid": true,
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "    ",
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 250
+        },
+        {
+          "path": "CF",
+          "id": "I::060",
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "E   ",
+          "reference": {
+            "id": "D:K2:LAS:",
+            "ident": "LAS",
+            "type": "navaid",
+            "coordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ],
+            "dmeCoordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ],
+            "declination": 15
+          },
+          "radial": 310,
+          "rhoNm": 10,
+          "fix": {
+            "ident": "TUPUC",
+            "coordinate": [
+              -115.27793611111112,
+              36.21636388888889
+            ]
+          },
+          "missed": true,
+          "magneticCourse": 310,
+          "distance": 3.7
+        },
+        {
+          "path": "CF",
+          "id": "I::070",
+          "turnDirectionValid": true,
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "VY  ",
+          "reference": {
+            "id": "D:K2:LAS:",
+            "ident": "LAS",
+            "type": "navaid",
+            "coordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ],
+            "dmeCoordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ],
+            "declination": 15
+          },
+          "radial": 0,
+          "rhoNm": 0,
+          "altitude": {
+            "restriction": "+",
+            "first": "06000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "LAS",
+            "coordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 150,
+          "distance": 10
+        },
+        {
+          "path": "HM",
+          "id": "I::080",
+          "gnssFms": "0",
+          "qualifiers": "DS",
+          "waypointDescriptor": "VE  ",
+          "altitude": {
+            "restriction": "+",
+            "first": "06000",
+            "second": ""
+          },
+          "fix": {
+            "ident": "LAS",
+            "coordinate": [
+              -115.15979722222222,
+              36.07970277777778
+            ]
+          },
+          "missed": true,
+          "turn": "R",
+          "magneticCourse": 251,
+          "holdMinutes": 1
+        }
+      ]
+    }
+  ]
+}

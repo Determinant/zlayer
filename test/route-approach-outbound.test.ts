@@ -113,7 +113,7 @@ test('Santa Rosa FC/CF connections preserve course distance and surveyed fixes',
   assert.equal(approachPreview(reversed, 'transition:PYE')!.incomplete, true, 'matching courses must also agree with endpoint direction');
 });
 
-test('new connections reach the saved map; only fixed geometry contributes distance and terrain', () => {
+test('new connections reach the saved map and terrain; only fixed geometry contributes distance', () => {
   const cases = [
     [vor, 'VOR RWY 29', 'vectors', 'VTF', 'missed'],
     [napa, 'ILS Z OR LOC Z RWY 01L', 'transition:REBAS', 'REBAS', 'intercept'],
@@ -125,13 +125,13 @@ test('new connections reach the saved map; only fixed geometry contributes dista
         { type: 'Feature', id: procedure.airport, geometry: { type: 'Point', coordinates: procedure.final[0]!.fix!.coordinate },
           properties: { ident: procedure.airport } },
       ] };
-    const selected: RouteApproach = { airportId: procedure.airport, procedureId: procedure.id, name, cycle: '2609',
+    const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: procedure.airport, procedureId: procedure.id, name, cycle: '2609',
       entry: { routeId: procedure.id, transitionId, name: entryName, effectiveDate: '2026-09-03' } };
     const draft = routeDraftFromText(procedure.airport);
     const plan: RoutePlan = createRouteResolver([navigation], undefined, data)(setRouteApproach(draft, draft.entries[0]!, selected));
     assert.deepEqual(plan.issues, []);
     assert.equal(plan.distanceNm, plan.legs.reduce((sum, l) => sum + l.distanceNm, 0));
-    assert.deepEqual(routeSegments([plan]), routeSegments([{ ...plan, approachDepictions: [] }]));
+    assert.ok(routeSegments([plan]).length > routeSegments([{ ...plan, approachDepictions: [] }]).length);
     let source: FeatureCollection | undefined;
     syncRoute({ setGlobalStateProperty() {}, getSource: (id: string) => ({ setData(d: FeatureCollection) {
       if (id === ROUTE_SOURCE_ID) source = d;

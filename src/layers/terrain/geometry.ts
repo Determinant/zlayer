@@ -16,10 +16,14 @@ export function unproject([x, y]: Point): Point {
   return [x * 360 - 180, Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI];
 }
 
-/** Use resolved legs, including airway/procedure expansion; never bridge route gaps. */
+/** Cover the displayed planning path, including curves and connections across gaps. */
 export function routeSegments(plans: readonly RoutePlan[]): Segment[] {
-  return plans.flatMap(plan => plan.legs.flatMap(leg => {
-    const coordinates = leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates];
+  return plans.flatMap(plan => [
+    ...plan.legs.map(leg => leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates]),
+    ...(plan.planningConnections ?? []).map(({ from, to, start }) => [start ?? from.feature.geometry.coordinates, to.feature.geometry.coordinates]),
+    ...(plan.approachDepictions ?? []).map(depiction => depiction.coordinates),
+    ...(plan.approachExtensions ?? []),
+  ].flatMap(coordinates => {
     return coordinates.slice(1).map((coordinate, index): Segment => {
       const a = project(coordinates[index]!);
       const b = project(coordinate);

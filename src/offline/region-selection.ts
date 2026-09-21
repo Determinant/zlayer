@@ -13,6 +13,7 @@ export function regionSelection(plan: DownloadPlan): RegionSelection {
 export function planMetadata(plan: DownloadPlan): DownloadPlan {
   return { id: plan.id, regionId: plan.regionId, title: plan.title, revision: plan.revision,
     files: plan.files, references: plan.references,
+    ...(plan.supplementTargets ? { supplementTargets: plan.supplementTargets } : {}),
     ...(plan.terrain ? { terrain: true } : {}),
     ...(plan.bounds ? { bounds: plan.bounds } : {}),
     ...(plan.catalog ? { catalog: plan.catalog } : {}),

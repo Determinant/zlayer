@@ -17,7 +17,7 @@ export type ChartSupplementAirport = {
 };
 
 export type ChartSupplementCatalog = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   builderVersion: number;
   effectiveDate: string;
   expirationDate: string;
@@ -25,7 +25,16 @@ export type ChartSupplementCatalog = {
   sourceXml: { url: string; sha256: string };
   volumes: ChartSupplementVolume[];
   airports: ChartSupplementAirport[];
+  /** All FAA index targets, including those whose regional book is unavailable. */
+  expected?: ChartSupplementTarget[];
 };
+export type ChartSupplementTarget = Pick<ChartSupplementAirport, 'faaId' | 'state' | 'volumeId' | 'printedPage'>;
+export const supplementTargetKey = (target: ChartSupplementTarget) => `${target.faaId}:${target.volumeId}:${target.printedPage}`;
+
+export function isSupplementTarget(value: unknown): value is ChartSupplementTarget {
+  return record(value) && text(value.faaId) && /^[A-Z0-9]{1,4}$/.test(value.faaId) && typeof value.state === 'string' &&
+    text(value.volumeId) && REGIONS.has(value.volumeId) && text(value.printedPage) && /^\d+$/.test(value.printedPage);
+}
 
 export function bookUrl(volume: ChartSupplementVolume, catalogUrl: string): string {
   const address = new URL(volume.url, catalogUrl);
@@ -37,7 +46,7 @@ export function bookUrl(volume: ChartSupplementVolume, catalogUrl: string): stri
 const REGIONS = new Set(['AK', 'EC', 'NC', 'NE', 'NW', 'PAC', 'SC', 'SE', 'SW']);
 
 export function isChartSupplementCatalog(value: unknown, revision?: string): value is ChartSupplementCatalog {
-  if (!record(value) || value.schemaVersion !== 1 || !count(value.builderVersion) ||
+  if (!record(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !count(value.builderVersion) ||
       !date(value.effectiveDate) || !date(value.expirationDate) || value.expirationDate <= value.effectiveDate ||
       (revision !== undefined && (revision < value.effectiveDate || revision >= value.expirationDate)) ||
       !text(value.generatedAt) || !Number.isFinite(Date.parse(value.generatedAt)) ||
@@ -61,7 +70,11 @@ export function isChartSupplementCatalog(value: unknown, revision?: string): val
     if (targets.has(key)) return false;
     targets.add(key);
   }
-  return targets.size > 0;
+  if (!targets.size) return false;
+  if (value.schemaVersion === 1) return value.expected === undefined;
+  if (!Array.isArray(value.expected) || !value.expected.length || !value.expected.every(isSupplementTarget)) return false;
+  const expected = new Map(value.expected.map(target => [supplementTargetKey(target), target.state]));
+  return expected.size === value.expected.length && value.airports.every(airport => expected.get(supplementTargetKey(airport)) === airport.state);
 }
 import { isRecord as record, isNonEmptyString as text, isSha256 as hash,
   isNonNegativeInteger as count, isIsoDate as date } from './validation.js';

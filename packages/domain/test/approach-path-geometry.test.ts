@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { bearing, destination } from '../src/approach-geometry.js';
+import { arrivalBearing, bearing, destination } from '../src/approach-geometry.js';
 import { difference, joinCourse, rangeIntersection, rayIntersection, selfCrosses, turnToFix, turnToHeading } from '../src/approach-path-geometry.js';
 import { distanceNm } from '../src/route.js';
 import type { ApproachCoordinate as Coordinate } from '@zlayer/contracts';
@@ -51,5 +51,25 @@ test('bounded turn primitives honor turn side, tangent departure, and CF arrival
     assert.deepEqual(join.at(-1), end);
     assert.ok(Math.abs(difference(bearing(join.at(-1)!, join.at(-2)!) + 180, 45)) < .001);
     assert.equal(selfCrosses(join), false);
+  }
+});
+
+test('capture stays near the maneuver when the terminating fix moves farther down the same course', () => {
+  for (const origin of [[0, 0], [179.99, 45], [-120, -38]] as Coordinate[]) for (const inbound of [0, 90, 210]) {
+    for (const turn of ['L', 'R'] as const) {
+      const side = turn === 'R' ? 1 : -1, from = destination(origin, inbound + side * 90, 3);
+      const captures = [10, 20].map(length => {
+        const to = destination(origin, inbound, length), arrival = arrivalBearing(origin, to)!;
+        const path = joinCourse(from, inbound + 180, to, arrival, turn)!;
+        assert.ok(path, `${origin}: ${inbound} ${turn}`);
+        const capture = path.at(-2)!;
+        assert.ok(distanceNm(capture, origin) < 3, 'join near the maneuver, not near the terminating fix');
+        assert.ok(distanceNm(capture, to) > length - 3);
+        assert.ok(Math.abs(difference(arrivalBearing(capture, to)!, arrival)) < .001);
+        assert.equal(selfCrosses(path), false);
+        return capture;
+      });
+      assert.ok(distanceNm(captures[0]!, captures[1]!) < .02, 'downstream fix distance must not dictate capture location');
+    }
   }
 });

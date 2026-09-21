@@ -1,0 +1,580 @@
+{
+  "policy": 5,
+  "generatedAt": "2026-09-21T21:22:48.356Z",
+  "effectiveDate": "2026-09-03",
+  "terminalSha256": "0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a",
+  "cifpSha256": "fbea2179a990e1d371d77439961d137e83252582b3c67b6ec85b8d9d11c76cad",
+  "sourceCounts": {
+    "departure": 34309,
+    "arrival": 44563,
+    "approach": 122204
+  },
+  "exportedCounts": {
+    "departure": 34309,
+    "arrival": 44563,
+    "approach": 122204
+  },
+  "continuationCounts": {
+    "source": 6744,
+    "exported": 6744
+  },
+  "implementation": {
+    "coded-terminals.ts": "50df356a0f2a845b4869f4670ecfa9be0f66b105bdee6b19494eb4341fc751a1",
+    "approaches.ts": "e5e220fc3c6cc4a9258a35030dd274f336fe9cbec85823cc931d8af6d92efe88",
+    "approach-path.ts": "4d5f5795c99f7c6bad4e4b82798d9f635fd72fc5b8e3ff9c1678bf5c7ac7f34a",
+    "approach-geometry.ts": "2400f321195f4a22fbf5c56754f43727f59798df2844554e3a0b483bfa7b90ef",
+    "approach-path-geometry.ts": "f1f22cb7d7a2b40bf8964cae0f995f7afe3d5fed3ef54a29a1416a220f816407",
+    "approach-joining.ts": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a",
+    "packages/domain/src/terminal-composition.ts": "6199037303ccf9670a7f40e9c454fabbf76598a25c680bdca3d0eb8c3a3bb6c7",
+    "src/layers/routes/renderer.ts": "249480bcee0cec6dafb7550b9ade85dec38efab246d132504daf2be986d49063",
+    "src/layers/terrain/geometry.ts": "e36a23d2dab9ca40bfae09c60a14cce8ee5e3f216db397ee3816f120d6b42b78",
+    "tools/audit-iap-coverage.mjs": "d29f8654c736a4fc0c2d283065b57ba2aa7abc0d054d49d4cc56b0c2a0c3371c"
+  },
+  "before": {
+    "departure": {
+      "procedures": 2193,
+      "paths": 19927,
+      "withoutDiagnostics": 16514,
+      "manualOnly": 3322,
+      "needsReview": 91,
+      "issues": {
+        "manual-termination:VM": 3129,
+        "manual-termination:FM": 244,
+        "no-forward-intersection:VI": 21,
+        "no-forward-intersection:CI": 1,
+        "missing-reference:FA": 1,
+        "geometry-review:CA": 2,
+        "inconsistent-constraints:CF": 9,
+        "geometry-review:VA": 6,
+        "missing-reference:VA": 36,
+        "geometry-review:VR": 2,
+        "geometry-review:VD": 2,
+        "missing-reference:VI": 15
+      }
+    },
+    "arrival": {
+      "procedures": 1916,
+      "paths": 10429,
+      "withoutDiagnostics": 1873,
+      "manualOnly": 8556,
+      "needsReview": 0,
+      "issues": {
+        "manual-termination:FM": 6615,
+        "manual-termination:VM": 1941
+      }
+    },
+    "approach": {
+      "procedures": 10234,
+      "paths": 37836,
+      "withoutDiagnostics": 37635,
+      "manualOnly": 0,
+      "needsReview": 201,
+      "issues": {
+        "no-forward-intersection:VI": 102,
+        "missing-reference:PI": 19,
+        "missing-reference:XX": 16,
+        "missing-reference:VI": 8,
+        "inconsistent-constraints:DF": 10,
+        "inconsistent-constraints:CF": 16,
+        "missing-reference:CI": 8,
+        "unsupported-leg:XX": 14,
+        "geometry-review:FC": 4,
+        "geometry-review:CA": 6,
+        "inconsistent-constraints:AF": 6,
+        "missing-reference:FA": 10,
+        "missing-reference:VA": 8,
+        "manual-termination:VM": 8
+      }
+    }
+  },
+  "after": {
+    "departure": {
+      "procedures": 2193,
+      "paths": 19927,
+      "withoutDiagnostics": 16514,
+      "manualOnly": 3322,
+      "needsReview": 91,
+      "issues": {
+        "manual-termination:VM": 3129,
+        "manual-termination:FM": 244,
+        "no-forward-intersection:VI": 21,
+        "no-forward-intersection:CI": 1,
+        "missing-reference:FA": 1,
+        "geometry-review:CA": 2,
+        "inconsistent-constraints:CF": 9,
+        "geometry-review:VA": 6,
+        "missing-reference:VA": 36,
+        "geometry-review:VR": 2,
+        "geometry-review:VD": 2,
+        "missing-reference:VI": 15
+      }
+    },
+    "arrival": {
+      "procedures": 1916,
+      "paths": 10429,
+      "withoutDiagnostics": 1873,
+      "manualOnly": 8556,
+      "needsReview": 0,
+      "issues": {
+        "manual-termination:FM": 6615,
+        "manual-termination:VM": 1941
+      }
+    },
+    "approach": {
+      "procedures": 10234,
+      "paths": 37836,
+      "withoutDiagnostics": 37649,
+      "manualOnly": 0,
+      "needsReview": 187,
+      "issues": {
+        "no-forward-intersection:VI": 102,
+        "missing-reference:PI": 19,
+        "missing-reference:XX": 16,
+        "missing-reference:VI": 4,
+        "inconsistent-constraints:DF": 10,
+        "inconsistent-constraints:CF": 16,
+        "missing-reference:CI": 2,
+        "unsupported-leg:XX": 14,
+        "geometry-review:CA": 6,
+        "inconsistent-constraints:AF": 6,
+        "missing-reference:VA": 8,
+        "manual-termination:VM": 8
+      }
+    }
+  },
+  "resolved": [
+    {
+      "kind": "approach",
+      "procedure": "KLNK:I18-Y",
+      "selection": {
+        "id": "transition:LNK",
+        "name": "LNK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:LNK:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KLNK:L18-Y",
+      "selection": {
+        "id": "transition:LNK",
+        "name": "LNK",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:LNK:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPBF:I18",
+      "selection": {
+        "id": "transition:PBF",
+        "name": "PBF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:PBF:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPBF:L18",
+      "selection": {
+        "id": "transition:PBF",
+        "name": "PBF",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "geometry-review",
+          "leg": 2,
+          "path": "FC",
+          "source": "A:PBF:030",
+          "message": "The schematic path takes a long detour and needs review."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:PIH",
+        "name": "PIH",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:TANOY",
+        "name": "TANOY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "transition:YERUP",
+        "name": "YERUP",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KPIH:S03",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "VI",
+          "source": "S::050",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 4,
+          "path": "FA",
+          "source": "S::060",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "transition:ALB",
+        "name": "ALB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 8,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "transition-fix:ALB:2",
+        "name": "HANLY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:I04",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "CI",
+          "source": "I::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "FA",
+          "source": "I::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "transition:ALB",
+        "name": "ALB",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 7,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 8,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "transition-fix:ALB:2",
+        "name": "HANLY",
+        "kind": "fix"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 5,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 6,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    },
+    {
+      "kind": "approach",
+      "procedure": "KSCH:L04",
+      "selection": {
+        "id": "vectors",
+        "name": "VTF",
+        "kind": "vectors"
+      },
+      "issues": [
+        {
+          "code": "missing-reference",
+          "leg": 2,
+          "path": "CI",
+          "source": "L::040",
+          "message": "The intercept heading or following inbound course is unavailable."
+        },
+        {
+          "code": "missing-reference",
+          "leg": 3,
+          "path": "FA",
+          "source": "L::050",
+          "message": "The start of this maneuver is unavailable."
+        }
+      ]
+    }
+  ],
+  "newlyFlagged": [],
+  "changedDiagnostics": [],
+  "chartScreening": {
+    "before": {
+      "airports": 3182,
+      "catalogApproachRecords": 11140,
+      "instrumentChartRecords": 11089,
+      "statuses": {
+        "matched": 9184,
+        "no-exact-coded-match": 1005,
+        "unmatched-title": 900,
+        "visual-chart": 51
+      },
+      "unmatchedReasons": {
+        "airport-without-coded-approaches": 998,
+        "faa-listed-omission": 458,
+        "no-exact-source-record": 5,
+        "outside-published-cifp-scope": 304,
+        "special-family-without-verified-association": 140
+      },
+      "availableTitleCandidates": 0,
+      "faaExcludedRecords": 463,
+      "matchedWithoutEntries": 0,
+      "unofferedTransitions": 8,
+      "entries": 34214,
+      "incompleteEntries": 134,
+      "chartsWithGaps": 48,
+      "airportsWithGaps": 43,
+      "warningEntries": 134,
+      "warningEntriesMarkedComplete": 0,
+      "warningCounts": {
+        "no-forward-intersection": 69,
+        "missing-reference": 33,
+        "inconsistent-constraints": 17,
+        "unsupported-leg": 10,
+        "geometry-review": 5,
+        "schematic-detour": 2,
+        "schematic-self-crossing": 3,
+        "manual-termination": 8
+      }
+    },
+    "after": {
+      "airports": 3182,
+      "catalogApproachRecords": 11140,
+      "instrumentChartRecords": 11089,
+      "statuses": {
+        "matched": 9184,
+        "no-exact-coded-match": 1005,
+        "unmatched-title": 900,
+        "visual-chart": 51
+      },
+      "unmatchedReasons": {
+        "airport-without-coded-approaches": 998,
+        "faa-listed-omission": 458,
+        "no-exact-source-record": 5,
+        "outside-published-cifp-scope": 304,
+        "special-family-without-verified-association": 140
+      },
+      "availableTitleCandidates": 0,
+      "faaExcludedRecords": 463,
+      "matchedWithoutEntries": 0,
+      "unofferedTransitions": 8,
+      "entries": 34214,
+      "incompleteEntries": 125,
+      "chartsWithGaps": 44,
+      "airportsWithGaps": 39,
+      "warningEntries": 125,
+      "warningEntriesMarkedComplete": 0,
+      "warningCounts": {
+        "no-forward-intersection": 69,
+        "missing-reference": 26,
+        "inconsistent-constraints": 17,
+        "unsupported-leg": 10,
+        "geometry-review": 3,
+        "schematic-self-crossing": 3,
+        "manual-termination": 8
+      }
+    },
+    "metadata": {
+      "state": "*",
+      "cycle": "2609",
+      "effectiveDate": "2026-09-03",
+      "catalogSha256": "44d68f310f90e866b819b9e8d5c5d9dfcabbee9a1ad6d193a67dccad754230a0",
+      "routesSha256": "0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a",
+      "cifpSha256": "fbea2179a990e1d371d77439961d137e83252582b3c67b6ec85b8d9d11c76cad",
+      "rendererSha256": "e5e220fc3c6cc4a9258a35030dd274f336fe9cbec85823cc931d8af6d92efe88",
+      "matchingSha256": "cf588c3c978f8102e81a03d444ff8c1e372c7a0091db85f13a26bef88b243034",
+      "joiningSha256": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a",
+      "geometrySha256": "417f8b4a177bfb0dfb7843838ce0ef12c4f30e3bdcadec18b0d6d721a491461d",
+      "schemaVersion": 2,
+      "scope": "Every non-deleted catalog approach record in the state, all offered entries; automated screening, not plate certification.",
+      "geometryThresholds": {
+        "courseMismatchDegrees": 15,
+        "sharpBendDegrees": 90,
+        "detour": "length > 2 * (endpoint distance + verified FC outbound distance) + 3 NM, except bounded reversals and altitude-dependent paths"
+      }
+    }
+  },
+  "validation": {
+    "unitTests": {
+      "application": 1161,
+      "contracts": 17,
+      "domain": 138
+    },
+    "browserCases": 53,
+    "closerManeuverScreenshots": 12,
+    "typeChecks": "passed",
+    "productionBuild": "passed",
+    "publisherContracts": "passed",
+    "realPublishedNavigation": "passed"
+  }
+}

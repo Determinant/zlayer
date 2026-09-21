@@ -17,7 +17,7 @@ export async function persistBundleSnapshot(plan: DownloadPlan): Promise<Downloa
 /** Catalogs are shared nationally; regional supplement targets and file choices
  * also identify a selection. Health and transfer progress do not. */
 export function bundleSelectionKey(plan: DownloadPlan, snapshotId: string | undefined): Promise<string> {
-  return metadataIdentity([snapshotId, plan.id, plan.bounds, plan.files, plan.references]);
+  return metadataIdentity([snapshotId, plan.id, plan.bounds, plan.files, plan.references, plan.supplementTargets]);
 }
 
 async function metadataIdentity(value: unknown): Promise<string> {

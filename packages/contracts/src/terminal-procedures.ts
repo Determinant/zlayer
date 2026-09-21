@@ -1,5 +1,6 @@
 import { hasJsonReferenceIdentity, type JsonReferenceIdentity } from './json-reference.js';
 import { isApproachRoutesData, type ApproachRoutesData } from './approach-routes.js';
+import { isCodedTerminalProceduresData, type CodedTerminalProceduresData } from './coded-terminal-procedures.js';
 import { hasUniqueStrings, isIsoDate, isNonEmptyString as text, isNonNegativeInteger as count,
   isPositiveInteger, isRecord } from './validation.js';
 
@@ -9,7 +10,27 @@ export type TerminalProceduresResource = JsonReferenceIdentity & {
   count: number;
   sourceCount: number;
   url: string;
+  /** Present on complete exports. Legacy filing-only resources have no version. */
+  schemaVersion?: 2;
+  coverage?: TerminalCoverage;
 };
+
+export type TerminalCoverage = {
+  departures: number; arrivals: number; approaches: number; unavailableApproaches: number;
+  codedDepartures: number; codedArrivals: number;
+  sourceLegs: { departure: number; arrival: number; approach: number };
+  exportedLegs: { departure: number; arrival: number; approach: number };
+  continuationRecords: number; exportedContinuations: number; unresolvedReferences: number;
+};
+
+export function isTerminalCoverage(value: unknown): value is TerminalCoverage {
+  if (!isRecord(value) || !isRecord(value.sourceLegs) || !isRecord(value.exportedLegs)) return false;
+  const { sourceLegs, exportedLegs } = value;
+  return ['departures', 'arrivals', 'approaches', 'unavailableApproaches', 'codedDepartures',
+    'codedArrivals', 'continuationRecords', 'exportedContinuations', 'unresolvedReferences'].every(key => count(value[key])) &&
+    ['departure', 'arrival', 'approach'].every(kind => count(sourceLegs[kind]) && sourceLegs[kind] === exportedLegs[kind]) &&
+    value.continuationRecords === value.exportedContinuations;
+}
 
 export type TerminalProcedurePoint = {
   sequence: number;
@@ -41,15 +62,19 @@ export type TerminalProcedure = {
 /** Waypoint-route topology, not ARINC flight-guidance legs. */
 export type TerminalProceduresData = {
   type: 'ZLayerTerminalProcedures';
-  metadata: { effectiveDate: string; source: string };
+  metadata: { effectiveDate: string; source: string; schemaVersion?: 2 };
   procedures: TerminalProcedure[];
   approaches?: ApproachRoutesData;
+  codedProcedures?: CodedTerminalProceduresData;
+  coverage?: TerminalCoverage;
 };
 
 export function isTerminalProceduresResource(value: unknown): value is TerminalProceduresResource {
   return isRecord(value) && value.id === 'terminal-procedures' && text(value.title) && text(value.url) &&
     count(value.count) && count(value.sourceCount) && value.count <= value.sourceCount &&
-    hasJsonReferenceIdentity(value);
+    hasJsonReferenceIdentity(value) && (value.schemaVersion === undefined
+      ? value.coverage === undefined
+      : value.schemaVersion === 2 && typeof value.jsonSha256 === 'string' && isTerminalCoverage(value.coverage));
 }
 
 export function isTerminalProceduresData(value: unknown, revision?: string): value is TerminalProceduresData {
@@ -57,7 +82,34 @@ export function isTerminalProceduresData(value: unknown, revision?: string): val
     isIsoDate(value.metadata.effectiveDate) && (revision === undefined || value.metadata.effectiveDate === revision) &&
     text(value.metadata.source) && Array.isArray(value.procedures) && value.procedures.every(isProcedure) &&
     hasUniqueStrings(value.procedures.map(procedure => procedure.id)) &&
-    (value.approaches === undefined || isApproachRoutesData(value.approaches, value.metadata.effectiveDate));
+    (value.codedProcedures === undefined || isCodedTerminalProceduresData(value.codedProcedures, value.metadata.effectiveDate)) &&
+    (value.approaches === undefined || isApproachRoutesData(value.approaches, value.metadata.effectiveDate)) &&
+    (value.metadata.schemaVersion === undefined ? value.coverage === undefined
+      : value.metadata.schemaVersion === 2 && completeCoverage(value as TerminalProceduresData));
+}
+
+function completeCoverage(value: TerminalProceduresData): boolean {
+  const { coverage: c, approaches, codedProcedures } = value;
+  if (!isTerminalCoverage(c) || !approaches || !codedProcedures) return false;
+  if (value.procedures.filter(p => p.kind === 'departure').length !== c.departures ||
+      value.procedures.filter(p => p.kind === 'arrival').length !== c.arrivals ||
+      codedProcedures.procedures.filter(p => p.kind === 'departure').length !== c.codedDepartures ||
+      codedProcedures.procedures.filter(p => p.kind === 'arrival').length !== c.codedArrivals ||
+      approaches.procedures.length !== c.approaches || (approaches.unavailable?.length ?? 0) !== c.unavailableApproaches) return false;
+  const counts = { departure: 0, arrival: 0, approach: 0 };
+  let continuations = 0;
+  const add = (kind: keyof typeof counts, legs: import('./approach-routes.js').ApproachLeg[]) => {
+    counts[kind] += legs.length;
+    for (const leg of legs) continuations += leg.continuations?.length ?? 0;
+  };
+  for (const p of codedProcedures.procedures) for (const b of p.branches) add(p.kind, b.legs);
+  for (const p of approaches.procedures) {
+    add('approach', p.final);
+    for (const b of p.transitions) add('approach', b.legs);
+  }
+  for (const p of approaches.unavailable ?? []) for (const b of p.branches) add('approach', b.legs);
+  return (Object.keys(counts) as (keyof typeof counts)[]).every(kind => counts[kind] === c.exportedLegs[kind]) &&
+    continuations === c.exportedContinuations;
 }
 
 function airportIdent(value: unknown): value is string {

@@ -1,6 +1,6 @@
 import type { GeoPointFeature, NavigationData, PreferredRouteRecord } from '@zlayer/contracts';
 import { createRouteEntry, routeEntriesFromText, routeDraftFromText, routeTokenForFeature, resolvePreferredRouteEntries,
-  airportRouteIdent, type RouteAirportPair, type RouteApproach, type RouteDeparture, type RouteDraft, type RouteEntry } from '@zlayer/domain';
+  airportRouteIdent, type RouteAirportPair, type RouteApproach, type RouteTerminal, type RouteDraft, type RouteEntry } from '@zlayer/domain';
 
 export { routeDraftFromText, routeDraftText } from '@zlayer/domain';
 export type { RouteDraft } from '@zlayer/domain';
@@ -65,19 +65,27 @@ export function setRouteApproach(draft: RouteDraft, expected: RouteEntry, approa
 export function sameRouteApproach(left: RouteApproach | undefined, right: RouteApproach | undefined): boolean {
   return left === right || !!left && !!right && left.airportId === right.airportId &&
     left.procedureId === right.procedureId && left.name === right.name && left.cycle === right.cycle &&
+    left.source === right.source &&
     left.entry?.routeId === right.entry?.routeId && left.entry?.transitionId === right.entry?.transitionId &&
     left.entry?.name === right.entry?.name && left.entry?.effectiveDate === right.entry?.effectiveDate;
 }
-export function setRouteDeparture(draft: RouteDraft, expected: RouteEntry, departure: RouteDeparture | undefined): RouteDraft {
+export function setRouteDeparture(draft: RouteDraft, expected: RouteEntry, departure: RouteTerminal | undefined): RouteDraft {
   const index = draft.entries.indexOf(expected);
-  if (index < 0 || sameRouteDeparture(expected.departure, departure)) return draft;
+  if (index < 0 || departure && departure.kind !== 'departure' || sameRouteDeparture(expected.departure, departure)) return draft;
   const { departure: _previous, ...airport } = expected;
   return spliceEntries(draft, index, 1, [{ ...airport, ...(departure ? { departure } : {}) }]);
 }
-export function sameRouteDeparture(left: RouteDeparture | undefined, right: RouteDeparture | undefined): boolean {
+export function sameRouteDeparture(left: RouteTerminal | undefined, right: RouteTerminal | undefined): boolean {
   return left === right || !!left && !!right && left.airportId === right.airportId && left.procedureId === right.procedureId &&
-    left.ident === right.ident && left.name === right.name && left.effectiveDate === right.effectiveDate &&
-    left.transition === right.transition && left.branchId === right.branchId && left.branchName === right.branchName;
+    left.kind === right.kind && left.source === right.source && left.ident === right.ident && left.name === right.name && left.effectiveDate === right.effectiveDate &&
+    left.transition === right.transition && left.branchId === right.branchId && left.branchName === right.branchName &&
+    left.codedRunway === right.codedRunway && JSON.stringify(left.codedBranches) === JSON.stringify(right.codedBranches);
+}
+export function setRouteArrival(draft: RouteDraft, expected: RouteEntry, arrival: RouteTerminal | undefined): RouteDraft {
+  const index = draft.entries.indexOf(expected);
+  if (index < 0 || arrival && arrival.kind !== 'arrival' || sameRouteDeparture(expected.arrival, arrival)) return draft;
+  const { arrival: _previous, ...airport } = expected;
+  return spliceEntries(draft, index, 1, [{ ...airport, ...(arrival ? { arrival } : {}) }]);
 }
 /** Compare authored entries, including exact entity pins and procedure choices.
  * A newly resolved plan may share the same draft despite a new revision. */
@@ -85,7 +93,8 @@ export function sameRouteDraft(left: RouteDraft, right: RouteDraft): boolean {
   return left.entries.length === right.entries.length && left.entries.every((entry, index) => {
     const other = right.entries[index]!;
     return entry.id === other.id && entry.text === other.text && entry.pinnedFeatureId === other.pinnedFeatureId &&
-      sameRouteApproach(entry.approach, other.approach) && sameRouteDeparture(entry.departure, other.departure);
+      sameRouteApproach(entry.approach, other.approach) && sameRouteDeparture(entry.departure, other.departure) &&
+      sameRouteDeparture(entry.arrival, other.arrival);
   });
 }
 export function moveRouteEntry(draft: RouteDraft, fromEntryId: string, toEntryId: string): RouteDraft {

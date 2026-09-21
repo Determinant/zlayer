@@ -24,7 +24,7 @@ import {
 import {
   RouteBar, useRoutePlan, useRouteDraft, useDirectTo, DirectToDialog, appendRouteText, EMPTY_ROUTE_DRAFT,
   insertRouteFeature, insertRouteTextBefore, moveRouteEntry, removeRouteEntry,
-  replaceRouteFeature, replaceRouteText, setRouteApproach, setRouteDeparture, type RouteMapPreview,
+  replaceRouteFeature, replaceRouteText, setRouteApproach, setRouteDeparture, setRouteArrival, type RouteMapPreview,
 } from './layers/routes';
 import { createWorkspaceLayers } from './workspace/products';
 import { LayerMenu } from './shell/layer-menu';
@@ -272,6 +272,7 @@ export function App() {
         onDirectTo={directTo}
         onApproachChange={(entry, approach) => setRouteDraft(current => setRouteApproach(current, entry, approach))}
         onDepartureChange={(entry, departure) => setRouteDraft(current => setRouteDeparture(current, entry, departure))}
+        onArrivalChange={(entry, arrival) => setRouteDraft(current => setRouteArrival(current, entry, arrival))}
         onOpenPlate={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
         onRecommendationPreview={setRecommendations}
         onApproachPreview={setApproachPreview}

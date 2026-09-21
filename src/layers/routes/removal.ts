@@ -5,7 +5,7 @@ import { sameRouteDraft } from './draft';
 export function routeItemsForPoint(plan: RoutePlan, point: RouteWaypoint): RouteEntry[] {
   const tec = new Set(plan.tecRoutes.map(item => item.tokenIndex));
   const airways = new Set(plan.airways.map(item => item.tokenIndex).filter(index => !tec.has(index)));
-  const published = new Set([...tec, ...airways, ...plan.procedures.filter(item => !plan.entries[item.tokenIndex]?.departure).map(item => item.tokenIndex)]);
+  const published = new Set([...tec, ...airways, ...plan.procedures.filter(item => !plan.entries[item.tokenIndex]?.departure && !plan.entries[item.tokenIndex]?.arrival).map(item => item.tokenIndex)]);
   return [...published].sort((a, b) => a - b).filter(index => {
     let first = index, last = index;
     // An inferred airway junction depends on the whole adjacent airway chain.
@@ -22,7 +22,7 @@ export function routeItemsForPoint(plan: RoutePlan, point: RouteWaypoint): Route
 export function removeRoutePoint(draft: RouteDraft, plan: RoutePlan, point: RouteWaypoint): RouteDraft {
   // Coded procedure children cannot be flattened into ordinary editable fixes.
   if (point.owners.some(owner => owner.kind === 'approach')) return draft;
-  if (!point.edit && plan.entries[point.source.tokenIndex]?.departure) return draft;
+  if (!point.edit && (plan.entries[point.source.tokenIndex]?.departure || plan.entries[point.source.tokenIndex]?.arrival)) return draft;
   if (!plan.waypoints.includes(point) || !sameRouteDraft(draft, plan)) return draft;
   const expand = new Set(routeItemsForPoint(plan, point).map(entry => entry.id));
   if (!point.edit) expand.add(point.source.entryId);

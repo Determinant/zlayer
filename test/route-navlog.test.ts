@@ -57,7 +57,7 @@ const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
 
 for (const transitionId of ['transition:ARCHI', 'vectors']) test(`NavLog follows approach occurrences and separates missed legs (${transitionId})`, () => {
   const route = routeDraftFromText('370000N1220000W KSFO 380000N1220000W');
-  const draft = setRouteApproach(route, route.entries[1]!, {
+  const draft = setRouteApproach(route, route.entries[1]!, { kind: 'approach' as const, source: 'chart' as const,
     airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
     entry: { routeId: 'KSFO:I28R', transitionId, name: transitionId, effectiveDate: '2026-09-03' },
   });
@@ -84,7 +84,7 @@ test('NavLog counts the published arc geometry and avoids presenting its chord a
   ];
   procedure.transitions = [];
   const route = routeDraftFromText('KSFO');
-  const draft = setRouteApproach(route, route.entries[0]!, {
+  const draft = setRouteApproach(route, route.entries[0]!, { kind: 'approach' as const, source: 'chart' as const,
     airportId: 'KSFO', procedureId: 'arc', name: 'ILS OR LOC RWY 28R', cycle: '2609',
     entry: { routeId: procedure.id, transitionId: 'final:0', name: 'START', effectiveDate: '2026-09-03' },
   });

@@ -33,7 +33,7 @@ export function attachRouteDepartures(draft: RouteDraft, plan: RoutePlan, data?:
       procedure.kind === 'departure' && procedure.airports.includes(resolved.airport));
     if (matches?.length !== 1) continue;
     const procedure = matches[0]!;
-    entries[index - 1] = { ...airport, departure: { airportId: resolved.airport, procedureId: procedure.id,
+    entries[index - 1] = { ...airport, departure: { kind: 'departure', source: 'nasr', airportId: resolved.airport, procedureId: procedure.id,
       ident: procedure.ident, name: procedure.name, effectiveDate: data!.metadata.effectiveDate, transition: resolved.transition } };
     entries.splice(index, 1);
     changed = true;
@@ -46,7 +46,7 @@ export function attachRouteDepartures(draft: RouteDraft, plan: RoutePlan, data?:
 export function departureAtoms(atoms: RouteAtom[]): RouteAtom[] {
   return atoms.flatMap((airport, index) => {
     const departure = airport.entry?.departure;
-    if (!departure) return [airport];
+    if (departure?.source !== 'nasr') return [airport];
     const scope = { ...airport.scope, departure: airport };
     const procedure: RouteAtom = { text: departure.ident, source: airport.source, scope,
       owners: [], incomingOwners: [], departure };

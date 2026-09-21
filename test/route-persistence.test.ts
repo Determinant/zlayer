@@ -60,7 +60,7 @@ test('approach selection, switching and removal persist immediately while malfor
   const restart = () => { hooks.unmount(); hooks = new Hooks(); return render(); };
   const draft = routeDraftFromText('KSFO KSJC', { 1: 'airport:KSJC' });
   render()[1](draft);
-  const approach = { airportId: 'KSJC', procedureId: 'rnav', name: 'RNAV (GPS) RWY 30L', cycle: '2609',
+  const approach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSJC', procedureId: 'rnav', name: 'RNAV (GPS) RWY 30L', cycle: '2609',
     entry: { routeId: 'KSJC:R30L', transitionId: 'transition:SILVA', name: 'SILVA', effectiveDate: '2026-09-03' } };
   render()[1](current => setRouteApproach(current, current.entries[1]!, approach));
   assert.deepEqual(JSON.parse(saved!).entries[1].approach, approach);

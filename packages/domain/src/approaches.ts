@@ -1,21 +1,22 @@
-import type { ApproachFix, ApproachLeg, ApproachRoute, ApproachRoutesData, GeoPointFeature } from '@zlayer/contracts';
-import type { ApproachArrival, RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
-import type { RouteOwner } from './route-source.js';
-import { distanceNm, geographicMidpoint } from './route.js';
+import type { ApproachLeg, ApproachRoute, ApproachRoutesData } from '@zlayer/contracts';
+import type { ApproachArrival, RouteLeg, RoutePlan } from './route-model.js';
 import { arrivalBearing, bearing, destination, holdingEntry } from './approach-geometry.js';
-import { findApproachRoutes } from './approach-matching.js';
-export { approachIdent, findApproachRoute, findApproachRoutes } from './approach-matching.js';
+export { approachIdent, findApproachRoute, findApproachRoutes, publishedApproachRoutes } from './approach-matching.js';
 import { joinApproachTransition } from './approach-joining.js';
 
 export type ApproachEntryOption = { id: string; name: string; kind: 'fix' | 'vectors' };
 export type { ApproachPreview } from './approach-path.js';
 import { resolveApproachLegs, type ApproachPreview } from './approach-path.js';
+import { sameTerminalFix as sameFix } from './terminal-fixes.js';
+import { approachIndex } from './terminal-index.js';
+export { terminalFixFeature as approachFixFeature } from './terminal-fixes.js';
 
-/** A coded fix can remain pinned after its airport bundle is decomposed. The
- * coordinate distinguishes local runway names and identically named fixes. */
-export function approachFixFeature(fix: ApproachFix): GeoPointFeature {
-  return { type: 'Feature', id: `approach-fix:${JSON.stringify([fix.ident, ...fix.coordinate])}`,
-    geometry: { type: 'Point', coordinates: fix.coordinate }, properties: { ident: fix.ident, name: fix.ident } };
+/** A database procedure stays selectable even without a matching chart title. */
+export function codedApproachLabel(ident: string): string {
+  const families: Record<string, string> = { I: 'ILS', L: 'LOC', B: 'LOC BC', R: 'RNAV (GPS)', H: 'RNAV (RNP)',
+    V: 'VOR', S: 'VOR', D: 'VOR/DME', N: 'NDB', Q: 'NDB/DME', X: 'LDA', U: 'SDF', P: 'GPS' };
+  const match = /^([A-Z])(\d{2}[LCR]?)(?:-?([A-Z]))?$/.exec(ident);
+  return match && families[match[1]!] ? `${families[match[1]!]}${match[3] ? ` ${match[3]}` : ''} RWY ${match[2]} · ${ident}` : ident;
 }
 
 export function approachEntryOptions(procedure: ApproachRoute): ApproachEntryOption[] {
@@ -29,7 +30,10 @@ function entrySelections(procedure: ApproachRoute): (ApproachEntryOption & { leg
     const first = legs[0];
     if (!first?.fix) return;
     // The incoming leg ends at the chosen fix. Preserve holds and outbound legs.
-    if (['IF', 'TF', 'CF', 'DF', 'RF', 'AF'].includes(first.path)) legs = [{ path: 'IF', fix: first.fix, ...(first.id ? { id: first.id } : {}) }, ...legs.slice(1)];
+    if (['IF', 'TF', 'CF', 'DF', 'RF', 'AF'].includes(first.path)) legs = [{ path: 'IF', fix: first.fix, ...(first.id ? { id: first.id } : {}),
+      ...(first.altitude ? { altitude: first.altitude } : {}), ...(first.speed ? { speed: first.speed } : {}),
+      ...(first.rnpNm !== undefined ? { rnpNm: first.rnpNm } : {}),
+      ...(first.continuations ? { continuations: first.continuations } : {}) }, ...legs.slice(1)];
     const signature = JSON.stringify(legs.map(({ id: _source, ...leg }) => leg));
     if (deduplicate && signatures.has(signature)) return;
     signatures.add(signature);
@@ -100,77 +104,16 @@ function finalCourse(procedure: ApproachRoute) {
   return { index, fix, course: bearing(fix.coordinate, next.fix.coordinate) };
 }
 
-/** Replace the airport's route connections, keeping its editable marker and the complete bundle. */
-export function expandRouteApproaches(plan: RoutePlan, data?: ApproachRoutesData,
-  resolveFix?: (fix: ApproachFix) => Pick<RouteWaypoint, 'layer' | 'feature'> | undefined): void {
-  const replacements = new Map<RouteWaypoint, { first?: RouteWaypoint; last?: RouteWaypoint; children: RouteWaypoint[] }>();
-  const legs: RouteLeg[] = [];
-  for (const airport of plan.waypoints) {
-    const selected = plan.entries[airport.source.tokenIndex]?.approach;
-    if (!selected || airport.layer !== 'airports' || !airport.edit) continue;
-    const selection = selected.entry;
-    const procedure = selection && data?.metadata.effectiveDate === selection.effectiveDate
-      ? [airport.ident, airport.feature.properties.icaoId, airport.feature.properties.faaId]
-        .filter((id): id is string => typeof id === 'string')
-        .flatMap(id => findApproachRoutes(data, id, selected.name)).find(p => p.id === selection.routeId) : undefined;
-    const preview = procedure && approachPreview(procedure, selection!.transitionId);
-    if (!preview) {
-      // Older chart-only attachments still need an explicit entry; do not silently pick one.
-      replacements.set(airport, { children: [] });
-      plan.issues.push({ ...airport.source, code: 'approach-unavailable', message: selection
-        ? `${airport.ident}: selected approach entry is unavailable in this data edition`
-        : `${airport.ident}: choose a published approach entry or VTF` });
-      continue;
-    }
-    const owner: RouteOwner = { kind: 'approach', source: airport.source, ident: selected.name };
-    const children = preview.points.map((fix, index): RouteWaypoint => ({ source: airport.source, owners: [owner],
-      ident: fix.ident, approachRole: fix.role ?? '', approachPhase: fix.missed ? 'missed' : 'approach',
-      ...(index === preview.landingEnd ? { approachLandingEnd: true } : {}),
-      ...(fix.hold ? { approachHold: { turn: fix.hold, missedEnd: Boolean(fix.missed && index === preview.exit),
-        ...(fix.holdCourse !== undefined ? { inboundCourse: fix.holdCourse } : {}),
-        ...(fix.arrivalCourse !== undefined ? { arrivalCourse: fix.arrivalCourse } : {}),
-        ...(fix.holdLength ? { length: fix.holdLength } : {}) } } : {}),
-      ...(resolveFix?.(fix) ?? { layer: 'fixes', feature: approachFixFeature(fix) }) }));
-    for (const segment of preview.segments) {
-      const from = children[segment.from]!, to = children[segment.to]!;
-      legs.push({ from, to, owners: [owner], approachPhase: segment.phase, geometry: segment.coordinates,
-        midpoint: geographicMidpoint(from.feature.geometry.coordinates, to.feature.geometry.coordinates),
-        distanceNm: segment.coordinates.slice(1).reduce((sum, coordinate, index) => sum + distanceNm(segment.coordinates[index]!, coordinate), 0) });
-    }
-    replacements.set(airport, { ...(!preview.extension && children[0] ? { first: children[0] } : {}),
-      ...(preview.exit !== undefined ? { last: children[preview.exit]! } : {}), children });
-    if (preview.extension) (plan.approachExtensions ??= []).push(preview.extension);
-    if (preview.depictions.length) (plan.approachDepictions ??= []).push(...preview.depictions);
-    if (preview.incomplete) plan.issues.push({ ...airport.source, code: 'approach-discontinuity',
-      message: `${airport.ident}: ${[...new Set(preview.issues.map(i => i.message))].join(' ')} See the plate.` });
-  }
-  // Keep preview arrival context independently of the selected approach. VTF and
-  // coincident entry fixes intentionally remove their connecting map leg.
-  for (const leg of plan.legs) {
-    if (leg.to.layer !== 'airports' || !leg.to.edit) continue;
-    const from = replacements.has(leg.from) ? replacements.get(leg.from)!.last : leg.from;
-    if (!from) continue;
-    const incoming = legs.find(candidate => candidate.to === from) ?? plan.legs.find(candidate => candidate.to === from);
-    const course = from.approachHold?.arrivalCourse ?? (incoming && legArrivalCourse(incoming));
-    leg.to.approachArrival = { coordinate: from.feature.geometry.coordinates, ...(course === undefined ? {} : { course }) };
-  }
-  if (!replacements.size) return;
-  const connections = plan.legs.flatMap((leg): RouteLeg[] => {
-    const from = replacements.has(leg.from) ? replacements.get(leg.from)!.last : leg.from;
-    const to = replacements.has(leg.to) ? replacements.get(leg.to)!.first : leg.to;
-    if (!from || !to || sameFix({ ident: from.ident, coordinate: from.feature.geometry.coordinates }, { ident: to.ident, coordinate: to.feature.geometry.coordinates })) return [];
-    if (from === leg.from && to === leg.to) return [leg];
-    // The connector still inserts between the same draft entries, even when
-    // its displayed endpoints are children of an attached approach.
-    return [{ from, to, owners: [...leg.owners, ...from.owners, ...to.owners],
-      ...(leg.edit ? { edit: leg.edit } : {}),
-      midpoint: geographicMidpoint(from.feature.geometry.coordinates, to.feature.geometry.coordinates),
-      distanceNm: distanceNm(from.feature.geometry.coordinates, to.feature.geometry.coordinates) }];
-  });
-  plan.waypoints = plan.waypoints.flatMap(point => [...(replacements.get(point)?.children ?? []), point]);
-  const order = new Map(plan.waypoints.map((point, index) => [point, index]));
-  plan.legs = [...connections, ...legs].sort((a, b) => order.get(a.from)! - order.get(b.from)!);
-  updateApproachHoldEntries(plan);
+/** Resolve a saved choice without modifying the route. Chart and direct CIFP
+ * identities stay distinct; a stale or absent entry never selects a default. */
+export function selectedApproach(selected: import('./route-model.js').RouteApproach,
+  data: ApproachRoutesData | undefined, aliases: readonly (string | undefined)[]) {
+  const selection = selected.entry;
+  const procedure = selection && data?.metadata.effectiveDate === selection.effectiveDate
+    ? approachIndex(data).byId.get(selection.routeId) : undefined;
+  if (!procedure || !aliases.includes(selected.airportId) || !aliases.includes(procedure.airport)) return;
+  const preview = approachPreview(procedure, selection!.transitionId);
+  return preview ? { preview, legs: approachEntryLegs(procedure, selection!.transitionId) ?? [] } : undefined;
 }
 
 /** Entry suggestions follow the planned arrival. A preview can supply its connected arrival context. */
@@ -198,11 +141,7 @@ export function updateApproachHoldEntries(plan: RoutePlan, context?: ApproachArr
   }
 }
 
-function legArrivalCourse(leg: RouteLeg): number | undefined {
+export function legArrivalCourse(leg: RouteLeg): number | undefined {
   const coordinates = leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates];
   return coordinates.length < 2 ? undefined : arrivalBearing(coordinates.at(-2)!, coordinates.at(-1)!);
-}
-
-function sameFix(a: ApproachFix, b: ApproachFix): boolean {
-  return a.ident === b.ident && distanceNm(a.coordinate, b.coordinate) < 0.01;
 }

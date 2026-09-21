@@ -1,4 +1,5 @@
-import type { ApproachRoute, ApproachRoutesData } from '@zlayer/contracts';
+import type { ApproachAssociations, ApproachRoute, ApproachRoutesData } from '@zlayer/contracts';
+import { approachIndex } from './terminal-index.js';
 
 const title = (name: string) => name.trim().toUpperCase().replace(/\s+/g, ' ').replace(/, CONT\.\d+$/, '');
 
@@ -42,44 +43,16 @@ export function approachIdent(name: string): string | undefined {
   return `${type}${runway}${match[2] ? `${runway.length === 2 ? '-' : ''}${match[2]}` : ''}`;
 }
 
-// Plate/source comparisons are recorded in docs/approach-coverage.md#reviewed-associations.
-// These are edition-specific associations, never global variant/type fallbacks.
-export const reviewedApproachAssociations = [
-  ['K50', 'RNAV (GPS)-A', 'RNVA'],
-  ['KPNS', 'VOR RWY 08', 'V08'], ['KSMX', 'VOR RWY 12', 'V12'], ['KTBN', 'VOR RWY 33', 'V33'],
-  ['KPMD', 'VOR OR TACAN Z RWY 25', 'S25'],
-  ['KSBD', 'ILS OR LOC Z RWY 06', 'I06'], ['KSLE', 'ILS OR LOC Z RWY 31', 'I31'],
-  ['PASD', 'NDB RWY 32', 'Q32'], ['PGSN', 'NDB Z RWY 07', 'Q07-Z'],
-  ['PGUM', 'NDB RWY 24R', 'Q24R'], ['PTKK', 'NDB RWY 22', 'Q22'],
-  ['KNOW', 'COPTER RNAV (GPS) RWY 26', 'R26'],
-  ['KWAY', 'COPTER RNAV (GPS) Y RWY 09', 'R09-Y'], ['W99', 'COPTER RNAV (GPS) X RWY 31', 'R31-X'],
-  ['KAST', 'COPTER LOC RWY 26', 'L26'], ['KHUM', 'COPTER VOR RWY 12', 'S12'],
-  ['KEWR', 'COPTER ILS Y OR LOC Y RWY 04L', 'I04LY'], ['KMKT', 'COPTER ILS Z OR LOC Z RWY 33', 'I33-Z'],
-  ['KOTH', 'COPTER ILS Y OR LOC Y RWY 05', 'I05-Y'], ['KRST', 'COPTER ILS Y OR LOC Y RWY 31', 'I31-Y'],
-  ['KTEB', 'COPTER ILS Y OR LOC Y RWY 06', 'I06-Y'], ['KMSP', 'ILS RWY 35 (SA CAT I)', 'I35-Z'],
-  // These four have their own V variant in this CIFP, despite the readme's
-  // general exclusion of converging ILS. Ordinary ILS routes are not substitutes.
-  ['KDFW', 'ILS V RWY 13R (CONVERGING)', 'I13RV'], ['KMSP', 'ILS V RWY 35 (CONVERGING)', 'I35-V'],
-  ['KPHL', 'ILS V RWY 09R (CONVERGING)', 'I09RV'], ['KPHL', 'ILS V RWY 17 (CONVERGING)', 'I17-V'],
-] as const;
-
 /** All verified choices for a chart; distinct parallel-runway branches require
  * an explicit selection rather than an arbitrary first match. */
 export function findApproachRoutes(data: ApproachRoutesData | undefined, airport: string, name: string): ApproachRoute[] {
   if (!data) return [];
   const unique = (ident: string | undefined) => {
-    const matches = ident ? data.procedures.filter(p => p.airport === airport && p.ident === ident) : [];
+    const matches = ident ? approachIndex(data).byAirport.get(airport)?.filter(p => p.ident === ident) ?? [] : [];
     return matches.length === 1 ? matches[0] : undefined;
   };
   const canonical = unique(approachIdent(name));
   if (canonical) return [canonical];
-  if (data.metadata.effectiveDate === '2026-09-03') {
-    const reviewed = reviewedApproachAssociations.find(([a, n]) => a === airport && n === title(name));
-    if (reviewed) {
-      const procedure = unique(reviewed[2]);
-      return procedure ? [procedure] : [];
-    }
-  }
   // A shared L/R chart can use one source route only if BOTH complete coded
   // routes agree, including altitude constraints, transitions and missed legs.
   const parallel = /^(.* RWY \d{2})([LCR])\/([LCR])$/.exec(title(name));
@@ -90,6 +63,19 @@ export function findApproachRoutes(data: ApproachRoutesData | undefined, airport
   return first.magneticVariation === second.magneticVariation &&
     JSON.stringify(first.transitions) === JSON.stringify(second.transitions) && JSON.stringify(first.final) === JSON.stringify(second.final)
     ? [first] : [first, second];
+}
+
+/** Current publications own chart associations. An unmatched record or a join
+ * against another navigation generation cannot fall back to title guessing. */
+export function publishedApproachRoutes(data: ApproachRoutesData | undefined, associations: ApproachAssociations | undefined,
+  procedureId: string, terminalJsonSha256: string | undefined): ApproachRoute[] {
+  if (!data || !associations || associations.effectiveDate !== data.metadata.effectiveDate ||
+      associations.sources.terminalJsonSha256 !== terminalJsonSha256) return [];
+  const record = associations.records.find(r => r.procedureId === procedureId);
+  if (!record) return [];
+  const index = approachIndex(data).byId;
+  const matches = record.routeIds.map(id => index.get(id));
+  return matches.every((p): p is ApproachRoute => p !== undefined && p.airport === record.airport) ? matches : [];
 }
 
 export function findApproachRoute(data: ApproachRoutesData | undefined, airport: string, name: string): ApproachRoute | undefined {

@@ -6,7 +6,7 @@ import { directToRoutePoint } from '../src/layers/routes/direct-to';
 import { routeExportText } from '../src/layers/routes/export';
 import { createRouteRemovalResolver } from './helpers/route-removal';
 
-const approach: RouteApproach = { airportId: 'KSMX', procedureId: 'rnav', name: 'RNAV (GPS) RWY 30', cycle: '2609' };
+const approach: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSMX', procedureId: 'rnav', name: 'RNAV (GPS) RWY 30', cycle: '2609' };
 
 test('an approach belongs to one airport occurrence, follows reorder, switches atomically and detaches without removing the airport', () => {
   const draft = routeDraftFromText('KSBA KSMX KSMX', { 0: 'airport:KSBA', 1: 'airport:KSMX', 2: 'airport:KSMX' });

@@ -23,7 +23,7 @@ const airports: FeatureCollectionResponse = { type: 'FeatureCollection', meta: {
   features: [['KSFO', -122.375, 37.619], ['KSJC', -121.929, 37.362], ['KOAK', -122.221, 37.721]].map(([ident, lon, lat]) => ({
     type: 'Feature', id: String(ident), properties: { ident: String(ident) }, geometry: { type: 'Point', coordinates: [Number(lon), Number(lat)] },
   })) };
-const selected: RouteApproach = { airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
+const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
   entry: { routeId: ils.id, transitionId: 'transition:ARCHI', name: 'ARCHI', effectiveDate: '2026-09-03' } };
 const resolve = createRouteResolver([airports], undefined, terminal);
 function draft(approach = selected) {
@@ -106,7 +106,7 @@ test('KSNS ARTYY follows the published 22-DME arc through preview, route, map an
   const feeder = approachPreview(salinas, 'transition:SNS2')!;
   assert.deepEqual(feeder.segments[1]!.coordinates, arc.coordinates);
 
-  const selection: RouteApproach = { airportId: 'KSNS', procedureId: 'ils31', name: 'ILS RWY 31', cycle: '2609',
+  const selection: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSNS', procedureId: 'ils31', name: 'ILS RWY 31', cycle: '2609',
     entry: { routeId: salinas.id, transitionId: 'transition-fix:SNS2:1', name: 'ARTYY', effectiveDate: '2026-09-03' } };
   const salinasAirports: FeatureCollectionResponse = { ...airports, features: [...airports.features,
     { type: 'Feature', id: 'KSNS', properties: { ident: 'KSNS' }, geometry: { type: 'Point', coordinates: [-121.606, 36.663] } }] };
@@ -178,12 +178,16 @@ test('approach connectors insert before and after the airport bundle without edi
   }
 });
 
-test('VTF extends final and never connects the preceding waypoint straight to the FAF', () => {
+test('VTF connects the preceding waypoint to the FAF for map and terrain planning', () => {
   const selection = { ...selected, entry: { ...selected.entry!, transitionId: 'vectors', name: 'VTF' } };
   const plan = resolve(draft(selection));
   assert.equal(plan.approachExtensions?.length, 1);
   assert.deepEqual(plan.waypoints.filter(p => p.owners.length).map(p => p.ident), ['AXMUL', 'RW28R', 'VIKYU']);
   assert.ok(!plan.legs.some(leg => leg.from.ident === 'KSJC'));
+  assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['KSJC', 'AXMUL']]);
+  const { from, to } = plan.planningConnections![0]!;
+  const a = project(from.feature.geometry.coordinates), b = project(to.feature.geometry.coordinates);
+  assert.ok(corridorDistance([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], routeSegments([plan])) < 1e-8);
   assert.equal(plan.legs.find(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'KOAK')?.edit?.afterEntryId, plan.entries[1]!.id);
   assert.equal(sameRouteApproach(selected, selection), false);
 });
@@ -197,6 +201,8 @@ test('consecutive approaches preserve the previous missed endpoint as the next p
   const nextAirport = plan.waypoints.find(p => p.edit?.entryId === both.entries[2]!.id)!;
   assert.deepEqual(nextAirport.approachArrival?.coordinate, previousExit.feature.geometry.coordinates);
   assert.ok(!plan.legs.some(leg => leg.from === previousExit), 'VTF retains arrival context without a fabricated connector');
+  assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['VIKYU', 'AXMUL']],
+    'connect consecutive approaches without routing back through either airport marker');
   const connected = resolve(setRouteApproach(both, both.entries[2]!, selected));
   const connector = connected.legs.find(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'ARCHI')!;
   assert.equal(connector.edit?.afterEntryId, first.entries[1]!.id);
@@ -223,7 +229,7 @@ test('altitude depictions stay out of route legs; stale or absent editions never
   }
 });
 
-test('KSNS missed approach and holds are displayed without inventing route legs or terrain paths', () => {
+test('missed approach and hold depictions cover terrain without adding route distance', () => {
   const salinas = published.approaches!.procedures.find(p => p.id === 'KSNS:I31')!;
   const preview = approachPreview(salinas, 'transition-fix:SNS1:2')!;
   assert.equal(preview.incomplete, false);
@@ -251,7 +257,10 @@ test('KSNS missed approach and holds are displayed without inventing route legs 
   const arrows = source!.features.filter(f => f.properties?.routeKind === 'hold-direction');
   assert.equal(arrows.length, plan.approachDepictions!.filter(d => d.kind === 'hold').length, 'one arrow per racetrack');
   assert.ok(arrows.every(f => f.geometry.type === 'Point' && typeof f.properties!.holdBearing === 'number' && f.properties!.editKind === undefined));
-  assert.deepEqual(routeSegments([plan]), routeSegments([{ ...plan, approachDepictions: [] }]));
+  assert.deepEqual(plan.planningConnections, [], 'existing schematic connections do not acquire straight chords');
+  for (const depiction of plan.approachDepictions!) for (const point of depiction.coordinates) {
+    assert.equal(corridorDistance(project(point), routeSegments([plan])), 0);
+  }
   assert.equal(plan.distanceNm, plan.legs.reduce((sum, leg) => sum + leg.distanceNm, 0));
 });
 
@@ -268,16 +277,16 @@ test('KNUQ ILS 32R connects its climb and heading intercept to OAK in previews a
     assert.deepEqual(missed.at(-1), oak.coordinate);
     assert.ok(!preview.segments.some(s => s.phase === 'missed'), 'the altitude-dependent connection stays schematic');
   }
-  const selection: RouteApproach = { airportId: 'KNUQ', procedureId: 'ils32r', name: 'ILS OR LOC RWY 32R', cycle: '2609',
+  const selection: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KNUQ', procedureId: 'ils32r', name: 'ILS OR LOC RWY 32R', cycle: '2609',
     entry: { routeId: procedure.id, transitionId: 'vectors', name: 'VTF', effectiveDate: '2026-09-03' } };
   const navigation: FeatureCollectionResponse = { ...airports, features: [
     { type: 'Feature', id: 'KNUQ', properties: { ident: 'KNUQ' }, geometry: { type: 'Point', coordinates: [-122.049, 37.416] } }] };
   const original = routeDraftFromText('KNUQ');
   const plan = createRouteResolver([navigation], undefined, moffett)(setRouteApproach(original, original.entries[0]!, selection));
   assert.equal(plan.issues.length, 0);
-  assert.equal(plan.legs.length, 1, 'only FAF to MAP contributes to route distance and terrain');
+  assert.equal(plan.legs.length, 1, 'only FAF to MAP contributes to route distance');
   assert.equal(plan.distanceNm, plan.legs[0]!.distanceNm);
-  assert.deepEqual(routeSegments([plan]), routeSegments([{ ...plan, approachDepictions: [] }]));
+  assert.ok(routeSegments([plan]).length > routeSegments([{ ...plan, approachDepictions: [] }]).length);
   let source: FeatureCollection | undefined;
   syncRoute({ setGlobalStateProperty() {}, getSource: (id: string) => ({ setData(data: FeatureCollection) { if (id === ROUTE_SOURCE_ID) source = data; } }) } as unknown as MapLibreMap, plan);
   const missed = source!.features.find(f => f.properties?.routeKind === 'approach-missed')!;
@@ -309,7 +318,9 @@ test('missed intercepts require a known heading and a following coded inbound co
   for (const [name, change] of invalid) {
     const unsupported = structuredClone(procedure); change(unsupported);
     const preview = approachPreview(unsupported, 'vectors')!;
-    assert.equal(preview.depictions.filter(d => d.kind === 'missed').length, 0, name);
+    const missed = preview.spans.filter(s => s.symbol === 'missed');
+    assert.ok(missed.every(s => s.to === undefined && s.assumptions.includes('open-termination')), name);
+    assert.ok(preview.spans.some(s => s.kind === 'gap'), name);
     assert.equal(preview.incomplete, true, name);
     if (name === 'trailing intercept') assert.equal(preview.exit, undefined);
   }
@@ -396,6 +407,10 @@ test('map source carries selected geometry, missed styling, VTF extension and fi
   let source: FeatureCollection | undefined;
   syncRoute({ setGlobalStateProperty() {}, getSource: (id: string) => ({ setData(data: FeatureCollection) { if (id === ROUTE_SOURCE_ID) source = data; } }) } as unknown as MapLibreMap, plan);
   assert.ok(source!.features.some(f => f.properties?.routeKind === 'approach-extension'));
+  const connection = source!.features.find(f => f.properties?.routeKind === 'planning-connection')!;
+  assert.deepEqual(connection.geometry, { type: 'LineString', coordinates: plan.planningConnections!.flatMap(c =>
+    [c.from.feature.geometry.coordinates, c.to.feature.geometry.coordinates]) });
+  assert.equal(connection.properties!.editKind, undefined);
   assert.ok(source!.features.some(f => f.properties?.approachPhase === 'missed'));
   assert.ok(source!.features.some(f => f.properties?.ident === 'AXMUL' && f.properties.approachRole === 'FAF'));
   assert.ok(source!.features.filter(f => f.properties?.approachPoint).every(f => f.properties?.editKind === undefined));

@@ -39,14 +39,22 @@ test('corridor width accounts for latitude and works in both antimeridian world 
   assert.equal(segmentsForTile({ z: 12, x: 2048, y: 2048 }, [[a, b]]).length, 0);
 });
 
-test('terrain only follows displayed resolved legs and does not connect across an unresolved token', () => {
+test('terrain connects known points across unresolved tokens without inventing endpoints', () => {
   const points: FeatureCollectionResponse = { type: 'FeatureCollection',
     features: ['AAAA', 'BBBB', 'CCCC'].map((ident, index) => ({ type: 'Feature', id: ident,
       geometry: { type: 'Point', coordinates: [index, 0] }, properties: { ident } })),
     meta: { layer: 'airports', revision: '2026-09-03', returned: 3, truncated: false } };
   const resolve = createRouteResolver([points]);
   assert.equal(routeSegments([resolve('AAAA BBBB')]).length, 1);
-  assert.equal(routeSegments([resolve('AAAA MISSING BBBB')]).length, 0);
+  const plan = resolve('MISSING AAAA UNKNOWN ALSO BBBB CCCC MISSING');
+  assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['AAAA', 'BBBB']]);
+  assert.equal(plan.legs.length, 1);
+  assert.deepEqual(new Set(routeSegments([plan]).map(s => JSON.stringify(s))),
+    new Set(routeSegments([resolve('AAAA BBBB CCCC')]).map(s => JSON.stringify(s))));
+  assert.ok(plan.issues.length > 0);
+  assert.equal(plan.distanceNm, plan.legs[0]!.distanceNm);
+  assert.deepEqual(resolve('AAAA MISSING AAAA').planningConnections, [], 'coincident known points need no connector');
+  assert.equal(routeSegments([resolve('MISSING AAAA UNKNOWN')]).length, 0);
   assert.equal(routeSegments([resolve('AAAA')]).length, 0);
   assert.equal(routeSegments([]).length, 0);
 });

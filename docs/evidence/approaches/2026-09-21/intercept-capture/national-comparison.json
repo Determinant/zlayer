@@ -1,0 +1,452 @@
+{
+  "recordedAt": "2026-09-21T21:02:18.839823+00:00",
+  "effectiveDate": "2026-09-03",
+  "sourceSha256": "fbea2179a990e1d371d77439961d137e83252582b3c67b6ec85b8d9d11c76cad",
+  "terminalSha256": "0382aa8456a5cc3362e8c6e7d1eaee60a59210bc32618c790d1fcd437579743a",
+  "policy": {
+    "before": 3,
+    "after": 4
+  },
+  "implementation": {
+    "coded-terminals.ts": "50df356a0f2a845b4869f4670ecfa9be0f66b105bdee6b19494eb4341fc751a1",
+    "approaches.ts": "be55f1406e74040cfc5822160b6b054f9fb5196bce8585ce6d06c7d4a52dd326",
+    "approach-path.ts": "524982480500022ec219de3a2708a1f37b5fa62bc8234fdcffcab639d0afb883",
+    "approach-geometry.ts": "2400f321195f4a22fbf5c56754f43727f59798df2844554e3a0b483bfa7b90ef",
+    "approach-path-geometry.ts": "8fe0dbf3bca4d3b4a39dbd038d2aa1a1989d63c91fb7f3d8d301defc350b1053",
+    "approach-joining.ts": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a"
+  },
+  "terminal": {
+    "before": {
+      "departure": {
+        "procedures": 2193,
+        "paths": 19927,
+        "withoutDiagnostics": 16512,
+        "manualOnly": 3322,
+        "needsReview": 93,
+        "issues": {
+          "manual-termination:VM": 3129,
+          "manual-termination:FM": 244,
+          "no-forward-intersection:VI": 21,
+          "no-forward-intersection:CI": 1,
+          "missing-reference:FA": 1,
+          "geometry-review:CA": 3,
+          "geometry-review:VA": 15,
+          "geometry-review:FA": 1,
+          "missing-reference:VA": 36,
+          "geometry-review:VR": 2,
+          "geometry-review:VD": 2,
+          "missing-reference:VI": 15
+        }
+      },
+      "arrival": {
+        "procedures": 1916,
+        "paths": 10429,
+        "withoutDiagnostics": 1873,
+        "manualOnly": 8556,
+        "needsReview": 0,
+        "issues": {
+          "manual-termination:FM": 6615,
+          "manual-termination:VM": 1941
+        }
+      },
+      "approach": {
+        "procedures": 10234,
+        "paths": 37836,
+        "withoutDiagnostics": 37635,
+        "manualOnly": 0,
+        "needsReview": 201,
+        "issues": {
+          "no-forward-intersection:VI": 102,
+          "missing-reference:PI": 19,
+          "missing-reference:XX": 16,
+          "missing-reference:VI": 8,
+          "inconsistent-constraints:DF": 10,
+          "geometry-review:CA": 22,
+          "missing-reference:CI": 8,
+          "unsupported-leg:XX": 14,
+          "geometry-review:FC": 4,
+          "inconsistent-constraints:AF": 6,
+          "missing-reference:FA": 10,
+          "missing-reference:VA": 8,
+          "manual-termination:VM": 8
+        }
+      }
+    },
+    "after": {
+      "departure": {
+        "procedures": 2193,
+        "paths": 19927,
+        "withoutDiagnostics": 16514,
+        "manualOnly": 3322,
+        "needsReview": 91,
+        "issues": {
+          "manual-termination:VM": 3129,
+          "manual-termination:FM": 244,
+          "no-forward-intersection:VI": 21,
+          "no-forward-intersection:CI": 1,
+          "missing-reference:FA": 1,
+          "geometry-review:CA": 2,
+          "inconsistent-constraints:CF": 9,
+          "geometry-review:VA": 6,
+          "missing-reference:VA": 36,
+          "geometry-review:VR": 2,
+          "geometry-review:VD": 2,
+          "missing-reference:VI": 15
+        }
+      },
+      "arrival": {
+        "procedures": 1916,
+        "paths": 10429,
+        "withoutDiagnostics": 1873,
+        "manualOnly": 8556,
+        "needsReview": 0,
+        "issues": {
+          "manual-termination:FM": 6615,
+          "manual-termination:VM": 1941
+        }
+      },
+      "approach": {
+        "procedures": 10234,
+        "paths": 37836,
+        "withoutDiagnostics": 37635,
+        "manualOnly": 0,
+        "needsReview": 201,
+        "issues": {
+          "no-forward-intersection:VI": 102,
+          "missing-reference:PI": 19,
+          "missing-reference:XX": 16,
+          "missing-reference:VI": 8,
+          "inconsistent-constraints:DF": 10,
+          "inconsistent-constraints:CF": 16,
+          "missing-reference:CI": 8,
+          "unsupported-leg:XX": 14,
+          "geometry-review:FC": 4,
+          "geometry-review:CA": 6,
+          "inconsistent-constraints:AF": 6,
+          "missing-reference:FA": 10,
+          "missing-reference:VA": 8,
+          "manual-termination:VM": 8
+        }
+      }
+    },
+    "newReviewChoices": [],
+    "resolvedReviewChoices": [
+      {
+        "kind": "departure",
+        "procedure": "KLMT:departure:CRATR1",
+        "selection": {
+          "branches": [
+            "1:RW32"
+          ],
+          "runway": "RW32"
+        },
+        "issues": [
+          {
+            "code": "geometry-review",
+            "leg": 1,
+            "path": "VA",
+            "source": "1:RW32:010",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ]
+      },
+      {
+        "kind": "departure",
+        "procedure": "KMSO:departure:GRZLY4",
+        "selection": {
+          "branches": [
+            "1:RW12"
+          ],
+          "runway": "RW12"
+        },
+        "issues": [
+          {
+            "code": "geometry-review",
+            "leg": 1,
+            "path": "CA",
+            "source": "1:RW12:010",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ]
+      }
+    ]
+  },
+  "chart": {
+    "before": {
+      "airports": 3182,
+      "catalogApproachRecords": 11140,
+      "instrumentChartRecords": 11089,
+      "statuses": {
+        "matched": 9184,
+        "no-exact-coded-match": 1005,
+        "unmatched-title": 900,
+        "visual-chart": 51
+      },
+      "unmatchedReasons": {
+        "airport-without-coded-approaches": 998,
+        "faa-listed-omission": 458,
+        "no-exact-source-record": 5,
+        "outside-published-cifp-scope": 304,
+        "special-family-without-verified-association": 140
+      },
+      "availableTitleCandidates": 0,
+      "faaExcludedRecords": 463,
+      "matchedWithoutEntries": 0,
+      "unofferedTransitions": 8,
+      "entries": 34214,
+      "incompleteEntries": 134,
+      "chartsWithGaps": 48,
+      "airportsWithGaps": 43,
+      "warningEntries": 134,
+      "warningEntriesMarkedComplete": 0,
+      "warningCounts": {
+        "no-forward-intersection": 69,
+        "missing-reference": 33,
+        "inconsistent-constraints": 9,
+        "geometry-review": 13,
+        "schematic-self-crossing": 11,
+        "unsupported-leg": 10,
+        "schematic-detour": 2,
+        "manual-termination": 8
+      }
+    },
+    "after": {
+      "airports": 3182,
+      "catalogApproachRecords": 11140,
+      "instrumentChartRecords": 11089,
+      "statuses": {
+        "matched": 9184,
+        "no-exact-coded-match": 1005,
+        "unmatched-title": 900,
+        "visual-chart": 51
+      },
+      "unmatchedReasons": {
+        "airport-without-coded-approaches": 998,
+        "faa-listed-omission": 458,
+        "no-exact-source-record": 5,
+        "outside-published-cifp-scope": 304,
+        "special-family-without-verified-association": 140
+      },
+      "availableTitleCandidates": 0,
+      "faaExcludedRecords": 463,
+      "matchedWithoutEntries": 0,
+      "unofferedTransitions": 8,
+      "entries": 34214,
+      "incompleteEntries": 134,
+      "chartsWithGaps": 48,
+      "airportsWithGaps": 43,
+      "warningEntries": 134,
+      "warningEntriesMarkedComplete": 0,
+      "warningCounts": {
+        "no-forward-intersection": 69,
+        "missing-reference": 33,
+        "inconsistent-constraints": 17,
+        "unsupported-leg": 10,
+        "geometry-review": 5,
+        "schematic-detour": 2,
+        "schematic-self-crossing": 3,
+        "manual-termination": 8
+      }
+    },
+    "issueChanges": [
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "transition:CLASS",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 7,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 9,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "transition:DIANN",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 7,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 9,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "transition:GEG",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 5,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 7,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "transition:HILIE",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 7,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 9,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "transition-fix:CLASS:3",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 4,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 6,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KCOE",
+        "chart": "2609:KCOE:d7167c10ad24ff57",
+        "procedure": "KCOE:I06",
+        "entry": "vectors",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 2,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 4,
+            "path": "CF",
+            "source": "I::060",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KLAN",
+        "chart": "2609:KLAN:c641bf604ff1a1c0",
+        "procedure": "KLAN:I28L",
+        "entry": "transition:QUBEE",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 5,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 6,
+            "path": "CF",
+            "source": "I::050",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      },
+      {
+        "airport": "KLAN",
+        "chart": "2609:KLAN:c641bf604ff1a1c0",
+        "procedure": "KLAN:I28L",
+        "entry": "vectors",
+        "before": [
+          {
+            "code": "geometry-review",
+            "leg": 2,
+            "path": "CA",
+            "source": "I::040",
+            "message": "The schematic path crosses itself and needs review."
+          }
+        ],
+        "after": [
+          {
+            "code": "inconsistent-constraints",
+            "leg": 3,
+            "path": "CF",
+            "source": "I::050",
+            "message": "The coded course, arc or turn cannot connect these endpoints."
+          }
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "clientUnitTests": 1309,
+    "browserCases": 51,
+    "typecheck": "passed",
+    "productionBuild": "passed"
+  }
+}

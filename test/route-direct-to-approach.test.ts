@@ -14,7 +14,7 @@ const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
   features: ['KSFO', 'KSJC'].map((ident, index) => ({ type: 'Feature', id: ident, properties: { ident },
     geometry: { type: 'Point', coordinates: index ? [-121.929, 37.362] : [-122.375, 37.619] } })),
 };
-const selected: RouteApproach = { airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
+const selected: RouteApproach = { kind: 'approach' as const, source: 'chart' as const, airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
   entry: { routeId: 'KSFO:I28R', transitionId: 'transition:ARCHI', name: 'ARCHI', effectiveDate: '2026-09-03' } };
 const resolve = createRouteResolver([airports], undefined, terminal);
 const position: [number, number] = [-122, 37];

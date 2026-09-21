@@ -17,6 +17,16 @@ export type ApproachLeg = {
   path: string;
   /** Source branch and sequence; stable within an edition. */
   id?: string;
+  sourceFix?: { id: string; ident: string };
+  rnpNm?: number;
+  speed?: { knots: number; restriction: string };
+  verticalAngle?: number;
+  transitionAltitude?: string;
+  turnDirectionValid?: boolean;
+  gnssFms?: string;
+  qualifiers?: string;
+  continuations?: { number: string; application: string; raw: string;
+    services?: { authorization: string; name: string }[] }[];
   reference?: ApproachReference;
   /** ARINC theta/rho, distinct from the flown course and leg distance. */
   radial?: number;
@@ -34,7 +44,7 @@ export type ApproachLeg = {
   /** Hx inbound leg duration, in minutes; never a distance. */
   holdMinutes?: number;
   center?: ApproachCoordinate;
-  /** Published DME radius for AF legs, in nautical miles; distinct from leg distance. */
+  /** Published AF DME radius or RF arc radius, in nautical miles; distinct from leg distance. */
   radiusNm?: number;
 };
 export type ApproachRoute = {
@@ -58,9 +68,25 @@ function coordinate(value: unknown): value is ApproachCoordinate {
   return Array.isArray(value) && value.length === 2 && value.every(Number.isFinite) &&
     Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90;
 }
-function leg(value: unknown): value is ApproachLeg {
+export function isApproachLeg(value: unknown): value is ApproachLeg {
   return isRecord(value) && typeof value.path === 'string' && /^[A-Z]{2}$/.test(value.path) &&
     (value.id === undefined || text(value.id)) &&
+    (value.sourceFix === undefined || isRecord(value.sourceFix) && text(value.sourceFix.id) && text(value.sourceFix.ident)) &&
+    (value.rnpNm === undefined || typeof value.rnpNm === 'number' && Number.isFinite(value.rnpNm) && value.rnpNm >= 0) &&
+    (value.speed === undefined || isRecord(value.speed) && typeof value.speed.knots === 'number' &&
+      Number.isFinite(value.speed.knots) && value.speed.knots >= 0 && typeof value.speed.restriction === 'string' && value.speed.restriction.length <= 1) &&
+    (value.verticalAngle === undefined || typeof value.verticalAngle === 'number' && Number.isFinite(value.verticalAngle) && Math.abs(value.verticalAngle) <= 90) &&
+    (value.transitionAltitude === undefined || typeof value.transitionAltitude === 'string' && /^(?:\d{5}|-\d{4}|FL\d{3})$/.test(value.transitionAltitude)) &&
+    (value.turnDirectionValid === undefined || typeof value.turnDirectionValid === 'boolean') &&
+    (value.gnssFms === undefined || typeof value.gnssFms === 'string' && value.gnssFms.length === 1) &&
+    (value.qualifiers === undefined || typeof value.qualifiers === 'string' && value.qualifiers.length === 2) &&
+    (value.continuations === undefined || Array.isArray(value.continuations) && value.continuations.every(c =>
+      isRecord(c) && typeof c.number === 'string' && /^[2-9A-Z]$/.test(c.number) &&
+      typeof c.application === 'string' && c.application.length === 1 && typeof c.raw === 'string' && c.raw.length === 132 &&
+      c.raw[38] === c.number && c.raw[39] === c.application &&
+      (c.services === undefined || Array.isArray(c.services) && c.services.length === 3 && c.services.every(s =>
+        isRecord(s) && typeof s.authorization === 'string' && s.authorization.length <= 1 && typeof s.name === 'string'))) &&
+      hasUniqueStrings(value.continuations.map(c => c.number))) &&
     (value.reference === undefined || (isRecord(value.reference) && text(value.reference.id) && text(value.reference.ident) &&
       ['navaid', 'localizer'].includes(String(value.reference.type)) &&
       (value.reference.coordinate === undefined || coordinate(value.reference.coordinate)) &&
@@ -90,12 +116,12 @@ export function isApproachRoutesData(value: unknown, revision?: string): value i
     (value.metadata.schemaVersion === undefined || value.metadata.schemaVersion === 2) &&
     (value.unavailable === undefined || Array.isArray(value.unavailable) && value.unavailable.every(p => isRecord(p) &&
       text(p.id) && text(p.airport) && text(p.ident) && ['multiple-main-branches', 'missing-main-branch'].includes(String(p.reason)) &&
-      Array.isArray(p.branches) && p.branches.length > 0 && p.branches.every(b => isRecord(b) && text(b.id) && Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every(leg)))) &&
+      Array.isArray(p.branches) && p.branches.length > 0 && p.branches.every(b => isRecord(b) && text(b.id) && Array.isArray(b.legs) && b.legs.length > 0 && b.legs.every(isApproachLeg)))) &&
     text(value.metadata.source) && Array.isArray(value.procedures) && value.procedures.every(p =>
       isRecord(p) && text(p.id) && text(p.airport) && text(p.ident) &&
       (p.magneticVariation === undefined || typeof p.magneticVariation === 'number' && Number.isFinite(p.magneticVariation) && Math.abs(p.magneticVariation) <= 180) &&
-      Array.isArray(p.final) && p.final.length > 0 && p.final.every(leg) &&
+      Array.isArray(p.final) && p.final.length > 0 && p.final.every(isApproachLeg) &&
       Array.isArray(p.transitions) && p.transitions.every(t => isRecord(t) && text(t.id) &&
-        Array.isArray(t.legs) && t.legs.length > 0 && t.legs.every(leg)) &&
+        Array.isArray(t.legs) && t.legs.length > 0 && t.legs.every(isApproachLeg)) &&
       hasUniqueStrings(p.transitions.map(t => t.id))) && hasUniqueStrings(value.procedures.map(p => p.id));
 }

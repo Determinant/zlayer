@@ -1,0 +1,36 @@
+{
+  "reviewDate": "2026-09-21",
+  "edition": "2026-09-03",
+  "status": "Review observations before fixes; current uncommitted working trees",
+  "terminalGuard": {
+    "advertisedApproaches": 10234,
+    "mutation": "Remove approaches and codedProcedures, retain metadata and NASR procedures",
+    "accepted": true
+  },
+  "nasrInputValidation": {
+    "missingAirportLatitudeHeader": { "originalAirports": 19411, "mutatedAirports": 0, "threw": false },
+    "headerOnlyFixTable": { "originalFixes": 70089, "mutatedFixes": 0, "threw": false }
+  },
+  "supplementCoverage": {
+    "region": "California",
+    "mutation": "Remove SW volume and its airport entries",
+    "completeCatalog": { "valid": true, "references": ["procedures", "chart-supplements"], "swBookIncluded": true, "snapshotFilesIncluded": true },
+    "partialCatalog": { "valid": true, "references": ["procedures"], "swBookIncluded": false, "snapshotFilesIncluded": true }
+  },
+  "publicationInterruption": {
+    "method": "Child exits immediately after renaming canonical nav directory to backup in /tmp",
+    "exitCode": 91,
+    "canonicalNavExists": false,
+    "backupExists": true,
+    "stagingExists": true
+  },
+  "resolverMeasurement": {
+    "method": "Single Node 24 run, JSON already loaded, explicit GC around retained heap measurement; no airway/preferred inputs",
+    "nationalNavigationAndTerminal": { "milliseconds": 378, "retainedHeapMiB": 36.4 },
+    "oneAirportAndNationalTerminal": { "milliseconds": 141, "retainedHeapMiB": 16.9 },
+    "oneAirportWithoutTerminal": { "roundedMilliseconds": 0, "roundedRetainedHeapMiB": 0 },
+    "limitation": "Local construction measurements, not mobile or browser benchmarks"
+  },
+  "focusedTests": { "client": "passed", "publisher": "passed" },
+  "productionCodeChangedByReview": false
+}

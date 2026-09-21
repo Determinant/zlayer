@@ -22,7 +22,7 @@ export function radiusArc(from: Coordinate, to: Coordinate, center: Coordinate, 
   return Array.from({ length: count + 1 }, (_, i) => i === 0 ? from : i === count ? to : destination(center, start + sweep * i / count, radius));
 }
 
-export function approachCourse(leg: ApproachLeg, procedure: ApproachRoute): number | undefined {
+export function approachCourse(leg: ApproachLeg, procedure: Pick<ApproachRoute, 'magneticVariation'>): number | undefined {
   if (leg.trueCourse !== undefined) return leg.trueCourse;
   const course = leg.magneticCourse;
   if (course === undefined) return undefined;
@@ -47,7 +47,7 @@ export function approachCourse(leg: ApproachLeg, procedure: ApproachRoute): numb
  * Use the surveyed endpoints: a VOR's station declination can differ from the
  * airport variation. Check the coded lengths before treating them as one line.
  */
-export function courseFromFix(leg: ApproachLeg, next: ApproachLeg, procedure: ApproachRoute): Coordinate[] | undefined {
+export function courseFromFix(leg: ApproachLeg, next: ApproachLeg, procedure: Pick<ApproachRoute, 'magneticVariation'>): Coordinate[] | undefined {
   const from = leg.fix?.coordinate, to = next.fix?.coordinate;
   const course = leg.trueCourse ?? leg.magneticCourse, inbound = next.trueCourse ?? next.magneticCourse;
   if (leg.path !== 'FC' || next.path !== 'CF' || !from || !to || !leg.distance || !next.distance ||
@@ -62,7 +62,7 @@ export function courseFromFix(leg: ApproachLeg, next: ApproachLeg, procedure: Ap
 }
 
 /** No-wind CI/VI preview, bounded by the following CF course and fix. */
-export function courseIntercept(from: Coordinate, leg: ApproachLeg, next: ApproachLeg, procedure: ApproachRoute): Coordinate[] | undefined {
+export function courseIntercept(from: Coordinate, leg: ApproachLeg, next: ApproachLeg, procedure: Pick<ApproachRoute, 'magneticVariation'>): Coordinate[] | undefined {
   const outbound = approachCourse(leg, procedure), inbound = approachCourse(next, procedure), to = next.fix?.coordinate;
   if (!['CI', 'VI'].includes(leg.path) || leg.fix || next.path !== 'CF' || !to || outbound === undefined || inbound === undefined) return undefined;
   type Vector = [number, number, number];
@@ -116,7 +116,7 @@ export function holdingEntry(inbound: number, arrival: number, turn: 'L' | 'R'):
 }
 
 /** Oriented racetrack symbol. Turn radius and timed-leg scale are illustrative, not flight guidance. */
-export function holdingPattern(leg: ApproachLeg, procedure: ApproachRoute): {
+export function holdingPattern(leg: ApproachLeg, procedure: Pick<ApproachRoute, 'magneticVariation'>): {
   coordinates: Coordinate[]; arrow: { coordinate: Coordinate; bearing: number };
 } | undefined {
   const inbound = approachCourse(leg, procedure), fix = leg.fix?.coordinate;

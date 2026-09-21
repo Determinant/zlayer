@@ -20,7 +20,7 @@ test('procedure tokens retain filing text and explain the transition and preview
   const html = renderToStaticMarkup(createElement(RouteBar, { ...props, plan }));
   assert.match(html, /SPTNS1 · SID · SJC · VLREE transition · waypoint preview/);
   assert.match(html, /<strong>SPTNS1<\/strong>/);
-  assert.match(html, /airport connections, vectors, turn paths and constraints are not depicted/);
+  assert.match(html, /paths and restrictions depend on the available procedure data/);
 });
 const props: ComponentProps<typeof RouteBar> = {
   plan: emptyRoutePlan('KSFO BAD KSJC'), status: 'ready',

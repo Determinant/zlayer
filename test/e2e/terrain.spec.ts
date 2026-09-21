@@ -5,6 +5,25 @@ import { terrainColor, TERRAIN_FILL_OPACITY } from '../../src/layers/terrain/pal
 import { terrainMeters, terrainPng } from './terrain-fixture.mjs';
 import { clearanceColor } from '../../src/layers/terrain/clearance';
 
+test('terrain covers a route consisting entirely of planning connections across gaps', async ({ page }, testInfo) => {
+  await page.goto('/test/browser/terrain.html?gaps');
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true');
+  await expect.poll(() => page.evaluate(() => window.terrainMapAudit.map
+    .queryRenderedFeatures({ layers: ['route-planning-connection'] }).length)).toBeGreaterThan(0);
+  await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
+  const filled = await page.evaluate(() => {
+    const map = window.terrainMapAudit.map, canvas = map.getCanvas(), gl = canvas.getContext('webgl2')!;
+    // Sample beside the connector, between endpoints and away from its line/labels.
+    const p = map.project([-122.225, 37.49]), pixel = new Uint8Array(4), scale = canvas.width / canvas.clientWidth;
+    gl.readPixels(Math.round(p.x * scale), canvas.height - Math.round(p.y * scale), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    return [238, 234, 225].some((background, i) => Math.abs(pixel[i]! - background) > 10);
+  });
+  expect(filled).toBe(true);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+  await page.screenshot({ path: testInfo.outputPath('planning-connections-terrain.png') });
+});
+
 test('the 8 NM fade stays transparent with reduced-precision texture sampling', async ({ browser }, testInfo) => {
   const viewport = { width: 1100, height: 850 }, density = 3, zoom = 9.35;
   const context = await browser.newContext({ viewport, deviceScaleFactor: density });

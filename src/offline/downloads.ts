@@ -1,5 +1,5 @@
 import type { ReferenceResource } from '../core/data/references';
-import type { Bounds, CatalogResponse } from '@zlayer/contracts';
+import type { Bounds, CatalogResponse, ChartSupplementTarget } from '@zlayer/contracts';
 import { isActivated } from './region-selection';
 import { withAbort } from '../core/data/abort';
 import { snapshotFilesIncluded } from './plan-records';
@@ -27,6 +27,8 @@ export type DownloadPlan = {
   revision: string;
   files: OfflineFile[];
   references: ReferenceResource[];
+  /** Present on new complete-region plans, including [] when the FAA index has no targets. */
+  supplementTargets?: ChartSupplementTarget[];
   bounds?: Bounds[];
   // The planner supplies metadata; persistence stores one shared immutable snapshot.
   catalog?: CatalogResponse;

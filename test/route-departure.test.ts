@@ -24,7 +24,7 @@ const procedure = terminal.procedures[0]!;
 const branches = departureBranches(procedure, 'SFO');
 const selection = (runway: string): RouteDeparture => {
   const branch = branches.find(branch => branch.id.endsWith(`:${runway}`))!;
-  return { airportId: 'SFO', procedureId: procedure.id, ident: procedure.ident, name: procedure.name,
+  return { kind: 'departure' as const, source: 'nasr' as const, airportId: 'SFO', procedureId: procedure.id, ident: procedure.ident, name: procedure.name,
     effectiveDate: terminal.metadata.effectiveDate, branchId: branch.id, branchName: branch.name, transition: 'DEDHD' };
 };
 const draft = (runway = '01L', text = 'KSFO KSJC') => {

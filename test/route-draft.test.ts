@@ -135,8 +135,8 @@ test('feature edits preserve and shift exact feature pins', () => {
 test('replacing a feature with the same pinned entity preserves its airport attachments', () => {
   const airport = point('airport:ksfo', 'KSFO');
   const draft: RouteDraft = { entries: appendRouteFeature(routeDraftFromText(''), airport).entries.map(entry => ({
-    ...entry, approach: { airportId: 'SFO', procedureId: 'ils28r', name: 'ILS RWY 28R', cycle: 'test' },
-    departure: { airportId: 'SFO', procedureId: 'sfo', ident: 'SFO5', name: 'SAN FRANCISCO FIVE',
+    ...entry, approach: { kind: 'approach' as const, source: 'chart' as const, airportId: 'SFO', procedureId: 'ils28r', name: 'ILS RWY 28R', cycle: 'test' },
+    departure: { kind: 'departure' as const, source: 'nasr' as const, airportId: 'SFO', procedureId: 'sfo', ident: 'SFO5', name: 'SAN FRANCISCO FIVE',
       effectiveDate: '2026-09-03', transition: 'SNS' },
   })) };
   const entry = draft.entries[0]!;

@@ -3,7 +3,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
-import { reviewedApproachAssociations } from '../packages/domain/src/approach-matching.ts';
 
 const [beforePath, afterPath, output] = process.argv.slice(2);
 if (!beforePath || !afterPath || !output) throw new Error('Expected before, after and output prefix');
@@ -32,7 +31,7 @@ function summarize(audit, predicate) {
     unmatchedReasons: counts(charts.map(c => c.unmatchedReason).filter(Boolean)) };
 }
 function mechanism(a, c) {
-  if (reviewedApproachAssociations.some(([airport, title]) => airport === a.id && title === c.name)) return 'plate-reviewed-association';
+  if (c.associationRule === 'reviewed') return 'plate-reviewed-association';
   if (['87N', 'KJRA'].includes(a.id)) return 'heliport-export';
   if (c.name.endsWith('(SA CAT I)')) return 'category-i-title';
   if (/, CONT\.\d+$/.test(c.name)) return 'continuation-title';

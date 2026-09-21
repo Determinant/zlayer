@@ -158,7 +158,7 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
             <textarea id={`${id}-route`} value={text} rows={4} autoCapitalize="characters" spellCheck={false} disabled={busy}
               onChange={event => setText(event.target.value)} />
           </label>
-          {view.route.draft.entries.some(entry => entry.approach || entry.departure) &&
+          {view.route.draft.entries.some(entry => entry.approach || entry.departure || entry.arrival) &&
             <p className="route-stash-note">Changing or removing an airport also removes its attached procedures.</p>}
         </>}
         {state.error && <p className="route-stash-error" role="alert">{state.error}</p>}
@@ -175,8 +175,8 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
 
 function RouteStashSummary({ draft }: { draft: RouteDraft }) {
   return <div className="route-stash-path">
-    {draft.entries.map(entry => <span key={entry.id} className={`route-stash-entry${entry.approach || entry.departure ? ' route-approach-bundle' : ''}${entry.departure ? ' has-departure' : ''}${entry.approach ? ' has-approach' : ''}`}>
-      {(entry.approach || entry.departure) && <span className="route-approach-outline" aria-hidden="true" />}
+    {draft.entries.map(entry => <span key={entry.id} className={`route-stash-entry${entry.approach || entry.departure || entry.arrival ? ' route-approach-bundle' : ''}${entry.departure ? ' has-departure' : ''}${entry.approach ? ' has-approach' : ''}`}>
+      {(entry.approach || entry.departure || entry.arrival) && <span className="route-approach-outline" aria-hidden="true" />}
       {entry.approach && <>
         <span className="route-stash-approach" title={`${entry.approach.name}${entry.approach.entry ? ` · ${entry.approach.entry.name}` : ''}`}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2v3a5 5 0 0 0 5 5h4M10 7l3 3-3 3" /></svg>
@@ -184,6 +184,9 @@ function RouteStashSummary({ draft }: { draft: RouteDraft }) {
         </span>
       </>}
       <span className="route-token route-stash-chip" title={entry.text}><strong>{formatWaypointLabel(entry.text)}</strong></span>
+      {entry.arrival && <span className="route-stash-approach" title={entry.arrival.name}>
+        <span>{entry.arrival.ident} · {entry.arrival.branchName} · {entry.arrival.transition || 'Vectors'}</span>
+      </span>}
       {entry.departure && <span className="route-stash-approach" title={`${entry.departure.name} · ${entry.departure.branchName ?? 'Choose branch'} · ${entry.departure.transition}`}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12h3a5 5 0 0 0 5-5V3M7 6l3-3 3 3" /></svg>
         <span>{entry.departure.ident} · {entry.departure.branchName?.split(' · ')[0] ?? 'Choose branch'} · {entry.departure.transition}</span>

@@ -1,5 +1,12 @@
 # Approach coverage and validation
 
+The broader coded terminal audit is documented in
+[terminal procedures](terminal-procedures.md#national-verification-faa-2609-effective-2026-09-03).
+It includes all coded approaches independently of plate-title matching, plus
+SID/STAR choices, continuations and source integrity. The chart-based counts
+below describe their original review scope; they are not totals for that newer
+coded-procedure audit.
+
 Coverage has three separate dimensions: a chart can be available without an
 unambiguous coded route; a matched route can omit an entry; and an offered entry
 can contain fixed geometry, declared schematics or unresolved connections.
@@ -82,6 +89,8 @@ evidence only and never authorize route substitution.
   require source/plate work; they are not all proven permanently impossible.
 - **Edition-specific associations:** the reviewed exceptions below expire after
   the 2026-09-03 edition and require renewed evidence before carrying forward.
+  They now live in the publisher’s dated association data, pinned to the reviewed
+  CIFP/XML source hashes; the browser consumes the resulting TPP catalog records.
   Do not strip variants or substitute a fixed-wing procedure for a helicopter
   chart based only on the runway.
 - **Unoffered feeder starts:** KDAF R36/CMY, KDXE R18/GENTE and R36/GADLE,
@@ -95,7 +104,7 @@ evidence only and never authorize route substitution.
 
 ## Reviewed associations
 
-The matcher used by both the picker and saved-route expansion preserves chart
+The publisher generates edition-specific chart associations and preserves chart
 names, qualifications, variants and exact route IDs. Standard title handling
 supports conventional combined titles, continuation pages, SA CAT I and helicopter
 approaches named by three-digit course. The publisher exports HA variation,

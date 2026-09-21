@@ -6,17 +6,25 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { isTerminalProceduresData, isProcedureCatalog } from '@zlayer/contracts';
-import { approachIdent, findApproachRoutes, approachEntryOptions, approachEntryLegs, approachPreview, distanceNm } from '@zlayer/domain';
+import { approachIdent, findApproachRoutes, publishedApproachRoutes, approachEntryOptions, approachEntryLegs, approachPreview, distanceNm } from '@zlayer/domain';
 import { approachCourse, bearing } from '../packages/domain/src/approach-geometry.ts';
 
 const [directory, output, state = 'CA'] = process.argv.slice(2);
 if (!directory || !output) throw new Error('Usage: node --import=tsx tools/audit-iap-coverage.mjs <cycle-directory> <output.json> [state]');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const catalogBytes = readFileSync(resolve(directory, 'tpp/catalog.json'));
-const routesBytes = readFileSync(resolve(directory, 'nav/terminal-procedures.json'));
+const tppManifest = JSON.parse(readFileSync(resolve(directory, 'tpp/manifest.json')));
+const navManifest = JSON.parse(readFileSync(resolve(directory, 'nav/manifest.json')));
+const terminalProduct = navManifest.products.find(p => p.id === 'terminal-procedures');
+const catalogBytes = readFileSync(resolve(directory, 'tpp', tppManifest.file ?? 'catalog.json'));
+const routesBytes = readFileSync(resolve(directory, 'nav', terminalProduct.file));
 const catalog = JSON.parse(catalogBytes), terminal = JSON.parse(routesBytes);
 if (!isProcedureCatalog(catalog) || !isTerminalProceduresData(terminal) || !terminal.approaches ||
     catalog.effectiveDate !== terminal.approaches.metadata.effectiveDate) throw new Error('Invalid or mismatched procedure editions');
+if (navManifest.schemaVersion === 2 && (hash(routesBytes) !== terminalProduct.sha256 ||
+    hash(JSON.stringify(terminal)) !== terminalProduct.jsonSha256)) throw new Error('Invalid navigation publication identity');
+if (tppManifest.schemaVersion === 2 && (hash(catalogBytes) !== tppManifest.sha256 ||
+    catalog.associations?.sources.terminalJsonSha256 !== terminalProduct.jsonSha256))
+  throw new Error('Chart associations do not match this navigation generation; rebuild the procedure catalog after navigation');
 const archive = resolve(directory, `nasr/CIFP_${catalog.effectiveDate.slice(2).replaceAll('-', '')}.zip`);
 // FAA's excluded-procedure workbook is part of the source archive. Python's
 // standard library reads the XLSX container; no spreadsheet service is needed.
@@ -106,7 +114,17 @@ function inspectEntry(procedure, entry) {
     if (span.assumptions.includes('climb-return') && (!climbReturn || returnCrossings !== 1)) warn('unverified-climb-return', {});
     const length = p.slice(1).reduce((sum, x, i) => sum + distanceNm(p[i], x), 0);
     const direct = distanceNm(p[0], p.at(-1));
-    if (!maneuver && !span.assumptions.includes('altitude-dependent') && length > 2 * direct + 3) warn('schematic-detour', { kind: span.symbol, lengthNm: round(length), directNm: round(direct) });
+    // A published outbound leg can take a reversal far beyond its endpoints.
+    // Allow that distance only after independently verifying its drawn extent.
+    let outboundDistance = 0;
+    for (const outbound of span.legs.map(i => legs[i]).filter(l => l?.path === 'FC' && l.fix && l.distance)) {
+      const index = p.findIndex(x => near(x, outbound.fix.coordinate));
+      if (index >= 0 && p[index + 1] && Math.abs(distanceNm(p[index], p[index + 1]) - outbound.distance) < .06)
+        outboundDistance += outbound.distance;
+      else warn('FC-distance-mismatch', { source: outbound.id, distanceNm: outbound.distance });
+    }
+    if (!maneuver && !span.assumptions.includes('altitude-dependent') && length > 2 * (direct + outboundDistance) + 3)
+      warn('schematic-detour', { kind: span.symbol, lengthNm: round(length), directNm: round(direct), outboundNm: round(outboundDistance) });
     for (let i = 1; i < p.length - 1; i++) {
       if (distanceNm(p[i - 1], p[i]) < .001 || distanceNm(p[i], p[i + 1]) < .001) continue;
       const bend = angle(bearing(p[i], p[i - 1]) + 180, bearing(p[i], p[i + 1]));
@@ -129,7 +147,10 @@ for (const airport of catalog.airports.filter(a => state === '*' || a.state === 
   if (!charts.length) continue;
   const airportCode = airport.icaoId ?? airport.faaId;
   const records = charts.map(chart => {
-    const procedures = findApproachRoutes(terminal.approaches, airportCode, chart.name), procedure = procedures[0];
+    const procedures = tppManifest.schemaVersion === 2
+      ? publishedApproachRoutes(terminal.approaches, catalog.associations, chart.id, terminalProduct.jsonSha256)
+      : findApproachRoutes(terminal.approaches, airportCode, chart.name);
+    const procedure = procedures[0];
     const ident = approachIdent(chart.name), id = procedure?.id ?? (ident && `${airportCode}:${ident}`);
     // Candidate aliases are diagnostic only; they never select a route in the app.
     const conventionalTitle = chart.name.replace(/ OR (?:GPS|TACAN)(?=[ -])/, '').replace(/^LOC\/DME BC-/, 'LOC BC-').replace(/^LOC\/DME-/, 'LOC-');
@@ -157,6 +178,7 @@ for (const airport of catalog.airports.filter(a => state === '*' || a.state === 
       : /^(HI-|TACAN\b|COPTER\b)/.test(chart.name) ? 'special-family-without-verified-association'
       : ident ? 'no-exact-source-record' : 'unrecognized-title';
     return { id: chart.id, name: chart.name, url: chart.pdfUrl, status,
+      associationRule: catalog.associations?.records.find(r => r.procedureId === chart.id)?.rule,
       codedId: id ?? null, codedIds: procedures.map(p => p.id), availableTitleCandidate: !procedure && routes.has(candidateId) ? candidateId : null,
       faaExcluded: faaExcludedIds.length > 0, faaExcludedIds, unmatchedReason,
       rawBranches: [...new Set((procedures.length ? procedures.map(p => p.id) : [id]).flatMap(id => [...(rawRoutes.get(id) ?? [])]))].sort(),
@@ -194,7 +216,7 @@ const report = { metadata: { state, cycle: catalog.cycle, effectiveDate: catalog
   geometrySha256: hash(['approach-geometry.ts', 'approach-path.ts', 'approach-path-geometry.ts'].map(f => readFileSync(new URL('../packages/domain/src/' + f, import.meta.url))).join('\n')),
   schemaVersion: terminal.approaches.metadata.schemaVersion ?? 1,
   scope: 'Every non-deleted catalog approach record in the state, all offered entries; automated screening, not plate certification.',
-  geometryThresholds: { courseMismatchDegrees: 15, sharpBendDegrees: 90, detour: 'length > 2 * endpoint distance + 3 NM, except bounded reversals and altitude-dependent paths' },
+  geometryThresholds: { courseMismatchDegrees: 15, sharpBendDegrees: 90, detour: 'length > 2 * (endpoint distance + verified FC outbound distance) + 3 NM, except bounded reversals and altitude-dependent paths' },
 }, summary, airports };
 writeFileSync(output, JSON.stringify(report, null, 2) + '\n');
 const cell = value => `"${String(value ?? '').replaceAll('"', '""')}"`;
