@@ -45,8 +45,17 @@ route recommendations participate; unresolved route gaps do not.
   the accelerated cross-thread bitmap corruption reproduced in WebKit; direct
   writes alone were insufficient. See [graphics compatibility](graphics-compatibility.md).
 - Outlines are traced from the same simplified height grid with marching squares,
-  joined across cells and simplified within 0.2 display pixels. Ambiguous saddles
-  use the bilinear surface's diagonal decision so outlines match the filled regions.
+  joined across cells, then lightly rounded with two corner-cutting passes to
+  soften grid stair steps at close zoom. Each pass trims at most 0.5 tile-display
+  pixels from an edge; open endpoints stay fixed at tile edges and missing-data
+  gaps, and closed loops stay closed. Simplification before and after rounding
+  shares a 0.2px error budget, keeping straight spans compact. This only changes
+  outline geometry; fill elevations and sampled highs retain their values.
+  A spatial bucket check rejects rounded outlines that intersect another elevation;
+  those tiles retain the original simplified outlines. The check runs once during
+  tile generation and stops at the first intersection.
+  Ambiguous saddles use the bilinear surface's diagonal decision to preserve
+  region connectivity before rounding.
   Their 4–8 NM fade
   uses short spans grouped into 32 opacity levels; the core remains continuous.
   Vector updates are batched and cached alongside each display tile. Only current
