@@ -11,6 +11,7 @@ import { VIEWPORT_MIN_ZOOM } from './viewport';
 import { TerrainVectorCache, type TerrainVectors } from './vector-cache';
 import type { CatalogReadSource } from '../../workspace/read-context';
 import { terrainSources, terrainSourceKey, packagesForTerrainTile } from './sources';
+import { stitchTerrainContours } from './seams';
 
 type TerrainInput = { routes: readonly RoutePlan[]; enabled: boolean; altitude?: number | null; catalog?: CatalogReadSource; coverage?: TerrainCoverage };
 let nextProtocol = 0;
@@ -69,7 +70,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     if (published?.length === visible.length && visible.every((tile, index) => tile === published![index])) return;
     published = visible;
     syncTerrainLabels(map, visible.flatMap(tile => tile.labels));
-    syncTerrainContours(map, visible.flatMap(tile => tile.lines));
+    syncTerrainContours(map, stitchTerrainContours(visible.flatMap(tile => tile.lines), visible.flatMap(tile => tile.borders ?? []), segments));
   };
   const status = () => {
     const sourceLoading = TERRAIN_SOURCES.some(source => map?.getSource(source) && !map.isSourceLoaded(source));
@@ -148,7 +149,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       }
       if (result.incomplete) failedTiles.add(tileKey); else failedTiles.delete(tileKey);
       if (requestedMode === 'viewport') return { data: result.data };
-      tiles.put(tileKey, { labels: result.labels, lines: result.lines });
+      tiles.put(tileKey, { labels: result.labels, lines: result.lines, borders: result.borders ?? [] });
       if (!vectorTimer) vectorTimer = setTimeout(() => {
         vectorTimer = undefined;
         syncVectors();

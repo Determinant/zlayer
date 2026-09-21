@@ -10,6 +10,7 @@ import { terrainIsolines, type TerrainIsoline } from './isolines';
 import type { TerrainRequest, TerrainResult, TerrainWorker } from './types';
 import { TerrainWorkLimit } from './work-limit';
 import { viewportPixels } from './viewport';
+import { terrainBorder, type TerrainBorder } from './seams';
 
 const elevation = new ElevationTiles();
 const jobs = new Map<number, AbortController>();
@@ -32,6 +33,7 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
   try {
     const labels: TerrainLabel[] = [];
     const lines: TerrainIsoline[] = [];
+    const borders: TerrainBorder[] = [];
     let incomplete = false;
     for (let y = 0; y < factor; y++) {
       for (let x = 0; x < factor; x++) {
@@ -48,8 +50,9 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
           const simplified = simplifyElevation(values, 256, heightSize);
           const heights = interpolateElevation(simplified, heightSize, partSize);
           painted = paintTerrain(heights, demTile, nearby, interval, partSize);
-          const outlines = terrainIsolines(simplified, heightSize, demTile, nearby, interval, partSize);
+          const outlines = terrainIsolines(simplified, heightSize, demTile, nearby, interval, partSize, false);
           lines.push(...outlines.lines);
+          borders.push(terrainBorder(simplified, heightSize, demTile, interval, partSize));
           labels.push(...outlines.labels);
           const high = sampledHigh(values, demTile, segmentsForTile(demTile, nearby, INNER_NM));
           if (high) labels.push(high);
@@ -72,7 +75,7 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
     });
     if (peak) selected.push(peak);
     const data = canvas.transferToImageBitmap();
-    return transfer({ data, labels: selected, lines, incomplete }, [data]);
+    return transfer({ data, labels: selected, lines, borders, incomplete }, [data]);
   } finally {
     // Release backing stores promptly, including on canceled/failed requests.
     canvas.width = canvas.height = 0;

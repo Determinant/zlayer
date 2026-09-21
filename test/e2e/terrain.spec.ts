@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { corridorDistance, corridorOpacity, project, type Point, type Segment } from '../../src/layers/terrain/geometry';
+import { corridorDistance, corridorOpacity, project, unproject, type Point, type Segment } from '../../src/layers/terrain/geometry';
 import { METERS_TO_FEET } from '../../src/layers/terrain/contours';
 import { terrainColor, TERRAIN_FILL_OPACITY } from '../../src/layers/terrain/palette';
-import { terrainMeters } from './terrain-fixture.mjs';
+import { terrainMeters, terrainPng } from './terrain-fixture.mjs';
 import { clearanceColor } from '../../src/layers/terrain/clearance';
 
 test('the 8 NM fade stays transparent with reduced-precision texture sampling', async ({ browser }, testInfo) => {
@@ -149,6 +149,31 @@ test('contour outlines render at fractional close zoom on a high-density display
     await expect(page.getByTestId('errors')).toBeEmpty();
     await page.screenshot({ path: testInfo.outputPath('terrain-fractional-retina.png') });
   } finally { await context.close(); }
+});
+
+test('a peak spanning four terrain tiles renders as a closed contour', async ({ page }, testInfo) => {
+  const scale = 2 ** 13, anchor = project([-122.1, 37.5]);
+  const peak: Point = [(Math.round(anchor[0] * scale) - 0.035) / scale, (Math.round(anchor[1] * scale) - 0.025) / scale];
+  await page.route('**/terrain/*/*/*.png', async route => {
+    const match = /\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/.exec(route.request().url())!;
+    const [z, x, y] = match.slice(1).map(Number);
+    const body = terrainPng(z!, x!, y!, (wx, wy) =>
+      600 * Math.exp(-((Math.hypot(wx - peak[0], wy - peak[1]) * scale / 0.14) ** 2)));
+    await route.fulfill({ contentType: 'image/png', body });
+  });
+  await page.goto('/test/browser/terrain.html?zoom=13.35');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.evaluate(center => { window.terrainMapAudit.map.jumpTo({ center }); }, unproject(peak));
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect.poll(() => page.evaluate(async () => {
+    const source = window.terrainMapAudit.map.getSource('route-terrain-contours') as import('maplibre-gl').GeoJSONSource;
+    const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.MultiLineString>;
+    const paths = data.features.filter(feature => feature.properties?.elevation === 1000)
+      .flatMap(feature => feature.geometry.coordinates);
+    return { paths: paths.length, closed: paths.length === 1 && JSON.stringify(paths[0]![0]) === JSON.stringify(paths[0]!.at(-1)) };
+  }), { timeout: 30_000 }).toEqual({ paths: 1, closed: true });
+  await expect(page.getByTestId('errors')).toBeEmpty();
+  await page.screenshot({ path: testInfo.outputPath('terrain-closed-seam.png') });
 });
 
 test('retina terrain shading stays aligned with the route across subtiles', async ({ browser }, testInfo) => {

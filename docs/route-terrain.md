@@ -63,6 +63,12 @@ route recommendations participate; unresolved route gaps do not.
   geometry is not republished when a fractional zoom only changes stroke width.
   Outlines reuse the existing elevation requests and 512px fill textures without
   supersampling either.
+- Contours stop at each DEM's outer sample centers. When neighboring tiles are
+  visible, their cached edge samples supply the intervening cells, including
+  four-tile corners. Matching spans join into continuous paths and closed loops.
+  This uses at most 4 KiB of border samples per native DEM and makes no additional
+  elevation requests. Seams are rebuilt only when the published tiles change;
+  absent tiles, unknown samples and the corridor fade still leave real gaps open.
 - Labels show major contours and sparse **sampled highs** (`^ ~… ft`), rounded
   upward to the next 100 ft. These are maxima among available core samples per
   display tile, not surveyed summits or guaranteed route maximum elevations.

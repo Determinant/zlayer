@@ -5,13 +5,14 @@ export type TerrainIsoline = { coordinates: Point[][]; elevation: number; opacit
 type ContourPath = { elevation: number; points: Point[] };
 type Vertex = { point: Point; neighbors: Vertex[]; visited?: boolean };
 
-/** March the simplified height grid, then join shared cell edges into paths.
- * Extend sample centers to the tile boundary so outlines reach the same edge as fills. */
-export function traceContours(values: Float32Array, size: number, interval: number): ContourPath[] {
+/** March the height grid and join shared cell edges. Route tiles stop at sample
+ * centers; their cached border samples supply the cells between adjacent tiles. */
+export function traceContours(values: Float32Array, size: number, interval: number, extend = true): ContourPath[] {
   const graphs = new Map<number, Map<string, Vertex>>();
-  const position = (i: number) => Math.max(0, Math.min(1, (i - 0.5) / size));
-  const value = (x: number, y: number) => values[Math.max(0, Math.min(size - 1, y - 1)) * size + Math.max(0, Math.min(size - 1, x - 1))]!;
-  for (let y = 0; y <= size; y++) for (let x = 0; x <= size; x++) {
+  const padding = extend ? 1 : 0, cells = size - 1 + 2 * padding;
+  const position = (i: number) => Math.max(0, Math.min(1, (i + 0.5 - padding) / size));
+  const value = (x: number, y: number) => values[Math.max(0, Math.min(size - 1, y - padding)) * size + Math.max(0, Math.min(size - 1, x - padding))]!;
+  for (let y = 0; y < cells; y++) for (let x = 0; x < cells; x++) {
     const a = value(x, y), b = value(x + 1, y), c = value(x + 1, y + 1), d = value(x, y + 1);
     const low = Math.min(a, b, c, d), high = Math.max(a, b, c, d);
     const first = Math.max(interval, Math.ceil(low / interval) * interval);
@@ -152,10 +153,10 @@ function contoursIntersect(paths: ContourPath[], displaySize: number): boolean {
 /** Fade short outline spans in 1/32 opacity steps; group them into multilines so
  * the core stays a single path and fading does not create a feature per cell. */
 export function terrainIsolines(values: Float32Array, size: number, tile: Tile, segments: readonly Segment[],
-  interval: number, displaySize: number): { lines: TerrainIsoline[]; labels: TerrainLabel[] } {
+  interval: number, displaySize: number, extend = true): { lines: TerrainIsoline[]; labels: TerrainLabel[] } {
   const groups = new Map<string, TerrainIsoline>(), labels: TerrainLabel[] = [];
   const labeled = new Set<number>(), scale = 2 ** tile.z;
-  const traced = traceContours(values, size, interval);
+  const traced = traceContours(values, size, interval, extend);
   let paths = traced.map(({ elevation, points }) => {
     // Drop subpixel vertices before rounding, then compact the result. Split
     // the 0.2px simplification budget to keep both passes bounded and cheap.

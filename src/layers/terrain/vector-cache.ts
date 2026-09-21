@@ -1,6 +1,6 @@
 import type { TerrainResult } from './types';
 
-export type TerrainVectors = Pick<TerrainResult, 'labels' | 'lines'>;
+export type TerrainVectors = Pick<TerrainResult, 'labels' | 'lines' | 'borders'>;
 
 /** Keep the visible set resident, then spend the remaining budget on recent tiles.
  * Map insertion order stays stable so cache hits do not reshuffle label placement. */
