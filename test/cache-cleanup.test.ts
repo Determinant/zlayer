@@ -34,8 +34,9 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
         callback(state.locked ? null : {}),
     } },
     caches: { open: async (name: string) => ({
-      keys: async () => [...stores.get(name)!].map(url => new Request(url)),
-      delete: async (request: Request) => stores.get(name)!.delete(request.url),
+      match: async (request: Request) => stores.get(name)?.has(request.url) ? new Response('file') : undefined,
+      keys: async () => [...stores.get(name) ?? []].map(url => new Request(url)),
+      delete: async (request: Request) => stores.get(name)?.delete(request.url) ?? false,
     }) },
   };
   for (const [name, value] of Object.entries(globals)) {

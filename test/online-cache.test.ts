@@ -42,8 +42,9 @@ function fixture(t: TestContext) {
       query: async () => ({ held: state.held }),
     } },
     caches: { open: async (name: string) => ({
-      keys: async () => [...stores.get(name)!.keys()].map(url => new Request(url)),
-      delete: async (request: Request) => stores.get(name)!.delete(request.url),
+      match: async (request: Request) => stores.get(name)?.get(request.url)?.clone(),
+      keys: async () => [...stores.get(name)?.keys() ?? []].map(url => new Request(url)),
+      delete: async (request: Request) => stores.get(name)?.delete(request.url) ?? false,
     }) },
   };
   for (const [name, value] of Object.entries(globals)) {

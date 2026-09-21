@@ -5,6 +5,106 @@ obstruction decompression substantially reduced iPhone crashes, with occasional
 failures remaining. This review identifies concrete allocation reductions; it
 does not identify the cause of those remaining device terminations.
 
+## iPhone download constraint: KVGT, 2026-09-21
+
+The reporter observed an iPhone crash during a KVGT chart download when the
+display reached approximately **177 MiB**. Treat this as a known failing workload
+for download changes. The iPhone model, iOS version, exact artifact and whether
+the action was opening a plate or saving a region were not supplied. The displayed
+transfer size is **not** a measured heap size or a universal iPhone RAM ceiling.
+The device termination's cause remains unprofiled.
+
+The download review found whole-response Blob accumulation in both chart archives
+and PDF books, and a chart Blob cache bounded only by file count. Incremental
+hashing alone did not bound those allocations. WebKit's
+[Fetch body consumer](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/Modules/fetch/FetchBodyConsumer.cpp)
+builds Blob data from accumulated bytes, and its
+[Cache Storage implementation](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/Modules/cache/DOMCache.cpp)
+accumulates streamed/Blob response data before committing it. Merely wrapping a
+download in a stream, or passing a disk-backed File to `Cache.put`, therefore
+does not establish bounded memory use.
+
+Download constraints now enforced by the application:
+
+- Files larger than **8 MiB**, and downloads whose size is unknown, use an
+  origin-private file when writable local file storage is available. Network
+  chunks are consumed sequentially; each disk write is at most **64 KiB** and
+  finishes before more data is read. Writes use exact-sized buffers: Linux WebKit
+  wrote a view's entire backing buffer in the regression, expanding a 180 MiB
+  input to 720 MiB. Closed-file size validation caught this, and exact copies
+  corrected it. Fetch chooses its own input chunk size.
+- Large payloads never pass through whole-response `blob()`/`arrayBuffer()` or
+  `Cache.put`. Cache Storage publishes a small receipt only after the file is
+  closed and its size, hash, and (for PDFs) signature pass validation. Offline
+  reads check that the referenced file exists and has the recorded size, then
+  give range readers the File directly. Receipts use separate cache namespaces,
+  so an older open page cannot mistake them for empty/corrupt PDFs and delete
+  them. Existing complete legacy copies remain readable.
+  Publication is coordinated across windows; identical verified downloads reuse
+  the file already committed by another window.
+  Removal drops the receipt immediately. Shared file locks keep files and their
+  slices readable until existing readers release them or their context closes;
+  deferred cleanup then reclaims the backing file. Full reset stops readers first
+  and removes the entire directory.
+- Without writable file storage, retained fallback payloads stop at **8 MiB**.
+  Known oversized files fail before consuming the body; unknown lengths stop
+  at the cap. There is no unbounded fallback after denial or quota failure.
+  Large new downloads require `createWritable`, which Apple introduced in
+  [Safari 26](https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes).
+  Earlier Safari versions can still read saved files and download small files;
+  large new downloads present a storage/browser error instead of buffering them.
+- One PDF transfer/verification/publication runs per page, including downloads
+  continuing after their viewer closes. A chart archive above **4 MiB** occupies
+  its cache's entire transfer budget; up to four smaller packages may overlap.
+  Completed chart Blobs have a **16 MiB** aggregate retention cap as well as the
+  existing entry limit. Eviction preserves durable files.
+- Ordinary failures cancel the body, abort the writer, and remove uncommitted
+  files. Later disk downloads reclaim abandoned files older than a day when no
+  receipt or active reader/writer protects them. Cleanup checks receipts under
+  the publication lock and enumerates legacy keys without opening their bodies.
+  Legacy URLs conservatively protect older file generations. Deletion also avoids
+  opening whole legacy bodies. Background cleanup never creates cache namespaces,
+  so it cannot repopulate storage after reset.
+
+These are local allocation/retention bounds, not a total Safari process budget.
+The fallback can overlap its Blob copy and Cache Storage buffers. Different pages,
+the chart service worker, terrain workers, map textures, PDF canvases and AHRS
+also consume memory. Existing whole-body Cache Storage entries remain readable;
+opening those legacy entries may still materialize their complete payloads.
+
+The regression workload streams a synthetic **180 MiB** book to real browser file
+storage, verifies it, reloads, reads it with network fetches disabled, and removes
+both receipt and file. It asserts 64 KiB maximum writes and a zero-byte receipt
+body. This verifies the storage path, not physical-device RAM or a valid rendered
+FAA book. A two-window regression finishes overlapping downloads of the same book,
+removes its receipt, and confirms both viewers can still read nested file slices.
+It then checks reclamation after context shutdown and garbage collection, including
+while another reader's page remains open. Physical iPhone validation must repeat
+the actual KVGT download past 177 MiB, open the requested chart, then reopen offline,
+with map/terrain/AHRS states recorded. Also test low storage, interrupted transfer
+and repeated books.
+
+```sh
+npx playwright test test/e2e/download-memory.spec.ts test/e2e/plate-download.spec.ts
+npx playwright test test/e2e/download-memory.spec.ts test/e2e/plate-download.spec.ts --browser=webkit
+```
+
+Before the subsequent terrain coverage-gap correction, the 2026-09-21 download
+storage revision passed import boundaries, TypeScript, **1,333 unit tests** and
+the production build. The five focused download/plate cases passed in Linux
+WebKit and Firefox, including the 180 MiB transfer, offline chart ranges, overlapping
+windows and live-page garbage collection. The full verification run was stopped
+at the user's request after **267 passing Chromium cases**, including those five
+download/plate cases; its later browser and graphics stages did not complete.
+The browser runs used the Playwright 1.63 Linux container. The terrain coverage-gap
+correction received code review only; no tests were run after the stop request.
+
+The large-file tests use fresh **persistent** browser profiles: WebKit's ephemeral
+contexts deny OPFS. The chart test disables the real test origin; protocol-level
+offline emulation in Linux WebKit rejected even local worker responses. Neither
+the synthetic source nor desktop WebKit establishes a physical iPhone peak RAM
+measurement or reproduces the original device termination.
+
 ## Changes
 
 ### Filter obstruction records before retaining them
@@ -95,8 +195,8 @@ after later editions replace them.
 | --- | --- | --- |
 | Terrain | Four render jobs, four DEM downloads, 128 decoded 256×256 Float32 DEMs (32 MiB), plus up to 32 geographic source grids (8 MiB); route/cell filtering before fetching; max pooling before contour work; explicit bitmap/canvas cleanup; worker termination on removal | Raster textures and normally 128 cached vector-tile results are additional memory. Current screen coverage stays resident if an unusually large viewport exceeds that budget. Vector results are count-bounded, not byte-bounded. Corridor union shares the terrain worker, with one job in flight and one completed outline cached on the main thread; that cache is released on unmount. |
 | Modern chart packages | Spatial packages; 16 reader slots; 4 MiB fast-reader file limit; one SQLite decoder; copied tile buffers only when transferring; consumed bitmaps closed | Up to roughly 64 MiB of compressed package payloads, plus in-flight buffers, SQLite high-water heap and MapLibre textures. Idle readers/decoder remain for reuse. |
-| Legacy charts | Six reader slots; SQLite workers terminated on eviction; whole-file requests coalesced; at most two large downloads; source images decoded sequentially during composition | Reader/file-count limits are not a total memory budget. Low-zoom overview SQL can materialize many compressed tile rows from a legacy sheet. Publisher-generated overviews/packages are preferable. |
-| PDF plates | Blob range reads with auto-fetch disabled; serialized render jobs; each canvas capped at 8,388,608 pixels/32 MiB and 8,192 px per side; render buffers/pages/tasks released | The display plus replacement canvas can total 64 MiB, before PDF.js, fonts and document resources. Download work is shared and can continue after closing a viewer. |
+| Legacy charts | Six reader slots; SQLite workers terminated on eviction; whole-file requests coalesced; one large download per archive cache; completed archive Blobs capped at 16 MiB; source images decoded sequentially during composition | Large new downloads use local files as described above. Reader limits are not a total memory budget. Low-zoom overview SQL can materialize many compressed tile rows from a legacy sheet. Publisher-generated overviews/packages are preferable. |
+| PDF plates | File/Blob range reads with auto-fetch disabled; disk-backed large downloads and one transfer per page; serialized render jobs; each canvas capped at 8,388,608 pixels/32 MiB and 8,192 px per side; render buffers/pages/tasks released | The display plus replacement canvas can total 64 MiB, before PDF.js, fonts and document resources. Download work is shared and can continue after closing a viewer. |
 | IAP on-map | One static MapLibre canvas source; each reprojection canvas capped at 4,194,304 pixels/16 MiB and 3,072 px per side; temporary and replaced canvases released | Preparation uses both a source and output canvas. The existing map plate, PDF viewer and GPU texture can overlap those allocations. The per-canvas cap is not a total plate-memory limit. Pans and zooms reuse the static texture. |
 | Reference caches | Successful requests coalesced; failures retryable; generally 24 ready entries per ResourceCache; regional caches use WeakMap ownership | National navigation, airways, procedures and history still use whole-document parsing. Concurrent loads and multiple editions can overlap; entry counts do not bound bytes. |
 | METAR/TAF | Station/area caches bounded; visible-demand refresh and aborts; handlers removed on unmount | Weather snapshots/joins still allocate per update, now with the early airport filter. |

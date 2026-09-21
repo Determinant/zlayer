@@ -297,7 +297,7 @@ test('bounds whole-file downloads while cached archives bypass the queue', async
   assert.equal(stored.size, 4); // three downloaded archives and the persisted one
 });
 
-test('default download budget allows four small packages but only two large sheets', async () => {
+test('large sheets hold the entire download budget through verification and persistence', async () => {
   const small = new Uint8Array([42]);
   const large = new Uint8Array(4 * 1024 * 1024 + 1);
   const bodies = [large, large, small, small, small, small];
@@ -312,18 +312,45 @@ test('default download budget allows four small packages but only two large shee
   });
   const keys = await Promise.all(bodies.map((body, i) => archiveRequest(`weighted-${i}`, body)));
   const reads = keys.map(key => archives.load(cache, key));
-  await Promise.all(started.slice(0, 2).map(gate => gate.promise));
-  assert.equal(fetches, 2, 'two large sheets fill the budget');
+  await started[0]!.promise;
+  assert.equal(fetches, 1, 'one large sheet fills the budget');
   gates[0]!.resolve(new Response(large));
   await reads[0];
-  await Promise.all(started.slice(2, 4).map(gate => gate.promise));
-  assert.equal(fetches, 4, 'one large sheet and two small packages fill the budget');
+  await started[1]!.promise;
+  assert.equal(fetches, 2, 'the next large sheet also runs alone');
   gates[1]!.resolve(new Response(large));
   await reads[1];
-  await Promise.all(started.slice(4).map(gate => gate.promise));
+  await Promise.all(started.slice(2).map(gate => gate.promise));
   assert.equal(fetches, 6, 'four small packages now download concurrently');
   gates.slice(2).forEach(gate => gate.resolve(new Response(small)));
   await Promise.all(reads);
+});
+
+test('resident chart bytes are bounded even before the file-count limit is reached', async () => {
+  const body = new Uint8Array(6 * 1024 * 1024);
+  const keys = await Promise.all(['byte-first', 'byte-second', 'byte-third'].map(name => archiveRequest(name, body)));
+  const stored = new Set<string>();
+  const matches: string[] = [];
+  const hash = await sha256(body);
+  const cache = {
+    match: async (key: RequestInfo | URL) => {
+      const url = requestUrl(key); matches.push(url);
+      return stored.has(url) ? new Response(body, { headers: {
+        'content-length': String(body.length), 'x-zlayers-verified-sha256': hash,
+      } }) : undefined;
+    },
+    put: async (key: RequestInfo | URL) => { stored.add(requestUrl(key)); },
+    delete: async () => false,
+  };
+  let fetches = 0;
+  const archives = new WholeFileChartCache(async () => { fetches++; return new Response(body); });
+  for (const key of keys) await archives.load(cache, key);
+  const before = matches.length;
+  await archives.load(cache, keys[1]!);
+  assert.equal(matches.length, before, 'a recent archive remains resident');
+  await archives.load(cache, keys[0]!);
+  assert.equal(matches.length, before + 1, 'the oldest archive was released at 18 MiB despite only three files');
+  assert.equal(fetches, 3, 'eviction releases RAM and preserves the saved files');
 });
 
 function deferred<T>() {

@@ -18,6 +18,7 @@ await build({ build: { outDir: directory, rolldownOptions: {
   preserveEntrySignatures: 'exports-only',
   input: { regionalTest: resolve('test/e2e/regional-renderer.ts'), lifecycleTest: resolve('test/e2e/lifecycle.html'),
     terrainStorageTest: resolve('test/browser/terrain-storage.ts'),
+    downloadMemoryTest: resolve('test/browser/download-memory.ts'),
     identificationTest: resolve('test/browser/identification.html'),
     edgePanelsTest: resolve('test/browser/edge-panels.html'),
     fixesTest: resolve('test/browser/fixes.html'),
@@ -28,6 +29,7 @@ await build({ build: { outDir: directory, rolldownOptions: {
     ahrsDrums: resolve('test/browser/ahrs-drums.html'), ahrsGeometry: resolve('test/browser/ahrs-geometry.html') },
   output: { entryFileNames: chunk => chunk.name === 'regionalTest' ? 'regional-test.js'
     : chunk.name === 'terrainStorageTest' ? 'assets/terrain-storage-test.js'
+    : chunk.name === 'downloadMemoryTest' ? 'assets/download-memory-test.js'
     : chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js' },
 } }, logLevel: 'error' });
 const fixtures = await fixtureFiles();
@@ -59,6 +61,14 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
 const server = createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
   if (disconnected && !path.startsWith('/__test/')) { request.socket.destroy(); return; }
+  if (path === '/chart-data/download-memory/archive.mbtiles') {
+    const size = 20 * 1024 * 1024, chunk = Buffer.alloc(256 * 1024);
+    response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': size });
+    if (request.method !== 'HEAD') for (let offset = 0; offset < size; offset += chunk.length) {
+      if (!response.write(chunk)) await new Promise(resolve => response.once('drain', resolve));
+    }
+    response.end(); return;
+  }
   const terrain = /^\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/.exec(path);
   if (terrain) {
     response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=3600' });

@@ -2,7 +2,8 @@ import { VERIFIED_SHA256_HEADER } from './cache-names';
 
 export type ArtifactIdentity = { byteLength?: number; sha256?: string };
 
-/** Only trust receipts read from Cache Storage, committed with verified bytes.
+/** Only trust locally published Cache Storage receipts. File-backed entries must
+ * resolve to an existing file of the recorded size before reaching this check.
  * A server-supplied header must never bypass verification of a new download. */
 export function verificationReceipt(headers: Headers, expected: ArtifactIdentity = {}): {
   byteLength: number; sha256: string;

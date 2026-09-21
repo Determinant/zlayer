@@ -89,13 +89,28 @@ it must never replace a saved book list with a temporary chart-only estimate.
 
 ### Stored files
 
-Cache Storage holds complete MBTiles and PDF files, metadata, viewed basemap
-resources, and the application shell. SHA-256 and length are verified before chart
-or book bytes are persisted. Region downloads use exactly the same content-addressed
+Cache Storage holds small complete MBTiles/PDF files, metadata, viewed basemap
+resources, and the application shell. New large files stream into origin-private
+file storage; Cache Storage holds their small receipts. SHA-256 and length are
+verified before a chart or book is published as available; unverified disk files
+are never exposed by a receipt. Region downloads use exactly the same content-addressed
 book/chart URLs and cycle/export-versioned individual PDF URLs as the map/viewer.
 Previously viewed individual PDFs receive a local integrity receipt on reuse without
 another download. Never introduce persistent per-tile entries, remote SQLite
 page fetching, or duplicate offline copies of whole files.
+
+Large transfers await 64 KiB writes and require writable local file storage.
+The fallback retains at most 8 MiB; lack of storage must fail cleanly instead of
+accumulating an entire book in RAM. Receipts resolve only to existing files of the
+recorded size. Receipts live in separate cache namespaces so older open pages
+cannot invalidate them; legacy complete entries remain readable. Concurrent
+publishers reuse matching verified files. Removal makes an entry unavailable
+immediately, while backing files stay readable for existing viewers until their
+file handles are released. Full reset stops readers before deleting all files.
+Interrupted uncommitted files are cleaned up; files orphaned by process termination
+become eligible for cleanup after a day, with live readers and writers protected. See the
+[KVGT iPhone download constraint](memory-resources.md#iphone-download-constraint-kvgt-2026-09-21)
+for browser support, allocation bounds and physical-device validation.
 
 ### Catalogs and verification
 
@@ -127,7 +142,7 @@ the requested book identity and stored length. This avoids rescanning a whole bo
 on every opening, including after an app restart. New downloads and entries without
 matching receipt metadata still require full hashing. Legacy URL migrations reuse
 a receipt only when it matches the current book identity and actual length. A reused receipt
-trusts Cache Storage's previously verified bytes; it does not detect arbitrary
+trusts the previously verified stored bytes; it does not detect arbitrary
 same-length content changes under an unchanged receipt.
 
 TPP metadata must match the export timestamp in its `v` URL parameter. New saves
@@ -452,7 +467,9 @@ for clients finishing an update.
    viewer access. Check desktop and narrow-screen layout and keyboard dialog dismissal.
 6. Repeat airplane-mode cold launch on installed iPhone/iPad and Android apps, including
    a large mainland book, process termination, and low-storage handling. Do not treat a
-   desktop headless pass as device certification.
+   desktop headless pass as device certification. Repeat the reported KVGT download
+   past 177 MiB, render the chart, and reopen it offline; record device/iOS version
+   and overlapping map, terrain, plate and AHRS activity.
 7. In a disposable test profile, save a region, route and AHRS recording, then reset
    with another app window open and the network disabled. Both windows must stop;
    app storage and worker registrations must clear. Inject a deletion failure and

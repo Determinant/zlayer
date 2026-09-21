@@ -5,8 +5,10 @@ import { isOnChartFeed } from './workspace/catalog/feed';
 import { CHART_CACHE, DATA_CACHE } from './core/storage/cache-names';
 import { noteCacheAccess } from './core/storage/cache-access';
 import { pruneShellCaches, SHELL_CACHE_PREFIX } from './core/storage/shell-cache';
-import { resourceErrorCode } from './core/data/errors';
+import { ResourceError, resourceErrorCode } from './core/data/errors';
 import { RESET_URL } from './core/storage/reset';
+import { openFileCache } from './core/storage/download-file';
+import { boundedBlobStream } from './core/storage/blob-stream';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const development = worker.location.pathname.startsWith('/src/');
@@ -353,7 +355,7 @@ function isChartManifest(pathname: string): boolean {
 async function chartArchiveResponse(request: Request): Promise<Response> {
   try {
     await noteCacheAccess(CHART_CACHE, request.url);
-    const cache = await caches.open(chartArchiveCache);
+    const cache = await openFileCache(chartArchiveCache);
     const key = new Request(request.url, { method: 'GET' });
     const read = request.method === 'HEAD' ? chartArchives.ensureStored.bind(chartArchives) : chartArchives.load.bind(chartArchives);
     const archive = await read(cache, key, (error) => {
@@ -363,13 +365,15 @@ async function chartArchiveResponse(request: Request): Promise<Response> {
     const range = request.headers.get('range');
     return range
       ? rangeResponse(archive, range)
-      : new Response(archive.blob, { status: 200, headers: archive.headers });
+      : new Response(boundedBlobStream(archive.blob), { status: 200, headers: archive.headers });
   } catch (error) {
     const quota = error instanceof DOMException && error.name === 'QuotaExceededError';
+    const code = resourceErrorCode(error);
     const message = quota ? 'Storage is full. Remove an offline region, then retry.'
+      : error instanceof ResourceError && code === 'storage' ? error.message
       : 'Chart not saved or network unavailable. Reconnect and retry.';
-    return new Response(null, { status: quota ? 507 : 503, headers: { 'x-zlayer-error': message,
-      ...(resourceErrorCode(error) ? { 'x-zlayer-error-code': resourceErrorCode(error)! } : {}) } });
+    return new Response(null, { status: quota || code === 'storage' ? 507 : 503, headers: { 'x-zlayer-error': message,
+      ...(code ? { 'x-zlayer-error-code': code } : {}) } });
   }
 }
 
@@ -406,7 +410,7 @@ function rangeResponse(archive: ChartArchive, header: string): Response {
   headers.set('accept-ranges', 'bytes');
   headers.set('content-length', String(body.size));
   headers.set('content-range', `bytes ${start}-${end}/${size}`);
-  return new Response(body, { status: 206, headers });
+  return new Response(boundedBlobStream(body), { status: 206, headers });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

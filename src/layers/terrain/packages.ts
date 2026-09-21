@@ -6,6 +6,7 @@ import { noteCacheAccess } from '../../core/storage/cache-access';
 import { withAbort } from '../../core/data/abort';
 import { InvalidDataError, ResourceError } from '../../core/data/errors';
 import { readTerrainArchive } from './archive';
+import { openFileCache } from '../../core/storage/download-file';
 import type { Tile } from './geometry';
 
 export type TerrainPackage = { root: string; shard: TerrainShard; grid?: 'EPSG:4326'; maxZoom?: 10 | 11; priority?: number };
@@ -20,7 +21,7 @@ export async function readTerrainIndex(source: TerrainPackage, signal: AbortSign
 }
 
 async function readIndex(source: TerrainPackage, signal: AbortSignal, cacheOnly = false): Promise<ParsedIndex> {
-  const url = terrainArchiveUrl(source.root, source.shard), cache = await caches.open(CHART_CACHE);
+  const url = terrainArchiveUrl(source.root, source.shard), cache = await openFileCache(CHART_CACHE);
   signal.throwIfAborted();
   let blob: Blob;
   if (cacheOnly) {
@@ -68,13 +69,20 @@ export async function readPackagedElevation(tile: Tile, source: TerrainPackage, 
   if (index.data.schemaVersion !== version || (source.maxZoom !== undefined && index.data.maxZoom !== source.maxZoom)) {
     throw new InvalidDataError('Terrain grid format mismatch');
   }
+  if (terrainShardKey(tile.z, tile.x, tile.y) !== terrainShardKey(source.shard.zoom, source.shard.x, source.shard.y)) {
+    throw new InvalidDataError('Terrain tile does not match its index');
+  }
   const entry = index.byTile.get(terrainArchiveKey(tile.z, tile.x, tile.y));
-  if (!entry) throw new ResourceError('request', 'Terrain elevation is unavailable for this area');
+  // Indices can cover only part of their 64×64 tile area. Keep uncovered cells
+  // unknown so one coverage gap does not discard the other DEMs in a map tile.
+  // Rendering still reports incomplete terrain; download/integrity errors above
+  // and archive failures below retain their ordinary error paths.
+  if (!entry) return new Float32Array(256 * 256).fill(NaN);
   // Older saved packages contain only maxima. They still provide a usable
   // surface without fetching another dataset or changing clearance heights.
   const archive = surface && entry.surface ? { ...entry, ...entry.surface } : entry;
   const url = terrainArchiveUrl(source.root, archive);
-  const cache = await caches.open(CHART_CACHE);
+  const cache = await openFileCache(CHART_CACHE);
   signal.throwIfAborted();
   await noteCacheAccess(CHART_CACHE, url);
   signal.throwIfAborted();

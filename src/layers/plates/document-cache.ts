@@ -2,9 +2,10 @@ import type { ProcedureDocument } from './data';
 import { PDF_CACHE, VERIFIED_SHA256_HEADER } from '../../core/storage/cache-names';
 import { noteCacheAccess } from '../../core/storage/cache-access';
 import { readArtifact, verifyBlob } from '../../core/storage/artifacts';
-import { httpResourceError, InvalidDataError } from '../../core/data/errors';
+import { httpResourceError, InvalidDataError, ResourceError } from '../../core/data/errors';
 import { discardResponseBody } from '../../core/storage/response';
 import { verificationReceipt } from '../../core/storage/verification-receipt';
+import { openFileCache, downloadFile, storedFileBlob, storeDownloadedFile, discardDownloadedFile, DOWNLOAD_MEMORY_LIMIT } from '../../core/storage/download-file';
 
 const CACHE_NAME = PDF_CACHE;
 export type ProcedureDownloadProgress = {
@@ -18,6 +19,7 @@ const requests = new Map<string, {
   result: Promise<{ blob: Blob; cached: boolean }>;
   updates: ProgressUpdates;
 }>();
+let downloading: Promise<void> = Promise.resolve();
 
 /** Offline download does not allocate an extra viewer ArrayBuffer for the book. */
 export async function cacheProcedureDocument(source: ProcedureDocument): Promise<void> {
@@ -52,9 +54,9 @@ export async function loadProcedureDocument(source: ProcedureDocument,
 }
 
 async function load(source: ProcedureDocument, onProgress: ProgressListener): Promise<{ blob: Blob; cached: boolean }> {
-  let cache: Cache | undefined;
+  let cache: Awaited<ReturnType<typeof openFileCache>> | undefined;
   try {
-    cache = await caches.open(CACHE_NAME);
+    cache = await openFileCache(CACHE_NAME);
     const stored = await readArtifact(cache, source.url, async stored => {
       const receipt = stored.headers.get(VERIFIED_SHA256_HEADER);
       return { ...await checkedPdf(stored, source, receipt),
@@ -63,7 +65,7 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
     if (stored.state === 'ready') {
       const { blob, sha256, receipt, byteLength } = stored.value;
       if (receipt !== sha256 || byteLength !== blob.size) {
-        await cache.put(source.url, new Response(blob, { headers: pdfHeaders(blob, sha256) })).catch(() => {});
+        await storeDownloadedFile(cache, source.url, blob, pdfHeaders(blob, sha256)).catch(() => {});
       }
       return { blob, cached: true };
     }
@@ -79,8 +81,14 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
         try {
           const { blob, sha256 } = await checkedPdf(legacy, source, legacy.headers.get(VERIFIED_SHA256_HEADER));
           try {
-            await cache.put(source.url, new Response(blob, { headers: pdfHeaders(blob, sha256) }));
+            await storeDownloadedFile(cache, source.url, blob, pdfHeaders(blob, sha256));
+            const migrated = await cache.match(source.url);
+            if (!migrated) throw new Error('Migrated book was not saved');
+            let migratedBlob: Blob;
+            try { migratedBlob = await storedFileBlob(migrated); }
+            finally { discardResponseBody(migrated); }
             await cache.delete(legacyUrl.href);
+            return { blob: migratedBlob, cached: true };
           } catch { /* Preserve the usable legacy entry if migration cannot commit. */ }
           return { blob, cached: true };
         }
@@ -91,6 +99,15 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
   } catch { /* Denied storage must not prevent online viewing. */ }
 
   onProgress({ phase: 'downloading', loaded: 0, total: source.byteLength });
+  // Viewer switches and explicit offline saves share one transfer/verification
+  // slot, including after a viewer closes while its download continues.
+  const result = downloading.then(() => download(source, onProgress, cache));
+  downloading = result.then(() => {}, () => {});
+  return result;
+}
+
+async function download(source: ProcedureDocument, onProgress: ProgressListener,
+  cache: Awaited<ReturnType<typeof openFileCache>> | undefined): Promise<{ blob: Blob; cached: boolean }> {
   const response = await fetch(procedureFetchUrl(source.url), {
     cache: 'no-store', signal: AbortSignal.timeout(600_000),
   });
@@ -104,11 +121,25 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
     .finally(() => discardResponseBody(response));
   try {
     if (cache) {
-      await cache.put(source.url, new Response(blob, { headers: pdfHeaders(blob, sha256) }));
-      return { blob, cached: true };
+      const saved = await storeDownloadedFile(cache, source.url, blob, pdfHeaders(blob, sha256));
+      await discardDownloadedFile(blob);
+      return { blob: saved, cached: true };
     }
-  } catch { /* A verified document can still be viewed when storage is full. */ }
-  return { blob, cached: false };
+  } catch (error) {
+    if (blob.size > DOWNLOAD_MEMORY_LIMIT) {
+      await discardDownloadedFile(blob);
+      throw error;
+    }
+    // Small verified documents can still be viewed when storage is full.
+  }
+  if (blob.size > DOWNLOAD_MEMORY_LIMIT) {
+    await discardDownloadedFile(blob);
+    throw new ResourceError('storage', 'This document needs local storage. Enable site storage and retry.');
+  }
+  // Unknown-size small PDFs may also have used disk. Preserve a bounded copy
+  // for online viewing before removing their uncommitted file.
+  try { return { blob: new Blob([await blob.arrayBuffer()], { type: 'application/pdf' }), cached: false }; }
+  finally { await discardDownloadedFile(blob); }
 }
 
 function pdfHeaders(blob: Blob, sha256: string): HeadersInit {
@@ -122,22 +153,24 @@ async function checkedPdf(response: Response, source: ProcedureDocument,
   if (response.status !== 200 || !response.headers.get('content-type')?.toLowerCase().includes('application/pdf')) {
     throw new InvalidDataError('Procedure response is not a complete PDF');
   }
-  const blob = onProgress ? await downloadBlob(response, source, onProgress) : await response.blob();
-  if (!(await blob.slice(0, 1024).text()).includes('%PDF-')) throw new InvalidDataError('Procedure response is not a PDF');
-  if (source.byteLength !== undefined && blob.size !== source.byteLength) {
-    throw new InvalidDataError(`Procedure PDF size mismatch: expected ${source.byteLength}, received ${blob.size}`);
+  const blob = onProgress ? await downloadBlob(response, source, onProgress) : await storedFileBlob(response);
+  try {
+    if (!(await blob.slice(0, 1024).text()).includes('%PDF-')) throw new InvalidDataError('Procedure response is not a PDF');
+    if (source.byteLength !== undefined && blob.size !== source.byteLength) {
+      throw new InvalidDataError(`Procedure PDF size mismatch: expected ${source.byteLength}, received ${blob.size}`);
+    }
+    // Receipts publish only complete, verified bytes. Reuse them across viewer
+    // openings and restarts; new downloads always take the full hash path.
+    const expectedSha256 = source.sha256 ?? (receipt || undefined);
+    const verified = receipt ? verificationReceipt(response.headers, { byteLength: blob.size,
+      ...(expectedSha256 ? { sha256: expectedSha256 } : {}) }) : undefined;
+    if (verified) return { blob, sha256: verified.sha256 };
+    const sha256 = await verifyBlob(blob, expectedSha256 ? { ...source, sha256: expectedSha256 } : source, 'Procedure PDF');
+    return { blob, sha256 };
+  } catch (error) {
+    await discardDownloadedFile(blob);
+    throw error;
   }
-  // Cache Storage commits these bytes and their receipt together after verification.
-  // Reuse that result across viewer openings and app restarts instead of scanning
-  // an entire book again. Downloads and entries without receipts still take the full hash path.
-  const expectedSha256 = source.sha256 ?? (receipt || undefined);
-  const verified = receipt ? verificationReceipt(response.headers, { byteLength: blob.size,
-    ...(expectedSha256 ? { sha256: expectedSha256 } : {}) }) : undefined;
-  if (verified) {
-    return { blob, sha256: verified.sha256 };
-  }
-  const sha256 = await verifyBlob(blob, expectedSha256 ? { ...source, sha256: expectedSha256 } : source, 'Procedure PDF');
-  return { blob, sha256 };
 }
 
 async function downloadBlob(response: Response, source: ProcedureDocument, onProgress: ProgressListener): Promise<Blob> {
@@ -148,10 +181,9 @@ async function downloadBlob(response: Response, source: ProcedureDocument, onPro
   const total = Number.isFinite(length) && length > 0 ? length : undefined;
   let loaded = 0, lastPercent = 0, lastUpdate = performance.now();
   onProgress({ phase: 'downloading', loaded, total });
-  // Let the browser accumulate the Blob, without retaining a second set of chunks.
-  const body = response.body?.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      loaded += chunk.byteLength;
+  const blob = await downloadFile(response, { key: source.url, byteLength: source.byteLength, label: 'Procedure PDF',
+    onProgress(received) {
+      loaded = received;
       const percent = total ? Math.min(100, Math.floor(loaded / total * 100)) : undefined;
       const now = performance.now();
       if (percent !== undefined ? percent > lastPercent : now - lastUpdate >= 100) {
@@ -159,10 +191,8 @@ async function downloadBlob(response: Response, source: ProcedureDocument, onPro
         lastPercent = percent ?? 0;
         lastUpdate = now;
       }
-      controller.enqueue(chunk);
     },
-  }));
-  const blob = await (body ? new Response(body, { headers: response.headers }) : response).blob();
+  });
   onProgress({ phase: 'preparing', loaded: blob.size, total: blob.size });
   return blob;
 }

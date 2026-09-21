@@ -246,6 +246,13 @@ only those intersecting the selected region. Both indices and DEMs use the verif
 whole-file archive cache, SHA-256 and byte-length receipts, bounded shared downloads,
 and content-addressed URLs. No persistent per-tile cache is introduced.
 
+Indices may contain only part of their 64×64 tile area. A tile absent from a valid,
+matching index stays unknown, preserving available neighbouring terrain instead
+of rejecting the entire displayed map tile. Missing cells remain transparent and
+report **Terrain incomplete**; they never become zero elevation or establish
+offline coverage. Failed index/archive reads, corrupt data and mismatched indices
+still report errors.
+
 Data and geometry detail follow the display scale. Each 512px display tile reads
 at most four 256px DEM tiles, at one source zoom above the display tile (capped at
 DEM zoom 13). This replaces the previous fixed zoom-12 demand of up to 256 DEM

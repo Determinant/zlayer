@@ -1,4 +1,5 @@
 import { removeExportFiles } from './export-file';
+import { removeDownloadFiles } from './download-file';
 
 // A durable marker prevents a crashed/reloaded reset from reopening the workspace.
 export const RESET_KEY = 'zlayer-reset-pending';
@@ -59,6 +60,7 @@ export async function purgeLocalData(progress: (message: string) => void): Promi
         // so a failed reset can still be reloaded and retried without a connection.
         await deleteDatabase('zlayer-offline');
         await removeExportFiles();
+        await removeDownloadFiles();
         for (const key of Object.keys(localStorage)) {
           if (key !== RESET_KEY && isAppStorage(key)) localStorage.removeItem(key);
         }

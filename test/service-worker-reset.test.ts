@@ -5,6 +5,22 @@ import { CHART_CACHE, VERIFIED_SHA256_HEADER } from '../src/core/storage/cache-n
 
 const shellHtml = '<meta name="zlayer-release" content="dev">';
 
+test('large chart downloads without writable storage return an actionable error and cancel the body', async t => {
+  const { onFetch } = await workerFixture(t);
+  let cancelled = false;
+  t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({
+    cancel() { cancelled = true; },
+  })));
+  const url = `https://charts.tedyin.com/charts/large.mbtiles?bytes=${20 * 1024 * 1024}&sha256=${'a'.repeat(64)}`;
+  let result!: Promise<Response>;
+  onFetch({ request: new Request(url, { method: 'HEAD' }), respondWith: work => { result = work; }, waitUntil: () => {} });
+  const response = await result;
+  assert.equal(response.status, 507);
+  assert.equal(response.headers.get('x-zlayer-error-code'), 'storage');
+  assert.match(response.headers.get('x-zlayer-error')!, /local file storage/);
+  assert.equal(cancelled, true);
+});
+
 async function workerFixture(t: TestContext) {
   const { cache, stored } = cacheFixture(t);
   Object.assign(caches, { match: async (request: RequestInfo | URL, options?: MultiCacheQueryOptions) =>

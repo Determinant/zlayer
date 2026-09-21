@@ -11,6 +11,7 @@ import { cachedFileBytes } from '../src/offline/storage';
 import { RegionDownloads, type DownloadPlan } from '../src/offline/downloads';
 import { isDownloadPlan } from '../src/offline/plan-records';
 import { fetchElevation } from '../src/layers/terrain/fetch';
+import { CHART_CACHE } from '../src/core/storage/cache-names';
 
 const fixtures = new URL('./fixtures/terrain/', import.meta.url);
 const fixture = (file: string) => readFile(new URL(file, fixtures));
@@ -166,7 +167,7 @@ test('canceling before archive storage opens never starts the DEM download and p
   const gate = new Promise<void>(resolve => { release = resolve; });
   const waiting = new Promise<void>(resolve => { started = resolve; });
   t.mock.method(caches, 'open', async (...args: Parameters<typeof open>) => {
-    if (++opened === 2) { started(); await gate; }
+    if (args[0] === CHART_CACHE && ++opened === 2) { started(); await gate; }
     return open(...args);
   });
   t.after(release);

@@ -16,6 +16,7 @@ import { cachedFileBytes, fileCache, storageStatus, formatBytes } from './storag
 import { httpResourceError, isResourceErrorCode, ResourceError } from '../core/data/errors';
 import { discardResponseBody } from '../core/storage/response';
 import { prepareRegionTerrain } from './terrain';
+import { openFileCache } from '../core/storage/download-file';
 
 async function exclusive(work: () => Promise<void>): Promise<void> {
   if (!navigator.locks) throw new Error('This browser lacks safe multi-window download coordination; update your browser');
@@ -30,7 +31,7 @@ export async function removeUnsavedFiles(): Promise<void> {
   await exclusive(async () => {
     const keep = new Set((await savedPlans(true)).flatMap(plan => retainedFiles(plan).map(file => file.url)));
     for (const name of [CHART_CACHE, PDF_CACHE]) {
-      const cache = await caches.open(name);
+      const cache = await openFileCache(name);
       for (const request of await cache.keys()) if (!keep.has(request.url)) {
         await cache.delete(request);
         if (name === CHART_CACHE) navigator.serviceWorker.controller?.postMessage({ type: 'forget-chart-memory', url: request.url });
@@ -121,7 +122,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       }
     },
     remove: async file => {
-      await (await caches.open(fileCache(file))).delete(file.url);
+      await (await openFileCache(fileCache(file))).delete(file.url);
       navigator.serviceWorker.controller?.postMessage({ type: 'forget-chart-memory', url: file.url });
     },
     exclusive,

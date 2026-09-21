@@ -175,6 +175,11 @@ launch measurements run with the network disabled:
 - Pan/zoom/time-scrub interaction: p95 frame time under 32 ms; target 60 fps.
 - Layer toggle feedback: visible within 100 ms, even if data continues loading.
 - Cached selected procedure to readable requested page: p75 under 1.0 second.
+- iPhone downloads must not retain whole large books/archives in RAM. Stream to
+  bounded local storage, bound concurrent transfers and retained bytes, and fail
+  cleanly when storage is unavailable. The reported KVGT crash at approximately
+  177 MiB downloaded is a required device regression; see
+  [memory constraints](memory-resources.md#iphone-download-constraint-kvgt-2026-09-21).
 - No application-generated task over 50 ms during steady-state map interaction on the
   reference device.
 - No national point layer delivered as a single unbounded browser payload. This

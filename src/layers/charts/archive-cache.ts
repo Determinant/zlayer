@@ -3,6 +3,7 @@ import { readArtifact, verifyBlob } from '../../core/storage/artifacts';
 import { httpResourceError, InvalidDataError, ResourceError } from '../../core/data/errors';
 import { discardResponseBody } from '../../core/storage/response';
 import { verificationReceipt } from '../../core/storage/verification-receipt';
+import { downloadFile, storedFileBlob, storeDownloadedFile, discardDownloadedFile } from '../../core/storage/download-file';
 
 export type ChartArchive = { blob: Blob; headers: Headers };
 
@@ -13,10 +14,12 @@ type ArchiveErrorHandler = (error: Error) => void;
 const DEFAULT_RESIDENT_ARCHIVES = 6;
 const DEFAULT_CONCURRENT_DOWNLOADS = 4;
 const SMALL_ARCHIVE_BYTES = 4 * 1024 * 1024;
+const MAX_RESIDENT_BYTES = 16 * 1024 * 1024;
 
 export class WholeFileChartCache {
   readonly #requests = new Map<string, Promise<ChartArchive>>();
-  readonly #ready = new Set<string>();
+  readonly #ready = new Map<string, number>();
+  #residentBytes = 0;
   readonly #fetchArchive: ArchiveFetcher;
   readonly #maximumResidentArchives: number;
   readonly #maximumConcurrentDownloads: number;
@@ -53,9 +56,10 @@ export class WholeFileChartCache {
     const request = this.#load(cache, key);
     this.#requests.set(key.url, request);
     void request.then(
-      () => {
+      (archive) => {
         if (this.#requests.get(key.url) !== request) return;
-        this.#ready.add(key.url);
+        this.#ready.set(key.url, archive.blob.size);
+        this.#residentBytes += archive.blob.size;
         this.#evictColdArchives();
       },
       (error: unknown) => {
@@ -68,19 +72,27 @@ export class WholeFileChartCache {
   }
 
   #touch(url: string): void {
-    if (!this.#ready.delete(url)) return;
-    this.#ready.add(url);
+    const bytes = this.#ready.get(url);
+    if (bytes === undefined) return;
+    this.#ready.delete(url);
+    this.#ready.set(url, bytes);
   }
 
   /** Explicit saves must restore storage even when a reader still holds the Blob. */
   async ensureStored(cache: ChartCache, key: Request, onError?: ArchiveErrorHandler): Promise<ChartArchive> {
     const archive = await this.load(cache, key, onError);
-    const stored = await cache.match(key);
+    let stored: Response | undefined;
+    try { stored = await cache.match(key); }
+    catch (error) {
+      if (!(error instanceof InvalidDataError) && !isUnreadableFile(error)) throw error;
+      this.forget(key.url);
+      return this.load(cache, key, onError);
+    }
     discardResponseBody(stored);
     if (stored?.status !== 200 || !verificationReceipt(stored.headers, {
       byteLength: archive.blob.size, sha256: archive.headers.get(VERIFIED_SHA256_HEADER)!,
     })) {
-      try { await cache.put(key, new Response(archive.blob, { status: 200, headers: archive.headers })); }
+      try { await storeDownloadedFile(cache, key, archive.blob, archive.headers); }
       catch (error) {
         // A retained Blob can outlive its readable backing file. Do not reuse
         // that same handle forever when a later save attempts to repair it.
@@ -92,16 +104,18 @@ export class WholeFileChartCache {
   }
 
   forget(url: string): void {
-    if (!this.#ready.delete(url)) return; // An active shared download must finish.
+    const bytes = this.#ready.get(url);
+    if (bytes === undefined) return; // An active shared download must finish.
+    this.#ready.delete(url);
+    this.#residentBytes -= bytes;
     this.#requests.delete(url);
   }
 
   #evictColdArchives(): void {
-    while (this.#ready.size > this.#maximumResidentArchives) {
-      const oldest = this.#ready.values().next().value;
+    while (this.#ready.size > this.#maximumResidentArchives || this.#residentBytes > MAX_RESIDENT_BYTES) {
+      const oldest = this.#ready.keys().next().value;
       if (oldest === undefined) return;
-      this.#ready.delete(oldest);
-      this.#requests.delete(oldest);
+      this.forget(oldest);
     }
   }
 
@@ -131,10 +145,10 @@ export class WholeFileChartCache {
     // their byte ranges are sliced from the same persistent archive Blob.
     // Bound complete download + hash + storage operations, not individual tile
     // reads. Persisted archives bypass this queue so cached panning stays fast.
-    // Small spatial packages can fill four network slots. Legacy sheets consume
-    // half the budget each, keeping their much larger buffers bounded to two.
+    // A large archive uses the entire transfer budget, including hash + commit.
+    // Small spatial packages can still fill four network slots.
     const slots = identity.byteLength > SMALL_ARCHIVE_BYTES
-      ? Math.ceil(this.#maximumConcurrentDownloads / 2) : 1;
+      ? this.#maximumConcurrentDownloads : 1;
     if (this.#downloadQueue.length || this.#activeDownloads + slots > this.#maximumConcurrentDownloads) {
       await new Promise<void>((start) => this.#downloadQueue.push({ slots, start }));
     } else {
@@ -148,14 +162,14 @@ export class WholeFileChartCache {
         discardResponseBody(response);
         throw httpResourceError(response.status, `Unable to cache chart archive: ${response.status}`);
       }
-      const archive = await archiveFrom(response);
-      await verifyBlob(archive.blob, identity, 'Chart archive');
-      archive.headers.set(VERIFIED_SHA256_HEADER, identity.sha256);
-      await cache.put(
-        key,
-        new Response(archive.blob, { status: 200, headers: archive.headers }),
-      );
-      return archive;
+      const blob = await downloadFile(response, { ...identity, key, label: 'Chart archive' });
+      const archive = archiveWithBlob(response, blob);
+      try {
+        await verifyBlob(blob, identity, 'Chart archive');
+        archive.headers.set(VERIFIED_SHA256_HEADER, identity.sha256);
+        archive.blob = await storeDownloadedFile(cache, key, blob, archive.headers);
+        return archive;
+      } finally { await discardDownloadedFile(blob); }
     } finally {
       this.#activeDownloads -= slots;
       while (this.#downloadQueue[0] &&
@@ -189,7 +203,11 @@ function archiveIdentity(url: string): ArchiveIdentity {
 }
 
 async function archiveFrom(response: Response): Promise<ChartArchive> {
-  const blob = await response.blob();
+  const blob = await storedFileBlob(response);
+  return archiveWithBlob(response, blob);
+}
+
+function archiveWithBlob(response: Response, blob: Blob): ChartArchive {
   const headers = new Headers(response.headers);
   headers.delete('content-encoding');
   headers.delete('content-range');

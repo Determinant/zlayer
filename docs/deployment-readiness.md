@@ -65,7 +65,10 @@ These remain release gates:
 
 - Installed iOS/Android airplane-mode cold launch, large-book rendering,
   interrupted downloads, process termination and low-storage recovery:
-  [offline checks](offline-storage.md#release-checks).
+  [offline checks](offline-storage.md#release-checks). Repeat the KVGT iPhone
+  download that crashed at approximately 177 MiB, including rendering and offline
+  reopening; [download memory constraints](memory-resources.md#iphone-download-constraint-kvgt-2026-09-21)
+  distinguish transfer size from measured RAM.
 - Actual GPS movement, first-use permission, denial/recovery and background return:
   [GPS checks](gps-aircraft.md#release-verification).
 - AHRS motion permission, calibration with no GPS fix, sensor orientation,

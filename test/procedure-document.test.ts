@@ -8,6 +8,8 @@ import { procedurePageIndex } from '../src/layers/plates/page-target';
 import type { ProcedureDocument } from '../src/layers/plates/data';
 import { cacheFixture as sharedCacheFixture } from './helpers/cache';
 import { ResourceError } from '../src/core/data/errors';
+import { fileStorageFixture } from './helpers/file-storage';
+import { downloadFile, openFileCache, storeDownloadedFile } from '../src/core/storage/download-file';
 
 const cacheFixture = (t: test.TestContext) => sharedCacheFixture(t, PDF_CACHE);
 
@@ -21,6 +23,48 @@ const source: ProcedureDocument = {
 const pdf = (body: BodyInit = bytes) => new Response(body, { headers: { 'content-type': 'application/pdf' } });
 const savedPdf = (body: BodyInit = bytes, sha256 = digest, byteLength = bytes.length) => new Response(body, {
   headers: { 'content-type': 'application/pdf', 'content-length': String(byteLength), [VERIFIED_SHA256_HEADER]: sha256 },
+});
+
+test('different viewer books serialize transfers and a failed first book releases the next', async t => {
+  cacheFixture(t);
+  let started!: () => void, fail!: (error: Error) => void;
+  const beginning = new Promise<void>(resolve => { started = resolve; });
+  const gate = new Promise<Response>((_resolve, reject) => { fail = reject; });
+  let fetches = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    if (++fetches === 1) { started(); return gate; }
+    return pdf();
+  });
+  const first = loadProcedureDocument(source);
+  await beginning;
+  const second = loadProcedureDocument({ ...source, url: `${source.url}&book=second` });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(fetches, 1, 'closing/switching viewers must not overlap whole-book downloads');
+  const rejected = assert.rejects(first, /Disconnected/);
+  fail(new Error('Disconnected'));
+  await rejected;
+  assert.ok((await second).cached);
+  assert.equal(fetches, 2);
+});
+
+test('migrating a disk-backed PDF returns the surviving file after removing its old URL', async t => {
+  const disk = await fileStorageFixture(t);
+  cacheFixture(t);
+  const cache = await openFileCache(PDF_CACHE);
+  const legacy = source.url.split('?')[0]!;
+  const blob = await downloadFile(pdf(), { key: legacy, label: 'Book' });
+  await storeDownloadedFile(cache, legacy, blob, {
+    'content-type': 'application/pdf', 'content-length': String(bytes.length), [VERIFIED_SHA256_HEADER]: digest,
+  });
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('Offline'); });
+  const result = await loadProcedureDocument(source);
+  assert.equal(await result.blob.text(), new TextDecoder().decode(bytes));
+  assert.ok(result.cached);
+  assert.equal(await cache.match(legacy), undefined);
+  // A prior viewer may still hold the old File after migration removes its URL.
+  assert.equal((await disk.files()).length, 1);
+  assert.equal(await blob.text(), new TextDecoder().decode(bytes));
+  assert.equal(await (await loadProcedureDocument(source)).blob.text(), await result.blob.text());
 });
 
 test('PDF HTTP failures expose retryable server errors separately from missing files and full storage', async t => {

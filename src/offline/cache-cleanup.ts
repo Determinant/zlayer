@@ -5,6 +5,7 @@ import { cacheAccessKey, cacheLastUsed, noteCacheAccess } from '../core/storage/
 import { savedPlans } from './saved-plans';
 import { retainedFiles, type DownloadPlan } from './downloads';
 import { CHART_CACHE, DATA_CACHE, PDF_CACHE } from '../core/storage/cache-names';
+import { openFileCache } from '../core/storage/download-file';
 import { activeCatalogs as readActiveCatalogs, activeFileUrls } from './active-catalogs';
 
 export const ONLINE_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1_000;
@@ -59,7 +60,7 @@ export async function pruneOnlineCache(activeCatalogs: readonly CatalogResponse[
     ]);
     let removed = 0;
     for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
-      const cache = await caches.open(name);
+      const cache = await (name === DATA_CACHE ? caches.open(name) : openFileCache(name));
       for (const request of await cache.keys()) {
         if (protectedUrls.has(request.url)) continue;
         // DATA_CACHE also contains weather and basemap resources with separate lifetimes.

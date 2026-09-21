@@ -3,15 +3,21 @@ import type { OfflineFile } from './downloads';
 import { CHART_CACHE, PDF_CACHE } from '../core/storage/cache-names';
 import { discardResponseBody } from '../core/storage/response';
 import { verificationReceipt } from '../core/storage/verification-receipt';
+import { openFileCache } from '../core/storage/download-file';
+import { InvalidDataError } from '../core/data/errors';
 
 export const fileCache = (file: OfflineFile) => file.kind === 'chart' || file.kind === 'terrain' ? CHART_CACHE : PDF_CACHE;
 
 export async function cachedFileBytes(file: OfflineFile): Promise<number | undefined> {
-  const response = await (await caches.open(fileCache(file))).match(file.url);
+  let response: Response | undefined;
   try {
+    response = await (await openFileCache(fileCache(file))).match(file.url);
     if (response?.status !== 200) return undefined;
     if (file.kind === 'faa-pdf' && response.headers.get('content-type') !== 'application/pdf') return undefined;
     return verificationReceipt(response.headers, file)?.byteLength;
+  } catch (error) {
+    if (error instanceof InvalidDataError) return undefined;
+    throw error;
   } finally { discardResponseBody(response); }
 }
 
