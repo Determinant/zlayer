@@ -115,39 +115,47 @@ function simplify(points: Point[], tolerance: number): Point[] {
     }
     if (split !== -1) { keep[split] = 1; pending.push([first!, split], [split, last!]); }
   }
-  return points.filter((_, index) => keep[index]);
+  const result = points.filter((_, index) => keep[index]);
+  const first = points[0]!, last = points[points.length - 1]!;
+  // A contour around a tiny summit must remain a ring even when its diameter
+  // falls below the display tolerance.
+  return result.length < 4 && first[0] === last[0] && first[1] === last[1] ? points : result;
 }
 
-/** Check nearby segments in 16px buckets, stopping at the first intersection.
- * Rounding is cosmetic: a crowded tile can retain its original outlines rather
- * than move one elevation across another. Check after the final simplification. */
-function contoursIntersect(paths: ContourPath[], displaySize: number): boolean {
-  if (paths.length < 2) return false;
-  type Edge = { a: Point; b: Point; elevation: number; left: number; top: number;
+/** Check rounded paths against both their original neighbors and each other.
+ * Reject only conflicting paths: every accepted curve is safe even when a
+ * neighbor reverts, and an isolated saddle cannot make a whole tile jagged. */
+function conflictingContours(original: ContourPath[], rounded: ContourPath[], displaySize: number): Set<number> {
+  const rejected = new Set<number>();
+  if (original.length < 2) return rejected;
+  type Edge = { a: Point; b: Point; elevation: number; path: number; rounded: boolean; left: number; top: number;
     minX: number; maxX: number; minY: number; maxY: number };
   const cells = Math.ceil(displaySize / 16), buckets = new Array<Edge[] | undefined>(cells * cells);
   const cell = (value: number) => Math.max(0, Math.min(cells - 1, Math.floor(value * cells)));
   const side = (a: Point, b: Point, c: Point) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-  for (const { elevation, points } of paths) for (let i = 1; i < points.length; i++) {
+  for (const paths of [original, rounded]) for (const [path, { elevation, points }] of paths.entries()) for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!, b = points[i]!;
     const minX = Math.min(a[0], b[0]), maxX = Math.max(a[0], b[0]);
     const minY = Math.min(a[1], b[1]), maxY = Math.max(a[1], b[1]);
     const left = cell(minX), right = cell(maxX), top = cell(minY), bottom = cell(maxY);
-    const edge: Edge = { a, b, elevation, left, top, minX, maxX, minY, maxY };
+    const edge: Edge = { a, b, elevation, path, rounded: paths === rounded, left, top, minX, maxX, minY, maxY };
     for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) {
       const bucket = buckets[y * cells + x] ??= [];
       for (const other of bucket) {
-        if (other.elevation === elevation) continue;
+        if (other.elevation === elevation || (!edge.rounded && !other.rounded)) continue;
         // Long spans can share several buckets. Compare each pair only once.
         if (x !== Math.max(left, other.left) || y !== Math.max(top, other.top)) continue;
         if (minX > other.maxX || maxX < other.minX || minY > other.maxY || maxY < other.minY) continue;
         if (side(a, b, other.a) * side(a, b, other.b) <= 0 &&
-          side(other.a, other.b, a) * side(other.a, other.b, b) <= 0) return true;
+          side(other.a, other.b, a) * side(other.a, other.b, b) <= 0) {
+          if (edge.rounded) rejected.add(path);
+          if (other.rounded) rejected.add(other.path);
+        }
       }
       bucket.push(edge);
     }
   }
-  return false;
+  return rejected;
 }
 
 /** Fade short outline spans in 1/32 opacity steps; group them into multilines so
@@ -157,15 +165,14 @@ export function terrainIsolines(values: Float32Array, size: number, tile: Tile, 
   const groups = new Map<string, TerrainIsoline>(), labels: TerrainLabel[] = [];
   const labeled = new Set<number>(), scale = 2 ** tile.z;
   const traced = traceContours(values, size, interval, extend);
-  let paths = traced.map(({ elevation, points }) => {
-    // Drop subpixel vertices before rounding, then compact the result. Split
-    // the 0.2px simplification budget to keep both passes bounded and cheap.
-    const rounded = smoothContour(simplify(points, 0.1 / displaySize), 0.5 / displaySize);
-    return { elevation, points: simplify(rounded, 0.1 / displaySize) };
+  const paths = traced.map(({ elevation, points }) => {
+    // Round at the source-cell scale so close views soften the actual stair
+    // steps, not just their tips. Endpoints remain fixed for stitching.
+    const rounded = smoothContour(simplify(points, 1 / displaySize), 1.5 / size);
+    return { elevation, points: simplify(rounded, 0.2 / displaySize) };
   });
-  if (contoursIntersect(paths, displaySize)) {
-    paths = traced.map(({ elevation, points }) => ({ elevation, points: simplify(points, 0.2 / displaySize) }));
-  }
+  const rejected = conflictingContours(traced, paths, displaySize);
+  for (const index of rejected) paths[index] = traced[index]!;
   for (const { elevation, points } of paths) {
     const path = points.map(([x, y]): Point => [(tile.x + x) / scale, (tile.y + y) / scale]);
     let previousOpacity = -1, run: Point[] | undefined;

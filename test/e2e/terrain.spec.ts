@@ -176,6 +176,44 @@ test('a peak spanning four terrain tiles renders as a closed contour', async ({ 
   await page.screenshot({ path: testInfo.outputPath('terrain-closed-seam.png') });
 });
 
+test('coarse elevation cells render rounded contours at the closest map zoom', async ({ page }, testInfo) => {
+  const cells = 2 ** 13 * 64, anchor = project([-122.12, 37.42]);
+  const baseX = Math.floor(anchor[0] * 2 ** 13) * 64, baseY = Math.floor(anchor[1] * 2 ** 13) * 64;
+  await page.route('**/terrain/*/*/*.png', async route => {
+    const match = /\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/.exec(route.request().url())!;
+    const [z, x, y] = match.slice(1).map(Number);
+    await route.fulfill({ contentType: 'image/png', body: terrainPng(z!, x!, y!, (wx, wy) =>
+      (250 + 35 * (Math.floor(wx * cells) - baseX) + 50 * (Math.floor(wy * cells) - baseY)) / METERS_TO_FEET) });
+  });
+  await page.goto('/test/browser/terrain.html?zoom=13');
+  await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true');
+  const angles = await page.evaluate(async () => {
+    const map = window.terrainMapAudit.map;
+    const source = map.getSource('route-terrain-contours') as import('maplibre-gl').GeoJSONSource;
+    const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.MultiLineString>;
+    const turns: number[] = [];
+    for (const feature of data.features) {
+      if (feature.properties?.opacity !== 1) continue;
+      for (const path of feature.geometry.coordinates) {
+        const points = path.map(point => map.project(point as [number, number]));
+        for (let i = 1; i < points.length - 1; i++) {
+          const a = points[i - 1]!, b = points[i]!, c = points[i + 1]!;
+          if (b.x < 350 || b.x > innerWidth - 50 || b.y < 50 || b.y > innerHeight - 50) continue;
+          const dx = b.x - a.x, dy = b.y - a.y, ex = c.x - b.x, ey = c.y - b.y;
+          const length = Math.hypot(dx, dy) * Math.hypot(ex, ey);
+          if (length) turns.push(Math.acos(Math.max(-1, Math.min(1, (dx * ex + dy * ey) / length))));
+        }
+      }
+    }
+    return turns.sort((a, b) => a - b);
+  });
+  expect(angles.length).toBeGreaterThan(30);
+  expect(angles[Math.floor(angles.length * 0.95)]!).toBeLessThan(Math.PI / 4);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+  await page.screenshot({ path: testInfo.outputPath('terrain-close-rounded.png') });
+});
+
 test('retina terrain shading stays aligned with the route across subtiles', async ({ browser }, testInfo) => {
   const viewport = { width: 1100, height: 850 }, density = 2, zoom = 11.35;
   const context = await browser.newContext({ deviceScaleFactor: density, viewport });

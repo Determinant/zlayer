@@ -45,15 +45,17 @@ route recommendations participate; unresolved route gaps do not.
   the accelerated cross-thread bitmap corruption reproduced in WebKit; direct
   writes alone were insufficient. See [graphics compatibility](graphics-compatibility.md).
 - Outlines are traced from the same simplified height grid with marching squares,
-  joined across cells, then lightly rounded with two corner-cutting passes to
-  soften grid stair steps at close zoom. Each pass trims at most 0.5 tile-display
-  pixels from an edge; open endpoints stay fixed at tile edges and missing-data
-  gaps, and closed loops stay closed. Simplification before and after rounding
-  shares a 0.2px error budget, keeping straight spans compact. This only changes
-  outline geometry; fill elevations and sampled highs retain their values.
-  A spatial bucket check rejects rounded outlines that intersect another elevation;
-  those tiles retain the original simplified outlines. The check runs once during
-  tile generation and stops at the first intersection.
+  joined across cells, then rounded with two corner-cutting passes to soften grid
+  stair steps at close zoom. Simplification first removes deviations below one
+  tile-display pixel so tiny grid segments cannot pin the corners in place.
+  Each pass trims at most 1.5 source-cell widths from an edge; open endpoints stay
+  fixed at tile edges and missing-data gaps, and closed loops stay closed, including
+  subpixel peaks. A final 0.2px simplification keeps straight spans compact. This
+  only changes outline geometry; fill elevations and sampled highs retain their values.
+  A spatial bucket check compares rounded outlines against both original and rounded
+  neighbors of other elevations. Only conflicting paths retain their original geometry;
+  an isolated saddle cannot disable smoothing across the tile. The check runs once
+  during tile generation.
   Ambiguous saddles use the bilinear surface's diagonal decision to preserve
   region connectivity before rounding.
   Their 4–8 NM fade

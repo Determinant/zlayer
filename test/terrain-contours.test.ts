@@ -65,9 +65,44 @@ test('published contours keep rounded grid corners after simplification and reta
     assert.ok(sharpestTurn(path) < sharpestTurn(raw) * 0.8, 'separated contours must retain rounded corners');
     assert.ok(Math.hypot(path[0]![0] - raw[0]![0], path[0]![1] - raw[0]![1]) < 1e-10);
     assert.ok(Math.hypot(path.at(-1)![0] - raw.at(-1)![0], path.at(-1)![1] - raw.at(-1)![1]) < 1e-10);
-    for (const point of path) assert.ok(distanceToPath(point, raw) * displaySize < 1.2);
+    for (const point of path) assert.ok(distanceToPath(point, raw) * size < 0.25);
   }
   assert.deepEqual(values, original, 'display smoothing must not change elevations');
+});
+
+test('close-zoom contours remove square-grid elbows while reducing rendered vertices', () => {
+  const size = 256, tile = { z: 13, x: 1320, y: 3190 }, scale = 2 ** tile.z;
+  // A coarser geographic grid repeats heights across several Mercator samples.
+  const values = Float32Array.from({ length: size * size }, (_, i) =>
+    250 + 35 * Math.floor((i % size) / 4) + 50 * Math.floor(Math.floor(i / size) / 4));
+  const segments: Segment[] = [[[tile.x / scale, tile.y / scale], [(tile.x + 1) / scale, (tile.y + 1) / scale]]];
+  const raw = traceContours(values, size, 1000, false);
+  const { lines } = terrainIsolines(values, size, tile, segments, 1000, 512, false);
+  let vertices = 0;
+  for (const line of lines) for (const coordinates of line.coordinates) {
+    const path = coordinates.map(point => {
+      const [x, y] = project(point);
+      return [x * scale - tile.x, y * scale - tile.y] as Point;
+    });
+    vertices += path.length;
+    assert.ok(sharpestTurn(path) < Math.PI / 4, 'square elbows must remain rounded after simplification');
+    const original = raw.find(path => path.elevation === line.elevation)!.points;
+    for (const point of path) assert.ok(distanceToPath(point, original) * size < 1.5, 'rounding stays near the source contour');
+  }
+  assert.ok(vertices < raw.reduce((count, path) => count + path.points.length, 0) * 0.75);
+});
+
+test('subpixel peaks keep a closed contour after stronger simplification', () => {
+  const size = 256, tile = { z: 13, x: 1320, y: 3190 }, scale = 2 ** tile.z;
+  const values = new Float32Array(size * size).fill(999);
+  values[128 * size + 128] = 1001;
+  const segments: Segment[] = [[[tile.x / scale, tile.y / scale], [(tile.x + 1) / scale, (tile.y + 1) / scale]]];
+  const { lines } = terrainIsolines(values, size, tile, segments, 1000, 512, false);
+  assert.equal(lines.length, 1);
+  const path = lines[0]!.coordinates[0]!;
+  assert.ok(path.length >= 4);
+  assert.deepEqual(path[0], path.at(-1));
+  assert.ok(new Set(path.map(point => JSON.stringify(point))).size >= 3);
 });
 
 test('rounded contours do not bridge missing terrain or change saddle connectivity', () => {
@@ -90,7 +125,7 @@ test('rounded contours do not bridge missing terrain or change saddle connectivi
   }
 });
 
-test('steep terrain retains separate elevation contours after rounding and simplification', () => {
+test('crowded contours stay separate without disabling rounding on distant peaks', () => {
   const size = 256, tile = { z: 13, x: 1320, y: 3190 }, scale = 2 ** tile.z;
   // This patch previously produced two intersections between neighboring
   // elevations, although the original simplified paths did not intersect.
@@ -103,9 +138,19 @@ test('steep terrain retains separate elevation contours after rounding and simpl
     2097, 3824, 5800, 1787, 4682, 3507,
   ];
   const values = new Float32Array(size * size).fill(2000);
-  for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) values[(125 + y) * size + 125 + x] = patch[y * 6 + x]!;
+  for (let y = 10; y < 70; y++) for (let x = 10; x < 70; x++) {
+    values[y * size + x] = Math.max(2000, 3500 - Math.hypot(x - 40, y - 40) * 50);
+  }
   const segments: Segment[] = [[[tile.x / scale, tile.y / scale], [(tile.x + 1) / scale, (tile.y + 1) / scale]]];
+  const isolated = terrainIsolines(values, size, tile, segments, 500, 512).lines;
+  for (let y = 0; y < 6; y++) for (let x = 0; x < 6; x++) values[(125 + y) * size + 125 + x] = patch[y * 6 + x]!;
   const { lines } = terrainIsolines(values, size, tile, segments, 500, 512);
+  const peakPaths = (lines: typeof isolated) => lines.flatMap(line => line.coordinates.filter(path => path.every(point => {
+    const [x, y] = project(point);
+    return x * scale - tile.x < 0.3 && y * scale - tile.y < 0.3;
+  })));
+  assert.ok(peakPaths(isolated).length >= 2);
+  assert.deepEqual(peakPaths(lines), peakPaths(isolated), 'an unrelated saddle must not disable the peak smoothing');
   const edges: { a: Point; b: Point; elevation: number }[] = [];
   const elevations = new Set<number>();
   for (const line of lines) {
