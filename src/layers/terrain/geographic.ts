@@ -17,15 +17,25 @@ export function geographicSamples(tile: Tile, maxZoom: number = TERRAIN_MAX_ZOOM
   });
   const starts = (edges: number[], limit: number) => edges.slice(0, 256).map(v => Math.max(0, Math.min(limit - 1, Math.floor(v))));
   const ends = (edges: number[], limit: number) => edges.slice(1).map(v => Math.max(0, Math.min(limit - 1, Math.ceil(v) - 1)));
+  const lastColumn = Math.ceil(360 / step) - 1, lastRow = Math.ceil(180 / step) - 1;
+  const columnCenters = Array.from({ length: 256 }, (_, x) => Math.max(0, Math.min(lastColumn,
+    (tile.x + (x + 0.5) / 256) / n * 360 / step - 0.5)));
+  const rowCenters = Array.from({ length: 256 }, (_, y) => Math.max(0, Math.min(lastRow,
+    (90 - Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + (y + 0.5) / 256) / n))) * 180 / Math.PI) / step - 0.5)));
   return { zoom, columns: starts(longitudeEdges, size.columns * 256), rows: starts(latitudeEdges, size.rows * 256),
-    columnEnds: ends(longitudeEdges, size.columns * 256), rowEnds: ends(latitudeEdges, size.rows * 256) };
+    columnEnds: ends(longitudeEdges, size.columns * 256), rowEnds: ends(latitudeEdges, size.rows * 256),
+    columnCenters, rowCenters, lastColumn, lastRow };
 }
 
-export function geographicTiles(tile: Tile, maxZoom: number = TERRAIN_MAX_ZOOM): Tile[] {
-  const { zoom, columns, rows, columnEnds, rowEnds } = geographicSamples(tile, maxZoom);
+export function geographicTiles(tile: Tile, maxZoom: number = TERRAIN_MAX_ZOOM, surface = false): Tile[] {
+  const { zoom, columns, rows, columnEnds, rowEnds, columnCenters, rowCenters, lastColumn, lastRow } = geographicSamples(tile, maxZoom);
+  const left = surface ? Math.min(columns[0]!, Math.floor(columnCenters[0]!)) : columns[0]!;
+  const top = surface ? Math.min(rows[0]!, Math.floor(rowCenters[0]!)) : rows[0]!;
+  const right = surface ? Math.max(columnEnds[255]!, Math.min(lastColumn, Math.ceil(columnCenters[255]!))) : columnEnds[255]!;
+  const bottom = surface ? Math.max(rowEnds[255]!, Math.min(lastRow, Math.ceil(rowCenters[255]!))) : rowEnds[255]!;
   const result: Tile[] = [];
-  for (let y = Math.floor(rows[0]! / 256); y <= Math.floor(rowEnds[255]! / 256); y++) {
-    for (let x = Math.floor(columns[0]! / 256); x <= Math.floor(columnEnds[255]! / 256); x++) result.push({ z: zoom, x, y });
+  for (let y = Math.floor(top / 256); y <= Math.floor(bottom / 256); y++) {
+    for (let x = Math.floor(left / 256); x <= Math.floor(right / 256); x++) result.push({ z: zoom, x, y });
   }
   return result;
 }
@@ -39,7 +49,7 @@ export function packagesForElevationTile(packages: readonly TerrainPackage[], ti
     if (!p.grid) return key === legacyKey;
     const maxZoom = p.maxZoom ?? 10; // Packages saved before the finer grid used level 10.
     let keys = geographicKeys.get(maxZoom);
-    if (!keys) geographicKeys.set(maxZoom, keys = new Set(geographicTiles(tile, maxZoom).map(t => terrainShardKey(t.z, t.x, t.y))));
+    if (!keys) geographicKeys.set(maxZoom, keys = new Set(geographicTiles(tile, maxZoom, true).map(t => terrainShardKey(t.z, t.x, t.y))));
     return keys.has(key);
   }).sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
   const first = candidates[0];
@@ -52,16 +62,16 @@ const decoded = new Map<string, Float32Array>();
 type PendingGrid = { controller: AbortController; promise: Promise<Float32Array>; readers: number };
 const pendingGrids = new Map<string, PendingGrid>();
 const gridReads = new TerrainWorkLimit(4);
-async function geographicGrid(tile: Tile, source: TerrainPackage, signal: AbortSignal) {
+async function geographicGrid(tile: Tile, source: TerrainPackage, signal: AbortSignal, surface: boolean) {
   signal.throwIfAborted();
-  const key = `${terrainArchiveUrl(source.root, source.shard)}#${tile.z}/${tile.x}/${tile.y}`;
+  const key = `${terrainArchiveUrl(source.root, source.shard)}#${tile.z}/${tile.x}/${tile.y}/${surface}`;
   const cached = decoded.get(key);
   if (cached) { decoded.delete(key); decoded.set(key, cached); return cached; }
   let job = pendingGrids.get(key);
   if (!job) {
     const controller = new AbortController();
     const promise = gridReads.run(controller.signal, async () => {
-      const values = await readPackagedElevation(tile, source, controller.signal, 2);
+      const values = await readPackagedElevation(tile, source, controller.signal, 2, surface);
       controller.signal.throwIfAborted();
       decoded.set(key, values);
       while (decoded.size > 32) decoded.delete(decoded.keys().next().value!);
@@ -82,15 +92,16 @@ async function geographicGrid(tile: Tile, source: TerrainPackage, signal: AbortS
   }
 }
 
-export async function readGeographicElevation(tile: Tile, sources: readonly TerrainPackage[], signal: AbortSignal, onIncomplete?: () => void): Promise<Float32Array> {
+export async function readGeographicElevation(tile: Tile, sources: readonly TerrainPackage[], signal: AbortSignal,
+  onIncomplete?: () => void, surface = false): Promise<Float32Array> {
   signal.throwIfAborted();
   const maxZoom = sources[0]?.maxZoom ?? 10;
   const samples = geographicSamples(tile, maxZoom), values = new Float32Array(256 * 256).fill(NaN);
   const grids = new Map<string, Float32Array>();
-  const loaded = await Promise.allSettled(geographicTiles(tile, maxZoom).map(async t => {
+  const loaded = await Promise.allSettled(geographicTiles(tile, maxZoom, surface).map(async t => {
     const key = terrainShardKey(t.z, t.x, t.y);
     const source = sources.find(s => terrainShardKey(s.shard.zoom, s.shard.x, s.shard.y) === key);
-    if (source) grids.set(`${t.x}/${t.y}`, await geographicGrid(t, source, signal));
+    if (source) grids.set(`${t.x}/${t.y}`, await geographicGrid(t, source, signal, surface));
   }));
   signal.throwIfAborted();
   const failures = loaded.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
@@ -100,6 +111,19 @@ export async function readGeographicElevation(tile: Tile, sources: readonly Terr
     ?? (!grids.size ? failures[0] : undefined);
   if (failure) throw failure.reason;
   if (failures.length) onIncomplete?.();
+  if (surface) {
+    const sample = (x: number, y: number) => grids.get(`${Math.floor(x / 256)}/${Math.floor(y / 256)}`)?.[(y % 256) * 256 + x % 256] ?? NaN;
+    for (let y = 0; y < 256; y++) {
+      const sy = samples.rowCenters[y]!, y0 = Math.floor(sy), y1 = Math.min(samples.lastRow, y0 + 1), fy = sy - y0;
+      for (let x = 0; x < 256; x++) {
+        const sx = samples.columnCenters[x]!, x0 = Math.floor(sx), x1 = Math.min(samples.lastColumn, x0 + 1), fx = sx - x0;
+        const top = fx === 0 ? sample(x0, y0) : sample(x0, y0) * (1 - fx) + sample(x1, y0) * fx;
+        const bottom = fy === 0 ? top : fx === 0 ? sample(x0, y1) : sample(x0, y1) * (1 - fx) + sample(x1, y1) * fx;
+        values[y * 256 + x] = top * (1 - fy) + bottom * fy;
+      }
+    }
+    return values;
+  }
   for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
     let height = -Infinity;
     for (let row = samples.rows[y]!; row <= samples.rowEnds[y]!; row++) {

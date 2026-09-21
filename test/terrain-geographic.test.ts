@@ -232,3 +232,37 @@ for (const height of [9322, -32768]) test(`Mercator footprints preserve ${height
   assert.ok(edge >= 0);
   assert.ok(Number.isNaN(values[py * 256 + edge]), 'a footprint spanning a missing neighbouring archive stays unknown');
 });
+
+test('surface companions are validated, downloaded offline, and selected independently from maxima', async t => {
+  const cache = storage(t), shard = fineSource.shards.find(s => s.zoom === 11)!;
+  const index = JSON.parse(files.get(shard.file)!.toString()), archive = index.archives[0];
+  const original = files.get(archive.file)!, header = Buffer.from(original.subarray(0, 56));
+  const grid = Buffer.alloc(256 * 256 * 2);
+  for (let i = 0; i < grid.length; i += 2) grid.writeInt16LE(321, i);
+  const part = gzipSync(grid); let offset = 56;
+  for (let q = 0; q < 4; q++) { header.writeUInt32LE(offset, 24 + q * 8); header.writeUInt32LE(part.length, 28 + q * 8); offset += part.length; }
+  const bytes = Buffer.concat([header, part, part, part, part]), sha = hash(bytes), file = `${sha}.dem`;
+  archive.surface = { file, sha256: sha, byteLength: bytes.length };
+  assert.ok(isTerrainIndex(index));
+  for (const invalid of [null, {}, { ...archive.surface, byteLength: 0 }, { ...archive.surface, file: '../bad.dem' }]) {
+    assert.equal(isTerrainIndex({ ...index, archives: [{ ...archive, surface: invalid }] }), false);
+  }
+  const json = Buffer.from(JSON.stringify(index)), indexSha = hash(json), indexFile = `${indexSha}.terrain`;
+  files.set(file, bytes); files.set(indexFile, json);
+  t.after(() => { files.delete(file); files.delete(indexFile); });
+  const paired = { ...fineSource, root: 'https://terrain.test/surface-companion', shards: fineSource.shards.map(s => s === shard
+    ? { ...s, file: indexFile, sha256: indexSha, byteLength: json.length } : s) };
+  const plan = await regionTerrainFiles(bounds, paired, paired.root, signal());
+  assert.equal(plan.length, 23, 'one extra surface file is included in the complete offline plan');
+  assert.ok(plan.some(f => f.sha256 === sha));
+  for (const item of plan) await (await caches.open(CHART_CACHE)).put(item.url, new Response(files.get(new URL(item.url).pathname.split('/').at(-1)!)!));
+  const tile = { z: 13, x: 1319, y: 3188 };
+  const packages = packagesForElevationTile(packagesForTerrainTile([paired], tile, paired.root), tile);
+  const reader = new ElevationTiles();
+  const maximum = await reader.read(tile, '', signal(), packages), surface = await reader.read(tile, '', signal(), packages, true);
+  assert.equal(maximum[128 * 256 + 128], Math.fround(654 / 0.3048));
+  assert.equal(surface[128 * 256 + 128], Math.fround(321 / 0.3048));
+  cache.offline(); const before = cache.requests();
+  assert.deepEqual(await new ElevationTiles().read(tile, '', signal(), packages, true), surface);
+  assert.equal(cache.requests(), before, 'offline interpolation uses saved companion data');
+});

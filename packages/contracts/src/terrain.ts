@@ -2,7 +2,8 @@ import type { Bounds } from './types.js';
 import { isRecord, isSha256, hasValidDate } from './validation.js';
 
 /** Each archive contains four complete 256px DEMs at one native zoom. */
-export type TerrainArchive = { zoom: number; x: number; y: number; file: string; byteLength: number; sha256: string };
+export type TerrainArchive = { zoom: number; x: number; y: number; file: string; byteLength: number; sha256: string;
+  surface?: { file: string; byteLength: number; sha256: string } };
 export type TerrainFormat = {
   schemaVersion: 1; encoding: 'float32-feet-gzip'; minZoom: 1; maxZoom: 13;
 } | ({
@@ -29,6 +30,10 @@ export function isTerrainIndex(value: unknown): value is TerrainIndex {
       !isSha256(a.sha256) || a.file !== `${a.sha256}.dem` ||
       !Number.isSafeInteger(a.byteLength) || (a.byteLength as number) <= 56 ||
       (a.byteLength as number) > TERRAIN_ARCHIVE_MAX_BYTES) return false;
+    if (a.surface !== undefined && (value.schemaVersion !== 2 || !isRecord(a.surface) ||
+      !isSha256(a.surface.sha256) || a.surface.file !== `${a.surface.sha256}.dem` ||
+      !Number.isSafeInteger(a.surface.byteLength) || (a.surface.byteLength as number) <= 56 ||
+      (a.surface.byteLength as number) > TERRAIN_ARCHIVE_MAX_BYTES)) return false;
     const key = terrainArchiveKey(a.zoom as number, a.x as number, a.y as number);
     if (keys.has(key)) return false;
     keys.add(key); return true;

@@ -6,7 +6,8 @@ import type { TerrainBorder } from './seams';
 
 export type TerrainCoverage = 'route' | 'viewport';
 export type TerrainStatus = { state: 'idle' | 'zoom' | 'loading' | 'ready' | 'error'; interval: 500 | 1000; overview?: boolean; coverage?: TerrainCoverage };
-export type TerrainRequest = { id: number; tile: Tile; segments: Segment[]; tileUrl: string; packages?: TerrainPackage[]; coverage?: TerrainCoverage };
+export type TerrainRequest = { id: number; tile: Tile; segments: Segment[]; tileUrl: string; packages?: TerrainPackage[];
+  coverage?: TerrainCoverage; surfaceFill?: boolean };
 export type TerrainResult = { data: ImageBitmap | null; labels: TerrainLabel[]; lines: TerrainIsoline[]; borders?: TerrainBorder[]; incomplete?: boolean };
 export type TerrainWorker = {
   render: (request: TerrainRequest) => Promise<TerrainResult>;

@@ -27,6 +27,8 @@ export async function regionTerrainFiles(bounds: NonNullable<DownloadPlan['bound
       const archive = archives.get(key);
       if (!archive) throw new Error('Terrain coverage is incomplete for this region. Retry after the terrain feed is updated.');
       files.push({ kind: 'terrain', url: terrainArchiveUrl(root, archive), byteLength: archive.byteLength, sha256: archive.sha256 });
+      if (archive.surface && archive.surface.sha256 !== archive.sha256) files.push({ kind: 'terrain',
+        url: terrainArchiveUrl(root, archive.surface), byteLength: archive.surface.byteLength, sha256: archive.surface.sha256 });
     }
   }
   return files;

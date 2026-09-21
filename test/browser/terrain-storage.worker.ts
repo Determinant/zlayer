@@ -4,7 +4,7 @@ import { packagesForElevationTile } from '../../src/layers/terrain/geographic';
 import { ElevationTiles } from '../../src/layers/terrain/elevation';
 import { readTerrainIndex, type TerrainPackage } from '../../src/layers/terrain/packages';
 
-self.onmessage = async ({ data }: MessageEvent<TerrainPackage | { geographicSource: TerrainSource; displayZoom: number }>) => {
+self.onmessage = async ({ data }: MessageEvent<TerrainPackage | { geographicSource: TerrainSource; displayZoom: number; surface?: boolean }>) => {
   try {
     const signal = new AbortController().signal;
     if ('geographicSource' in data) {
@@ -13,7 +13,7 @@ self.onmessage = async ({ data }: MessageEvent<TerrainPackage | { geographicSour
       const tile = { z, x: Math.floor(px), y: Math.floor(py) };
       const parent = { z: z - 1, x: Math.floor(tile.x / 2), y: Math.floor(tile.y / 2) };
       const packages = packagesForElevationTile(packagesForTerrainTile([data.geographicSource], parent, location.href), tile);
-      const values = await new ElevationTiles().read(tile, 'https://invalid.test/no-png', signal, packages);
+      const values = await new ElevationTiles().read(tile, 'https://invalid.test/no-png', signal, packages, data.surface);
       const sample = Math.floor((py - tile.y) * 256) * 256 + Math.floor((px - tile.x) * 256);
       self.postMessage({ values: [values[sample]], finite: values.filter(Number.isFinite).length });
       return;

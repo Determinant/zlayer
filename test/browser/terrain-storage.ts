@@ -4,8 +4,8 @@ import { createBrowserDownloads } from '../../src/offline/browser-downloads';
 import type { DownloadPlan } from '../../src/offline/downloads';
 import { terrainArchiveUrl } from '@zlayer/contracts';
 
-type Fixture = boolean | 'fine';
-const fixtureName = (geographic: Fixture) => geographic === 'fine' ? 'terrain-geographic-fine'
+type Fixture = boolean | 'fine' | 'surface';
+const fixtureName = (geographic: Fixture) => geographic === 'surface' ? 'terrain-surface' : geographic === 'fine' ? 'terrain-geographic-fine'
   : geographic ? 'terrain-geographic' : 'terrain-fixture';
 const source = async (geographic: Fixture = false) => {
   const root = new URL(`/chart-data/${fixtureName(geographic)}`, location.href).href;
@@ -30,14 +30,14 @@ export async function check(geographic: Fixture = false) {
   return downloads.snapshot().find(job => job.id === id(geographic));
 }
 
-export async function probe(zoom: number, geographic: Fixture = false): Promise<number[]> {
+export async function probe(zoom: number, geographic: Fixture = false, surface = false): Promise<number[]> {
   const terrain = await source(geographic), root = terrain.root;
   const worker = new Worker(new URL('./terrain-storage.worker.ts', import.meta.url), { type: 'module' });
   try {
     return await new Promise((resolve, reject) => {
       worker.onmessage = ({ data }) => data.error ? reject(new Error(data.error)) : resolve(data.values);
       worker.onerror = event => reject(new Error(event.message));
-      worker.postMessage(geographic ? { geographicSource: terrain, displayZoom: zoom }
+      worker.postMessage(geographic ? { geographicSource: terrain, displayZoom: zoom, surface }
         : { root, shard: terrain.shards.find(shard => shard.zoom === zoom) });
     });
   } finally { worker.terminate(); }

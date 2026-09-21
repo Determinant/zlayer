@@ -24,9 +24,10 @@ export class ElevationTiles {
     return values;
   }
 
-  async read(tile: Tile, template: string, signal: AbortSignal, source?: TerrainPackage | readonly TerrainPackage[]): Promise<Float32Array> {
+  async read(tile: Tile, template: string, signal: AbortSignal, source?: TerrainPackage | readonly TerrainPackage[], surface = false): Promise<Float32Array> {
     const sources: readonly TerrainPackage[] = source ? ('shard' in source ? [source] : source) : [];
-    const url = sources.length ? `${JSON.stringify(sources.map(s => terrainArchiveUrl(s.root, s.shard)))}#${tile.z}/${tile.x}/${tile.y}`
+    const interpolate = surface && !!sources[0]?.grid;
+    const url = sources.length ? `${JSON.stringify(sources.map(s => terrainArchiveUrl(s.root, s.shard)))}#${tile.z}/${tile.x}/${tile.y}/${interpolate}`
       : template.replace('{z}', String(tile.z)).replace('{x}', String(tile.x)).replace('{y}', String(tile.y));
     signal.throwIfAborted();
     const cached = this.#cached(url);
@@ -36,7 +37,7 @@ export class ElevationTiles {
       const controller = new AbortController();
       const promise = this.#downloads.run(controller.signal, async () => {
         let cacheable = true;
-        const values = sources[0]?.grid ? await readGeographicElevation(tile, sources, controller.signal, () => { cacheable = false; })
+        const values = sources[0]?.grid ? await readGeographicElevation(tile, sources, controller.signal, () => { cacheable = false; }, interpolate)
           : sources[0] ? await readPackagedElevation(tile, sources[0], controller.signal) : await this.#decode(url, controller.signal);
         controller.signal.throwIfAborted();
         if (cacheable) this.#cache.set(url, values);

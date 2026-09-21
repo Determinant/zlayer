@@ -61,7 +61,7 @@ export function packagesForTerrainTile(sources: readonly TerrainSource[], tile: 
         index = new Map(source.shards.map(shard => [terrainShardKey(shard.zoom, shard.x, shard.y), shard]));
         indexes.set(source, index);
       }
-      const tiles = source.schemaVersion === 2 ? geographicTiles(demTile, source.maxZoom) : [demTile];
+      const tiles = source.schemaVersion === 2 ? geographicTiles(demTile, source.maxZoom, true) : [demTile];
       for (const t of tiles) {
         const key = terrainShardKey(t.z, t.x, t.y), identity = `${formatKey(source)}:${key}`;
         const shard = index.get(key);

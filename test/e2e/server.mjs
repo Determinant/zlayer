@@ -31,7 +31,8 @@ await build({ build: { outDir: directory, rolldownOptions: {
     : chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js' },
 } }, logLevel: 'error' });
 const fixtures = await fixtureFiles();
-for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic'], ['terrain-geographic-fine', 'terrain-geographic-fine']]) {
+for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic'],
+  ['terrain-geographic-fine', 'terrain-geographic-fine'], ['terrain-surface', 'terrain-surface']]) {
   for (const file of await readdir(new URL(`../fixtures/${directory}/`, import.meta.url))) {
     if (!/\.(json|terrain|dem)$/.test(file)) continue;
     fixtures.set(`/chart-data/${route}/${file}`, {

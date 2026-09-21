@@ -61,14 +61,18 @@ async function parseIndex(blob: Blob, shard: TerrainShard): Promise<ParsedIndex>
   return { data: value, byTile: new Map(value.archives.map(a => [terrainArchiveKey(a.zoom, a.x, a.y), a])) };
 }
 
-export async function readPackagedElevation(tile: Tile, source: TerrainPackage, signal: AbortSignal, version: 1 | 2 = 1): Promise<Float32Array> {
+export async function readPackagedElevation(tile: Tile, source: TerrainPackage, signal: AbortSignal, version: 1 | 2 = 1,
+  surface = false): Promise<Float32Array> {
   const index = await readIndex(source, signal);
   signal.throwIfAborted();
   if (index.data.schemaVersion !== version || (source.maxZoom !== undefined && index.data.maxZoom !== source.maxZoom)) {
     throw new InvalidDataError('Terrain grid format mismatch');
   }
-  const archive = index.byTile.get(terrainArchiveKey(tile.z, tile.x, tile.y));
-  if (!archive) throw new ResourceError('request', 'Terrain elevation is unavailable for this area');
+  const entry = index.byTile.get(terrainArchiveKey(tile.z, tile.x, tile.y));
+  if (!entry) throw new ResourceError('request', 'Terrain elevation is unavailable for this area');
+  // Older saved packages contain only maxima. They still provide a usable
+  // surface without fetching another dataset or changing clearance heights.
+  const archive = surface && entry.surface ? { ...entry, ...entry.surface } : entry;
   const url = terrainArchiveUrl(source.root, archive);
   const cache = await caches.open(CHART_CACHE);
   signal.throwIfAborted();

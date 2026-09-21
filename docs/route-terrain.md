@@ -44,7 +44,12 @@ route recommendations participate; unresolved route gaps do not.
   `putImageData` on a readback-friendly pixel canvas. CPU-oriented storage avoids
   the accelerated cross-thread bitmap corruption reproduced in WebKit; direct
   writes alone were insufficient. See [graphics compatibility](graphics-compatibility.md).
-- Outlines are traced from the same simplified height grid with marching squares,
+- Geographic contours and elevation-mode fills use bilinearly interpolated surface heights.
+  Clearance fills and sampled highs retain maximum elevations; their boundaries can extend
+  beyond the surface contours. Switching coloring modes rebuilds the numeric fill from
+  cached heights, while numeric altitude changes still only update the palette.
+  Legacy Mercator sources retain their existing height processing.
+- Outlines are traced from the surface height grid with marching squares,
   joined across cells, then rounded with two corner-cutting passes to soften grid
   stair steps at close zoom. Simplification first removes deviations below one
   tile-display pixel so tiny grid segments cannot pin the corners in place.
@@ -179,7 +184,7 @@ checks source ETags on subsequent builds. Schema 2 publishes a geographic grid
 anchored at (-180, 90), with **2.45 arc-seconds** in both axes at native level 11.
 Levels 10–1 double that spacing successively. These geographic levels are distinct
 from the displayed Web Mercator zoom. Default U.S. coverage is approximately
-25,956 archives / 12.7 GiB of grids before compression, plus indexes/provenance.
+25,956 archive pairs / 25.3 GiB of maximum and surface grids before compression, plus indexes/provenance.
 
 Each `ZDEM0002` archive contains four adjacent 256×256 grids of gzip-compressed
 little-endian **int16 metres**, with -32768 reserved for missing data. The builder
@@ -187,7 +192,11 @@ takes the maximum contributing valid source elevation, disabling source overview
 and rounds upward to whole metres. This retains source peaks with less than one
 metre of additional quantization; it does not recover features missing from the
 30-metre source. Heights preserve source orthometric datums. The publisher records
-per-source datums, revisions, grid spacing and processing provenance.
+per-source datums, revisions, grid spacing and processing provenance. New builds also
+publish optional `surface` archive descriptors in each spatial index. These companion
+`ZDEM0002` files use bilinear source sampling, nearest-metre quantization, and averaged
+overviews. Offline plans include both files; old saved maxima remain supported.
+The full alignment improvement requires rebuilding and publishing this paired dataset.
 
 The browser converts metres to feet on read. The worker maps geographic cells onto
 the requested Mercator tile and retains maxima over each display pixel footprint.
@@ -199,7 +208,10 @@ active. Canceling one consumer preserves its peers; canceling the last stops the
 remaining read and decompression work. Terrain rendering retains its worker and
 output-cache limits. Any missing cell within a display pixel's footprint keeps
 that pixel unknown, including missing neighbours at saved-region edges; corrupt
-data is rejected. Route contours still come from the resulting numeric heights.
+data is rejected. Route contours interpolate geographic cell centers, using optional surface companions
+when present and the saved maximum grid otherwise. Both channels share the existing
+cache limits. Interpolation reads neighboring cells across tile edges; unavailable
+contributors leave gaps rather than invented connections.
 
 The reader also accepts schema 1 `ZDEM0001` float32-feet Mercator packages at zooms
 1–13, so saved selections survive the transition. Saved sources retain precedence

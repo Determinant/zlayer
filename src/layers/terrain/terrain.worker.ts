@@ -24,7 +24,7 @@ async function render(request: TerrainRequest): Promise<TerrainResult> {
   } finally { jobs.delete(request.id); }
 }
 
-async function renderTile({ tile, segments, tileUrl, packages, coverage }: TerrainRequest, signal: AbortSignal): Promise<TerrainResult> {
+async function renderTile({ tile, segments, tileUrl, packages, coverage, surfaceFill }: TerrainRequest, signal: AbortSignal): Promise<TerrainResult> {
   const viewport = coverage === 'viewport';
   if (!viewport && (tile.z < MIN_TERRAIN_ZOOM || !segmentsForTile(tile, segments).length)) return { data: null, labels: [], lines: [] };
   const detail = terrainDetail(tile.z), { demZoom, gridSize, interval } = detail;
@@ -47,8 +47,12 @@ async function renderTile({ tile, segments, tileUrl, packages, coverage }: Terra
         let painted: PaintedTile;
         if (viewport) painted = viewportPixels(values, partSize);
         else {
-          const simplified = simplifyElevation(values, 256, heightSize);
-          const heights = interpolateElevation(simplified, heightSize, partSize);
+          const surface = source[0]?.grid ? await elevation.read(demTile, tileUrl, signal, source, true) : values;
+          signal.throwIfAborted();
+          const simplified = source[0]?.grid ? interpolateElevation(surface, 256, heightSize) : simplifyElevation(surface, 256, heightSize);
+          // Absolute elevation fills follow the same surface as the contours.
+          // Clearance fills and sampled highs retain the conservative maxima.
+          const heights = interpolateElevation(surfaceFill ? simplified : simplifyElevation(values, 256, heightSize), heightSize, partSize);
           painted = paintTerrain(heights, demTile, nearby, interval, partSize);
           const outlines = terrainIsolines(simplified, heightSize, demTile, nearby, interval, partSize, false);
           lines.push(...outlines.lines);

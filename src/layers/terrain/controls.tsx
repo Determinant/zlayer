@@ -84,6 +84,7 @@ function TerrainHelp({ coverage }: { coverage: TerrainCoverage }) {
       {coverage === 'route' ? <>
         <p>1,000 ft contours; zoom in for 500 ft detail. Dashed edges mark 4 NM on each side of the route. Full color inside, fading out by 8 NM.</p>
         <p>^ marks sampled highs, rounded up to 100 ft. Elevation mode leaves terrain below the first contour unshaded.</p>
+        <p>Contours follow interpolated ground elevations. Clearance shading uses sampled maxima, so its boundaries can extend beyond the contour lines.</p>
       </> : <>
         <p>Colors cover the visible map without a route. Zoom in for finer terrain detail.</p>
         <p>Clearance uses sampled terrain elevations. Contours and peak labels are available in Route mode.</p>
