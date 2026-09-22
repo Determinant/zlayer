@@ -1,7 +1,6 @@
 @import 'maplibre-gl/dist/maplibre-gl.css' layer(maplibre);
-@import './core/ui/viewport.css';
-@import './shell/styles.css';
 @import './core/ui/styles.css';
+@import './shell/styles.css';
 @import './core/ui/edge-handle.css';
 @import './core/ui/edge-panels.css';
 @import './layers/routes/styles.css';

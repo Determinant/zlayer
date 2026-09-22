@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
 import type { RouteDraft, RoutePlan } from '@zlayer/domain';
+import type { CatalogResponse } from '@zlayer/contracts';
 import { foreFlightRouteUrl, routeExportText, ROUTE_EXPORT_FORMATS, type RouteExportFormat } from './export';
 import { RouteStashDialog, type RouteStashView } from './stash-dialog';
 
 type ExportAction = 'copy' | 'share';
 
-export function RouteMenu({ plan, onOpen, onClear, onLoadRoute, navlogOpen, navlogId, onToggleNavlog }: {
-  plan: RoutePlan; onOpen: () => void; onClear: () => void; onLoadRoute: (draft: RouteDraft) => void;
+export function RouteMenu({ plan, catalog, onOpen, onClear, onLoadRoute, navlogOpen, navlogId, onToggleNavlog }: {
+  plan: RoutePlan; catalog: CatalogResponse; onOpen: () => void; onClear: () => void; onLoadRoute: (draft: RouteDraft) => void;
   navlogOpen: boolean; navlogId: string; onToggleNavlog: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -170,6 +171,8 @@ export function RouteMenu({ plan, onOpen, onClear, onLoadRoute, navlogOpen, navl
       <div id={id} role="menu" aria-label="Route actions" ref={menuRef}>
         <button type="button" role="menuitem" aria-expanded={navlogOpen} aria-controls={navlogOpen ? navlogId : undefined}
           onClick={() => { close(); onToggleNavlog(); }}>{navlogOpen ? 'Hide' : 'Show'} NavLog</button>
+        <button type="button" role="menuitem" disabled={plan.entries.length < 2}
+          onClick={() => { close(); onLoadRoute({ entries: [...plan.entries].reverse() }); }}>Reverse Route</button>
         <div role="separator" />
         <button type="button" role="menuitem" ref={copyButtonRef} disabled={!text}
           aria-haspopup="menu" aria-expanded={exportAction === 'copy'}
@@ -197,9 +200,9 @@ export function RouteMenu({ plan, onOpen, onClear, onLoadRoute, navlogOpen, navl
           onClick={() => { setOpen(false); onClear(); }}>Clear Route</button>
       </div>
       <div role="status">{message}</div>
-      {manualCopy !== undefined && <textarea ref={textRef} aria-label="Route text to copy" value={manualCopy} readOnly rows={3} />}
+      {manualCopy !== undefined && <textarea className="ui-input" ref={textRef} aria-label="Route text to copy" value={manualCopy} readOnly rows={3} />}
     </div>}
-    {stash && <RouteStashDialog initial={stash} onLoad={onLoadRoute} onClose={() => {
+    {stash && <RouteStashDialog initial={stash} catalog={catalog} onLoad={onLoadRoute} onClose={() => {
       setStash(undefined);
       requestAnimationFrame(() => buttonRef.current?.focus());
     }} />}

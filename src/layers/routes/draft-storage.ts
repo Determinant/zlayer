@@ -1,5 +1,23 @@
 import { isRecord } from '@zlayer/contracts';
-import { routeTokensFromText, type RouteApproach, type RouteDraft, type RouteEntry, type RouteTerminal } from '@zlayer/domain';
+import { routeDraftFromText, routeTokensFromText, type RouteApproach, type RouteDraft, type RouteEntry, type RouteTerminal } from '@zlayer/domain';
+import { pluginStorage } from './storage';
+import { EMPTY_ROUTE_DRAFT } from './draft';
+
+export const routeDraftRecord = pluginStorage.record('draft', {
+  version: 2, fallback: EMPTY_ROUTE_DRAFT, legacyKey: 'zlayer-route-draft-v1',
+  decode: decodeDraft, encode: draft => ({ version: 2, entries: draft.entries }),
+});
+
+function decodeDraft(value: unknown): RouteDraft | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.version === 1 && typeof value.input === 'string') {
+    const count = routeTokensFromText(value.input).length;
+    const pins = isRecord(value.pinnedFeatureIds) ? value.pinnedFeatureIds : {};
+    return routeDraftFromText(value.input, Object.fromEntries(Object.entries(pins).flatMap(([index, id]) =>
+      /^(0|[1-9]\d*)$/.test(index) && Number(index) < count && typeof id === 'string' && id.length > 0 ? [[index, id]] : [])));
+  }
+  return value.version === 2 ? parseRouteEntries(value.entries) : undefined;
+}
 
 /** Shared boundary for active drafts and saved routes. Legacy attachments acquire
  * explicit source/kind here; malformed attachments never discard their airport. */
@@ -8,8 +26,9 @@ export function parseRouteEntries(value: unknown): RouteDraft | undefined {
   const ids = new Set<string>(), entries: RouteEntry[] = [];
   for (const entry of value) {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id || ids.has(entry.id) ||
-      typeof entry.text !== 'string' || routeTokensFromText(entry.text).length !== 1 ||
-      routeTokensFromText(entry.text)[0] !== entry.text) return undefined;
+      typeof entry.text !== 'string') return undefined;
+    const tokens = routeTokensFromText(entry.text);
+    if (tokens.length !== 1 || tokens[0] !== entry.text) return undefined;
     ids.add(entry.id);
     const approach = approachSelection(entry.approach);
     const departure = terminalSelection(entry.departure, 'departure'), arrival = terminalSelection(entry.arrival, 'arrival');

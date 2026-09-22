@@ -2,6 +2,16 @@
 
 [Documentation](../../../docs/README.md) / Plugins / routes
 
+The [core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication)
+exposes the committed plan, current preview, displayed plans, scoped edit commands,
+and the availability of map editing. Terrain, obstructions and AHRS subscribe independently. Renderer failure
+revokes editing while plan data and unrelated map selection remain available.
+
+`use-controller.ts` owns the draft, planning demand, previews, direct-to and edit
+callbacks. The workspace supplies the routing catalog and GPS source, places the
+UI and publishes the controller's map inputs. Unloading clears temporary previews
+and stops planning demand while preserving the saved draft.
+
 This guide owns route editing, resolution, recommendations and persistence.
 Supporting guides cover [terminal procedures](terminal-procedures.md),
 [approach geometry](approach-geometry.md) and
@@ -49,14 +59,17 @@ text/import → draft entries → scoped segments → constrained points → res
 | `packages/domain/src/tec-routes.ts` | Local airport-pair matching and scoped published children |
 | `packages/domain/src/preferred-routes.ts` | Published route imports and typed point constraints |
 | `src/layers/routes/draft.ts` | Atomic edits by entry ID |
-| `src/layers/routes/use-draft.ts` | Versioned persistence and storage validation |
+| `src/layers/routes/use-controller.ts` | Route state and actions shared by the route bar, map and feature details |
+| `src/layers/routes/draft-storage.ts`, `use-draft.ts` | Shared draft/stash validation, versioned draft codec and React persistence hook |
 | `src/layers/routes/use-plan.ts` | Reference loading, resource identity, partial failures and superseded requests |
-| `src/layers/routes/suggestions.ts` | Shared resolution for history and preferred/TEC recommendations |
+| `src/layers/routes/use-resource.ts` | Recommendation/picker request identity, cancellation, manual retry and reconnect/inventory recovery |
+| `src/layers/routes/procedure-picker.tsx` | Shared picker frame, dismissal, form isolation and plate-opening helpers |
+| `src/layers/routes/suggestions.ts` | Shared resolution for history, preferred/TEC and saved-route recommendations |
 | `src/layers/routes/history/` | Worker client and store, plus history query and draft conversion; offline callers use `client.ts` |
 | `src/layers/routes/editor.tsx`, `use-editor-gestures.ts` | Entry, insertion, token menus, reorder and pointer lifecycle |
 | `src/layers/routes/renderer.ts`, `geometry.ts`, `editing.ts` | GeoJSON presentation, dateline handling and edit target identity |
 | `src/layers/routes/snapping.ts` | Stable snap selection and bounded retention through missing rendered hits |
-| `src/workspace/feature-route-actions.tsx` | Shared detail-panel add/remove controls, derived from the selected feature and current route |
+| `src/layers/routes/feature-actions.tsx` | Shared detail-panel add/remove controls, derived from the selected feature and current route |
 | `src/layers/routes/map-gestures.ts` | Shared map selection, route hit testing, dragging and snapping |
 | `src/workspace/map/snap-bounds.ts` | One-time capture of rendered snap bounds through MapLibre's public query API |
 
@@ -421,7 +434,7 @@ the same longitude-unwrapping rule.
 
 ## Route actions
 
-The Route icon and label open a menu for Show/Hide NavLog, Copy Route, native Share when supported,
+The Route icon and label open a menu for Show/Hide NavLog, Reverse Route, Copy Route, native Share when supported,
 Open in ForeFlight on iPhone/iPad, Save Route, Manage Routes, and Clear Route. On phones the menu trigger
 starts the second row before Advise; wider layouts keep it before the input.
 Clearing returns focus to the empty route editor. Clipboard failures offer selected
@@ -446,6 +459,14 @@ VTF and missed-approach sections identified. Attached airport markers do not
 become extra flown legs. Incomplete routes show known distance only; holds and
 schematic paths are excluded. Speed, time and fuel are not modeled in this view.
 
+**Reverse Route**, immediately below Show/Hide NavLog, reverses the entire draft's
+entry order, including input committed when opening the menu. Entry identities,
+exact feature pins, coordinates, unresolved tokens and airport-attached procedures
+stay with their entries, just as when reordering individual chips. Published
+procedures retain their own direction; reversal does not turn a SID into a STAR
+or reverse an approach. The map and NavLog resolve the new order, which persists
+on reload. The action is disabled for fewer than two entries.
+
 **Copy Route** and **Share…** each expand a format submenu on desktop, iOS/iPadOS
 (including the desktop-style iPad user agent), and Android. Share passes the
 selected format to the native share sheet. Arrow Right opens either format menu;
@@ -453,15 +474,31 @@ Arrow Left or Escape returns to its parent action, and a second Escape closes th
 route menu. Clipboard fallback text uses the chosen format. Cancelling native
 sharing keeps the format menu available for retry; a failure offers Copy Route.
 
-**Save Route** asks for an optional name and saves a snapshot of the current draft,
-including pending input, exact coordinates, pinned waypoints, and attached
+**Save Route** prefills the optional name from the first and last waypoint, such as
+`KSFO to KSJC`, and selects it for easy replacement. A single-waypoint route uses
+that waypoint's label; coordinates use the same readable labels as the route input.
+The suggestion is set once when opening Save and can be edited or cleared.
+Saving captures a snapshot of the current draft, including pending input,
+exact coordinates, pinned waypoints, and attached
 SIDs and approaches. Empty names stay hidden. **Manage Routes** opens the **Route Stash**,
 where Load replaces the active draft. Edit changes
 a saved route's name or filing text without changing the active draft; unchanged
 entries retain their pins and procedure attachments. Remove deletes the saved route, and
 Move up / Move down persist the list order with buttons usable by touch and keyboard.
+The search field filters saved names and filing text without regard to case. Each
+space-separated term must match, so an origin and destination can find routes with
+intermediate waypoints. Search text is indexed when the stash changes; typing only
+filters those strings and hidden routes do not resolve or render their chips. The
+filter stays while editing and returning to the list, and clears when the dialog
+closes. With a filter, Move up / Move down swap adjacent matching saves while leaving
+hidden saves in place. Clearing the filter restores the full list.
 The dialogs use the shared confirmation typography, native modal focus handling,
-and a scrollable list that fits phone and tablet screens.
+and a scrollable list that fits phone and tablet screens; search remains above the
+scrolling list.
+Saved-route and save-preview chips resolve against the current routing catalog
+and use the route input's entity colors, including pending and unresolved states.
+The stash loads those references even when the active route is empty; classification
+is display-only and never rewrites the saved draft, pins or procedure attachments.
 
 The [Web Share API deliberately hides the chosen destination app](https://www.w3.org/TR/web-share/#privacy-considerations),
 so a PWA cannot switch formats after the user picks an app in the system sheet.
@@ -488,11 +525,30 @@ and [FAA ICAO coordinate conventions](https://www.faa.gov/air_traffic/publicatio
 ## Recommendations
 
 **Advise** uses the first and last draft entries as airports; intermediate entries
-do not affect lookup. Rows appear in **Frequency**, **Preferred**, then **TEC**
+do not affect lookup. Rows appear in **Frequency**, **Preferred**, **TEC**, then **Route Stash**
 sections. Frequency shows the historical snapshot's observation dates and filed-route
 counts, with an aircraft engine-category filter. FAA/ICAO aliases and equivalent
 text are combined; percentages use all matching counts, including undisplayed rows.
 These are filings, not verified ATC clearances or a rolling 30-day window.
+
+Route Stash matches saved routes on this device with the same ordered airport pair,
+using FAA/ICAO aliases and exact endpoint pins. Ambiguous or missing endpoint identities,
+other destinations and reverse-direction routes are excluded. Saved names and list
+order are retained; the aircraft filter applies only to Frequency. Preview and Use
+keep the complete saved draft, including coordinates, VFR waypoints, pins and attached
+procedures. Unknown intermediate entries remain visible as partial or unresolved
+routes. Looking up a save never rewrites it. The section refreshes on saves, storage
+events and window focus; an unreadable stash offers its own retry without hiding
+the other recommendation sources.
+
+Airport-pair lookup indexes FAA/ICAO aliases and stable IDs once per immutable
+airport feature array. Ambiguous aliases and duplicate IDs remain unresolved;
+replacing the navigation snapshot builds a fresh index. Stash matching reads only
+the first and last entries of each save, so repeated lookups scale with the number
+of saves rather than saves multiplied by the national airport count. Weak references
+allow indexes for discarded snapshots to be collected.
+`node --import=tsx tools/benchmark-route-stash.ts` measures initial and repeated
+lookups with a synthetic 20,000-airport catalog and increasing stash sizes.
 
 Published typed imports require a unique stable identity for every waypoint;
 missing or ambiguous reference data disables import instead of dropping the
@@ -505,6 +561,10 @@ highlighting the first with normal route styling and fading alternatives to gray
 row highlights its path without editing the draft; **Use** loads it and closes the
 list. Closing without Use restores the editable route. Matching paths share an
 overlay while preserving the selected result's labels and procedure details.
+Overlay identity includes resolved legs, dotted planning connections, final-course
+extensions and schematic procedure depictions. Equal resolved legs alone do not
+merge paths whose displayed planning geometry differs. Routes with no resolved
+legs remain listed and usable, but do not offer a recommendation map preview.
 Procedure segments remain dashed; dotted planning connections bridge known points
 across unknown segments, and partial previews are labeled. An exact, unique historical TEC code can use the current FAA definition,
 labeled **current TEC** while retaining the original filed text and counts.
@@ -515,6 +575,14 @@ selection, expanded conditions and row limits persist locally; see
 [workspace persistence](../../../docs/data/contracts.md#workspace-persistence). Recommendation sources
 load independently and share national references with the planner and
 [regional downloads](../../../docs/features/offline-storage.md).
+Open recommendation and procedure views retry when connectivity or saved-file
+inventory changes, and offer manual retry for failed sources. Their shared loader
+retains usable data during and after a failed retry of the same source; recommendation
+rows stay usable alongside the retry message. It hides results immediately when
+the complete resource/query identity changes, and ignores late results after a
+view closes or changes source. Shared reference downloads keep their own lifetime;
+route-history queries receive the view's cancellation signal. The main planner
+also retains its timed retries for partial data while online.
 
 ## Persistence and compatibility
 
@@ -535,7 +603,8 @@ success after storage accepts the write. Unreadable records are left untouched.
 A Web Lock covers each complete read/change/write so simultaneous windows cannot
 overwrite unrelated saves. If another window holds the lock or browser coordination
 is unavailable, the operation reports an error without writing. Dialog actions are
-disabled while a write is pending. Storage events refresh an open stash across tabs;
+disabled while a write is pending. Saves refresh open stash views in the same window,
+and storage events refresh them across tabs;
 saving an edit rejects a route changed or removed in another tab. Site storage reset
 also clears the stash.
 
@@ -558,11 +627,12 @@ more conservatively.
 Route actions have no application-level Undo/Redo history. Loading a saved Route
 Stash snapshot restores that draft, including its attached approaches and pins.
 
-SID selection attaches a runway/branch and exit to its airport, using the same
-picker and bundle interaction as approaches; see [procedure previews](terminal-procedures.md).
-SID/STAR rendering does not reconstruct vectors, arcs or full flight-guidance paths.
-STAR runway branches remain unselected. Lines
-join published waypoint coordinates; long direct legs are not densified into
+SID/STAR selection attaches an explicit runway/branch and enroute transition to
+its airport; see [procedure previews](terminal-procedures.md). Coded selections
+use the available fixed geometry and declared schematic depictions; manual
+vectors and unresolved constraints remain gaps. Legacy NASR filing previews
+join published waypoint coordinates without reconstructing the full procedure.
+Long direct legs are not densified into
 great-circle polylines, although distance uses great-circle calculations.
 
 Regression coverage lives in the domain route/airway/TEC/procedure tests and the

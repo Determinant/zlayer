@@ -1,8 +1,10 @@
+import { PluginScope } from '../../core/layers/bridge';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
 import type { createLayerInput } from '../../core/layers/input';
-import type { RouteEditingStore, RouteMapEditing, RoutePluginInput } from './plugin';
+import type { RouteEditingStore, RoutePluginInput } from './plugin';
+import type { RouteMapEditing } from './public';
 import { createRouteLayer } from './layer';
 import { fitRoute } from './map-camera';
 
@@ -12,6 +14,8 @@ export function createRouteContribution(input: ReturnType<typeof createLayerInpu
   const renderer = createRouteLayer();
   let map: MapLibreMap | undefined;
   let previous: RoutePluginInput | undefined;
+  let editingScope: PluginScope | undefined;
+  let publishedEditing: RouteMapEditing | undefined;
   // View requests survive renderer remounts; only the rendering cache resets.
   let previousView = context.preserveView ? initialView : { focusNonce: 0, routePreview: undefined };
   const cameraKey = (value: RoutePluginInput['routePreview']) => JSON.stringify([value?.routes.map(route => route.key), value?.inset]);
@@ -43,11 +47,15 @@ export function createRouteContribution(input: ReturnType<typeof createLayerInpu
       renderer.mount(target);
       map = target;
       update();
-      editing.publish(preview);
+      editingScope = new PluginScope(context.reportError);
+      publishedEditing = editingScope.command(preview);
+      editing.publish(publishedEditing);
     },
     unmount() {
       // Revoke editing before cleanup; selection cancels any drag and restores pan/pinch.
-      if (editing.getSnapshot() === preview) editing.publish(undefined);
+      editingScope?.dispose(); editingScope = undefined;
+      if (editing.getSnapshot() === publishedEditing) editing.publish(undefined);
+      publishedEditing = undefined;
       map = undefined;
       renderer.unmount();
       previous = undefined;

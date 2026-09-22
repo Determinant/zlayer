@@ -1,8 +1,11 @@
+import type { TerrainApi } from './public';
+import type { RoutesApi } from '../routes/public';
+import type { PluginExports } from '../../core/layers/bridge';
 import { pluginStorage } from './storage';
 import { terrainPreferences } from './preferences';
 import type { RoutePlan } from '@zlayer/domain';
 import type { CatalogReadSource } from '../../workspace/read-context';
-import { createLayerInput, selectLayerStore } from '../../core/layers/input';
+import { createLayerInput, selectLayerStore, combineLayerStores } from '../../core/layers/input';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { createLayerStore } from '../../core/layers/store';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
@@ -12,13 +15,18 @@ import { TerrainControls, TerrainLegend } from './controls';
 import type { TerrainCoverage, TerrainStatus } from './types';
 
 export type TerrainPluginInput = {
-  enabled: boolean; routes: readonly RoutePlan[]; catalog: CatalogReadSource;
+  enabled: boolean; catalog: CatalogReadSource;
   altitude: number | null; coverage: TerrainCoverage;
   onToggle(): void; onAltitudeChange(value: number | null): void; onCoverageChange(value: TerrainCoverage): void;
 };
 
 export function createTerrainPlugin() {
   const input = createLayerInput<TerrainPluginInput>();
+  const noRoutes: readonly RoutePlan[] = [];
+  const routes = createLayerStore(noRoutes);
+  const mapInput = combineLayerStores(input, routes, (state = input.require(), routes) => ({
+    enabled: state.enabled, routes, catalog: state.catalog, altitude: state.altitude, coverage: state.coverage,
+  }));
   const status = createLayerStore<TerrainStatus>({ state: 'idle', interval: 1000 });
   const controlsInput = selectLayerStore(input, state => state && ({ enabled: state.enabled, coverage: state.coverage,
     onToggle: state.onToggle, onCoverageChange: state.onCoverageChange }));
@@ -35,14 +43,21 @@ export function createTerrainPlugin() {
     </ToolPanel> : null;
   }
   return {
+    publicApi: scope => ({ status: scope.store(status) }),
+    connect(bridge, scope) {
+      scope.add(() => routes.publish(noRoutes));
+      bridge.watch('routes', (api, connection) => {
+        if (api) connection.observe(api.displayedRoutes, routes.publish);
+        else routes.publish(noRoutes);
+      });
+    },
     storage: pluginStorage, preferences: terrainPreferences,
     definition: { id: 'terrain', title: 'Terrain' }, input, status,
     controls: [{ id: 'terrain', Component: Controls }],
     panels: [{ id: 'terrain', title: 'terrain toolbox', Component: Panel }],
     mapContribution: { id: 'terrain', async load() {
       const { createTerrainLayer } = await import('./map');
-      return [bindMapLayer(createTerrainLayer(status.publish),
-        input.select(({ enabled, routes, catalog, altitude, coverage }) => ({ enabled, routes, catalog, altitude, coverage })))];
+      return [bindMapLayer(createTerrainLayer(status.publish), mapInput)];
     } },
-  } satisfies LayerPlugin & { input: typeof input; status: typeof status };
+  } satisfies LayerPlugin & PluginExports<TerrainApi, { routes: RoutesApi }> & { input: typeof input; status: typeof status };
 }

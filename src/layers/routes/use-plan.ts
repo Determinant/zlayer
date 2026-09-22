@@ -24,6 +24,16 @@ export function useRoutePlan(
   onNormalize?: (edit: (current: RouteDraft) => RouteDraft) => void,
 ): { plan: RoutePlan; data: NavigationData; status: RouteLoadStatus } {
   const active = draft.entries.length > 0;
+  const { resolver, data, terminal, status } = useRouteResolver(catalog, active);
+  const resolved = useMemo(() => resolver(draft), [draft, resolver]);
+  const normalized = useMemo(() => attachRouteDepartures(draft, resolved, terminal), [draft, resolved, terminal]);
+  useEffect(() => { if (normalized !== draft) onNormalize?.(current => current === draft ? normalized : current); }, [draft, normalized, onNormalize]);
+  const plan = useMemo(() => normalized === draft ? resolved : resolver(normalized), [draft, normalized, resolved, resolver]);
+  return { plan, data, status };
+}
+
+/** One resource subscription and shared national index for an active view. */
+export function useRouteResolver(catalog: CatalogResponse | undefined, active: boolean) {
   const online = useOnline();
   const inventoryVersion = useInventoryVersion();
   const [loaded, setLoaded] = useState<LoadedRouteData>();
@@ -70,9 +80,6 @@ export function useRoutePlan(
   const preferred = current?.preferred;
   // GPS coordinates resolve independently of navigation-resource availability.
   const resolver = useMemo(() => routeResolver(data, airways, terminal, preferred), [data, airways, terminal, preferred]);
-  const resolved = useMemo(() => resolver(draft), [draft, resolver]);
-  const normalized = useMemo(() => attachRouteDepartures(draft, resolved, terminal), [draft, resolved, terminal]);
-  useEffect(() => { if (normalized !== draft) onNormalize?.(current => current === draft ? normalized : current); }, [draft, normalized, onNormalize]);
-  const plan = useMemo(() => normalized === draft ? resolved : resolver(normalized), [draft, normalized, resolved, resolver]);
-  return { plan, data, status: !active ? 'idle' : current?.status ?? 'loading' };
+  const status: RouteLoadStatus = !active ? 'idle' : current?.status ?? 'loading';
+  return { resolver, data, terminal, status };
 }

@@ -14,6 +14,8 @@ async function nextVersion(page: Page): Promise<string> {
 }
 
 test('a prepared release prompts both windows, waits for a click, and reloads once offline with saved data', { tag: '@smoke' }, async ({ page, context, request }, testInfo) => {
+  // Two live WebGL workspaces and an offline reload share the CI runner's CPU.
+  test.setTimeout(120_000);
   await page.goto('/');
   await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
   const originalRelease = await page.locator(releaseSelector).getAttribute('content');
@@ -41,7 +43,10 @@ test('a prepared release prompts both windows, waits for a click, and reloads on
   const other = await context.newPage();
   await other.goto('/');
   await other.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
-  // Settings state is shared across windows; close it to expose the second prompt.
+  // Worker control precedes map/data readiness; restored Settings stays inert
+  // until startup completes, which can take longer with two software-rendered maps.
+  await expect(other.locator('.app-shell')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 });
+  // The new window restores saved Settings state; close it to expose its prompt.
   await other.getByLabel('Close settings').click();
   let navigations = 0;
   page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations++; });

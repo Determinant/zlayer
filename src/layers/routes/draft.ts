@@ -71,11 +71,11 @@ export function sameRouteApproach(left: RouteApproach | undefined, right: RouteA
 }
 export function setRouteDeparture(draft: RouteDraft, expected: RouteEntry, departure: RouteTerminal | undefined): RouteDraft {
   const index = draft.entries.indexOf(expected);
-  if (index < 0 || departure && departure.kind !== 'departure' || sameRouteDeparture(expected.departure, departure)) return draft;
+  if (index < 0 || departure && departure.kind !== 'departure' || sameRouteTerminal(expected.departure, departure)) return draft;
   const { departure: _previous, ...airport } = expected;
   return spliceEntries(draft, index, 1, [{ ...airport, ...(departure ? { departure } : {}) }]);
 }
-export function sameRouteDeparture(left: RouteTerminal | undefined, right: RouteTerminal | undefined): boolean {
+export function sameRouteTerminal(left: RouteTerminal | undefined, right: RouteTerminal | undefined): boolean {
   return left === right || !!left && !!right && left.airportId === right.airportId && left.procedureId === right.procedureId &&
     left.kind === right.kind && left.source === right.source && left.ident === right.ident && left.name === right.name && left.effectiveDate === right.effectiveDate &&
     left.transition === right.transition && left.branchId === right.branchId && left.branchName === right.branchName &&
@@ -83,7 +83,7 @@ export function sameRouteDeparture(left: RouteTerminal | undefined, right: Route
 }
 export function setRouteArrival(draft: RouteDraft, expected: RouteEntry, arrival: RouteTerminal | undefined): RouteDraft {
   const index = draft.entries.indexOf(expected);
-  if (index < 0 || arrival && arrival.kind !== 'arrival' || sameRouteDeparture(expected.arrival, arrival)) return draft;
+  if (index < 0 || arrival && arrival.kind !== 'arrival' || sameRouteTerminal(expected.arrival, arrival)) return draft;
   const { arrival: _previous, ...airport } = expected;
   return spliceEntries(draft, index, 1, [{ ...airport, ...(arrival ? { arrival } : {}) }]);
 }
@@ -93,8 +93,8 @@ export function sameRouteDraft(left: RouteDraft, right: RouteDraft): boolean {
   return left.entries.length === right.entries.length && left.entries.every((entry, index) => {
     const other = right.entries[index]!;
     return entry.id === other.id && entry.text === other.text && entry.pinnedFeatureId === other.pinnedFeatureId &&
-      sameRouteApproach(entry.approach, other.approach) && sameRouteDeparture(entry.departure, other.departure) &&
-      sameRouteDeparture(entry.arrival, other.arrival);
+      sameRouteApproach(entry.approach, other.approach) && sameRouteTerminal(entry.departure, other.departure) &&
+      sameRouteTerminal(entry.arrival, other.arrival);
   });
 }
 export function moveRouteEntry(draft: RouteDraft, fromEntryId: string, toEntryId: string): RouteDraft {

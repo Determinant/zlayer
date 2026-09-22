@@ -14,11 +14,11 @@ export function ResetSettings() {
       All open ZLayer windows will stop. You will need a connection to use ZLayer again.</p>
     <p>Your home-screen icon and browser permissions are managed by your browser.</p>
     <label>Type DELETE to confirm
-      <input value={confirmation} onChange={event => setConfirmation(event.target.value)}
+      <input className="ui-input" value={confirmation} onChange={event => setConfirmation(event.target.value)}
         autoComplete="off" spellCheck={false} autoCapitalize="characters" aria-describedby="reset-warning" />
     </label>
     <p id="reset-warning">This cannot be undone.</p>
-    <button type="button" className="reset-delete" disabled={confirmation !== 'DELETE'} onClick={() => {
+    <button type="button" className="ui-button ui-button--danger" disabled={confirmation !== 'DELETE'} onClick={() => {
       try { beginReset(); }
       catch (error) { setError(error instanceof Error ? error.message : 'Could not start the reset. Retry.'); }
     }}>Delete all local data</button>

@@ -1,12 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
-import { createPortal } from 'react-dom';
+import { ConfirmationDialog } from '../../core/ui/confirmation-dialog';
 import { formatTimestamp } from '../../core/format/time';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import type { AhrsLayer } from './layer';
 import { recordingStorage, type RecordingExportFormat, type RecordingInfo } from './recording-storage';
 import { downloadRecording } from './recording-download';
-import '../../core/ui/confirmation-dialog.css';
 import './recorder.css';
 
 const bytes = (size: number) => size < 1024 * 1024 ? `${Math.ceil(size / 1024)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -84,7 +83,7 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
     } finally { setDeleting(null); }
   };
   return <div ref={root} className="ahrs-recorder">
-    <button ref={button} type="button" className={`ahrs-header-button ahrs-recorder-button${running ? ' is-recording' : ''}${state.error ? ' has-error' : ''}`}
+    <button ref={button} type="button" className={`ui-button ahrs-header-button ahrs-recorder-button${running ? ' is-recording' : ''}${state.error ? ' has-error' : ''}`}
       aria-label={running ? 'Recording · open recorder' : state.error ? 'Recorder needs attention' : 'AHRS recorder'}
       title={running ? 'Recording' : 'Record AHRS'} aria-expanded={open} aria-controls={id}
       onClick={() => setOpen(value => !value)}>
@@ -98,7 +97,7 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
     {open && <div id={id} className="ahrs-recorder-menu" role="region" aria-label="AHRS recordings">
       <strong>AHRS recorder</strong>
       <p>Motion, GPS, attitude and uncertainty. Saved on this device.</p>
-      <button type="button" className="ahrs-record-action" disabled={busy}
+      <button type="button" className="ui-button ahrs-record-action" disabled={busy}
         onClick={() => { if (running) void layer.recorder.stop(); else void onStart(); }}>
         {state.phase === 'starting' ? 'Starting…' : state.phase === 'saving' ? 'Saving…' : running ? 'Stop recording' : 'Start recording'}
       </button>
@@ -107,22 +106,22 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
         : 'Start before calibration to capture the complete session.'}</p>
       {(state.error || error) && <p role="alert">{error || state.error}</p>}
       <h4>Saved recordings</h4>
-      {downloading && <button type="button" onClick={() => downloadController.current?.abort()}>Cancel download</button>}
+      {downloading && <button className="ui-button" type="button" onClick={() => downloadController.current?.abort()}>Cancel download</button>}
       {!saved.length && <p>{loading ? 'Loading…' : 'No recordings yet.'}</p>}
       <ul>{saved.map(info => <li key={info.id}>
         <div><time dateTime={new Date(info.startedAt).toISOString()}>{formatTimestamp(info.startedAt, { timeZone: 'local' })}</time>
           <small>{duration(info)} · {bytes(info.bytes)}{info.status === 'recording'
             ? info.id === state.info?.id && (running || busy) ? ' · Recording' : ' · Partial' : ''}</small></div>
         <div className="ahrs-recording-actions">
-          <button type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info, 'gpx'); }}>
+          <button className="ui-button" type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info, 'gpx'); }}>
             {downloading?.id === info.id && downloading.format === 'gpx' ? 'Preparing…' : 'Download GPX'}
           </button>
-          <button type="button" disabled={downloading !== null || deleting !== null}
+          <button className="ui-button" type="button" disabled={downloading !== null || deleting !== null}
             title="Download the detailed sensor recording (JSONL) for debugging"
             onClick={() => { void download(info, 'jsonl'); }}>
             {downloading?.id === info.id && downloading.format === 'jsonl' ? 'Preparing…' : 'Debug log'}
           </button>
-          <button type="button" className="ahrs-recording-delete"
+          <button type="button" className="ui-button ui-button--danger"
             disabled={downloading !== null || deleting !== null || info.id === state.info?.id && (running || busy)}
             title={info.id === state.info?.id && (running || busy) ? 'Stop recording before deleting it.' : 'Delete recording from this device'}
             onClick={() => setConfirmation(info)}>
@@ -131,33 +130,11 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
         </div>
       </li>)}</ul>
     </div>}
-    {open && visible && confirmation && <RecordingDeleteDialog
+    {open && visible && confirmation && <ConfirmationDialog
+      title="Delete recording?"
+      description="This will permanently delete the recording from this device. This cannot be undone."
+      confirmLabel="Delete" destructive
       onCancel={() => setConfirmation(null)}
       onConfirm={() => { setConfirmation(null); void remove(confirmation); }} />}
   </div>;
-}
-
-function RecordingDeleteDialog({ onCancel, onConfirm }: { onCancel(): void; onConfirm(): void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const cancel = useRef<HTMLButtonElement>(null);
-  const id = useId();
-  useLayoutEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    cancel.current?.focus();
-    return () => element.close();
-  }, []);
-  return createPortal(<dialog ref={dialog} className="confirmation-dialog" role="alertdialog"
-    aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
-    onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
-    onKeyDown={event => event.stopPropagation()}
-    onCancel={event => { event.preventDefault(); event.stopPropagation(); onCancel(); }}>
-    <h2 id={`${id}-title`}>Delete recording?</h2>
-    <p id={`${id}-description`}>This will permanently delete the recording from this device. This cannot be undone.</p>
-    <div className="confirmation-actions">
-      <button type="button" className="confirmation-primary"
-        onClick={() => { dialog.current?.close(); onConfirm(); }}>Delete</button>
-      <button ref={cancel} type="button" onClick={onCancel}>Cancel</button>
-    </div>
-  </dialog>, document.body);
 }

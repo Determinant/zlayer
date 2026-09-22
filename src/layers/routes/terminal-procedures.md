@@ -30,6 +30,13 @@ catalog association. Plate-only procedures remain browsable without a guessed
 coded substitute. Published IAFs, feeder entries and applicable VTF choices use
 the same preview and route resolver.
 
+The approach list exposes coded-route loading and failure independently of the
+plate catalog, including a **Retry routes** action before choosing a procedure.
+Repairing saved data or reconnecting retries an open picker without discarding
+its choices. Plate and coded-route retries are independent; recovering one source
+does not hide the other. All pickers share dismissal, focus/inset handling and
+plate-opening behavior through `procedure-picker.tsx`.
+
 The map and navlog show exported altitude, speed and RNP restrictions. Holding,
 heading, climb and intercept paths are schematic and excluded from route distance.
 Terrain covers these depictions as well as fixed paths. Manual vectors, missing

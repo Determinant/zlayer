@@ -65,7 +65,7 @@ export function createPlatesController(persist = false) {
       restoration?.abort();
       const controller = new AbortController();
       restoration = controller;
-      void load(mapSelection, controller.signal).then(image => {
+      void (async () => load(mapSelection, controller.signal))().then(image => {
         const current = store.getSnapshot();
         if (controller.signal.aborted || current.mapSelection !== mapSelection) {
           image.canvas.width = image.canvas.height = 0;
@@ -77,6 +77,8 @@ export function createPlatesController(persist = false) {
         if (controller.signal.aborted || store.getSnapshot().mapSelection !== mapSelection) return;
         store.publish({ ...store.getSnapshot(), mapRestoreError:
           error instanceof Error && error.message ? error.message : 'Unable to restore this plate.' });
+      }).finally(() => {
+        if (restoration === controller) restoration = undefined;
       });
       return () => controller.abort();
     },

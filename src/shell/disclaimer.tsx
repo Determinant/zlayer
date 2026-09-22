@@ -119,7 +119,7 @@ function WelcomeDisclaimer({ onAcknowledge }: { onAcknowledge: () => void }) {
       </div>
 
       <footer className="disclaimer-footer">
-        <button type="button" disabled={!atBottom} onClick={onAcknowledge}>I understand</button>
+        <button className="ui-button ui-button--primary" type="button" disabled={!atBottom} onClick={onAcknowledge}>I understand</button>
       </footer>
     </dialog>, document.body);
 }

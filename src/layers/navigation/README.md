@@ -2,6 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / navigation
 
+The [core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication)
+exposes airport data and visibility to optional consumers such as weather. National
+navigation data readers remain usable independently of this plugin’s enablement.
+
 This plugin owns FAA airport, NAVAID, fix and VFR-waypoint data, airway loading,
 search, airport/runway/frequency details, map symbols and navaid identification.
 Search and route resolution retain access to navigation data independently of
@@ -22,6 +26,10 @@ belong to [Routes](../routes/README.md).
 
 ## Behavior, contracts and verification
 
+- Airport Info/Plates uses core's [content tabs](../../../docs/features/shared-ui.md#shared-controls),
+  including selected-state semantics and Left/Right/Home/End navigation. Selection
+  remains plugin-persisted. Inactive panel shells stay empty; selecting another tab
+  or identification unmounts the previous body, while stowing retains it.
 - [Fix display](fix-display.md) owns classification, zoom/density rules, route/selection
   context and its real-map verification fixture.
 - [Feature contracts](../../../docs/data/contracts.md#feature) and

@@ -3,8 +3,10 @@
 [Documentation](../../../docs/README.md) / Plugins / terrain
 
 `src/layers/terrain/` owns the elevation client, worker, contour rendering, labels,
-controls and map lifecycle. Workspace composition passes the displayed route plans
-and saved visibility/coverage/altitude preferences. Terrain is enabled by default (including
+controls and map lifecycle. Terrain observes displayed plans through the optional Routes public API and the
+[core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
+Workspace composition supplies saved visibility/coverage/altitude preferences.
+Disabling Routes clears corridor demand; Viewport coverage remains independent. Terrain is enabled by default (including
 older preferences without a terrain setting); an explicit saved Off choice is respected.
 Coverage defaults to **Route**. In Route mode it has no demand
 until route geometry is displayed. Expanded airway/procedure legs and displayed

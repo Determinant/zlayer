@@ -76,6 +76,13 @@ export function groupProcedures(airport: ProcedureAirport): ProcedureGroup[] {
   });
 }
 
+/** Readers and route pickers share document targeting and edition identity. */
+export function procedureSelection(catalog: ProcedureCatalog, airport: ProcedureAirport,
+  procedure: ProcedureRecord, catalogUrl: string, baseUrl: string): ProcedureSelection {
+  return { airport, procedure, document: procedureDocument(catalog, procedure, catalogUrl, baseUrl),
+    cycle: catalog.cycle, effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate };
+}
+
 export function procedureDocument(
   catalog: ProcedureCatalog,
   procedure: ProcedureRecord,

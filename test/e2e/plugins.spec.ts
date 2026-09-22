@@ -32,10 +32,10 @@ test('all ten plugins disable and re-enable without replacing the map or erasing
   await page.waitForTimeout(650);
   const before = await camera(page);
   for (const id of ['ahrs', 'ruler', 'ownship', 'terrain', 'obstructions', 'charts', 'metar', 'plates', 'navigation', 'routes']) {
-    await row(page, id).getByRole('button', { name: /^Disable / }).click();
-    await expect(row(page, id).locator('.plugin-status')).toHaveText('Disabled');
+    await row(page, id).getByRole('switch', { checked: true }).click();
+    await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   }
-  await expect(page.locator('.plugin-status', { hasText: /^Disabled$/ })).toHaveCount(10);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
   await expect.poll(() => countWatches(page)).toBe(0);
   await expect(page.locator('.route-bar')).toHaveCount(0);
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
@@ -44,8 +44,8 @@ test('all ten plugins disable and re-enable without replacing the map or erasing
   expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(savedDraft);
   expect(await camera(page)).toEqual(before);
   for (const id of ['charts', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'routes', 'ruler', 'ownship', 'ahrs']) {
-    await row(page, id).getByRole('button', { name: /^Enable / }).click();
-    await expect(row(page, id).locator('.plugin-status')).toHaveText('Enabled');
+    await row(page, id).getByRole('switch', { checked: false }).click();
+    await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   }
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.route-token')).toHaveCount(2);
@@ -62,22 +62,22 @@ test('all ten plugins disable and re-enable without replacing the map or erasing
 test('plugin selection and dependencies survive refresh, and a route can stay disabled during map selection', async ({ page }) => {
   await page.goto('/');
   await settings(page);
-  await row(page, 'ownship').getByRole('button').click();
-  await expect(row(page, 'ahrs').locator('.plugin-status')).toHaveText('Enabled');
-  await row(page, 'navigation').getByRole('button').click();
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Enabled');
-  await row(page, 'routes').getByRole('button').click();
+  await row(page, 'ownship').getByRole('switch').click();
+  await expect(row(page, 'ahrs').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await row(page, 'navigation').getByRole('switch').click();
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await row(page, 'routes').getByRole('switch').click();
   await page.reload();
   await expect(page.getByRole('tab', { name: 'Plugins', exact: true })).toHaveAttribute('aria-selected', 'true');
-  for (const id of ['ownship', 'navigation', 'routes']) await expect(row(page, id).locator('.plugin-status')).toHaveText('Disabled');
-  await expect(row(page, 'ahrs').locator('.plugin-status')).toHaveText('Enabled');
-  await row(page, 'ahrs').getByRole('button').click();
-  await expect(row(page, 'ahrs').locator('.plugin-status')).toHaveText('Disabled');
-  await row(page, 'ahrs').getByRole('button').click();
-  await expect(row(page, 'ahrs').locator('.plugin-status')).toHaveText('Enabled');
-  await expect(row(page, 'ownship').locator('.plugin-status')).toHaveText('Disabled');
-  await row(page, 'navigation').getByRole('button').click();
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Enabled');
+  for (const id of ['ownship', 'navigation', 'routes']) await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await expect(row(page, 'ahrs').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await row(page, 'ahrs').getByRole('switch').click();
+  await expect(row(page, 'ahrs').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await row(page, 'ahrs').getByRole('switch').click();
+  await expect(row(page, 'ahrs').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(row(page, 'ownship').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await row(page, 'navigation').getByRole('switch').click();
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.route-bar')).toHaveCount(0);
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
@@ -97,7 +97,7 @@ test('disabling plates retains reader state and falls back to airport informatio
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await page.locator('.procedure-window').getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -105,19 +105,19 @@ test('disabling plates retains reader state and falls back to airport informatio
   const zoom = await page.locator('.procedure-zoom-controls').textContent();
   const selection = await page.evaluate(() => localStorage.getItem('zlayer-plugin:plates:plate-selection'));
   await settings(page);
-  await row(page, 'plates').getByRole('button').click();
+  await row(page, 'plates').getByRole('switch').click();
   await expect(page.locator('.procedure-window')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:plates:plate-selection'))).toBe(selection);
   await page.getByLabel('Close settings').click();
   await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Feature information', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveCount(0);
   await settings(page);
-  await row(page, 'plates').getByRole('button').click();
+  await row(page, 'plates').getByRole('switch').click();
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.procedure-zoom-controls')).toHaveText(zoom!);
-  await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
+  await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('a workspace saved with every plugin disabled starts with core settings available', async ({ page }) => {
@@ -129,12 +129,12 @@ test('a workspace saved with every plugin disabled starts with core settings ava
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
   expect((await page.locator('.maplibregl-canvas').boundingBox())!.height).toBeGreaterThan(100);
   await settings(page);
-  await expect(page.locator('.plugin-status', { hasText: /^Disabled$/ })).toHaveCount(10);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
   await page.getByRole('tab', { name: 'General', exact: true }).click();
   await expect(page.getByLabel('FAA data cycle')).toBeVisible();
   await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
-  await row(page, 'navigation').getByRole('button').click();
-  await expect(page.locator('.plugin-status', { hasText: /^Disabled$/ })).toHaveCount(9);
+  await row(page, 'navigation').getByRole('switch').click();
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(9);
   await page.getByLabel('Close settings').click();
   await expect(page.getByLabel('Search FAA navigation data')).toBeVisible();
 });
@@ -170,7 +170,7 @@ test.describe('lazy plugin activation', () => {
       await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
       await expect.poll(() => countWatches(page)).toBe(1);
       await settings(page);
-      await row(page, 'terrain').getByRole('button').click();
+      await row(page, 'terrain').getByRole('switch').click();
       await expect.poll(() => entered).toBe(true);
       expect(await countWatches(page), 'a pending import must not detach the healthy GPS attachment').toBe(1);
       await page.getByLabel('Close settings').click();
@@ -184,15 +184,15 @@ test.describe('lazy plugin activation', () => {
       await expect.poll(() => active).toBe(0);
       const inspectionStarts = started;
       await settings(page);
-      await row(page, 'terrain').getByRole('button').click();
-      await expect(row(page, 'terrain').locator('.plugin-status')).toHaveText('Disabled');
+      await row(page, 'terrain').getByRole('switch').click();
+      await expect(row(page, 'terrain').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
       release();
       await expect.poll(() => completed).toBe(true);
       await page.waitForTimeout(700);
       expect(started).toBe(inspectionStarts);
-      await row(page, 'terrain').getByRole('button').click();
+      await row(page, 'terrain').getByRole('switch').click();
       await expect.poll(() => started).toBe(inspectionStarts + 1);
-      await row(page, 'terrain').getByRole('button').click();
+      await row(page, 'terrain').getByRole('switch').click();
       await expect.poll(() => active).toBe(0);
       await expect(page.locator('.map-runtime-error')).toHaveCount(0);
     } finally { release(); }
@@ -209,7 +209,7 @@ for (const [width, height] of [[320, 568], [568, 320], [1280, 900]]) {
     await general.focus(); await general.press('ArrowRight');
     await expect(plugins).toBeFocused();
     await expect(page.getByRole('tabpanel', { name: 'Plugins', exact: true })).toBeVisible();
-    const action = row(page, 'ahrs').getByRole('button');
+    const action = row(page, 'ahrs').getByRole('switch');
     await action.scrollIntoViewIfNeeded();
     const box = (await action.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
@@ -237,12 +237,12 @@ test('chart workers stop when disabled and restart without accumulating across r
   await page.locator('.maplibregl-canvas').evaluate(canvas => canvas.setAttribute('data-original-map', 'true'));
   await settings(page);
   for (let cycle = 0; cycle < 5; cycle++) {
-    await row(page, 'charts').getByRole('button', { name: /^Disable / }).click();
+    await row(page, 'charts').getByRole('switch', { checked: true }).click();
     await expect.poll(() => workers.size).toBe(0);
-    await row(page, 'charts').getByRole('button', { name: /^Enable / }).click();
+    await row(page, 'charts').getByRole('switch', { checked: false }).click();
     await expect.poll(() => workers.size).toBeGreaterThan(0);
   }
-  await row(page, 'charts').getByRole('button', { name: /^Disable / }).click();
+  await row(page, 'charts').getByRole('switch', { checked: true }).click();
   await expect.poll(() => workers.size).toBe(0);
   await expect(page.locator('.maplibregl-canvas[data-original-map="true"]')).toHaveCount(1);
   expect(errors).toEqual([]);

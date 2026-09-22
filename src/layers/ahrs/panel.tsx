@@ -1,20 +1,17 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import type { AhrsLayer } from './layer';
 import { AhrsTool } from './controls';
 import { ToolPanel } from '../../core/ui/tool-panel';
 import { focusPanelTab } from '../../core/ui/edge-panels';
+import { useModalDialog } from '../../core/ui/use-modal-dialog';
 import '../../core/ui/confirmation-dialog.css';
 
 /** Sensor/recording policy belongs to AHRS; the panel host only defers the switch. */
 export function AhrsPanel({ layer, route, revision }: { layer: AhrsLayer; route: RoutePlan; revision: string }) {
   const [stow, setStow] = useState<{ next: string | null; proceed: () => boolean } | null>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useModalDialog(!!stow);
   const id = useId();
-  useLayoutEffect(() => {
-    if (stow) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [stow]);
   const confirm = (mode: 'stop' | 'background') => {
     if (!stow) return;
     if (!stow.proceed()) { setStow(null); return; }
@@ -37,9 +34,9 @@ export function AhrsPanel({ layer, route, revision }: { layer: AhrsLayer; route:
       <h2 id={`${id}-title`}>Stow AHRS?</h2>
       <p id={`${id}-description`}>Stop motion sensing and recording to save power; you'll need to calibrate again. Background keeps AHRS running while stowed.</p>
       <div className="confirmation-actions ahrs-stow-actions">
-        <button type="button" className="confirmation-primary ahrs-stow-stop" autoFocus onClick={() => confirm('stop')}>Stop</button>
-        <button type="button" onClick={() => confirm('background')}>Background</button>
-        <button type="button" onClick={() => setStow(null)}>Cancel</button>
+        <button type="button" className="ui-button ui-button--primary ahrs-stow-stop" autoFocus onClick={() => confirm('stop')}>Stop</button>
+        <button className="ui-button" type="button" onClick={() => confirm('background')}>Background</button>
+        <button className="ui-button" type="button" onClick={() => setStow(null)}>Cancel</button>
       </div>
     </dialog>
   </>;

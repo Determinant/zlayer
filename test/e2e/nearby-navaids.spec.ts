@@ -185,11 +185,11 @@ test('ID works for airports without a route and resets when tabs or selection ch
   const identify = page.getByRole('button', { name: 'Identify KSBA with nearby navaids' });
   await identify.click();
   await expect(page.locator('.nearby-navaids')).toContainText('CMA');
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await page.getByRole('tab', { name: 'Info', exact: true }).click();
   await expect(identify).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.nearby-navaids')).toHaveCount(0);
   await identify.click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await expect(page.locator('.nearby-navaids')).toHaveCount(0);
   await identify.click();
   await search.fill('CMA');

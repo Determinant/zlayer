@@ -20,7 +20,7 @@ test.describe('stowable plate panel', () => {
       await page.setViewportSize({ width, height });
       await page.goto('/');
       await selectAirport(page, 'KSBA');
-      await page.getByRole('button', { name: 'Plates', exact: true }).tap();
+      await page.getByRole('tab', { name: 'Plates', exact: true }).tap();
       const opener = page.getByRole('button', { name: /TEST APPROACH/ });
       await opener.tap();
       await ready(page);
@@ -48,7 +48,7 @@ test.describe('stowable plate panel', () => {
 
       // Stow the current panel to expose the other tab, retaining both contents.
       await openSidePanel(page, 'details');
-      await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
+      await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
       await expect(dialog).toBeHidden();
       await expect(canvas).toBeHidden();
       await openSidePanel(page, 'plate');
@@ -98,7 +98,7 @@ test.describe('stowable plate panel', () => {
       await expect(page.locator('.feature-card')).toBeHidden();
       await openSidePanel(page, 'details');
       await expect(opener).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
+      await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
     });
   }
 });
@@ -148,7 +148,7 @@ test('a download can finish while stowed without reopening the panel or replacin
   await page.route('**/book.pdf*', route => { requests++; release(route); });
   await page.goto('/');
   await selectAirport(page, 'KSBA');
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   const held = await pending;
   const dialog = await page.getByRole('dialog').elementHandle();
@@ -172,7 +172,7 @@ for (const width of [393, 1280]) {
     await page.setViewportSize({ width, height: 852 });
     await page.goto('/');
     await selectAirport(page, 'KSBA');
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     const originalInfo = (await page.locator('.feature-card').boundingBox())!;
     await page.getByRole('button', { name: /TEST APPROACH/ }).click();
     await ready(page);
@@ -254,6 +254,6 @@ for (const width of [393, 1280]) {
     await expect(page.locator('.feature-card h2')).toHaveText('KSBA');
     await expectTabSlots();
     await openSidePanel(page, 'details');
-    await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
+    await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
   });
 }

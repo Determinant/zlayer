@@ -1,6 +1,6 @@
 import type { GeoPointFeature, NavigationData } from '@zlayer/contracts';
 import { isAirportFeature, routeCoordinateFeature } from '@zlayer/domain';
-import { metarDetailRows } from '../metar-taf/metar/details';
+import { metarDetailRows } from '../metar-taf/api';
 import { navaidMorse, type NavaidMorse } from './navaid-morse';
 import { airportFrequencyRows } from './airport-frequencies';
 

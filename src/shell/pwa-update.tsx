@@ -7,7 +7,7 @@ function usePwaUpdate() {
 }
 
 function UpdateButton({ state }: { state: PwaUpdateState }) {
-  return <button type="button" disabled={state.applying} onClick={() => void pwaUpdates.apply()}>
+  return <button className="ui-button ui-button--primary" type="button" disabled={state.applying} onClick={() => void pwaUpdates.apply()}>
     {state.applying ? 'Updating…' : 'Update now'}
   </button>;
 }
@@ -22,7 +22,7 @@ export function PwaUpdatePrompt() {
     {state.error && <p role="alert">{state.error}</p>}
     <div className="pwa-update-actions">
       <UpdateButton state={state} />
-      <button type="button" disabled={state.applying} onClick={pwaUpdates.dismiss}>Later</button>
+      <button className="ui-button ui-button--quiet" type="button" disabled={state.applying} onClick={pwaUpdates.dismiss}>Later</button>
     </div>
   </aside>;
 }
@@ -40,7 +40,7 @@ export function PwaUpdateSettings() {
     {state.error && <p className="settings-error" role="alert">{state.error}</p>}
     <div className="pwa-update-actions">
       {state.availableRelease && <UpdateButton state={state} />}
-      <button type="button" disabled={state.checking || state.downloading || state.applying || state.currentRelease === 'dev'}
+      <button className="ui-button" type="button" disabled={state.checking || state.downloading || state.applying || state.currentRelease === 'dev'}
         onClick={() => void pwaUpdates.check()}>Check for updates</button>
     </div>
   </section>;

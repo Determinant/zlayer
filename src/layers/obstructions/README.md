@@ -2,6 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / obstructions
 
+Route context follows the optional Routes public API through the
+[core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
+Disabling Routes removes corridor context while viewport/height-based display continues.
+
 The independent `src/layers/obstructions/` module adds FAA Daily Digital Obstacle
 File points to the map. Its **Obstructions** switch is enabled by default and
 persists independently of terrain and navigation switches.

@@ -7,7 +7,7 @@ import { NearbyNavaids } from '../layers/navigation/nearby-navaids';
 import { AirportPlates, type ProcedureSelection } from '../layers/plates';
 import { hasAirportPlates } from '../layers/plates/data';
 import { AirportWeather, RunwayWind, RunwayWindNotes, type MetarClient } from '../layers/metar-taf';
-import { FeatureRouteActions, type FeatureRoute } from './feature-route-actions';
+import { FeatureRouteActions, type FeatureRoute } from '../layers/routes/feature-actions';
 import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
 
 type FeatureDetailsPanelProps = {

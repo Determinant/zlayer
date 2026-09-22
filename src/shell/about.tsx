@@ -17,7 +17,7 @@ export function AboutLauncher() {
   }, [open]);
 
   return <>
-    <button type="button" className="about-launcher" aria-label="About ZLayer"
+    <button type="button" className="ui-button about-launcher" aria-label="About ZLayer"
       aria-haspopup="dialog" title="About ZLayer" onClick={() => setOpen(true)}>
       About ZLayer
     </button>
@@ -29,7 +29,7 @@ export function AboutLauncher() {
           <img src="/icon.svg" alt="" width="44" height="44" />
           <h2 id="about-title">About ZLayer</h2>
         </div>
-        <button type="button" className="about-close" aria-label="Close about dialog" autoFocus
+        <button type="button" className="ui-button ui-button--icon" aria-label="Close about dialog" autoFocus
           onClick={() => setOpen(false)}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="1.8" strokeLinecap="round" aria-hidden="true" focusable="false">

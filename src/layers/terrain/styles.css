@@ -31,19 +31,15 @@
 .terrain-visibility:focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
 .terrain-zoom-hint { display: flex; align-items: center; gap: 7px; padding: 8px; border: 1px solid rgba(117, 216, 205, 0.35); border-radius: 6px; color: #d9f8f3; background: rgba(117, 216, 205, 0.1); font-size: 11px; line-height: 1.4; }
 .terrain-zoom-hint > span:first-child { font-size: 18px; }
-.terrain-color-modes { display: flex; padding: 3px; border-radius: 7px; background: rgba(255, 255, 255, 0.06); }
-.terrain-color-modes button { flex: 1; min-height: max(32px, var(--touch-target)); border: 0; border-radius: 5px; padding: 5px 8px; font: inherit; font-size: 11px; color: #b4c3cd; background: transparent; cursor: pointer; }
-.terrain-color-modes button[aria-selected="true"] { color: #edfafa; background: #294b54; }
 .terrain-coverage { display: flex; gap: 4px; padding: 3px; border: 1px solid #385061; border-radius: 7px; }
 .terrain-section > .terrain-coverage { margin-top: 8px; }
-.terrain-coverage button { flex: 1; min-height: max(32px, var(--touch-target)); padding: 5px 8px; border: 0; border-radius: 4px; font: inherit; font-size: 11px; color: #b4c3cd; background: transparent; cursor: pointer; }
-.terrain-coverage button[aria-pressed="true"] { color: #edfafa; background: #294b54; }
-.terrain-coverage button:focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
+.terrain-coverage button { flex: 1; }
+
 .terrain-legend-panel:not([hidden]) { display: grid; gap: 7px; }
 .terrain-altitude-heading { margin-top: 3px; flex-wrap: wrap; }
 .terrain-altitude-heading label { color: #b4c3cd; font-size: 11px; }
 .terrain-altitude-value { display: flex; flex-shrink: 0; align-items: center; gap: 4px; }
-.terrain-altitude-input { flex-shrink: 0; width: calc(5ch + 16px); min-width: 0; min-height: max(32px, var(--touch-target)); padding: 4px 6px; border: 1px solid #57717f; border-radius: 5px; color: #eef9fc; background: rgba(255, 255, 255, 0.04); font: inherit; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; appearance: textfield; }
+.terrain-altitude-input { flex-shrink: 0; width: calc(5ch + 16px); padding: 4px 6px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; appearance: textfield; }
 .terrain-altitude-input::-webkit-inner-spin-button, .terrain-altitude-input::-webkit-outer-spin-button { margin: 0; appearance: none; }
 .terrain-altitude-value > span { color: #9db1be; font-size: 11px; white-space: nowrap; }
 .terrain-altitude-slider { width: 100%; height: max(32px, var(--touch-target)); margin: 0; padding: 0; accent-color: #75d8cd; cursor: ew-resize; touch-action: none; }
@@ -57,7 +53,8 @@
 .terrain-corridor-key svg { flex: 0 0 32px; height: 8px; fill: none; stroke-dasharray: 6 4.5; }
 .terrain-corridor-key path:first-child { stroke: #000000; stroke-width: 3.5; }
 .terrain-corridor-key path:last-child { stroke: #ffffff; stroke-width: 1.5; }
-.terrain-legend :focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
+.terrain-altitude-slider:focus-visible,
+.terrain-legend-panel:focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
 @media (max-width: 600px) {
   .terrain-legend { bottom: 52px; left: 8px; padding: 9px 10px; width: 248px; gap: 6px; }
 }

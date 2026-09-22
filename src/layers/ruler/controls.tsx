@@ -51,10 +51,10 @@ export function RulerTool({ layer, revision }: { layer: RulerLayer; revision?: s
       <p className="ruler-prompt" role="status">{prompt}</p>
       {result && !result.magnetic && result.trueBearing !== null && <p className="ruler-reference">Magnetic bearing unavailable</p>}
       <div className="ruler-actions">
-        <button type="button" onClick={() => layer.reverse()} disabled={!result || state.provisional} aria-label="Reverse ruler direction">
+        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.reverse()} disabled={!result || state.provisional} aria-label="Reverse ruler direction">
           <span aria-hidden="true">⇄</span> Reverse</button>
-        <button type="button" onClick={() => layer.restart()} aria-label="New measurement">New</button>
-        <button type="button" onClick={close} aria-label="Close ruler">Close</button>
+        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.restart()} aria-label="New measurement">New</button>
+        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={close} aria-label="Close ruler">Close</button>
       </div>
     </section>}
   </div>;

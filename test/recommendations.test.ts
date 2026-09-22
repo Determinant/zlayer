@@ -6,7 +6,8 @@ import test from 'node:test';
 import { isValidElement, type ReactNode, type ReactElement, type HTMLAttributes } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { GeoPointFeature, NavigationData, PreferredRoutesData, CatalogResponse } from '@zlayer/contracts';
-import type { RouteHistoryResults } from '@zlayer/domain';
+import { routeDraftFromText, type RouteHistoryResults } from '@zlayer/domain';
+import type { SavedRoute } from '../src/layers/routes/stash';
 import type { RouteDraft } from '../src/layers/routes/draft';
 import { createRecommendationModel, recommendationGeometryKey } from '../src/layers/routes/suggestions';
 import { resource, revision } from './helpers/route-history';
@@ -16,7 +17,8 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier.endsWith('/use-persistent-state') && context.parentURL?.includes('/routes/recommendation-results')) {
     return { ...next(specifier, context), url: next(specifier, context).url + '?hooks' };
   }
-  if (specifier === 'react' && (/routes\/(use-suggestions|recommendation-results)/.test(context.parentURL ?? '') ||
+  if (specifier === 'react' && (/routes\/(use-resource|use-suggestions|use-stash|recommendation-results)/.test(context.parentURL ?? '') ||
+    /\/(use-online|use-inventory-version)\.ts$/.test(context.parentURL ?? '') ||
     context.parentURL?.endsWith('use-persistent-state.ts?hooks'))) {
     return { url: hookModule, shortCircuit: true };
   }
@@ -31,6 +33,12 @@ const loader = registerHooks({ resolve(specifier, context, next) {
 const { useSuggestions } = await import('../src/layers/routes/use-suggestions');
 const { RecommendationSection, RecommendationResults } = await import('../src/layers/routes/recommendation-results');
 loader.deregister();
+
+const previousWindow = globalThis.window;
+test.before(() => {
+  globalThis.window = new EventTarget() as Window & typeof globalThis;
+});
+test.after(() => { globalThis.window = previousWindow; });
 
 const airport = (faaId: string, lng = -119): GeoPointFeature => ({ type: 'Feature', id: `airport:${faaId}`,
   geometry: { type: 'Point', coordinates: [lng, 34] }, properties: { faaId, icaoId: `K${faaId}` } });
@@ -53,7 +61,7 @@ const preferred: PreferredRoutesData = { type: 'ZLayerPreferredRoutes', metadata
 
 test('ranked previews use up to five distinct paths in Frequency, Preferred, TEC order without changing the draft', () => {
   const model = createRecommendationModel(historical, preferred, pair, navigation);
-  assert.deepEqual(Object.keys(model.groups), ['frequency', 'preferred', 'tec']);
+  assert.deepEqual(Object.keys(model.groups), ['frequency', 'preferred', 'tec', 'stash']);
   assert.equal(model.groups.tec[0]!.draft, undefined, 'a missing typed NAVAID must never become an airport');
   const initial = model.preview();
   assert.equal(initial.routes.length, 5);
@@ -69,6 +77,52 @@ test('ranked previews use up to five distinct paths in Frequency, Preferred, TEC
   assert.equal(shared.preview().routes.length, 1, 'the same history/preferred geometry shares a single overlay');
   const fallback = createRecommendationModel(undefined, preferred, pair, navigation);
   assert.equal(fallback.preview().routes.length, 1, 'preferred routes remain available without frequency data');
+});
+
+test('stash recommendations match ordered airport identities, preserve saved order and never guess pins or aliases', () => {
+  const save = (id: string, text: string, pins = {}): SavedRoute => ({ id, name: id, draft: routeDraftFromText(text, pins) });
+  const stash = [save('alias', 'SBA FIX0 SMO'), save('reverse', 'KSMO KSBA'), save('other', 'KSBA KCMA'),
+    save('pinned', 'SBA UNKNOWN SMO', { 0: 'airport:SBA', 2: 'airport:SMO' }),
+    save('stale-pin', 'KSBA KSMO', { 0: 'airport:gone' }), save('navaid-pin', 'SBA KSMO', { 0: 'navaid:SBA' }),
+    save('intermediate-only', 'FIX0 KSBA KSMO FIX1'), save('single', 'KSBA'), save('same-path', 'KSBA FIX0 KSMO')];
+  const before = structuredClone(stash);
+  const model = createRecommendationModel(undefined, undefined, pair, navigation, undefined, undefined, stash);
+  assert.deepEqual(model.groups.stash.map(row => row.id), ['stash:alias', 'stash:pinned', 'stash:same-path']);
+  assert.equal(model.preview().routes.length, 1, 'matching geometry shares one overlay; unresolved routes remain listed');
+  assert.equal(model.groups.stash[1]!.draft, stash[3]!.draft, 'unknown intermediate entries remain available to Use');
+  assert.deepEqual(stash, before, 'lookup and previews do not rewrite saved intent');
+  const ambiguous = { ...navigation, airports: { ...navigation.airports!, features: [
+    ...navigation.airports!.features, { ...pair.origin, id: 'airport:other-SBA' },
+  ] } };
+  const matches = createRecommendationModel(undefined, undefined, pair, ambiguous, undefined, undefined, stash);
+  assert.deepEqual(matches.groups.stash.map(row => row.id), ['stash:pinned'], 'ambiguous unpinned endpoints are excluded');
+});
+
+test('using a saved recommendation retains exact coordinates, waypoint pins and procedure attachments', () => {
+  const draft: RouteDraft = { entries: [
+    { id: 'origin', text: 'SBA', pinnedFeatureId: 'airport:SBA', departure: {
+      kind: 'departure', source: 'cifp', airportId: 'airport:SBA', procedureId: 'SID1', ident: 'SID1',
+      name: 'Saved departure', effectiveDate: revision, transition: 'FIX0', branchId: 'branch:1', codedBranches: ['branch:1'],
+    } },
+    { id: 'coordinate', text: '343000N1193000W' },
+    { id: 'destination', text: 'SMO', pinnedFeatureId: 'airport:SMO', approach: {
+      kind: 'approach', source: 'chart', airportId: 'airport:SMO', procedureId: 'ILS', name: 'Saved approach', cycle: '2609',
+      entry: { routeId: 'SMO:ILS', transitionId: 'FIX0', name: 'FIX0', effectiveDate: revision },
+    } },
+  ] };
+  const model = createRecommendationModel(undefined, undefined, pair, navigation, undefined, undefined,
+    [{ id: 'saved', name: 'Coastal arrival', draft }]);
+  const before = structuredClone(draft);
+  const hooks = new Hooks(); Object.assign(globalThis, { testHooks: hooks });
+  const used: RouteDraft[] = [];
+  const view = hooks.render(() => RecommendationSection({ id: 'stash', title: 'Route Stash', rows: model.groups.stash,
+    model, preview: model.preview(), source: 'Saved on this device', error: undefined, loading: false, empty: '',
+    onRetry() {}, onPreview() {}, onUseRoute: value => used.push(value) }));
+  assert.match(renderToStaticMarkup(view), /Coastal arrival/);
+  click(elements(view, 'button').find(button => button.props['aria-label']?.startsWith('Use route Coastal arrival:'))!);
+  assert.deepEqual(used, [before]);
+  assert.deepEqual(draft, before);
+  hooks.unmount();
 });
 
 test('unknown procedures are not bridged by invented map legs, and typed imports recover with navigation', () => {
@@ -98,6 +152,25 @@ test('selecting a shared path uses the selected route plan, including its tokens
   assert.equal(selected.routes[0]!.plan, model.planFor(row), 'the selected plan must replace the first matching plan');
   assert.deepEqual(selected.routes[0]!.plan.tokens, ['KSBA', 'SBAX1', 'KSMO']);
   assert.deepEqual(initial.routes[0]!.plan.tokens, ['KSBA', 'FIX7', 'KSMO'], 'an earlier preview is not mutated');
+});
+
+test('recommendations with equal resolved legs retain distinct planning paths', () => {
+  const model = createRecommendationModel({ totalCount: 2, engines: [], routes: [
+    { route: 'KSBA FIX0 UNKNOWN FIX1 UNKNOWN KSMO', count: 1 },
+    { route: 'KSBA FIX0 UNKNOWN FIX2 UNKNOWN KSMO', count: 1 },
+  ] }, undefined, pair, navigation);
+  const [first, second] = model.groups.frequency;
+  const firstPlan = model.planFor(first!)!, secondPlan = model.planFor(second!)!;
+  assert.deepEqual(firstPlan.legs.map(leg => [leg.from.ident, leg.to.ident]), [['KSBA', 'FIX0']]);
+  assert.deepEqual(secondPlan.legs.map(leg => [leg.from.ident, leg.to.ident]), [['KSBA', 'FIX0']]);
+  assert.deepEqual(firstPlan.planningConnections?.map(({ from, to }) => [from.ident, to.ident]),
+    [['FIX0', 'FIX1'], ['FIX1', 'KSMO']]);
+  assert.deepEqual(secondPlan.planningConnections?.map(({ from, to }) => [from.ident, to.ident]),
+    [['FIX0', 'FIX2'], ['FIX2', 'KSMO']]);
+  const preview = model.preview(second!.id);
+  assert.equal(preview.routes.length, 2);
+  assert.equal(preview.routes.find(route => route.key === preview.selectedKey)?.plan, secondPlan);
+  assert.ok(preview.routes.some(route => route.plan === firstPlan), 'selecting the second path retains the first alternative');
 });
 
 test('an exact filed TEC code previews the current FAA definition without relabeling the historical route text', () => {
@@ -163,10 +236,30 @@ test('compact rows share preview/use actions, preserve full-denominator percenta
   assert.deepEqual(selected, ['frequency:KSBA KSMO']);
   click(elements(view, 'button').find(button => button.props['aria-label'] === 'Use route KSBA KSMO')!);
   assert.deepEqual(used.map(draftSnapshot), [{ input: 'KSBA KSMO', pinnedFeatureIds: { 0: 'airport:SBA', 1: 'airport:SMO' } }]);
-  click(elements(view, 'button').find(button => button.props.className === 'route-recommend-more')!);
+  click(elements(view, 'button').find(button => button.props.className?.split(/\s+/).includes('route-recommend-more'))!);
   view = render();
   assert.equal(elements(view, 'li').length, 9);
   hooks.unmount();
+});
+
+test('a failed refresh keeps loaded recommendation rows usable beside its retry action', t => {
+  const hooks = new Hooks(); Object.assign(globalThis, { testHooks: hooks });
+  t.after(() => hooks.unmount());
+  const model = createRecommendationModel(historical, preferred, pair, navigation);
+  const used: RouteDraft[] = [];
+  let retries = 0;
+  const view = hooks.render(() => RecommendationSection({ id: 'frequency', title: 'Frequency', rows: model.groups.frequency,
+    model, preview: model.preview(), source: 'Filed history', error: 'Offline', loading: false, empty: '',
+    onRetry: () => { retries++; }, onPreview() {}, onUseRoute: draft => used.push(draft) }));
+  assert.equal(elements(view, 'li').length, 5);
+  assert.match(renderToStaticMarkup(view), /Offline/);
+  click(elements(view, 'button').find(button => button.props.children === 'Use')!);
+  assert.deepEqual(used, [model.groups.frequency[0]!.draft]);
+  const alert = elements(view, 'div').find(element => element.props.role === 'alert');
+  assert.ok(alert);
+  click(elements(alert.props.children, 'button')[0]!);
+  assert.equal(retries, 1);
+  assert.ok(elements(view, 'button').some(button => button.props.className?.split(/\s+/).includes('route-recommend-more')));
 });
 
 test('source loads ignore replaced queries, recover independently, and cannot overwrite current filters', async t => {

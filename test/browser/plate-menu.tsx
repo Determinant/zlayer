@@ -18,6 +18,7 @@ function Fixture() {
       }} />
     <output style={{ position: 'absolute', top: 12, left: 12 }}>{visible ? 'Plate shown' : 'Plate hidden'}</output>
     {point && <PlateMapMenu point={point} onClose={() => setPoint(undefined)}
+      onOpen={() => setPoint(undefined)}
       onHide={() => { setVisible(false); setPoint(undefined); }} />}
   </main>;
 }

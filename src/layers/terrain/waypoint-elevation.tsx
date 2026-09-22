@@ -58,7 +58,7 @@ export function WaypointElevation({ feature, catalog, active }: {
   const rounded = current?.height == null ? undefined : Math.round(current.height / 10) * 10;
   return <span aria-live="polite">
     {rounded !== undefined ? `≈ ${(rounded || 0).toLocaleString('en-US')} ft MSL` : current ? 'Unavailable' : 'Loading…'}
-    {current?.height === null && <> <button className="feature-fact-retry" type="button" onClick={() => refresh(value => value + 1)}
+    {current?.height === null && <> <button className="ui-button ui-button--quiet ui-button--compact feature-fact-retry" type="button" onClick={() => refresh(value => value + 1)}
       aria-label="Retry terrain elevation">Retry</button></>}
   </span>;
 }

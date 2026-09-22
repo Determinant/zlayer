@@ -28,9 +28,9 @@ function LayerPanel({ contribution: { id, title, Component, close }, placement }
   return <ErrorBoundary key={attempt} fallback={error => (
     <div className="product-panel-error" role="alert">
       <strong>{title} unavailable</strong><span>{error.message}</span>
-      <div><button type="button" onClick={retry}>Retry</button>
-        <button type="button" onClick={() => window.location.reload()}>Reload app</button>
-        {close && <button type="button" onClick={() => { close(); retry(); }}>Close</button>}
+      <div><button className="ui-button" type="button" onClick={retry}>Retry</button>
+        <button className="ui-button" type="button" onClick={() => window.location.reload()}>Reload app</button>
+        {close && <button className="ui-button" type="button" onClick={() => { close(); retry(); }}>Close</button>}
       </div>
     </div>
   )}>

@@ -2,7 +2,7 @@ import type { Map as MapLibreMap, MapEventType, MapGeoJSONFeature, MapMouseEvent
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureKey, sameFeature, routeCoordinateFeature, restoreRouteCoordinate, type RouteEditTarget, type RoutePlan } from '@zlayer/domain';
 import { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } from './map-contract';
-import type { RouteDragPreview } from './renderer';
+import type { RouteDragPreview } from './public';
 import { routeEditTarget } from './editing';
 import { routePointKeys } from './selection';
 import { unwrapRouteCoordinates } from './geometry';

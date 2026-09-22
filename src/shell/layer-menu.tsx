@@ -62,10 +62,7 @@ export function LayerMenu({ controls, footer, activeCount, visibleFeatureCount }
         >
           <div className="layer-popover-content panel-scroll">
             <div className="panel-heading">
-              <div>
-                <span className="eyebrow">Map display</span>
-                <h2>Layers</h2>
-              </div>
+              <h2>Map Display</h2>
               <span className="feature-count">
                 {visibleFeatureCount.toLocaleString()} loaded
               </span>

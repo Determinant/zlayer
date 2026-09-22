@@ -173,7 +173,7 @@ for (const standalone of ['display-mode', 'ios'] as const) {
         await expect(search).toHaveValue('');
         await search.fill('KSBA');
         await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-        await page.getByRole('button', { name: 'Plates', exact: true }).click();
+        await page.getByRole('tab', { name: 'Plates', exact: true }).click();
         await page.getByRole('button', { name: /TEST APPROACH/ }).click();
         await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
         const viewer = page.locator('.procedure-viewer');

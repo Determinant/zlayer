@@ -18,7 +18,7 @@ test.describe('airport details on touch screens', () => {
       const originalCard = await card.elementHandle();
       for (const mode of ['Info', 'Plates', 'ID']) {
         if (mode === 'ID') await page.getByRole('button', { name: 'Identify KSBA with nearby navaids' }).tap();
-        else await page.getByRole('button', { name: mode, exact: true }).tap();
+        else await page.getByRole('tab', { name: mode, exact: true }).tap();
         if (mode === 'Plates') await expect(page.getByRole('button', { name: /TEST APPROACH/ })).toBeVisible();
         if (mode === 'ID') await expect(page.locator('.nearby-navaids')).toContainText('CMA');
         const contents = await body.textContent();
@@ -56,7 +56,7 @@ test.describe('airport details on touch screens', () => {
         expect(await body.evaluate(element => element.scrollTop)).toBe(scroll);
         if (mode === 'ID') await expect(page.getByRole('button', { name: 'Identify KSBA with nearby navaids' }))
           .toHaveAttribute('aria-pressed', 'true');
-        else await expect(page.getByRole('button', { name: mode, exact: true })).toHaveClass('is-active');
+        else await expect(page.getByRole('tab', { name: mode, exact: true })).toHaveAttribute('aria-selected', 'true');
       }
       await page.screenshot({ path: testInfo.outputPath('airport-id-open.png') });
       await page.getByRole('button', { name: 'Hide KSBA details', exact: true }).tap();

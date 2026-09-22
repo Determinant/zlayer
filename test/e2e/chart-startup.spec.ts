@@ -2,6 +2,27 @@ import { test, expect } from '@playwright/test';
 
 type StartupGate = { allow: boolean; failures: number };
 
+test('selected charts keep startup covered until their first render', async ({ page, request }) => {
+  await request.post('/__test/hold-chart-archives');
+  await page.addInitScript(() => localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({
+    chartBase: 'vfr-sectional', ownshipEnabled: false, metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
+  })));
+  try {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const splash = page.getByRole('dialog', { name: 'ZLayer', exact: true });
+    const charts = splash.getByRole('listitem').filter({ has: page.getByText('Charts', { exact: true }) });
+    await expect(page.getByLabel('Chart status', { exact: true })).toContainText('MBTILES');
+    await expect(charts).toContainText('Rendering…');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'true');
+    // A ready chart cache is insufficient while the visible chart is still loading.
+    await page.waitForTimeout(1200);
+    await expect(splash).toBeVisible();
+    await request.post('/__test/allow-chart-archives');
+    await expect(splash).toHaveCount(0);
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  } finally { await request.post('/__test/allow-chart-archives'); }
+});
+
 for (const failure of ['registration', 'preparation', 'preparation timeout'] as const) {
   test(`sectionals recover from failed worker ${failure} on the first page`, async ({ page }) => {
     const errors: string[] = [], archives: string[] = [];

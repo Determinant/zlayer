@@ -2,6 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / ahrs
 
+The optional Routes public API supplies the committed route for the HSI through the
+[core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
+Disabling Routes removes route guidance while AHRS and its independent GPS lease remain active.
+
 This folder owns the estimator, browser motion adapter, calibration, attitude and
 GPS instruments, HSI, controls and local recordings. It has no runtime or build
 dependency on the standalone `zlayer-ahrs` repository. The entire tool, including

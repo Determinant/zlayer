@@ -25,10 +25,10 @@ async function keyHash(key: RequestInfo | URL): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(requestUrl(key)));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function exclusive<T>(key: RequestInfo | URL, work: () => Promise<T>): Promise<T> {
+async function withFileLock<T>(key: RequestInfo | URL, mode: LockMode, work: () => Promise<T>): Promise<T> {
   // Small in-memory fallback entries also work in browsers without Web Locks.
   if (!globalThis.navigator?.locks) return work();
-  return navigator.locks.request(`zlayer-download-key:${await keyHash(key)}`, { mode: 'exclusive' }, work);
+  return navigator.locks.request(`zlayer-download-key:${await keyHash(key)}`, { mode }, work);
 }
 const memoryError = () => new ResourceError('storage',
   'This download needs local file storage to stay within the memory limit. Free device storage, enable site storage, or update your browser, then retry.');
@@ -45,8 +45,10 @@ export async function openFileCache(name: string): Promise<FileCache> {
       const keys = [...await cache.keys(...args), ...await receipts.keys(...args)];
       return [...new Map(keys.map(key => [key.url, key])).values()];
     },
-    put: (key, response) => exclusive(key, () => writeEntry(stores, key, response)),
-    match: (...args) => exclusive(args[0], async () => {
+    put: (key, response) => withFileLock(key, 'exclusive', () => writeEntry(stores, key, response)),
+    // A paused check may still have a pending browser read. Independent readers
+    // can proceed together; replacement/removal must still wait for all readers.
+    match: (...args) => withFileLock(args[0], 'shared', async () => {
       const receipt = await receipts.match(...args);
       let invalid: unknown;
       try {
@@ -62,7 +64,7 @@ export async function openFileCache(name: string): Promise<FileCache> {
       if (invalid) throw invalid;
       return undefined;
     }),
-    delete: (...args) => exclusive(args[0], async () => {
+    delete: (...args) => withFileLock(args[0], 'exclusive', async () => {
       const receipt = await receipts.match(...args);
       const file = receipt?.headers.get(FILE_HEADER);
       discardResponseBody(receipt);
@@ -242,7 +244,7 @@ export async function storeDownloadedFile(cache: Pick<Cache, 'put'>, key: Reques
   }
   const stores = fileCaches.get(cache);
   if (!stores) throw new ResourceError('storage', 'A file-backed download requires a file-aware cache');
-  return exclusive(key, async () => {
+  return withFileLock(key, 'exclusive', async () => {
     const expected = verificationReceipt(storedHeaders, { byteLength: blob.size });
     const prior = await stores.receipts.match(key).catch(() => undefined);
     try {
@@ -303,7 +305,7 @@ function scheduleRetirement(): void {
   retirementTimer = setTimeout(() => {
     retirementTimer = undefined;
     void Promise.all([...retired].map(async ([name, { name: cacheName, cache, url }]) => {
-      await exclusive(url, async () => {
+      await withFileLock(url, 'exclusive', async () => {
         try { if (await removeRetiredFile(cacheName, cache, url, name)) retired.delete(name); }
         catch { /* Browser shutdown/full storage: the durable orphan sweep retries. */ }
       });

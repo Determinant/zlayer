@@ -4,19 +4,18 @@ import { fetchPreferredRoutes, fetchTerminalProcedures } from './api';
 import { navigationSourceKey } from '../../workspace/read-context';
 
 type Scope = 'plan' | 'recommendations';
-const layersFor = (catalog: CatalogResponse, scope: Scope) => scope === 'plan' ? catalog.navigation
-  : catalog.navigation.filter(layer => ['airports', 'fixes', 'navaids'].includes(layer.id));
 
 export function routeResourceKey(catalog: CatalogResponse, scope: Scope): string {
   return JSON.stringify([navigationSourceKey(catalog),
-    layersFor(catalog, scope).map(layer => navigationRequestKey(layer, catalog.revision, [])),
+    catalog.navigation.map(layer => navigationRequestKey(layer, catalog.revision, [])),
     catalog.airways, catalog.terminalProcedures, scope === 'plan' ? catalog.preferredRoutes : undefined]);
 }
 
 /** One national edition supplies each route operation. Products settle separately
  * so a failed optional export never discards healthy navigation. */
 export async function loadRouteResources(catalog: CatalogResponse, scope: Scope) {
-  const layers = layersFor(catalog, scope);
+  // Saved-route recommendations can include VFR waypoints, just like the active plan.
+  const layers = catalog.navigation;
   const [navigation, airway, procedures, preferredRoutes] = await Promise.allSettled([
     fetchNavigationCollections(layers, catalog.revision, [], catalog),
     catalog.airways ? fetchAirways(catalog.airways, catalog.revision) : Promise.resolve(undefined),

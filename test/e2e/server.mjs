@@ -55,6 +55,8 @@ let failAppInstall = false;
 let mismatchedAppHtml = false;
 let appInstallGate;
 let releaseAppInstall;
+let chartArchiveGate;
+let releaseChartArchives;
 const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm',
   '.html': 'text/html', '.css': 'text/css', '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff' };
@@ -87,6 +89,13 @@ const server = createServer(async (request, response) => {
       mismatchedAppHtml = false;
       releaseAppInstall?.();
       appInstallGate = releaseAppInstall = undefined;
+      releaseChartArchives?.();
+      chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/hold-chart-archives') {
+      chartArchiveGate = new Promise(resolve => { releaseChartArchives = resolve; });
+    } else if (path === '/__test/allow-chart-archives') {
+      releaseChartArchives?.();
+      chartArchiveGate = releaseChartArchives = undefined;
     } else if (['/__test/app-update', '/__test/fail-app-update', '/__test/hold-app-update', '/__test/mismatched-app-update'].includes(path)) {
       appRelease = '2222222222222222';
       failAppInstall = path === '/__test/fail-app-update';
@@ -174,6 +183,7 @@ const server = createServer(async (request, response) => {
   if (failUpdatedBook && path.endsWith('/updated-book.pdf')) { response.writeHead(503).end(); return; }
   if (failAppInstall && path === '/icon.svg') { response.writeHead(503).end(); return; }
   if (appInstallGate && path === '/icon.svg') await appInstallGate;
+  if (chartArchiveGate && path.endsWith('.mbtiles')) await chartArchiveGate;
   if (failNevadaAirports && path === '/chart-data/2026-08-06/nav/airports.geojson') { response.writeHead(503).end(); return; }
   if (failBrowsingAirports && path === '/chart-data/2026-09-03/nav/airports.geojson') { response.writeHead(503).end(); return; }
   const fixture = fixtures.get(path);

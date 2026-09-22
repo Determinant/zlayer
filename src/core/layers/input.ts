@@ -1,4 +1,5 @@
 import { createLayerStore, type LayerStore } from './store';
+import { LayerScope } from './scope';
 
 export function shallowEqual<T>(a: T, b: T): boolean {
   if (Object.is(a, b)) return true;
@@ -59,4 +60,20 @@ export function selectLayerStore<T, U>(store: LayerStore<T>, select: (value: T) 
       };
     },
   };
+}
+
+/** Combine existing stores without copying their state or keeping idle subscriptions. */
+export function combineLayerStores<A, B, T>(a: LayerStore<A>, b: LayerStore<B>,
+  select: (a: A, b: B) => T): LayerStore<T> {
+  return selectLayerStore({
+    getSnapshot: () => select(a.getSnapshot(), b.getSnapshot()),
+    subscribe(listener) {
+      const scope = new LayerScope();
+      try {
+        scope.add(a.subscribe(listener));
+        scope.add(b.subscribe(listener));
+        return () => scope.dispose();
+      } catch (error) { scope.dispose(); throw error; }
+    },
+  }, value => value);
 }

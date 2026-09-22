@@ -78,7 +78,6 @@
 .route-menu-popover [role="separator"] { height: 1px; margin: 5px; background: #345168; }
 .route-menu-popover .route-menu-clear { color: #f2a09a; }
 .route-menu-popover [role="status"]:not(:empty) { padding: 8px 10px; color: #9adace; font-size: 12px; }
-.route-menu-popover textarea { width: 100%; padding: 8px; border: 1px solid #345168; color: #d6e9f4; background: #081321; }
 
 .route-heading svg {
   width: 24px;
@@ -507,28 +506,8 @@ details.route-summary { display: block; }
   white-space: nowrap;
 }
 
-.route-recommend,
-.route-recommendations button {
-  min-height: max(32px, var(--touch-target));
-  padding: 5px 9px;
-  border: 1px solid rgba(78, 179, 247, 0.3);
-  border-radius: 6px;
-  color: #a9ddff;
-  background: rgba(49, 139, 202, 0.13);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
 .route-recommend { flex: 0 0 auto; }
-.route-recommend:hover,
-.route-recommend[aria-expanded="true"],
-.route-recommendations button:hover { background: rgba(49, 139, 202, 0.25); }
-.route-recommend:focus-visible,
-.route-recommendations button:focus-visible,
-.route-recommendations summary:focus-visible,
-.route-history-filter select:focus-visible { outline: 2px solid #61bfff; outline-offset: -2px; }
-.route-recommendations button:disabled { cursor: default; }
+.route-recommendations summary:focus-visible { outline: 2px solid #85e6db; outline-offset: -2px; }
 .route-recommendations {
   border: 1px solid #345168;
   border-radius: 9px;
@@ -541,8 +520,8 @@ details.route-summary { display: block; }
 .route-recommend-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid #263a4c; }
 .route-recommend-caption { color: #8ba4b6; font-size: 11px; }
 .route-recommendations h2 { margin: 1px 0 0; font-size: 14px; color: #edf8ff; }
-.route-recommendations .route-recommend-close { min-width: max(30px, var(--touch-target)); padding: 0; font-size: 21px; background: transparent; border-color: transparent; }
-.route-recommend-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #52687c transparent; }
+.route-recommend-close { font-size: 21px; }
+.route-recommend-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .route-recommend-body > p:not(.route-recommend-hint),
 .route-recommend-body > div[role] { margin: 8px 12px; }
 .route-preview-legend { display: flex; align-items: center; flex-wrap: wrap; column-gap: 5px; row-gap: 2px; color: #a1b3c3; font-size: 11px; }
@@ -558,7 +537,7 @@ details.route-summary { display: block; }
 .route-recommend-source a { color: inherit; text-underline-offset: 2px; }
 .route-source-note { display: block; font-size: 11px; }
 .route-history-filter { display: flex; align-items: center; }
-.route-history-filter select { min-height: max(26px, var(--touch-target)); max-width: 140px; padding: 3px 6px; border: 1px solid #345168; border-radius: 5px; color: #d9e6ef; background: #132638; font: inherit; font-size: var(--input-font-size); }
+.route-history-filter select { max-width: 140px; }
 .route-recommend-state { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 6px 12px 9px; color: #8ba4b6; overflow-wrap: anywhere; }
 .route-recommend-state[role="alert"] { color: #efb7a5; }
 .route-recommend-list { margin: 0; padding: 0; list-style: none; }
@@ -570,10 +549,8 @@ details.route-summary { display: block; }
 .is-selected .route-suggestion-rank { color: #e5f6ff; background: #236b9d; }
 .route-suggestion-copy { min-width: 0; }
 .route-suggestion-copy > strong { display: block; overflow-wrap: anywhere; color: #ecf5fc; font-size: 11px; line-height: 1.45; font-weight: 700; }
-.route-suggestion-meta { display: block; color: #9db5c7; font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.route-suggestion-meta { display: block; color: #9db5c7; font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .route-suggestion-warning { color: #c9a47b; }
-.route-recommendations .route-suggestion-use { padding: 4px 8px; min-width: var(--touch-target); min-height: max(30px, var(--touch-target)); font-size: 11px; }
-.route-recommendations .route-suggestion-use:disabled { opacity: 0.4; }
 .route-recommend-conditions { grid-column: 1 / -1; margin: -1px 0 3px 28px; color: #9db5c7; font-size: 11px; min-width: 0; }
 .route-recommend-conditions summary { min-height: var(--touch-target); display: flex; align-items: center; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .route-recommend-conditions summary:hover { color: #edf8ff; }
@@ -581,7 +558,7 @@ details.route-summary { display: block; }
 .route-recommend-conditions dl div { display: grid; grid-template-columns: 75px minmax(0, 1fr); gap: 6px; }
 .route-recommend-conditions dt { color: #8ba4b6; }
 .route-recommend-conditions dd { margin: 0; color: #c3d8e6; overflow-wrap: anywhere; }
-.route-recommendations .route-recommend-more { display: block; width: calc(100% - 24px); margin: 4px 12px 8px; border: 0; background: transparent; color: #87bce0; font-size: 11px; min-height: max(28px, var(--touch-target)); }
+.route-recommend-more { display: block; width: calc(100% - 24px); margin: 4px 12px 8px; }
 .route-recommend-error { color: #ef8f89; overflow-wrap: anywhere; }
 
 .route-summary strong {

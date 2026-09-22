@@ -6,7 +6,7 @@ async function selectPlate(page: Page, beforeOpen?: () => Promise<unknown>) {
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   const opener = page.getByRole('button', { name: /TEST APPROACH/ });
   // Shared viewer-dialog code must load before intercepting the lazy renderer.
   await beforeOpen?.();
@@ -34,6 +34,8 @@ test('plate loading keeps the same panel through renderer preparation and PDF do
   await expect(heading).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Preparing plate…' })).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Zoom in', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Rotate 90° clockwise' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Reset plate view' })).toBeDisabled();
   await page.locator('.side-panels').evaluate(element =>
     Promise.all(element.getAnimations().map(animation => animation.finished)));
   const before = await heading.boundingBox();

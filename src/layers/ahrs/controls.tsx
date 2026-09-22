@@ -110,7 +110,7 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
               appScript: document.querySelector<HTMLScriptElement>('script[type="module"]')?.src ?? null });
           }} />
           <FullScreenButton expanded={expanded} button={fullScreenButton} onClick={() => setFullScreen(value => !value)}
-            className="ahrs-header-button ahrs-fullscreen-button" iconSize={expanded ? 20 : 14} />
+            className="ui-button ui-button--compact ui-button--icon ahrs-header-button" iconSize={expanded ? 20 : 14} />
         </div>
         <span className={`ahrs-gps${testing ? ' is-test' : state.gpsUsable ? ' is-live' : ''}`}><i />{testing ? 'TEST' : state.gpsLive ? state.gpsUsable ? 'GPS live' : 'GPS · low speed' : 'No GPS'}</span>
       </header>
@@ -127,17 +127,17 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
           <strong>Calibrate attitude</strong>
           <p>Secure the device in its mount and hold roughly steady and level for about 10 seconds. In flight, keep straight and level at a steady speed; small movements and cockpit vibration are okay.</p>
           <p>Calibration can finish with no GPS fix, including while stationary. Once calibrated, IMU attitude stays visible and moving beneath any red cross.</p>
-          <label>Device mount<select value={mount} onChange={event => setMount(event.target.value as Mount)}>
+          <label>Device mount<select className="ui-input ui-input--compact" value={mount} onChange={event => setMount(event.target.value as Mount)}>
             <option value="upright">Upright · screen facing you</option><option value="flat">Flat · top edge forward</option>
           </select></label>
           <details><summary>True heading (optional)</summary>
             <p>A known true heading initializes direction once during calibration. Otherwise, moving GPS supplies an estimated heading carried by the gyros. Changing flight motion can refine heading; REL is used only until a geographic reference is available.</p>
-            <label>True heading · degrees<input type="number" min="0" max="359.9" step="any" inputMode="decimal"
+            <label>True heading · degrees<input className="ui-input ui-input--compact" type="number" min="0" max="359.9" step="any" inputMode="decimal"
               value={heading} onChange={event => setHeading(event.target.value)} placeholder="Use GPS when available" /></label>
           </details>
           {state.message && !testing && <p className="ahrs-message" role="status">{state.message}</p>}
-          <button type="submit" className="ahrs-primary">Calibrate</button>
-          {confirming && <button type="button" className="ahrs-secondary" onClick={() => { setConfirming(false); setTesting(false); }}>Cancel</button>}
+          <button type="submit" className="ui-button ui-button--primary ui-button--compact ahrs-primary">Calibrate</button>
+          {confirming && <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary" onClick={() => { setConfirming(false); setTesting(false); }}>Cancel</button>}
         </form> : calibrating ? <div className="ahrs-calibration" role="status">
           <div><strong>{state.phase === 'requesting' ? 'Allow motion access' : 'Calibrating pitch, bank & gyro'}</strong>
             <span>{calibrationWaiting ? 'Waiting' : `${calibrationPaused ? 'Paused · ' : ''}${calibrationProgress}`}</span></div>
@@ -147,15 +147,15 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
           <p>{state.message || reasons[state.calibrationReason]}</p>
           {!state.gpsUsable && <p>{state.gpsMessage} Calibration can still complete as a reference.</p>}
           {!state.gpsLive && state.phase === 'calibrating' &&
-            <button type="button" className="ahrs-secondary" onClick={layer.retryGps}>Retry GPS</button>}
-          <button type="button" className="ahrs-secondary" onClick={() => { setTesting(false); layer.stop(); }}>Cancel calibration</button>
+            <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary" onClick={layer.retryGps}>Retry GPS</button>}
+          <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary" onClick={() => { setTesting(false); layer.stop(); }}>Cancel calibration</button>
         </div> : <div className="ahrs-actions">
           <p role="status">{attitudeStatus(state)}</p>
-          <div><button type="button" onClick={() => setConfirming(true)}>Recalibrate</button>
-            {!state.gpsLive && <button type="button" onClick={layer.retryGps}>Retry GPS</button>}
-            <button type="button" onClick={() => { setTesting(false); layer.stop(); }}>Stop</button></div>
+          <div><button className="ui-button ui-button--compact" type="button" onClick={() => setConfirming(true)}>Recalibrate</button>
+            {!state.gpsLive && <button className="ui-button ui-button--compact" type="button" onClick={layer.retryGps}>Retry GPS</button>}
+            <button className="ui-button ui-button--compact" type="button" onClick={() => { setTesting(false); layer.stop(); }}>Stop</button></div>
         </div>}
-        <button type="button" className="ahrs-secondary ahrs-test-toggle" aria-pressed={testing} onClick={() => setTesting(value => !value)}>
+        <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary ahrs-test-toggle" aria-pressed={testing} onClick={() => setTesting(value => !value)}>
           {testing ? 'Stop test' : 'Test'}
         </button>
       </div>

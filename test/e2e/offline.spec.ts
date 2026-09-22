@@ -94,7 +94,7 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
   await cold.locator('.route-recommend-close').click();
   await cold.getByLabel('Search FAA navigation data').fill('KSBA');
   await cold.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await cold.getByRole('button', { name: 'Plates', exact: true }).click();
+  await cold.getByRole('tab', { name: 'Plates', exact: true }).click();
   await cold.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(cold.getByText('Available offline', { exact: true })).toBeVisible();
   await expect(cold.locator('.procedure-page-loading')).toHaveCount(0);
@@ -104,6 +104,9 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
     return canvas.width > 0 && pixel[2]! > pixel[0]! * 2;
   })).toBe(true);
   await cold.getByLabel('Close plate').click();
+  // Closing finishes after the slide and restores focus to the airport tab.
+  // Wait for that handoff before opening a menu that dismisses on blur.
+  await expect(cold.getByRole('button', { name: 'Show KSBA details', exact: true })).toBeFocused();
   await cold.getByRole('button', { name: 'Route actions', exact: true }).click();
   await cold.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await cold.reload();
@@ -176,7 +179,7 @@ test('published dates load on selection and two editions of a region stay isolat
   await expectCycle(page, 'latest');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
 });
@@ -198,7 +201,7 @@ test('an older saved region overrides latest browsing online and after an offlin
     await page.getByLabel('Search FAA navigation data').fill('KSBA');
     await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
     await expect(page.locator('.feature-edition')).toHaveText('FAA Aug 6');
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     await page.getByRole('button', { name: /TEST APPROACH/ }).click();
     await expect(page.getByText('Open original ↗')).toHaveAttribute('href', /\/2026-08-06\//);
     await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
@@ -453,7 +456,7 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
       await page.getByLabel('Close settings').click();
       await page.getByLabel('Search FAA navigation data').fill('KSBA');
       await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-      await page.getByRole('button', { name: 'Plates', exact: true }).click();
+      await page.getByRole('tab', { name: 'Plates', exact: true }).click();
       await page.locator('.procedure-group button').filter({ hasText: 'Chart Supplement' }).click();
       await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
       await expect(page.locator('.procedure-page-loading')).toHaveCount(0);

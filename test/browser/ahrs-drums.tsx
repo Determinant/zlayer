@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import '@fontsource/b612/400.css';
 import { InstrumentPanel } from '../../src/layers/ahrs/instruments';
+import '../../src/core/ui/styles.css';
 import '../../src/layers/ahrs/styles.css';
 
 const readings = [

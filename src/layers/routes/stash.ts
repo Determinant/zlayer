@@ -5,6 +5,7 @@ import { pluginStorage } from './storage';
 
 const stashSlot = pluginStorage.slot('stash', 'zlayer-route-stash-v1');
 export const ROUTE_STASH_KEY = stashSlot.key;
+export const ROUTE_STASH_CHANGED = 'zlayer-route-stash-changed';
 export type SavedRoute = { id: string; name: string; draft: RouteDraft };
 type StashStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -33,7 +34,9 @@ export async function updateRouteStash(change: (routes: SavedRoute[]) => SavedRo
   if (!navigator.locks) throw new Error('Saving routes safely requires browser window coordination. Update your browser and retry.');
   return navigator.locks.request(ROUTE_STASH_KEY, { ifAvailable: true }, lock => {
     if (!lock) throw new Error('Another window is saving routes. Try again in a moment.');
-    return changeRouteStash(change);
+    const routes = changeRouteStash(change);
+    window.dispatchEvent(new Event(ROUTE_STASH_CHANGED));
+    return routes;
   });
 }
 

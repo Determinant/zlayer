@@ -28,18 +28,9 @@
 .plate-map-control > span { display: grid; gap: 4px; min-width: 0; }
 .plate-map-control strong { font-size: 12px; color: #d9e9f2; overflow-wrap: anywhere; }
 .plate-map-control small { font-size: 11px; color: #91aabb; overflow-wrap: anywhere; }
-.plate-map-control button {
-  flex: 0 0 44px;
-  height: 44px;
-  border: 1px solid #365065;
-  border-radius: 8px;
-  background: #122a3b;
-  color: #d9e9f2;
-  font-size: 22px;
-  cursor: pointer;
-}
-.plate-map-control button:focus-visible { outline: 2px solid #68cdbf; outline-offset: 2px; }
-.plate-map-control .plate-map-retry { flex-basis: auto; padding-inline: 10px; font-size: 12px; }
+.plate-map-control button { font-size: 22px; }
+
+.plate-map-control .plate-map-retry { font-size: 12px; }
 
 .plate-map-menu {
   position: absolute;
@@ -185,6 +176,7 @@
 .procedure-window[open] { display: block; }
 
 .procedure-viewer {
+  container: plate-reader / inline-size;
   display: grid;
   width: 100%;
   height: 100%;
@@ -216,7 +208,6 @@
 .procedure-viewer > header h2 {
   margin: 3px 0 2px;
   font-size: 18px;
-  letter-spacing: -0.025em;
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
@@ -238,39 +229,15 @@
  * reading area do not move when the button arrives. */
 .procedure-header-action.is-reserved { display: block; flex: 0 0 44px; width: 44px; }
 
-.procedure-viewer-actions button {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  place-items: center;
-  flex: 0 0 auto;
-  border: 1px solid rgba(151, 199, 228, 0.12);
-  border-radius: 9px;
-  color: #8aa1b2;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 19px;
-  cursor: pointer;
-}
+.procedure-viewer-actions button { font-size: 19px; }
 
 .procedure-viewer-actions .procedure-show-on-map { color: #8ee1d4; }
-.procedure-viewer-actions button:disabled { opacity: 0.32; cursor: default; }
-
-.procedure-viewer-actions button:hover:not(:disabled),
-.procedure-viewer-actions button[aria-pressed="true"] {
-  color: #d9e9f2;
-  background: rgba(33, 70, 91, 0.76);
-}
-
-.procedure-viewer button:focus-visible,
-.procedure-viewer a:focus-visible {
-  outline: 2px solid #68cdbf;
-  outline-offset: -2px;
-}
 
 .procedure-page-stage {
   position: relative;
   overflow: auto;
+  /* Width fitting must not add/remove its own measured scrollbar space. */
+  scrollbar-gutter: stable;
   padding: 16px;
   background:
     radial-gradient(circle at 50% 0, rgba(103, 132, 150, 0.12), transparent 32%),
@@ -278,6 +245,10 @@
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
   overflow-anchor: none;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  .procedure-page-stage { overflow-y: scroll; }
 }
 
 .procedure-page-stage canvas {
@@ -417,50 +388,57 @@
   flex-wrap: wrap;
 }
 
+.procedure-reading-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
 .procedure-page-controls,
+.procedure-page-picker-content { display: contents; }
+.procedure-page-picker { display: none; }
+
+.procedure-pagination,
 .procedure-zoom-controls {
   display: flex;
   gap: 3px;
   align-items: center;
 }
 
-.procedure-viewer > footer button,
-.procedure-viewer > footer a {
-  display: grid;
-  height: 32px;
-  place-items: center;
-  border: 1px solid rgba(151, 199, 228, 0.15);
-  border-radius: 8px;
-  color: #a7bdcb;
-  background: rgba(255, 255, 255, 0.04);
-  text-decoration: none;
-  cursor: pointer;
-}
+.procedure-viewer .procedure-original { display: grid; place-items: center; order: 2; margin-left: auto; padding-inline: 10px; text-decoration: none; }
 
-.procedure-viewer > footer button {
-  min-width: 32px;
-}
-
-.procedure-viewer > footer button:disabled {
-  opacity: 0.32;
-  cursor: default;
-}
-
-.procedure-viewer > footer a {
-  margin-left: auto;
-  padding: 0 10px;
-  font-size: 11px;
-}
-
-.procedure-page-controls span,
-.procedure-zoom-controls span,
+.procedure-pagination > span,
 .procedure-cache-state {
   min-width: 75px;
-  color: #7e96a7;
+  color: var(--text-muted);
   text-align: center;
   font-size: 11px;
   white-space: nowrap;
 }
+
+.procedure-pagination > span { font-size: 12px; }
+
+.procedure-pagination > span,
+.procedure-reset-view > span,
+.procedure-page-picker > span {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.procedure-reset-view {
+  display: grid;
+  place-content: center;
+  flex: 0 0 52px;
+  width: 52px;
+  padding: 2px;
+  gap: 1px;
+}
+.procedure-reset-view small,
+.procedure-page-picker small { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
 .procedure-cache-state {
   margin-left: 5px;
@@ -501,10 +479,28 @@
     margin: 0;
     text-align: center;
   }
+}
 
-  .procedure-viewer > footer a {
-    margin-left: auto;
+@container plate-reader (max-width: 560px) {
+  .procedure-viewer > footer {
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
+    gap: 4px;
   }
+  .procedure-reading-controls { justify-content: space-between; gap: 4px; }
+  .procedure-page-controls { display: block; position: relative; flex: 0 0 52px; }
+  .procedure-page-picker {
+    display: grid; place-content: center; gap: 1px;
+    width: 52px; padding: 2px;
+  }
+  .procedure-page-picker-content {
+    display: none; position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 2;
+    width: max-content; max-width: calc(100cqw - 16px); max-height: calc(100dvh - 100px);
+    overflow: auto; padding: 8px; border: 1px solid #46606e; border-radius: 8px;
+    background: #081423; box-shadow: 0 6px 24px #0008;
+  }
+  .procedure-page-controls.is-open .procedure-page-picker-content { display: grid; gap: 8px; }
+  .procedure-viewer .procedure-original { margin: 0; min-height: 44px; }
+  .procedure-cache-state { width: 100%; margin: 0; text-align: center; }
 }
 
 /* Leave enough reading space in landscape or above an on-screen keyboard. */
@@ -524,20 +520,7 @@
 }
 
 @container workspace (max-height: 300px) {
-  .procedure-viewer:not(.is-fullscreen) > footer {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-  }
-  .procedure-viewer:not(.is-fullscreen) > footer > * { flex-shrink: 0; }
-  .procedure-viewer:not(.is-fullscreen) .procedure-cache-state { width: auto; }
   .procedure-viewer:not(.is-fullscreen) .procedure-download p { display: none; }
-}
-
-@media (any-pointer: coarse) {
-  .procedure-viewer > footer button,
-  .procedure-viewer > footer a { min-width: 44px; height: 44px; }
-  .procedure-zoom-controls span { min-width: 42px; }
 }
 
 /* A viewport-filling reading mode, including browsers without native fullscreen. */
@@ -562,7 +545,7 @@
 .procedure-viewer.is-fullscreen .eyebrow,
 .procedure-viewer.is-fullscreen > header p,
 .procedure-viewer.is-fullscreen .procedure-cache-state,
-.procedure-viewer.is-fullscreen > footer a {
+.procedure-viewer.is-fullscreen .procedure-original {
   display: none;
 }
 
@@ -577,10 +560,6 @@
   padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 }
 
-.procedure-viewer.is-fullscreen .procedure-page-controls span {
+.procedure-viewer.is-fullscreen .procedure-pagination > span {
   min-width: 60px;
-}
-
-.procedure-viewer.is-fullscreen .procedure-zoom-controls span {
-  min-width: 36px;
 }

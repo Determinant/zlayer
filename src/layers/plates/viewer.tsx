@@ -5,30 +5,21 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  getDocument,
-  GlobalWorkerOptions,
-  VerbosityLevel,
-  type PDFDocumentProxy,
-  type PDFDocumentLoadingTask,
-} from 'pdfjs-dist/legacy/build/pdf.mjs';
-// Use the matching compatibility worker as well: Safari needs PDF.js's polyfills.
-import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import type { ProcedureSelection } from './data';
 import { ProcedureFooter, ProcedureHeaderAction, ProcedurePageLoading, type PlateCacheState } from './viewer-dialog';
 import { pdfCanvasSize } from './render-scale';
 import { clampPlateZoom, usePinchZoom } from './use-pinch-zoom';
-import { loadProcedureDocument, type ProcedureDownloadProgress } from './document-cache';
-import { BlobRangeTransport } from './blob-range';
+import type { ProcedureDownloadProgress } from './document-cache';
+import { openProcedurePdf } from './pdf-document';
+import { withAbort } from '../../core/data/abort';
 import { procedurePageIndex } from './page-target';
 import { retainActiveFiles } from '../../offline/active-catalogs';
 import { usePluginState } from '../../core/ui/use-persistent-state';
 import { plateViewKey } from './persistence';
 import { isRecord } from '@zlayer/contracts';
 import type { PlateMapImage } from './map-image';
-
-GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 type ProcedureViewerProps = {
   selection: ProcedureSelection;
@@ -37,6 +28,8 @@ type ProcedureViewerProps = {
 
 type ViewerState = {
   document?: PDFDocumentProxy;
+  signal?: AbortSignal;
+  fail?: (error: unknown) => void;
   error?: string;
 };
 
@@ -45,6 +38,8 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
   const [savedPage, setPageIndex] = usePluginState<number | null>(pluginStorage, `${key}:page`, null,
     (value): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0));
   const pageIndex = savedPage ?? selection.document.pageIndex;
+  const [rotation, setRotation] = usePluginState(pluginStorage, `${key}:rotation`, 0,
+    (value): value is number => typeof value === 'number' && [0, 90, 180, 270].includes(value));
   const zoomKey = `${key}:zoom`, scrollKey = `${key}:scroll`;
   const zoomRecord = pluginStorage.ui(zoomKey, 1,
     (value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 4);
@@ -99,14 +94,14 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
   const [cacheState, setCacheState] = useState<PlateCacheState>('saving');
   const [downloadProgress, setDownloadProgress] = useState<ProcedureDownloadProgress>();
   const [painted, setPainted] = useState<{ document: PDFDocumentProxy; pageIndex: number;
-    zoom: number; width: number; height: number }>();
+    zoom: number; rotation: number; width: number; height: number }>();
   const [pixelRatio, setPixelRatio] = useState(displayPixelRatio);
   const renderCompletion = useRef<Promise<void>>(Promise.resolve());
   const [availableSize, setAvailableSize] = useState({ width: 0, height: 0 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { document: source } = selection;
   const ready = Boolean(viewer.document && painted?.document === viewer.document && painted.pageIndex === pageIndex);
-  const pinching = usePinchZoom(stageRef, canvasRef, zoom, changeZoom, ready);
+  const pinching = usePinchZoom(stageRef, canvasRef, zoom, changeZoom, ready && painted?.rotation === rotation);
 
   useEffect(() => {
     const onVisibility = () => { if (document.visibilityState === 'hidden') saveView(); };
@@ -120,11 +115,11 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
   }, [saveView]);
 
   useEffect(() => {
-    if (ready && painted?.zoom === zoom && restoreScroll.current) {
+    if (ready && painted?.zoom === zoom && painted.rotation === rotation && restoreScroll.current) {
       stageRef.current?.scrollTo(scrollRef.current.left, scrollRef.current.top);
       restoreScroll.current = false;
     }
-  }, [ready, painted, zoom]);
+  }, [ready, painted, zoom, rotation]);
 
   useEffect(() => retainActiveFiles([source.url]), [source.url]);
   useEffect(() => () => mapPreparation.current?.abort(), [source]);
@@ -183,45 +178,49 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     setCacheState('saving');
     setDownloadProgress(undefined);
     let current = true;
-    let task: PDFDocumentLoadingTask | undefined;
-    loadProcedureDocument(source, progress => { if (current) setDownloadProgress(progress); })
-      .then(async ({ blob, cached }) => {
+    const controller = new AbortController();
+    let stopObservingPdf = () => {};
+    const fail = (error: unknown) => {
+      if (!current || controller.signal.aborted) return;
+      stopObservingPdf();
+      controller.abort(error);
+      mapPreparation.current?.abort(error);
+      setPreparingMap(false);
+      setRendering(false);
+      setDownloadProgress(undefined);
+      setCacheState(state => state === 'saving' ? 'unavailable' : state);
+      setViewer({ error: error instanceof Error ? error.message : 'Unable to read PDF' });
+    };
+    openProcedurePdf(source, controller.signal, progress => { if (current) setDownloadProgress(progress); })
+      .then(async ({ document, cached, signal }) => {
         if (!current) return;
+        const onFailure = () => fail(signal.reason);
+        signal.addEventListener('abort', onFailure, { once: true });
+        stopObservingPdf = () => signal.removeEventListener('abort', onFailure);
+        signal.throwIfAborted();
         setDownloadProgress(undefined);
         setCacheState(cached ? 'cached' : 'unavailable');
-        const range = new BlobRangeTransport(blob, error => {
-          if (current) setViewer({ error: error instanceof Error ? error.message : 'Unable to read saved PDF' });
-          void task?.destroy().catch(() => {});
-        });
-        task = getDocument({ range, disableStream: true, disableAutoFetch: true,
-          verbosity: VerbosityLevel.ERRORS, useSystemFonts: true });
-        const document = await task.promise;
-        const targetIndex = await procedurePageIndex(document, source);
+        const targetIndex = await withAbort(procedurePageIndex(document, source), signal);
         const index = savedPage === null ? targetIndex : Math.min(savedPage, document.numPages - 1);
         if (current) {
           setSelectedPageIndex(targetIndex);
           setPageIndex(index);
-          setViewer({ document });
+          setViewer({ document, signal, fail });
         }
       })
-      .catch((error: unknown) => {
-        // A target lookup can fail after PDF.js has opened the document.
-        void task?.destroy().catch(() => {});
-        if (current) {
-          setCacheState(state => state === 'saving' ? 'unavailable' : state);
-          setViewer({ error: error instanceof Error ? error.message : 'Unable to open PDF' });
-        }
-      });
+      .catch(fail);
     return () => {
       current = false;
-      void task?.destroy().catch(() => {});
+      stopObservingPdf();
+      controller.abort();
     };
   }, [source]);
 
   useEffect(() => {
     const pdf = viewer.document;
+    const signal = viewer.signal;
     const canvas = canvasRef.current;
-    if (!pdf || !canvas || pinching || preparingMap || availableSize.height <= 0 || availableSize.width <= 0) return;
+    if (!pdf || !signal || !canvas || pinching || preparingMap || availableSize.height <= 0 || availableSize.width <= 0) return;
 
     let current = true;
     let renderTask: ReturnType<Awaited<ReturnType<typeof pdf.getPage>>['render']> | undefined;
@@ -231,13 +230,15 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
       // Wait for cancelled work to release its buffer before allocating another.
       await previous;
       if (!current) return;
-      const page = await pdf.getPage(pageIndex + 1);
+      const page = await withAbort(pdf.getPage(pageIndex + 1), signal);
       if (!current) { page.cleanup(); return; }
       const buffer = window.document.createElement('canvas');
       try {
-        const unscaled = page.getViewport({ scale: 1 });
-        const fitScale = Math.min(availableSize.height / unscaled.height, availableSize.width / unscaled.width);
-        const viewport = page.getViewport({ scale: fitScale * zoom });
+        const pageRotation = (page.rotate + rotation) % 360;
+        const unscaled = page.getViewport({ scale: 1, rotation: pageRotation });
+        // 100% fills the reading width; taller pages scroll vertically from the top.
+        const fitScale = availableSize.width / unscaled.width;
+        const viewport = page.getViewport({ scale: fitScale * zoom, rotation: pageRotation });
         const size = pdfCanvasSize(viewport.width, viewport.height, pixelRatio);
         buffer.width = size.width;
         buffer.height = size.height;
@@ -245,7 +246,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         if (!context) throw new Error('Canvas rendering is unavailable');
         renderTask = page.render({ canvas: buffer, canvasContext: context, viewport,
           transform: [buffer.width / viewport.width, 0, 0, buffer.height / viewport.height, 0, 0] });
-        await renderTask.promise;
+        await withAbort(renderTask.promise, signal);
         if (!current) return;
         // Keep the previous bitmap visible until its replacement is complete.
         // Resizing and copying in one turn avoids a blank flash while zooming.
@@ -256,23 +257,21 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         canvas.style.width = `${viewport.width}px`;
         canvas.style.height = `${viewport.height}px`;
         display.drawImage(buffer, 0, 0);
-        setPainted({ document: pdf, pageIndex, zoom, width: viewport.width, height: viewport.height });
+        setPainted({ document: pdf, pageIndex, zoom, rotation, width: viewport.width, height: viewport.height });
         setRendering(false);
       } finally {
         buffer.width = buffer.height = 0;
         page.cleanup();
       }
     })().catch((error: unknown) => {
-      if (!current || isRenderCancellation(error)) return;
-      void pdf.loadingTask.destroy().catch(() => {});
-      setRendering(false);
-      setViewer({ error: error instanceof Error ? error.message : 'Unable to render PDF page' });
+      if (!current || isRenderCancellation(error) && !signal.aborted) return;
+      viewer.fail?.(signal.aborted ? signal.reason : error);
     });
     return () => {
       current = false;
       renderTask?.cancel();
     };
-  }, [availableSize, pageIndex, viewer.document, zoom, pixelRatio, pinching, preparingMap]);
+  }, [availableSize, pageIndex, viewer.document, viewer.signal, viewer.fail, zoom, rotation, pixelRatio, pinching, preparingMap]);
 
   const showOnMap = async () => {
     const pdf = viewer.document;
@@ -304,11 +303,26 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     scheduleSave('scroll');
     stageRef.current?.scrollTo({ top: 0, left: 0 });
   };
+  const rotateClockwise = () => {
+    setRotation(value => (value + 90) % 360);
+    scrollRef.current = { left: 0, top: 0 };
+    restoreScroll.current = true;
+    scheduleSave('scroll');
+  };
+  const resetView = () => {
+    changeZoom(1);
+    setRotation(0);
+    scrollRef.current = { left: 0, top: 0 };
+    restoreScroll.current = painted?.zoom !== 1 || painted.rotation !== 0;
+    scheduleSave('scroll');
+    // Reset scrolling even when zoom and orientation already have their defaults.
+    stageRef.current?.scrollTo({ top: 0, left: 0 });
+  };
 
   return <>
     {onShowOnMap && selection.procedure.kind === 'approach' && pageIndex === selectedPageIndex &&
       <ProcedureHeaderAction>
-        <button type="button" className="procedure-show-on-map" disabled={!ready || rendering || pinching || preparingMap}
+        <button type="button" className="ui-button ui-button--icon procedure-show-on-map" disabled={!ready || rendering || pinching || preparingMap}
           onClick={() => void showOnMap()} aria-busy={preparingMap}
           aria-label={preparingMap ? 'Preparing map…' : 'Show on map'}
           title={preparingMap ? 'Preparing map…' : 'Show on map'}>
@@ -338,8 +352,9 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     </div>
     <ProcedureFooter source={source} pageIndex={pageIndex} pageCount={pageCount} zoom={zoom} cacheState={cacheState}
       {...(viewer.document && !preparingMap ? { onPageChange: changePage, onZoomChange: changeZoom } : {})}
+      {...(viewer.document && !preparingMap && !pinching ? { onRotate: rotateClockwise, onReset: resetView } : {})}
       mapAction={onShowOnMap && selection.procedure.kind === 'approach' ? <>
-        {pageIndex !== selectedPageIndex && <button type="button" className="procedure-return-to-approach"
+        {pageIndex !== selectedPageIndex && <button type="button" className="ui-button procedure-return-to-approach"
           disabled={!viewer.document || preparingMap} onClick={() => changePage(selectedPageIndex)}>Return to approach</button>}
         {mapError && <span className="procedure-map-error" role="alert">{mapError}</span>}
       </> : undefined} />

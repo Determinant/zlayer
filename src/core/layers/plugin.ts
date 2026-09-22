@@ -1,3 +1,4 @@
+import type { PluginConnection } from './bridge';
 import type { ComponentType } from 'react';
 import type { MapContribution } from '../map/contribution';
 import type { PluginStorage } from '../storage/plugin-storage';
@@ -15,6 +16,8 @@ export type UiContribution = { readonly id: string; readonly Component: Componen
 /** Trusted feature modules expose ordinary components and a lazy rendering entry. */
 export type LayerPlugin = {
   readonly definition: LayerDefinition;
+  /** Workspace-bound public API registration and optional integrations. */
+  readonly communication?: PluginConnection;
   /** Loading includes dependencies; unloading includes their dependents. */
   readonly requires?: readonly string[];
   readonly storage?: PluginStorage;

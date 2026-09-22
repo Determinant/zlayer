@@ -95,12 +95,20 @@ const migrationOwners = new Map([
 ]);
 for (const [file, dependencies] of graph) {
   const from = local(file);
-  for (const { target } of dependencies) {
+  for (const { target, runtime } of dependencies) {
     if (!target) continue;
     const to = local(target);
     if (from.startsWith('src/layers/') && /^src\/layers\/[^/]+\/storage\.ts$/.test(to) &&
       from.split('/')[2] !== to.split('/')[2]) {
       failures.add(`${from} -> ${to}: a plugin cannot import another plugin's storage scope`);
+    }
+    if (from.startsWith('src/layers/') && to.startsWith('src/layers/') && from.split('/')[2] !== to.split('/')[2]) {
+      if (!/^src\/layers\/[^/]+\/(public|api|data|definitions|map-contract)\.ts$/.test(to)) {
+        failures.add(`${from} -> ${to}: cross-plugin imports use public contracts or data entries; live integration uses the bridge`);
+      }
+      if (to.endsWith('/public.ts') && runtime) {
+        failures.add(`${from} -> ${to}: plugin public contracts are type-only; obtain live APIs through the bridge`);
+      }
     }
     if (from.startsWith('src/core/') && !to.startsWith('src/core/')) {
       failures.add(`${from} -> ${to}: core must not depend on application or feature modules`);
@@ -141,7 +149,7 @@ for (const file of graph.keys()) {
   const path = local(file);
   const dataEntry = /^src\/core\/(data|storage|gps)\//.test(path) ||
     (path.startsWith('src/offline/') && !path.includes('/use-')) ||
-    /^src\/layers\/[^/]+\/(api|definitions|offline)\.ts$/.test(path) ||
+    /^src\/layers\/[^/]+\/(api|definitions|offline|public)\.ts$/.test(path) ||
     workspaceData.has(path);
   const workerEntry = path === 'src/service-worker.ts' || /(?:\.worker|-worker)\.ts$/.test(path);
   if (dataEntry || workerEntry) checkRuntime(path, uiRuntime, 'Data/worker entry imports a UI runtime');

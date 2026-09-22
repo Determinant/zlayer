@@ -1,5 +1,5 @@
 import type { ChartSupplementCatalog, GeoPointFeature, ProcedureCatalog } from '@zlayer/contracts';
-import { findProcedureAirport, groupProcedures, procedureDocument, type ProcedureSelection } from './data';
+import { findProcedureAirport, groupProcedures, procedureSelection, type ProcedureSelection } from './data';
 import { supplementSelections } from './supplements';
 
 type PlateRow = { selection: ProcedureSelection; detail: string };
@@ -15,11 +15,7 @@ export function airportPlateGroups(
   const groups: PlateGroup[] = airport && procedures ? groupProcedures(airport).map(group => ({
     id: group.kind, title: group.title,
     plates: group.procedures.map(procedure => ({
-      selection: {
-        airport, procedure, document: procedureDocument(procedures.catalog, procedure, procedures.url, baseUrl),
-        cycle: procedures.catalog.cycle, effectiveDate: procedures.catalog.effectiveDate,
-        expirationDate: procedures.catalog.expirationDate,
-      },
+      selection: procedureSelection(procedures.catalog, airport, procedure, procedures.url, baseUrl),
       detail: [procedure.source.chartCode,
         procedure.source.amendmentNumber && `Amdt ${procedure.source.amendmentNumber}`,
         procedure.source.userAction === 'C' && 'Changed', procedure.source.userAction === 'A' && 'Added',

@@ -47,13 +47,13 @@ export function RegionDownloadRow({ region, details, pending, error, busy, onSta
       <p>Cycle {formatDate(display.revision)} · {size}
         {knownSize && ` · ${display.files.length.toLocaleString()} ${display.files.length === 1 ? 'file' : 'files'}`}</p>
       <div className="download-actions">
-        <button type="button" disabled={running ? view.action.disabled : busy || (!job && !update)
+        <button className="ui-button" type="button" disabled={running ? view.action.disabled : busy || (!job && !update)
           || (job?.state === 'complete' && current && details === 'loading')}
           onClick={() => running ? onPause(display.id) : onStart(primaryPlan)}>{view.action.label}</button>
         {job && !running && <>
-          {job.state !== 'complete' && update && <button type="button" disabled={busy}
+          {job.state !== 'complete' && update && <button className="ui-button" type="button" disabled={busy}
             onClick={() => onStart(update)}>Verify / update</button>}
-          <button type="button" disabled={busy} onClick={() => onRemove(job)}>Remove</button>
+          <button className="ui-button" type="button" disabled={busy} onClick={() => onRemove(job)}>Remove</button>
         </>}
       </div>
     </div>

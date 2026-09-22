@@ -2,24 +2,35 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test from 'node:test';
 import { Hooks, hookModule } from './helpers/hooks';
+import type { LayerPlugin } from '../src/core/layers/plugin';
+import { chartPreferences } from '../src/layers/charts/preferences';
+import { navigationPreferences } from '../src/layers/navigation/preferences';
+import { terrainPreferences } from '../src/layers/terrain/preferences';
+import { ownshipPreferences } from '../src/layers/ownship/preferences';
+import { obstructionPreferences } from '../src/layers/obstructions/preferences';
+import { metarPreferences } from '../src/layers/metar-taf/preferences';
 
 const loader = registerHooks({ resolve(specifier, context, next) {
   return specifier === 'react' ? { url: hookModule, shortCircuit: true } : next(specifier, context);
 } });
-const { useMapPreferences } = await import('../src/shell/use-map-preferences');
+const { useMapPreferences } = await import('../src/workspace/use-map-preferences');
 loader.deregister();
 const globals = globalThis as unknown as { testHooks: Hooks; window: unknown };
 const key = 'zlayers-map-preferences-v1';
 const terrainKey = 'zlayer-plugin:terrain:preferences';
+// Supply descriptors without loading the plugins' UI and map runtimes.
+const plugins = [chartPreferences, navigationPreferences, terrainPreferences, ownshipPreferences, obstructionPreferences, metarPreferences]
+  .map(preferences => ({ definition: { id: preferences.key, title: preferences.key }, preferences }));
+type PreferenceTestPlugin = typeof plugins[number] | Pick<LayerPlugin, 'definition'>;
 
-function setup(t: test.TestContext, initial?: string) {
+function setup(t: test.TestContext, initial?: string, owners: readonly PreferenceTestPlugin[] = plugins) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const values = new Map<string, string>(initial === undefined ? [] : [[key, initial]]);
   const storage = { getItem: (name: string) => values.get(name) ?? null,
     setItem: (name: string, value: string) => { values.set(name, value); } };
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage: storage } });
   let hooks = new Hooks();
-  const render = () => { globals.testHooks = hooks; return hooks.render(useMapPreferences); };
+  const render = () => { globals.testHooks = hooks; return hooks.render(() => useMapPreferences(owners)); };
   t.after(() => {
     hooks.unmount();
     if (original) Object.defineProperty(globalThis, 'window', original);
@@ -27,6 +38,41 @@ function setup(t: test.TestContext, initial?: string) {
   });
   return { storage, render, restart: () => { hooks.unmount(); hooks = new Hooks(); return render(); } };
 }
+
+test('map preferences use the supplied owner records and skip plugins without preferences', t => {
+  const saved: object[] = [];
+  const owners = plugins.map(plugin => plugin.preferences === terrainPreferences ? {
+    ...plugin,
+    preferences: { ...terrainPreferences, read: () => ({ ...terrainPreferences.read(), terrainAltitude: 8500 }),
+      write: (value: object) => { saved.push(value); } },
+  } : plugin);
+  const { render } = setup(t, undefined, [{ definition: { id: 'plain', title: 'Plain' } }, ...owners]);
+  assert.equal(render()[0].terrainAltitude, 8500, 'the registered record supplies the initial value');
+  render()[1](current => ({ ...current, terrainAltitude: 9000 }));
+  assert.deepEqual(saved, [{ terrainEnabled: true, terrainCoverage: 'route', terrainAltitude: 9000 }],
+    'the same owner receives only its changed fields');
+});
+
+test('overlapping preference fields fail visibly instead of overwriting another owner', t => {
+  const duplicate = { ...plugins[0]!, definition: { id: 'duplicate-charts', title: 'Duplicate charts' } };
+  const { render } = setup(t, undefined, [...plugins, duplicate]);
+  assert.throws(render, /Duplicate map preference chartBase: .* and duplicate-charts/);
+});
+
+test('a smaller registration exposes only its own preference fields', t => {
+  const { storage } = setup(t);
+  const hooks = new Hooks(); globals.testHooks = hooks;
+  t.after(() => hooks.unmount());
+  const [preferences, update] = hooks.render(() => useMapPreferences([
+    { definition: { id: 'charts', title: 'Charts' }, preferences: chartPreferences },
+  ]));
+  assert.equal(preferences.chartBase, undefined);
+  // @ts-expect-error Missing owners cannot promise terrain fields to the caller.
+  assert.equal(preferences.terrainEnabled, undefined);
+  update(current => ({ ...current, chartBase: 'ifr-low' }));
+  assert.equal(JSON.parse(storage.getItem('zlayer-plugin:charts:preferences')!).chartBase, 'ifr-low');
+  assert.equal(storage.getItem(terrainKey), null, 'only the supplied owner writes a record');
+});
 
 test('map choices survive a fresh app mount, including false switches and base-map-only', t => {
   const { render, restart } = setup(t);

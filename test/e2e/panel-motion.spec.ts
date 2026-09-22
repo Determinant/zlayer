@@ -87,7 +87,7 @@ async function airport(page: Page) {
 async function openPanels(page: Page) {
   await page.goto('/');
   await (await airport(page)).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await settled(page.locator('.side-panels'), 'plate');
@@ -105,7 +105,7 @@ for (const [width, height] of [[393, 852], [568, 320], [1280, 900]] as const) {
     const group = page.locator('.side-panels');
     assertMotion(await record(group, await airport(page)), ['details']);
     await settled(group, 'details');
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     assertMotion(await record(group, page.getByRole('button', { name: /TEST APPROACH/ })), ['details', 'plate']);
     await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
     for (const from of ['details', 'plate']) {

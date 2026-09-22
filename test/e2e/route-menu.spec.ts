@@ -6,7 +6,7 @@ const coordinateFormats = [
   [/^ICAO \/ 1800WX/, '3745N12231W'],
 ] as const;
 
-test('route menu copies current edits, supports keyboard dismissal and clears the draft', async ({ page }) => {
+test('route menu copies and reverses current edits, supports keyboard dismissal and clears the draft', async ({ page }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/test/browser/routes.html');
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
@@ -28,12 +28,30 @@ test('route menu copies current edits, supports keyboard dismissal and clears th
   await page.locator('header').click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await trigger.click();
+  await page.getByRole('menuitem', { name: 'Show NavLog', exact: true }).click();
+  await input.fill('KNUQ');
+  await trigger.click();
+  await page.getByRole('menuitem', { name: 'Reverse Route', exact: true }).click();
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(input).toHaveValue('');
+  await expect(page.locator('.route-token strong')).toHaveText(['KNUQ', 'KSFO', 'KSJC', 'UNKNOWN', 'KSFO']);
+  await expect(page.getByRole('region', { name: 'NavLog', exact: true }).getByRole('rowheader'))
+    .toHaveText(['KNUQ', 'KSFO', 'KSJC', 'KSFO']);
+  await page.reload();
+  await expect(page.locator('.route-token strong')).toHaveText(['KNUQ', 'KSFO', 'KSJC', 'UNKNOWN', 'KSFO']);
+  await trigger.click();
   await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
   await expect(input).toBeFocused();
   await expect(page.locator('.route-token')).toHaveCount(0);
   await trigger.click();
+  await expect(page.getByRole('menuitem', { name: 'Reverse Route', exact: true })).toBeDisabled();
   await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeDisabled();
   await expect(page.getByRole('menuitem', { name: 'Clear Route', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await input.fill('KSFO');
+  await trigger.click();
+  await expect(page.getByRole('menuitem', { name: 'Reverse Route', exact: true })).toBeDisabled();
 });
 
 test('clipboard failure offers selected route text for manual copying', async ({ page }) => {
@@ -64,6 +82,8 @@ test('desktop copy expands a keyboard-accessible format menu and copies the sele
   await trigger.click();
   const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
   await expect(page.getByRole('menuitem', { name: 'Show NavLog', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: 'Reverse Route', exact: true })).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(copy).toBeFocused();
   await page.keyboard.press('ArrowRight');

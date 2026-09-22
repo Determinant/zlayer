@@ -1,7 +1,4 @@
 :root {
-  --font-ui: "B612", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --text-muted: #91a9bb;
   --topbar-control-size: 44px;
   --topbar-height: calc(var(--topbar-control-size) + 20px);
   --route-editor-height: max(36px, calc(var(--touch-target) + 4px));
@@ -10,15 +7,6 @@
   --workspace-height: max(0px, calc(var(--safe-height) - var(--topbar-height) - var(--routebar-height)));
   color: #eaf6ff;
   background: #08111f;
-  font-family: var(--font-ui);
-  font-size: 16px;
-  font-synthesis: none;
-  line-height: 1.35;
-  text-rendering: optimizeLegibility;
-}
-
-* {
-  box-sizing: border-box;
 }
 
 html,
@@ -28,23 +16,6 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  color: inherit;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
 }
 
 .app-shell {
@@ -370,17 +341,6 @@ textarea::placeholder {
   top: 20px;
   right: 20px;
   max-width: min(480px, calc(100% - 40px));
-}
-
-.feed-status button,
-.product-panel-error button,
-.map-runtime-error button {
-  padding: 6px 10px;
-  border: 1px solid #647887;
-  border-radius: 5px;
-  color: inherit;
-  background: #213342;
-  cursor: pointer;
 }
 
 .product-panel-error button + button { margin-left: 8px; }

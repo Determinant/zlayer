@@ -39,29 +39,14 @@
 }
 .about-heading > div { display: flex; align-items: center; gap: 12px; }
 .about-heading img { border-radius: 12px; }
-.about-heading h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
-.about-close {
-  display: grid;
-  place-items: center;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid #315062;
-  border-radius: 8px;
-  color: #a8e3db;
-  background: #153344;
-  cursor: pointer;
-}
-.about-close:hover { background: #204755; }
-.about-launcher:focus-visible,
-.about-dialog :is(button, a):focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }
+.about-heading h2 { margin: 0; font-size: 24px; }
+.about-dialog a:focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }
 .about-body { min-height: 0; overflow-y: auto; padding: 28px; }
 .about-body p { margin: 10px 0 0; color: #aec3d2; line-height: 1.7; }
-.about-body h3 { margin: 0; color: #eaf6ff; font-size: 18px; letter-spacing: -.025em; }
+.about-body h3 { margin: 0; color: #eaf6ff; font-size: 18px; }
 .about-intro { padding-bottom: 26px; }
 .about-intro .about-eyebrow { margin: 0 0 12px; color: #9dd9d1; font-size: 11px; }
-.about-intro h3 { font-size: clamp(28px, 5vw, 36px); line-height: 1.2; letter-spacing: -.045em; }
+.about-intro h3 { font-size: clamp(28px, 5vw, 36px); line-height: 1.2; }
 .about-intro h3 > span { display: block; }
 .about-body a { color: #a8e3db; text-underline-offset: 4px; overflow-wrap: anywhere; }
 .about-body a:hover { color: #eaf6ff; }

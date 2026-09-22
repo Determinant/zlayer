@@ -2,6 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / metar-taf
 
+Airport data and visibility arrive through Navigation’s optional public API using the
+[core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
+Provider removal clears airport demand; re-enabling reconnects to current airport data.
+
 This plugin owns report clients and caches, station selection, airport weather
 panels, runway wind components and METAR map rendering. Its registered plugin ID
 is `metar`; it can be enabled or disabled independently of navigation. Forecasts and
@@ -25,7 +29,9 @@ Airport cards use zero demand debounce; map demand uses the default 250 ms.
 `metar-taf/airport-weather.tsx` composes two instances of `station-weather.tsx`,
 which owns selection, the station dropdown, refresh and cleanup. `nearby-stations.ts`
 handles both report formats' station identity, freshness and nearby ranking.
-The METAR and TAF report views remain separate, as do their clients' validation,
+Station selectors use core's [compact fields](../../../docs/features/shared-ui.md#shared-controls),
+including shared focus styling and touch text sizing. Compact report formatting
+remains plugin-owned. The METAR and TAF report views remain separate, as do their clients' validation,
 request formats, retry policies and cache keys through core-managed slots (`zlayer-plugin:metar:metars` and
 `zlayer-plugin:metar:tafs`). The former `zlayers.metars.v1` and `zlayers.tafs.v1`
 slots are read when the new slot is absent; new cache writes stay in the plugin scope.

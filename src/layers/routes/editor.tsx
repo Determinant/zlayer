@@ -13,10 +13,10 @@ import {
 } from 'react';
 
 import type { RouteApproach, RouteTerminal, RouteEntry as DraftEntry, RoutePlan, RouteWaypoint } from '@zlayer/domain';
-import type { NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
+import type { CatalogResponse, NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
 
 import { RouteMenu } from './menu';
-import { routeWaypointClass } from './waypoint-style';
+import { routeTokenStates, routeTokenStateClass } from './waypoint-style';
 import { backspaceRouteTokenIndex, updateRouteEntry } from './entry';
 import { formatWaypointLabel } from '../../core/format/coordinates';
 import type { RouteDraft } from './draft';
@@ -31,6 +31,7 @@ import type { ProcedureSelection } from '../plates/data';
 
 type RouteEditorProps = {
   plan: RoutePlan;
+  catalog: CatalogResponse;
   navigationData?: NavigationData | undefined;
   status: RouteLoadStatus;
   navlogOpen: boolean;
@@ -58,6 +59,7 @@ type RouteEditorProps = {
 
 export function RouteEditor({
   plan,
+  catalog,
   navigationData,
   status,
   navlogOpen,
@@ -91,24 +93,8 @@ export function RouteEditor({
   const [approachPicker, setApproachPicker] = useState<{ kind: 'approach' | 'departure' | 'arrival'; entry: DraftEntry; point: RouteWaypoint }>();
   const scrollTargetRef = useRef<string | undefined>(undefined);
   const previousEntryCountRef = useRef<number | undefined>(undefined);
-  const waypointByToken = useMemo(
-    () => new Map(plan.waypoints.flatMap((waypoint) =>
-      waypoint.tokenIndex === undefined ? [] : [[waypoint.tokenIndex, waypoint] as const]
-    )),
-    [plan.waypoints],
-  );
-  const airwayByToken = useMemo(
-    () => new Map(plan.airways.map((airway) => [airway.tokenIndex, airway])),
-    [plan.airways],
-  );
-  const issueTokenIndexes = useMemo(
-    () => new Set(plan.issues.filter(issue => issue.code !== 'approach-discontinuity').map((issue) => issue.tokenIndex)),
-    [plan.issues],
-  );
+  const tokenStates = useMemo(() => routeTokenStates(plan), [plan]);
   const canFit = plan.waypoints.length > 0;
-  const procedureByToken = useMemo(() => new Map(plan.procedures.map(procedure =>
-    [procedure.tokenIndex, procedure])), [plan.procedures]);
-  const tecByToken = useMemo(() => new Map(plan.tecRoutes.map(tec => [tec.tokenIndex, tec])), [plan.tecRoutes]);
   const directToPoint = menu && plan.waypoints.find(point => point.edit?.entryId === menu.entryId);
   const menuEntry = menu && plan.entries.find(entry => entry.id === menu.entryId);
   const canChooseApproach = !!onApproachChange && directToPoint?.layer === 'airports';
@@ -200,22 +186,22 @@ export function RouteEditor({
     focusToken(entry.id);
     setApproachPicker({ kind, entry, point });
   };
-  const changeApproach = (entry: DraftEntry, approach: RouteApproach | undefined) => {
-    onApproachChange?.(entry, approach);
+  const finishProcedureChange = (entry: DraftEntry) => {
     setMenu(undefined);
     setApproachPicker(undefined);
     requestAnimationFrame(() => focusToken(entry.id));
+  };
+  const changeApproach = (entry: DraftEntry, approach: RouteApproach | undefined) => {
+    onApproachChange?.(entry, approach);
+    finishProcedureChange(entry);
   };
   const changeArrival = (entry: DraftEntry, arrival: RouteTerminal | undefined) => {
     onArrivalChange?.(entry, arrival);
-    setMenu(undefined); setApproachPicker(undefined);
-    requestAnimationFrame(() => focusToken(entry.id));
+    finishProcedureChange(entry);
   };
   const changeDeparture = (entry: DraftEntry, departure: RouteTerminal | undefined) => {
     onDepartureChange?.(entry, departure);
-    setMenu(undefined);
-    setApproachPicker(undefined);
-    requestAnimationFrame(() => focusToken(entry.id));
+    finishProcedureChange(entry);
   };
 
   return (
@@ -229,7 +215,7 @@ export function RouteEditor({
         else if (canFit) onFit();
       }}
     >
-      <RouteMenu plan={plan} navlogOpen={navlogOpen} navlogId={navlogId} onToggleNavlog={onToggleNavlog}
+      <RouteMenu plan={plan} catalog={catalog} navlogOpen={navlogOpen} navlogId={navlogId} onToggleNavlog={onToggleNavlog}
         onOpen={() => setMenu(undefined)} onLoadRoute={draft => {
         setEntry('');
         setInlineEdit(undefined);
@@ -257,7 +243,8 @@ export function RouteEditor({
         <ol className="route-token-list" aria-label="Route entries">
           {plan.entries.map((item, tokenIndex) => {
             const token = item.text;
-            const waypoint = waypointByToken.get(tokenIndex);
+            const tokenState = tokenStates[tokenIndex]!;
+            const { waypoint } = tokenState;
             const ident = waypoint?.ident ?? token;
             const replacing = inlineEdit?.entryId === item.id && inlineEdit.mode === 'replace';
             return (
@@ -293,11 +280,7 @@ export function RouteEditor({
                   onRemoveDeparture={onDepartureChange ? () => changeDeparture(item, undefined) : undefined}
                   onChooseApproach={onApproachChange && waypoint?.layer === 'airports' ? () => chooseProcedure('approach', item, waypoint) : undefined}
                   onRemoveApproach={onApproachChange ? () => changeApproach(item, undefined) : undefined}
-                  waypoint={waypoint}
-                  airway={airwayByToken.get(tokenIndex)}
-                  procedure={item.departure ? undefined : procedureByToken.get(tokenIndex)}
-                  tec={tecByToken.get(tokenIndex)}
-                  invalid={issueTokenIndexes.has(tokenIndex)}
+                  {...tokenState}
                   pending={status === 'loading'}
                   drag={drag}
                   onPointerDown={(event) => beginPointer(event, item.id)}
@@ -581,15 +564,4 @@ function RouteToken({
       </>}
     </li>
   );
-}
-
-function routeTokenStateClass(
-  token: Pick<RouteTokenProps, 'waypoint' | 'airway' | 'procedure' | 'tec' | 'invalid' | 'pending'>,
-): string {
-  if (token.invalid) return token.pending ? 'is-pending' : 'is-unresolved';
-  if (token.procedure) return 'is-procedure';
-  if (token.tec) return 'is-tec';
-  if (token.waypoint) return routeWaypointClass(token.waypoint);
-  if (token.airway) return 'is-airway';
-  return token.pending ? 'is-pending' : 'is-unresolved';
 }

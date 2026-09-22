@@ -6,7 +6,7 @@ async function openPlate(page: Page) {
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   // An unreachable origin can require two bounded catalog fallbacks in WebKit.
   await page.getByRole('button', { name: /TEST APPROACH/ }).click({ timeout: 30_000 });
   await ready(page);

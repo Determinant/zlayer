@@ -33,14 +33,14 @@ export function OwnshipStatus({ layer, enabled, onToggle }: {
   return <div className={`ownship-status ${!enabled ? 'is-off' : live ? 'is-live' : ''}`} aria-label="GPS aircraft status">
     <div className="ownship-heading">
       <strong title="Aircraft marks the current GPS position. The blue line shows the 1-minute ground-track trend, curving with turns (up to 90°).">GPS</strong>
-      <button type="button" className="ownship-toggle" role="switch" aria-label="GPS aircraft"
+      <button type="button" className="ui-button ui-button--quiet ui-button--compact ownship-toggle" role="switch" aria-label="GPS aircraft"
         aria-checked={enabled} onClick={onToggle}>
         <span>{enabled ? 'On' : 'Off'}</span>
         <span className="ownship-toggle-track" aria-hidden="true"><i /></span>
       </button>
     </div>
     {enabled && <span className="ownship-summary" role="status">{ownshipSummary(snapshot)}</span>}
-    {live && <button type="button" onClick={layer.center}>Center aircraft</button>}
-    {retry && <button type="button" onClick={layer.retry}>Retry GPS</button>}
+    {live && <button className="ui-button ui-button--compact" type="button" onClick={layer.center}>Center aircraft</button>}
+    {retry && <button className="ui-button ui-button--compact" type="button" onClick={layer.retry}>Retry GPS</button>}
   </div>;
 }

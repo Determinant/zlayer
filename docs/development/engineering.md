@@ -50,6 +50,11 @@ Do not add a feature-owned fetch loop, whole-response buffer or transfer queue.
 Small structured responses use the shared JSON/client helpers. Import checks reject
 direct `fetch` calls and low-level download-writer imports in plugin modules.
 
+Follow the [plugin authoring guide](../architecture/layer-plugins.md#adding-a-product)
+for registration, optional integrations and persistence. Ordinary plugin UI uses
+core's [shared controls and lifecycles](../features/shared-ui.md#shared-controls);
+feature layout, compact reports and specialized visualizations stay with the plugin.
+
 ## Recovery and source identity
 
 - Expose asynchronous results only for the complete current resource identity,
@@ -71,7 +76,7 @@ direct `fetch` calls and low-level download-writer imports in plugin modules.
 
 These invariants came from the source reviews and now belong to the implementation
 contract. Product details live in [layer recovery and freshness](../architecture/layer-plugins.md#demand-and-freshness),
-[workspace persistence](../architecture/workspace-state.md), [PDF handling](../../src/layers/plates/README.md)
+[workspace persistence](../architecture/workspace-persistence.md), [PDF handling](../../src/layers/plates/README.md)
 and [recording storage](../../src/layers/ahrs/recording.md).
 
 ## Where to look
@@ -90,5 +95,5 @@ all built-app regressions from `npm run test:browser`, and the complete configur
 [graphics matrix](../verification/graphics-compatibility.md#run-the-checks). The individual commands
 remain useful during development. Browser focus, touch/layout, installed-device offline behavior
 and performance also need the separate checks in
-[responsive checks](../features/responsive-layout.md), [offline release checks](../features/offline-storage.md#release-checks)
+[responsive checks](../features/shared-ui.md), [offline release checks](../features/offline-storage.md#release-checks)
 and [deployment readiness](deployment.md); a passing Node suite is not device certification.

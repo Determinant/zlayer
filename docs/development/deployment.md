@@ -84,7 +84,7 @@ These remain release gates:
 - Full reset on installed devices, including other open windows, interruption and
   offline completion; confirm a fresh online start afterward.
 - Real keyboards, folding/rotation, PDF gestures and physical GPU behavior:
-  [responsive checks](../features/responsive-layout.md) and
+  [responsive checks](../features/shared-ui.md) and
   [graphics device checks](../verification/graphics-compatibility.md#device-verification-boundary).
 - Reference-device startup, total memory, interaction and battery measurements:
   [product budgets](../product/brief.md#performance-and-quality-budgets). The reporting Android
@@ -111,7 +111,7 @@ working-tree pass nor a hosted release; each release needs its own recorded chec
 Report bundle sizes for each build. The boundary topology is separately hashed,
 module-preloaded and included in the offline shell; splitting it preserves its
 cache identity across UI edits but does not remove its initial download cost.
-Use the [plate startup method](../features/responsive-layout.md#plate-modal-regression-checks)
+Use the [plate startup method](../features/shared-ui.md#plate-modal-regression-checks)
 and [graphics benchmarks](../verification/graphics-compatibility.md) for comparable measurements,
 then measure on physical devices. Local verification does not deploy a release,
 and a server rollback does not roll back browser storage.

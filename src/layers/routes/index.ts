@@ -1,4 +1,5 @@
 export { RouteBar } from './bar';
+export { useRouteController } from './use-controller';
 export type { RouteMapPreview } from './map-preview';
 export { useRoutePlan } from './use-plan';
 export { useRouteDraft } from './use-draft';

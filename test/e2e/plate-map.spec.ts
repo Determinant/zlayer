@@ -32,7 +32,7 @@ async function openPlate(page: Page, name = 'TEST APPROACH') {
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
   const showDetails = page.getByRole('button', { name: 'Show KSBA details', exact: true });
   if (await showDetails.isVisible()) await showDetails.click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
   await expect(page.getByRole('button', { name: 'Show on map', exact: true })).toBeEnabled();
 }
@@ -54,7 +54,7 @@ async function center(page: Page) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-test('right-click offers explicit removal only inside the plate, and dismissing the menu preserves it', async ({ page }, testInfo) => {
+test('right-click offers the plate panel and removal only inside the plate, and dismissal preserves it', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await showPlate(page);
@@ -71,7 +71,8 @@ test('right-click offers explicit removal only inside the plate, and dismissing 
   await expect(menu).toBeVisible();
   await expectMapPlate(page, 'SECOND APPROACH');
   const hide = menu.getByRole('menuitem', { name: 'Hide IAP from map' });
-  await expect(hide).toBeFocused();
+  const show = menu.getByRole('menuitem', { name: 'Show plate panel' });
+  await expect(show).toBeFocused();
   await expect(page.getByRole('dialog', { name: 'Nearby map features' })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('iap-menu.png') });
   await page.keyboard.press('Escape');
@@ -84,6 +85,19 @@ test('right-click offers explicit removal only inside the plate, and dismissing 
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page, 'SECOND APPROACH');
   await page.mouse.click(point.x, point.y, { button: 'right' });
+  const camera = await page.evaluate(() => localStorage.getItem('zlayers-map-view-v1'));
+  await show.click();
+  await expect(menu).toHaveCount(0);
+  const reader = page.getByRole('dialog', { name: 'SECOND APPROACH', exact: true });
+  await expect(reader).toBeVisible();
+  await expect(reader.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
+  await expect(reader.locator('canvas')).toBeVisible();
+  await expect(reader.getByRole('button', { name: 'Close plate' })).toBeFocused();
+  await expectMapPlate(page, 'SECOND APPROACH');
+  expect(await page.evaluate(() => localStorage.getItem('zlayers-map-view-v1'))).toBe(camera);
+  await reader.getByRole('button', { name: 'Close plate' }).click();
+  await expect(reader).toHaveCount(0);
+  await page.mouse.click(point.x, point.y, { button: 'right' });
   await hide.click();
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page, null);
@@ -91,7 +105,7 @@ test('right-click offers explicit removal only inside the plate, and dismissing 
   expect(errors).toEqual([]);
 });
 
-test('touch panning and pinching preserve the IAP, and a long press offers removal after release', async ({ page }, testInfo) => {
+test('touch gestures preserve the IAP, and a long press offers the plate panel and removal after release', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 852 });
   await showPlate(page);
   await page.screenshot({ path: testInfo.outputPath('iap-mobile.png') });
@@ -123,6 +137,18 @@ test('touch panning and pinching preserve the IAP, and a long press offers remov
   await expect(page.getByRole('dialog', { name: 'Nearby map features' })).toHaveCount(0);
   await expect(page.locator('.feature-card')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('iap-menu-mobile.png') });
+  await menu.getByRole('menuitem', { name: 'Show plate panel' }).tap();
+  await expect(menu).toHaveCount(0);
+  const reader = page.getByRole('dialog', { name: 'TEST APPROACH', exact: true });
+  await expect(reader).toBeVisible();
+  await expect(reader.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
+  await expect(reader.locator('canvas')).toBeVisible();
+  await expectMapPlate(page);
+  await reader.getByRole('button', { name: 'Close plate' }).tap();
+  await expect(reader).toHaveCount(0);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await expect(menu).toBeVisible();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await menu.getByRole('menuitem', { name: 'Hide IAP from map' }).tap();
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page, null);
@@ -160,6 +186,8 @@ test('a long press near the map edge cannot activate the menu underneath the rel
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
   await expect(menu).toBeVisible();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(menu.getByRole('menuitem', { name: 'Show plate panel' })).toBeFocused();
+  await page.keyboard.press('End');
   await expect(hide).toBeFocused();
   await page.keyboard.press('Enter');
   await expectMapPlate(page, null);

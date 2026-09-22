@@ -11,12 +11,19 @@ export function PluginSettings({ plugins, onChange, error }: {
     {error && <p className="settings-error" role="alert">{error}</p>}
     <ul className="plugin-list">
       {plugins.map(plugin => <li key={plugin.id} className="plugin-row" data-plugin={plugin.id}>
-        <div><h4>{plugin.title}</h4><span className="plugin-status">{plugin.loaded ? 'Enabled' : 'Disabled'}</span>
+        <div><h4>{plugin.title}</h4>
           {plugin.requires.length > 0 && <p>Requires {plugin.requires.map(title).join(', ')}.</p>}
-          {plugin.loaded && plugin.unloads.length > 0 && <p>Also disables {plugin.unloads.map(title).join(', ')}.</p>}
+          {plugin.enabled && plugin.unloads.length > 0 && <p>Also disables {plugin.unloads.map(title).join(', ')}.</p>}
+          {plugin.error && <p className="settings-error" role="alert">
+            {plugin.status === 'degraded' ? 'Connection unavailable' : 'Could not start'}: {plugin.error}</p>}
+          {plugin.status === 'blocked' && <p>Waiting for required plugins.</p>}
+          {(plugin.status === 'failed' || plugin.status === 'blocked' || plugin.status === 'degraded') && <button type="button" className="ui-button"
+            onClick={() => onChange(plugin.id, true)}>Retry {plugin.title}</button>}
         </div>
-        <button type="button" aria-label={`${plugin.loaded ? 'Disable' : 'Enable'} ${plugin.title}`}
-          onClick={() => onChange(plugin.id, !plugin.loaded)}>{plugin.loaded ? 'Disable' : 'Enable'}</button>
+        <button type="button" className="ui-button ui-button--quiet plugin-toggle" role="switch" aria-label={plugin.title} aria-checked={plugin.enabled}
+          onClick={() => onChange(plugin.id, !plugin.enabled)}>
+          <span className="switch" aria-hidden="true"><i /></span>
+        </button>
       </li>)}
     </ul>
   </>;

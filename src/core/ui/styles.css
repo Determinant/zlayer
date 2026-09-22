@@ -1,7 +1,49 @@
-.panel-scroll {
-  overscroll-behavior: contain;
+@import './viewport.css';
+@import './controls.css';
+
+:root {
+  --font-ui: "B612", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --text-muted: #91a9bb;
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-synthesis: none;
+  line-height: 1.35;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Preserve B612's natural spacing; compact uppercase labels opt in locally. */
+:where(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: normal;
+}
+
+button {
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Apply the shared appearance to every scroller, including nested plugin UI. */
+:where(*) {
   scrollbar-color: rgba(119, 151, 172, 0.4) transparent;
   scrollbar-width: thin;
+}
+
+.panel-scroll {
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
@@ -22,3 +64,16 @@
 }
 .loading-placeholder-row > span + span { width: 42%; height: 8px; }
 @keyframes loading-pulse { 50% { opacity: .45; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

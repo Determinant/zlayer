@@ -23,6 +23,53 @@ test('airport-pair lookup accepts FAA/ICAO codes and ignores all intermediate en
   assert.equal(preferredRouteAirports(['SBA', 'SMO'], [...airports, airport('SBA', 'OTHER')]), undefined);
 });
 
+test('indexed airport lookup preserves ambiguity and exact pin semantics', () => {
+  const origin = airport('same', ' SAME '), destination = airport('END', 'KEND');
+  const missingFaa: GeoPointFeature = { ...origin, id: 'icao-only', properties: { icaoId: 'ONLY' } };
+  const genericIdent = { ...airport('OTHER', 'KOTHER'), properties: { faaId: 'OTHER', ident: 'GENERIC' } };
+  const data = [origin, destination, missingFaa, genericIdent];
+  assert.equal(preferredRouteAirports([' same ', 'kend'], data)?.origin, origin, 'one feature sharing FAA/ICAO aliases is unique');
+  for (const token of ['ONLY', 'GENERIC']) assert.equal(preferredRouteAirports([token, 'END'], data), undefined);
+  assert.equal(preferredRouteAirports(['SAME', 'END'], data, { 0: 'icao-only' }), undefined);
+  assert.equal(preferredRouteAirports(['SAME', 'END'], data, { 0: 'missing' }), undefined, 'an unknown pin never falls back to text');
+  const collision = { ...airport('DUP', 'SAME'), id: 'different-airport' };
+  const ambiguous = [...data, collision];
+  assert.equal(preferredRouteAirports(['SAME', 'END'], ambiguous), undefined);
+  assert.equal(preferredRouteAirports(['SAME', 'END'], ambiguous, { 0: origin.id! })?.origin, origin);
+  assert.equal(preferredRouteAirports(['unrelated text', 'END'], data, { 0: origin.id! })?.origin, origin, 'pins remain authoritative');
+  const duplicateIds = [...data, { ...airport('THIRD', 'KTHIRD'), id: origin.id! }];
+  assert.equal(preferredRouteAirports(['SAME', 'END'], duplicateIds, { 0: origin.id! }), undefined, 'duplicate IDs are ambiguous');
+  assert.equal(preferredRouteAirports(['SAME', 'END'], duplicateIds)?.origin, origin, 'unique aliases are independent of ID collisions');
+});
+
+test('replacement airport snapshots rebuild lookup without changing previous snapshots', () => {
+  const original = [airport('FROM', 'KFROM'), airport('TO', 'KTO')];
+  assert.equal(preferredRouteAirports(['FROM', 'TO'], original)?.origin, original[0]);
+  const replacement = [{ ...original[0]!, properties: { faaId: 'NEW', icaoId: 'KNEW' } }, original[1]!];
+  assert.equal(preferredRouteAirports(['FROM', 'TO'], replacement), undefined);
+  assert.equal(preferredRouteAirports(['NEW', 'TO'], replacement)?.origin, replacement[0]);
+  assert.equal(preferredRouteAirports(['FROM', 'TO'], replacement, { 0: original[0]!.id! })?.origin, replacement[0]);
+  assert.equal(preferredRouteAirports(['FROM', 'TO'], original)?.origin, original[0]);
+});
+
+test('many airport-pair lookups read the navigation dataset once instead of once per route', () => {
+  let reads = 0;
+  const data = Array.from({ length: 2_000 }, (_, index) => {
+    const point = airport(`A${index}`, `KA${index}`), properties = point.properties;
+    return { ...point, get properties() { reads++; return properties; } };
+  });
+  const queries = 1_000;
+  for (let i = 0; i < queries; i++) {
+    const pair = preferredRouteAirports([`KA${i}`, `A${i + 1}`], data,
+      i % 2 ? { 0: data[i]!.id! } : {});
+    assert.equal(pair?.origin, data[i]);
+    assert.equal(pair?.destination, data[i + 1]);
+  }
+  // Count source reads rather than wall-clock time so this catches repeated
+  // national scans without depending on CI runner speed or a particular index layout.
+  assert.ok(reads <= data.length * 3 + queries * 4, `Repeated scans read airport properties ${reads} times`);
+});
+
 test('recommendations preserve variants and only match the requested direction', () => {
   const second = { ...route, id: 'preferred-route:SBA:SMO:TEC:5', routeNumber: 5 };
   const high = { ...route, id: 'preferred-route:SBA:SMO:H:4', routeType: 'H' };

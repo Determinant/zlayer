@@ -2,6 +2,13 @@
 
 [Documentation](../../../docs/README.md) / Plugins / plates
 
+The [core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication)
+exposes the public `open` command, `opened` notification and optional map context action.
+The workspace observes `opened` to select the reader panel. Data-only catalog readers
+remain usable independently of the viewer plugin’s enablement.
+`data.ts` owns `procedureSelection`, used by the airport list and route pickers
+to carry the same document target and edition metadata into the viewer.
+
 The airport picker, exact-page PDF.js viewer, whole-file document cache and regional
 downloads are implemented. [Offline storage](../../../docs/features/offline-storage.md) owns the current
 download, quota, integrity and readiness contract. Route-corridor selection and atomic
@@ -9,6 +16,16 @@ cycle migration below remain planned.
 
 Offline is a product capability, not an accidental HTTP-cache hit. Browsing an opened
 plate and verifying every dependency of a saved region are different promises.
+
+## Contents
+
+- [Publisher-owned indexing](#publisher-owned-indexing)
+- [One viewer, every source](#one-viewer-every-source)
+- [IAPs on the map](#iaps-on-the-map)
+- [Document identity and reuse](#document-identity-and-reuse)
+- [Planned route packages and cycle migration](#planned-route-packages-and-cycle-migration)
+- [Verification](#verification)
+- [References](#references)
 
 ## Publisher-owned indexing
 
@@ -57,27 +74,43 @@ the PDF.js renderer and document load:
 - Only the current page renders; closing/changing documents cancels obsolete rendering.
   Document-load, target-resolution and page-render failures release the PDF.js loading
   task and worker; cleanup rejections do not create an unhandled promise rejection.
+- A newly opened plate fills the available reading width at 100% zoom and starts
+  at the top; taller pages scroll vertically. The width fit follows panel resizing,
+  fullscreen and rotation. A stable scrollbar gutter keeps vertical overflow from
+  repeatedly changing the fitted width. Saved zoom and scroll position take precedence when
+  reopening a plate.
+- Reading controls inherit core's B612 button type and line height, with 14px
+  values and 11px secondary labels using the shared muted color. They stay on one
+  line with 44px targets. In narrow
+  readers, the **Page** button opens previous/next navigation and **Open original**;
+  Escape, Back or tapping outside dismisses the picker. The side reader's offline
+  status remains visible below the controls. The percentage is a **Reset plate view** button:
+  it restores 100% width fit, the original orientation and the top of the current
+  page, keeping the selected page and fullscreen mode.
 - Two-finger pinch and trackpad gestures change viewer zoom from 50–400%, anchored
   at the gesture. The current bitmap previews the movement; PDF.js redraws after
-  release. Selection, page, zoom, fullscreen and scroll position restore locally.
+  release. Compact zoom controls leave room for **Rotate 90° clockwise**, which
+  turns the page in quarter turns and refits it at the selected zoom, starting at
+  the top of the rotated page. The PDF's original orientation is preserved as the
+  starting point. Selection, page, zoom, rotation, fullscreen and scroll position restore locally.
   See [workspace persistence](../../../docs/data/contracts.md#workspace-persistence) and
-  [gesture checks](../../../docs/features/responsive-layout.md#plate-modal-regression-checks).
+  [gesture checks](../../../docs/features/shared-ui.md#plate-modal-regression-checks).
 - The side reader is non-modal, so the map stays usable. Its core-owned
   `PanelSurface` enters native modal presentation only in fullscreen, handling
   initial focus, keyboard containment and Escape. The existing edge-panel host
   supplies stowing, slide transitions and tab focus; explicit close restores the
   opener or its airport tab.
 - The header's **Enter full screen** control expands the viewer to the browser
-  viewport, with a compact title and touch-sized reading controls. Page and zoom
+  viewport, with a compact title and touch-sized reading controls. Page, zoom and rotation
   stay selected, and the fitted page resizes when the device rotates. **Exit full
   screen** or Escape restores the panel; **Close plate** dismisses either mode.
   This works inside the app without requiring the browser's Fullscreen API.
 - Side-panel, stowed and fullscreen presentations retain the same mounted reader
-  and canvas. Stowing keeps page, zoom and scroll, and a pending download can finish
+  and canvas. Stowing keeps page, zoom, rotation and scroll, and a pending download can finish
   without reopening the panel. The first Escape/PWA Back leaves fullscreen; the
   next stows the side panel. Explicit close clears the selection; disabling the
   plugin releases the reader while keeping saved selection and reading state.
-- Source link and effective interval are visible in the standard panel and hidden
+- Source link and effective interval are available in the standard panel and hidden
   in full screen to leave more room for the plate. “Open original” is explicit;
   the app never substitutes the browser's PDF renderer for its own viewer.
 
@@ -100,15 +133,19 @@ The viewer closes and the map fits the plate. Only one IAP can be shown: a new
 selection replaces the previous overlay once its geographic data and image are
 ready. Opening or closing the normal PDF viewer leaves the current overlay alone.
 
-Right-click or long-press inside the plate to open its menu, then select
-**Hide IAP from map**. Opening or dismissing the menu leaves the plate in place;
+Right-click or long-press inside the plate to open its menu. **Show plate panel**
+opens that overlay's exact plate and edition in the reader, restoring its saved
+reading state while keeping the overlay and map view. **Hide IAP from map** removes
+the overlay. Opening or dismissing the menu leaves the plate in place;
 Escape or clicking outside closes the menu. Once the plate is ready, no status
 banner covers the map. Panning, pinching and gestures outside the plate retain
 their normal map behavior. The overlay restores after
 reload from its exact saved PDF/approach target, including offline when the PDF
 is cached. Restoration preserves the saved camera and other panels; explicit
 hiding clears the saved overlay. A failed restore offers Retry/Hide and retains
-the selection. See the [saved workspace inventory](../../../docs/architecture/workspace-state.md).
+the selection. Cancelled work cannot replace a later selection or revive a hidden
+overlay; an already-started shared download may still finish caching. See the
+[saved workspace inventory](../../../docs/architecture/workspace-persistence.md).
 
 Placement comes from the selected PDF page's embedded geographic viewport,
 control points and projection, including the FAA's Lambert Conformal Conic data.
@@ -124,15 +161,24 @@ pixels (16 MiB of RGBA data) per canvas and 3,072 pixels per side. The temporary
 PDF render canvas is released after reprojection. Replacing or removing an
 overlay releases its canvas and map source. The same verified PDF cache supports
 offline reuse; a selected overlay retains its document against automatic cleanup.
-Restoration releases its PDF worker once the bounded map image is ready. PDF.js 6.3.289
+The reader and map restoration share one live PDF.js document and worker for the
+same URL, SHA-256 and byte length, even when displaying different pages. Sharing
+only the cached Blob is insufficient: PDF.js allocates a book-sized backing buffer
+for each range-backed document. Closing either consumer releases only its own
+reference; the last consumer destroys the worker. Publishing a completed map image
+does not wait for worker teardown. Session failures remain observable after the
+document opens: pending PDF reads stop with the original error, the reader leaves
+its busy state, and map restoration exposes Retry/Hide. Closing one consumer still
+leaves the other consumer's reads active. PDF.js 6.3.289
 provides the fixed page-extraction implementation; the earlier 5.4.624 release
 fails on null references in real FAA pages.
 
 `test/plate-georeference.test.ts`, `test/plate-map.test.ts` and
 `test/e2e/plate-map.spec.ts` cover placement validation, single-overlay lifecycle,
-stale work, explicit removal from the right-click/long-press menu, panning, unsupported pages and offline
-reuse. The existing plate rendering, fullscreen and pinch tests cover the PDF.js
-upgrade.
+stale work, reopening the reader and explicit removal from the right-click/long-press
+menu, panning, unsupported pages and offline reuse. `test/e2e/plate-menu.spec.ts`
+covers keyboard navigation and dismissal focus. The existing plate rendering,
+fullscreen and pinch tests cover the PDF.js upgrade.
 
 ## Document identity and reuse
 
@@ -142,8 +188,9 @@ length and a locally computed integrity receipt, which is not a publisher checks
 
 New downloads are fully verified before PDF.js receives them. Reuse checks the stored
 PDF's type, header and length and uses a matching integrity receipt; missing or
-mismatched receipts require hashing again. Concurrent opens share the download,
-not a detachable PDF.js buffer.
+mismatched receipts require hashing again. Concurrent opens share the download;
+live readers and map restoration also share their PDF.js document through
+`pdf-document.ts`, without transferring a reader-owned buffer.
 An already-started whole-file download may finish caching after its viewer closes.
 Invalid responses are discarded. Cache-write failure still permits online viewing,
 but never an “Available offline” claim. Expired documents retain their actual interval.

@@ -9,11 +9,7 @@
 .ownship-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
 .ownship-summary { min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .ownship-status strong { color: #32b5ff; font-size: 11px; letter-spacing: .08em; }
-.ownship-status button {
-  min-height: var(--touch-target); padding: 5px 8px; border: 1px solid #426079;
-  border-radius: 6px; background: #132d43; color: #d9ecf5; cursor: pointer;
-}
-.ownship-status button:focus-visible { outline: 2px solid #32b5ff; outline-offset: 2px; }
+
 .ownship-status .ownship-toggle {
   display: flex; align-items: center; justify-content: flex-end; gap: 6px;
   min-height: max(24px, var(--touch-target)); min-width: 58px; padding: 0 2px;

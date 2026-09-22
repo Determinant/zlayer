@@ -8,6 +8,7 @@ import { Hsi } from '../../src/layers/ahrs/hsi';
 import { isMagneticModel } from '../../src/core/geo/magnetic-model';
 import type { AhrsSnapshot } from '../../src/layers/ahrs/layer';
 import type { Position } from '../../src/layers/ahrs/navigation';
+import '../../src/core/ui/styles.css';
 import '../../src/layers/ahrs/styles.css';
 import model from '../fixtures/magnetic-model.json';
 

@@ -1,0 +1,77 @@
+/* Opt-in styles for native controls. Keep state selectors at class specificity
+ * so feature layout rules work in both eager and lazy stylesheets. */
+.ui-button {
+  min-width: var(--touch-target); max-width: 100%; min-height: max(44px, var(--touch-target));
+  padding: 8px 12px; border: 1px solid #46606e; border-radius: 6px;
+  color: #e5edf1; background: #1b3242; font: inherit; font-size: 14px; line-height: 1.4;
+  cursor: pointer;
+}
+.ui-button--quiet { border-color: transparent; background: transparent; }
+.ui-button:where(:hover:not(:disabled)) { background: #274556; }
+.ui-button--primary { color: #0d292e; background: #8ad7cb; border-color: #8ad7cb; font-weight: 700; }
+.ui-button--primary:where(:hover:not(:disabled)) { background: #a3e6db; }
+.ui-button--danger { color: #ffd0ca; background: #46292d; border-color: #a45656; }
+.ui-button--danger:where(:hover:not(:disabled)) { background: #60343b; }
+.ui-button:where([aria-pressed="true"], [aria-selected="true"]) {
+  color: #d9fff5; background: #214b47; border-color: #4c8e83;
+}
+.ui-button--compact { min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: 12px; }
+.ui-button--icon {
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  width: 44px; height: 44px; padding: 0;
+}
+.ui-button--icon:where(.ui-button--compact) {
+  width: max(32px, var(--touch-target)); height: max(32px, var(--touch-target));
+}
+
+/* For text, number, search, select and textarea; ranges, checkboxes and radio
+ * inputs retain their native or feature-specific presentation. */
+.ui-input {
+  min-width: 0; width: 100%; min-height: max(44px, var(--touch-target)); padding: 10px;
+  border: 1px solid #46606e; border-radius: 6px; color: #e5edf1; background: #091725;
+  font: inherit; font-size: max(16px, var(--input-font-size)); line-height: 1.4;
+}
+.ui-input--compact {
+  min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: var(--input-font-size);
+}
+textarea.ui-input { resize: vertical; }
+.ui-button:where(:focus-visible), .ui-input:where(:focus-visible) {
+  outline: 2px solid #85e6db; outline-offset: 2px;
+}
+.ui-button:where(:disabled), .ui-input:where(:disabled) { opacity: .45; cursor: default; }
+
+.ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: rgba(255, 255, 255, 0.06); }
+.ui-tabs > .ui-button { flex: 1; }
+
+/* Shared switch indicator; the native button owns its accessible state. */
+.switch {
+  --switch-width: 27px;
+  --switch-height: 16px;
+  --switch-thumb-size: 10px;
+  position: relative;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  border-radius: 999px;
+  background: #213247;
+  transition: background 150ms ease;
+}
+
+.switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
+  border-radius: 50%;
+  background: #71879a;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+[role='switch'][aria-checked='true'] .switch {
+  background: rgba(97, 214, 197, 0.28);
+}
+
+[role='switch'][aria-checked='true'] .switch i {
+  background: #61d6c5;
+  transform: translateX(calc(var(--switch-width) - var(--switch-thumb-size) - 6px));
+}

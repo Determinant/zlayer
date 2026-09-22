@@ -13,22 +13,22 @@ test('navigation and weather enable independently and preserve their choices acr
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await settings(page);
-  await row(page, 'navigation').getByRole('button').click();
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Disabled');
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Enabled');
+  await row(page, 'navigation').getByRole('switch').click();
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   await page.reload();
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Disabled');
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Enabled');
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
 
-  await row(page, 'metar').getByRole('button').click();
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Disabled');
-  await row(page, 'metar').getByRole('button').click();
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Enabled');
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Disabled');
-  await row(page, 'metar').getByRole('button').click();
-  await row(page, 'navigation').getByRole('button').click();
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Enabled');
-  await expect(row(page, 'metar').locator('.plugin-status')).toHaveText('Disabled');
+  await row(page, 'metar').getByRole('switch').click();
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await row(page, 'metar').getByRole('switch').click();
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await row(page, 'metar').getByRole('switch').click();
+  await row(page, 'navigation').getByRole('switch').click();
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(row(page, 'metar').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   await page.getByLabel('Close settings').click();
   await expect(page.getByLabel('Search FAA navigation data')).toBeVisible();
   await expect(page.locator('.map-runtime-error')).toHaveCount(0);
@@ -79,8 +79,8 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
   expect(cached.every(Boolean)).toBe(true);
 
   await settings(page);
-  await row(page, 'metar').getByRole('button').click();
-  await expect(row(page, 'navigation').locator('.plugin-status')).toHaveText('Enabled');
+  await row(page, 'metar').getByRole('switch').click();
+  await expect(row(page, 'navigation').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   await expect(observation).toHaveCount(0);
   await expect(forecast).toHaveCount(0);
   await page.getByLabel('Close settings').click();
@@ -105,7 +105,7 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
   expect(requests).toEqual(stopped);
 
   await settings(page);
-  await row(page, 'metar').getByRole('button').click();
+  await row(page, 'metar').getByRole('switch').click();
   await page.getByLabel('Close settings').click();
   await expect(observation).toContainText('METAR KSBA');
   await expect(forecast).toContainText('TAF KSBA');

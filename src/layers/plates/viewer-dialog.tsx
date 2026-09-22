@@ -1,5 +1,5 @@
 import { pluginStorage } from './storage';
-import { createContext, useContext, useId, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { EdgePanelFrame, useEdgePanel, usePanelReturnFocus } from '../../core/ui/edge-panels';
 import { PanelSurface, FullScreenButton } from '../../core/ui/panel-surface';
@@ -9,6 +9,7 @@ import type { ProcedureDocument, ProcedureSelection } from './data';
 import { usePluginState } from '../../core/ui/use-persistent-state';
 import { isBoolean } from '../../core/storage/ui-state';
 import { plateViewKey, plateSelectionRecord } from './persistence';
+import { useBackDismiss } from '../../core/ui/pwa-back';
 import type { ProcedureDownloadProgress } from './document-cache';
 
 export type PlateCacheState = 'saving' | 'cached' | 'unavailable';
@@ -62,8 +63,8 @@ export function ProcedureDialog({ selection, onClose, children }: {
           <div className="procedure-viewer-actions">
             <span ref={setHeaderAction}
               className={`procedure-header-action${selection.procedure.kind === 'approach' ? ' is-reserved' : ''}`} />
-            <FullScreenButton expanded={fullScreen} button={fullScreenButton} onClick={() => setFullScreen(value => !value)} />
-            <button ref={closeButton} type="button" onClick={dismiss} aria-label="Close plate">×</button>
+            <FullScreenButton className="ui-button ui-button--icon" expanded={fullScreen} button={fullScreenButton} onClick={() => setFullScreen(value => !value)} />
+            <button className="ui-button ui-button--icon" ref={closeButton} type="button" onClick={dismiss} aria-label="Close plate">×</button>
           </div>
         </header>
         <HeaderActionContext.Provider value={headerAction}>{children}</HeaderActionContext.Provider>
@@ -117,25 +118,80 @@ export function ProcedureLoading({ source }: { source: ProcedureDocument }) {
   </>;
 }
 
-export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState, onPageChange, onZoomChange, mapAction }: {
+export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState, onPageChange, onZoomChange, onRotate, onReset, mapAction }: {
   source: ProcedureDocument; pageIndex: number; pageCount: number; zoom: number; cacheState: PlateCacheState;
-  onPageChange?: (page: number) => void; onZoomChange?: (zoom: number) => void;
+  onPageChange?: (page: number) => void; onZoomChange?: (zoom: number) => void; onRotate?: () => void; onReset?: () => void;
   mapAction?: ReactNode;
 }) {
+  const [pagesOpen, setPagesOpen] = useState(false);
+  const pages = useRef<HTMLDivElement>(null);
+  const pageButton = useRef<HTMLButtonElement>(null);
+  const pageContent = useRef<HTMLDivElement>(null);
+  const pagesId = useId();
+  const closePages = () => { setPagesOpen(false); pageButton.current?.focus(); };
+  useBackDismiss(pagesOpen, pages, closePages);
+  useEffect(() => {
+    if (!pagesOpen) return;
+    const content = pageContent.current;
+    const firstControl = [...(content?.querySelectorAll<HTMLElement>('button:not(:disabled), a') ?? [])]
+      .find(element => element.getClientRects().length > 0);
+    (firstControl ?? content)?.focus();
+    const observer = new ResizeObserver(() => {
+      if (!pageButton.current?.offsetWidth) setPagesOpen(false);
+    });
+    if (pageButton.current) observer.observe(pageButton.current);
+    const dismiss = (event: PointerEvent) => {
+      if (!pages.current?.contains(event.target as Node)) setPagesOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => { observer.disconnect(); document.removeEventListener('pointerdown', dismiss); };
+  }, [pagesOpen]);
+  const changePage = (next: number) => {
+    onPageChange?.(next);
+    if (pagesOpen) closePages();
+  };
   return <footer>
-    <div className="procedure-page-controls">
-      <button type="button" disabled={!onPageChange || pageIndex === 0}
-        onClick={() => onPageChange?.(pageIndex - 1)} aria-label="Previous PDF page">‹</button>
-      <span>Page {pageIndex + 1} / {pageCount}</span>
-      <button type="button" disabled={!onPageChange || pageIndex >= pageCount - 1}
-        onClick={() => onPageChange?.(pageIndex + 1)} aria-label="Next PDF page">›</button>
-    </div>
-    <div className="procedure-zoom-controls">
-      <button type="button" disabled={!onZoomChange || zoom <= 0.5}
-        onClick={() => onZoomChange?.(zoom / 1.2)} aria-label="Zoom out">−</button>
-      <span>{Math.round(zoom * 100)}%</span>
-      <button type="button" disabled={!onZoomChange || zoom >= 4}
-        onClick={() => onZoomChange?.(zoom * 1.2)} aria-label="Zoom in">+</button>
+    <div className="procedure-reading-controls">
+      <div className={`procedure-page-controls${pagesOpen ? ' is-open' : ''}`} ref={pages}
+        onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPagesOpen(false); }}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && pagesOpen) {
+            event.preventDefault(); event.stopPropagation(); closePages();
+          }
+        }}>
+        <button type="button" className="ui-button procedure-page-picker" ref={pageButton}
+          aria-label={`Choose PDF page, page ${pageIndex + 1} of ${pageCount}`} title={`Page ${pageIndex + 1} / ${pageCount}`}
+          aria-expanded={pagesOpen} aria-controls={pagesId} onClick={() => pagesOpen ? closePages() : setPagesOpen(true)}>
+          <small>Page ▾</small><span>{pageIndex + 1}</span>
+        </button>
+        <div className="procedure-page-picker-content" id={pagesId} ref={pageContent} tabIndex={-1}>
+          <div className="procedure-pagination">
+            <button className="ui-button ui-button--icon" type="button" disabled={!onPageChange || pageIndex === 0}
+              onClick={() => changePage(pageIndex - 1)} aria-label="Previous PDF page">‹</button>
+            <span>Page {pageIndex + 1} / {pageCount}</span>
+            <button className="ui-button ui-button--icon" type="button" disabled={!onPageChange || pageIndex >= pageCount - 1}
+              onClick={() => changePage(pageIndex + 1)} aria-label="Next PDF page">›</button>
+          </div>
+          <a className="ui-button ui-button--compact procedure-original" href={source.nativeUrl} target="_blank" rel="noreferrer">Open original ↗</a>
+        </div>
+      </div>
+      <div className="procedure-zoom-controls">
+        <button className="ui-button ui-button--icon" type="button" disabled={!onZoomChange || zoom <= 0.5}
+          onClick={() => onZoomChange?.(zoom / 1.2)} aria-label="Zoom out">−</button>
+        <button className="ui-button procedure-reset-view" type="button" disabled={!onReset}
+          onClick={onReset} aria-label="Reset plate view" title="Reset view: fit width, original orientation, top of page">
+          <span>{Math.round(zoom * 100)}%</span><small>Reset</small>
+        </button>
+        <button className="ui-button ui-button--icon" type="button" disabled={!onZoomChange || zoom >= 4}
+          onClick={() => onZoomChange?.(zoom * 1.2)} aria-label="Zoom in">+</button>
+        <button className="ui-button ui-button--icon" type="button" disabled={!onRotate}
+          onClick={onRotate} aria-label="Rotate 90° clockwise" title="Rotate 90° clockwise">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 4v6h-6M20 10a8 8 0 1 0-2 8" />
+          </svg>
+        </button>
+      </div>
     </div>
     {mapAction}
     <span className={`procedure-cache-state is-${cacheState}`}>
@@ -143,6 +199,5 @@ export function ProcedureFooter({ source, pageIndex, pageCount, zoom, cacheState
         ? `Saving offline${source.byteLength ? ` · ${Math.round(source.byteLength / 1024 / 1024)} MB` : ''}`
         : 'Not saved offline'}
     </span>
-    <a href={source.nativeUrl} target="_blank" rel="noreferrer">Open original ↗</a>
   </footer>;
 }

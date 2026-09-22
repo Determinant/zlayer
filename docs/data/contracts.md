@@ -1,4 +1,4 @@
-# Static data contracts
+# Client data contracts
 
 [Documentation](../README.md) / Data
 
@@ -259,7 +259,7 @@ panel or a selection. Explicit closing persists as well as opening. Denied/full
 storage leaves session controls usable. These records are local to this origin.
 Routes retain their versioned entry format; each plugin stores its own version-2
 preference record. Valid legacy records migrate when a namespaced record is absent;
-existing invalid or unknown-version records never revive older legacy choices. The [saved workspace inventory](../architecture/workspace-state.md) lists owners,
+existing invalid or unknown-version records never revive older legacy choices. The [saved workspace inventory](../architecture/workspace-persistence.md) lists owners,
 coverage, migrations, intentionally transient state and cross-window limits.
 
 The first-visit installation and safety notice uses
@@ -278,7 +278,7 @@ feature details and their Info/Plates tab or navaid identification, route detail
 expanded conditions and row limits). Feature snapshots retain their source key;
 unavailable editions remain unavailable rather than adopting another edition.
 Plate selection retains the exact document URL, integrity metadata, edition and
-original target; page, zoom, fullscreen and scroll position are remembered per
+original target; page, zoom, rotation, fullscreen and scroll position are remembered per
 document/plate. Actual PDF page counts bound restored pages. PDFs and live data
 still use their normal loaders, caches and validation. Loading/error flags,
 in-progress gestures and transient context menus are not durable UI state.

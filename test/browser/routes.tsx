@@ -42,7 +42,7 @@ const refinedCenter = refined?.final.find(l => l.fix?.role === 'MAP')?.fix?.coor
 const navigation: FeatureCollectionResponse = { type: 'FeatureCollection', features: ['KSFO', 'KSJC', 'KNUQ', 'O69', 'KAPC', 'KSTS', ...(refined ? [refined.airport] : arizona ? ['KIWA'] : [])].map((ident, i) => ({
   type: 'Feature', id: ident, geometry: { type: 'Point', coordinates: [
     [-122.375, 37.619], [-121.929, 37.362], [-122.049, 37.416], [-122.605, 38.258], [-122.281, 38.213], [-122.813, 38.509], refinedCenter ?? [-111.655, 33.307],
-  ][i]! as [number, number] }, properties: { ident, ...(sid ? { faaId: ident.replace(/^K/, ''), icaoId: ident } : {}) },
+  ][i]! as [number, number] }, properties: { ident, faaId: ident.replace(/^K/, ''), ...(ident.startsWith('K') ? { icaoId: ident } : {}) },
 })), meta: { layer: 'airports', revision: '2026-09-03', returned: arizona || refined ? 7 : 6, truncated: false } };
 if (coded) {
   navigation.features.push({ type: 'Feature', id: 'KSNA', properties: { ident: 'KSNA', faaId: 'SNA', icaoId: 'KSNA' },
@@ -76,7 +76,13 @@ if (new URLSearchParams(location.search).has('entities')) {
 }
 const resolve = createRouteResolver(Object.values(references), undefined, terminal);
 const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-16T00:00:00Z',
-  navigation: [], charts: [], weather: [], terminalProcedures: {
+  // Give saved-route previews the same references as the fixture's active editor.
+  navigation: Object.values(references).map(collection => ({
+    id: collection.meta.layer, title: collection.meta.layer, minZoom: 0,
+    count: collection.features.length, sourceCount: collection.features.length,
+    url: URL.createObjectURL(new Blob([JSON.stringify({ type: 'FeatureCollection', features: collection.features,
+      metadata: { effectiveDate: collection.meta.revision, source: 'Route editor fixture' } })], { type: 'application/json' })),
+  })), charts: [], weather: [], terminalProcedures: {
     id: 'terminal-procedures', title: 'Published procedure routes', url: '/route-approach-legs.json', count: terminal.procedures.length, sourceCount: terminal.procedures.length,
     ...(publishedCatalog ? { jsonSha256: jsonIdentity(terminal) } : {}),
   }, procedures: {
@@ -119,6 +125,7 @@ function Fixture() {
       onApproachChange={(entry, approach) => setDraft(current => setRouteApproach(current, entry, approach))}
       onDepartureChange={(entry, departure) => setDraft(current => setRouteDeparture(current, entry, departure))}
       onArrivalChange={(entry, arrival) => setDraft(current => setRouteArrival(current, entry, arrival))}
+      onRecommendationPreview={setPreview}
       onApproachPreview={setPreview}
       onOpenPlate={selection => setPlate(selection.procedure.name)}
       onUseRoute={setDraft} onClear={() => setDraft(routeDraftFromText(''))} onFit={() => {}}

@@ -66,6 +66,7 @@ export function RouteBar({
     <section className="route-bar" aria-label="Flight route planner">
       <RouteEditor
         plan={plan}
+        catalog={catalog}
         navigationData={navigationData}
         status={status}
         navlogOpen={navlogOpen === true}

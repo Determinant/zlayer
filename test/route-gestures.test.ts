@@ -1,3 +1,5 @@
+import { PluginRegistry } from '../src/core/layers/bridge';
+import type { RoutesApi, RouteMapEditing } from '../src/layers/routes/public';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap, MapGeoJSONFeature } from 'maplibre-gl';
@@ -14,7 +16,7 @@ import { createLayerInput } from '../src/core/layers/input';
 import { createLayerStore } from '../src/core/layers/store';
 import { MapLayerHost } from '../src/core/map/layer';
 import { createSelectionContribution } from '../src/workspace/map/selection';
-import type { RouteMapEditing, RoutePluginInput } from '../src/layers/routes/plugin';
+import type { MapSelectionInput } from '../src/core/map/selection';
 
 const navigation: FeatureCollectionResponse = { type: 'FeatureCollection',
   meta: { layer: 'fixes', revision: 'test', returned: 4, truncated: false },
@@ -773,6 +775,66 @@ test('route changes during a drag never apply the old token index to the new pla
   assert.equal(map.touchZoomRotate.enabled, true);
 });
 
+test('workspace retry restores route gestures after an initial snapshot failure without remounting', t => {
+  const feature = { ...navigation.features[3]!, layer: { id: 'fixes' } } as unknown as MapGeoJSONFeature;
+  const fixture = setup(t, [feature]);
+  fixture.gestures.destroy();
+  const errors: unknown[] = [], selections: Array<GeoPointFeature | undefined> = [];
+  const registry = new PluginRegistry<{ routes: RoutesApi; ruler: import('../src/layers/ruler/public').RulerApi;
+    plates: import('../src/layers/plates/public').PlatesApi }>(error => errors.push(error));
+  const input = createLayerInput<MapSelectionInput>();
+  input.set({ resolveFeature: value => value, onSelect: value => selections.push(value), onChooseNearby() {} });
+  const plan = createLayerStore(fixture.getRoute());
+  let fail = true, reads = 0, activations = 0;
+  const provider = registry.registration('routes', { publicApi(scope) {
+    activations++;
+    return {
+      plan: scope.store({ subscribe: plan.subscribe, getSnapshot() {
+        reads++; if (fail) throw new Error('route snapshot'); return plan.getSnapshot();
+      } }),
+      preview: scope.store(createLayerStore(undefined)), displayedRoutes: scope.store(createLayerStore([])),
+      editing: scope.store(createLayerStore<RouteMapEditing | undefined>(() => {})),
+      actions: { insert() {}, replace() {}, remove() {} },
+    };
+  } });
+  provider.activate();
+  const map = fixture.map as unknown as MapLibreMap;
+  const selection = createSelectionContribution(input, scope => registry.forScope(scope), {
+    map, signal: new AbortController().signal, preserveView: true, interactiveLayerIds: () => ['fixes'],
+    occupiedRects: () => [], targetBearing: () => 0, run: (_id, action) => action(), reportError: error => errors.push(error),
+  });
+  const recovery = registry.scopedConnections;
+  try {
+    selection.mount(map);
+    assert.deepEqual(recovery.failures.getSnapshot(), [{ providerId: 'routes', message: 'route snapshot' }]);
+    assert.deepEqual(provider.failures!.getSnapshot(), []);
+    fixture.touch('touchstart', 1);
+    assert.equal(fixture.map.dragPan.enabled, true, 'failed setup cannot start route editing');
+    fixture.touch('touchend', 0);
+    fixture.click();
+    assert.equal(selections.at(-1)?.id, feature.id, 'ordinary selection still works');
+    const click = fixture.handlers.get('click');
+    fail = false; recovery.retryFailed();
+    assert.deepEqual(recovery.failures.getSnapshot(), []);
+    assert.equal(fixture.handlers.get('click'), click, 'retry keeps map gesture listeners attached');
+    assert.equal(activations, 1);
+    fixture.touch('touchstart', 1);
+    assert.equal(fixture.map.dragPan.enabled, false, 'the repaired connection can edit routes');
+    selection.unmount();
+    assert.equal(fixture.map.dragPan.enabled, true);
+    assert.equal(fixture.handlers.size, 0);
+    fail = true; selection.mount(map);
+    assert.equal(recovery.failures.getSnapshot().length, 1);
+    selection.unmount();
+    assert.deepEqual(recovery.failures.getSnapshot(), []);
+    const finalReads = reads;
+    recovery.retryFailed();
+    assert.equal(reads, finalReads);
+    assert.equal(fixture.handlers.size, 0, 'a retained retry cannot revive a detached map');
+    assert.equal(errors.length, 2);
+  } finally { selection.unmount(); provider.deactivate(); }
+});
+
 test('old worker hit targets cannot start a drag against a newer route', t => {
   const { touch, gestures, edits, setRoute } = setup(t);
   setRoute(resolve('KSFO OAK KSJC'), false);
@@ -800,18 +862,22 @@ for (const failure of ['move', 'release'] as const) test(`a route preview failur
   fixture.gestures.destroy();
   const selections: Array<GeoPointFeature | undefined> = [], errors: string[] = [];
   const editing = createLayerStore<RouteMapEditing | undefined>(undefined);
-  const input = createLayerInput<RoutePluginInput>();
-  input.set({ route: fixture.getRoute(), routePreview: undefined, focusNonce: 0,
-    resolveFeature: value => value, onSelect: value => selections.push(value), onChooseNearby() {},
-    onRouteLegInsert() { assert.fail('must not edit after renderer failure'); },
-    onRouteWaypointReplace() { assert.fail('must not edit after renderer failure'); },
-    onRouteWaypointRemove() { assert.fail('must not edit after renderer failure'); },
-  });
+  const input = createLayerInput<MapSelectionInput>();
+  input.set({ resolveFeature: value => value, onSelect: value => selections.push(value), onChooseNearby() {} });
   const map = fixture.map as unknown as MapLibreMap;
   const host = new MapLayerHost(map, (id, error) => errors.push(`${id}:${String(error)}`));
-  const selection = createSelectionContribution(input, {
-    editing, activeTool: createLayerStore({ active: false }), contextAction: () => false,
-  }, { map, signal: new AbortController().signal, preserveView: true,
+  const registry = new PluginRegistry<{ routes: RoutesApi; ruler: import('../src/layers/ruler/public').RulerApi; plates: import('../src/layers/plates/public').PlatesApi }>();
+  const registration = registry.registration('routes', { publicApi: () => ({
+    plan: createLayerStore(fixture.getRoute()), preview: createLayerStore(undefined), displayedRoutes: createLayerStore([]), editing,
+    actions: {
+      insert() { assert.fail('must not edit after renderer failure'); },
+      replace() { assert.fail('must not edit after renderer failure'); },
+      remove() { assert.fail('must not edit after renderer failure'); },
+    },
+  }) });
+  registration.activate();
+  t.after(() => registration.deactivate());
+  const selection = createSelectionContribution(input, scope => registry.forScope(scope), { map, signal: new AbortController().signal, preserveView: true,
     interactiveLayerIds: () => ['fixes'], occupiedRects: () => [], targetBearing: () => 0,
     run: (id, action) => host.run(id, action), reportError: error => { throw error; },
   });

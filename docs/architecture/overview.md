@@ -83,9 +83,11 @@ Source is grouped by product under `src/layers/`: `charts/`, `metar-taf/`,
 exposes internal entry points; these are still evolving, not a stable framework API.
 Map adapters and the chart service-worker adapter have separate entry points so the
 PDF viewer and map runtime remain lazy-loaded. `core/` holds reusable request, storage,
-lifecycle, GPS acquisition and map primitives, with no imports from application modules. `workspace/`
+lifecycle, typed plugin discovery/connections, GPS acquisition, map primitives and
+[shared UI](../features/shared-ui.md#shared-controls), with no imports from application modules. `workspace/`
 owns catalog/read-context coordination, plugin registration, map runtime and camera,
-gestures, composed preferences, and the cross-feature details panel. `offline/` owns
+gestures, composed preferences, selection/source retention, startup readiness policy,
+and the cross-feature details panel. `offline/` owns
 region lifecycle and persistence compatibility; `shell/` holds workspace controls
 and layout. Route history's client,
 store, worker and draft conversion live together in `layers/routes/history/`.

@@ -3,7 +3,9 @@ export { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } 
 import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
-import type { RouteEditTarget, RouteLeg, RoutePlan, RouteWaypoint } from '@zlayer/domain';
+import type { RouteLeg, RoutePlan, RouteWaypoint } from '@zlayer/domain';
+import type { RouteDragPreview } from './public';
+export type { RouteDragPreview } from './public';
 import { unwrapRouteCoordinates } from './geometry';
 import { routeEditProperties } from './editing';
 import { routePointKeys } from './selection';
@@ -18,13 +20,6 @@ const APPROACH_RGB = [237, 98, 217] as const;
 const ROUTE_HALO_RGB = [4, 20, 34] as const;
 const APPROACH_COLOR = `rgb(${APPROACH_RGB.join(',')})`;
 const APPROACH_LINE_SCALE = 0.6;
-
-export type RouteDragPreview = {
-  target: RouteEditTarget;
-  revision: number;
-  coordinate: PointGeometry['coordinates'];
-  snapped: boolean;
-};
 
 type RouteProperties = GeoPointFeature['properties'] & {
   routeKind: 'leg' | 'planning-connection' | 'waypoint' | 'insert-preview' | 'approach-extension' | 'approach-hold' | 'approach-missed' | 'approach-intercept' | 'approach-procedure-turn' | 'hold-direction';

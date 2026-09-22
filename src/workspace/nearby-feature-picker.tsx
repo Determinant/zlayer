@@ -61,7 +61,7 @@ export function NearbyFeaturePicker({ features, point, onSelect, onClose }: {
     role="dialog" aria-label="Nearby map features">
     <div className="nearby-feature-picker-heading">
       <strong>Nearby features</strong>
-      <button type="button" onClick={onClose} aria-label="Close nearby features">×</button>
+      <button className="ui-button ui-button--quiet ui-button--compact ui-button--icon" type="button" onClick={onClose} aria-label="Close nearby features">×</button>
     </div>
     <div className="nearby-feature-picker-list">
       {features.map(({ feature, routePointId, routeIndex }) => {

@@ -138,7 +138,7 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     </div>
     {omittedLegs > 0 && <p className="ahrs-hsi-empty">Approach and curved legs are shown on the map. HSI guidance covers straight route legs only.</p>}
     {legs.length > 0 ? <label className="ahrs-hsi-leg"><span>Route leg</span>
-      <select aria-label="HSI route leg" value={selected?.key ?? 'auto'} onChange={event => setSelection(event.target.value)}>
+      <select className="ui-input ui-input--compact" aria-label="HSI route leg" value={selected?.key ?? 'auto'} onChange={event => setSelection(event.target.value)}>
         <option value="auto">Auto · nearest{guidance ? ` · ${guidance.leg.from} → ${guidance.leg.to}` : ''}</option>
         {legs.map((leg, i) => <option key={leg.key} value={leg.key}>{i + 1}. {leg.from} → {leg.to}</option>)}
       </select>

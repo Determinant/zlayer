@@ -149,7 +149,7 @@ export default function Settings({ catalog, open }: {
             The app stores downloads separately from Safari and avoids Safari’s inactivity cleanup.</p>
           {!storage?.persistent && <p><strong>Android:</strong> Use Chrome or the installed app.
             Installing ZLayer can help Chrome grant storage protection.</p>}
-          {!storage?.persistent && storage?.persistenceSupported && <button type="button"
+          {!storage?.persistent && storage?.persistenceSupported && <button className="ui-button" type="button"
             disabled={storageRequest === 'pending'} onClick={requestStorageProtection}>
             {storageRequest === 'pending' ? 'Requesting protection…'
               : storageRequest === 'denied' ? 'Try storage protection again' : 'Request storage protection'}</button>}
@@ -175,7 +175,7 @@ export default function Settings({ catalog, open }: {
           <p>Charts and plates you view without downloading a region are stored as temporary files.
             Remove them to free up space; you’ll need an internet connection to view them again.</p>
           <p>This cleanup keeps saved regions, paused downloads, previous versions needed during updates, and reference data.</p>
-          <button type="button" disabled={loading || active}
+          <button className="ui-button" type="button" disabled={loading || active}
             onClick={() => setConfirmation({ kind: 'temporary' })}>Remove temporary charts and plates</button>
           <p>Your browser manages storage, including in the installed app.
             The storage limit is an estimate; your device may have less free space.
@@ -186,7 +186,7 @@ export default function Settings({ catalog, open }: {
       {error && <p className="settings-error" role="alert">{error}</p>}
       <section aria-labelledby="regions-title">
         <div className="settings-section-heading"><h3 id="regions-title">Offline regions</h3>
-          <button type="button" disabled={loading || active}
+          <button className="ui-button" type="button" disabled={loading || active}
             onClick={() => performStorage('checking', () => downloads.restore())}>Check saved files</button></div>
         <p>Save a state or territory for offline use. Keep ZLayer open while downloading.
           You can pause and resume here.</p>
@@ -214,12 +214,12 @@ export default function Settings({ catalog, open }: {
         {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary charts and plates…' : 'Checking saved files…'}</p>}
         {!plateIndex && !plateError && <p role="status">Loading region details…</p>}
         {plateError && <p className="settings-error" role="alert">{plateError}{' '}
-          <button type="button" onClick={() => setPlateAttempt(value => value + 1)}>Try again</button></p>}
+          <button className="ui-button" type="button" onClick={() => setPlateAttempt(value => value + 1)}>Try again</button></p>}
         <div className="region-filters">
-          <label>Find a state or territory<input value={query} onChange={event => setQuery(event.target.value)} placeholder="California, CA, Guam…" type="search" /></label>
+          <label>Find a state or territory<input className="ui-input" value={query} onChange={event => setQuery(event.target.value)} placeholder="California, CA, Guam…" type="search" /></label>
           <div className="region-filter-options" role="group" aria-label="Regions to show">
-            <button type="button" aria-pressed={!savedOnly} onClick={() => setSavedOnly(false)}>All regions</button>
-            <button type="button" aria-pressed={savedOnly} onClick={() => setSavedOnly(true)}>My downloads</button>
+            <button className="ui-button" type="button" aria-pressed={!savedOnly} onClick={() => setSavedOnly(false)}>All regions</button>
+            <button className="ui-button" type="button" aria-pressed={savedOnly} onClick={() => setSavedOnly(true)}>My downloads</button>
           </div>
         </div>
         {!catalog.chartPackages && <p role="status">Regional downloads are unavailable for this cycle. You can still use cached charts.</p>}
@@ -243,7 +243,7 @@ export default function Settings({ catalog, open }: {
       description={confirmation.kind === 'region'
         ? 'Files used by other saved regions will stay.'
         : 'This keeps saved regions, paused downloads, previous versions needed during updates, and reference data. Removed files will need an internet connection to download again.'}
-      confirmLabel="Remove" disabled={loading || active}
+      confirmLabel="Remove" destructive disabled={loading || active}
       onConfirm={confirmRemoval} onCancel={() => setConfirmation(undefined)} />}
   </>;
 }

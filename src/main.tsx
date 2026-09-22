@@ -42,7 +42,11 @@ if (requested || new URL(location.href).searchParams.get('reset') === '1') {
     view.render(<StartupScreen />);
     let App;
     try { ({ App } = await import('./app')); }
-    catch { view.render(<StartupScreen message="The workspace could not open." slow />); return; }
+    catch {
+      view.render(<StartupScreen message="The workspace could not open."
+        steps={[{ label: 'Workspace', state: 'unavailable' }]} slow />);
+      return;
+    }
     if (resetPending()) { openResetScreen(); return; }
     view.render(<StrictMode><FirstVisit><App /><PwaUpdatePrompt /></FirstVisit></StrictMode>);
     void preparePwa();

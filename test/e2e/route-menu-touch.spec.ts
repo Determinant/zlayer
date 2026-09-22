@@ -45,6 +45,10 @@ test('iPad tap opens Copy formats and copies with user activation after focus lo
   await page.keyboard.press('Escape');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
+  await trigger.tap();
+  await page.getByRole('menuitem', { name: 'Reverse Route', exact: true }).tap();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.route-token strong')).toHaveText(['37°45′N 122°30′W', 'KSJC', 'UNKNOWN', 'KSFO']);
 });
 
 test('iPad tap opens Share formats and shares with user activation after focus loss', async ({ page }) => {

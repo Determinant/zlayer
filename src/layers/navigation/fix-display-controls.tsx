@@ -10,7 +10,7 @@ export function FixDisplayControls({ value, onChange }: {
     <legend>IFR fix detail</legend>
     <label>
       <span>Show</span>
-      <select value={value.detail} onChange={event =>
+      <select className="ui-input ui-input--compact" value={value.detail} onChange={event =>
         onChange({ ...value, detail: event.target.value as FixDetail })}>
         <option value="enroute">Enroute fixes</option>
         <option value="terminal">Enroute + SID/STAR fixes</option>
@@ -19,7 +19,7 @@ export function FixDisplayControls({ value, onChange }: {
     </label>
     <label>
       <span>Enroute</span>
-      <select value={value.detail === 'all' ? 'both' : value.airspace} disabled={value.detail === 'all'} onChange={event =>
+      <select className="ui-input ui-input--compact" value={value.detail === 'all' ? 'both' : value.airspace} disabled={value.detail === 'all'} onChange={event =>
         onChange({ ...value, airspace: event.target.value as FixAirspace })}>
         <option value="low">Low altitude</option>
         <option value="high">High altitude</option>

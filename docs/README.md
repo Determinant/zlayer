@@ -30,11 +30,12 @@ The same engineering and feature contracts apply to human and AI contributors.
 
 | Task | Read first | Follow through |
 | --- | --- | --- |
-| Add or change a workspace feature | [Layer plugins](architecture/layer-plugins.md#working-on-built-in-products) and the [feature guides](#features-and-interface) | [Workspace restoration](architecture/workspace-state.md), [layout and typography](features/responsive-layout.md) |
+| Add or change a workspace feature | [Plugin authoring](architecture/layer-plugins.md#adding-a-product) and the [feature guides](#features-and-interface) | [Workspace restoration](architecture/workspace-persistence.md), [shared UI controls](features/shared-ui.md#shared-controls), [layout and typography](features/shared-ui.md) |
+| Change shared controls, dialogs or layout | [Shared UI and layout](features/shared-ui.md) | [Panel lifecycle](architecture/layer-plugins.md#stowable-panels), [installed-app Back navigation](features/pwa-back-navigation.md) |
 | Change a feed, schema or data loader | [Data contracts](data/contracts.md), [chart feed](data/chart-feed.md) | [Source access policies](data/sources.md), [resource identity and recovery](development/engineering.md#recovery-and-source-identity) |
 | Change routing or procedure geometry | [Routes](../src/layers/routes/README.md), [approach geometry](../src/layers/routes/approach-geometry.md) | [SID/STAR source limits](../src/layers/routes/terminal-procedures.md), [coverage and unresolved cases](../src/layers/routes/approach-coverage.md) |
-| Debug offline data, stale state or restoration | [Offline storage](features/offline-storage.md), [workspace state](architecture/workspace-state.md) | [Committed-snapshot rationale](adr/0005-offline-snapshot-authority.md), [PWA updates](features/pwa-updates.md) |
-| Investigate rendering, memory or device failures | [Graphics compatibility](verification/graphics-compatibility.md), [memory and resources](verification/memory-resources.md) | [Responsive checks](features/responsive-layout.md), [retained evidence](evidence/README.md) |
+| Debug offline data, stale state or restoration | [Offline storage](features/offline-storage.md), [workspace persistence](architecture/workspace-persistence.md) | [Committed-snapshot rationale](adr/0005-offline-snapshot-authority.md), [PWA updates](features/pwa-updates.md) |
+| Investigate rendering, memory or device failures | [Graphics compatibility](verification/graphics-compatibility.md), [memory and resources](verification/memory-resources.md) | [Responsive checks](features/shared-ui.md), [retained evidence](evidence/README.md) |
 | Verify or release a change | [Verification commands](development/local-development.md#verification) | [Deployment contract and remaining release gates](development/deployment.md) |
 
 ## Product and direction
@@ -54,9 +55,9 @@ The same engineering and feature contracts apply to human and AI contributors.
 ## Architecture and design
 
 - [Overview](architecture/overview.md): publisher/client boundaries, runtime, rendering and chart I/O.
-- [Layer plugins](architecture/layer-plugins.md): feature lifecycle, map/panel contributions and ownership.
-- [Workspace state](architecture/workspace-state.md): persistence, restoration and deliberate boundaries.
-- [Startup](architecture/startup.md): loading screen and usable-workspace readiness.
+- [Layer plugins](architecture/layer-plugins.md): authoring, registration, lifecycle, optional integrations and map/panel contributions.
+- [Workspace persistence and restoration](architecture/workspace-persistence.md): saved records, ownership and deliberate session-only state.
+- [Workspace startup](architecture/workspace-startup.md): loading screen and usable-workspace readiness.
 
 ## Data and publisher contracts
 
@@ -88,9 +89,9 @@ guides stay in that same folder or its implementation subfolders.
 
 - [Offline storage and regional downloads](features/offline-storage.md).
 - [PWA releases and update prompts](features/pwa-updates.md),
-  [installed-app Back navigation](features/pwa-navigation.md).
-- [Responsive layout and recovery](features/responsive-layout.md),
-  [typography](features/responsive-layout.md#typography),
+  [installed-app Back navigation](features/pwa-back-navigation.md).
+- [Shared UI and layout](features/shared-ui.md),
+  [typography](features/shared-ui.md#typography),
   [date, time and currency labels](features/date-time-display.md),
   [bundled map glyphs](../public/fonts/README.md).
 

@@ -38,7 +38,7 @@ for (const supplement of [false, true]) {
     await page.goto('/');
     await page.getByLabel('Search FAA navigation data').fill('KSBA');
     await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     const opener = page.getByRole('button', { name: supplement ? /Chart Supplement/ : /TEST APPROACH/ });
     await opener.click();
     const meter = page.getByRole('progressbar', {

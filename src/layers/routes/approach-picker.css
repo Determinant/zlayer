@@ -11,17 +11,7 @@
 }
 .route-approach-heading > div { min-width: 0; }
 .route-approach-heading h2 { margin: 3px 0 0; font-size: 18px; line-height: 1.35; }
-.route-approach-picker button {
-  min-width: 0; max-width: 100%; min-height: 44px; padding: 10px 14px;
-  border: 1px solid #315062; border-radius: 8px; background: #153344; color: #a8e3db;
-  font-size: 15px; font-weight: 700; line-height: 1.4; cursor: pointer;
-}
-.route-approach-picker button:disabled { opacity: .45; cursor: default; }
-.route-approach-picker button:not(:disabled):hover { background: #204755; }
-.route-approach-picker :is(button, input):focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }
-.route-approach-picker .route-approach-close {
-  display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; line-height: 1;
-}
+
 .route-approach-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
 .route-approach-body p { margin: 8px 0; color: #a8bfce; line-height: 1.6; }
 .route-approach-body > :first-child { margin-top: 0; }
@@ -31,18 +21,12 @@
 .route-approach-current > div:first-child { display: grid; gap: 4px; }
 .route-approach-current strong { overflow-wrap: anywhere; font-size: 16px; line-height: 1.4; }
 .route-approach-current-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.route-approach-picker .route-approach-remove { border-color: #a45656; color: #ffd0ca; background: #46292d; }
-.route-approach-picker .route-approach-remove:hover { background: #60343b; }
-.route-approach-picker input[type="search"] {
-  width: 100%; min-width: 0; min-height: 44px; margin-top: 8px; padding: 10px;
-  border: 1px solid #315062; border-radius: 8px; color: #dcecf5; background: #102333;
-  font-size: max(16px, var(--input-font-size)); line-height: 1.4;
-}
+
+.route-approach-picker input[type="search"] { margin-top: 8px; }
 .route-approach-picker ul { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .route-approach-picker li button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; }
 .route-approach-picker li button span { overflow-wrap: anywhere; }
 .route-approach-picker li button small { color: #83e0c4; font-weight: 400; }
-.route-approach-picker li button[aria-pressed="true"] { border-color: #4c8e83; background: #214b47; color: #d9fff5; }
 .route-approach-step-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .route-approach-entry-step h3 { margin: 20px 0 12px; font-size: 18px; line-height: 1.35; }
 .route-approach-entry-step fieldset { min-width: 0; margin: 0 0 16px; padding: 0; border: 0; }

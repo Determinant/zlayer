@@ -1,3 +1,5 @@
+import type { NavigationApi } from './public';
+import type { PluginExports } from '../../core/layers/bridge';
 import { pluginStorage } from './storage';
 import { navigationPreferences } from './preferences';
 import type { GeoPointFeature, NavigationData } from '@zlayer/contracts';
@@ -21,7 +23,9 @@ export function createNavigationPlugin() {
     const state = useLayerSnapshot(controlsInput);
     return state ? <NavigationControls {...state} /> : null;
   }
+  const airports = selectLayerStore(input, state => ({ data: state?.data.airports, visible: state?.visibility.airports ?? false }));
   return {
+    publicApi: scope => ({ airports: scope.store(airports) }),
     storage: pluginStorage, preferences: navigationPreferences,
     definition: { id: 'navigation', title: 'Navigation' }, input,
     controls: [{ id: 'navigation', Component: Controls }],
@@ -32,5 +36,5 @@ export function createNavigationPlugin() {
         bindMapLayer(createWaypointInspectionLayer(), input.select(state => state.inspectedCoordinate)),
         bindMapLayer(createNavaidIdentificationLayer(), input.select(state => state.identification))];
     } },
-  } satisfies LayerPlugin & { input: typeof input };
+  } satisfies LayerPlugin & PluginExports<NavigationApi> & { input: typeof input };
 }

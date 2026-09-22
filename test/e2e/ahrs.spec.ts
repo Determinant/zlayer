@@ -94,9 +94,9 @@ test('AHRS keeps GPS and heading when Ownship is disabled, and can restart while
   };
   const row = (id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
   await settings();
-  await row('ownship').getByRole('button', { name: /^Disable / }).click();
-  await expect(row('ownship').locator('.plugin-status')).toHaveText('Disabled');
-  await expect(row('ahrs').locator('.plugin-status')).toHaveText('Enabled');
+  await row('ownship').getByRole('switch', { checked: true }).click();
+  await expect(row('ownship').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await expect(row('ahrs').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   expect(await countWatches(page)).toBe(1);
   await page.getByLabel('Close settings').click();
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
@@ -111,10 +111,10 @@ test('AHRS keeps GPS and heading when Ownship is disabled, and can restart while
   await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-steady')));
   await settings();
-  await row('ahrs').getByRole('button', { name: /^Disable / }).click();
+  await row('ahrs').getByRole('switch', { checked: true }).click();
   await expect.poll(() => countWatches(page)).toBe(0);
-  await row('ahrs').getByRole('button', { name: /^Enable / }).click();
-  await expect(row('ownship').locator('.plugin-status')).toHaveText('Disabled');
+  await row('ahrs').getByRole('switch', { checked: false }).click();
+  await expect(row('ownship').getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   expect(await countWatches(page), 'enabling the plugin alone does not request GPS').toBe(0);
   await page.getByLabel('Close settings').click();
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
@@ -802,7 +802,9 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
   await expect(diagnostics.locator('.ahrs-fusion-counts')).toContainText('0 used');
   await expect(page.getByTestId('hsi-heading')).toBeVisible();
-  await expect(page.getByTestId('hsi-deviation')).toBeVisible();
+  // The vertical needle has a zero-width SVG bounding box when aligned with heading.
+  await expect(page.getByTestId('hsi-course')).toBeVisible();
+  await expect(page.getByTestId('hsi-deviation')).toBeAttached();
   await expect(page.getByTestId('hsi-track')).toBeVisible();
   await expect(page.getByRole('img', { name: /^HSI\. Heading\. Estimated heading / })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 568 });
@@ -821,7 +823,8 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
   await expect(page.getByTestId('hsi-invalid')).toHaveText('Heading');
-  await expect(page.getByTestId('hsi-deviation')).toBeVisible();
+  await expect(page.getByTestId('hsi-course')).toBeVisible();
+  await expect(page.getByTestId('hsi-deviation')).toBeAttached();
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
@@ -1293,7 +1296,7 @@ test('compact HSI follows the route, supports a selected leg, and flags lost GPS
   await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('HDG 062° M');
   await expect(hsi.getByTestId('hsi-caution')).toHaveText('Low Speed');
   await expect(hsi.getByTestId('hsi-course')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-deviation')).toBeVisible();
+  await expect(hsi.getByTestId('hsi-deviation')).toBeAttached();
   await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
   await hsi.screenshot({ path: testInfo.outputPath('hsi-low-speed-heading.png') });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 120 * 1852 / 3600 })));

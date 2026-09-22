@@ -223,8 +223,9 @@ or crashed tab are removed on a later export once they are over a day old.
 unavailable OPFS root does not block reset; a failure to delete an accessible
 scratch directory is still reported and remains retryable.
 
-Each saved session also has a **Delete** action, with confirmation. Stop an active
-recording and let it finish saving before deleting it; completed and interrupted
+Each saved session also has a **Delete** action, using core's
+[shared destructive confirmation](../../../docs/features/shared-ui.md#shared-controls).
+Stop an active recording and let it finish saving before deleting it; completed and interrupted
 sessions can be removed individually. Deletion removes metadata and all matching
 sample chunks in one transaction, without using a potentially stale chunk count.
 Other recordings and offline data remain available. Previously downloaded files

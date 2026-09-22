@@ -73,7 +73,7 @@ for (const [width, height] of [
     await touchTarget(page.getByLabel('Close detail'));
     const body = page.locator('.feature-card-content');
     expect((await body.boundingBox())!.height).toBeGreaterThanOrEqual(60);
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     const plate = page.getByRole('button', { name: /TEST APPROACH/ });
     await plate.scrollIntoViewIfNeeded();
     const area = (await body.boundingBox())!;

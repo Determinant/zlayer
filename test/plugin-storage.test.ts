@@ -4,7 +4,7 @@ import { createPluginStorage } from '../src/core/storage/plugin-storage';
 import { pluginPreferences, booleanPreference } from '../src/core/storage/preferences';
 import { layerPlugins } from '../src/core/layers/plugin';
 import { isBoolean } from '../src/core/storage/ui-state';
-import { routeDraftRecord } from '../src/layers/routes/persistent-draft';
+import { routeDraftRecord } from '../src/layers/routes/draft-storage';
 import { changeRouteStash, readRouteStash, savedRoute, ROUTE_STASH_KEY } from '../src/layers/routes/stash';
 import { routeDraftFromText } from '@zlayer/domain';
 

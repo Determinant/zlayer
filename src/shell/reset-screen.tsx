@@ -24,13 +24,13 @@ export function ResetScreen({ requested }: { requested: boolean }) {
   }, [attempt, requested]);
   return <main className="reset-screen">
     <h1>{!requested ? 'No reset requested' : done ? 'Local data cleared' : 'Reset ZLayer'}</h1>
-    {!requested ? <><p>No data has been deleted. Start a reset from Settings → Advanced.</p><a href="/">Open ZLayer</a></> : done ? <>
+    {!requested ? <><p>No data has been deleted. Start a reset from Settings → Advanced.</p><a className="ui-button" href="/">Open ZLayer</a></> : done ? <>
       <p>Saved downloads and workspace data have been removed. Reconnect before opening ZLayer.</p>
-      <a href="/">Open ZLayer</a>
+      <a className="ui-button" href="/">Open ZLayer</a>
     </> : <>
       <p role="status">{message}</p>
       {error && <><p role="alert">{error}</p>
-        <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry reset</button></>}
+        <button className="ui-button" type="button" onClick={() => setAttempt(value => value + 1)}>Retry reset</button></>}
     </>}
   </main>;
 }

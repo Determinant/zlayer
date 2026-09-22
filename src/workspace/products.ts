@@ -1,3 +1,7 @@
+import { PluginRegistry } from '../core/layers/bridge';
+import { createLayerInput } from '../core/layers/input';
+import type { MapSelectionInput } from '../core/map/selection';
+import type { WorkspacePluginApis } from './plugin-apis';
 import { createMetarPlugin } from '../layers/metar-taf/plugin';
 import { createPlatesLayer } from '../layers/plates';
 import { createOwnshipPlugin } from '../layers/ownship/plugin';
@@ -8,7 +12,7 @@ import { createObstructionsPlugin } from '../layers/obstructions/plugin';
 import { createChartsPlugin } from '../layers/charts/plugin';
 import { createNavigationPlugin } from '../layers/navigation/plugin';
 import { createRoutesPlugin } from '../layers/routes/plugin';
-import { layerPlugins, type LayerPlugin } from '../core/layers/plugin';
+import { layerPlugins } from '../core/layers/plugin';
 import type { MapContribution } from '../core/map/contribution';
 import { createGpsService } from '../core/gps/service';
 
@@ -25,11 +29,23 @@ export function createWorkspaceLayers() {
   const ahrs = createAhrsPlugin(gps);
   const ruler = createRulerPlugin();
   const routes = createRoutesPlugin();
-  const selectionDependencies = { activeTool: ruler, contextAction: plates.contextAction, editing: routes.editing };
+  const registry = new PluginRegistry<WorkspacePluginApis>();
+  const selectionInput = createLayerInput<MapSelectionInput>();
   const selectionContribution: MapContribution = { id: 'workspace-selection', async load(context) {
     const { createSelectionContribution } = await import('./map/selection');
-    return [createSelectionContribution(routes.input, selectionDependencies, context)];
+    return [createSelectionContribution(selectionInput, scope => registry.forScope(scope), context)];
   } };
-  const plugins: readonly LayerPlugin[] = layerPlugins([charts, terrain, plates, obstructions, navigation, metar, routes, ruler, ownship, ahrs]);
-  return { charts, terrain, obstructions, navigation, metar, plates, gps, ownship, ahrs, ruler, routes, plugins, selectionContribution };
+  const plugins = layerPlugins([
+    { ...charts, communication: registry.registration('charts', { publicApi: () => ({}) }) },
+    { ...terrain, communication: registry.registration('terrain', terrain) },
+    { ...plates, communication: registry.registration('plates', plates) },
+    { ...obstructions, communication: registry.registration('obstructions', obstructions) },
+    { ...navigation, communication: registry.registration('navigation', navigation) },
+    { ...metar, communication: registry.registration('metar', metar) },
+    { ...routes, communication: registry.registration('routes', routes) },
+    { ...ruler, communication: registry.registration('ruler', ruler) },
+    { ...ownship, communication: registry.registration('ownship', { publicApi: () => ({}) }) },
+    { ...ahrs, communication: registry.registration('ahrs', ahrs) },
+  ] as const);
+  return { charts, terrain, obstructions, navigation, metar, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
 }

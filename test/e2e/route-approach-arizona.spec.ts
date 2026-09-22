@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { ROUTE_SOURCE_ID } from '../../src/layers/routes/map-contract';
 import catalog from '../fixtures/route-approaches.json' with { type: 'json' };
 import { arizonaTerminal } from '../fixtures/route-approach-arizona';
 
@@ -15,15 +16,24 @@ for (const width of [320, 1280]) for (const missing of [false, true]) {
       ] },
     ] } }));
     await page.route('**/route-approach-legs.json', route => route.fulfill({ json: arizonaTerminal(missing) }));
-    const rendered = () => page.evaluate(() => {
+    const rendered = () => page.evaluate(async sourceId => {
       const map = (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit;
       const features = map.queryRenderedFeatures();
+      const data = await (map.getSource(sourceId) as GeoJSONSource | undefined)?.getData();
+      const lines = data?.type === 'FeatureCollection' ? data.features : [];
+      const station = lines.find(f => f.geometry.type === 'Point' && f.properties?.ident === 'IWA');
+      const coordinate = station?.geometry.type === 'Point' ? station.geometry.coordinates : undefined;
       return {
         fix: features.some(f => f.geometry.type === 'Point' && f.properties.ident === 'IWA'),
         hold: features.some(f => f.properties.routeKind === 'approach-hold' && f.properties.approachPhase === 'missed'),
-        connection: features.some(f => f.properties.routeKind === 'approach-missed'),
+        climb: features.some(f => f.properties.routeKind === 'approach-missed'),
+        // The valid initial climb remains visible when the following intercept is
+        // missing. Only a path reaching IWA establishes the return connection.
+        connection: !!coordinate && lines.some(f => f.properties?.routeKind === 'approach-missed' &&
+          f.geometry.type === 'LineString' && f.geometry.coordinates.at(-1)?.every((value, i) =>
+            Math.abs(value - coordinate[i]!) < 1e-7)),
       };
-    });
+    }, ROUTE_SOURCE_ID);
     await page.goto(`/test/browser/routes.html?map&arizona${missing ? '&missing-intercept' : ''}`);
     await page.locator('.route-token').first().click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Choose approach…', exact: true }).click();
@@ -32,17 +42,17 @@ for (const width of [320, 1280]) for (const missing of [false, true]) {
     await picker.getByRole('radio', { name: 'Vectors to final (VTF)', exact: true }).check();
     if (missing) await expect(picker).toContainText('The intercept heading or following inbound course is unavailable.');
     else await expect(picker).not.toContainText('Refer to the plate.');
-    await expect.poll(rendered).toEqual({ fix: true, hold: true, connection: !missing });
+    await expect.poll(rendered).toEqual({ fix: true, hold: true, climb: true, connection: !missing });
     await picker.getByRole('button', { name: 'Add to route', exact: true }).click();
-    await expect.poll(rendered).toEqual({ fix: true, hold: true, connection: !missing });
+    await expect.poll(rendered).toEqual({ fix: true, hold: true, climb: true, connection: !missing });
     await expect(page.getByLabel(/^Route issues \(1\): KIWA:/)).toHaveCount(missing ? 1 : 0);
     await page.reload();
     await expect(page.locator('.route-attached-approach')).toHaveText('ILS OR LOC 30C · VTF');
-    await expect.poll(rendered).toEqual({ fix: true, hold: true, connection: !missing });
+    await expect.poll(rendered).toEqual({ fix: true, hold: true, climb: true, connection: !missing });
     await expect(page.getByLabel(/^Route issues \(1\): KIWA:/)).toHaveCount(missing ? 1 : 0);
     await page.evaluate(() => (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit
       .jumpTo({ center: [-111.65, 33.30], zoom: 12 }));
-    await expect.poll(rendered).toEqual({ fix: true, hold: true, connection: !missing });
+    await expect.poll(rendered).toEqual({ fix: true, hold: true, climb: true, connection: !missing });
     await page.getByLabel('Approach map', { exact: true }).screenshot({ path: testInfo.outputPath(`kiwa-${missing ? 'gap' : 'connected'}-${width}.png`) });
   });
 }

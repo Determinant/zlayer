@@ -10,10 +10,3 @@
 .pwa-update [role="alert"] { color: #ffc08f; }
 .pwa-update code, .pwa-update-settings code { overflow-wrap: anywhere; }
 .pwa-update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.pwa-update button {
-  min-height: 44px; padding: 8px 14px; border: 1px solid #4c8e83; border-radius: 8px;
-  background: #214b47; color: #d9fff5; cursor: pointer;
-}
-.pwa-update button + button { background: transparent; border-color: #315062; color: #a8bfce; }
-.pwa-update button:disabled { opacity: .5; cursor: default; }
-.pwa-update button:focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }

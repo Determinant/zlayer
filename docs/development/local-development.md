@@ -179,6 +179,15 @@ It uses the same production-build server and assertions as the complete suite.
 Each automatic job has a ten-minute limit; a newer run cancels an older run for
 the same event and ref. Failure traces are retained.
 
+Browser tests must wait for the UI lifecycle they depend on: service-worker
+control alone does not mean startup has released the workspace controls, and
+closing a plate returns focus only after its slide finishes. The two-window
+update smoke test allows extra time for concurrent software-rendered maps and
+waits for workspace readiness before interacting with restored Settings.
+The graphics smoke test also waits for its expected pixels after WebGL restoration:
+the context/idle notifications can precede a readable restored drawing buffer.
+Its bounded wait retains the exact color and route-pixel assertions.
+
 For focused work, `npm run test:browser` runs the full Chromium regressions
 independently. `npm run test:graphics` covers graphics,
 terrain, GPS rendering and plate fullscreen/pinch cases in Chromium, Firefox,
@@ -236,5 +245,5 @@ lookup. A missing supplement index must not hide working procedures.
 The routes, terrain and ownship fixtures also participate in the production-build
 Playwright suite. Interactive fixture checks alone do not replace that suite.
 Follow [offline release checks](../features/offline-storage.md#release-checks),
-[responsive checks](../features/responsive-layout.md) and [deployment readiness](deployment.md)
+[responsive checks](../features/shared-ui.md) and [deployment readiness](deployment.md)
 before claiming a device or deployment is ready.

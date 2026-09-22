@@ -95,7 +95,7 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
   const staleLabel = name === 'METAR' ? 'Stale' : 'Expired';
   const source = selected && <div className="weather-source">
     <label>{nearby ? `Nearby ${name}` : `${name} station`}
-      <select aria-label={`${name} station`} value={selected.stationId} onChange={event => setSelectedId(event.target.value)}>
+      <select className="ui-input ui-input--compact" aria-label={`${name} station`} value={selected.stationId} onChange={event => setSelectedId(event.target.value)}>
         {choices.map(station => <option key={station.stationId} value={station.stationId}>
           {station.stationId} · {station.distanceNm.toFixed(1)} NM {station.direction}
           {!hasCurrentReport(station.report, now) ? ` · ${staleLabel}` : ''}

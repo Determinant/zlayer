@@ -1,50 +1,66 @@
 import { emptyRoutePlan } from '@zlayer/domain';
 import type { MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
+import type { MapSelectionInput } from '../../core/map/selection';
 import type { createLayerInput } from '../../core/layers/input';
-import type { LayerStore } from '../../core/layers/store';
-import { LayerScope } from '../../core/layers/scope';
+import { PluginScope, type PluginBridge } from '../../core/layers/bridge';
+import type { RoutesApi, RouteMapEditing, RouteEditingActions } from '../../layers/routes/public';
+import type { RulerApi } from '../../layers/ruler/public';
+import type { PlatesApi } from '../../layers/plates/public';
+import type { LayerScope } from '../../core/layers/scope';
 import { MapGestures } from '../../layers/routes/map-gestures';
-import type { RouteMapEditing, RoutePluginInput } from '../../layers/routes/plugin';
 
-type SelectionDependencies = {
-  activeTool: LayerStore<{ active: boolean }>;
-  editing: LayerStore<RouteMapEditing | undefined>;
-  contextAction(point: { x: number; y: number }): boolean;
-};
+type SelectionBridge = PluginBridge<{ routes: RoutesApi; ruler: RulerApi; plates: PlatesApi }>;
 
 /** One selection lifetime per map, independent of any optional renderer. */
-export function createSelectionContribution(input: ReturnType<typeof createLayerInput<RoutePluginInput>>,
-  dependencies: SelectionDependencies, context: MapContributionContext): MapLayerModule<void> {
-  let scope: LayerScope | undefined;
+export function createSelectionContribution(input: ReturnType<typeof createLayerInput<MapSelectionInput>>,
+  connectPlugins: (scope: LayerScope) => SelectionBridge, context: MapContributionContext): MapLayerModule<void> {
+  let scope: PluginScope | undefined;
   const emptyRoute = emptyRoutePlan();
   return { id: 'workspace-selection', slot: 'route', update() {},
     mount() {
-      scope = new LayerScope(context.reportError);
+      scope = new PluginScope(context.reportError);
+      const bridge = connectPlugins(scope);
+      let editing: RouteMapEditing | undefined;
+      let actions: RouteEditingActions | undefined;
+      let route = emptyRoute, previewing = false;
+      let activeTool = false;
       const gestures = new MapGestures(context.map, {
-        route: () => dependencies.editing.getSnapshot() ? input.require().route : emptyRoute,
-        canEditRoute: () => !!dependencies.editing.getSnapshot() && !input.require().routePreview,
-        toolActive: () => dependencies.activeTool.getSnapshot().active,
+        route: () => editing ? route : emptyRoute,
+        canEditRoute: () => !!editing && !previewing,
+        toolActive: () => activeTool,
         interactiveLayerIds: context.interactiveLayerIds,
         resolveFeature: feature => input.require().resolveFeature(feature),
-        preview: value => dependencies.editing.getSnapshot()?.(value),
+        preview: value => editing?.(value),
         onSelect: (feature, pointId) => input.require().onSelect(feature, pointId),
-        onContextAction: dependencies.contextAction,
+        onContextAction: point => bridge.get('plates')?.contextAction(point) ?? false,
         onChooseNearby: (features, point) => input.require().onChooseNearby(features, point),
-        onRouteLegInsert: (id, feature) => input.require().onRouteLegInsert(id, feature),
-        onRouteWaypointReplace: (id, feature) => input.require().onRouteWaypointReplace(id, feature),
-        onRouteWaypointRemove: id => input.require().onRouteWaypointRemove(id),
+        onRouteLegInsert: (id, feature) => actions?.insert(id, feature),
+        onRouteWaypointReplace: (id, feature) => actions?.replace(id, feature),
+        onRouteWaypointRemove: id => actions?.remove(id),
       });
       scope.add(() => gestures.destroy());
-      scope.add(dependencies.editing.subscribe(() => gestures.cancelInteractions()));
-      scope.add(input.select(({ route, routePreview }) => ({ revision: route.revision, routePreview }))
-        .subscribe(() => gestures.cancelRouteDrag()));
-      let active = dependencies.activeTool.getSnapshot().active;
-      scope.add(dependencies.activeTool.subscribe(() => {
-        const next = dependencies.activeTool.getSnapshot().active;
-        if (next && !active) gestures.cancelInteractions();
-        active = next;
-      }));
+      bridge.watch('routes', (api, connection) => {
+        const update = (next: RouteMapEditing | undefined) => { editing = next; gestures.cancelInteractions(); };
+        // A replaced provider has already revoked its preview callback.
+        update(undefined);
+        actions = api?.actions;
+        if (api) {
+          connection.observe(api.plan, value => { route = value; gestures.cancelRouteDrag(); });
+          connection.observe(api.preview, value => { previewing = !!value; gestures.cancelRouteDrag(); });
+          connection.observe(api.editing, update);
+        } else {
+          route = emptyRoute; previewing = false;
+        }
+      });
+      bridge.watch('ruler', (api, connection) => {
+        const update = (next: boolean) => {
+          if (next && !activeTool) gestures.cancelInteractions();
+          activeTool = next;
+        };
+        if (api) connection.observe(api.active, update);
+        else update(false);
+      });
     },
     unmount() { scope?.dispose(); scope = undefined; },
   };

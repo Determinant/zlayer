@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 async function openApproach(page: Page) {
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
 }
 
@@ -22,8 +22,8 @@ test('airport search stays usable while another navigation feed is pending', asy
   await page.route('**/nav/fixes.geojson*', hold);
   await page.goto('/');
   await expect(page.getByLabel('Search FAA navigation data')).toBeAttached();
-  // The startup escape appears after ten seconds of unfinished map data.
-  await page.clock.fastForward(10_001);
+  // The startup escape appears after fifteen seconds of unfinished map data.
+  await page.clock.fastForward(15_001);
   await page.getByRole('button', { name: 'Open workspace', exact: true }).click();
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   const held = await pending;
@@ -32,7 +32,7 @@ test('airport search stays usable while another navigation feed is pending', asy
     await expect(airport).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Loading more results…' })).toBeVisible();
     await airport.click();
-    await expect(page.getByRole('button', { name: 'Plates', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toBeVisible();
     await expect(page.locator('.search-results')).toHaveCount(0);
   } finally { await held.continue(); }
   await expect(page.locator('.search-results')).toHaveCount(0);
@@ -95,7 +95,7 @@ for (const delayed of ['procedures', 'supplements'] as const) {
     await page.goto('/');
     await page.getByLabel('Search FAA navigation data').fill('KSBA');
     await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-    await page.getByRole('button', { name: 'Plates', exact: true }).click();
+    await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     const held = await pending;
     try {
       const available = page.getByRole('button', { name: delayed === 'procedures' ? /Chart Supplement/ : /TEST APPROACH/ });

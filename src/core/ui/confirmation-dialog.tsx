@@ -1,25 +1,21 @@
-import { useId, useLayoutEffect, useRef } from 'react';
+import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useModalDialog } from './use-modal-dialog';
 import './confirmation-dialog.css';
 
 /** Mount while confirmation is needed; unmounting closes it and restores focus. */
-export function ConfirmationDialog({ title, description, confirmLabel, disabled = false, onConfirm, onCancel }: {
+export function ConfirmationDialog({ title, description, confirmLabel, destructive = false, disabled = false, onConfirm, onCancel }: {
   title: string;
   description: string;
   confirmLabel: string;
+  destructive?: boolean;
   disabled?: boolean;
   onConfirm(): void;
   onCancel(): void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
+  const dialog = useModalDialog(true, cancel);
   const id = useId();
-  useLayoutEffect(() => {
-    const element = dialog.current!;
-    element.showModal();
-    cancel.current?.focus();
-    return () => element.close();
-  }, []);
 
   return createPortal(<dialog ref={dialog} className="confirmation-dialog" role="alertdialog"
     aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
@@ -29,9 +25,9 @@ export function ConfirmationDialog({ title, description, confirmLabel, disabled 
     <h2 id={`${id}-title`}>{title}</h2>
     <p id={`${id}-description`}>{description}</p>
     <div className="confirmation-actions">
-      <button type="button" className="confirmation-primary" disabled={disabled}
+      <button type="button" className={`ui-button ui-button--${destructive ? 'danger' : 'primary'}`} disabled={disabled}
         onClick={() => { dialog.current?.close(); onConfirm(); }}>{confirmLabel}</button>
-      <button ref={cancel} type="button" autoFocus onClick={onCancel}>Cancel</button>
+      <button className="ui-button" ref={cancel} type="button" autoFocus onClick={onCancel}>Cancel</button>
     </div>
   </dialog>, document.body);
 }

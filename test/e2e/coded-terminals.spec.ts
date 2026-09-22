@@ -83,3 +83,29 @@ test('a coded approach remains selectable when the chart catalog cannot be loade
   await page.getByRole('button', { name: 'Change entry', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'ARCHI', exact: true })).toBeChecked();
 });
+
+for (const recovery of ['retry', 'reconnect', 'inventory'] as const) {
+  test(`a failed coded approach offers recovery without a plate catalog (${recovery})`, async ({ page, context }) => {
+    let available = false;
+    await page.route('**/route-approaches.json', route => route.fulfill({ status: 503 }));
+    await page.route('**/route-approach-legs.json', route => route.fulfill(available ? { json: approaches } : { status: 503 }));
+    await page.goto('/test/browser/routes.html');
+    await page.locator('.route-token').first().click();
+    await page.getByRole('menuitem', { name: 'Choose approach…', exact: true }).click();
+    const picker = page.getByRole('dialog', { name: 'Choose approach', exact: true });
+    await expect(picker.getByText('Approach routes could not be loaded.', { exact: true })).toBeVisible();
+    await expect(picker.getByRole('button', { name: 'Retry routes', exact: true })).toBeVisible();
+    if (recovery === 'reconnect') {
+      await context.setOffline(true);
+      await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+    }
+    available = true;
+    if (recovery === 'retry') await picker.getByRole('button', { name: 'Retry routes', exact: true }).click();
+    else if (recovery === 'reconnect') await context.setOffline(false);
+    else await page.evaluate(() => window.dispatchEvent(new Event('zlayer-offline-inventory')));
+    await picker.getByRole('button', { name: 'ILS RWY 28R · I28R', exact: true }).click();
+    await page.getByRole('radio', { name: 'ARCHI', exact: true }).check();
+    await page.getByRole('button', { name: 'Add to route', exact: true }).click();
+    await expect(page.locator('.route-attached-approach')).toContainText('ARCHI');
+  });
+}

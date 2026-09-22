@@ -1,4 +1,4 @@
-# Saved workspace state
+# Workspace persistence and restoration
 
 [Documentation](../README.md) / Architecture
 
@@ -19,9 +19,9 @@ download, live sensor, route resolution, or render is still valid.
 | Route | Ordered entry IDs, text, feature pins and approach attachments; route summary expansion | `layers/routes/use-draft.ts`; `zlayer-plugin:routes:draft`, record version 2; UI `route-summary-open` |
 | Route stash | Named structured route snapshots, stable save IDs and list order; loading replaces the active draft | `layers/routes/stash.ts`; `zlayer-plugin:routes:stash`, record version 1 |
 | Recommendations | Open state, aircraft filter, selection scoped to airport pair/data edition/filter, expanded conditions and row limits | `layers/routes`; UI `recommendation-*` / `recommendations-open` |
-| Edge panels | Selected left toolbox or stowed state; selected right panel or stowed state | `shell/map-edge-tools.tsx` / `app.tsx`; UI `edge-tool` / `side-panel` |
-| Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates tab, navaid identification overlay | `app.tsx` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
-| Plate reader | Selected document/approach/edition; original target; actual reader page, zoom, scroll and fullscreen preference | `layers/plates`; UI `plate-selection`, `plate-view:*` |
+| Edge panels | Selected left toolbox or stowed state; selected right panel or stowed state | `shell/map-edge-tools.tsx` / `workspace/use-selection.ts`; UI `edge-tool` / `side-panel` |
+| Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates tab, navaid identification overlay | `workspace/use-selection.ts` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
+| Plate reader | Selected document/approach/edition; original target; actual reader page, zoom, rotation, scroll and fullscreen preference | `layers/plates`; UI `plate-selection`, `plate-view:*` |
 | On-map IAP | Exact document URL, optional integrity metadata, edition and original approach target, independently of the reader | `layers/plates/layer.ts`; UI `plate-on-map` |
 | Shell | Layers, Settings and its General/Plugins tab, region query/filter/storage details, About and welcome acknowledgement | `shell`; corresponding UI records, including `settings-tab` |
 | AHRS presentation | Toolbox selection, fullscreen, upright/flat mount preference | `layers/ahrs/controls.tsx`; UI `ahrs-fullscreen`, `ahrs-mount` |
@@ -63,6 +63,14 @@ describes isolation and the compatibility reads from former global keys.
   preferences. The existing `plugins-unloaded` key retains disabled identities for
   compatibility. New built-ins default to enabled; stored disabled identities are
   validated and expanded to include dependent plugins before attaching anything.
+  Runtime failures leave saved enablement intact. Failed activations and their
+  required dependents stay detached. Failed bridge connections instead leave the
+  consumer loaded but degraded, preserving its working features and connections.
+  Settings offers retry without resetting preferences or restarting healthy plugins;
+  degraded consumers retry only their failed connections.
+  Connections owned by workspace scopes show a separate workspace notice with a
+  targeted retry. Recovery keeps the map and healthy connections alive; ending a
+  scope clears its failures. Connection failures and retry state are never saved.
   Disabling retains routes, plate selection/reading state and downloaded artifacts;
   re-enabling restores UI and map attachments without replaying a previous camera fit.
   A disabled plates plugin does not block startup waiting for PDF restoration.
@@ -76,7 +84,7 @@ describes isolation and the compatibility reads from former global keys.
   approach. **Hide IAP from map** clears the saved choice. Cancellation prevents a
   late restore from reviving a hidden plate or replacing a newer one, and releases
   its canvas. The restore status banner disappears once the plate is ready.
-- [Startup](startup.md) waits for IAP restoration to finish or fail. Failure keeps
+- [Startup](workspace-startup.md) waits for IAP restoration to finish or fail. Failure keeps
   the selection and shows **Retry IAP** and **Hide IAP from map**. The existing
   slow-start escape remains available. A missing PDF never silently substitutes a
   different approach or data edition.

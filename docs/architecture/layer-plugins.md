@@ -2,9 +2,12 @@
 
 [Documentation](../README.md) / Architecture
 
-The built-in plugin migration is implemented as of 2026-09-21. This guide describes
-its current internal contract, module boundaries and remaining verification work.
-It is not a versioned external extension API.
+This guide owns the built-in plugin contracts, module boundaries and authoring
+workflow. It is not a versioned external extension API. Start with
+[Adding a product](#adding-a-product) for implementation steps; the detailed contracts
+follow. Feature behavior and algorithms live in the [plugin guides](../README.md#plugin-guides),
+and common controls follow the [shared UI guide](../features/shared-ui.md#shared-controls).
+Dated [verification history](#verification-history-and-remaining-checks) stays at the end.
 
 A ZLayer layer is a complete workspace feature: data, behavior, presentation and
 lifecycle. A plate viewer remains a feature independently of its optional map
@@ -14,25 +17,115 @@ separate; an ordinary visibility change does not imply disposal.
 
 Use trusted, repository-owned modules, explicit workspace composition, typed
 services, observable stores and direct callbacks. Prefer `openPlate(selection)`
-over a string-based message protocol. There is no general DI container, event bus,
-security sandbox or runtime code discovery. Resource ownership in trusted code is
+over a string-based message protocol. Core supplies a typed, workspace-local plugin registry for optional live integrations.
+There is no general DI container, global event bus, security sandbox or runtime code discovery. Resource ownership in trusted code is
 not a security boundary. Catalogs describe data, never executable plugins;
 external distribution, compatibility and permissions remain separate decisions.
 
 ## Contents
 
+- [Working on built-in products](#working-on-built-in-products)
+  - [Adding a product](#adding-a-product)
+  - [Rules for changes](#rules-for-changes)
 - [Source layout](#source-layout)
 - [Plugin contract and composition](#plugin-contract-and-composition)
+- [Inter-plugin communication](#inter-plugin-communication)
 - [Shared GPS service](#shared-gps-service)
 - [Enabling and disabling](#enabling-and-disabling)
 - [Map contribution lifecycle](#map-contribution-lifecycle)
 - [Stowable panels](#stowable-panels)
 - [Persistent state](#persistent-state)
 - [Demand and freshness](#demand-and-freshness)
-- [Working on built-in products](#working-on-built-in-products)
 - [File downloads](#file-downloads)
-- [Rules for changes](#rules-for-changes)
 - [Verification history and remaining checks](#verification-history-and-remaining-checks)
+
+## Working on built-in products
+
+### Adding a product
+
+1. **Define the feature.** Create `src/layers/<plugin>/` with a small factory exposing
+   only the needed `LayerPlugin` capabilities. Keep data, UI, styles and lifecycle
+   together; add a `README.md` linking longer design/validation notes and list it in the
+   [documentation index](../README.md#plugin-guides). Construct one stable instance
+   per workspace. Construction must not acquire live sensors, listeners or workers
+   for an initially disabled plugin. Keep renderer imports behind `mapContribution.load`
+   and separate data-only entries from UI entries.
+2. **Connect inputs and optional providers.** Receive committed workspace inputs through
+   a `createLayerInput` store when needed. For optional live integration, import another
+   plugin's `public.ts` types and declare `PluginExports<OwnApi, { providerId: ProviderApi }>` alongside
+   `LayerPlugin` using `satisfies`; include extra factory members in that constraint,
+   such as `& { input: typeof input }`. Expose stores and commands through the activation
+   scope and connect through `bridge.watch` or `bridge.get`; do not reach into another
+   feature instance. Handle unavailable providers and clear derived state on
+   disconnect. Use `requires` only when the feature cannot operate without that
+   provider: it changes enablement, unlike an optional bridge lookup.
+3. **Register once.** Add the stable plugin ID and public API type to
+   `workspace/plugin-apis.ts` (`object` when there are no public capabilities).
+   Instantiate the factory in `createWorkspaceLayers` and append its registration
+   to the existing plugin list.
+   For the [checklist example](#stowable-panels), add `checklist: object` to
+   `WorkspacePluginApis`, then use:
+
+   ```ts
+   const checklist = createChecklistPlugin();
+   const plugins = layerPlugins([
+     // Keep the existing registrations here.
+     { ...checklist, communication: registry.registration('checklist', checklist) },
+   ] as const);
+   ```
+
+   Import the factory from its feature entry. Preserve the inferred factory type
+   and readonly tuple; widening them to `LayerPlugin` or `LayerPlugin[]` loses the
+   preference fields inferred by the workspace. Registration IDs must match
+   `definition.id`. Generic hosts and core need no feature-specific branches.
+4. **Place panels.** Assign each contributed edge panel a position in
+   `workspace/panel-layout.ts`.
+   Placements use **panel IDs**, which may differ from plugin IDs (`plate` belongs
+   to `plates`). Controls, overlays and ordinary content tabs need no edge-panel
+   placement. Use `EdgePanel`, `ToolPanel` or `PanelSurface` as appropriate;
+   feature code owns the contents and explicit-close policy.
+5. **Persist intent.** Add persistence only for state that should survive reload. Create
+   a plugin storage scope with the same plugin ID. Map preferences use `pluginPreferences`
+   from `core/storage/preferences.ts` and the scope's `preferences` record; expose both
+   `storage` and `preferences` on the plugin. The workspace discovers slices from
+   the registration list, including disabled plugins, so no second preference-owner
+   list is needed. Keep top-level preference fields distinct across plugins and
+   preserve existing keys through deliberate migrations.
+6. **Reuse core UI.** Use core's [shared UI](../features/shared-ui.md#shared-controls)
+   for ordinary buttons, fields, switches, content tabs, confirmations and modal lifecycle.
+   Shared typography and scrollbar appearance already come from the application stylesheet.
+   Keep feature layout, compact report formatting such as TAF, and specialized
+   instrument or map graphics local; avoid copying shared control rules into plugin CSS.
+7. **Own cleanup and acquisition.** Bind live work to its actual lifetime:
+   activation/connection scopes for integrations, map scopes for attachments, and
+   component cleanup for UI demand. Make `dispose` release live resources while retaining
+   user intent and allowing the same instance to activate again. Use core's
+   [file acquisition](#file-downloads) and shared GPS
+   service where applicable; use the refresh scheduler only for periodic visible
+   demand. Keep reusable geometry/cache code shared when it has independent consumers.
+8. **Verify behavior.** Follow the [verification guide](../development/local-development.md#verification),
+   covering initially disabled startup, provider enable/disable/replacement, failure
+   cleanup, late async completion and remounting as applicable. Include persistence
+   and panel/focus checks for contributed capabilities. Historical results below
+   do not validate a new plugin or later edits.
+
+Use [Terrain's factory](../../src/layers/terrain/plugin.tsx) as an example of optional
+Routes integration, preferences and a toolbox; [Ruler](../../src/layers/ruler/plugin.tsx)
+for session-only map/overlay state; and [Plates](../../src/layers/plates/index.tsx) for a
+persistent viewer with public commands and events. These are examples, not mandatory
+capabilities for every plugin.
+
+### Rules for changes
+
+- Keep one owner for each source, style layer, listener, timer, request, and viewer.
+- Keep cache identity and successful-refresh status honest across offline fallback.
+- Keep shared reference services usable without map visibility: search and routes
+  can need data that has not been rendered.
+- Preserve one map and stable product instances across ordinary UI and panel updates.
+- Preserve lazy map, SQLite worker, and PDF viewer loading through separate entries.
+- Check demand changes, stationary refresh, cancellation, remounting, panel replacement,
+  failure isolation, and the real renderer/worker boundary. A build alone cannot prove
+  that the map renders or that a plate opens correctly.
 
 ## Source layout
 
@@ -58,7 +151,7 @@ The host spans several directories; it is broader than `src/core/`:
 
 | Location | Responsibility |
 | --- | --- |
-| `core/` | Request/worker/storage primitives, shared GPS acquisition, validation helpers, stores, map hosting, tab placement/collision enforcement, panel/focus primitives and shared formatting/geometry |
+| `core/` | Request/worker/storage primitives, shared GPS acquisition, validation helpers, stores, map hosting, panel placement/collision/focus, shared controls/typography/scrollbars and formatting/geometry |
 | `workspace/` | Service and plugin composition, catalog/read-context policy, shared map/camera/input coordination, selection and detail hosting |
 | `offline/` | Regional saves, committed editions, availability, retention, download orchestration and legacy persistence compatibility |
 | `shell/`, `app.tsx` | Application layout, startup, settings, PWA integration and workspace composition; generic contribution hosts |
@@ -69,6 +162,9 @@ Within the workspace, `catalog/` discovers feeds, `read-context.ts` resolves bro
 and saved-edition ownership, and `use-workspace-read-context.ts` restores that
 ownership before observing availability. `feature-details-panel.tsx` composes
 feature-owned bodies; `nearby-feature-picker.tsx` handles overlapping map hits.
+`use-selection.ts` coordinates saved selection, its source edition and retention,
+navaid identification and right-panel actions. `startup.ts` derives initial
+readiness steps from feature state; the shell owns their presentation and timing.
 Shared numeric pixel work belongs in `core/graphics/`, date/time labels in
 `core/format/`, and storage compatibility in `offline/compatibility/`.
 
@@ -87,10 +183,16 @@ boundaries: importing a chart selector must not load SQLite or MapLibre;
 listing procedures must not load PDF.js; the service worker must not import React.
 Feature styles live in their product folder. Cross-product placement and responsive
 layout stay in the shell; the details panel owns its own styles in `workspace/`.
+Core supplies [shared typography, controls, content tabs and scrollbar styles](../features/shared-ui.md#shared-controls).
+Plugins use those primitives for ordinary buttons, fields and tabs, retaining feature layout
+and specialized visualizations. Core also owns shared switch styling, reduced-motion
+policy and native modal lifecycle helpers. UI styles are imported directly, independently of
+the inter-plugin communication bridge.
 
-`core/` has no dependency on features or application coordination. Features can use
-the data-only workspace read context, catalog coverage helpers and feed configuration,
-but do not import workspace composition or shell controls. The details panel combines
+`core/` has no dependency on features or application coordination. The permitted
+workspace imports for features are the data-only `workspace/read-context.ts`,
+`workspace/catalog/catalog.ts` and `workspace/catalog/feed.ts` entries. Features do
+not import workspace composition or shell controls. The details panel combines
 feature-owned sections; navigation still owns its detail formatting and runway UI.
 
 `packages/domain/src/features.ts` owns shared point identity, normalized identifier
@@ -128,20 +230,25 @@ entry. `workspace/products.ts` creates stable instances and validates identities
 
 | Capability | Contract |
 | --- | --- |
-| `definition`, `requires` | Feature identity and optional prerequisites; unknown dependencies and cycles are rejected. |
+| `definition`, `requires` | Feature identity and required plugin IDs, when any; unknown dependencies and cycles are rejected. |
 | `mapContribution` | Optional lazy factory returning detached map adapters; features need not render on the map. |
 | `panels`, `controls`, `overlays`, `footer` | Plain descriptors/components for existing UI surfaces; panel placement belongs to the host. |
 | `preferences`, `storage` | Feature-owned preference records and a core-managed storage scope matching the plugin ID. |
+| `communication` | Workspace-bound registry registration; activation exposes the public API and connects optional consumers. |
 | `dispose()` | Optional cleanup of live resources when disabled; retain intent and allow reuse of the same instance. |
 
 Plugin IDs, map contribution IDs and per-kind UI contribution IDs must be unique.
-A storage scope must match its plugin ID. Core namespaces every local record name,
-so identical names in different plugins cannot collide. Panel placements are validated separately before mounting.
+A storage scope must match its plugin ID, and a declared preference record must use
+that scope's `preferences` slot. Core namespaces every local record name, so identical
+names in different plugins cannot collide. Panel placements are validated separately before mounting.
 `core/layers/use-plugins.ts` selects active contributions for generic hosts, which
 own mounting, error boundaries, subscription cleanup and placement.
 
-`App` explicitly coordinates startup, selection, catalog resolution and React data
-hooks. It publishes committed feature inputs in a layout effect. `createLayerInput`
+`App` composes workspace and feature controllers, publishes their inputs and renders
+the application layout. Workspace controllers own selection/source retention and
+startup readiness policy. Routes owns draft/planning/preview state and edit callbacks in
+`use-controller.ts`; its feature-detail actions live alongside the route editor.
+The workspace publishes committed feature inputs in a layout effect. `createLayerInput`
 and `bindMapLayer` selectors suppress renderer updates for unrelated controls.
 Workspace actions and derived arrays keep stable identities; UI contributions
 select only their own inputs and memoized hosts skip unrelated parent commits.
@@ -165,7 +272,135 @@ needs them. A new service facade requires a concrete consumer and must preserve
 these guarantees; the plugin boundary adds neither a second cache nor a universal
 data or window manager.
 
-### Shared GPS service
+## Inter-plugin communication
+
+`core/layers/bridge.ts` provides `PluginRegistry<Apis>`, `PluginBridge<Apis>` and
+`PluginScope`. There is one registry per workspace. `workspace/plugin-apis.ts` is a
+type-only catalog mapping stable plugin IDs to public interfaces; core imports no
+feature types. Providers with public capabilities own a data-only `public.ts`
+contract and a `publicApi(scope)` factory. `PluginExports<Api, Dependencies>` declares
+the factory's API and optional integration types; TypeScript infers its `publicApi`
+and `connect` parameters from that contract. A plugin without public capabilities
+can expose an empty object, either from its factory or inline during registration;
+it does not need a `public.ts` file. The workspace registers known built-ins alongside
+their contributions in one `products.ts` list, attaching each `communication`
+lifecycle directly. `publicApi` and `connect` belong to `PluginExports`;
+`LayerPlugin.communication` holds the resulting workspace-bound registration.
+
+`usePlugins` activates communication in passive effects, following the workspace’s
+layout-effect input publication, and revokes it before feature disposal. UI and map
+contributions attach only after successful activation, with required providers ready.
+Connection cleanup errors are reported while feature disposal and other plugins' cleanup continue.
+Public APIs provide empty/not-ready snapshots while startup is still waiting for
+its read context. Initially disabled plugins expose no API and acquire no connection
+resources. All built-in IDs are discoverable while enabled;
+plugins with no current public capabilities expose an empty object. Optional
+lookup does not change enablement or add a `requires` edge. Required dependencies
+retain the existing activation policy.
+
+```ts
+connect(bridge: PluginBridge<{ routes: RoutesApi }>, scope: PluginScope) {
+  scope.add(() => updateRoutes([]));
+  bridge.watch('routes', (routes, connection) => {
+    if (routes) connection.observe(routes.displayedRoutes, updateRoutes);
+    else updateRoutes([]);
+  });
+}
+```
+
+- `bridge.get(id)` returns the current public API or `undefined`. IDs determine
+  API types. Use it for immediate actions; use `watch` for enduring connections.
+- `bridge.watch(id, connect)` reports current availability, then provider removal
+  or replacement. Explicit retry reruns only failed watches. Data changes do not
+  reconnect watches. The returned unsubscribe is
+  idempotent, and consumer teardown unsubscribes automatically. Availability changes
+  made inside a callback are drained synchronously after that callback; observers
+  never receive an obsolete replacement. A new watch made during delivery receives
+  its initial value as that delivery drains, before the outer operation returns.
+- Each connection gets a fresh `PluginScope`. Provider changes dispose the previous
+  scope before connecting the replacement. `scope.observe(store, listener)` subscribes
+  and delivers the current snapshot; `scope.listen(events, listener)` subscribes to
+  future events. Both clean up automatically. A failing connection setup, including
+  initial snapshot delivery, releases partially acquired resources and appears in
+  the consumer registration's `failures` store. This also covers providers enabled
+  later. `retryFailed()` creates fresh scopes for only that registration's failed
+  watches. Provider changes can recover a connection; unsubscribe and consumer
+  teardown clear its failure. Later listener errors are reported without blocking
+  other consumers. Failure-status observers are isolated too: a broken observer
+  cannot disable a healthy provider or prevent other consumers from connecting.
+- Providers expose read-only stores through `scope.store`. Existing snapshots are
+  shared by reference; callers must not mutate them. Existing selected stores filter
+  unrelated updates. Combined stores release partially acquired subscriptions on
+  setup failure and release all subscriptions even if one cleanup fails.
+  Consumers explicitly clear derived data when a provider is absent; saved user
+  intent stays with its owner.
+- Providers wrap commands and queries with `scope.command`. Old function references
+  reject with `PluginUnavailableError` after their activation ends, including async
+  results arriving after disable/re-enable. A synchronous command already in progress
+  may close its own attachment and still return its result. Query implementations use `scope.signal`
+  to cancel owned work; consumers check their own connection signal before publishing
+  an awaited result. Cancellation does not replace complete resource/edition identity
+  checks or shared-download ownership.
+- `createLayerEvents<T>` supplies synchronous, typed notifications without replay.
+  New listeners start with the next event, listener errors are isolated, and removed
+  listeners are skipped. Keep current values in stores and imperative requests in
+  commands. Plates uses an `opened` notification so the workspace can select the
+  reader panel after a public `open` command; reconnecting never reopens it.
+
+Workspace consumers use `registry.forScope(owner)` with the same connection and
+cleanup rules. Their failures and targeted retry live in
+`registry.scopedConnections`, separately from plugin registrations. The shell's
+workspace notice identifies the affected providers and offers **Retry workspace
+connections**. Retry preserves healthy watches, feature activation and the map;
+unsubscribing or disposing an owner removes only its failures. Successful retry or
+provider reconnection clears the notice. This covers both map selection's route/ruler
+connections and the workspace's plate-open listener. These transient failures are
+not persisted, and do not change provider enablement or activation status.
+
+A plugin API's availability means its enabled instance can be contacted; data readiness
+and individual capabilities have their own state. Routes exposes its plan, preview
+and scoped edit commands while an observable `editing` capability is present only
+for a healthy map attachment. Its public editing types do not depend on the renderer.
+Renderer failure revokes editing without disconnecting core selection.
+Ruler exposes its active-tool state; Plates exposes its optional map context action.
+Selection watches these through the registry for its own map lifetime.
+
+Terrain and obstructions discover Routes and observe its displayed plans, including
+recommendation previews. AHRS observes the committed plan. METAR discovers Navigation
+and observes airport data and visibility. Connections survive ordinary state updates
+and clear when providers disappear. The workspace composes feature controllers,
+selection and detail presentation; it publishes committed inputs to the owning
+plugin. The bridge creates no competing source of truth, cache or request scheduler.
+
+Data-only readers remain independent of plugin enablement: Routes can load navigation
+and procedure catalogs with their visual plugins disabled, and offline preparation
+works with all plugins disabled. Shared GPS remains a separately leased core service;
+Ownship and AHRS do not discover or depend on one another. Pure geometry, formatting
+and render constants remain explicit public module imports.
+
+Cross-plugin imports are restricted to `public.ts` (type-only) and the explicit
+`api.ts`, `data.ts`, `definitions.ts` and `map-contract.ts` entries. `check:imports`
+rejects feature-internal imports and runtime imports of public contracts, and checks
+designated data/worker entry graphs for UI runtime leaks.
+The registry uses a map for lookup and per-ID listener sets; it neither scans all
+plugins on state updates nor serializes data. Subscriptions and completed cleanup
+callbacks release their references when stopped. Large arrays and sensor processing
+remain with their owners.
+
+Run the focused lifecycle tests and optional local dispatch benchmark with:
+
+```bash
+node --import=tsx --import=./test/helpers/assets.ts --test test/plugin-bridge.test.ts test/plugin-integrations.test.ts
+node --import=tsx tools/benchmark-plugin-bridge.ts
+```
+
+The benchmark reports median costs against direct store subscriptions; it is not a
+portable performance threshold. Browser activation, weather, map-selection and plate
+regressions remain part of the full verification gate. This is a trusted built-in API;
+external distribution, API-version negotiation and worker transports remain separate
+future requirements.
+
+## Shared GPS service
 
 Core groups shared capabilities by responsibility. `core/gps/service.ts` exports
 `createGpsService()` and its `GpsService` type; `core/gps/position.ts` owns fix
@@ -205,13 +440,28 @@ enable the map aircraft, move the camera or start motion sensors.
 
 ## Enabling and disabling
 
-**Settings → Plugins** lists all built-ins with Enable/Disable actions. Changes apply
+**Settings → Plugins** lists all built-ins with labeled on/off switches. Compact rows
+show state through the switch and reserve secondary text for dependency notes.
+Switches retain a 44px minimum touch target. Changes apply
 immediately and persist at action time. The saved list contains disabled IDs, so
 new built-ins default to enabled; restoration validates IDs and includes disabled
 dependents before attachment. `requires` names prerequisite plugin identities.
 Enabling includes prerequisites; disabling includes active dependents, named in the
 settings row. The activation policy rejects missing dependencies and cycles and
 orders cleanup before prerequisites.
+
+Saved enablement and successful activation are separate. A failed activation is
+cleaned up, shown as failed in Settings, and contributes no UI or map attachments;
+required dependents remain blocked. **Retry** retries that plugin and its failed
+prerequisites. A failure inside a `bridge.watch` setup instead marks its consumer
+as degraded: its working connections, public API, UI and map attachments remain
+available, as do healthy providers and required dependents. Settings identifies the
+failed connection and offers **Retry** for only its failed watches. Disabling then
+re-enabling also retries. Both retry paths preserve healthy connections and unrelated
+failures. Failure and dependency blocking do not rewrite saved intent, and ordinary
+renders or unrelated toggles do not repeatedly retry failures. Activation status
+describes activation and connection health; data/render readiness remains with the
+feature and the workspace startup policy.
 
 Navigation and METAR/TAF can be enabled independently. Weather uses navigation's airport map
 data and Info panel when available; disabling navigation leaves weather enabled
@@ -305,12 +555,15 @@ Style/map replacement rebuilds rendering while retaining feature intent.
 It receives contributions and callbacks, with no individual-feature imports.
 `routes/map-contribution.ts` owns route fitting and publishes the live editing
 capability. `workspace/map/selection.ts` owns the shared gesture coordinator's
-lifetime, independently of that renderer. The existing `routes/map-gestures.ts`
+lifetime and its own `MapSelectionInput`, independently of that renderer. It observes
+the Routes public plan/preview/editing stores and invokes scoped edit commands;
+it does not read `RoutePluginInput`. The existing `routes/map-gestures.ts`
 algorithm handles selection, dragging/snapping and control restoration. Its hit-test
 identities come from a data-only contract, so selection does not import the renderer.
-The workspace passes the ruler's active-tool store and plates context action
-explicitly. The ruler receives occupied rectangles from the workspace instead of
-querying shell selectors.
+The workspace supplies a scoped bridge for selection's map lifetime. Selection
+watches Routes and the ruler's active-tool store, and looks up the plates context
+action when needed. The ruler receives occupied rectangles from the workspace
+instead of querying shell selectors.
 Navigation identification uses the annotation band above routes/ruler and below
 ownship, preserving its previous drawing order.
 
@@ -343,19 +596,24 @@ mounting each on its assigned side. A plugin supplies identity and content:
 ```tsx
 import { EdgePanel } from '../../core/ui/edge-panels';
 import type { LayerPlugin } from '../../core/layers/plugin';
+import type { PluginExports } from '../../core/layers/bridge';
 
-export const checklist: LayerPlugin = {
-  definition: { id: 'checklist', title: 'Checklist' },
-  panels: [{ id: 'checklist', title: 'Checklist', Component: () => (
-    <EdgePanel autoOpen={false} icon={<path d="M4 4h16v16H4Z" />}>
-      <ChecklistContents />
-    </EdgePanel>
-  ) }],
-};
+export function createChecklistPlugin() {
+  return {
+    definition: { id: 'checklist', title: 'Checklist' },
+    publicApi: () => ({}),
+    panels: [{ id: 'checklist', title: 'Checklist', Component: () => (
+      <EdgePanel autoOpen={false} icon={<path d="M4 4h16v16H4Z" />}>
+        <ChecklistContents />
+      </EdgePanel>
+    ) }],
+  } satisfies LayerPlugin & PluginExports<object>;
+}
 ```
 
-Register it in `workspace/products.ts` and assign `checklist` an unused position in
-`PANEL_LAYOUT`; there is no feature branch to add to either panel host.
+`ChecklistContents` is the feature-owned body. Follow [Adding a product](#adding-a-product)
+to register the factory and assign its panel an unused position in `PANEL_LAYOUT`;
+there is no feature branch to add to either panel host.
 
 Slots are 44px high with a 4px gap, counted inward from their anchor: top slots
 descend and bottom slots ascend. `workspace/panel-layout.ts` reserves these positions:
@@ -417,7 +675,7 @@ Cancellation leaves the current panel open. A deferred confirmation cannot overr
 a newer request or dismiss a replacement instance. AHRS uses this hook for its
 Stop/Background/Cancel decision; sensor and recording policy remain in the feature.
 
-Opening an airport card sends an action to the plates product; `App` does not
+Opening a plate from an airport card invokes the plates public API; `App` does not
 own the selected PDF or viewer. The dialog mounts before its lazy renderer loads.
 Replacing a plate starts a new session; a delayed close from an older session
 cannot close the replacement. Selection and per-plate reading state follow the
@@ -429,8 +687,9 @@ Its instrument, warning and calibration behavior belongs to the
 
 ## Persistent state
 
-Each plugin's `storage.ts` creates its scope through `core/storage/plugin-storage.ts`
-and exposes it on `LayerPlugin.storage`. Core assigns browser keys as
+Plugins that persist state create their scope in `storage.ts` through
+`core/storage/plugin-storage.ts` and expose it on `LayerPlugin.storage`. Session-only
+plugins, such as Ruler, need no storage scope. Core assigns browser keys as
 `zlayer-plugin:<plugin-id>:<local-name>`; plugin IDs exclude namespace separators.
 Plugins define local names, defaults, validation and schema migrations. Core owns
 browser storage access and JSON record I/O. This is ownership isolation for trusted
@@ -446,7 +705,12 @@ browser storage globals, unscoped UI helpers, or another plugin's storage module
 
 Map preferences are separate version-2 `preferences` records for charts, navigation,
 terrain, ownship, obstructions and metar. `workspace/use-map-preferences.ts` combines
-their decoded values in memory and writes only changed plugin slices. Updating one
+the preference slices declared by the complete registered plugin list, including
+disabled plugins. The combined TypeScript value is inferred from that same registration
+list, which stays fixed for a workspace's lifetime. Duplicate top-level fields are
+rejected with both owner IDs instead of silently overwriting another plugin's value.
+The hook combines decoded values in memory and writes only changed plugin slices;
+there is no second list of preference owners. Updating one
 plugin therefore does not overwrite another plugin's settings from an older window.
 
 Legacy global keys are read only when the corresponding namespaced record is absent.
@@ -472,7 +736,7 @@ the next cache write. Keep saved records small and serializable; runtime state s
   Disabling a plugin disposes runtime resources while retaining saved state;
   resetting/deleting saved state is a separate action.
 
-[Workspace state](workspace-state.md) lists the saved records, restoration order,
+[Workspace persistence](workspace-persistence.md) lists the saved records, restoration order,
 write-failure behavior and deliberate session-only state.
 
 ## Demand and freshness
@@ -518,9 +782,7 @@ The [METAR/TAF guide](../../src/layers/metar-taf/README.md#demand-refresh-and-re
 owns station demand, refresh intervals, nearby selection, cached-report recovery,
 map presentation and runway-wind behavior.
 
-## Working on built-in products
-
-### File downloads
+## File downloads
 
 `core/storage/file-transfer.ts` owns file transfer scheduling, request deadlines,
 optional bounded retries, cancellation and response consumption. Plugins call
@@ -554,32 +816,6 @@ Reference JSON continues through core's validated `fetchJson`, and small weather
 results through their shared clients. Decoded indices, raster tiles and render
 caches remain product-owned. Import checks prohibit plugin-local `fetch` calls and
 direct use of the low-level `downloadFile` writer so new plugins reuse these tools.
-
-### Adding a product
-
-Create a folder under `src/layers/` with a small internal entry. Keep its data,
-UI, styles, lifecycle and documentation together. Add a `README.md` linking any
-longer design/validation notes, and list the plugin in the
-[documentation index](../README.md#plugin-guides). Expose only the contributions needed; register
-the plugin in `workspace/products.ts` and any tabs in `workspace/panel-layout.ts`.
-Use the shared scheduler only when periodic visible-demand refresh fits the feature.
-Move reusable geometry/cache code into shared modules when it has independent
-consumers; retain public feature APIs for behavior that belongs to that feature.
-
-[Route terrain](../../src/layers/terrain/README.md), [obstructions](../../src/layers/obstructions/README.md) and
-[GPS aircraft](../../src/layers/ownship/README.md) own their source, rendering and offline/device limits.
-
-## Rules for changes
-
-- Keep one owner for each source, style layer, listener, timer, request, and viewer.
-- Keep cache identity and successful-refresh status honest across offline fallback.
-- Keep shared reference services usable without map visibility: search and routes
-  can need data that has not been rendered.
-- Preserve one map and stable product instances across ordinary UI and panel updates.
-- Preserve lazy map, SQLite worker, and PDF viewer loading through separate entries.
-- Check demand changes, stationary refresh, cancellation, remounting, panel replacement,
-  failure isolation, and the real renderer/worker boundary. A build alone cannot prove
-  that the map renders or that a plate opens correctly.
 
 ## Verification history and remaining checks
 
@@ -629,3 +865,24 @@ Include input filtering, partial failure, cleanup/remount, duplicate identities,
 fixed tab slots, stow/close/focus/Back behavior, storage migration and denied writes,
 late imports, preserved camera intent and optional runway weather. The real
 renderer/worker boundary and installed-device behavior require their own checks.
+
+### Inter-plugin bridge verification, September 22, 2026
+
+The bridge follow-up ran the full gate in the Playwright 1.63 / Node 24.20 Linux
+container. Chromium recorded 585 passes and five failures. Four failures also
+reproduced on an untouched checkout of `7f2b8f1`: the stalled offline verification,
+both KIWA missing-intercept cases, and the AHRS test that expects the vertical
+`hsi-deviation` SVG path to satisfy Playwright's visibility assertion. The fifth,
+AHRS uncertainty diagnostics, found an empty unaided trend path in the full run;
+it then passed three focused repetitions on both revisions. That intermittent
+failure remains unresolved; the reruns do not make the full gate green.
+WebKit/Retina graphics passed 82 cases with two platform skips; headed Firefox
+passed 41 with one platform skip. `verify:full` exited nonzero for Chromium only.
+
+After the synchronous command teardown fix, import/type checks, all 1,401 unit
+tests and the production build passed again. Focused coverage includes optional
+discovery, late connection, repeated disable/re-enable, listener cleanup,
+reentrancy, stale commands/results, renderer failure, shared route references and
+the real app clearing/restoring terrain demand when Routes is disabled/enabled.
+These counts describe the tested working tree, which also contained concurrent
+workspace changes; they are historical evidence, not a promise about later edits.

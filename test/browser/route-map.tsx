@@ -21,6 +21,7 @@ import { useDirectTo } from '../../src/layers/routes/use-direct-to';
 import { DirectToDialog } from '../../src/layers/routes/direct-to-dialog';
 import type { NearbyFeature, SelectFeature } from '../../src/workspace/feature-selection';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../../src/core/ui/styles.css';
 import '../../src/shell/styles.css';
 import '../../src/core/ui/edge-handle.css';
 import '../../src/core/ui/edge-panels.css';

@@ -43,7 +43,7 @@ test('stowed details retain identification, and the chosen right panel survives 
   await openSidePanel(page, 'details');
   await expect(page.getByRole('button', { name: 'Identify KSBA with nearby navaids' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.nearby-navaids')).toContainText('CMA');
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await openSidePanel(page, 'details');
@@ -136,7 +136,7 @@ test('startup waits for the restored map plate and preserves a separately restor
   release();
   await ready(page);
   await airport(page);
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
   await page.reload();

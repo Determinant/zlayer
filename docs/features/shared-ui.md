@@ -1,6 +1,9 @@
-# Responsive and recovery checks
+# Shared UI and layout
 
 [Documentation](../README.md) / Features
+
+This guide owns shared typography, controls, tabs, dialogs, scrolling and responsive
+layout, followed by the interaction and layout checks that verify them.
 
 Recorded layout review: 2026-09-18, local production build with Chromium touch emulation.
 These are representative **CSS viewports**, not physical-device certification.
@@ -23,6 +26,7 @@ Display scaling and browser chrome can change the available viewport.
 
 - [Layout contract](#layout-contract)
 - [Typography](#typography)
+- [Shared controls](#shared-controls)
 - [Automated regression coverage](#automated-regression-coverage)
 - [Route-validation regression checks](#route-validation-regression-checks)
 - [Plate-modal regression checks](#plate-modal-regression-checks)
@@ -73,13 +77,15 @@ Display scaling and browser chrome can change the available viewport.
   mouse or trackpad. Text-entry controls use 16px on touch devices. MapLibre CSS is
   imported in a lower-priority cascade layer; lazy loading cannot override app controls.
 - Map and PDF ResizeObservers preserve the mounted view through rotation and folding.
-  PDF fitting uses both dimensions, limits canvas memory, and preserves explicit zoom.
+  PDF fitting fills the available width at 100% zoom, allows vertical scrolling,
+  limits canvas memory, and preserves explicit zoom.
 
 ## Typography
 
 | Role | Treatment |
 | --- | --- |
 | Application UI and map attribution | Locally bundled B612, regular 400 / bold 700; synthesis disabled; native controls inherit the UI font |
+| UI headings and titles | Natural B612 spacing (`letter-spacing: normal`), shared by `h1`–`h6`; no negative tracking |
 | Raw TAF and Morse | Shared system monospace stack; preserve report spacing and letter groups |
 | Map identifiers, terrain and GPS projection labels | Bundled Noto Sans Bold glyphs; preserve sizes and halos |
 | Compact metadata and badges | 11 px minimum in application CSS; a design choice, not an accessibility-standard minimum |
@@ -89,7 +95,10 @@ Display scaling and browser chrome can change the available viewport.
 | Long airport and procedure names | Wrap without discarding identifying suffixes; search names use the full width below the identifier/category row |
 
 Use the shared font stacks and `--text-muted` for secondary labels, with explicit
-placeholder color and opacity. TAF categories and fix-setting labels must expand
+placeholder color and opacity. `src/core/ui/styles.css` owns the shared heading
+spacing rule; panel and dialog styles should inherit it rather than tighten titles
+individually. Compact uppercase section labels may retain positive tracking.
+TAF categories and fix-setting labels must expand
 with letter spacing; layer descriptions wrap without tight identifier tracking.
 Map glyphs cover current identifier/numeric labels; arbitrary place names require
 additional ranges (see [map fonts](../../public/fonts/README.md)). FAA chart and PDF
@@ -116,6 +125,76 @@ reset controls; they do not establish full WCAG conformance or current test stat
 Physical iOS/Android rasterization, native selects and OS accessibility text
 settings still require device checks.
 
+## Shared controls
+
+`core/ui/styles.css` is the shared UI entry: typography, native font inheritance,
+viewport/touch tokens, scrolling and `core/ui/controls.css`. The application imports
+it once through `src/styles.css`; standalone UI fixtures import it directly when
+they do not load the application stylesheet. The shell owns workspace layout.
+
+Use `ui-button` on native action buttons and `ui-input` on text/search/number inputs,
+selects and textareas. Core owns their border, background, padding, typography,
+hover, keyboard focus and disabled treatment. Keep native attributes, refs, labels
+and event handlers with the feature; these classes add no JavaScript or wrapper DOM.
+
+```tsx
+<label>Heading
+  <input className="ui-input" type="number" value={heading} onChange={onHeadingChange} />
+</label>
+<button className="ui-button ui-button--primary" type="submit" disabled={busy}>Save</button>
+```
+
+Button modifiers are `ui-button--primary`, `ui-button--danger`, `ui-button--quiet`,
+`ui-button--compact` and `ui-button--icon`. Icon buttons still need an accessible
+name. `ui-input--compact` is for dense toolboxes. Ordinary controls are at least
+44px high; compact controls start at 32px. Both honor the shared 44px touch minimum
+in width and height, including short action labels such as Use.
+Fields use 16px text; compact fields use the shared 14px/16px touch font size.
+Pressed/selected buttons follow their ARIA state. Preserve text-entry minimums and
+existing specialized geometry, including AHRS's compact bezel and 44px fullscreen
+buttons; see its [toolbox contract](../../src/layers/ahrs/README.md#toolbox-and-full-screen).
+
+Use `--primary` for the main action, `--quiet` for a low-emphasis alternative, and
+`--danger` for deletion/removal instead of feature-specific button colors. Simple
+confirmations use `core/ui/confirmation-dialog.tsx`; pass `destructive` for its
+danger variant. It owns native modality, initial Cancel focus, cancellation and
+cleanup. Keep feature-specific decisions and actions in the caller. Local focus
+rules should target specialized controls, without overriding shared buttons/fields.
+Dialogs with custom actions or live status use `core/ui/use-modal-dialog.ts` for
+opening, initial focus and close-on-cleanup. Callers retain their native dialog
+markup, cancellation policy, actions and any explicit focus handoff. Fullscreen
+readers and instruments continue to use `PanelSurface` for inline/modal transitions.
+
+AHRS, Ownship, Terrain, Ruler actions, navigation fix settings, weather station
+selectors, route forms/pickers/recommendations, plate viewer actions, confirmations,
+Settings and startup/error/reset actions use these styles. Feature CSS retains layout,
+widths and meaningful states such as recording, selected terrain modes and route
+procedure choices. Route chips, search-result rows, map tools, sliders,
+radio choices and instrument graphics retain their specialized presentation.
+Compact weather reports, including TAF formatting, stay plugin-owned; their
+ordinary controls still use core's styles and compact variants.
+Core's panel/tab/surface primitives continue to own their existing lifecycles.
+
+Content tabs use `core/ui/tabs.tsx`: `TabList` owns the shared native buttons,
+selected state, roving tab stop and Left/Right/Home/End navigation. Pair it with
+`tabPanelProps` using the same base ID and tab values for panel IDs, labels and
+visibility. Settings, Terrain and Info/Plates use this primitive. Feature owners
+retain selection storage and decide whether inactive content remains mounted;
+Info/Plates keeps inactive panel shells empty so hidden weather and PDF catalog
+content do not start work. Identification temporarily leaves both tabs unselected.
+
+The shared `.switch` indicator is also defined in core controls. Its native button
+owns `role="switch"` and `aria-checked`; local styles may adjust indicator dimensions
+and row layout. Core's UI entry owns the reduced-motion policy as well as the shared
+animations, so standalone UI imports receive the same behavior as the application.
+
+Scrollbar appearance also comes from core: every scrollable element uses the shared
+thin scrollbar and muted thumb on a transparent track, including nested plugin
+content, plate readers and dialogs. No class is needed to opt in. `panel-scroll`
+adds scroll containment and a stable gutter only; keep these layout choices local
+instead of applying them globally. Plugins should not define separate scrollbar
+palettes. The compact route editor retains its intentionally hidden horizontal bar.
+
 ## Automated regression coverage
 
 `test/e2e/responsive.spec.ts` checks actual search text space after padding (at least
@@ -129,7 +208,10 @@ resizing the layout viewport, verifies search results and Settings remain reacha
 and checks that pinch zoom does not resize the application.
 
 `test/e2e/plate-fullscreen.spec.ts` checks fitting, focus restoration, touch controls,
-fullscreen and explicit zoom. An open plate survives seven fold/tablet size changes
+fullscreen and explicit zoom. Reading buttons stay on one line down to a 320px
+viewport; narrow readers use a Page picker for navigation and the source link.
+The percentage button resets zoom, orientation and scroll without changing the page.
+An open plate survives seven fold/tablet size changes
 without another PDF request, and returns to the same airport edition and selected tab.
 `test/e2e/route-editor.spec.ts` covers touch and keyboard editing through data refreshes
 at 320, 360, 390, 430, 480, 600, 601, 744, 832 and 1280px. It checks the full-width
@@ -180,8 +262,10 @@ or cancelling a touch cannot delete a route waypoint.
 
 Check initial focus on Close, background controls outside the tab order, Escape
 restoring the opening plate row, and keyboard access to native browser chrome.
-Reopening and resizing must preserve reachable controls and a fitted page without
-horizontal overflow. A cached PDF must reopen when its source is unavailable.
+Reopening and resizing must preserve reachable controls and a width-fitted page
+without horizontal overflow at 100% zoom. New views start at the top and allow
+vertical scrolling; reopening restores the saved reading position.
+A cached PDF must reopen when its source is unavailable.
 
 The plate dialog now remains mounted while the renderer and PDF load, with the
 shared Settings skeleton and a fade into the completed page. Automated checks

@@ -5,6 +5,28 @@ import type { RouteFeaturePins } from './route-model.js';
 
 export type RouteAirportPair = { origin: GeoPointFeature; destination: GeoPointFeature };
 
+type AirportMatches = Map<string, GeoPointFeature | undefined>;
+type AirportIndex = { identifiers: AirportMatches; ids: AirportMatches };
+const airportIndexes = new WeakMap<readonly GeoPointFeature[], AirportIndex>();
+
+/** Navigation snapshots are immutable; replacing the feature array rebuilds the index.
+ * Undefined marks an ambiguous key, including duplicate stable IDs. */
+function airportIndex(airports: readonly GeoPointFeature[]): AirportIndex {
+  const cached = airportIndexes.get(airports);
+  if (cached) return cached;
+  const identifiers: AirportMatches = new Map(), ids: AirportMatches = new Map();
+  const add = (index: AirportMatches, key: string, airport: GeoPointFeature) =>
+    index.set(key, index.has(key) ? undefined : airport);
+  for (const airport of airports) {
+    if (!airport.properties.faaId) continue;
+    for (const ident of airportIdentifiers(airport)) add(identifiers, ident, airport);
+    if (airport.id) add(ids, airport.id, airport);
+  }
+  const index = { identifiers, ids };
+  airportIndexes.set(airports, index);
+  return index;
+}
+
 /** Only the literal first/last route entries count; intermediate entries may be unresolved. */
 export function preferredRouteAirports(
   tokens: readonly string[],
@@ -12,12 +34,9 @@ export function preferredRouteAirports(
   pins: RouteFeaturePins = {},
 ): RouteAirportPair | undefined {
   if (tokens.length < 2) return undefined;
-  const resolve = (index: number) => {
-    const token = tokens[index]!.trim().toUpperCase();
-    const candidates = airports.filter(airport => airport.properties.faaId &&
-      (pins[index] ? airport.id === pins[index] : airportIdentifiers(airport).includes(token)));
-    return candidates.length === 1 ? candidates[0] : undefined;
-  };
+  const { identifiers, ids } = airportIndex(airports);
+  const resolve = (index: number) => pins[index]
+    ? ids.get(pins[index]) : identifiers.get(tokens[index]!.trim().toUpperCase());
   const origin = resolve(0);
   const destination = resolve(tokens.length - 1);
   return origin && destination ? { origin, destination } : undefined;

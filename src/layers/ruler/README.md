@@ -2,6 +2,9 @@
 
 [Documentation](../../../docs/README.md) / Plugins / ruler
 
+The [core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication)
+exposes read-only active-tool state for workspace map gesture coordination.
+
 The ruler button sits directly below Layers. It starts a temporary measurement;
 closing it clears the measurement and restores ordinary map selection and route
 editing. It does not restore an active input mode after reloading.

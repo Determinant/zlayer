@@ -1,4 +1,4 @@
-# ZLayer color system
+# ZLayer color-system plan
 
 [Documentation](../README.md) / Product
 
@@ -258,7 +258,7 @@ repeat every implementation literal.
 - [ ] Check the main shell, open Layers, search results, route recommendations,
       airport weather/TAF, plates, settings, and degraded/offline states.
 - [ ] Review bright VFR charts, IFR charts, and the basemap at representative
-      desktop, tablet, and phone widths from `docs/features/responsive-layout.md`.
+      desktop, tablet, and phone widths from `docs/features/shared-ui.md`.
 - [ ] `npm run verify` and relevant browser checks pass after implementation.
 
 Shared token generation and the coordinated migration remain unimplemented. Some

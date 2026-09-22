@@ -114,7 +114,10 @@ The fallback retains at most 8 MiB; lack of storage must fail cleanly instead of
 accumulating an entire book in RAM. Receipts resolve only to existing files of the
 recorded size. Receipts live in separate cache namespaces so older open pages
 cannot invalidate them; legacy complete entries remain readable. Concurrent
-publishers reuse matching verified files. Removal makes an entry unavailable
+publishers reuse matching verified files. Receipt reads share a URL lock so a stalled
+read cannot block a replacement verification read after pausing. Publishing and
+removal hold that lock exclusively to keep receipt/file handoffs atomic.
+Removal makes an entry unavailable
 immediately, while backing files stay readable for existing viewers until their
 file handles are released. Full reset stops readers before deleting all files.
 Interrupted uncommitted files are cleaned up; files orphaned by process termination

@@ -1,3 +1,6 @@
+import type { PlatesApi } from './public';
+import { createLayerEvents } from '../../core/layers/events';
+import type { PluginExports } from '../../core/layers/bridge';
 import { pluginStorage } from './storage';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { LayerPlugin } from '../../core/layers/plugin';
@@ -10,14 +13,23 @@ import { formatDateRange } from '../../core/format/time';
 
 export function createPlatesLayer() {
   const controller = createPlatesController(true);
+  const opened = createLayerEvents<Parameters<PlatesApi['open']>[0]>();
+  const open: PlatesApi['open'] = selection => { controller.open(selection); opened.emit(selection); };
   const Panel = () => <PlatesPanel layer={controller} />;
-  const MapControl = () => <PlateMapControl layer={controller} />;
+  const MapControl = () => <PlateMapControl layer={controller} onOpen={open} />;
   let showMenuAt: ((point: { x: number; y: number }) => boolean) | undefined;
   return {
-    ...controller, Panel, MapControl, storage: pluginStorage,
+    ...controller,
+    publicApi(scope) {
+      return {
+        open: scope.command(open),
+        contextAction: scope.command(point => showMenuAt?.(point) ?? false),
+        opened: { subscribe: listener => scope.listen(opened.events, listener) },
+      };
+    },
+    storage: pluginStorage,
     panels: [{ id: 'plate', title: controller.definition.title, Component: Panel, close: controller.close }],
     overlays: [{ id: 'plate-map', Component: MapControl }],
-    contextAction: (point: { x: number; y: number }) => showMenuAt?.(point) ?? false,
     mapContribution: { id: 'plates', async load(context) {
       const initiallyFitted = context.preserveView ? controller.getSnapshot().mapImage : undefined;
       const { createPlateMapLayer } = await import('./map');
@@ -25,8 +37,7 @@ export function createPlatesLayer() {
       return [{ ...layer, mount(map) { layer.mount(map); showMenuAt = layer.showMenuAt; },
         unmount() { showMenuAt = undefined; layer.unmount(); } }];
     } },
-  } satisfies LayerPlugin & PlatesController & { Panel: typeof Panel; MapControl: typeof MapControl;
-    contextAction(point: { x: number; y: number }): boolean };
+  } satisfies LayerPlugin & PluginExports<PlatesApi>;
 }
 
 function PlatesPanel({ layer }: { layer: PlatesController }) {
@@ -45,7 +56,7 @@ function PlatesPanel({ layer }: { layer: PlatesController }) {
   );
 }
 
-function PlateMapControl({ layer }: { layer: PlatesController }) {
+function PlateMapControl({ layer, onOpen }: { layer: PlatesController; onOpen: PlatesApi['open'] }) {
   const { mapImage, mapMenuPoint, mapSelection, mapRestoreError } = useLayerSnapshot(layer);
   useEffect(() => {
     if (!mapSelection) return;
@@ -66,10 +77,11 @@ function PlateMapControl({ layer }: { layer: PlatesController }) {
         <small>Effective {formatDateRange(mapSelection.effectiveDate, mapSelection.expirationDate)}</small>
         {mapRestoreError ? <small role="alert" title={mapRestoreError}>IAP could not be restored. Retry or hide it.</small>
           : <small>Restoring IAP…</small>}</span>
-      {mapRestoreError && <button type="button" className="plate-map-retry" onClick={layer.retryMapRestore}>Retry IAP</button>}
-      <button type="button" onClick={() => layer.hideFromMap(mapImage)} aria-label="Hide IAP from map" title="Hide IAP from map">×</button>
+      {mapRestoreError && <button type="button" className="ui-button plate-map-retry" onClick={layer.retryMapRestore}>Retry IAP</button>}
+      <button className="ui-button ui-button--icon" type="button" onClick={() => layer.hideFromMap(mapImage)} aria-label="Hide IAP from map" title="Hide IAP from map">×</button>
     </aside>}
     {mapImage && mapMenuPoint && <PlateMapMenu point={mapMenuPoint} onClose={layer.closeMapMenu}
+      onOpen={() => onOpen(mapImage.selection)}
       onHide={() => layer.hideFromMap(mapImage)} />}
   </>;
 }

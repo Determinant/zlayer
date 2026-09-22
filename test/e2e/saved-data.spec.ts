@@ -18,7 +18,7 @@ async function saveRegion(page: Page, region = 'California', revision = '2026-09
 async function openAirportPlates(page: Page) {
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
 }
 
 test('saved navigation rejects replacement content after eviction despite identical cycle and counts', async ({ page, request }) => {
@@ -50,7 +50,7 @@ test('an open airport keeps its edition and plate targets when a newer saved reg
   await saveRegion(page, 'California', '2026-08-06');
   await openAirportPlates(page);
   await expect(page.locator('.feature-edition')).toHaveText('FAA Aug 6');
-  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  await page.getByRole('tab', { name: 'Info', exact: true }).click();
   await selectCycle(page, '2026-09-03');
   await page.getByLabel('Settings and offline downloads').click();
   await page.getByLabel('Find a state or territory').fill('California');
@@ -63,7 +63,7 @@ test('an open airport keeps its edition and plate targets when a newer saved reg
   await expect(page.locator('.search-results button').filter({ hasText: 'KSBA' })).toBeVisible();
   await expect(page.locator('.feature-edition')).toHaveText('FAA Aug 6');
   await page.getByLabel('Search FAA navigation data').fill('');
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.getByText('Open original ↗')).toHaveAttribute('href', /\/2026-08-06\//);
   await page.getByLabel('Close plate').click();

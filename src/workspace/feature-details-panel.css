@@ -74,7 +74,6 @@
   min-width: 0;
   margin: 0;
   font-size: 27px;
-  letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 
@@ -113,18 +112,7 @@
   min-height: 0;
 }
 
-.close-card {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: max(32px, var(--touch-target));
-  height: max(36px, var(--touch-target));
-  border: 0;
-  border-radius: 8px;
-  color: #7790a4;
-  background: rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-}
+.close-card { position: absolute; top: 12px; right: 12px; height: max(36px, var(--touch-target)); }
 
 .feature-card dl {
   display: grid;
@@ -163,16 +151,7 @@
 }
 
 .feature-card .feature-facts > div { align-content: start; }
-.feature-fact-retry {
-  min-height: var(--touch-target, 32px);
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
+.feature-fact-retry { padding-inline: 4px; text-decoration: underline; }
 .feature-card .feature-facts > .is-frequency {
   --frequency-label-width: 88px;
   --frequency-row-height: 32px;
@@ -318,34 +297,7 @@
   font-size: 11px;
 }
 
-.feature-tabs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 3px;
-  margin: 0 0 12px;
-  padding: 3px;
-  border-radius: 9px;
-  background: rgba(151, 199, 228, 0.08);
-}
-
-.feature-tabs button {
-  min-height: var(--touch-target);
-  padding: 7px 9px;
-  border: 0;
-  border-radius: 7px;
-  color: var(--text-muted);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.feature-tabs button.is-active {
-  color: #dafbf6;
-  background: rgba(65, 149, 151, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(97, 214, 197, 0.15);
-}
+.feature-tabs { margin: 0 0 12px; }
 
 @media (max-width: 640px) {
   .feature-details-panel,

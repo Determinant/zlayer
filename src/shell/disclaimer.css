@@ -4,12 +4,12 @@
 .welcome-install-steps > div { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 12px; }
 .welcome-install-steps dt { color: #dcecf5; font-weight: 700; line-height: 1.6; }
 .welcome-install-steps dd { margin: 0; color: #aec3d2; line-height: 1.6; }
-.disclaimer-dialog .about-heading h2 { font-size: 22px; line-height: 1.3; letter-spacing: normal; }
+.disclaimer-dialog .about-heading h2 { font-size: 22px; line-height: 1.3; }
 #welcome-title:focus { outline: none; }
 .disclaimer-body:focus-visible { outline: 2px solid #61d6c5; outline-offset: -3px; }
 .disclaimer-body > section + section { margin-top: 22px; }
 .disclaimer-body p { line-height: 1.6; }
-.disclaimer-body h3 { font-size: 17px; line-height: 1.4; letter-spacing: normal; }
+.disclaimer-body h3 { font-size: 17px; line-height: 1.4; }
 .disclaimer-summary { padding-bottom: 22px; border-bottom: 1px solid #253b4e; }
 .disclaimer-status {
   display: inline-block; margin-bottom: 12px; padding: 5px 9px; border: 1px solid #714047;
@@ -23,12 +23,6 @@
   display: flex; justify-content: flex-end; flex-shrink: 0; padding: 12px 28px;
   border-top: 1px solid #253b4e; background: #0b1b2b;
 }
-.disclaimer-footer button {
-  min-height: 44px; padding: 10px 20px; border: 1px solid #b45858; border-radius: 8px;
-  background: #7a3037; color: #fff0ed; font: inherit; cursor: pointer;
-}
-.disclaimer-footer button:hover:not(:disabled) { background: #963e46; }
-.disclaimer-footer button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 560px) {
   .welcome-install-steps > div { grid-template-columns: 1fr; gap: 4px; }

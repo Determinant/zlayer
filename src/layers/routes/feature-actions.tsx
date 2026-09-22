@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { useBackDismiss } from '../core/ui/pwa-back';
+import { useBackDismiss } from '../../core/ui/pwa-back';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture, setRouteArrival } from '../layers/routes/draft';
-import { routePointForFeature } from '../layers/routes/selection';
-import { removeRoutePoint, routeItemsForPoint } from '../layers/routes/removal';
-import type { DirectToAction } from '../layers/routes/direct-to';
-import { DirectToIcon } from '../layers/routes/direct-to-icon';
+import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture, setRouteArrival } from './draft';
+import { routePointForFeature } from './selection';
+import { removeRoutePoint, routeItemsForPoint } from './removal';
+import type { DirectToAction } from './direct-to';
+import { DirectToIcon } from './direct-to-icon';
 
 export type FeatureRoute = {
   plan: RoutePlan;

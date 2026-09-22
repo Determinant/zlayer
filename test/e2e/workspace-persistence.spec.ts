@@ -116,7 +116,7 @@ test('airport, plate, page, zoom, fullscreen and scroll restore together, includ
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
@@ -147,7 +147,7 @@ test('airport, plate, page, zoom, fullscreen and scroll restore together, includ
   await page.getByLabel('Close plate', { exact: true }).click();
   await expect(page.locator('.procedure-window')).toHaveCount(0);
   await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Plates', exact: true })).toHaveClass('is-active');
+  await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.feature-card h2')).toHaveText('KSBA');
   await page.reload();
   await mapReady(page);

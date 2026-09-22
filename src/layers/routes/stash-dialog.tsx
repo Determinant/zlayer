@@ -1,36 +1,51 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { routeDraftText, type RouteDraft } from '@zlayer/domain';
+import { routeDraftText, type RouteDraft, type RouteResolver } from '@zlayer/domain';
+import type { CatalogResponse } from '@zlayer/contracts';
 import { useBackDismiss } from '../../core/ui/pwa-back';
 import { formatWaypointLabel } from '../../core/format/coordinates';
-import { updateRouteStash, editSavedDraft, readRouteStash, ROUTE_STASH_KEY, savedRoute, type SavedRoute } from './stash';
+import { updateRouteStash, editSavedDraft, readRouteStash, savedRoute, type SavedRoute } from './stash';
+import { useRouteStash } from './use-stash';
+import { useRouteResolver } from './use-plan';
+import { routeTokenStates, routeTokenStateClass } from './waypoint-style';
 import '../../core/ui/confirmation-dialog.css';
 import './stash.css';
 
 export type RouteStashView = { mode: 'list' } | { mode: 'save'; draft: RouteDraft };
 type View = RouteStashView | { mode: 'edit'; route: SavedRoute };
 
-function loadStash() {
-  try { return { routes: readRouteStash(), error: '' }; }
-  catch (error) { return { routes: [] as SavedRoute[], error: String((error as Error).message) }; }
+function suggestedRouteName(draft: RouteDraft): string {
+  const first = draft.entries[0], last = draft.entries.at(-1);
+  if (!first || !last) return '';
+  const origin = formatWaypointLabel(first.text);
+  return draft.entries.length === 1 ? origin : `${origin} to ${formatWaypointLabel(last.text)}`;
 }
 
-export function RouteStashDialog({ initial, onLoad, onClose }: {
-  initial: RouteStashView; onLoad: (draft: RouteDraft) => void; onClose: () => void;
+export function RouteStashDialog({ initial, catalog, onLoad, onClose }: {
+  initial: RouteStashView; catalog: CatalogResponse; onLoad: (draft: RouteDraft) => void; onClose: () => void;
 }) {
   const [view, setView] = useState<View>(initial);
-  const [state, setState] = useState(loadStash);
-  const [name, setName] = useState('');
+  const [state, setState, refresh] = useRouteStash();
+  const { resolver, status } = useRouteResolver(catalog, view.mode === 'save' || state.routes.length > 0);
+  const [name, setName] = useState(() => initial.mode === 'save' ? suggestedRouteName(initial.draft) : '');
   const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  const searchIndex = useMemo(() => state.routes.map(route => ({
+    route, text: `${route.name} ${routeDraftText(route.draft)}`.toLowerCase(),
+  })), [state.routes]);
+  const matches = useMemo(() => {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return searchIndex.filter(({ text }) => terms.every(term => text.includes(term))).map(({ route }) => route);
+  }, [searchIndex, query]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const id = useId();
   const heading = view.mode === 'save' ? 'Save route' : view.mode === 'edit' ? 'Edit saved route' : 'Route Stash';
-  const refresh = () => setState(loadStash());
   const dismiss = () => {
     if (pending.current) return;
     if (view.mode === 'edit') { setView({ mode: 'list' }); setState(current => ({ ...current, error: '' })); }
@@ -45,15 +60,11 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
   }, []);
   useLayoutEffect(() => {
     if (view.mode === 'list') closeButton.current?.focus();
-    else nameInput.current?.focus();
+    else {
+      nameInput.current?.focus();
+      if (view.mode === 'save') nameInput.current?.select();
+    }
   }, [view.mode]);
-  useEffect(() => {
-    const changed = (event: StorageEvent) => { if (event.key === ROUTE_STASH_KEY || event.key === null) refresh(); };
-    window.addEventListener('storage', changed);
-    window.addEventListener('focus', refresh);
-    return () => { window.removeEventListener('storage', changed); window.removeEventListener('focus', refresh); };
-  }, []);
-
   const fail = (error: unknown) => setState(current => ({ ...current, error: (error as Error).message }));
   const change = async (update: (routes: SavedRoute[]) => SavedRoute[]) => {
     if (pending.current) return false;
@@ -98,11 +109,15 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
     setMessage('Saved route removed.');
   };
   const move = async (id: string, direction: number) => {
+    const visible = new Set(matches.map(route => route.id));
     if (!await change(routes => {
       const index = routes.findIndex(route => route.id === id);
       if (index < 0) throw new Error('This saved route was removed. Refresh the stash.');
-      const next = [...routes], [route] = next.splice(index, 1);
-      next.splice(Math.max(0, Math.min(next.length, index + direction)), 0, route!);
+      let target = index + direction;
+      while (routes[target] && !visible.has(routes[target]!.id)) target += direction;
+      if (!routes[target]) return routes;
+      const next = [...routes];
+      [next[index], next[target]] = [routes[target]!, routes[index]!];
       return next;
     })) return;
     setMessage(direction < 0 ? 'Saved route moved up.' : 'Saved route moved down.');
@@ -114,48 +129,63 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
     onCancel={event => { event.preventDefault(); event.stopPropagation(); dismiss(); }}>
     <header className="route-stash-heading">
       <h2 id={`${id}-title`}>{heading}</h2>
-      <button ref={closeButton} type="button" className="route-stash-close" aria-label={`Close ${heading.toLowerCase()}`} disabled={busy} onClick={onClose}>
+      <button ref={closeButton} type="button" className="ui-button ui-button--icon" aria-label={`Close ${heading.toLowerCase()}`} disabled={busy} onClick={onClose}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
       </button>
     </header>
-    {view.mode === 'list' ? <div className="route-stash-body">
-      <p className="route-stash-note">Saved on this device.</p>
-      {state.error && <div className="route-stash-error" role="alert">{state.error} <button type="button" disabled={busy} onClick={refresh}>Retry</button></div>}
-      <div className="route-stash-status" role="status">{message}</div>
-      {!state.routes.length && !state.error && <p className="route-stash-empty">No saved routes yet. Use Save Route in the Route menu.</p>}
-      <ol className="route-stash-list" aria-label="Saved routes">
-        {state.routes.map((route, index) => <li key={route.id} aria-label={route.name || routeDraftText(route.draft)}>
-          {route.name && <h3>{route.name}</h3>}
-          <RouteStashSummary draft={route.draft} />
-          <div className="route-stash-actions">
-            <button type="button" className="route-stash-load" disabled={busy} onClick={() => load(route.id)}>Load</button>
-            <button type="button" className="route-stash-icon" aria-label="Edit" title="Edit" disabled={busy} onClick={() => {
-              setName(route.name); setText(routeDraftText(route.draft)); setView({ mode: 'edit', route });
-              setState(current => ({ ...current, error: '' }));
-            }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15Z" /></svg></button>
-            <button type="button" className="route-stash-icon route-stash-remove" aria-label="Remove" title="Remove" disabled={busy} onClick={() => remove(route.id)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7" /></svg>
-            </button>
-            <div className="route-stash-order">
-              <button type="button" aria-label="Move up" title="Move up" disabled={busy || index === 0} onClick={() => move(route.id, -1)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+    {view.mode === 'list' ? <>
+      <div className="route-stash-search">
+        <div className="route-stash-search-input">
+          <input className="ui-input" ref={searchInput} type="search" aria-label="Search saved routes" aria-describedby={`${id}-results`}
+            placeholder="Search name or waypoints" autoComplete="off" spellCheck={false} value={query} disabled={busy}
+            onChange={event => setQuery(event.target.value)} />
+          {query && <button className="ui-button" type="button" aria-label="Clear search" disabled={busy} onClick={() => {
+            setQuery(''); searchInput.current?.focus();
+          }}>Clear</button>}
+        </div>
+        <p id={`${id}-results`} className="route-stash-note" role="status">
+          {query.trim() ? `${matches.length} of ${state.routes.length} routes` : `${state.routes.length} saved ${state.routes.length === 1 ? 'route' : 'routes'}`} · Saved on this device.
+        </p>
+      </div>
+      <div className="route-stash-body panel-scroll">
+        {state.error && <div className="route-stash-error" role="alert">{state.error} <button className="ui-button" type="button" disabled={busy} onClick={refresh}>Retry</button></div>}
+        <div className="route-stash-status" role="status">{message}</div>
+        {!state.routes.length && !state.error && <p className="route-stash-empty">No saved routes yet. Use Save Route in the Route menu.</p>}
+        {state.routes.length > 0 && !matches.length && <p className="route-stash-empty">No saved routes match your search.</p>}
+        <ol className="route-stash-list" aria-label="Saved routes">
+          {matches.map((route, index) => <li key={route.id} aria-label={route.name || routeDraftText(route.draft)}>
+            {route.name && <h3>{route.name}</h3>}
+            <RouteStashSummary draft={route.draft} resolver={resolver} pending={status === 'loading'} />
+            <div className="route-stash-actions">
+              <button type="button" className="ui-button ui-button--primary" disabled={busy} onClick={() => load(route.id)}>Load</button>
+              <button type="button" className="ui-button ui-button--icon" aria-label="Edit" title="Edit" disabled={busy} onClick={() => {
+                setName(route.name); setText(routeDraftText(route.draft)); setView({ mode: 'edit', route });
+                setState(current => ({ ...current, error: '' }));
+              }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15Z" /></svg></button>
+              <button type="button" className="ui-button ui-button--icon ui-button--danger" aria-label="Remove" title="Remove" disabled={busy} onClick={() => remove(route.id)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7" /></svg>
               </button>
-              <button type="button" aria-label="Move down" title="Move down" disabled={busy || index === state.routes.length - 1} onClick={() => move(route.id, 1)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg>
-              </button>
+              <div className="route-stash-order">
+                <button className="ui-button ui-button--icon" type="button" aria-label="Move up" title="Move up" disabled={busy || index === 0} onClick={() => move(route.id, -1)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+                </button>
+                <button className="ui-button ui-button--icon" type="button" aria-label="Move down" title="Move down" disabled={busy || index === matches.length - 1} onClick={() => move(route.id, 1)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6" /></svg>
+                </button>
+              </div>
             </div>
-          </div>
-        </li>)}
-      </ol>
-    </div> : <form className="route-stash-form" onSubmit={event => { event.preventDefault(); event.stopPropagation(); save(); }}>
+          </li>)}
+        </ol>
+      </div>
+    </> : <form className="route-stash-form" onSubmit={event => { event.preventDefault(); event.stopPropagation(); save(); }}>
       <div className="route-stash-body">
         <label className="route-stash-field" htmlFor={`${id}-name`}>Name <span>(optional)</span>
-          <input ref={nameInput} id={`${id}-name`} type="text" maxLength={120} autoComplete="off" value={name} disabled={busy}
+          <input className="ui-input" ref={nameInput} id={`${id}-name`} type="text" maxLength={120} autoComplete="off" value={name} disabled={busy}
             onChange={event => setName(event.target.value)} />
         </label>
-        {view.mode === 'save' ? <RouteStashSummary draft={view.draft} /> : <>
+        {view.mode === 'save' ? <RouteStashSummary draft={view.draft} resolver={resolver} pending={status === 'loading'} /> : <>
           <label className="route-stash-field" htmlFor={`${id}-route`}>Route
-            <textarea id={`${id}-route`} value={text} rows={4} autoCapitalize="characters" spellCheck={false} disabled={busy}
+            <textarea className="ui-input" id={`${id}-route`} value={text} rows={4} autoCapitalize="characters" spellCheck={false} disabled={busy}
               onChange={event => setText(event.target.value)} />
           </label>
           {view.route.draft.entries.some(entry => entry.approach || entry.departure || entry.arrival) &&
@@ -164,18 +194,19 @@ export function RouteStashDialog({ initial, onLoad, onClose }: {
         {state.error && <p className="route-stash-error" role="alert">{state.error}</p>}
       </div>
       <footer className="confirmation-actions route-stash-footer">
-        <button type="submit" className="confirmation-primary" disabled={busy || view.mode === 'edit' && !text.trim()}>
+        <button type="submit" className="ui-button ui-button--primary" disabled={busy || view.mode === 'edit' && !text.trim()}>
           {view.mode === 'save' ? 'Save' : 'Save changes'}
         </button>
-        <button type="button" disabled={busy} onClick={dismiss}>Cancel</button>
+        <button className="ui-button" type="button" disabled={busy} onClick={dismiss}>Cancel</button>
       </footer>
     </form>}
   </dialog>, document.body);
 }
 
-function RouteStashSummary({ draft }: { draft: RouteDraft }) {
+function RouteStashSummary({ draft, resolver, pending }: { draft: RouteDraft; resolver: RouteResolver; pending: boolean }) {
+  const states = useMemo(() => routeTokenStates(resolver(draft)), [draft, resolver]);
   return <div className="route-stash-path">
-    {draft.entries.map(entry => <span key={entry.id} className={`route-stash-entry${entry.approach || entry.departure || entry.arrival ? ' route-approach-bundle' : ''}${entry.departure ? ' has-departure' : ''}${entry.approach ? ' has-approach' : ''}`}>
+    {draft.entries.map((entry, index) => <span key={entry.id} className={`route-stash-entry${entry.approach || entry.departure || entry.arrival ? ' route-approach-bundle' : ''}${entry.departure ? ' has-departure' : ''}${entry.approach ? ' has-approach' : ''}`}>
       {(entry.approach || entry.departure || entry.arrival) && <span className="route-approach-outline" aria-hidden="true" />}
       {entry.approach && <>
         <span className="route-stash-approach" title={`${entry.approach.name}${entry.approach.entry ? ` · ${entry.approach.entry.name}` : ''}`}>
@@ -183,7 +214,8 @@ function RouteStashSummary({ draft }: { draft: RouteDraft }) {
           <span>{entry.approach.name.replace(/\b(?:RWY|RUNWAY)\s+/gi, '')}{entry.approach.entry ? ` · ${entry.approach.entry.name}` : ''}</span>
         </span>
       </>}
-      <span className="route-token route-stash-chip" title={entry.text}><strong>{formatWaypointLabel(entry.text)}</strong></span>
+      <span className={`route-token route-stash-chip ${routeTokenStateClass({ ...states[index]!, pending })}`}
+        title={entry.text}><strong>{formatWaypointLabel(entry.text)}</strong></span>
       {entry.arrival && <span className="route-stash-approach" title={entry.arrival.name}>
         <span>{entry.arrival.ident} · {entry.arrival.branchName} · {entry.arrival.transition || 'Vectors'}</span>
       </span>}

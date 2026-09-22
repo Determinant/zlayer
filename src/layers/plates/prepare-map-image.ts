@@ -1,4 +1,5 @@
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { withAbort } from '../../core/data/abort';
 import type { ProcedureSelection } from './data';
 import { readPlateGeoreference, type Point } from './georeference';
 import { mercator, unmercator, type PlateMapImage } from './map-image';
@@ -11,12 +12,12 @@ const GRID = 24;
 export async function preparePlateMapImage(pdf: PDFDocumentProxy, pageIndex: number,
   selection: ProcedureSelection, signal: AbortSignal): Promise<PlateMapImage> {
   signal.throwIfAborted();
-  const bytes = await pdf.extractPages([{ document: null, includePages: [pageIndex] }]);
+  const bytes = await withAbort(pdf.extractPages([{ document: null, includePages: [pageIndex] }]), signal);
   signal.throwIfAborted();
   if (!bytes) throw new Error('Unable to read geographic placement from this PDF page.');
-  const geo = await readPlateGeoreference(bytes);
+  const geo = await withAbort(readPlateGeoreference(bytes), signal);
   signal.throwIfAborted();
-  const page = await pdf.getPage(pageIndex + 1);
+  const page = await withAbort(pdf.getPage(pageIndex + 1), signal);
   const source = document.createElement('canvas');
   const canvas = document.createElement('canvas');
   let render: RenderTask | undefined;
@@ -45,7 +46,7 @@ export async function preparePlateMapImage(pdf: PDFDocumentProxy, pageIndex: num
     context.clip();
     signal.throwIfAborted();
     render = page.render({ canvas: source, canvasContext: context, viewport });
-    await render.promise;
+    await withAbort(render.promise, signal);
     context.restore();
     signal.throwIfAborted();
 
@@ -86,7 +87,7 @@ export async function preparePlateMapImage(pdf: PDFDocumentProxy, pageIndex: num
   } finally {
     signal.removeEventListener('abort', cancel);
     source.width = source.height = 0;
-    // The caller serializes this with viewer rendering before cleaning the page.
+    // PDF.js defers cleanup while another consumer is rendering this page.
     page.cleanup();
   }
 }

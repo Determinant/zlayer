@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TabList, tabPanelProps } from '../core/ui/tabs';
 import { formatDate } from '../core/format/time';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { isBoolean } from '../core/storage/ui-state';
@@ -12,6 +13,8 @@ import { ResetSettings } from './reset-settings';
 import { PwaUpdateSettings } from './pwa-update';
 import { PluginSettings } from './plugin-settings';
 import type { PluginControl } from '../core/layers/use-plugins';
+
+const SETTINGS_TABS = [{ value: 'general', label: 'General' }, { value: 'plugins', label: 'Plugins' }] as const;
 
 export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cycleNotice, plugins, onPluginChange, pluginError }: {
   catalog: ChartCatalog;
@@ -30,7 +33,7 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
     (value): value is 'general' | 'plugins' => value === 'general' || value === 'plugins');
   const retry = () => setAttempt(value => value + 1);
   return <>
-    <button type="button" className="settings-button" aria-label="Settings and offline downloads"
+    <button type="button" className="ui-button ui-button--icon settings-button" aria-label="Settings and offline downloads"
       title="Settings and offline downloads" onClick={() => { retry(); setOpened(true); setVisible(true); }}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
         strokeLinejoin="round" aria-hidden="true" focusable="false">
@@ -43,25 +46,15 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
       </svg>
     </button>
     {opened && <SettingsDialog open={visible} onClose={() => setVisible(false)}>
-      <div className="settings-tabs" role="tablist" aria-label="Settings sections">
-        {(['general', 'plugins'] as const).map((id, index) => <button key={id} id={`settings-${id}-tab`} type="button"
-          role="tab" aria-selected={tab === id} aria-controls={`settings-${id}-panel`} tabIndex={tab === id ? 0 : -1}
-          onClick={() => setTab(id)} onKeyDown={event => {
-            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-            event.preventDefault();
-            const next = event.key === 'Home' ? 'general' : event.key === 'End' ? 'plugins' : index === 0 ? 'plugins' : 'general';
-            setTab(next); document.getElementById(`settings-${next}-tab`)?.focus();
-          }}>{id === 'general' ? 'General' : 'Plugins'}</button>)}
-      </div>
-      <div className="settings-body panel-scroll" role="tabpanel" id="settings-general-panel"
-        aria-labelledby="settings-general-tab" hidden={tab !== 'general'}>
+      <TabList id="settings" label="Settings sections" tabs={SETTINGS_TABS} value={tab} onChange={setTab} className="settings-tabs" />
+      <div className="settings-body panel-scroll" {...tabPanelProps('settings', 'general', tab)}>
         <section aria-labelledby="general-settings-title">
           <div className="settings-section-heading">
             <h3 id="general-settings-title">General</h3>
             <AboutLauncher />
           </div>
           <label className="settings-cycle">FAA data cycle
-            <select aria-describedby="cycle-description" value={selection}
+            <select className="ui-input" aria-describedby="cycle-description" value={selection}
               onChange={event => onCycleChange(event.target.value)}>
               <option value="latest">Default · Latest</option>
               {cycles.map(revision => <option key={revision} value={revision}>FAA {formatDate(revision)}</option>)}
@@ -74,14 +67,13 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
         <PwaUpdateSettings />
         <ErrorBoundary resetKey={attempt} fallback={error => <div>
           <p className="settings-error" role="alert">Settings unavailable: {error.message}</p>
-          <button type="button" onClick={retry}>Retry settings</button>
+          <button className="ui-button" type="button" onClick={retry}>Retry settings</button>
         </div>}>
           <Settings catalog={catalog} open={visible && tab === 'general'} />
         </ErrorBoundary>
         {visible && tab === 'general' && <ResetSettings />}
       </div>
-      <div className="settings-body panel-scroll" role="tabpanel" id="settings-plugins-panel"
-        aria-labelledby="settings-plugins-tab" hidden={tab !== 'plugins'}>
+      <div className="settings-body panel-scroll" {...tabPanelProps('settings', 'plugins', tab)}>
         <PluginSettings plugins={plugins} onChange={onPluginChange} error={pluginError} />
       </div>
     </SettingsDialog>}

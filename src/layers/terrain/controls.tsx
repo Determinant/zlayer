@@ -2,12 +2,14 @@ import { pluginStorage } from './storage';
 import type { TerrainCoverage, TerrainStatus } from './types';
 import { terrainColor, TERRAIN_COLOR_STOPS } from './palette';
 import { useEffect, useId, useRef, useState } from 'react';
+import { TabList, tabPanelProps } from '../../core/ui/tabs';
 import { useBackDismiss } from '../../core/ui/pwa-back';
 import { usePluginState } from '../../core/ui/use-persistent-state';
 import { CLEARANCE_COLORS, DEFAULT_TERRAIN_ALTITUDE, MAX_TERRAIN_ALTITUDE, TERRAIN_ALTITUDE_STEP } from './clearance';
 import './styles.css';
 
 const TERRAIN_SLIDER_STEP = 500;
+const COLOR_TABS = [{ value: 'elevation', label: 'Elevation' }, { value: 'clearance', label: 'Clearance' }] as const;
 
 export function terrainSummary(status: TerrainStatus): string {
   if (status.state === 'idle') return 'Add a route or select Viewport to see terrain';
@@ -22,8 +24,8 @@ type CoverageProps = { coverage: TerrainCoverage; onCoverageChange: (coverage: T
 
 function TerrainCoverageControl({ coverage, onCoverageChange }: CoverageProps) {
   return <div className="terrain-coverage" role="group" aria-label="Terrain coverage">
-    <button type="button" aria-pressed={coverage === 'route'} onClick={() => onCoverageChange('route')}>Route</button>
-    <button type="button" aria-pressed={coverage === 'viewport'} onClick={() => onCoverageChange('viewport')}>Viewport</button>
+    <button className="ui-button ui-button--quiet ui-button--compact" type="button" aria-pressed={coverage === 'route'} onClick={() => onCoverageChange('route')}>Route</button>
+    <button className="ui-button ui-button--quiet ui-button--compact" type="button" aria-pressed={coverage === 'viewport'} onClick={() => onCoverageChange('viewport')}>Viewport</button>
   </div>;
 }
 
@@ -107,6 +109,7 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
   const selected = altitude ?? lastAltitude;
   const sliderAltitude = Math.round(selected / TERRAIN_SLIDER_STEP) * TERRAIN_SLIDER_STEP;
   const comparison = altitude !== null;
+  const colorMode = comparison ? 'clearance' : 'elevation';
   const changeAltitude = (next: number) => {
     setLastAltitude(next);
     onAltitudeChange(next);
@@ -129,35 +132,20 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
     {enabled && status.state === 'zoom' && <div className="terrain-zoom-hint" role="status">
       <span aria-hidden="true">＋</span><span>Zoom in to see terrain contours</span>
     </div>}
-    <div className="terrain-color-modes" role="tablist" aria-label="Terrain coloring" onKeyDown={event => {
-      let next: number;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') next = comparison ? 0 : 1;
-      else if (event.key === 'Home') next = 0;
-      else if (event.key === 'End') next = 1;
-      else return;
-      event.preventDefault();
-      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
-      selectMode(next === 1);
-    }}>
-      <button type="button" role="tab" id={`${sliderId}-elevation-tab`} aria-controls={`${sliderId}-elevation-panel`}
-        aria-selected={!comparison} tabIndex={comparison ? -1 : 0} onClick={() => selectMode(false)}>Elevation</button>
-      <button type="button" role="tab" id={`${sliderId}-clearance-tab`} aria-controls={`${sliderId}-clearance-panel`}
-        aria-selected={comparison} tabIndex={comparison ? 0 : -1} onClick={() => selectMode(true)}>Clearance</button>
-    </div>
-    <div className="terrain-legend-panel" role="tabpanel" id={`${sliderId}-elevation-panel`}
-      aria-labelledby={`${sliderId}-elevation-tab`} hidden={comparison} tabIndex={0}>
+    <TabList id={sliderId} label="Terrain coloring" tabs={COLOR_TABS} value={colorMode}
+      onChange={mode => selectMode(mode === 'clearance')} />
+    <div className="terrain-legend-panel" {...tabPanelProps(sliderId, 'elevation', colorMode)} tabIndex={0}>
       <span className="terrain-scale" aria-hidden="true" style={{ background: `linear-gradient(to right, ${
         stops.map(stop => `${stop.color} ${position(stop.feet)}%`).join(', ')})` }} />
       <span className="terrain-scale-labels"><span>{status.interval.toLocaleString('en-US')}</span>
         <span style={{ position: 'absolute', left: `${position(5000)}%`, transform: 'translateX(-50%)' }}>5,000</span><span>10,000+</span></span>
       <small>Below {status.interval.toLocaleString('en-US')} ft unshaded</small>
     </div>
-    <div className="terrain-legend-panel" role="tabpanel" id={`${sliderId}-clearance-panel`}
-      aria-labelledby={`${sliderId}-clearance-tab`} hidden={!comparison}>
+    <div className="terrain-legend-panel" {...tabPanelProps(sliderId, 'clearance', colorMode)}>
       <div className="terrain-altitude-heading">
         <label id={`${sliderId}-label`} htmlFor={`${sliderId}-input`}>Selected altitude</label>
         <span className="terrain-altitude-value">
-          <input id={`${sliderId}-input`} className="terrain-altitude-input" type="number" inputMode="numeric"
+          <input id={`${sliderId}-input`} className="ui-input ui-input--compact terrain-altitude-input" type="number" inputMode="numeric"
             min="0" max={MAX_TERRAIN_ALTITUDE} step={TERRAIN_ALTITUDE_STEP} value={altitudeDraft ?? selected}
             onChange={event => setAltitudeDraft(event.currentTarget.value)}
             onBlur={event => {

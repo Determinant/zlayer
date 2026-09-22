@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const MINIMUM_MS = 900;
 const QUIET_MS = 300;
 const BUSY_FRAME_MS = 50;
-const SLOW_MS = 10_000;
+const SLOW_MS = 15_000;
 
 /** Release once per launch, after initial work and a short responsive frame run. */
 export function useStartup(ready: boolean, failed: boolean) {

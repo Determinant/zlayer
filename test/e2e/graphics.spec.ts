@@ -87,7 +87,9 @@ test('map symbols, weather colors and route pixels survive rotation, resize and 
   await check();
   await page.evaluate(() => window.graphicsFixture.restoreContext());
   await expect(page.locator('body')).toHaveAttribute('data-context', 'restored');
-  await check();
+  // Context/idle notifications can precede a readable restored drawing buffer.
+  // Wait for the rendered output, retaining every exact pixel assertion.
+  await expect(check).toPass({ timeout: 5_000 });
   await page.screenshot({ path: testInfo.outputPath('graphics-restored.png') });
   expect(await page.evaluate(() => window.graphicsFixture.errors)).toEqual([]);
   expect(errors).toEqual([]);
@@ -109,7 +111,7 @@ test('PDF pixels keep their orientation and colors after zooming and tablet rota
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
-  await page.getByRole('button', { name: 'Plates', exact: true }).click();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   const check = async () => {
     await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');

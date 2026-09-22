@@ -52,6 +52,17 @@ transport without changing route, selection, detail, time, or attribution semant
 Keep route calculation, typed feature references, time/cycle rules, and units in a
 renderer-independent domain package.
 
+### Implementation follow-up (2026-09-22)
+
+The current [plugin authoring contract](../architecture/layer-plugins.md#adding-a-product)
+retains these ownership boundaries. Optional live integrations now use the
+[workspace-local typed bridge](../architecture/layer-plugins.md#inter-plugin-communication);
+data-only readers remain independent of plugin enablement. Core supplies shared
+[file acquisition](../architecture/layer-plugins.md#file-downloads) while products own
+demand, format validation and freshness. Ordinary plugin controls, typography,
+scrollbars and modal/tab behavior reuse [core UI](../features/shared-ui.md#shared-controls);
+feature layout and specialized displays remain product-owned.
+
 ## Consequences
 
 - Product additions expose only the surface capabilities they need; map contributions

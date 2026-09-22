@@ -8,10 +8,3 @@
 .confirmation-dialog p { margin: 12px 0 18px; color: #afc2cd; font-size: 14px; line-height: 1.6; }
 .confirmation-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .confirmation-actions > :only-child { grid-column: 1 / -1; }
-.confirmation-actions button {
-  min-height: 44px; padding: 8px 12px; border: 1px solid #46606e; border-radius: 6px;
-  color: #e5edf1; background: #1b3242; font: inherit; font-size: 14px; cursor: pointer;
-}
-.confirmation-actions .confirmation-primary { color: #0d292e; background: #8ad7cb; border-color: #8ad7cb; }
-.confirmation-actions button:disabled { opacity: .45; cursor: default; }
-.confirmation-actions button:focus-visible { outline: 2px solid #85e6db; outline-offset: 3px; }
