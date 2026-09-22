@@ -6,7 +6,8 @@ import { emptyRoutePlan } from '@zlayer/domain';
 import { fetchChartCatalog } from '../../src/workspace/catalog/catalog';
 import { LayerPanels } from '../../src/core/layers/panels';
 import { EdgePanels } from '../../src/core/ui/edge-panels';
-import type { PanelLayer } from '../../src/core/layers/product';
+import type { PanelContribution } from '../../src/core/layers/plugin';
+import { PANEL_LAYOUT } from '../../src/workspace/panel-layout';
 import { createPlatesLayer } from '../../src/layers/plates';
 import { fetchProcedureCatalog } from '../../src/layers/plates/api';
 import { procedureDocument } from '../../src/layers/plates/data';
@@ -18,10 +19,9 @@ const metarClient = createMetarClient();
 
 const plates = createPlatesLayer();
 let failImport = true;
-const panelFixture: PanelLayer = {
-  definition: { id: 'failure-test', title: 'Test panel' },
-  panel: { side: 'right', tab: { edge: 'top', order: 0 } },
-  Panel: function FailingPanel() {
+const panelFixture: PanelContribution = {
+  id: 'failure-test', title: 'Test panel',
+  Component: function FailingPanel() {
     const [Panel] = useState(() => lazy(async () => {
       if (failImport) throw new Error('Simulated lazy import failure');
       return { default: () => <p>Panel recovered</p> };
@@ -77,7 +77,8 @@ function Fixture() {
         route={{ plan: emptyRoutePlan(), update: () => setStatus(`Added ${airportCard.faaId} to end of route`) }}
         onClose={() => { setAirportCard(undefined); setActive(current => current === 'details' ? null : current); }}
         onOpenProcedure={selection => { plates.open(selection); setActive('plate'); }} />}
-      <LayerPanels layers={testFailure ? [plates, panelFixture] : [plates]} />
+      <LayerPanels panels={testFailure ? [...plates.panels, panelFixture] : plates.panels}
+        layout={{ ...PANEL_LAYOUT, 'failure-test': { side: 'right', tab: { edge: 'top', order: 0 } } }} />
     </EdgePanels>
   </div></main>;
 }

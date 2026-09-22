@@ -30,7 +30,7 @@ export function useRoutePlan(
   const key = catalog ? routeResourceKey(catalog, 'plan') : '';
 
   useEffect(() => {
-    if (!catalog || !active) return;
+    if (!catalog || !active) { setLoaded(undefined); return; }
     let cancelled = false;
     let retryTimer: number | undefined;
     setLoaded(current => current?.key === key ? current : { key, data: EMPTY_DATA, status: 'loading' });

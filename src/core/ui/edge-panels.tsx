@@ -7,7 +7,7 @@ import { useBackDismiss } from './pwa-back';
 export type PanelSide = 'left' | 'right';
 /** Slots count away from an edge; removing a panel never compacts other slots. */
 export type PanelTab = { edge: 'top' | 'bottom'; order: number };
-export type PanelPlacement = { side: PanelSide; tab: PanelTab };
+export type PanelPlacement = { side: PanelSide; tab: PanelTab; bodyFromTop?: boolean };
 /** Return false to defer; call proceed after an optional feature-owned confirmation. */
 export type PanelStowGuard = (next: string | null, proceed: () => boolean) => boolean;
 type MountedPanel = { element: HTMLDivElement; beforeStow: PanelStowGuard };
@@ -22,6 +22,30 @@ const PanelsContext = createContext<{
 } | null>(null);
 
 export function usePanelSide() { return useContext(PanelsContext)?.side; }
+
+/** Deferred switches restore focus after the incoming tab is committed. */
+export function focusPanelTab(name: string): void {
+  requestAnimationFrame(() => {
+    const tabs = document.querySelectorAll<HTMLElement>('[data-edge-tab]');
+    for (const tab of tabs) if (tab.dataset.edgeTab === name) {
+      tab.querySelector<HTMLButtonElement>('.map-edge-handle')?.focus();
+      break;
+    }
+  });
+}
+
+/** Restore a closing panel's opener, or its tab when the opener was stowed/removed. */
+export function usePanelReturnFocus() {
+  const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const [panelId] = useState(() => opener?.closest('.edge-panel-body')?.id);
+  return useCallback(() => {
+    requestAnimationFrame(() => {
+      if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
+      else if (panelId) document.querySelector<HTMLButtonElement>(`[aria-controls="${CSS.escape(panelId)}"]`)
+        ?.focus({ preventScroll: true });
+    });
+  }, [opener, panelId]);
+}
 
 /** One visible panel per edge; each tab slides with its own panel. */
 export function EdgePanels({ side, active, onActiveChange, className = '', individualTabs = false, children }: {
@@ -200,7 +224,7 @@ export function EdgePanelFrame({ panel, label, icon, tab, className = '', style,
       event.preventDefault();
       panel.stow();
     }}>
-    <EdgePanelTab name={panel.name} tab={tab ?? defaults?.tab ?? { edge: 'top', order: 0 }}>
+    <EdgePanelTab name={panel.name} tab={defaults?.tab ?? tab ?? { edge: 'top', order: 0 }}>
       <EdgeHandle ref={panel.handle} controls={panel.id} open={panel.selected} label={label} side={panel.side}
         onClick={() => panel.selected ? panel.stow() : panel.setOpen(true)}>{icon}</EdgeHandle>
     </EdgePanelTab>
@@ -218,7 +242,7 @@ export function EdgePanel({ name, label, icon, tab, autoOpen = true, beforeStow,
   const panelName = name ?? defaults?.name;
   if (!panelName) throw new Error('An edge panel needs a registered layer or a name');
   const panel = useEdgePanel(panelName, { beforeStow });
-  const position = tab ?? defaults?.tab ?? { edge: 'top', order: 0 };
+  const position = defaults?.tab ?? tab ?? { edge: 'top', order: 0 };
   const group = useContext(PanelsContext);
   useLayoutEffect(() => { if (autoOpen) panel.setOpen(true); }, [autoOpen, panel.setOpen]);
   return <EdgePanelFrame panel={panel} label={label ?? defaults?.label ?? panelName} icon={icon} tab={position}

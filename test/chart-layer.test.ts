@@ -26,6 +26,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier === './mbtiles-protocol' && context.parentURL?.includes('/charts/')) return {
     shortCircuit: true, url: 'data:text/javascript,' + encodeURIComponent(`
       export const registerMbtilesArchives = catalog => globalThis.chartRegistrations.push(catalog);
+      export const retainChartReaders = () => () => {};
       export const mbtilesTileUrl = id => 'mbtiles://' + id;
       export const observeChartFailures = listener => {
         globalThis.chartFailures.add(listener);

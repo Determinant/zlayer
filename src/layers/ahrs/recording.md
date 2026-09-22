@@ -1,5 +1,7 @@
 # AHRS recordings
 
+[Documentation](../../../docs/README.md) / Plugins / [ahrs](README.md)
+
 The recorder stores live input and estimator output locally for comparison with
 an independent reference. It does not request sensor permissions or start AHRS;
 calibration still starts motion and the shared GPS lease. Recording before
@@ -8,6 +10,13 @@ attitude, bias, covariance, trim and options, but not the filter's preceding
 replay/reference history. It is not an exact mid-flight restart checkpoint.
 Calibration and recording can proceed without ever receiving a GPS fix; the GPS
 lease does not make a fix a prerequisite for live IMU attitude.
+
+## Contents
+
+- [GPX track download](#gpx-track-download)
+- [Debug log download](#debug-log-download)
+- [Offline estimator replay](#offline-estimator-replay)
+- [Persistence](#persistence)
 
 ## GPX track download
 

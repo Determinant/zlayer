@@ -53,3 +53,52 @@ test('isolates partial mount/update failures, including a failing cleanup', () =
   assert.equal(mounted, 2, 'a new map attachment retries failed modules');
   assert.throws(() => host.mount([good, good]), /Duplicate layer/);
 });
+
+
+test('reconciliation keeps healthy attachments alive and preserves order across late additions and removals', () => {
+  const order: string[] = [], events: string[] = [];
+  const map = {
+    getLayer: (id: string) => order.includes(id),
+    addLayer: ({ id }: { id: string }) => { order.push(id); },
+    removeLayer: (id: string) => { order.splice(order.indexOf(id), 1); },
+    moveLayer: (id: string, before?: string) => {
+      order.splice(order.indexOf(id), 1);
+      order.splice(before ? order.indexOf(before) : order.length, 0, id);
+    },
+  } as unknown as MapLibreMap;
+  const module = (id: string, slot: LayerSlot): MapLayerModule<void> => ({
+    id, slot, overlayLayerIds: [`${id}-point`], foregroundLayerIds: [`${id}-label`],
+    mount() { events.push(`mount:${id}`); order.push(`${id}-point`, `${id}-label`); }, update() {},
+    unmount() { events.push(`unmount:${id}`); map.removeLayer(`${id}-label`); map.removeLayer(`${id}-point`); },
+  });
+  const route = module('route', 'route'), navigation = module('navigation', 'navigation');
+  const host = new MapLayerHost(map, (_id, error) => { throw error; });
+  host.reconcile([route]);
+  host.reconcile([navigation, route]);
+  assert.deepEqual(events, ['mount:route', 'mount:navigation']);
+  assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')), [
+    'navigation-point', 'route-point', 'navigation-label', 'route-label',
+  ]);
+  host.reconcile([route]);
+  assert.deepEqual(events, ['mount:route', 'mount:navigation', 'unmount:navigation']);
+  assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')), ['route-point', 'route-label']);
+  host.unmount();
+  assert.deepEqual(order, []);
+});
+
+test('reconciliation does not retry a failed adapter until it has been unloaded', () => {
+  let mounts = 0, unmounts = 0;
+  const bad: MapLayerModule<void> = { id: 'bad', slot: 'route',
+    mount() { mounts++; throw new Error('mount'); }, update() {}, unmount() { unmounts++; } };
+  const good: MapLayerModule<void> = { id: 'good', slot: 'navigation', mount() {}, update() {}, unmount() {} };
+  const host = new MapLayerHost(map, () => {});
+  host.reconcile([bad]);
+  host.reconcile([good, bad]);
+  assert.equal(mounts, 1);
+  assert.equal(unmounts, 1);
+  host.reconcile([good]);
+  host.reconcile([good, bad]);
+  assert.equal(mounts, 2);
+  assert.equal(unmounts, 2);
+  host.unmount();
+});

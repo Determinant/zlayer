@@ -1,5 +1,7 @@
 # AHRS tool
 
+[Documentation](../../../docs/README.md) / Plugins / ahrs
+
 This folder owns the estimator, browser motion adapter, calibration, attitude and
 GPS instruments, HSI, controls and local recordings. It has no runtime or build
 dependency on the standalone `zlayer-ahrs` repository. The entire tool, including
@@ -7,13 +9,60 @@ dependency on the standalone `zlayer-ahrs` repository. The entire tool, includin
 Estimator copyright (c) 2026 zlayer-ahrs contributors.
 The tool is experimental and has not been validated in flight.
 
+## Contents
+
+- [Display principles](#display-principles)
+- [Integration and sensor lifecycle](#integration)
+- [GPS instruments](#ground-speed-altitude-and-vertical-speed)
+- [Compact HSI](#compact-hsi)
+- [Calibration and validity](#calibration-and-validity)
+- [Tilt aiding and heading acquisition](#tilt-aiding-and-heading-acquisition)
+- [Relative magnetic fusion](#relative-magnetic-fusion)
+- [Verification](#verification)
+
+Detailed equations live in [gravity/acceleration fusion](estimator/gravity-aiding.md),
+[heading acquisition](estimator/heading-alignment.md),
+[GPS aiding before north alignment](estimator/velocity-change.md),
+[magnetic fusion and calibration](estimator/magnetic-fusion.md) and
+[uncertainty](estimator/uncertainty.md). See [validation](validation.md) for numerical
+evidence and remaining checks, and [recordings](recording.md) for capture/replay.
+Historical pointers for the [superseded steady-window tilt method](estimator/steady-tilt.md)
+and [superseded magnetic drift aid](estimator/magnetic-drift.md) identify their replacements.
+
+## Display principles
+
+**Show what is available and flag its limitations.** Availability and confidence
+are separate decisions for each reading. A red cross communicates uncertainty or
+a missing input; it must not blank other information that the instruments can
+still provide. Keep available attitude, heading and route information visible
+beneath the warning. Leave a value unavailable only when its own required inputs
+or usable retained reference are missing.
+
+**The HSI should have a smooth geographic heading whenever one can be established.**
+Usable GPS track can initialize an estimated heading; calibrated gyros carry it
+between fixes, and subsequent corrections settle gradually. The AHRS session owns
+that reference. The compass must not jump directly between raw GPS track readings.
+Ground track remains a separate indication, and estimated heading remains labeled.
+
+**REL is the last fallback.** Use relative yaw only until the session has a
+geographic reference. GPS loss, low speed or growing uncertainty must not erase
+an established reference. Continue with the information still available and its
+warning; do not invent motion during missing samples. These requirements apply
+equally in the toolbox, full screen and after returning from the background.
+The [HSI behavior](#heading-and-guidance-behavior) and
+[calibration rules](#calibration-and-validity) specify the individual cases.
+
 ## Integration
 
 ### Sensors and display lifecycle
 
 `createAhrsLayer(gps)` accepts a source-neutral GPS port (`AhrsGpsSource`).
-The workspace supplies its existing ownship product. `acquire()` holds a shared
-location lease; it neither enables the map aircraft nor moves the camera.
+The workspace supplies [core's shared GPS service](../../../docs/architecture/layer-plugins.md#shared-gps-service)
+directly. AHRS has no Ownship plugin dependency: you can enable it, calibrate and
+receive GPS with Ownship disabled. `acquire()` holds a shared location lease; it neither
+enables the map aircraft nor moves the camera. Stopping or disabling AHRS releases
+only its own lease. Ownship can continue using the same browser watch, and disabling
+Ownship cannot stop an active AHRS session's GPS.
 Sensors start from the confirmation button and stop on **Stop**, cancellation,
 unrecoverable failure, or unmount. Stowing AHRS through its tab, Escape, or another
 toolbox offers **Stop**, **Background**, and **Cancel**. **Stop** is the prominent,
@@ -49,9 +98,10 @@ Actual device auto-lock behavior still requires phone/tablet verification.
 
 Stopping, canceling calibration, or an unrecoverable fault clears the GPS instruments,
 HSI guidance and GPS-live badge along with the AHRS location lease. A separate
-map GPS consumer can continue tracking, but cannot leave frozen AHRS readings.
-Stopping or starting a new calibration also releases the old estimator replay
-history. Once calibration is applied, its raw IMU/GPS window is discarded; the
+map GPS consumer can continue tracking, but cannot leave old GPS values displayed
+as live in AHRS. A fault retains the last available HSI heading under its warning;
+stopping or starting a new calibration clears that reference and releases the old
+estimator replay history. Once calibration is applied, its raw IMU/GPS window is discarded; the
 estimator retains the resulting trim and bias. Stowing with **Background** and
 temporary sensor pauses preserve the running estimator.
 Temporary motion pauses keep the session, including when returning from a hidden
@@ -62,8 +112,11 @@ provider may suspend its hardware watch while hidden and restart it on return.
 
 The recorder and **Enter full screen** buttons form a centered pair in the top
 bezel, sharing 40-pixel widths and growing to 44-pixel squares in full screen.
-The full-screen control uses the plate viewer's viewport-filling mode and
-expand/contract icon, which grows to 20 pixels. Its top-layer dialog excludes background focus;
+The full-screen control and viewport-filling surface use core's `FullScreenButton`
+and `PanelSurface`, also used by Plates. The expand/contract icon grows to 20 pixels.
+The same native dialog and instrument tree remain mounted in both modes; core owns
+modality, viewport framing and focus, while AHRS owns its fullscreen preference,
+instrument layout and sensor/recording lifecycle. Its top-layer dialog excludes background focus;
 **Exit full screen** or the first Escape returns to the toolbox and restores
 focus to the button. A subsequent Escape uses the existing stow confirmation.
 The header remains reachable while ancillary controls scroll; safe-area insets
@@ -203,16 +256,44 @@ HSI below the attitude display uses magenta for the resolved route's desired
 track and course-deviation bar. The thin course pointer spans the compass rim
 from arrowhead to tail, with the moving CDI between its fixed shaft segments.
 Its compass rose is centered at 80% of the toolbox content width. The heading
-readout sits above the rose. The card always follows live AHRS yaw: **HDG** for a
-confident aligned heading, or **REL** while north alignment is unverified, including
-when GPS is available. GPS track never replaces AHRS yaw as the rotating reference.
-Before calibration or after a motion fault, an
-unavailable heading is shown instead. Separate track and reference details sit
-underneath. Typography uses the shared B612 UI stack and caption sizes; the full-width route-leg selector
-uses the shared 14 px / 16 px touch control size. It shows distance to the selected leg's endpoint,
+readout sits above the rose, with separate track and reference details underneath.
+Typography uses the shared B612 UI stack and caption sizes; the full-width route-leg
+selector uses the shared 14 px / 16 px touch control size.
+It shows distance to the selected leg's endpoint,
 TO/FROM, cross-track error (L/R is the aircraft's side of the route), and a fixed
 ±2 NM full-scale CDI. Great-circle calculations handle dateline crossings and
 the changing local course along a leg.
+
+### Heading and guidance behavior
+
+The card uses a persistent AHRS-owned **HDG** reference. A supplied true heading
+or aligned estimator heading takes precedence. Otherwise, usable GPS track can
+establish an estimated geographic heading without waiting for full estimator
+alignment. Gyros carry turns between fixes; GPS and alignment corrections settle
+gradually. GPS-seeded heading is labeled **GPS/IMU** and **Estimated heading**
+because ground track can differ from aircraft heading.
+
+Heading confidence controls the warning, not whether available magenta guidance
+is drawn. Each part of the HSI uses the inputs it needs:
+
+| Situation | Heading display | Route information |
+| --- | --- | --- |
+| GPS is usable; estimator heading is still unverified | GPS seeds **HDG**, then gyros carry it; the **Heading** cross remains after calibration. | Fresh position and a supported route show magenta course/CDI and all route readings beneath the cross. |
+| Heading becomes uncertain or the estimator reacquires alignment | Keep the geographic heading and smooth subsequent corrections. | Keep available course/CDI and route readings beneath the warning. |
+| GPS is lost or speed falls below the movement gate | Keep the established geographic reference; live gyros continue turning it. | Low speed preserves guidance from a fresh position. GPS loss removes live position-based guidance, while heading remains visible. |
+| Motion pauses or calibration is still in progress | Show any available geographic reference under the warning; usable GPS can still supply an estimate. Do not extrapolate missing gyro motion. | Keep guidance when its position and geographic reference are available. |
+| No geographic reference has been established | Show live relative yaw as **REL**, with numeric marks and no N/E/S/W or magnetic/true suffix. | A fresh position still supplies desired track, distance, cross-track error and TO/FROM. The geographic course/CDI and track diamond cannot be oriented on a relative card. |
+
+Stopping or starting a new calibration clears the session's reference. Stowing,
+full-screen changes, GPS loss and heading recovery preserve it. GPS recovery
+restores available guidance without requiring recalibration.
+
+The session owns heading in [heading-reference.ts](heading-reference.ts) and exposes
+it as `AhrsSnapshot.hsiHeading`. This provisional reference leaves the navigation
+filter's heading uncertainty and fusion gates intact. Timing, damping and frame
+transitions are documented in the [heading-reference design](estimator/heading-alignment.md#hsi-heading-reference).
+
+### Route geometry and magnetic reference
 
 The default leg is explicitly **Auto · nearest**, with a selector to choose a
 supported straight route leg. Approach legs and legs with intermediate geometry
@@ -222,28 +303,12 @@ when legs are omitted. It is a geometric route display, not a procedure navigato
 no turn anticipation, approach sensitivity changes, or managed flight-plan
 sequencing. Editing the route immediately updates its available legs.
 
-The compass uses **magnetic** heading when a confident, aligned heading and
-geographic variation are available. The rose, **HDG … M**, **TRK … M**, and **DTK · M**
-all use the same local east-positive declination (`magnetic = true − declination`).
-The gold heading triangle retains its true-heading tooltip and **TRUE HDG … T**
-readout, and **VAR** reports magnetic variation below the rose. The white diamond
-shows GPS ground track separately, preserving the drift angle when heading is
-aligned. Heading can be initialized manually or established by GPS/inertial motion.
-An acquiring/recovering heading, estimated heading uncertainty above 20°, or degraded
-attitude changes the card to **REL** while retaining live yaw. Geographic course/CDI
-guidance and the track diamond require a confident heading: neither can be placed
-on an unaligned relative card. With usable GPS but unverified heading, the cross
-is labelled **Heading**. Before motion/calibration is ready, GPS alone cannot provide
-an HSI heading.
-Route geometry and CDI deflection remain in true geographic coordinates.
-
-After calibration, missing GPS never removes or freezes the HSI's live inertial
-direction. If no confident aligned heading exists, its rotating
-card uses **REL** and **IMU · REL**, with numeric marks instead of N/E/S/W and no
-magnetic/true suffix. This is relative yaw, not a claim of north alignment. The
-**No GPS** cross remains over the moving card, including throughout prolonged
-outages and high uncertainty. A known, confident heading can continue as **HDG**
-without GPS. Stale/interrupted motion removes the inertial reading.
+The compass uses **magnetic** heading whenever geographic variation is available.
+The rose, **HDG … M**, **TRK … M**, and **DTK · M** all use the same local
+east-positive declination (`magnetic = true − declination`). The gold heading
+triangle retains its true-heading tooltip and **TRUE HDG … T** readout, and
+**VAR** reports magnetic variation below the rose. The white diamond shows GPS
+ground track separately, preserving the drift angle.
 
 `AhrsTool` accepts the browsing FAA `revision`. Its optional magnetic model is
 discovered through that cycle's navigation manifest on the configured chart feed.
@@ -268,12 +333,6 @@ Reference vectors in `test/fixtures/WMM2025_TEST_VALUES.txt` are from
 The coefficient fixture is the published chart export of
 [NOAA/BGS WMM2025](https://doi.org/10.25921/aqfd-sd83), retrieved 2026-09-18.
 
-GPS loss flags the HSI and removes live course/deviation guidance while keeping
-its IMU-driven card visible and moving. This also applies if calibration completes
-before the first GPS fix, in both the toolbox and full screen. GPS recovery can
-restore track and route guidance without recalibration when heading remains confident.
-A route, a fresh position and a confident AHRS heading are required for guidance; relative yaw
-alone cannot produce CDI, distance, or cross-track guidance.
 Custom GPS ports can provide optional `coordinates` as `[longitude, latitude]`;
 omitting position leaves attitude support intact.
 The HSI shares AHRS's GPS lease and adds no location watch.
@@ -316,7 +375,7 @@ delay both sensor delivery and drawing. A sensor gap above 0.5 seconds shows
 **Motion** when the display next runs; if rendering itself is stalled, the warning
 cannot paint until it resumes. A brief freeze is therefore possible and does not
 by itself establish a memory leak. Repeated or persistent foreground freezes need
-an on-device CPU/memory trace. See the [AHRS memory and scrolling](../../../docs/memory-resources.md#ahrs-session-memory-and-scrolling).
+an on-device CPU/memory trace. See the [AHRS memory and scrolling](../../../docs/verification/memory-resources.md#ahrs-session-memory-and-scrolling).
 
 With the device secured in its selected mount, the pilot confirms a roughly steady,
 level pose; in flight this means straight, level flight at a steady speed, not
@@ -375,7 +434,8 @@ A known **true heading from an independent instrument** is optional and is used
 once during calibration to initialize direction. It is never reapplied as a
 continuing heading measurement. Without it, `MotionHeading` matches time-aligned
 IMU and GPS velocity histories to establish direction before enabling full GPS velocity fusion.
-GPS ground track is never substituted for aircraft heading. Before north
+GPS ground track is never used as a trusted nose-heading measurement in that
+navigation filter; the HSI's provisional GPS/gyro reference is separate. Before north
 alignment, the main filter uses the magnitude of horizontal velocity changes,
 direct vertical velocity when supplied, and altitude. The horizontal factor uses
 non-overlapping endpoint pairs over 2–15 seconds and preserves direction ambiguity.
@@ -401,7 +461,8 @@ accelerometer-bias learning requires accepted GPS evidence. See
 [gravity-aiding.md](estimator/gravity-aiding.md) for the equations and assumptions.
 The explicit `gravityAiding: false` option retains conventional strapdown INS
 without gravity observations. The PWA forwards GPS altitude and its accuracy as
-well as speed/track; receiving a fix does not establish north or active aiding.
+well as speed/track; receiving a fix alone does not establish navigation-filter
+north alignment or active aiding, although usable track can seed the HSI reference.
 
 Raw magnetic observations can constrain accumulated attitude drift, including
 relative yaw, without GPS. Gravity alone still leaves yaw unobservable. Absolute
@@ -483,7 +544,7 @@ accuracy bound. Unknown absolute heading alone does not trigger this tilt warnin
 Usable GPS clears the cross only while tilt uncertainty is within the limit;
 GPS availability and actual accepted aiding updates are reported separately.
 
-The cross label explains the current limitation:
+The attitude indicator's cross label explains the current limitation:
 
 | Label | Meaning | Recovery |
 | --- | --- | --- |
@@ -494,15 +555,13 @@ The cross label explains the current limitation:
 | **Uncertainty** | Calibrated attitude continues and GPS meets the movement gate, but estimated tilt uncertainty is high. | Effective GPS aiding can reduce uncertainty; recalibrate when steady. |
 | No cross | Calibration and motion are valid, GPS meets the movement gate, and tilt uncertainty is within its warning threshold. | Normal display; GPS aiding status is shown separately. |
 
-Calibration and motion faults take priority over GPS limitations. Specific sensor
-problems appear in the explanatory text. The HSI uses the current GPS gates
-independently and also distinguishes No GPS from Low Speed. With a fresh position,
-usable route leg and confident AHRS heading, the HSI keeps its magenta
-course, CDI, distance and cross-track readings at low speed, showing **Low Speed**
-below the dial without crossing out the course. Without confident heading, it
-stays in **REL** beneath the **Low Speed** cross and hides route guidance.
-Without a fresh position, route guidance is hidden and the calibrated IMU card
-remains visible beneath the cross; **REL** identifies an unverified heading reference.
+For the attitude indicator, calibration and motion faults take priority over GPS
+limitations. Specific sensor problems appear in the explanatory text. The HSI
+applies its own [heading and guidance rules](#heading-and-guidance-behavior).
+With confident heading and available guidance, **Low Speed** appears below its
+dial without crossing out the course. Estimated heading keeps the cross over the
+same available guidance. The attitude indicator and HSI can therefore show
+different warnings without suppressing each other's readings.
 A fresh slow fix remains available in the snapshot (`gpsLive`), while `gpsUsable`
 also requires sufficient movement. These are display validity gates, not guarantees
 of filter observability. Accepted low-speed corrections still appear as GPS aiding
@@ -556,7 +615,7 @@ keeping the calibrated means does not keep their old confidence indefinitely.
 The recorded v6 verification passed its unit suite, import/type checks,
 production build and browser/graphics checks. The original turn-accuracy,
 compass-drift and layer uncertainty limits were retained. See the
-[dated test results](../../../docs/ahrs-validation.md#v6-beta-verification)
+[dated test results](validation.md#v6-beta-verification)
 for measured errors, vibration/gap checks and remaining statistical evidence.
 These checks do not substitute for recorded phone/aircraft data.
 
@@ -594,7 +653,11 @@ These checks do not substitute for recorded phone/aircraft data.
   geometry, disturbances, source switching, duplicate input and permission loss.
 - `test/ahrs-hsi.test.ts`: course/deviation signs, nearest legs, waypoint passage,
   dateline and high-latitude geometry, magnetic/true references, unchanged CDI
-  geometry, heading versus track, and invalid guidance.
+  geometry, heading versus track, available guidance beneath warnings, and REL
+  with position-based route readings.
+- `test/ahrs-heading-reference.test.ts`: GPS initialization, gyro motion through
+  north, delayed fixes, smooth corrections, retained references through recovery
+  and motion pauses, manual-heading precedence, and explicit reset.
 - `test/ahrs-magnetic-model.test.ts`: all 12 NOAA reference vectors, date/height
   limits, east/west signs, wraparound and coefficient validation.
 - `test/ahrs-magnetic-data.test.ts`: manifest discovery, versioned loading, offline
@@ -608,7 +671,9 @@ These checks do not substitute for recorded phone/aircraft data.
   missed-frame handling and cancellation.
 - `test/ahrs-recording.test.ts`: ordered events, bounded buffering, partial sessions
   and storage-failure recovery.
-- `test/ownship-layer.test.ts`: shared location ownership and visibility.
+- `test/gps-service.test.ts`: shared location ownership, visibility, independent
+  AHRS/Ownship lifetimes, and AHRS operation without an Ownship instance.
+- `test/ownship-layer.test.ts`: map demand, centering, track history and lease cleanup.
 - `test/e2e/ahrs.spec.ts`: actual toolbox, motion events, HSI route selection,
   responsive instrument layouts, calibration with no GPS fix or low speed, live
   attitude beneath the cross during prolonged GPS absence and high uncertainty,

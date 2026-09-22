@@ -1,29 +1,33 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { MapLayerModule } from '../../core/map/layer';
+import { LayerScope } from '../../core/layers/scope';
 import type { RulerEndpoint, RulerLayer, RulerSnapshot } from './layer';
-import { createRulerRenderer } from './renderer';
+import { createRulerRenderer, RULER_LAYER_IDS } from './renderer';
 import { suggestedEnd, type ScreenPoint, type ScreenRect } from './handles';
 import type { Coordinate } from './measurement';
 
 /** Pointer events on the canvas only observe taps; native map pan/pinch remain in charge. */
-export function createRulerMapLayer(product: RulerLayer): MapLayerModule<void> {
-  let dispose: (() => void) | undefined;
+export function createRulerMapLayer(product: RulerLayer, occupiedRects: () => ScreenRect[] = () => []): MapLayerModule<void> {
+  let scope: LayerScope | undefined;
   return {
-    id: 'ruler', slot: 'route',
+    id: 'ruler', slot: 'route', overlayLayerIds: RULER_LAYER_IDS,
     update() {},
-    mount(map) { dispose = attach(map, product); },
-    unmount() { dispose?.(); dispose = undefined; },
+    mount(map) {
+      scope = new LayerScope();
+      try { attach(map, product, occupiedRects, scope); }
+      catch (error) { scope.dispose(); throw error; }
+    },
+    unmount() { scope?.dispose(); scope = undefined; },
   };
 }
 
-function attach(map: MapLibreMap, product: RulerLayer) {
-  const view = createRulerRenderer(map), canvas = map.getCanvas(), container = map.getContainer();
-  const listeners: Array<() => void> = [];
+function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => ScreenRect[], scope: LayerScope) {
+  const view = createRulerRenderer(map, scope), canvas = map.getCanvas(), container = map.getContainer();
   type DomEvents = HTMLElementEventMap & WindowEventMap & DocumentEventMap;
   function listen<K extends keyof DomEvents>(target: EventTarget, type: K, handler: (event: DomEvents[K]) => void, options?: AddEventListenerOptions) {
     const listener = handler as EventListener;
     target.addEventListener(type, listener, options);
-    listeners.push(() => target.removeEventListener(type, listener, options));
+    scope.add(() => target.removeEventListener(type, listener, options));
   }
   const point = (event: PointerEvent): ScreenPoint => {
     const rect = canvas.getBoundingClientRect();
@@ -40,17 +44,7 @@ function attach(map: MapLibreMap, product: RulerLayer) {
   const pointers = new Set<number>();
   let doubleClickWasEnabled: boolean | undefined;
   let obstacles: ScreenRect[] = [];
-  const findObstacles = () => {
-    const rect = container.getBoundingClientRect();
-    obstacles = [...(container.closest('.map-stage') ?? container.parentElement ?? container)
-      .querySelectorAll<HTMLElement>('.ruler-card, .ruler-toggle, .layer-control-button, .map-navigation-control, .map-edge-handle, .edge-panel-body')]
-      .filter(element => !element.closest('[inert]') && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
-      .map(element => {
-        const box = element.getBoundingClientRect();
-        return { left: box.left - rect.left, right: box.right - rect.left,
-          top: box.top - rect.top, bottom: box.bottom - rect.top };
-      });
-  };
+  const findObstacles = () => { obstacles = occupiedRects(); };
   const draw = () => view.draw(product.getSnapshot(), obstacles, drag);
   const endDrag = (commit: boolean) => {
     const current = drag;
@@ -83,7 +77,10 @@ function attach(map: MapLibreMap, product: RulerLayer) {
     canvas.classList.toggle('ruler-active', state.active);
     draw();
   };
-  const unsubscribe = product.subscribe(stateChanged);
+  scope.add(() => canvas.classList.remove('ruler-active'));
+  scope.add(() => { if (doubleClickWasEnabled) map.doubleClickZoom.enable(); });
+  scope.add(cancel);
+  scope.add(product.subscribe(stateChanged));
   // Observe all fingers, including one added outside the canvas or on a control.
   listen(window, 'pointerdown', (event: PointerEvent) => {
     pointers.add(event.pointerId);
@@ -171,20 +168,11 @@ function attach(map: MapLibreMap, product: RulerLayer) {
   listen(document, 'visibilitychange', () => { if (document.hidden) { pointers.clear(); cancel(); } });
   const moving = () => { if (tap) tap.moved = true; };
   const resize = () => { cancel(); findObstacles(); draw(); };
-  map.on('movestart', moving);
-  map.on('move', draw);
-  map.on('resize', resize);
+  map.on('movestart', moving); scope.add(() => map.off('movestart', moving));
+  map.on('move', draw); scope.add(() => map.off('move', draw));
+  map.on('resize', resize); scope.add(() => map.off('resize', resize));
   const layout = new ResizeObserver(() => { findObstacles(); draw(); });
+  scope.add(() => layout.disconnect());
   layout.observe(container);
   stateChanged();
-  return () => {
-    unsubscribe();
-    cancel();
-    for (const remove of listeners) remove();
-    map.off('movestart', moving); map.off('move', draw); map.off('resize', resize);
-    layout.disconnect();
-    if (doubleClickWasEnabled) map.doubleClickZoom.enable();
-    canvas.classList.remove('ruler-active');
-    view.destroy();
-  };
 }

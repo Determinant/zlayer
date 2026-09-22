@@ -64,7 +64,7 @@ function snapshot(): AhrsSnapshot {
   const filter = new Ahrs();
   return { phase: 'ready', attitude: filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] }),
     crossed: false, warning: '', message: '', calibrationReason: 'ready', progress: 1, gpsLive: true, gpsUsable: true,
-    gpsMessage: '', track: 90, speed: 50, altitude: null, altitudeAccuracy: null, gpsTime: 0, position: [1, 0], trueHeading: false };
+    hsiHeading: null, gpsMessage: '', track: 90, speed: 50, altitude: null, altitudeAccuracy: null, gpsTime: 0, position: [1, 0], trueHeading: false };
 }
 const route = createRouteResolver([])('000000N0000000E 000000N0020000E');
 const render = (state: AhrsSnapshot) => renderToStaticMarkup(createElement(Hsi, { state, route }));
@@ -72,6 +72,7 @@ const render = (state: AhrsSnapshot) => renderToStaticMarkup(createElement(Hsi, 
 test('approach and curved route legs cannot become straight-line CDI shortcuts', () => {
   const state = snapshot();
   state.attitude = { ...state.attitude!, yaw: 75, headingStatus: 'tracking', attitudeStd: [3, 3, 5] };
+  state.hsiHeading = { degrees: 75, source: 'ahrs' };
   for (const leg of [{ ...route.legs[0]!, approachPhase: 'approach' as const },
     { ...route.legs[0]!, geometry: [[0, 0], [1, 1], [2, 0]] as [number, number][] }]) {
     const output = renderToStaticMarkup(createElement(Hsi, { state, route: { legs: [leg] } }));
@@ -82,81 +83,82 @@ test('approach and curved route legs cannot become straight-line CDI shortcuts',
   }
 });
 
-test('HSI follows AHRS yaw while GPS track remains a separate marker requiring aligned heading', () => {
+test('HSI uses the AHRS-owned geographic reference independently of raw GPS track', () => {
   const state = snapshot();
-  state.attitude = { ...state.attitude!, yaw: 42 };
-  assert.match(render(state), /REL 042°/);
-  assert.match(render(state), /rotate\(-42\)" data-testid="hsi-compass"/);
-  assert.match(render(state), /data-testid="hsi-invalid"/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-(?:track|course)"/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-heading"/, 'relative yaw is not an absolute heading marker');
-  const filter = new Ahrs();
-  filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
-  filter.alignHeading(75);
-  state.attitude = filter.getState(0); state.trueHeading = true;
-  const aligned = render(state);
-  assert.match(aligned, /HDG 075° T/);
-  assert.match(aligned, /TRK 090° T/, 'heading and ground track remain distinct');
-  assert.match(aligned, /rotate\(0\)" data-testid="hsi-heading"/);
-  assert.match(aligned, /rotate\(15\)" data-testid="hsi-track"/, 'track diamond shows the drift angle');
-  assert.match(aligned, /<title>True heading 075° T<\/title>/);
+  state.hsiHeading = { degrees: 75, source: 'gps' };
+  const output = render(state);
+  assert.match(output, /GPS\/IMU · TRUE/);
+  assert.match(output, /HDG 075° T/);
+  assert.match(output, /Heading\. Estimated heading 075° true/);
+  assert.match(output, /rotate\(-75\)" data-testid="hsi-compass"/);
+  assert.match(output, /rotate\(15\)" data-testid="hsi-course"/);
+  for (const id of ['invalid', 'heading', 'deviation']) assert.match(output, new RegExp(`data-testid="hsi-${id}"`));
   state.track = 120;
-  assert.match(render(state), /rotate\(-75\)" data-testid="hsi-compass"/, 'a GPS update never rotates the card');
+  assert.match(render(state), /rotate\(-75\)" data-testid="hsi-compass"/, 'raw GPS cannot jump the compass');
   assert.match(render(state), /rotate\(45\)" data-testid="hsi-track"/);
-  state.track = 90;
-  state.attitude = { ...state.attitude, headingReference: 'gps-inertial' };
-  assert.match(render(state), /HDG 075° T/, 'confident GPS/inertial heading can drive the compass too');
-  state.attitude = { ...state.attitude, headingStatus: 'recovering' };
-  assert.match(render(state), /REL 075°/, 'previous heading source does not imply a valid current heading');
-  assert.doesNotMatch(render(state), /data-testid="hsi-(?:heading|track|course)"/);
-  state.attitude = { ...state.attitude, headingStatus: 'tracking' };
-  state.attitude = { ...state.attitude, attitudeStd: [3, 3, 25] };
-  assert.match(render(state), /REL 075°/, 'uncertain heading retains inertial yaw');
-  assert.doesNotMatch(render(state), /data-testid="hsi-(?:heading|track|course)"/);
-  state.attitude = { ...state.attitude, status: 'interrupted' };
-  assert.match(render(state), /Motion/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-(?:relative-heading|heading|track|course)"/,
-    'GPS cannot supply a replacement heading after interrupted motion');
+  state.hsiHeading = { degrees: 80, source: 'gps' };
+  assert.match(render(state), /rotate\(-80\)" data-testid="hsi-compass"/);
+  assert.match(render(state), /rotate\(10\)" data-testid="hsi-course"/);
 });
 
-test('without GPS the calibrated HSI follows relative yaw under its cross, including high uncertainty', () => {
+test('uncertainty, heading recovery and motion faults preserve heading and magenta guidance beneath a cross', () => {
   const state = snapshot();
-  state.gpsLive = false; state.gpsUsable = false; state.position = null; state.track = null;
-  for (const status of ['coasting', 'degraded'] as const) {
-    state.attitude = { ...state.attitude!, yaw: 42, status };
-    const output = render(state);
-    assert.match(output, /IMU · REL/);
-    assert.match(output, /REL 042°/);
-    assert.match(output, /rotate\(-42\)" data-testid="hsi-compass"/);
-    assert.match(output, /data-testid="hsi-relative-heading"/);
-    assert.match(output, /No GPS\. Relative direction 042°\. Heading unverified/);
-    assert.match(output, /data-testid="hsi-invalid"/);
-    assert.doesNotMatch(output, /data-testid="hsi-(?:heading|track|course|deviation)"/);
-    assert.doesNotMatch(output, />[NESW]<\/text>|HDG 042°|MAG|TRUE/, 'relative yaw never impersonates north');
-    state.attitude = { ...state.attitude, yaw: 65 };
-    assert.match(render(state), /rotate\(-65\)" data-testid="hsi-compass"/);
+  state.hsiHeading = { degrees: 75, source: 'ahrs' };
+  state.attitude = { ...state.attitude!, yaw: 75, headingStatus: 'tracking', attitudeStd: [3, 3, 5] };
+  assert.doesNotMatch(render(state), /data-testid="hsi-invalid"/);
+  assert.match(render(state), /<title>True heading 075° T<\/title>/);
+  for (const change of [{ headingStatus: 'recovering' as const },
+    { attitudeStd: [3, 3, 25] as const }, { status: 'degraded' as const },
+    { status: 'stale' as const }, { status: 'interrupted' as const }]) {
+    const output = render({ ...state, attitude: { ...state.attitude!, ...change } });
+    assert.match(output, /HDG 075° T/);
+    for (const id of ['invalid', 'course', 'heading', 'deviation']) assert.match(output, new RegExp(`data-testid="hsi-${id}"`));
+    assert.match(output, /60\.0 nautical miles to waypoint/);
   }
-  state.gpsLive = true; state.gpsUsable = true; state.position = [1, 0]; state.track = 90;
-  assert.match(render(state), /REL 065°/);
-  assert.match(render(state), /Heading\. Relative direction 065°/);
+  state.warning = 'Motion';
   assert.match(render(state), /data-testid="hsi-invalid"/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-(?:heading|track|course)"/);
 });
 
-test('position-only HSI stays relative without inventing a geographic heading', () => {
+test('GPS loss preserves an established geographic reference instead of returning to REL', () => {
+  const state = snapshot();
+  state.hsiHeading = { degrees: 75, source: 'gps' };
+  state.gpsLive = false; state.gpsUsable = false; state.position = null; state.track = null;
+  assert.match(render(state), /HDG 075° T/);
+  assert.match(render(state), /No GPS/);
+  assert.match(render(state), /data-testid="hsi-invalid"/);
+  assert.doesNotMatch(render(state), /REL |data-testid="hsi-course"/);
+});
+
+test('REL is the final fallback and retains all position-based route readings', () => {
   const state = snapshot();
   state.track = null; state.speed = 0; state.gpsUsable = false;
   state.attitude = { ...state.attitude!, yaw: 42 };
   const output = render(state);
   assert.match(output, /REL 042°/);
-  assert.match(output, /Relative direction 042°\. Heading unverified/);
   assert.match(output, /rotate\(-42\)" data-testid="hsi-compass"/);
   assert.match(output, /data-testid="hsi-relative-heading"/);
   assert.match(output, /data-testid="hsi-invalid"/);
-  assert.doesNotMatch(output, /N UP|No GPS|data-testid="hsi-(?:heading|track|course|deviation)"/);
+  assert.match(output, /Course 090° true/);
+  assert.match(output, /60\.0 nautical miles to waypoint/);
+  assert.doesNotMatch(output, /ROUTE GUIDANCE UNAVAILABLE|data-testid="hsi-(?:heading|track|course|deviation)"/);
+  state.gpsLive = false; state.position = null;
+  assert.match(render(state), /REL 042°/);
+  assert.match(render(state), /No GPS/);
+  assert.doesNotMatch(render(state), />[NESW]<\/text>/);
 });
 
-test('invalid low-speed GPS track keeps relative yaw without corrupting the compass', () => {
+test('available GPS heading and guidance remain visible during calibration', () => {
+  const state = snapshot();
+  state.phase = 'calibrating'; state.attitude = null;
+  state.hsiHeading = { degrees: 90, source: 'gps' };
+  const output = render(state);
+  assert.match(output, /Calibration/);
+  assert.match(output, /HDG 090° T/);
+  assert.match(output, /data-testid="hsi-invalid"/);
+  assert.match(output, /data-testid="hsi-course"/);
+});
+
+test('invalid low-speed GPS track cannot create a geographic reference or corrupt relative yaw', () => {
   const state = snapshot();
   state.gpsUsable = false; state.speed = 5;
   for (const track of [null, NaN, Infinity]) {
@@ -164,44 +166,17 @@ test('invalid low-speed GPS track keeps relative yaw without corrupting the comp
     const output = render(state);
     assert.match(output, /REL 000°/);
     assert.match(output, /Low Speed/);
-    assert.match(output, /data-testid="hsi-relative-heading"/);
     assert.match(output, /data-testid="hsi-invalid"/);
-    assert.doesNotMatch(output, /NaN|Infinity|data-testid="hsi-(?:heading|track|course|deviation)"/);
+    assert.doesNotMatch(output, /NaN|Infinity|data-testid="hsi-(?:heading|track|course)"/);
   }
 });
 
-test('aligned heading remains visible without GPS, and stopped motion removes the inertial reference', () => {
+test('missing route shows an empty state without hiding heading', () => {
   const state = snapshot();
-  state.gpsLive = false; state.gpsUsable = false; state.position = null; state.track = null;
-  state.attitude = { ...state.attitude!, yaw: 75, headingStatus: 'tracking', attitudeStd: [3, 3, 5] };
-  assert.match(render(state), /IMU · TRUE/);
-  assert.match(render(state), /HDG 075° T/);
-  assert.match(render(state), /data-testid="hsi-heading"/);
-  assert.match(render(state), /data-testid="hsi-invalid"/);
-  for (const status of ['stale', 'interrupted', 'waiting'] as const) {
-    state.attitude = { ...state.attitude, status };
-    assert.doesNotMatch(render(state), /data-testid="hsi-(?:relative-heading|heading)"|HDG 075°|REL /);
-  }
-  state.attitude = { ...state.attitude, status: 'coasting' };
-  for (const phase of ['idle', 'calibrating', 'error'] as const) {
-    state.phase = phase;
-    assert.doesNotMatch(render(state), /data-testid="hsi-(?:relative-heading|heading)"|HDG 075°|REL /);
-  }
-});
-
-test('GPS failure suppresses stale guidance; missing track stays relative and no route shows an empty state', () => {
-  const state = snapshot();
-  state.gpsLive = false; state.gpsUsable = false;
-  assert.match(render(state), /No GPS/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-course"/);
-  assert.match(render(state), /data-testid="hsi-invalid"/);
-  state.gpsLive = true; state.gpsUsable = true; state.track = null;
-  assert.match(render(state), /REL 000°/);
-  assert.doesNotMatch(render(state), /data-testid="hsi-course"/);
-  state.track = 90;
-  assert.match(renderToStaticMarkup(createElement(Hsi, { state })), /Add a route/);
-  state.position = null;
-  assert.match(render(state), /No GPS/);
+  state.hsiHeading = { degrees: 75, source: 'gps' };
+  const output = renderToStaticMarkup(createElement(Hsi, { state }));
+  assert.match(output, /Add a route/);
+  assert.match(output, /HDG 075° T/);
 });
 
 test('low speed retains heading-referenced course and CDI, including at rest', () => {
@@ -209,6 +184,7 @@ test('low speed retains heading-referenced course and CDI, including at rest', (
   filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
   filter.alignHeading(75);
   state.attitude = filter.getState(0); state.trueHeading = true;
+  state.hsiHeading = { degrees: 75, source: 'ahrs' };
   state.gpsUsable = false;
   for (const speed of [0, .5, 5, 9.99]) {
     state.speed = speed;
@@ -220,17 +196,6 @@ test('low speed retains heading-referenced course and CDI, including at rest', (
     assert.match(output, /data-testid="hsi-deviation"/);
     assert.match(output, /60\.0 nautical miles to waypoint/);
   }
-});
-
-test('usable low-speed ground track cannot orient an unaligned HSI', () => {
-  const state = snapshot();
-  state.gpsUsable = false; state.speed = 5;
-  const output = render(state);
-  assert.match(output, /REL 000°/);
-  assert.match(output, /Low Speed/);
-  assert.match(output, /data-testid="hsi-relative-heading"/);
-  assert.match(output, /data-testid="hsi-invalid"/);
-  assert.doesNotMatch(output, /data-testid="hsi-(?:heading|track|course)"/);
 });
 
 const model: unknown = JSON.parse(readFileSync(new URL('./fixtures/magnetic-model.json', import.meta.url), 'utf8'));
@@ -257,6 +222,7 @@ test('magnetic rose, heading, track and course share one correction while CDI ge
   filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
   filter.alignHeading(75);
   state.attitude = filter.getState(0); state.trueHeading = true;
+  state.hsiHeading = { degrees: 75, source: 'ahrs' };
   const californiaRoute = createRouteResolver([])('370000N1230000W 370000N1210000W');
   state.position = [-122, 37.02]; state.altitude = 3048;
   const trueDisplay = renderToStaticMarkup(createElement(Hsi, { state, route: californiaRoute }));
@@ -275,12 +241,18 @@ test('magnetic rose, heading, track and course share one correction while CDI ge
   }
   assert.notEqual(magDisplay.match(/rotate\(([^)]+)\)" data-testid="hsi-compass"/)![1],
     trueDisplay.match(/rotate\(([^)]+)\)" data-testid="hsi-compass"/)![1]);
-  // A magnetic model cannot orient an unaligned inertial card.
+  // Variation also applies to provisional AHRS heading without hiding guidance.
   state.attitude = { ...state.attitude, headingReference: 'relative', headingStatus: 'acquiring' };
-  const relative = renderToStaticMarkup(createElement(Hsi, { state, route: californiaRoute, magneticModel: model }));
-  assert.match(relative, /REL 075°/);
-  assert.match(relative, /rotate\(-75\)" data-testid="hsi-compass"/);
-  assert.doesNotMatch(relative, /data-testid="hsi-(?:heading|track|course)"/);
+  state.hsiHeading = { degrees: 75, source: 'gps' };
+  const trackDisplay = renderToStaticMarkup(createElement(Hsi, { state, route: californiaRoute, magneticModel: model }));
+  assert.match(trackDisplay, /GPS\/IMU · MAG/);
+  assert.match(trackDisplay, /TRK 077° M/);
+  assert.match(trackDisplay, /Course 077° magnetic/);
+  assert.match(trackDisplay, /rotate\(15\)" data-testid="hsi-track"/);
+  assert.match(trackDisplay, /data-testid="hsi-course"/);
+  assert.match(trackDisplay, /data-testid="hsi-invalid"/);
+  assert.match(trackDisplay, /data-testid="hsi-heading"/);
+  assert.match(trackDisplay, /HDG 062° M/);
 });
 
 test('expired models and weak polar fields explicitly fall back to TRUE; GPS loss still removes CDI', t => {
@@ -288,6 +260,7 @@ test('expired models and weak polar fields explicitly fall back to TRUE; GPS los
   t.mock.method(Date, 'now', () => now);
   const state = snapshot();
   state.attitude = { ...state.attitude!, yaw: 75, headingStatus: 'tracking', attitudeStd: [3, 3, 5] };
+  state.hsiHeading = { degrees: 75, source: 'ahrs' };
   const output = () => renderToStaticMarkup(createElement(Hsi, { state, route, magneticModel: model }));
   assert.match(output(), /Magnetic model expired · using TRUE/);
   assert.match(output(), /HDG 075° T/);

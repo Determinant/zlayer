@@ -10,17 +10,24 @@ import { SettingsDialog } from './settings-dialog';
 import Settings from './settings';
 import { ResetSettings } from './reset-settings';
 import { PwaUpdateSettings } from './pwa-update';
+import { PluginSettings } from './plugin-settings';
+import type { PluginControl } from '../core/layers/use-plugins';
 
-export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cycleNotice }: {
+export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cycleNotice, plugins, onPluginChange, pluginError }: {
   catalog: ChartCatalog;
   cycles: string[];
   selection: CycleSelection;
   onCycleChange: (selection: CycleSelection) => void;
   cycleNotice?: string | undefined;
+  plugins: readonly PluginControl[];
+  onPluginChange(id: string, loaded: boolean): void;
+  pluginError?: string | undefined;
 }) {
   const [visible, setVisible] = usePersistentState('settings-open', false, isBoolean);
   const [opened, setOpened] = useState(visible);
   const [attempt, setAttempt] = useState(0);
+  const [tab, setTab] = usePersistentState<'general' | 'plugins'>('settings-tab', 'general',
+    (value): value is 'general' | 'plugins' => value === 'general' || value === 'plugins');
   const retry = () => setAttempt(value => value + 1);
   return <>
     <button type="button" className="settings-button" aria-label="Settings and offline downloads"
@@ -36,7 +43,18 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
       </svg>
     </button>
     {opened && <SettingsDialog open={visible} onClose={() => setVisible(false)}>
-      <div className="settings-body panel-scroll">
+      <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+        {(['general', 'plugins'] as const).map((id, index) => <button key={id} id={`settings-${id}-tab`} type="button"
+          role="tab" aria-selected={tab === id} aria-controls={`settings-${id}-panel`} tabIndex={tab === id ? 0 : -1}
+          onClick={() => setTab(id)} onKeyDown={event => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const next = event.key === 'Home' ? 'general' : event.key === 'End' ? 'plugins' : index === 0 ? 'plugins' : 'general';
+            setTab(next); document.getElementById(`settings-${next}-tab`)?.focus();
+          }}>{id === 'general' ? 'General' : 'Plugins'}</button>)}
+      </div>
+      <div className="settings-body panel-scroll" role="tabpanel" id="settings-general-panel"
+        aria-labelledby="settings-general-tab" hidden={tab !== 'general'}>
         <section aria-labelledby="general-settings-title">
           <div className="settings-section-heading">
             <h3 id="general-settings-title">General</h3>
@@ -58,9 +76,13 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
           <p className="settings-error" role="alert">Settings unavailable: {error.message}</p>
           <button type="button" onClick={retry}>Retry settings</button>
         </div>}>
-          <Settings catalog={catalog} open={visible} />
+          <Settings catalog={catalog} open={visible && tab === 'general'} />
         </ErrorBoundary>
-        {visible && <ResetSettings />}
+        {visible && tab === 'general' && <ResetSettings />}
+      </div>
+      <div className="settings-body panel-scroll" role="tabpanel" id="settings-plugins-panel"
+        aria-labelledby="settings-plugins-tab" hidden={tab !== 'plugins'}>
+        <PluginSettings plugins={plugins} onChange={onPluginChange} error={pluginError} />
       </div>
     </SettingsDialog>}
   </>;

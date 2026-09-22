@@ -1,6 +1,6 @@
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import type { OwnshipLayer, OwnshipSnapshot } from './layer';
-import { GPS_MOTION_ACCURACY_METERS } from './position';
+import { GPS_MOTION_ACCURACY_METERS } from '../../core/gps/position';
 import './styles.css';
 
 export function ownshipSummary({ state, fix }: OwnshipSnapshot): string {

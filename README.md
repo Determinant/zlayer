@@ -27,13 +27,13 @@ certified EFB.
 ## Start here
 
 - [Documentation index](docs/README.md)
-- [Plan](plan.md)
-- [Current capabilities and roadmap](docs/roadmap.md)
-- [Architecture](docs/architecture.md)
-- [Layer design and source layout](docs/layer-modules.md)
-- [Local development and verification](docs/local-development.md)
-- [Offline storage, regional downloads and device checks](docs/offline-storage.md)
-- [Deployment readiness and hosting contract](docs/deployment-readiness.md)
+- [Direction and principles](docs/product/direction.md)
+- [Current capabilities and roadmap](docs/product/roadmap.md)
+- [Architecture](docs/architecture/overview.md)
+- [Layer design and source layout](docs/architecture/layer-plugins.md)
+- [Local development and verification](docs/development/local-development.md)
+- [Offline storage, regional downloads and device checks](docs/features/offline-storage.md)
+- [Deployment readiness and hosting contract](docs/development/deployment.md)
 
 ## Run locally
 
@@ -52,14 +52,14 @@ Run `npm run verify:full` for full local CI before committing: import boundaries
 strict TypeScript, unit tests, the production build, all Chromium browser tests,
 and the complete Chromium/Firefox/WebKit/2× WebKit graphics matrix.
 Install browsers with `npx playwright install --with-deps chromium firefox webkit`;
-see [graphics compatibility](docs/graphics-compatibility.md) for the Linux Firefox
+see [graphics compatibility](docs/verification/graphics-compatibility.md) for the Linux Firefox
 display requirement. The individual `verify`, `test:browser` and `test:graphics`
 commands remain available.
 GitHub pushes and pull requests run `verify` and the smaller `test:smoke` suite.
 Full local CI retains all tests. **Actions → Verify → Run workflow** with **full**
 enabled also runs the complete hosted matrix, including macOS WebKit;
-see [verification](docs/local-development.md#verification).
-See the [hosting contract](docs/deployment-readiness.md) for production requirements.
+see [verification](docs/development/local-development.md#verification).
+See the [hosting contract](docs/development/deployment.md) for production requirements.
 
 The app lives in `src/`, tests in `test/`, and local proxy rules in
 `tools/dev-proxy.ts`. Only `packages/contracts` and `packages/domain` are npm
@@ -69,14 +69,14 @@ workspaces. Run all commands from the root; `npm run build` produces static `dis
 
 Routes, the map camera, open panels and plate reading state survive reloads.
 The local Route Stash saves named route snapshots, including feature pins and
-approach attachments, for later loading; see [routes](docs/routes.md).
+approach attachments, for later loading; see [routes](src/layers/routes/README.md).
 Settings saves complete state/territory selections: VFR/IFR low charts, navigation,
 applicable procedure/Chart Supplement books and individual-only plates. Verified
 saved editions remain authoritative through feed updates and outages; browsing
 dates are independent. Viewed files share the same cache without implying complete
 regional coverage.
 
-See the [roadmap](docs/roadmap.md) for the full capability list and remaining work.
+See the [roadmap](docs/product/roadmap.md) for the full capability list and remaining work.
 Installed iOS/Android offline, storage-pressure, GPS and performance checks remain
 release gates; desktop browser coverage does not establish those guarantees.
 
@@ -101,4 +101,4 @@ Separately licensed material retains its existing terms and notices, including t
 [SIL Open Font License for the bundled Noto glyphs](public/fonts/Noto%20Sans%20Bold/LICENSE.md),
 and third-party dependencies. Incorporated public-domain material remains public
 domain. Aviation data, charts, map tiles and other external content are subject to
-their own source terms; see the [source register](docs/data-sources.md).
+their own source terms; see the [source register](docs/data/sources.md).

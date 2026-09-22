@@ -23,7 +23,7 @@ function storage(t: test.TestContext) {
     setItem: (key: string, value: string) => { records.set(key, value); } };
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage } });
   t.after(() => original ? Object.defineProperty(globalThis, 'window', original) : Reflect.deleteProperty(globalThis, 'window'));
-  return { records, localStorage, seed: () => records.set('zlayer-ui:plate-on-map', JSON.stringify({ version: 1, value: selection })) };
+  return { records, localStorage, seed: () => records.set('zlayer-plugin:plates:plate-on-map', JSON.stringify({ version: 1, value: selection })) };
 }
 
 test('map plate stores only its source identity, restores independently of the viewer, and explicit hide persists', async t => {
@@ -31,7 +31,7 @@ test('map plate stores only its source identity, restores independently of the v
   const first = createPlatesController(true);
   first.open(selection);
   first.showOnMap(image(), first.getSnapshot().requestId);
-  const record = JSON.parse(records.get('zlayer-ui:plate-on-map')!);
+  const record = JSON.parse(records.get('zlayer-plugin:plates:plate-on-map')!);
   assert.deepEqual(record, { version: 1, value: selection }, 'no canvas, geometry, loading state or menu is serialized');
   const viewer = { ...selection, procedure: { ...selection.procedure, id: 'other', name: 'Other' } };
   first.open(viewer);
@@ -51,7 +51,7 @@ test('map plate stores only its source identity, restores independently of the v
   assert.deepEqual(createPlatesController(true).getSnapshot().selection, viewer);
 });
 
-for (const action of ['hide', 'replace', 'unmount'] as const) {
+for (const action of ['hide', 'replace', 'unmount', 'unload'] as const) {
   test(`a late restoration cannot undo ${action} and frees its canvas`, async t => {
     const { seed } = storage(t); seed();
     const product = createPlatesController(true);
@@ -64,6 +64,7 @@ for (const action of ['hide', 'replace', 'unmount'] as const) {
     const replacement = image({ ...selection, procedure: { ...selection.procedure, id: 'new' } });
     if (action === 'hide') product.hideFromMap();
     if (action === 'unmount') stop();
+    if (action === 'unload') product.dispose();
     if (action === 'replace') {
       product.open(replacement.selection);
       product.showOnMap(replacement, product.getSnapshot().requestId);
@@ -77,13 +78,37 @@ for (const action of ['hide', 'replace', 'unmount'] as const) {
   });
 }
 
+test('plugin unload frees the map canvas and preserves reader and overlay intent for reload', async t => {
+  const { records } = storage(t);
+  const product = createPlatesController(true);
+  product.open(selection);
+  const first = image();
+  product.showOnMap(first, product.getSnapshot().requestId);
+  product.open(selection);
+  const saved = [...records];
+  const staleRequest = product.getSnapshot().requestId;
+  product.dispose();
+  assert.equal(first.canvas.width, 0);
+  assert.deepEqual([...records], saved);
+  assert.deepEqual(product.getSnapshot().selection, selection);
+  assert.deepEqual(product.getSnapshot().mapSelection, selection);
+  const late = image();
+  product.showOnMap(late, staleRequest);
+  assert.equal(late.canvas.width, 0);
+  product.restoreOnMap(async () => image());
+  await settle();
+  assert.equal(product.getSnapshot().mapImage?.canvas.width, 400);
+  assert.equal(product.getSnapshot().mapImageRestored, true);
+  product.dispose();
+});
+
 test('failed restore retains the exact source for retry and does not change the camera when recovered', async t => {
   const { seed, records } = storage(t); seed();
   const product = createPlatesController(true);
   product.restoreOnMap(async () => { throw new Error('Offline'); });
   await settle();
   assert.equal(product.getSnapshot().mapRestoreError, 'Offline');
-  assert.deepEqual(JSON.parse(records.get('zlayer-ui:plate-on-map')!).value, selection);
+  assert.deepEqual(JSON.parse(records.get('zlayer-plugin:plates:plate-on-map')!).value, selection);
   product.retryMapRestore();
   assert.equal(product.getSnapshot().mapRestoreError, undefined);
   product.restoreOnMap(async source => image(source));
@@ -107,9 +132,9 @@ test('invalid map records fall back without overwriting storage and denied write
   for (const value of ['{broken', JSON.stringify({ version: 2, value: selection }),
     JSON.stringify({ version: 1, value: { ...selection, procedure: { ...selection.procedure, kind: 'airport-diagram' } } }),
     JSON.stringify({ version: 1, value: { ...selection, document: { ...selection.document, pageIndex: -1 } } })]) {
-    records.set('zlayer-ui:plate-on-map', value);
+    records.set('zlayer-plugin:plates:plate-on-map', value);
     assert.equal(createPlatesController(true).getSnapshot().mapSelection, undefined);
-    assert.equal(records.get('zlayer-ui:plate-on-map'), value);
+    assert.equal(records.get('zlayer-plugin:plates:plate-on-map'), value);
   }
   localStorage.setItem = () => { throw new Error('Quota'); };
   const product = createPlatesController(true);

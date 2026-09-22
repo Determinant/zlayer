@@ -1,12 +1,13 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { removeLayerResources } from '../../core/map/layer';
+import type { LayerScope } from '../../core/layers/scope';
 import { REFERENCE_LINE_HALO, REFERENCE_LINE_PAINT } from '../../core/map/reference-line';
 import { gripPosition, type ScreenPoint, type ScreenRect } from './handles';
 import { rulerPath, type Coordinate } from './measurement';
 import type { RulerEndpoint, RulerSnapshot } from './layer';
 
 const SOURCE = 'ruler-measurement';
-const LAYERS = ['ruler-halo', 'ruler-line'];
+export const RULER_LAYER_IDS = ['ruler-halo', 'ruler-line'];
+const LAYERS = RULER_LAYER_IDS;
 const NS = 'http://www.w3.org/2000/svg';
 function svg<K extends keyof SVGElementTagNameMap>(name: K, attributes: Record<string, string>) {
   const element = document.createElementNS(NS, name);
@@ -14,12 +15,15 @@ function svg<K extends keyof SVGElementTagNameMap>(name: K, attributes: Record<s
   return element;
 }
 
-export function createRulerRenderer(map: MapLibreMap) {
+export function createRulerRenderer(map: MapLibreMap, scope: LayerScope) {
+  scope.add(() => { if (map.getSource(SOURCE)) map.removeSource(SOURCE); });
+  for (const id of LAYERS) scope.add(() => { if (map.getLayer(id)) map.removeLayer(id); });
   map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: LAYERS[0]!, type: 'line', source: SOURCE, ...REFERENCE_LINE_HALO });
   map.addLayer({ id: LAYERS[1]!, type: 'line', source: SOURCE,
     paint: REFERENCE_LINE_PAINT });
   const root = document.createElement('div');
+  scope.add(() => root.remove());
   root.className = 'ruler-overlay';
   const drawing = svg('svg', { class: 'ruler-endpoints', 'aria-hidden': 'true' });
   root.append(drawing);
@@ -77,10 +81,6 @@ export function createRulerRenderer(map: MapLibreMap) {
         handle.target.setAttribute('transform', `translate(${anchor.x} ${anchor.y})`);
         handle.leader.setAttribute('d', `M${anchor.x} ${anchor.y}L${grip.x} ${grip.y}`);
       }
-    },
-    destroy() {
-      root.remove();
-      removeLayerResources(map, LAYERS, [SOURCE]);
     },
   };
 }

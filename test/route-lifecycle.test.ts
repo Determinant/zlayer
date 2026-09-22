@@ -140,3 +140,18 @@ for (const product of ['terminalProcedures', 'preferredRoutes'] as const) test(`
   await tick();
   assert.equal(render().status, 'ready');
 });
+
+test('unloading routes releases its loaded resources while preserving the saved draft', async t => {
+  const { hooks } = setup(t);
+  const source = catalog('https://charts.test/unload-route/airports');
+  let current: CatalogResponse | undefined = source;
+  const draft = routeDraftFromText('TEST');
+  t.mock.method(globalThis, 'fetch', async () => Response.json(document('TEST')));
+  const render = () => hooks.render(() => useRoutePlan(current, draft));
+  render(); await tick(); assert.equal(render().plan.waypoints.length, 1);
+  current = undefined; render(); render();
+  current = source;
+  assert.equal(render().data.airports, undefined, 'unloaded hook state releases navigation and procedure resources');
+  await tick(); assert.equal(render().plan.waypoints.length, 1);
+  assert.equal(draft.entries.length, 1);
+});

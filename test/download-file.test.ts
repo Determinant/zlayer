@@ -4,10 +4,11 @@ import test from 'node:test';
 import { downloadFile, openFileCache, storedFileBlob, storeDownloadedFile, discardDownloadedFile,
   removeDownloadFiles, DOWNLOAD_MEMORY_LIMIT, DOWNLOAD_WRITE_BYTES } from '../src/core/storage/download-file';
 import { verifyBlob } from '../src/core/storage/artifacts';
-import { CHART_CACHE, PDF_CACHE, VERIFIED_SHA256_HEADER, fileReceiptCacheName } from '../src/core/storage/cache-names';
+import { CHART_CACHE, PDF_CACHE, DATA_CACHE, VERIFIED_SHA256_HEADER, fileReceiptCacheName } from '../src/core/storage/cache-names';
 import { cacheFixture } from './helpers/cache';
 import { fileStorageFixture } from './helpers/file-storage';
 import { cachedFileBytes } from '../src/offline/storage';
+import { releaseUnusedFile } from '../src/core/storage/file-lifetime';
 import { discardResponseBody } from '../src/core/storage/response';
 import { WholeFileChartCache } from '../src/layers/charts/archive-cache';
 
@@ -119,14 +120,15 @@ test('a warm chart reader repairs a truncated durable file without getting stuck
   assert.equal(await cachedFileBytes({ url: request.url, kind: 'chart', byteLength: size, sha256: digest }), size);
 });
 
-test('orphan cleanup inspects keys without opening legacy payloads and preserves committed URLs', async t => {
+for (const namespace of [PDF_CACHE, DATA_CACHE]) test(`${namespace}: orphan cleanup preserves committed files without opening legacy payloads`, async t => {
   const disk = await fileStorageFixture(t);
-  const { cache: native } = cacheFixture(t, PDF_CACHE);
+  const { cache: native } = cacheFixture(t, namespace);
   const now = Date.now();
   t.mock.method(Date, 'now', () => now - 2 * 86_400_000);
   const old = await downloadFile(source().response, { key, byteLength: size, label: 'Book' });
-  const cache = await openFileCache(PDF_CACHE);
+  const cache = await openFileCache(namespace);
   await storeDownloadedFile(cache, key, old, { 'content-length': String(size) });
+  releaseUnusedFile(old); // Receipt ownership must protect it even without a live reader.
   // Simulate a terminated writer, with no surviving reader/transfer lock.
   const directory = await (await disk.storage.getDirectory()).getDirectoryHandle('zlayer-downloads');
   const orphan = `${Date.now()}-${crypto.randomUUID()}-${createHash('sha256').update(`${key}?abandoned`).digest('hex')}`;

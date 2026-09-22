@@ -1,6 +1,6 @@
 import { isRecord, type Bounds } from '@zlayer/contracts';
 import { InvalidDataError } from '../../core/data/errors';
-import { project, segmentsForTile, corridorDistance, corridorOpacity, type Segment } from '../terrain/geometry';
+import { project, segmentsForTile, corridorDistance, corridorOpacity, type Segment } from '../../core/geo/route-corridor';
 import { obstructionIcon, obstructionMinZoom, OBSTRUCTION_MIN_ZOOM, OBSTRUCTION_ICONS } from './definitions';
 import type { ObstructionCollection, ObstructionFeature, ObstructionManifest } from './types';
 
@@ -32,6 +32,9 @@ export function isObstructionFeature(value: unknown): value is ObstructionFeatur
 }
 
 const INDEX_ZOOM = 7, GRID = 2 ** INDEX_ZOOM;
+// Bump when the retained fields, symbol mapping, or minimum-height policy changes.
+export const OBSTRUCTION_INDEX_VERSION = 1;
+const HEADER_BYTES = 8, RECORD_BYTES = 34;
 
 function columns(capacity: number) {
   return { ids: new Float64Array(capacity), coordinates: new Float64Array(capacity * 2),
@@ -76,13 +79,16 @@ export class ObstructionIndex {
     // The route and every zoom tier share this floor. Validate first, then drop
     // records that can never be displayed before allocating/indexing their data.
     if (obstructionMinZoom(p.heightAglFt) === undefined) return;
+    this.#append(id, lon, lat, p.heightAglFt, p.elevationMslFt,
+      OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType)), p.verified ? 1 : 0);
+  }
+  #append(id: number, lon: number, lat: number, height: number, elevation: number, symbol: number, verified: number): void {
     if (this.#size === this.#data.ids.length) this.#resize(Math.min(this.expectedCount, Math.max(1024, this.#size * 2)));
     const index = this.#size++, data = this.#data;
     data.ids[index] = id;
     data.coordinates[index * 2] = lon; data.coordinates[index * 2 + 1] = lat;
-    data.heights[index] = p.heightAglFt; data.elevations[index] = p.elevationMslFt;
-    data.verified[index] = p.verified ? 1 : 0;
-    data.symbols[index] = OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType));
+    data.heights[index] = height; data.elevations[index] = elevation;
+    data.verified[index] = verified; data.symbols[index] = symbol;
     const [x, y] = project([lon === 180 ? -180 : lon, lat]);
     const key = Math.max(0, Math.min(GRID - 1, Math.floor(y * GRID))) * GRID + Math.floor(x * GRID);
     const cell = this.#cells.get(key) ?? [];
@@ -97,6 +103,46 @@ export class ObstructionIndex {
     }
     this.#sourceIds = undefined;
     if (this.#data.ids.length !== this.#size) this.#resize(this.#size);
+  }
+  /** Only finalized, validated display records are persisted; never the national source IDs. */
+  snapshot(): ArrayBuffer {
+    if (this.#sourceIds) throw new InvalidDataError('Obstruction index is incomplete');
+    const buffer = new ArrayBuffer(HEADER_BYTES + this.#size * RECORD_BYTES), view = new DataView(buffer), data = this.#data;
+    view.setUint32(0, OBSTRUCTION_INDEX_VERSION, true);
+    view.setUint32(4, this.#size, true);
+    for (let i = 0, offset = HEADER_BYTES; i < this.#size; i++, offset += RECORD_BYTES) {
+      view.setFloat64(offset, data.ids[i]!, true);
+      view.setFloat64(offset + 8, data.coordinates[i * 2]!, true);
+      view.setFloat64(offset + 16, data.coordinates[i * 2 + 1]!, true);
+      view.setInt32(offset + 24, data.heights[i]!, true);
+      view.setInt32(offset + 28, data.elevations[i]!, true);
+      view.setUint8(offset + 32, data.symbols[i]!);
+      view.setUint8(offset + 33, data.verified[i]!);
+    }
+    return buffer;
+  }
+  static restore(buffer: ArrayBuffer, sourceCount: number): ObstructionIndex {
+    const view = new DataView(buffer);
+    if (buffer.byteLength < HEADER_BYTES || view.getUint32(0, true) !== OBSTRUCTION_INDEX_VERSION) {
+      throw new InvalidDataError('Invalid obstruction index version');
+    }
+    const count = view.getUint32(4, true);
+    if (count > sourceCount || buffer.byteLength !== HEADER_BYTES + count * RECORD_BYTES) {
+      throw new InvalidDataError('Invalid obstruction index size');
+    }
+    const index = new ObstructionIndex(count);
+    for (let offset = HEADER_BYTES; offset < buffer.byteLength; offset += RECORD_BYTES) {
+      const id = view.getFloat64(offset, true), lon = view.getFloat64(offset + 8, true), lat = view.getFloat64(offset + 16, true);
+      const height = view.getInt32(offset + 24, true), elevation = view.getInt32(offset + 28, true);
+      const symbol = view.getUint8(offset + 32), verified = view.getUint8(offset + 33);
+      if (!integer(id, 0, 36 ** 8 - 1) || !Number.isFinite(lon) || Math.abs(lon) > 180 || !Number.isFinite(lat) || Math.abs(lat) > 90
+        || !integer(height, 0, 99999) || obstructionMinZoom(height) === undefined || !integer(elevation, -99999, 99999)
+        || symbol >= OBSTRUCTION_ICONS.length || verified > 1) throw new InvalidDataError('Invalid obstruction index record');
+      index.#sourceIds![index.#count++] = id;
+      index.#append(id, lon, lat, height, elevation, symbol, verified);
+    }
+    index.finish();
+    return index;
   }
   query(bounds: Bounds, segments: readonly Segment[], zoom: number): ObstructionCollection {
     const collection: ObstructionCollection = { type: 'FeatureCollection', features: [] };

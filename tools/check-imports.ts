@@ -32,10 +32,35 @@ function scan(directory: string): void {
       dependencies.push({ specifier, ...(target ? { target } : {}), runtime, lazy });
     };
     new Visitor({
+      Identifier(node) {
+        if (local(file).startsWith('src/layers/') && ['localStorage', 'sessionStorage'].includes(node.name)) {
+          failures.add(`${local(file)}: plugins use their core-managed storage scope, not browser storage globals`);
+        }
+      },
+      MemberExpression(node) {
+        if (local(file).startsWith('src/layers/') && node.computed && node.property.type === 'Literal' &&
+          ['localStorage', 'sessionStorage'].includes(String(node.property.value))) {
+          failures.add(`${local(file)}: plugins use their core-managed storage scope, not browser storage globals`);
+        }
+      },
+      CallExpression(node) {
+        const call = source.slice(node.callee.start, node.callee.end);
+        if (local(file).startsWith('src/layers/') && /^(?:(?:globalThis|window|self)\.)?fetch$/.test(call)) {
+          failures.add(`${local(file)}: plugins must use core fetchJson, transferFile or readManagedFile; direct fetch bypasses shared acquisition policy`);
+        }
+      },
       ImportDeclaration(node) {
         const typeOnly = node.importKind === 'type' || (node.specifiers.length > 0 &&
           node.specifiers.every(item => item.type === 'ImportSpecifier' && item.importKind === 'type'));
         add(node.source.value, !typeOnly);
+        if (local(file).startsWith('src/layers/') && node.specifiers.some(item => item.type === 'ImportSpecifier' &&
+          item.imported.type === 'Identifier' && item.imported.name === 'downloadFile')) {
+          failures.add(`${local(file)}: plugins use transferFile; the low-level response writer belongs behind core acquisition`);
+        }
+        if (local(file).startsWith('src/layers/') && node.specifiers.some(item => item.type === 'ImportSpecifier' &&
+          item.imported.type === 'Identifier' && ['uiRecord', 'readUiState', 'writeUiState', 'usePersistentState'].includes(item.imported.name))) {
+          failures.add(`${local(file)}: plugin records must use their storage scope; unscoped UI persistence is reserved for the shell`);
+        }
       },
       ExportNamedDeclaration(node) {
         if (!node.source) return;
@@ -73,12 +98,20 @@ for (const [file, dependencies] of graph) {
   for (const { target } of dependencies) {
     if (!target) continue;
     const to = local(target);
+    if (from.startsWith('src/layers/') && /^src\/layers\/[^/]+\/storage\.ts$/.test(to) &&
+      from.split('/')[2] !== to.split('/')[2]) {
+      failures.add(`${from} -> ${to}: a plugin cannot import another plugin's storage scope`);
+    }
     if (from.startsWith('src/core/') && !to.startsWith('src/core/')) {
       failures.add(`${from} -> ${to}: core must not depend on application or feature modules`);
     }
     if (from.startsWith('src/layers/') && (to.startsWith('src/shell/') ||
       (to.startsWith('src/workspace/') && !workspaceData.has(to)))) {
       failures.add(`${from} -> ${to}: features may consume workspace read data, not composition`);
+    }
+    if (['src/workspace/map/runtime.ts', 'src/workspace/map/canvas.tsx', 'src/workspace/map/inputs.ts',
+      'src/shell/layer-menu.tsx', 'src/shell/map-edge-tools.tsx'].includes(from) && to.startsWith('src/layers/')) {
+      failures.add(`${from} -> ${to}: generic hosts consume contributions, not individual features`);
     }
     if (to.startsWith('src/offline/compatibility/') && !from.startsWith('src/offline/compatibility/') &&
       migrationOwners.get(to) !== from) {
@@ -106,7 +139,7 @@ function checkRuntime(entry: string, forbidden: RegExp, description: string, fol
 const uiRuntime = /^(react(?:-dom)?|maplibre-gl|pdfjs-dist)(\/|$)/;
 for (const file of graph.keys()) {
   const path = local(file);
-  const dataEntry = /^src\/core\/(data|storage)\//.test(path) ||
+  const dataEntry = /^src\/core\/(data|storage|gps)\//.test(path) ||
     (path.startsWith('src/offline/') && !path.includes('/use-')) ||
     /^src\/layers\/[^/]+\/(api|definitions|offline)\.ts$/.test(path) ||
     workspaceData.has(path);

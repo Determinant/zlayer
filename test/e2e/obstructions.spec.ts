@@ -35,6 +35,17 @@ test('obstructions fade in the route corridor and follow route/toggle/remount ch
   await page.getByRole('button', { name: 'Remount' }).click();
   await expect(status).toHaveAttribute('data-state', 'ready');
   await expect(status).toHaveAttribute('data-count', '7');
+  const saved = await page.evaluate(async () => {
+    const cache = await caches.open('zlayers-data-v6');
+    return (await cache.keys()).map(key => key.url).filter(url => url.includes('/obstacles/') && !url.endsWith('manifest.json'));
+  });
+  expect(saved).toHaveLength(1);
+  expect(new URL(saved[0]!).searchParams.has('zlayer-obstruction-index')).toBe(true);
+  await page.route('**/obstacles/*.gz', route => route.abort());
+  await page.reload();
+  await page.getByRole('button', { name: 'Restore route' }).click();
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await expect(status).toHaveAttribute('data-count', '7');
   expect(downloads.filter(url => url.endsWith('.gz')).length).toBe(gzipDownloads);
   await expect(page.getByTestId('errors')).toBeEmpty();
   expect(errors).toEqual([]);

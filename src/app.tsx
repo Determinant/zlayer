@@ -3,7 +3,7 @@ import { EdgePanels } from './core/ui/edge-panels';
 import { formatDate } from './core/format/time';
 import { featureKey, restoreRouteCoordinate } from '@zlayer/domain';
 import { restoreApproachSelection, routePointForFeature, routePointKeys } from './layers/routes/selection';
-import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useCallback, useMemo, useState } from 'react';
 
 import type {
   Bounds,
@@ -17,7 +17,7 @@ import {
   resolveNavigationFeature,
   type LayerVisibility,
 } from './layers/navigation';
-import { FlightCategoryLegend, featureWithMetar } from './layers/metar-taf';
+import { featureWithMetar } from './layers/metar-taf';
 import {
   chartCountForSelection, chartSelectionTitle, resolveChartSelection, NO_CHARTS, useChartCache,
 } from './layers/charts';
@@ -29,7 +29,7 @@ import {
 import { createWorkspaceLayers } from './workspace/products';
 import { LayerMenu } from './shell/layer-menu';
 import { SettingsLauncher } from './shell/settings-launcher';
-import { useMapPreferences } from './shell/use-map-preferences';
+import { useMapPreferences } from './workspace/use-map-preferences';
 import { useMapView } from './shell/use-map-view';
 import { useResourceWarning } from './shell/use-resource-warning';
 import { useOnline } from './core/use-online';
@@ -44,13 +44,11 @@ import { OFFLINE_REGIONS } from './offline/regions';
 import { navigationIssueMessages } from './layers/navigation/api';
 import { partitionRegionCoverage } from './offline/region-coverage';
 import { LayerPanels } from './core/layers/panels';
+import { LayerContributions } from './core/layers/contributions';
+import { usePlugins } from './core/layers/use-plugins';
+import { PANEL_LAYOUT } from './workspace/panel-layout';
 import { useLayerSnapshot } from './core/layers/use-snapshot';
 import { ErrorBoundary } from './core/layers/error-boundary';
-import { TerrainLegend, type TerrainStatus } from './layers/terrain';
-import type { ObstructionStatus } from './layers/obstructions';
-import { OwnshipStatus } from './layers/ownship';
-import { AhrsTool } from './layers/ahrs';
-import { RulerTool } from './layers/ruler';
 import { MapEdgeTools } from './shell/map-edge-tools';
 import { NearbyFeaturePicker } from './workspace/nearby-feature-picker';
 import type { NearbyFeature } from './workspace/feature-selection';
@@ -71,10 +69,20 @@ export function App() {
   const { context, bundles, error: regionError } = useWorkspaceReadContext(browsingCatalog);
   const [mapPreferences, setMapPreferences] = useMapPreferences();
   const [mapView, setMapView] = useMapView();
-  const { chartBase, chartOverlay, visibility, fixDisplay, metarEnabled, terrainEnabled, terrainCoverage, obstructionsEnabled, terrainAltitude, ownshipEnabled } = mapPreferences;
-  const [terrainStatus, setTerrainStatus] = useState<TerrainStatus>({ state: 'idle', interval: 1000 });
-  const [obstructionStatus, setObstructionStatus] = useState<ObstructionStatus>({ state: 'idle' });
   const [workspaceLayers] = useState(createWorkspaceLayers);
+  const plugins = usePlugins(workspaceLayers.plugins);
+  const loaded = Object.fromEntries(plugins.controlsList.map(plugin => [plugin.id, plugin.loaded]));
+  const { chartBase, chartOverlay, visibility: savedVisibility, fixDisplay, terrainCoverage, terrainAltitude } = mapPreferences;
+  const visibility = useMemo(() => loaded.navigation ? savedVisibility : Object.fromEntries(
+    Object.keys(savedVisibility).map(id => [id, false])) as LayerVisibility, [loaded.navigation, savedVisibility]);
+  const metarEnabled = !!loaded.metar && mapPreferences.metarEnabled;
+  const terrainEnabled = !!loaded.terrain && mapPreferences.terrainEnabled;
+  const obstructionsEnabled = !!loaded.obstructions && mapPreferences.obstructionsEnabled;
+  const ownshipEnabled = !!loaded.ownship && mapPreferences.ownshipEnabled;
+  const mapContributions = useMemo(() => [...plugins.mapContributions, workspaceLayers.selectionContribution],
+    [plugins.mapContributions, workspaceLayers]);
+  const terrainStatus = useLayerSnapshot(workspaceLayers.terrain.status);
+  const obstructionStatus = useLayerSnapshot(workspaceLayers.obstructions.status);
   const { metar: metarLayer, plates, ownship: ownshipLayer } = workspaceLayers;
   const metarSnapshot = useLayerSnapshot(metarLayer);
   const { mapImage: mappedPlate, selection: plateSelection, mapSelection, mapImageRestored, mapRestoreError } = useLayerSnapshot(plates);
@@ -111,13 +119,18 @@ export function App() {
   const [routeFocusNonce, setRouteFocusNonce] = useState(0);
   const [recommendations, setRecommendations] = useState<RouteMapPreview>();
   const [approachPreview, setApproachPreview] = useState<RouteMapPreview>();
-  const routePreview = approachPreview ?? recommendations;
+  const routePreview = loaded.routes ? approachPreview ?? recommendations : undefined;
+  useEffect(() => {
+    if (!loaded.routes) { setRecommendations(undefined); setApproachPreview(undefined); }
+    if (!loaded.navigation) { setNearbyFeatures(undefined); setQuery(''); }
+  }, [loaded.routes, loaded.navigation]);
 
-  const { data: navigationData, loadState, loading: navigationPending, issues: navigationIssues, airways } = useNavigationData(context, visibility);
+  const { data: navigationData, loadState, loading: navigationPending, issues: navigationIssues, airways } = useNavigationData(
+    loaded.navigation ? context : undefined, visibility);
   const route = useRoutePlan(
-    context?.routing,
-    routeDraft,
-    setRouteDraft,
+    loaded.routes ? context?.routing : undefined,
+    loaded.routes ? routeDraft : EMPTY_ROUTE_DRAFT,
+    loaded.routes ? setRouteDraft : undefined,
   );
   useEffect(() => {
     if (!selectionContext) return;
@@ -130,10 +143,10 @@ export function App() {
     setSavedRoutePointId(routePointId);
   }, [route.plan, selectionContext, setSavedFeature, setSavedRoutePointId]);
   const { action: directTo, confirmation: directToConfirmation } = useDirectTo(ownshipLayer, route.plan, setRouteDraft);
-  const { metars, state: metarState, weatherAirportCount } = metarSnapshot;
-  const search = useNavigationSearch(context, query, metars);
-  const chartSelection = useMemo(() => resolveChartSelection(context?.charts ?? [], chartBase, chartOverlay),
-    [context?.charts, chartBase, chartOverlay]);
+  const { metars } = metarSnapshot;
+  const search = useNavigationSearch(loaded.navigation ? context : undefined, query, loaded.metar ? metars : undefined);
+  const chartSelection = useMemo(() => loaded.charts ? resolveChartSelection(context?.charts ?? [], chartBase, chartOverlay) : NO_CHARTS,
+    [loaded.charts, context?.charts, chartBase, chartOverlay]);
   const activeChartTitle = chartSelectionTitle(chartSelection);
   const activeChartCount = chartCountForSelection(
     context?.charts ?? [],
@@ -142,7 +155,7 @@ export function App() {
   const {
     state: chartCacheState,
     retry: retryChartCache,
-  } = useChartCache(context?.charts, reportChartError);
+  } = useChartCache(context?.charts, reportChartError, !!loaded.charts);
   const renderedCharts = chartCacheState === 'ready' ? chartSelection : NO_CHARTS;
   const visibleFeatureCount = useMemo(
     () => countVisibleFeatures(navigationData, visibility),
@@ -153,7 +166,7 @@ export function App() {
     [navigationData, route.data],
   );
 
-  const selectFeature = (feature: GeoPointFeature | undefined, routePointId?: string) => {
+  const selectFeature = useCallback((feature: GeoPointFeature | undefined, routePointId?: string) => {
     setNearbyFeatures(undefined);
     setIdentificationOpen(false);
     setSavedRoutePointId(routePointId ?? null);
@@ -167,7 +180,7 @@ export function App() {
       setSavedFeature(resolved);
       setSelectionContext({ feature: resolved, context, ...(routePointId === undefined ? {} : { routePointId }) });
     }
-  };
+  }, [context, mapNavigationData, setIdentificationOpen, setSavedRoutePointId, setActiveSidePanel, setSavedFeature]);
   const selectedReference = selected;
   useEffect(() => {
     if (!mappedPlate || mapImageRestored) return;
@@ -179,15 +192,15 @@ export function App() {
     setSelectionContext(undefined);
   }, [mappedPlate, mapImageRestored]);
   const selectedWithWeather = useMemo(
-    () => selectedReference ? featureWithMetar(selectedReference, metarSnapshot) : undefined,
-    [selectedReference, metars],
+    () => selectedReference && loaded.metar ? featureWithMetar(selectedReference, metarSnapshot) : selectedReference,
+    [selectedReference, metars, loaded.metar],
   );
   // GPS coordinates have no published edition. Follow the current regional
   // context so a restored point adopts refreshed navigation references too.
   const selectedReadContext = selected?.properties.kind === 'coordinate' ? context : selectionContext?.context;
   const selectedCatalog = selectedReadContext && selectedWithWeather
     ? catalogForFeature(selectedReadContext, selectedWithWeather) : undefined;
-  const identification = useNavaidIdentification(identificationOpen ? selected : undefined, selectedCatalog);
+  const identification = useNavaidIdentification(loaded.navigation && identificationOpen ? selected : undefined, selectedCatalog);
   const identificationMap = useMemo(() => identificationOpen && selected && identification.stations?.length
     ? { point: selected, stations: identification.stations } : undefined, [identificationOpen, selected, identification.stations]);
   useEffect(() => {
@@ -207,8 +220,80 @@ export function App() {
     ],
   }), [fixDisplay, airways, selectedReference, route.plan, routePreview]);
 
+  const selectSearchResult = (feature: GeoPointFeature) => {
+    selectFeature(feature);
+    setFocusTarget({ feature, nonce: Date.now() });
+    setQuery('');
+  };
+  const insertRouteWaypoint = useCallback((afterEntryId: string, feature: GeoPointFeature) => {
+    setRouteDraft((current) => insertRouteFeature(current, afterEntryId, feature));
+  }, [setRouteDraft]);
+  const replaceRouteWaypoint = useCallback((entryId: string, feature: GeoPointFeature) => {
+    setRouteDraft((current) => replaceRouteFeature(current, entryId, feature));
+  }, [setRouteDraft]);
+  const removeRouteWaypoint = useCallback((entryId: string) => {
+    setRouteDraft((current) => removeRouteEntry(current, entryId));
+  }, [setRouteDraft]);
+
+  const savedEditions = useMemo(() => [...new Set(visibleBundles.map(bundle => bundle.catalog.revision))]
+    .map(revision => ({ revision, title: visibleBundles.filter(bundle => bundle.catalog.revision === revision)
+      .map(bundle => OFFLINE_REGIONS.find(region => region.id === bundle.plan.regionId)?.title ?? bundle.plan.title).join(', ') })), [visibleBundles]);
+  const visibleNavigationIssues = navigationIssues.filter(issue => issue.regionId ?
+    visibleBundles.some(bundle => bundle.plan.regionId === issue.regionId && bundle.catalog.revision === issue.revision) : browsingVisible);
+  const savedEditionDetails = `Saved coverage in this view: ${visibleBundles.map(bundle =>
+    `${bundle.plan.title} · ${formatDate(bundle.catalog.revision)}`).join(', ')}. Saved regions override browsing. Route data: ${formatDate(context?.routing.revision ?? context?.browsing.revision ?? '')} (saved).`;
+  const displayedRoutes = useMemo(() => routePreview?.routes.map(route => route.plan) ?? [route.plan], [route.plan, routePreview]);
+  const pluginActions = useMemo(() => ({
+    ownship: { onToggle: () => setMapPreferences(current => ({ ...current, ownshipEnabled: !current.ownshipEnabled })) },
+    terrain: {
+      onToggle: () => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled })),
+      onAltitudeChange: (value: typeof terrainAltitude) => setMapPreferences(current => ({ ...current, terrainAltitude: value })),
+      onCoverageChange: (value: typeof terrainCoverage) => setMapPreferences(current => ({ ...current, terrainCoverage: value })),
+    },
+    obstructions: { onToggle: () => setMapPreferences(current => ({ ...current, obstructionsEnabled: !current.obstructionsEnabled })) },
+    charts: {
+      onBaseChange: (value: typeof chartBase) => { clear('Chart unavailable'); setMapPreferences(current => ({ ...current, chartBase: value })); },
+      onOverlayChange: (value: typeof chartOverlay) => { clear('Chart unavailable'); setMapPreferences(current => ({ ...current, chartOverlay: value })); },
+    },
+    navigation: {
+      onFixDisplayChange: (value: typeof fixDisplay) => setMapPreferences(current => ({ ...current, fixDisplay: value })),
+      onVisibilityChange: (id: NavigationLayerId) => setMapPreferences(current => ({ ...current,
+        visibility: { ...current.visibility, [id]: !current.visibility[id] } })),
+    },
+    metar: { onToggle: () => setMapPreferences(current => ({ ...current, metarEnabled: !current.metarEnabled })) },
+    onChooseNearby: (features: NearbyFeature[], point: { x: number; y: number }) => setNearbyFeatures({ features, point }),
+  }), [setMapPreferences, clear]);
+  const resolveMapFeature = useCallback((feature: GeoPointFeature) => resolveNavigationFeature(feature, mapNavigationData), [mapNavigationData]);
+  // Explicit workspace bindings publish committed state. Each map contribution
+  // selects only the fields it consumes, so UI changes do not rebuild map data.
+  useLayoutEffect(() => {
+    if (!context) return;
+    workspaceLayers.ownship.input.set({ enabled: ownshipEnabled, ...pluginActions.ownship });
+    workspaceLayers.ahrs.input.set({ route: route.plan, revision: context.browsing.revision });
+    workspaceLayers.ruler.input.set({ revision: context.browsing.revision });
+    workspaceLayers.terrain.input.set({ enabled: terrainEnabled, routes: displayedRoutes, catalog: context,
+      altitude: terrainAltitude, coverage: terrainCoverage,
+      ...pluginActions.terrain });
+    workspaceLayers.obstructions.input.set({ enabled: obstructionsEnabled, routes: displayedRoutes,
+      ...pluginActions.obstructions });
+    workspaceLayers.charts.input.set({ catalog: context, selection: renderedCharts, chartSelection, chartCacheState,
+      activeChartTitle, activeChartCount, savedEditionDetails, routingRevision: context.routing.revision,
+      savedEditions, ...pluginActions.charts });
+    workspaceLayers.navigation.input.set({ catalog: context, data: mapNavigationData, navigationData, visibility, fixDisplay,
+      fixContext, identification: identificationMap, loadState,
+      inspectedCoordinate: selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected) ? selected : undefined,
+      ...pluginActions.navigation });
+    workspaceLayers.metar.input.set({ catalog: context, airports: mapNavigationData.airports, enabled: metarEnabled,
+      airportsVisible: visibility.airports,
+      ...pluginActions.metar });
+    workspaceLayers.routes.input.set({ route: route.plan, routePreview, focusNonce: routeFocusNonce,
+      resolveFeature: resolveMapFeature, onSelect: selectFeature,
+      onChooseNearby: pluginActions.onChooseNearby,
+      onRouteLegInsert: insertRouteWaypoint, onRouteWaypointReplace: replaceRouteWaypoint, onRouteWaypointRemove: removeRouteWaypoint });
+  });
+
   const dataPending = navigationPending || route.status === 'loading' ||
-    (!!mapSelection && !mappedPlate && !mapRestoreError) ||
+    (loaded.plates && !!mapSelection && !mappedPlate && !mapRestoreError) ||
     (activeChartCount > 0 && chartCacheState === 'preparing') ||
     (terrainEnabled && terrainStatus.state === 'loading') || (obstructionsEnabled && obstructionStatus.state === 'loading');
   const startup = useStartup(!!context && !dataPending && mapIdle, mapFailed);
@@ -216,30 +301,10 @@ export function App() {
     : !mapIdle ? 'Preparing your map…' : 'Finishing up…';
   if (catalogError && !context) return <CatalogError message={catalogError} />;
   if (!context) return <StartupScreen message={startupMessage} slow={startup.slow} />;
-  const savedEditions = [...new Set(visibleBundles.map(bundle => bundle.catalog.revision))];
-  const visibleNavigationIssues = navigationIssues.filter(issue => issue.regionId ?
-    visibleBundles.some(bundle => bundle.plan.regionId === issue.regionId && bundle.catalog.revision === issue.revision) : browsingVisible);
-  const savedEditionDetails = `Saved coverage in this view: ${visibleBundles.map(bundle =>
-    `${bundle.plan.title} · ${formatDate(bundle.catalog.revision)}`).join(', ')}. Saved regions override browsing. Route data: ${formatDate(context.routing.revision)} (saved).`;
-
-  const selectSearchResult = (feature: GeoPointFeature) => {
-    selectFeature(feature);
-    setFocusTarget({ feature, nonce: Date.now() });
-    setQuery('');
-  };
-  const insertRouteWaypoint = (afterEntryId: string, feature: GeoPointFeature) => {
-    setRouteDraft((current) => insertRouteFeature(current, afterEntryId, feature));
-  };
-  const replaceRouteWaypoint = (entryId: string, feature: GeoPointFeature) => {
-    setRouteDraft((current) => replaceRouteFeature(current, entryId, feature));
-  };
-  const removeRouteWaypoint = (entryId: string) => {
-    setRouteDraft((current) => removeRouteEntry(current, entryId));
-  };
 
   return (
     <><fieldset className="workspace-startup-gate" role="presentation" disabled={!startup.complete}>
-    <main className="app-shell" inert={!startup.complete} aria-busy={!startup.complete}>
+    <main className={`app-shell${loaded.routes ? '' : ' routes-unloaded'}`} inert={!startup.complete} aria-busy={!startup.complete}>
       <header className="topbar">
         <div className="brand">
           <img className="brand-mark" src="/icon.svg" alt="ZLayer" />
@@ -247,7 +312,7 @@ export function App() {
           <span className="brand-tagline">A modern, lightweight EFB. Layer by layer.</span>
         </div>
 
-        <SearchBox
+        {loaded.navigation && <SearchBox
           query={query}
           results={search.results}
           loading={search.loading}
@@ -255,25 +320,26 @@ export function App() {
           issues={search.issues}
           onQueryChange={setQuery}
           onSelect={selectSearchResult}
-        />
+        />}
 
         <div className="topbar-meta">
           <SettingsLauncher catalog={browsingCatalog!} cycles={cycles} selection={selection}
-            onCycleChange={selectCycle} cycleNotice={cycleNotice} />
+            onCycleChange={selectCycle} cycleNotice={cycleNotice}
+            plugins={plugins.controlsList} onPluginChange={plugins.setLoaded} pluginError={plugins.error} />
         </div>
       </header>
 
-      <RouteBar
+      {loaded.routes && <RouteBar
         plan={route.plan}
         navigationData={route.data}
         status={route.status}
         catalog={context.routing}
         onUseRoute={setRouteDraft}
-        onDirectTo={directTo}
+        onDirectTo={loaded.ownship ? directTo : undefined}
         onApproachChange={(entry, approach) => setRouteDraft(current => setRouteApproach(current, entry, approach))}
         onDepartureChange={(entry, departure) => setRouteDraft(current => setRouteDeparture(current, entry, departure))}
         onArrivalChange={(entry, arrival) => setRouteDraft(current => setRouteArrival(current, entry, arrival))}
-        onOpenPlate={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
+        onOpenPlate={loaded.plates ? selection => { plates.open(selection); setActiveSidePanel('plate'); } : undefined}
         onRecommendationPreview={setRecommendations}
         onApproachPreview={setApproachPreview}
         onAppendInput={(input) => setRouteDraft((current) => appendRouteText(current, input))}
@@ -293,7 +359,7 @@ export function App() {
         }
         onClear={() => setRouteDraft(EMPTY_ROUTE_DRAFT)}
         onFit={() => setRouteFocusNonce((current) => current + 1)}
-      />
+      />}
 
       <section className="workspace">
         <div className="map-stage">
@@ -303,38 +369,12 @@ export function App() {
           </div>}>
             <Suspense fallback={<div className="map-loading">Starting WebGL map…</div>}>
               <MapCanvas
-                catalog={context}
-                chartSelection={renderedCharts}
-                visibility={visibility}
-                fixContext={fixContext}
-                data={mapNavigationData}
-                route={route.plan}
-                routePreview={routePreview}
-                identification={identificationMap}
-                inspectedCoordinate={selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected)
-                  ? selected : undefined}
+                contributions={mapContributions}
+                orientation={ownshipLayer}
                 {...(mapView ? { initialView: mapView } : {})}
-                routeFocusNonce={routeFocusNonce}
                 focusTarget={focusTarget}
-                onSelect={selectFeature}
-                onChooseNearby={(features, point) => setNearbyFeatures({ features, point })}
                 onViewportChange={setViewport}
                 onViewChange={setMapView}
-                metarLayer={metarLayer}
-                platesLayer={plates}
-                rulerLayer={workspaceLayers.ruler}
-                metarEnabled={metarEnabled}
-                ownshipLayer={ownshipLayer}
-                ownshipEnabled={ownshipEnabled}
-                terrainEnabled={terrainEnabled}
-                terrainCoverage={terrainCoverage}
-                obstructionsEnabled={obstructionsEnabled}
-                terrainAltitude={terrainAltitude}
-                onTerrainStatus={setTerrainStatus}
-                onObstructionStatus={setObstructionStatus}
-                onRouteLegInsert={insertRouteWaypoint}
-                onRouteWaypointReplace={replaceRouteWaypoint}
-                onRouteWaypointRemove={removeRouteWaypoint}
                 onReady={() => clear('Map layer unavailable')}
                 onIdleChange={startup.complete ? undefined : setMapIdle}
                 onStartupFailure={mapStartupFailed}
@@ -343,86 +383,17 @@ export function App() {
             </Suspense>
           </ErrorBoundary>
 
-          <plates.MapControl />
-          <RulerTool layer={workspaceLayers.ruler} revision={context.browsing.revision} />
+          <LayerContributions contributions={plugins.overlays} />
 
           {nearbyFeatures && <NearbyFeaturePicker features={nearbyFeatures.features} point={nearbyFeatures.point}
             onSelect={selectFeature} onClose={() => setNearbyFeatures(undefined)} />}
 
-          <LayerMenu
-            catalog={context}
-            chartSelection={chartSelection}
-            visibility={visibility}
-            fixDisplay={fixDisplay}
-            onFixDisplayChange={fixDisplay => setMapPreferences(current => ({ ...current, fixDisplay }))}
-            navigationData={navigationData}
-            loadState={loadState}
+          <LayerMenu controls={plugins.controls} footer={plugins.footer}
             visibleFeatureCount={visibleFeatureCount}
-            metarEnabled={metarEnabled}
-            metarStatus={metarState.status}
-            metarObservedAt={metarState.observedAt}
-            weatherAirportCount={weatherAirportCount}
-            terrainEnabled={terrainEnabled}
-            terrainCoverage={terrainCoverage}
-            onTerrainCoverageChange={terrainCoverage => setMapPreferences(current => ({ ...current, terrainCoverage }))}
-            terrainStatus={terrainStatus}
-            onTerrainVisibilityChange={() => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled }))}
-            obstructionsEnabled={obstructionsEnabled}
-            obstructionStatus={obstructionStatus}
-            onObstructionVisibilityChange={() => setMapPreferences(current => ({ ...current, obstructionsEnabled: !current.obstructionsEnabled }))}
-            onChartBaseChange={(chartBase) => {
-              clear('Chart unavailable');
-              setMapPreferences(current => ({ ...current, chartBase }));
-            }}
-            onChartOverlayChange={(chartOverlay) => {
-              clear('Chart unavailable');
-              setMapPreferences(current => ({ ...current, chartOverlay }));
-            }}
-            onVisibilityChange={(layerId) =>
-              setMapPreferences(current => ({ ...current,
-                visibility: { ...current.visibility, [layerId]: !current.visibility[layerId] },
-              }))
-            }
-            onMetarVisibilityChange={() => setMapPreferences(current => ({ ...current, metarEnabled: !current.metarEnabled }))}
-          />
-
-          <MapEdgeTools charts={<div className="map-badge" aria-label="Chart status">
-            <span>
-              {chartSelection.base
-                ? chartCacheState === 'preparing'
-                  ? 'CACHE'
-                  : chartCacheState === 'ready' ? 'MBTILES' : 'OFFLINE'
-                : 'WEBGL'}
-            </span>
-            <strong>
-              {chartSelection.base && chartCacheState === 'preparing'
-                ? 'Preparing whole-file chart cache…'
-                : chartSelection.base && chartCacheState === 'unavailable'
-                ? 'Whole-file chart cache unavailable'
-                : chartSelection.base
-                ? `${activeChartTitle} · ${activeChartCount} charts`
-                : 'Base map'}
-            </strong>
-            {savedEditions.length > 0 && <div className="saved-editions" role="status"
-              title={savedEditionDetails} aria-label={savedEditionDetails}>
-              {savedEditions.map(revision => <div key={revision}>
-                {visibleBundles.filter(bundle => bundle.catalog.revision === revision).map(bundle =>
-                  OFFLINE_REGIONS.find(region => region.id === bundle.plan.regionId)?.title ?? bundle.plan.title
-                ).join(', ')} · Saved · <time dateTime={revision}>{formatDate(revision)}</time>
-              </div>)}
-              {savedEditions.length > 1 && <div>Routes · <time dateTime={context.routing.revision}>{formatDate(context.routing.revision)}</time></div>}
-            </div>}
-          </div>}
-            gps={<OwnshipStatus layer={ownshipLayer} enabled={ownshipEnabled}
-              onToggle={() => setMapPreferences(current => ({ ...current, ownshipEnabled: !current.ownshipEnabled }))} />}
-            ahrs={{ render: visible => <AhrsTool layer={workspaceLayers.ahrs} route={route.plan} revision={context.browsing.revision} visible={visible} />,
-              stop: workspaceLayers.ahrs.stop }}
-            terrain={<TerrainLegend status={terrainStatus} altitude={terrainAltitude} enabled={terrainEnabled}
-                onToggle={() => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled }))}
-                coverage={terrainCoverage} onCoverageChange={terrainCoverage => setMapPreferences(current => ({ ...current, terrainCoverage }))}
-                onAltitudeChange={terrainAltitude => setMapPreferences(current => ({ ...current, terrainAltitude }))} />}
-          >
-            <LayerPanels layers={workspaceLayers.panels} />
+            activeCount={Object.values(visibility).filter(Boolean).length + (chartSelection.base ? 1 : 0) +
+              (chartSelection.overlay ? 1 : 0) + (metarEnabled ? 1 : 0) + (terrainEnabled ? 1 : 0) + (obstructionsEnabled ? 1 : 0)} />
+          <MapEdgeTools layout={PANEL_LAYOUT}>
+            <LayerPanels panels={plugins.panels} layout={PANEL_LAYOUT} />
           </MapEdgeTools>
 
           <div className="workspace-notices">
@@ -456,34 +427,31 @@ export function App() {
             )}
           </div>
 
-          {metarEnabled && weatherAirportCount > 0 && (
-            <FlightCategoryLegend observedAt={metarState.observedAt} />
-          )}
-
           <EdgePanels side="right" active={activeSidePanel} onActiveChange={setActiveSidePanel} className="side-panels">
-            {selected && (
+            {loaded.navigation && selected && (
               <FeatureDetailsPanel
                 key={featureKey(selected)}
                 feature={selectedWithWeather ?? selected}
                 catalog={context}
                 metarClient={metarLayer.client}
+                features={{ routes: !!loaded.routes, weather: !!loaded.metar, terrain: !!loaded.terrain, plates: !!loaded.plates }}
                 procedureResource={selectedCatalog?.procedures}
                 editionUnavailable={!selectedCatalog}
                 identification={identificationOpen ? identification : undefined}
                 onIdentificationChange={setIdentificationOpen}
                 savedSupplement={supplementForFeature(selectedReadContext!, selectedWithWeather ?? selected)}
                 revision={selectedCatalog?.revision ?? selected.properties.dataRevision ?? context.browsing.revision}
-                route={{ plan: route.plan, pointId: selectionContext?.routePointId, update: setRouteDraft, onDirectTo: directTo }}
+                route={{ plan: route.plan, pointId: selectionContext?.routePointId, update: setRouteDraft, onDirectTo: loaded.ownship ? directTo : undefined }}
                 onClose={() => selectFeature(undefined)}
                 onOpenProcedure={selection => { plates.open(selection); setActiveSidePanel('plate'); }}
               />
             )}
 
-            <LayerPanels layers={workspaceLayers.panels} />
+            <LayerPanels panels={plugins.panels} layout={PANEL_LAYOUT} />
           </EdgePanels>
         </div>
       </section>
-      <DirectToDialog confirmation={directToConfirmation} />
+      {loaded.routes && loaded.ownship && <DirectToDialog confirmation={directToConfirmation} />}
     </main></fieldset>
     {!startup.complete && <StartupScreen message={startupMessage} slow={startup.slow} onContinue={startup.finish} />}</>
   );

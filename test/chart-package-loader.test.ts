@@ -4,7 +4,7 @@ import { MessageChannel } from 'node:worker_threads';
 import { expose } from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter.js';
 
-import { openPackageReader } from '../src/layers/charts/package-loader.js';
+import { openPackageReader, releasePackageDecoder } from '../src/layers/charts/package-loader.js';
 import type { PackageTile } from '../src/layers/charts/package-reader.js';
 
 test('reuses the package worker and retries failures without interrupting shared reads', { timeout: 5_000 }, async (t) => {
@@ -32,6 +32,7 @@ test('reuses the package worker and retries failures without interrupting shared
   Object.defineProperty(globalThis, 'Worker', { configurable: true, value: TestWorker });
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(bytes));
   t.after(() => {
+    releasePackageDecoder();
     workers.forEach(worker => worker.terminate());
     if (originalWorker) Object.defineProperty(globalThis, 'Worker', originalWorker);
     else Reflect.deleteProperty(globalThis, 'Worker');
@@ -81,4 +82,16 @@ test('reuses the package worker and retries failures without interrupting shared
   decode = async () => rows();
   (await openPackageReader(url)).dispose();
   assert.equal(workers.length, 3, 'a worker crash also allows a fresh retry');
+  releasePackageDecoder(); releasePackageDecoder();
+  assert.ok(workers.every(worker => worker.terminated), 'unload releases the idle decoder');
+  (await openPackageReader(url)).dispose();
+  assert.equal(workers.length, 4, 'reload constructs a fresh decoder');
+  const controller = new AbortController();
+  let resolveFetch!: (response: Response) => void;
+  fetch.mock.mockImplementation(() => new Promise<Response>(resolve => { resolveFetch = resolve; }));
+  const obsolete = assert.rejects(openPackageReader(url, controller.signal), { name: 'AbortError' });
+  controller.abort(); releasePackageDecoder();
+  resolveFetch(new Response(bytes));
+  await obsolete;
+  assert.equal(workers.length, 4, 'a stale completed fetch cannot restart a decoder after unload');
 });

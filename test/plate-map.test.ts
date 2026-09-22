@@ -76,7 +76,7 @@ test('a map menu is dismissed by viewer changes and cannot target a replacement 
 
 test('the map opens a menu only inside the footprint, keeps the plate until selected, and restores after reattachment', () => {
   const product = createPlatesController();
-  const layer = createPlateMapLayer(product);
+  let layer = createPlateMapLayer(product);
   const sources = new Set<string>(), layers = new Set<string>();
   const handlers = new Map<string, () => void>();
   let fits = 0;
@@ -104,6 +104,14 @@ test('the map opens a menu only inside the footprint, keeps the plate until sele
   layer.mount(map);
   assert.equal(sources.size, 1);
   assert.equal(fits, 2, 'reattaching after a style change preserves the camera');
+  layer.unmount();
+  layer = createPlateMapLayer(product, product.getSnapshot().mapImage);
+  layer.mount(map);
+  assert.equal(fits, 2, 'a fresh attachment must not replay an old Show on map action');
+  const third = image('third');
+  product.open(third.selection);
+  product.showOnMap(third, product.getSnapshot().requestId);
+  assert.equal(fits, 3, 'a new explicit Show on map still fits after restoring an attachment');
   assert.equal(layer.showMenuAt({ x: -118, y: 34 }), false);
   assert.equal(product.getSnapshot().mapMenuPoint, undefined);
   assert.equal(sources.size, 1);

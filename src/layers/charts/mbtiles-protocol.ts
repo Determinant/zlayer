@@ -1,4 +1,4 @@
-import { addProtocol, type AddProtocolAction } from 'maplibre-gl';
+import { addProtocol, removeProtocol, type AddProtocolAction } from 'maplibre-gl';
 import { transferHandlers, wrap, type Remote } from 'comlink';
 import type { LazyHttpDatabase, SqliteComlinkMod } from 'sql.js-httpvfs/dist/sqlite.worker';
 import sqliteWasmUrl from 'sql.js-httpvfs/dist/sql-wasm.wasm?url';
@@ -9,7 +9,7 @@ import { packageBoundsIntersect, type CatalogResponse, type ChartKind } from '@z
 import { createMbtilesReader, type MbtilesReader, type TileCoordinate } from './mbtiles-reader';
 import { ArchiveReaderPool } from './reader-pool';
 import { createChartPackageIndex, tileBounds } from './package-index';
-import { openPackageReader } from './package-loader';
+import { releasePackageDecoder, openPackageReader } from './package-loader';
 import { MAX_FAST_PACKAGE_BYTES, MAX_RESIDENT_PACKAGES } from './package-reader';
 
 import { regionalTileParts, renderRegionalTile } from './regional-tiles';
@@ -17,16 +17,29 @@ import { WorkerClient } from '../../core/data/worker-client';
 import { renderRasterBitmap } from '../../core/graphics/raster-bitmap';
 import { browsingCatalog, regionalBundles, type CatalogReadSource } from '../../workspace/read-context';
 
-const packageIndexes = new WeakMap<CatalogResponse, ReturnType<typeof createChartPackageIndex>>();
+let packageIndexes = new WeakMap<CatalogResponse, ReturnType<typeof createChartPackageIndex>>();
 const PROTOCOL = 'mbtiles';
 const SQLITE_PAGE_SIZE = 4_096;
 const archives = new Map<string, string>();
 const readers = new ArchiveReaderPool(openReader);
 const packages = new ArchiveReaderPool(openPackageReader, MAX_RESIDENT_PACKAGES);
+let lifetime = new AbortController();
 let packageArchive: ReturnType<typeof createChartPackageIndex> | undefined;
 let installed = false;
 let registeredCatalog: CatalogReadSource | undefined;
 const failureListeners = new Set<(chartId: string) => void>();
+
+const owners = new Set<symbol>();
+
+/** Every chart adapter holds a lease, including adapters whose mount later fails. */
+export function retainChartReaders(): () => void {
+  const owner = Symbol();
+  owners.add(owner);
+  return () => {
+    if (!owners.delete(owner) || owners.size) return;
+    disposeMbtilesArchives();
+  };
+}
 
 /** Also report partially rendered regional tiles: MapLibre sees those as successes. */
 export function observeChartFailures(listener: (chartId: string) => void): () => void {
@@ -39,6 +52,7 @@ function reportChartFailure(chartId: string): void {
 
 export function registerMbtilesArchives(catalog: CatalogReadSource): void {
   if (registeredCatalog === catalog) return;
+  if (lifetime.signal.aborted) lifetime = new AbortController();
   registeredCatalog = catalog;
   archives.clear();
   for (const chart of catalog.charts) archives.set(chart.id, chart.url);
@@ -48,20 +62,37 @@ export function registerMbtilesArchives(catalog: CatalogReadSource): void {
   installed = true;
 }
 
+/** Release map-owned memory and work; verified files remain in offline storage. */
+function disposeMbtilesArchives(): void {
+  lifetime.abort();
+  readers.clear();
+  packages.clear();
+  releasePackageDecoder();
+  archives.clear();
+  packageArchive = undefined;
+  packageIndexes = new WeakMap();
+  registeredCatalog = undefined;
+  if (installed) removeProtocol(PROTOCOL);
+  installed = false;
+}
+
 export function mbtilesTileUrl(chartId: string): string {
   return `${PROTOCOL}://archive/${encodeURIComponent(chartId)}/{z}/{x}/{y}`;
 }
 
 const loadTile: AddProtocolAction = async ({ url }, abortController) => {
   const tile = parseTileUrl(url);
-  try { return await readTile(tile, abortController.signal); }
+  const signal = AbortSignal.any([abortController.signal, lifetime.signal]);
+  try { return await readTile(tile, signal); }
   catch (error) {
-    if (!abortController.signal.aborted) reportChartFailure(tile.chartId);
+    signal.throwIfAborted();
+    reportChartFailure(tile.chartId);
     throw error;
   }
 };
 
 async function readTile(tile: ReturnType<typeof parseTileUrl>, signal: AbortSignal) {
+  signal.throwIfAborted();
   const family = tile.chartId.startsWith('@') ? tile.chartId.slice(1) as ChartKind : undefined;
   if (family && registeredCatalog && regionalBundles(registeredCatalog).length) {
     const parts = regionalTileParts(registeredCatalog, tile);
@@ -122,15 +153,18 @@ transferHandlers.set('WORKERSQLPROXIES', {
   },
 });
 
-async function openReader(url: string): Promise<{ read: MbtilesReader; dispose: () => void; isUsable: () => boolean }> {
+async function openReader(url: string, signal: AbortSignal): Promise<{ read: MbtilesReader; dispose: () => void; isUsable: () => boolean }> {
+  signal.throwIfAborted();
   const worker = new Worker(sqliteWorkerUrl);
   const client = new WorkerClient<SqliteComlinkMod>(worker, 'Unable to initialize chart archive reader');
   let db: Remote<LazyHttpDatabase> | undefined;
   const dispose = () => {
+    signal.removeEventListener('abort', dispose);
     // Close transferred database ports too; a crashed worker cannot acknowledge RELEASE.
     if (db) readerPorts.get(db)?.close();
     client.dispose();
   };
+  signal.addEventListener('abort', dispose, { once: true });
   try {
     db = await client.call(remote => remote.SplitFileHttpDatabase(sqliteWasmUrl, [{
       from: 'inline',
@@ -140,6 +174,7 @@ async function openReader(url: string): Promise<{ read: MbtilesReader; dispose: 
         url,
       },
     }])) as unknown as Remote<LazyHttpDatabase>;
+    signal.throwIfAborted();
     const read = await createMbtilesReader((sql, parameters) => client.call(() => db!.query(sql, parameters)));
     return { read, dispose, isUsable: () => !client.retired };
   } catch (error) { dispose(); throw error; }

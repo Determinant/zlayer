@@ -74,7 +74,7 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
   const refresh = () => (map?.getSource(SOURCE) as GeoJSONSource | undefined)?.setData(identificationGeoJson(input, map));
   const move = () => { if (input?.stations.length) refresh(); };
   return {
-    id: SOURCE, slot: 'route', foregroundLayerIds: ['navaid-id-points', 'navaid-id-labels', 'navaid-id-references'],
+    id: SOURCE, slot: 'annotation', overlayLayerIds: LAYERS, foregroundLayerIds: ['navaid-id-points', 'navaid-id-labels', 'navaid-id-references'],
     mount(target) {
       map = target;
       map.addSource(SOURCE, { type: 'geojson', data: identificationGeoJson(input, map) });

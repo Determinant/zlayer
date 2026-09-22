@@ -60,8 +60,7 @@ export class ElevationTiles {
   }
 
   async #decode(url: string, signal: AbortSignal): Promise<Float32Array> {
-    const response = await fetchElevation(url, signal);
-    const blob = await response.blob();
+    const blob = await fetchElevation(url, signal);
     signal.throwIfAborted();
     const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
     try {

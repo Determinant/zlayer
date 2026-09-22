@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { WholeFileChartCache, type ChartArchive } from './layers/charts/worker';
+import { WholeFileCache, type FileArchive } from './core/storage/archive-cache';
 import { isOnChartFeed } from './workspace/catalog/feed';
 import { CHART_CACHE, DATA_CACHE } from './core/storage/cache-names';
 import { noteCacheAccess } from './core/storage/cache-access';
@@ -22,7 +22,7 @@ const shellPageUrl = `${worker.location.origin}/`;
 const dataCache = DATA_CACHE;
 const chartArchiveCachePrefix = 'zlayers-chart-archives-';
 const chartArchiveCache = CHART_CACHE;
-let chartArchives = new WholeFileChartCache();
+let chartArchives = new WholeFileCache();
 let resetting = false;
 let resetComplete = false;
 const resetHolds = new Set<() => void>();
@@ -235,7 +235,7 @@ async function prepareReset(navigateWindows: boolean): Promise<void> {
   while (pendingWork.size) await Promise.allSettled([...pendingWork]);
   // A later registration can revive this worker. Discard resident blobs too,
   // after all downloads have settled so none can repopulate the old instance.
-  chartArchives = new WholeFileChartCache();
+  chartArchives = new WholeFileCache();
 }
 
 async function prepareApplication(): Promise<void> {
@@ -384,13 +384,13 @@ async function publishChartArchiveError(url: string, error: Error): Promise<void
   }
 }
 
-function headResponse(archive: ChartArchive): Response {
+function headResponse(archive: FileArchive): Response {
   const headers = new Headers(archive.headers);
   headers.set('accept-ranges', 'bytes');
   return new Response(null, { status: 200, headers });
 }
 
-function rangeResponse(archive: ChartArchive, header: string): Response {
+function rangeResponse(archive: FileArchive, header: string): Response {
   const size = archive.blob.size;
   const match = header.match(/^bytes=(\d+)-(\d*)$/);
   if (!match) return new Response(null, { status: 416 });

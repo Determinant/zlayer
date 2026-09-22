@@ -8,8 +8,9 @@ import type { Attitude, ImuSample, MagneticSample } from './estimator/types';
 import { createMotionSensor, type MotionFactory, type MotionPort, type MotionReading } from './motion';
 import { createAhrsRecorder, type AhrsRecorder } from './recording';
 import { validPosition, type Position } from './navigation';
+import { HeadingReference, type HsiHeading } from './heading-reference';
 
-/** The host owns the GPS watch; AHRS holds a lease only while motion is enabled. */
+/** Compatible with the shared core GPS service; AHRS leases it while motion is enabled. */
 export type AhrsGpsSource = {
   getSnapshot(): { state: string; fix: {
     timestamp: number; accuracy: number; speed: number | null; track: number | null; estimated: boolean;
@@ -27,6 +28,8 @@ type Warning = '' | 'Calibration' | 'Motion' | 'No GPS' | 'Low Speed' | 'Uncerta
 export type AhrsSnapshot = {
   phase: Phase;
   attitude: Attitude | null;
+  /** Persistent geographic HSI reference; GPS-seeded heading remains provisional. */
+  hsiHeading: HsiHeading | null;
   crossed: boolean;
   warning: Warning;
   message: string;
@@ -49,7 +52,7 @@ export type AhrsSnapshot = {
 };
 type Environment = { now(): number; timeOrigin: number; motion: MotionFactory; recorder?: AhrsRecorder };
 
-const initial = (): AhrsSnapshot => ({ phase: 'idle', attitude: null, crossed: true,
+const initial = (): AhrsSnapshot => ({ phase: 'idle', attitude: null, hsiHeading: null, crossed: true,
   warning: 'Calibration', message: '', calibrationReason: 'collecting-imu', progress: 0,
   gpsLive: false, gpsUsable: false, gpsMessage: 'Waiting for GPS.', track: null, speed: null,
   altitude: null, altitudeAccuracy: null, gpsTime: null, position: null, trueHeading: false });
@@ -73,6 +76,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
   const store = createLayerStore<AhrsSnapshot>(initial());
   const recorder = environment.recorder ?? createAhrsRecorder();
   const alignment = new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true, pauseOnGap: true });
+  const headingReference = new HeadingReference();
   const estimatorOptions = { ...DEFAULTS, recoverAfterGap: true };
   const createFilter = () => new Ahrs(estimatorOptions, observation => recorder.record('innovation', environment.now(), observation));
   let filter = createFilter(), trim: Quaternion = [1, 0, 0, 0];
@@ -110,7 +114,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
   };
   const readSnapshot = (): AhrsSnapshot => {
     const now = environment.now(), location = gpsState();
-    const attitude = hasAlignment ? filter.getState(now) : store.getSnapshot().attitude;
+    const attitude = hasAlignment ? filter.getState(now) : null;
     const calibration = alignment.snapshot(now);
     let warning: Warning = 'Calibration', detail = message;
     if (phase === 'calibrating' && calibration.issue) detail ||= calibrationMessage(calibration.issue);
@@ -131,7 +135,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
         }
       }
     }
-    return { phase, attitude, crossed: warning !== '', warning, message: detail,
+    return { phase, attitude, hsiHeading: headingReference.read(now), crossed: warning !== '', warning, message: detail,
       calibrationReason: phase === 'calibrating' && now - lastImu > 0.5 ? 'imu-stale' : calibration.reason,
       progress: phase === 'ready' ? 1 : ['collecting-imu', 'imu-stale', 'pose-changed'].includes(calibration.reason)
         ? Math.min(.99, calibration.elapsed / calibration.requiredSeconds) : 0,
@@ -150,7 +154,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     if (visible && motion) timer = setInterval(publish, 50);
   };
   const observeGps = () => {
-    const { fix, time, live } = gpsState();
+    const { fix, time, live, usable } = gpsState();
     recorder.record('gps', environment.now(), { ...gps.getSnapshot(), time,
       forwarded: !!fix && time > lastFix && time <= environment.now() + .1 && hasAlignment && live });
     if (fix && time > lastFix && time <= environment.now() + 0.1) {
@@ -158,6 +162,11 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       const sample = { time, accuracy: fix.accuracy, speed: fix.speed, track: fix.track, estimated: fix.estimated };
       if (phase === 'calibrating') alignment.observeGps(sample);
       if (hasAlignment && live) filter.updateGps({ ...sample, altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
+      const attitude = hasAlignment ? filter.getState(environment.now()) : null;
+      if (attitude) headingReference.observeAttitude(attitude, environment.now());
+      if (usable && (hasAlignment || heading === undefined)) {
+        headingReference.observeGps(time, fix.track!, environment.now(), attitude);
+      }
     }
     publish();
   };
@@ -210,13 +219,17 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
           // no longer needed for display reads or subsequent GPS observations.
           alignment.reset();
           hasAlignment = true;
+          headingReference.observeImu({ time: candidate.time, gyro: bias, specificForce: rotate(trim, candidate.specificForce) },
+            filter.getState(environment.now()), environment.now());
           phase = 'ready';
           message = '';
           lastFix = -Infinity;
           observeGps();
         }
       } else if (phase === 'ready') {
-        filter.update({ time: value.time, gyro: rotate(trim, value.gyro), specificForce: rotate(trim, value.specificForce) });
+        const corrected = { time: value.time, gyro: rotate(trim, value.gyro), specificForce: rotate(trim, value.specificForce) };
+        const attitude = filter.update(corrected);
+        headingReference.observeImu(corrected, attitude, environment.now());
       }
       if (recorder.accepting() && value.time >= nextRecordedState) {
         recorder.record('state', environment.now(), readSnapshot());
@@ -252,6 +265,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     // The layer stays mounted when stopped. Release replay covariances and the
     // independent heading trajectory instead of retaining the last session.
     filter.reset();
+    headingReference.reset();
     alignment.reset();
     store.publish(initial());
   };
@@ -289,6 +303,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       const session = generation;
       phase = 'requesting'; message = ''; hasAlignment = false; motionIssue = false;
       filter.reset();
+      headingReference.reset(trueHeading, environment.now());
       magneticMessage = '';
       lastImu = lastFix = -Infinity;
       heading = trueHeading;
@@ -307,7 +322,10 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
         await sensor.start();
         if (session !== generation) { sensor.stop(); return; }
         phase = 'calibrating';
-        releaseGps = gps.acquire();
+        const releaseLocation = gps.acquire();
+        // Acquiring may synchronously notify another consumer that stops us.
+        if (session !== generation) { releaseLocation(); return; }
+        releaseGps = releaseLocation;
         unsubscribe = gps.subscribe(() => { if (session === generation) observeGps(); });
         observeGps();
         updateDisplayTimer();

@@ -183,8 +183,8 @@ test('the app detail panel can remove a navigation waypoint added through search
 
 test('a restored detail panel retains the selected occurrence of a repeated GPS waypoint', async ({ page }) => {
   await page.addInitScript(() => {
-    if (localStorage.getItem('zlayer-route-draft-v1')) return;
-    localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+    if (localStorage.getItem('zlayer-plugin:routes:draft')) return;
+    localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [
       { id: 'first', text: '350000N1190000W' }, { id: 'middle', text: '360000N1200000W' },
       { id: 'last', text: '350000N1190000W' },
     ] }));
@@ -200,7 +200,7 @@ test('a restored detail panel retains the selected occurrence of a repeated GPS 
   await page.reload();
   await remove.click();
   await expect(page.locator('.route-token strong')).toHaveText(['35°00′N 119°00′W', '36°00′N 120°00′W']);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries
     .map((entry: { id: string }) => entry.id))).toEqual(['first', 'middle']);
   await page.reload();
   await expect(page.locator('.route-token')).toHaveCount(2);

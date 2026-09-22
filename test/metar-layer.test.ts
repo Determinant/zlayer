@@ -114,6 +114,10 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   await advance(120_000);
   assert.equal(calls.length, 4, 'unmounted layer cannot resume work');
   product.map.mount(map);
+  assert.equal(sources.get('metar-airports')!.features.length, 0, 'detached airport data is released independently of the weather cache');
+  product.map.unmount();
+  product.map.update({ airports, enabled: true, airportsVisible: true });
+  product.map.mount(map);
   await advance(250);
   assert.equal(calls.length, 5);
   assert.ok(product.getSnapshot().stations.has('KSFO'), 'remount retains off-screen cache');

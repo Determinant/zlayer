@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test';
 /** A ready overlay retains its selection without a persistent status banner. */
 export async function expectMapPlate(page: Page, name: string | null = 'TEST APPROACH') {
   await expect.poll(() => page.evaluate(() =>
-    JSON.parse(localStorage.getItem('zlayer-ui:plate-on-map') ?? 'null')?.value?.procedure.name ?? null,
+    JSON.parse(localStorage.getItem('zlayer-plugin:plates:plate-on-map') ?? 'null')?.value?.procedure.name ?? null,
   )).toBe(name);
   await expect(page.getByLabel('IAP on map', { exact: true })).toHaveCount(0);
 }

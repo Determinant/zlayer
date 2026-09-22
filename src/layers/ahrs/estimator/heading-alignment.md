@@ -10,19 +10,48 @@ GPS/IMU motion. `headingStatus` governs navigation fusion:
 | `tracking` | Aligned to north | Local ESKF velocity/altitude corrections |
 | `recovering` | Arbitrary local-level frame | The same fresh evidence paths as initial acquisition |
 
-There is no saved manual-heading measurement to apply again. A north-referenced
-HSI heading also requires sufficiently small uncertainty. Without that confident
-heading, live IMU yaw still drives a crossed **REL** card, including with GPS
-available. GPS track never replaces yaw as the card reference. The geographic
-track marker and route guidance require confident heading alignment; relative yaw
-cannot orient them. The recorder includes the status,
-reason and previous source in each attitude snapshot.
+There is no saved manual-heading measurement to apply again. Navigation-filter
+alignment and HSI availability are separate. The plugin's
+[HSI policy](../README.md#heading-and-guidance-behavior) keeps available information
+visible under warnings, using the geographic reference described below while
+this filter seeks observable nose-heading evidence.
 
 Heading acquisition is not a prerequisite for IMU calibration or visible pitch
 and bank. A session with no GPS fix can show live relative attitude under the red
 cross. The host's [display policy](../README.md#calibration-and-validity) uses GPS
 availability, aiding speed and tilt uncertainty; unknown absolute heading alone
 does not hide the AI or trigger the tilt-uncertainty warning.
+
+## HSI heading reference
+
+[HeadingReference](../heading-reference.ts) belongs to the AHRS session and exposes
+`AhrsSnapshot.hsiHeading`. It prefers aligned estimator heading; otherwise fresh,
+accurate, non-estimated GPS track at or above 10 m/s can seed a provisional heading.
+A supplied manual heading takes precedence during calibration. This display
+reference does not change the navigation filter's covariance or fusion gates.
+The recorder includes both `hsiHeading` and the filter's heading status, reason
+and previous source in each snapshot.
+
+Bias-corrected gyro increments, using calibrated AHRS tilt, carry heading at IMU
+cadence. A bounded three-second history matches delayed GPS track to rotation at
+fix acquisition. A fix just ahead of active motion waits for the matching IMU
+sample. During a motion pause, usable GPS can still establish or update the
+estimate, without inventing rotation across the missing interval. Propagation
+and history interpolation stop across the estimator's motion-gap limit or near
+the Euler heading singularity.
+
+Initial acquisition establishes a geographic reference immediately. Subsequent
+north-reference corrections follow the shortest angular path with exponential
+damping (5 s for GPS, 1 s for aligned AHRS). Corrections stop settling three seconds
+after their last observation. Gyro propagation excludes navigation-frame yaw
+jumps; those changes enter through the smoothed correction instead. Display reads
+are pure, and stowing or switching full screen preserves the session reference.
+
+HSI heading is considered confident only with live, non-degraded motion, aligned
+filter heading, heading standard deviation at most 20°, and a displayed heading
+within 5° of the filter heading. Confidence governs warnings independently of
+availability. GPS loss, low speed and heading recovery retain the geographic
+reference; stopping or starting a new calibration clears it.
 
 ## Tracking and recovery decisions
 
@@ -158,6 +187,6 @@ Altitude-plus-recovery regressions also cover an overconfident 90° heading erro
 with immediate and 1.1-second-delayed GPS. The broader numerical checks are in
 `test/ahrs-mathematics.test.ts`. Current numerical results and the preserved
 turn-accuracy limits are recorded in the
-[v6 review](../../../../docs/ahrs-validation.md#v6-beta-verification).
+[v6 review](../validation.md#v6-beta-verification).
 Simulations do not replace validation with recorded phone/aircraft data or prove
 consistency of every mode transition.

@@ -6,7 +6,7 @@
 Implementation update (2026-09-17): navigation uses validated GeoJSON and persisted
 typed route entries. V/T airway topology, TEC expansion and SID/STAR waypoint previews
 are implemented; altitude/clearance validation and weather-corridor filtering remain
-outside the route planner. See [routes](../routes.md) and the [roadmap](../roadmap.md).
+outside the route planner. See [routes](../../src/layers/routes/README.md) and the [roadmap](../product/roadmap.md).
 
 ## Context
 

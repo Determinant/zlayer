@@ -262,7 +262,7 @@ test('bounds whole-file downloads while cached archives bypass the queue', async
     },
     delete: async (request: RequestInfo | URL) => stored.delete(requestUrl(request)),
   };
-  const gates = Array.from({ length: 4 }, () => deferred<Response>());
+  const gates = Array.from({ length: 6 }, () => deferred<Response>());
   const started = gates.map(() => deferred<void>());
   let fetches = 0;
   const archives = new WholeFileChartCache(async (request) => {
@@ -271,30 +271,29 @@ test('bounds whole-file downloads while cached archives bypass the queue', async
     const index = fetches++;
     started[index]!.resolve();
     return gates[index]!.promise;
-  }, 6, 2);
+  });
   const keys = await Promise.all(gates.map((_, index) => archiveRequest(`sheet-${index}`, body)));
   const reads = keys.map((key) => archives.load(cache, key));
-  await Promise.all([started[0]!.promise, started[1]!.promise]);
-  assert.equal(fetches, 2);
-  assert.equal(archives.load(cache, keys[2]!), reads[2]); // coalesce even while queued
+  await Promise.all(started.slice(0, 4).map(gate => gate.promise));
+  assert.equal(fetches, 4);
+  assert.equal(archives.load(cache, keys[4]!), reads[4]); // coalesce even while queued
   assert.equal((await archives.load(cache, persisted)).blob.size, body.length);
-  assert.equal(fetches, 2);
+  assert.equal(fetches, 4);
 
   // A failed download must release its slot for the next archive.
   const failed = assert.rejects(reads[0]!, /offline/);
   gates[0]!.reject(new Error('offline'));
   await failed;
-  await started[2]!.promise;
-  assert.equal(fetches, 3);
+  await started[4]!.promise;
+  assert.equal(fetches, 5);
 
   gates[1]!.resolve(new Response(body));
   await reads[1];
-  await started[3]!.promise;
-  gates[2]!.resolve(new Response(body));
-  gates[3]!.resolve(new Response(body));
+  await started[5]!.promise;
+  gates.slice(2).forEach(gate => gate.resolve(new Response(body)));
   await Promise.all(reads.slice(1));
-  assert.equal(fetches, 4);
-  assert.equal(stored.size, 4); // three downloaded archives and the persisted one
+  assert.equal(fetches, 6);
+  assert.equal(stored.size, 6); // five downloaded archives and the persisted one
 });
 
 test('large sheets hold the entire download budget through verification and persistence', async () => {

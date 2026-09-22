@@ -1,7 +1,7 @@
 import { InvalidDataError, ResourceError } from '../data/errors';
 import { discardResponseBody } from './response';
 import { boundedBlobStream } from './blob-stream';
-import { CHART_CACHE, PDF_CACHE, fileReceiptCacheName } from './cache-names';
+import { CHART_CACHE, PDF_CACHE, DATA_CACHE, fileReceiptCacheName } from './cache-names';
 import { deleteUnusedFile, readLockedFile, releaseUnusedFile } from './file-lifetime';
 import { verificationReceipt } from './verification-receipt';
 
@@ -141,14 +141,16 @@ export async function storedFileBlob(response: Response): Promise<Blob> {
 /** Consume one network chunk at a time, awaiting disk writes before reading more.
  * The fallback has a hard byte ceiling, including unknown/misreported lengths. */
 export async function downloadFile(response: Response, options: {
-  key: RequestInfo | URL; byteLength?: number | undefined; label: string; onProgress?: (loaded: number) => void;
+  key: RequestInfo | URL; byteLength?: number | undefined; maximumBytes?: number | undefined;
+  label: string; onProgress?: (loaded: number) => void;
 }): Promise<Blob> {
   let disk: DiskFile | undefined, writer: FileSystemWritableFileStream | undefined, writing: Blob | undefined;
   let reader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>> | undefined;
   let parts: Uint8Array<ArrayBuffer>[] = [];
   let loaded = 0;
   try {
-    if (options.byteLength === undefined || options.byteLength > DOWNLOAD_MEMORY_LIMIT) {
+    const bound = options.byteLength ?? options.maximumBytes;
+    if (bound === undefined || bound > DOWNLOAD_MEMORY_LIMIT) {
       try {
         const root = await storage()?.getDirectory?.();
         if (root && navigator.locks) {
@@ -169,6 +171,9 @@ export async function downloadFile(response: Response, options: {
       const { done, value } = await reader.read();
       if (done) break;
       const next = loaded + value.byteLength;
+      if (options.maximumBytes !== undefined && next > options.maximumBytes) {
+        throw new InvalidDataError(`${options.label} exceeds its byte limit`);
+      }
       if (options.byteLength !== undefined && next > options.byteLength) {
         throw new InvalidDataError(`${options.label} size mismatch: expected ${options.byteLength}, received at least ${next}`);
       }
@@ -279,7 +284,7 @@ async function retireFile(cacheName: string, cache: Cache, url: string, name: st
 async function removeRetiredFile(cacheName: string, cache: Cache, url: string, name: string): Promise<boolean> {
   // Read existing caches without open(): background cleanup must never recreate
   // a namespace after reset, nor delete a file published in another file cache.
-  for (const logical of new Set([cacheName, CHART_CACHE, PDF_CACHE])) {
+  for (const logical of new Set([cacheName, CHART_CACHE, PDF_CACHE, DATA_CACHE])) {
     const receipt = await caches.match(url, { cacheName: fileReceiptCacheName(logical) });
     const referenced = receipt?.headers.get(FILE_HEADER) === name;
     discardResponseBody(receipt);
@@ -335,7 +340,7 @@ async function pruneDownloadFiles(directory: FileSystemDirectoryHandle): Promise
     for (const file of stale) {
       const hash = file.slice(-64);
       await navigator.locks.request(`zlayer-download-key:${hash}`, { mode: 'exclusive' }, async () => {
-        for (const name of [CHART_CACHE, PDF_CACHE]) {
+        for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
           const cache = await caches.open(name);
           for (const key of await cache.keys()) if (await keyHash(key) === hash) return;
           const receipts = await caches.open(fileReceiptCacheName(name));

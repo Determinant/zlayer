@@ -10,7 +10,7 @@ export type OfflineRegion = {
 // Census 2024 1:500,000 state/territory envelopes, rounded OUTWARD to 0.01°.
 // Alaska is split at the date line; a single envelope would select most of Earth.
 // These conservative rectangles also include some neighboring chart coverage.
-// Source and derivation: docs/offline-storage.md#geographic-regions
+// Source and derivation: docs/features/offline-storage.md#geographic-regions
 const definitions: Array<[string, string, Bounds[]]> = [
   ['AL', 'Alabama', [[-88.48, 30.22, -84.88, 35.01]]],
   ['AK', 'Alaska', [[-179.15, 51.21, -129.97, 71.39], [172.46, 51.35, 179.78, 53.02]]],

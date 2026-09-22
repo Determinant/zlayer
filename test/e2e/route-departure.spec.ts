@@ -7,8 +7,8 @@ async function setup(page: Page, text = 'KSFO KSJC') {
   await page.route('**/route-approach-legs.json', route => route.fulfill({ json: terminal }));
   await page.route('**/route-approaches.json', route => route.fulfill({ json: catalog }));
   await page.addInitScript(text => {
-    if (localStorage.getItem('zlayer-route-draft-v1')) return;
-    localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+    if (localStorage.getItem('zlayer-plugin:routes:draft')) return;
+    localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
       entries: text.split(' ').map((text, index) => ({ id: `entry-${index}`, text })) }));
   }, text);
   await page.goto('/test/browser/routes.html?sid&map');
@@ -27,7 +27,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch' : 'mouse', () =
   test.use({ hasTouch: touch, viewport: { width: touch ? 390 : 1280, height: 900 } });
   test('SID preview, airport bundle, branch change and reload', async ({ page }, info) => {
     await setup(page);
-    const before = await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'));
+    const before = await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'));
     await choose(page);
     const picker = page.getByRole('dialog', { name: 'Choose runway and exit', exact: true });
     await expect(picker.getByRole('radio', { checked: true })).toHaveCount(0);
@@ -35,7 +35,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch' : 'mouse', () =
     await picker.getByRole('radio', { name: 'Runway 01L · TYDYE-TRUKN', exact: true }).check();
     await picker.getByRole('radio', { name: 'DEDHD', exact: true }).check();
     await expect.poll(() => hasPoint(page, 'TYDYE')).toBe(true);
-    expect(await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'))).toBe(before);
+    expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(before);
     await page.screenshot({ path: info.outputPath('sid-preview.png') });
     await page.keyboard.press('Escape');
     await expect(page.locator('.route-attached-departure')).toHaveCount(0);
@@ -70,7 +70,7 @@ test('pasted SID becomes an airport attachment and selecting its runway clears t
   await setup(page, 'KSFO TRUKN2 DEDHD KSJC');
   await expect(page.locator('.route-token strong')).toHaveText(['KSFO', 'DEDHD', 'KSJC']);
   await expect(page.locator('.route-attached-departure')).toHaveText('TRUKN2 · Choose branch · DEDHD');
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries.length)).toBe(3);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries.length)).toBe(3);
   await page.locator('.route-attached-departure').click();
   await page.getByRole('button', { name: 'Change runway / exit', exact: true }).click();
   await page.getByRole('radio', { name: 'Runway 01R · TYDYE-TRUKN', exact: true }).check();

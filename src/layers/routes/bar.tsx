@@ -1,3 +1,4 @@
+import { pluginStorage } from './storage';
 import { useId, useState, type ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
@@ -129,7 +130,7 @@ function RouteSummary({ plan, status }: Pick<RouteBarProps, 'plan' | 'status'>) 
   if (messages.length > 0 || tecDetails.length > 0 || approachDetails.length > 0 || connectionDetails.length > 0) {
     const warning = messages.length > 0;
     return (
-      <PersistentDetails storageKey="route-summary-open" className={`route-summary${warning ? ' is-error' : ''}${approachDetails.length ? ' has-approach-details' : ''}`}>
+      <PersistentDetails storage={pluginStorage} storageKey="route-summary-open" className={`route-summary${warning ? ' is-error' : ''}${approachDetails.length ? ' has-approach-details' : ''}`}>
         <summary aria-label={warning ? `Route issues (${messages.length}): ${messages[0]}` : approachDetails.length ? 'Approach map details' : tecDetails.length ? 'TEC route details and published conditions' : 'Route map details'}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {warning ? <path d="M12 3 2 21h20Z M12 9v5 M12 17v1" />

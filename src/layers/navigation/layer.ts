@@ -27,6 +27,8 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
   };
   return {
     id: 'navigation', slot: 'navigation', interactiveLayerIds: INTERACTIVE_LAYER_IDS,
+    overlayLayerIds: [...NAVIGATION_LAYERS.find(layer => layer.id === 'airports')!.layerIds,
+      'vfr-waypoints-icons', 'navaids-icons', 'fixes-icons'],
     foregroundLayerIds: [PRIORITY_FIX_LAYER_ID],
     mount(target) {
       map = target;

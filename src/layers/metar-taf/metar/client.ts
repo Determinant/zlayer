@@ -1,3 +1,4 @@
+import { pluginStorage } from '../storage';
 import type { MetarFeature, MetarFeatureCollection, PointGeometry } from '@zlayer/contracts';
 import { isMetarFeatureCollection } from '@zlayer/contracts';
 import { normalizeIdentifier, metarStationId as reportStationId, metarObservationTime as observationTime } from '@zlayer/domain';
@@ -8,7 +9,7 @@ import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDi
 export { observationTime, reportStationId };
 
 export const METAR_REFRESH_MS = 60_000;
-const CACHE_KEY = 'zlayers.metars.v1';
+const cacheSlot = pluginStorage.slot('metars', 'zlayers.metars.v1');
 const MAX_CACHED_STATIONS = 5_000;
 const MAX_CACHED_AREAS = 200;
 type NearbyCheck = { checkedAt?: number; attemptedAt?: number; error?: string };
@@ -46,7 +47,7 @@ export class MetarClient {
     this.#endpoint = endpoint;
     this.#options = options;
     try {
-      const saved: unknown = JSON.parse(options.storage?.getItem(CACHE_KEY) ?? 'null');
+      const saved: unknown = JSON.parse(cacheSlot.read(options.storage) ?? 'null');
       if (isMetarFeatureCollection(saved)) {
         for (const report of saved.features.slice(-MAX_CACHED_STATIONS)) {
           const id = reportStationId(report);
@@ -217,7 +218,7 @@ export class MetarClient {
     }
     try {
       // Persist observations, but revalidate them on the next page load.
-      this.#options.storage?.setItem(CACHE_KEY, JSON.stringify(this.snapshot().metars));
+      cacheSlot.write(JSON.stringify(this.snapshot().metars), this.#options.storage);
     } catch {
       // In-memory caching continues when browser storage is unavailable.
     }
@@ -258,13 +259,5 @@ function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void
 
 export function createMetarClient(): MetarClient {
   const metarUrl = import.meta.env?.VITE_ZLAYERS_METAR_URL?.trim() || '/weather/metars.geojson';
-  let storage: Storage | undefined;
-  try {
-    storage = window.localStorage;
-  } catch {
-    // Browsers can deny persistent storage; the session cache still works.
-  }
-  return new MetarClient(new URL(metarUrl, window.location.origin), {
-    ...(storage ? { storage } : {}),
-  });
+  return new MetarClient(new URL(metarUrl, window.location.origin));
 }

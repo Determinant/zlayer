@@ -1,54 +1,14 @@
-import type { Bounds, GeoPointFeature, NavigationData } from '@zlayer/contracts';
-import type { RoutePlan } from '@zlayer/domain';
-import type { CatalogReadSource } from '../read-context';
+import type { Bounds } from '@zlayer/contracts';
 import type { ResourceErrorCode } from '../../core/data/errors';
-import type { ChartSelection } from '../../layers/charts';
-import type { createMetarLayer } from '../../layers/metar-taf';
-import type { LayerVisibility } from '../../layers/navigation/definitions';
-import type { FixMapContext } from '../../layers/navigation/fix-display';
-import type { RouteMapPreview } from '../../layers/routes/map-preview';
-import type { TerrainCoverage, TerrainStatus } from '../../layers/terrain';
-import type { ObstructionStatus } from '../../layers/obstructions';
-import type { OwnshipLayer } from '../../layers/ownship';
+import type { MapContribution } from '../../core/map/contribution';
 import type { MapView } from './style';
-import type { NearbyFeature, SelectFeature } from '../feature-selection';
-import type { NavaidIdentification } from '../../layers/navigation/identification-layer';
-import type { PlatesController } from '../../layers/plates/layer';
-import type { RulerLayer } from '../../layers/ruler';
-
-export type MapInputs = {
-  catalog: CatalogReadSource;
-  chartSelection: ChartSelection;
-  visibility: LayerVisibility;
-  fixContext: FixMapContext;
-  data: NavigationData;
-  route: RoutePlan;
-  routePreview: RouteMapPreview | undefined;
-  metarEnabled: boolean;
-  terrainEnabled: boolean;
-  terrainCoverage?: TerrainCoverage;
-  obstructionsEnabled: boolean;
-  terrainAltitude: number | null;
-  ownshipEnabled: boolean;
-  identification?: NavaidIdentification;
-  inspectedCoordinate?: GeoPointFeature | undefined;
-};
-
+import type { OrientationSource } from './navigation-control';
 export type MapCallbacks = {
-  onSelect: SelectFeature;
-  onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }) => void;
-  onViewportChange: (bounds: Bounds) => void;
-  onViewChange?: (view: MapView) => void;
-  onRouteLegInsert: (afterEntryId: string, feature: GeoPointFeature) => void;
-  onRouteWaypointReplace: (entryId: string, feature: GeoPointFeature) => void;
-  onRouteWaypointRemove: (entryId: string) => void;
-  onReady: () => void;
+  onViewportChange(bounds: Bounds): void;
+  onViewChange?(view: MapView): void;
+  onReady(): void;
   onIdleChange?: ((idle: boolean) => void) | undefined;
   onStartupFailure?: (() => void) | undefined;
-  onTerrainStatus: (status: TerrainStatus) => void;
-  onObstructionStatus: (status: ObstructionStatus) => void;
-  onError: (message: string, code?: ResourceErrorCode) => void;
+  onError(message: string, code?: ResourceErrorCode): void;
 };
-
-export type MapAttachment = { metarLayer: ReturnType<typeof createMetarLayer>; ownshipLayer: OwnshipLayer;
-  platesLayer?: PlatesController; rulerLayer?: RulerLayer };
+export type MapAttachment = { contributions: readonly MapContribution[]; orientation: OrientationSource };

@@ -19,6 +19,7 @@ const rolls = [-180, -120, -90, -60, -45, -30, -15, 0, 15, 30, 45, 60, 90, 120, 
 const state = (heading: number, position: Position): AhrsSnapshot => ({
   phase: 'ready', crossed: false, warning: '', message: '', calibrationReason: 'ready', progress: 1,
   gpsLive: true, gpsUsable: true, gpsMessage: '', trueHeading: true,
+  hsiHeading: { degrees: heading, source: 'ahrs' },
   speed: 50, altitude: 3048, altitudeAccuracy: 5, gpsTime: 0, track: heading, position,
   attitude: { ...attitude, yaw: heading, quaternion: fromEuler(0, 0, heading * RAD),
     status: 'tracking', headingReference: 'manual-true', headingStatus: 'tracking', attitudeStd: [1, 1, 1] },

@@ -1,4 +1,4 @@
-import { VFR_WAYPOINT_MIN_ZOOM } from '../navigation/definitions';
+import { VFR_WAYPOINT_MIN_ZOOM } from '../navigation/map-contract';
 
 // Display prominence is AGL, independent of the top elevation used by labels.
 // Keep the close-view floor at 500 ft; taller structures survive wider views.

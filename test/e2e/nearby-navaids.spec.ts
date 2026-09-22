@@ -6,7 +6,7 @@ async function restoreGpsPoint(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '',
       ownshipEnabled: false, visibility: { navaids: false } }));
-    localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+    localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
       entries: [{ id: 'gps', text: '350000N1190535W' }] }));
     localStorage.setItem('zlayer-ui:selected-feature', JSON.stringify({ version: 1, value: {
       type: 'Feature', geometry: { type: 'Point', coordinates: [-119 - 5 / 60 - 35 / 3600, 35] },

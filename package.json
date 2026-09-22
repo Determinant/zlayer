@@ -15,7 +15,7 @@
     "build": "vite build",
     "check": "npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",
     "check:imports": "node --import=tsx tools/check-imports.ts",
-    "test": "node --import=tsx --test test/*.test.ts && npm run test --workspaces --if-present",
+    "test": "node --import=tsx --import=./test/helpers/assets.ts --test test/*.test.ts && npm run test --workspaces --if-present",
     "test:browser": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:graphics": "playwright test --config playwright.graphics.config.ts",

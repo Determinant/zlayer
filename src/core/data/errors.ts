@@ -33,7 +33,7 @@ export function resourceErrorCode(error: unknown): ResourceErrorCode | undefined
 export function externalErrorCode(message: string): ResourceErrorCode | undefined {
   const network = /failed to fetch|fetch failed|load failed|network\s*error|network request failed|network unavailable|failed to execute ['"]send['"] on ['"]XMLHttpRequest['"]/i.test(message);
   const status = Number(message.match(/AJAXError:.*\((\d+)\):/)?.[1]
-    ?? message.match(/Unable to (?:load chart package|cache chart archive): (\d+)/)?.[1]
+    ?? message.match(/Unable to (?:load chart package|cache (?:chart )?archive): (\d+)/)?.[1]
     ?? message.match(/Couldn't load .*\. Status: (\d+)/)?.[1]);
   return network || status === 0 || (status >= 400 && status < 600 && status !== 507) ? 'request' : undefined;
 }

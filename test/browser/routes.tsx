@@ -21,7 +21,7 @@ import { departureNavigation } from '../fixtures/route-departure-navigation';
 import { attachRouteDepartures, createRouteResolver } from '@zlayer/domain';
 import { RouteBar } from '../../src/layers/routes/bar';
 import type { RouteMapPreview } from '../../src/layers/routes/map-preview';
-import { createOwnshipLayer } from '../../src/layers/ownship/layer';
+import { createGpsService } from '../../src/core/gps/service';
 import { useDirectTo } from '../../src/layers/routes/use-direct-to';
 import { useRouteDraft } from '../../src/layers/routes/use-draft';
 import { appendRouteText, insertRouteTextBefore, moveRouteEntry, removeRouteEntry, replaceRouteText,
@@ -86,7 +86,7 @@ const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', gen
     procedureCount: moffett || northBay || arizona || refined ? 1 : 4, sourceProcedureCount: moffett || northBay || arizona || refined ? 1 : 4,
   } };
 
-if (!localStorage.getItem('zlayer-route-draft-v1')) localStorage.setItem('zlayer-route-draft-v1',
+if (!localStorage.getItem('zlayer-plugin:routes:draft')) localStorage.setItem('zlayer-plugin:routes:draft',
   JSON.stringify({ version: 2, entries: routeDraftFromText(refined?.airport ?? (arizona ? 'KIWA' : northBay ?? (moffett ? 'KNUQ' : 'KSFO UNKNOWN KSJC'))).entries }));
 
 function Fixture() {
@@ -99,9 +99,9 @@ function Fixture() {
   const normalized = useMemo(() => attachRouteDepartures(draft, resolved, terminal), [draft, resolved]);
   useEffect(() => { if (draft !== normalized) setDraft(current => current === draft ? normalized : current); }, [draft, normalized, setDraft]);
   const plan = useMemo(() => draft === normalized ? resolved : resolve(normalized), [draft, normalized, resolved]);
-  const [ownship] = useState(createOwnshipLayer);
-  const { action: directTo } = useDirectTo(ownship, plan, setDraft);
-  useEffect(() => new URLSearchParams(location.search).has('gps') ? ownship.acquire() : undefined, [ownship]);
+  const [gps] = useState(createGpsService);
+  const { action: directTo } = useDirectTo(gps, plan, setDraft);
+  useEffect(() => new URLSearchParams(location.search).has('gps') ? gps.acquire() : undefined, [gps]);
   useEffect(() => {
     const update = () => refresh(value => value + 1);
     window.addEventListener('route-fixture-refresh', update);

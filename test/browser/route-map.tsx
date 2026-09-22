@@ -16,7 +16,7 @@ import { createRulerMapLayer } from '../../src/layers/ruler/map';
 import { NearbyFeaturePicker } from '../../src/workspace/nearby-feature-picker';
 import { createMetarClient } from '../../src/layers/metar-taf/metar/client';
 import { FeatureDetailsPanel } from '../../src/workspace/feature-details-panel';
-import { createOwnshipLayer } from '../../src/layers/ownship/layer';
+import { createGpsService } from '../../src/core/gps/service';
 import { useDirectTo } from '../../src/layers/routes/use-direct-to';
 import { DirectToDialog } from '../../src/layers/routes/direct-to-dialog';
 import type { NearbyFeature, SelectFeature } from '../../src/workspace/feature-selection';
@@ -50,13 +50,13 @@ function Fixture() {
   const [routeText, setRouteText] = useState(initialRoute);
   const [renderedPlan, setRenderedPlan] = useState<RoutePlan>();
   const updateDraft = useRef<(change: (draft: RouteDraft) => RouteDraft) => void>(() => {});
-  const [ownship] = useState(createOwnshipLayer);
+  const [gps] = useState(createGpsService);
   const [inspection] = useState(createWaypointInspectionLayer);
   const [ruler] = useState(createRulerLayer);
   useEffect(() => inspection.update(selected?.properties.kind === 'coordinate' && renderedPlan &&
     !routePointForFeature(renderedPlan, selected) ? selected : undefined), [inspection, selected, renderedPlan]);
-  const { action: directTo, confirmation } = useDirectTo(ownship, renderedPlan ?? emptyPlan, edit => updateDraft.current(edit));
-  useEffect(() => new URLSearchParams(location.search).has('gps') ? ownship.acquire() : undefined, [ownship]);
+  const { action: directTo, confirmation } = useDirectTo(gps, renderedPlan ?? emptyPlan, edit => updateDraft.current(edit));
+  useEffect(() => new URLSearchParams(location.search).has('gps') ? gps.acquire() : undefined, [gps]);
   const [error, setError] = useState('');
   const select: SelectFeature = (feature, pointId) => {
     setSelected(feature); setSelectedPointId(pointId); setNearby(undefined);

@@ -45,7 +45,7 @@ takeoff/alternate/radar-minimum documents expose airport named destinations.
 
 The app can report a saved region's verified file coverage and open the requested
 airport page without searching a full book. Storage quota UX, resumable regional
-downloads and eviction checks are implemented in Settings; see [offline storage](../offline-storage.md).
+downloads and eviction checks are implemented in Settings; see [offline storage](../features/offline-storage.md).
 Committed snapshots now control regional reads, with verified staged activation and
 exact reference identities; [ADR 0005](0005-offline-snapshot-authority.md) records the
 client lifecycle and remaining publisher/storage proposals. Route-scoped completeness

@@ -17,7 +17,7 @@ export function createWaypointInspectionLayer(): MapLayerModule<GeoPointFeature 
       feature ? formatWaypointLabel(feature.properties.ident ?? '').replaceAll('′', "'") : '');
   };
   return {
-    id: SOURCE, slot: 'navigation', interactiveLayerIds: LAYERS, foregroundLayerIds: [LAYERS[1]!],
+    id: SOURCE, slot: 'navigation', overlayLayerIds: LAYERS, interactiveLayerIds: LAYERS, foregroundLayerIds: [LAYERS[1]!],
     mount(target) {
       map = target;
       map.addSource(SOURCE, { type: 'geojson', data: data() });

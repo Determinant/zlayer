@@ -1,7 +1,9 @@
 import type { AirportRunwayEnd, GeoPointFeature } from '@zlayer/contracts';
-import { RunwayWind, RunwayWindNotes } from '../metar-taf';
+import type { ReactNode } from 'react';
 
-export function AirportRunways({ feature }: { feature: GeoPointFeature }) {
+export type RunwayWeather = { notes: ReactNode; wind(heading: number | undefined): ReactNode };
+
+export function AirportRunways({ feature, weather }: { feature: GeoPointFeature; weather?: RunwayWeather | undefined }) {
   const runways = feature.properties.runways;
   const hasHelipads = runways?.some(runway => runway.id.startsWith('H'));
   const hasRunways = runways?.some(runway => !runway.id.startsWith('H'));
@@ -11,7 +13,7 @@ export function AirportRunways({ feature }: { feature: GeoPointFeature }) {
       <h3>{title}</h3>
       {runways?.length ? (
         <>
-          {hasRunways && <RunwayWindNotes properties={feature.properties} />}
+          {hasRunways && weather?.notes}
           {runways.map(runway => runway.id.startsWith('H') ? (
             <div className="airport-helipad" key={runway.id}>
               <strong>{runway.id}</strong>
@@ -27,7 +29,7 @@ export function AirportRunways({ feature }: { feature: GeoPointFeature }) {
                 <tr>
                   <th scope="col">RWY</th>
                   <th scope="col">Pattern</th>
-                  <th scope="col">Wind <span>(kt)</span></th>
+                  {weather && <th scope="col">Wind <span>(kt)</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -49,7 +51,7 @@ export function AirportRunways({ feature }: { feature: GeoPointFeature }) {
                           {pattern === 'right' ? 'Right' : pattern === 'left' ? 'Left' : '—'}
                         </span>
                       </td>
-                      <td><RunwayWind heading={end.trueHeadingDeg} properties={feature.properties} /></td>
+                      {weather && <td>{weather.wind(end.trueHeadingDeg)}</td>}
                     </tr>
                   );
                 })}

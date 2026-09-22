@@ -1,17 +1,18 @@
 import { NavigationControl, type Map as MapLibreMap } from 'maplibre-gl';
 import { isBoolean, readUiState, writeUiState } from '../../core/storage/ui-state';
-import type { OwnshipLayer } from '../../layers/ownship';
+import type { LayerStore } from '../../core/layers/store';
+export type OrientationSource = LayerStore<{ enabled: boolean; state: string; fix?: { track: number | null } | null | undefined }>;
 
 /** Zoom and an aviation orientation toggle sharing the existing GPS watch. */
 export class MapNavigationControl extends NavigationControl {
-  readonly #ownship: OwnshipLayer;
+  readonly #ownship: OrientationSource;
   readonly #toggle = document.createElement('button');
   readonly #mode = document.createElement('span');
   #map: MapLibreMap | undefined;
   #unsubscribe: (() => void) | undefined;
   #trackUp = readUiState('map-track-up', false, isBoolean);
 
-  constructor(ownship: OwnshipLayer) {
+  constructor(ownship: OrientationSource) {
     super({ showCompass: false });
     this.#ownship = ownship;
     this.#toggle.type = 'button';

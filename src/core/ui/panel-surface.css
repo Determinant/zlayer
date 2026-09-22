@@ -1,0 +1,10 @@
+.panel-surface {
+  max-width: none; max-height: none; margin: 0; padding: 0; border: 0;
+  color: inherit; background: transparent;
+}
+.panel-surface::backdrop { background: transparent; }
+.panel-surface:modal {
+  position: fixed; inset: auto;
+  top: var(--viewport-top, 0px); left: var(--viewport-left, 0px);
+  width: var(--viewport-width, 100dvw); height: var(--viewport-height, 100dvh);
+}

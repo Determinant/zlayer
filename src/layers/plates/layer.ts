@@ -1,8 +1,7 @@
 import { createLayerStore } from '../../core/layers/store';
 import type { ProductLayer } from '../../core/layers/product';
 import type { ProcedureSelection } from './data';
-import { readUiState, writeUiState } from '../../core/storage/ui-state';
-import { isMapPlateSelection, isProcedureSelection } from './persistence';
+import { plateSelectionRecord, mappedPlateRecord } from './persistence';
 import type { PlateMapImage } from './map-image';
 
 export type PlatesSnapshot = {
@@ -17,8 +16,8 @@ export type PlatesSnapshot = {
 
 /** Selection belongs to the plates product, independently of the map or airport card. */
 export function createPlatesController(persist = false) {
-  const restored = persist ? readUiState('plate-selection', null, isProcedureSelection) : null;
-  const mapped = persist ? readUiState('plate-on-map', null, isMapPlateSelection) : null;
+  const restored = persist ? plateSelectionRecord.read() : null;
+  const mapped = persist ? mappedPlateRecord.read() : null;
   const store = createLayerStore<PlatesSnapshot>({ selection: restored ?? undefined, requestId: 0,
     ...(mapped ? { mapSelection: mapped } : {}) });
   let restoration: AbortController | undefined;
@@ -26,15 +25,22 @@ export function createPlatesController(persist = false) {
     definition: { id: 'plates', title: 'Plates' } satisfies ProductLayer['definition'],
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
+    /** Release live rendering without deleting the selected document or its saved intent. */
+    dispose() {
+      restoration?.abort(); restoration = undefined;
+      const { mapImage, mapMenuPoint: _menu, mapRestoreError: _error, ...current } = store.getSnapshot();
+      if (mapImage) mapImage.canvas.width = mapImage.canvas.height = 0;
+      store.publish({ ...current, requestId: current.requestId + 1 });
+    },
     open(selection: ProcedureSelection) {
-      if (persist) writeUiState('plate-selection', selection);
+      if (persist) plateSelectionRecord.write(selection);
       const { mapMenuPoint: _closed, ...current } = store.getSnapshot();
       store.publish({ ...current, selection, requestId: current.requestId + 1 });
     },
     close(requestId?: number) {
       const current = store.getSnapshot();
       if (!current.selection || (requestId !== undefined && requestId !== current.requestId)) return;
-      if (persist) writeUiState('plate-selection', null);
+      if (persist) plateSelectionRecord.write(null);
       store.publish({ ...current, selection: undefined });
     },
     showOnMap(image: PlateMapImage, requestId: number) {
@@ -45,8 +51,8 @@ export function createPlatesController(persist = false) {
       }
       restoration?.abort();
       if (persist) {
-        writeUiState('plate-on-map', image.selection);
-        writeUiState('plate-selection', null);
+        mappedPlateRecord.write(image.selection);
+        plateSelectionRecord.write(null);
       }
       const { mapMenuPoint: _closed, mapRestoreError: _error, ...next } = current;
       store.publish({ ...next, selection: undefined, mapImage: image, mapSelection: image.selection, mapImageRestored: false });
@@ -93,7 +99,7 @@ export function createPlatesController(persist = false) {
       const current = store.getSnapshot();
       if ((image && image !== current.mapImage) || (!current.mapSelection && !current.mapImage)) return;
       restoration?.abort();
-      if (persist) writeUiState('plate-on-map', null);
+      if (persist) mappedPlateRecord.write(null);
       const { mapImage: _removed, mapMenuPoint: _closed, mapSelection: _selection,
         mapImageRestored: _restored, mapRestoreError: _error, ...next } = current;
       store.publish(next);

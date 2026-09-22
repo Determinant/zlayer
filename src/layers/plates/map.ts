@@ -6,10 +6,11 @@ import type { PlatesController } from './layer';
 const SOURCE = 'plates-image';
 const LAYER = 'plates-raster';
 
-export function createPlateMapLayer(product: PlatesController) {
+export function createPlateMapLayer(product: PlatesController, initiallyFitted?: PlateMapImage) {
   let map: MapLibreMap | undefined;
   let image: PlateMapImage | undefined;
-  let fitted: PlateMapImage | undefined;
+  // An attachment restores rendering, not an already-consumed camera request.
+  let fitted = initiallyFitted;
   let unsubscribe: (() => void) | undefined;
   const sync = () => {
     if (!map) return;

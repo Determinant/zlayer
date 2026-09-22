@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { destination, distanceMeters, estimateTurnRate, GPS_STALE_MS, projectedTrack, readGpsFix, type GpsFix } from '../src/layers/ownship/position';
+import { destination, estimateTurnRate, projectedTrack } from '../src/layers/ownship/position';
+import { distanceMeters, GPS_STALE_MS, readGpsFix, type GpsFix } from '../src/core/gps/position';
 import { ownshipGeometry } from '../src/layers/ownship/geometry';
 
 const now = 1_800_000_000_000;

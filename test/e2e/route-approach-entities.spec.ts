@@ -44,7 +44,7 @@ test('an approach fix appears once in nearby selection and keeps the existing fi
     await page.addInitScript(({ procedure, coordinate }) => {
       localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: false }));
       localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: coordinate, zoom: 11, bearing: 0, pitch: 0 }));
-      localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+      localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [
         { id: 'destination', text: 'KSNS', approach: { airportId: 'KSNS', procedureId: procedure.id,
           name: procedure.name, cycle: '2609', entry: { routeId: 'KSNS:I31', transitionId: 'transition-fix:SNS2:1',
             name: 'ARTYY', effectiveDate: '2026-09-03' } } },

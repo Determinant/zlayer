@@ -67,9 +67,9 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
   await page.evaluate(async () => {
     await (await caches.open('zlayers-procedures-v1')).put('/unused.pdf', new Response('unused'));
   });
-  page.once('dialog', dialog => void dialog.accept());
   await page.getByText('Temporary files and storage limits', { exact: true }).click();
   await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect.poll(() => page.evaluate(async () => !!await (await caches.open('zlayers-procedures-v1')).match('/unused.pdf'))).toBe(false);
   await page.getByLabel('Close settings').click();
   const glyph = '/fonts/Noto%20Sans%20Bold/0-255.pbf';
@@ -158,11 +158,9 @@ test('published dates load on selection and two editions of a region stay isolat
   await page.getByLabel('Close settings').click();
   await selectCycle(page, 'latest');
   await page.getByLabel('Settings and offline downloads').click();
-  page.once('dialog', dialog => {
-    expect(dialog.message()).toContain('Aug 6');
-    void dialog.accept();
-  });
   await old.getByRole('button', { name: 'Remove', exact: true }).click();
+  const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Aug 6/ });
+  await confirmation.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(old).toHaveCount(0);
   await expect(current.locator('.offline-tag')).toHaveText('Saved');
   const keys = await page.evaluate(async () => {
@@ -214,8 +212,8 @@ test('an older saved region overrides latest browsing online and after an offlin
 
   await context.setOffline(false);
   await page.getByLabel('Settings and offline downloads').click();
-  page.once('dialog', dialog => void dialog.accept());
   await page.locator('.download-card').getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.locator('.download-card')).toHaveCount(0);
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.saved-editions')).toHaveCount(0);
@@ -445,9 +443,9 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
     await page.locator('.download-card').getByRole('button', { name: 'Verify / update' }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Needs attention', { timeout: 15_000 });
-    page.once('dialog', dialog => void dialog.accept());
     await page.getByText('Temporary files and storage limits', { exact: true }).click();
     await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check saved files', exact: true })).toBeEnabled();
     await context.setOffline(true);
     await page.reload();

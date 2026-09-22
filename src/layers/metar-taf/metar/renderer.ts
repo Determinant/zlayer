@@ -1,7 +1,7 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
 import { labelLayer, withMapLabelKeys } from '../../../core/map/label';
-import { AIRPORT_MIN_ZOOM } from '../../navigation/definitions';
+import { AIRPORT_MIN_ZOOM } from '../../navigation/map-contract';
 
 export const METAR_LAYER_IDS = ['airports-weather-halo', 'airports-weather-points', 'airports-weather-labels'];
 export const METAR_SOURCE_ID = 'metar-airports';

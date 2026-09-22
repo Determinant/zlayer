@@ -12,7 +12,7 @@ test('route chips and NavLog retain distinct, matching waypoint type colors', as
   const entities = [
     ['KSFO', 'airports'], ['SUNOL', 'fixes'], ['OSI', 'navaids'], ['REIGA', 'ndb'], ['VPWAM', 'vfr-waypoints'],
   ] as const;
-  await page.addInitScript(entities => localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+  await page.addInitScript(entities => localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
     entries: [...entities.map(([text], index) => ({ id: `color-${index}`, text })), { id: 'invalid', text: 'UNKNOWN' }],
   })), entities);
   await page.goto('/test/browser/routes.html?entities');

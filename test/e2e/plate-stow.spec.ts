@@ -109,7 +109,7 @@ test('stowing retains a later PDF page and Escape returns focus to the handle', 
   pdf.addPage([200, 300]);
   const body = Buffer.from(await pdf.save());
   await page.route('**/stow-test.pdf', route => route.fulfill({ contentType: 'application/pdf', body }));
-  await page.addInitScript(() => localStorage.setItem('zlayer-ui:plate-selection', JSON.stringify({ version: 1, value: {
+  await page.addInitScript(() => localStorage.setItem('zlayer-plugin:plates:plate-selection', JSON.stringify({ version: 1, value: {
     airport: { id: 'KSBA' }, procedure: { id: 'two-page', name: 'Two-page plate' },
     cycle: '2026-09-03', effectiveDate: '2026-09-03', expirationDate: '2026-10-01',
     document: { url: `${location.origin}/stow-test.pdf`, nativeUrl: `${location.origin}/stow-test.pdf`,

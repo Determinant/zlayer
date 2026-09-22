@@ -1,4 +1,4 @@
-/** Focused counterexamples for docs/ahrs-validation.md.
+/** Focused counterexamples for src/layers/ahrs/validation.md.
  * Run: node --import=tsx tools/ahrs-review-probes.ts
  * Prints measurements, not an operational-accuracy specification.
  * No browser, network, recording, or persistent storage is used.

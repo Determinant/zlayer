@@ -5,7 +5,7 @@ import { createRouteResolver, routeCoordinateFeature, routeDraftFromText, routeD
 import { directToFeature, directToPosition, directToRoutePoint, directToRouteProblem } from '../src/layers/routes/direct-to';
 import { removeRouteEntry } from '../src/layers/routes/draft';
 import type { OwnshipSnapshot, OwnshipState } from '../src/layers/ownship/layer';
-import { GPS_STALE_MS } from '../src/layers/ownship/position';
+import { GPS_STALE_MS } from '../src/core/gps/position';
 import { createRouteRemovalResolver } from './helpers/route-removal';
 import { Hooks, hookModule } from './helpers/hooks';
 

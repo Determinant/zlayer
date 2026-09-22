@@ -10,6 +10,7 @@ const { useMapPreferences } = await import('../src/shell/use-map-preferences');
 loader.deregister();
 const globals = globalThis as unknown as { testHooks: Hooks; window: unknown };
 const key = 'zlayers-map-preferences-v1';
+const terrainKey = 'zlayer-plugin:terrain:preferences';
 
 function setup(t: test.TestContext, initial?: string) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -111,7 +112,7 @@ test('selected terrain altitude persists, including zero, and invalid stored alt
     assert.equal(restart()[0].terrainAltitude, altitude);
   }
   for (const altitude of [-100, 26000, '4500', false]) {
-    storage.setItem(key, JSON.stringify({ terrainAltitude: altitude }));
+    storage.setItem(terrainKey, JSON.stringify({ version: 2, terrainAltitude: altitude }));
     assert.equal(restart()[0].terrainAltitude, null);
   }
 });
@@ -122,7 +123,7 @@ test('terrain coverage persists while older or invalid preferences retain the ro
   render();
   assert.equal(restart()[0].terrainCoverage, 'viewport');
   for (const terrainCoverage of [undefined, null, true, 'unknown', 'route']) {
-    storage.setItem(key, JSON.stringify({ terrainCoverage, terrainAltitude: 4500 }));
+    storage.setItem(terrainKey, JSON.stringify({ version: 2, terrainCoverage, terrainAltitude: 4500 }));
     const restored = restart()[0];
     assert.equal(restored.terrainCoverage, 'route');
     assert.equal(restored.terrainAltitude, 4500);
@@ -135,9 +136,24 @@ test('preferences save before another render and mounting never overwrites unkno
   assert.equal(render()[0].chartBase, undefined);
   assert.equal(storage.getItem(key), unknown);
   render()[1](current => ({ ...current, chartBase: '', terrainCoverage: 'viewport', terrainAltitude: 0, metarEnabled: false }));
-  const stored = JSON.parse(storage.getItem(key)!);
+  const stored = JSON.parse(storage.getItem(terrainKey)!);
+  assert.equal(storage.getItem(key), unknown, 'legacy records remain untouched');
   assert.equal(stored.version, 2);
   assert.equal(stored.terrainCoverage, 'viewport');
   assert.equal(stored.terrainAltitude, 0);
   assert.equal(restart()[0].metarEnabled, false, 'no render or effect is needed before reload');
+});
+
+test('changing one plugin preference cannot overwrite a newer choice saved by another window for another plugin', t => {
+  const { render, restart, storage } = setup(t, JSON.stringify({ version: 2, chartBase: 'ifr-low', terrainEnabled: true }));
+  const [, update] = render();
+  const chartsKey = 'zlayer-plugin:charts:preferences';
+  const external = JSON.stringify({ version: 2, chartBase: 'vfr-sectional', chartOverlay: '' });
+  storage.setItem(chartsKey, external);
+  update(current => ({ ...current, terrainEnabled: false }));
+  assert.equal(storage.getItem(chartsKey), external, 'saving terrain leaves charts untouched');
+  const restored = restart()[0];
+  assert.equal(restored.chartBase, 'vfr-sectional');
+  assert.equal(restored.terrainEnabled, false);
+  assert.equal(JSON.parse(storage.getItem(terrainKey)!).chartBase, undefined, 'plugin records contain only their owner’s fields');
 });

@@ -179,29 +179,10 @@
   position: relative;
   width: 100%;
   height: 100%;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
   transform: translateX(100%);
 }
 
 .procedure-window[open] { display: block; }
-
-.procedure-window::backdrop {
-  background: transparent;
-}
-
-.procedure-window:modal {
-  position: fixed;
-  top: var(--viewport-top);
-  left: var(--viewport-left);
-  width: var(--viewport-width);
-  height: var(--viewport-height);
-}
 
 .procedure-viewer {
   display: grid;

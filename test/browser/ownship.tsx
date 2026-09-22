@@ -3,13 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { Map, setWorkerUrl, type GeoJSONSource } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { createOwnshipLayer, OwnshipStatus } from '../../src/layers/ownship';
+import { createGpsService } from '../../src/core/gps/service';
 import { createOwnshipMapLayer, OWNSHIP_LAYERS, OWNSHIP_SOURCE } from '../../src/layers/ownship/map';
 import { MapLayerHost } from '../../src/core/map/layer';
 import '../../src/styles.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 setWorkerUrl(workerUrl);
-const product = createOwnshipLayer();
+const product = createOwnshipLayer(createGpsService());
 function Fixture() {
   const target = useRef<HTMLDivElement>(null);
   const [enabled, setEnabled] = useState(false);

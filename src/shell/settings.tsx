@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { formatDate } from '../core/format/time';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { PersistentDetails } from '../core/ui/persistent-details';
+import { ConfirmationDialog } from '../core/ui/confirmation-dialog';
 import { isBoolean, isString } from '../core/storage/ui-state';
 import type { ChartCatalog } from '../workspace/catalog/catalog';
 import { createBrowserDownloads, removeUnsavedFiles } from '../offline/browser-downloads';
@@ -31,6 +32,7 @@ export default function Settings({ catalog, open }: {
   const [savedOnly, setSavedOnly] = usePersistentState('settings-saved-regions-only', false, isBoolean);
   const [operation, setOperation] = useState<{ plan: DownloadPlan; action: RegionOperation }>();
   const [regionError, setRegionError] = useState<{ id: string; message: string }>();
+  const [confirmation, setConfirmation] = useState<{ kind: 'region'; job: Download } | { kind: 'temporary' }>();
   const [loadedIndex, setLoadedIndex] = useState<{ catalog: ChartCatalog; index: OfflinePlateIndex }>();
   const plateIndex = loadedIndex?.catalog === catalog ? loadedIndex.index : undefined;
   const [plateError, setPlateError] = useState<string>();
@@ -77,7 +79,7 @@ export default function Settings({ catalog, open }: {
     void operation().catch(reason => setError(reason instanceof Error ? reason.message : 'Offline storage unavailable'));
   };
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setConfirmation(undefined); return; }
     let cancelled = false;
     setError(undefined);
     setStorageTask('checking');
@@ -108,13 +110,12 @@ export default function Settings({ catalog, open }: {
     await refreshStorage(true);
     await downloads.start(plan);
   });
-  const remove = (job: Download) => {
-    if (window.confirm(`Remove ${job.title} (cycle ${formatDate(job.revision)})? Files used by other saved regions will stay.`)) {
-      performRegion(job, 'remove', () => downloads.remove(job.id));
-    }
-  };
-  const cleanTemporaryFiles = () => {
-    if (window.confirm('Remove temporary charts and plates? This keeps saved regions, paused downloads, previous versions needed during updates, and reference data. Removed files will need an internet connection to download again.')) {
+  const confirmRemoval = () => {
+    if (!confirmation || loading || active) return;
+    setConfirmation(undefined);
+    if (confirmation.kind === 'region') {
+      performRegion(confirmation.job, 'remove', () => downloads.remove(confirmation.job.id));
+    } else {
       performStorage('cleaning', removeUnsavedFiles);
     }
   };
@@ -174,7 +175,8 @@ export default function Settings({ catalog, open }: {
           <p>Charts and plates you view without downloading a region are stored as temporary files.
             Remove them to free up space; you’ll need an internet connection to view them again.</p>
           <p>This cleanup keeps saved regions, paused downloads, previous versions needed during updates, and reference data.</p>
-          <button type="button" disabled={loading || active} onClick={cleanTemporaryFiles}>Remove temporary charts and plates</button>
+          <button type="button" disabled={loading || active}
+            onClick={() => setConfirmation({ kind: 'temporary' })}>Remove temporary charts and plates</button>
           <p>Your browser manages storage, including in the installed app.
             The storage limit is an estimate; your device may have less free space.
             Storage protection does not increase the limit or reserve space.</p>
@@ -229,9 +231,19 @@ export default function Settings({ catalog, open }: {
             details={plateIndex ? 'ready' : plateError ? 'unavailable' : 'loading'}
             pending={operation?.plan.id === region.plan.id ? operation.action : undefined}
             error={regionError?.id === region.plan.id ? regionError.message : undefined}
-            busy={loading || active} onStart={start} onPause={id => downloads.pause(id)} onRemove={remove} />)}
+            busy={loading || active} onStart={start} onPause={id => downloads.pause(id)}
+            onRemove={job => setConfirmation({ kind: 'region', job })} />)}
         </div>
       </section>
     </div>
+    {open && confirmation && <ConfirmationDialog
+      title={confirmation.kind === 'region'
+        ? `Remove ${confirmation.job.title} (cycle ${formatDate(confirmation.job.revision)})?`
+        : 'Remove temporary charts and plates?'}
+      description={confirmation.kind === 'region'
+        ? 'Files used by other saved regions will stay.'
+        : 'This keeps saved regions, paused downloads, previous versions needed during updates, and reference data. Removed files will need an internet connection to download again.'}
+      confirmLabel="Remove" disabled={loading || active}
+      onConfirm={confirmRemoval} onCancel={() => setConfirmation(undefined)} />}
   </>;
 }

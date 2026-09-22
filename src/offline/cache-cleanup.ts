@@ -60,7 +60,7 @@ export async function pruneOnlineCache(activeCatalogs: readonly CatalogResponse[
     ]);
     let removed = 0;
     for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
-      const cache = await (name === DATA_CACHE ? caches.open(name) : openFileCache(name));
+      const cache = await openFileCache(name);
       for (const request of await cache.keys()) {
         if (protectedUrls.has(request.url)) continue;
         // DATA_CACHE also contains weather and basemap resources with separate lifetimes.

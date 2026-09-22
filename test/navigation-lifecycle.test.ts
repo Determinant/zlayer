@@ -201,3 +201,18 @@ test('regional map reads retain healthy data and retry the missing source after 
   assert.equal(savedCalls, 2);
   assert.equal(browsingCalls, 1);
 });
+
+test('unloading navigation drops hook-owned collections before reactivation', async t => {
+  const hooks = setup(t);
+  const source = catalog('https://charts.test/unload/airports');
+  let current: CatalogResponse | undefined = source;
+  t.mock.method(globalThis, 'fetch', async () => Response.json(document('RELOAD')));
+  const render = () => hooks.render(() => useNavigationData(current, visibility));
+  render(); await tick();
+  assert.equal(render().data.airports?.features.length, 1);
+  current = undefined; render(); render();
+  current = source;
+  assert.equal(render().data.airports, undefined, 'unloaded state cannot retain the previous collection');
+  await tick();
+  assert.equal(render().data.airports?.features.length, 1, 'reload can reuse the shared immutable cache');
+});

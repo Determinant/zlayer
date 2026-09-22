@@ -1,11 +1,11 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { RoutePlan } from '@zlayer/domain';
-import { installRouteLayers, syncRoute, revealRouteDrag, hideRouteDrag, ROUTE_LAYER_IDS, ROUTE_SOURCE_ID, ROUTE_DRAG_SOURCE_ID, RECOMMENDATION_SOURCE_ID, ROUTE_LABEL_BACKGROUND_ID, HOLD_ARROW_IMAGE_ID, type RouteDragPreview, type RouteRenderState } from './renderer';
+import { installRouteLayers, syncRoute, revealRouteDrag, hideRouteDrag, ROUTE_LAYER_IDS, ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID, ROUTE_DRAG_SOURCE_ID, RECOMMENDATION_SOURCE_ID, ROUTE_LABEL_BACKGROUND_ID, HOLD_ARROW_IMAGE_ID, type RouteDragPreview, type RouteRenderState } from './renderer';
 import type { RoutePreview } from './map-preview';
 import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
 import { ROUTE_LABEL_IDS_STATE } from '../../core/map/label';
 
-type RouteInput = { route: RoutePlan; preview?: RouteDragPreview; comparison?: RoutePreview };
+export type RouteInput = { route: RoutePlan; preview?: RouteDragPreview; comparison?: RoutePreview };
 export function createRouteLayer(): MapLayerModule<RouteInput> {
   let map: MapLibreMap | undefined;
   let input: RouteInput | undefined;
@@ -19,6 +19,7 @@ export function createRouteLayer(): MapLayerModule<RouteInput> {
   };
   return {
     id: 'route', slot: 'route',
+    overlayLayerIds: ['route-waypoint-halos', 'route-waypoints', ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_LEG_HIT_LAYER_ID, 'route-insert-preview'],
     interactiveLayerIds: ['route-waypoints', 'route-waypoint-labels'],
     foregroundLayerIds: ['route-waypoint-labels', 'route-hold-direction'],
     mount(target) {

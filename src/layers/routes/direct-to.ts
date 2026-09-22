@@ -1,15 +1,15 @@
 import type { GeoPointFeature, PointGeometry } from '@zlayer/contracts';
 import { createRouteEntry, routeCoordinateFeature, routeTokenForFeature,
   type RouteDraft, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
-import type { OwnshipSnapshot } from '../ownship/layer';
-import { GPS_STALE_MS } from '../ownship/position';
+import type { GpsSnapshot } from '../../core/gps/service';
+import { GPS_STALE_MS } from '../../core/gps/position';
 import { routeItemsForPoint } from './removal';
 import { sameRouteDraft } from './draft';
 
 export type DirectToAction = (feature: GeoPointFeature, point?: RouteWaypoint) => void;
 
 /** A retained last position is not a current fix. Recheck even after a modal closes. */
-export function directToPosition({ state, fix }: OwnshipSnapshot, now = Date.now()): PointGeometry['coordinates'] | undefined {
+export function directToPosition({ state, fix }: GpsSnapshot, now = Date.now()): PointGeometry['coordinates'] | undefined {
   return state === 'tracking' && fix && now - fix.timestamp < GPS_STALE_MS
     ? fix.coordinates : undefined;
 }

@@ -1,3 +1,4 @@
+import { pluginStorage } from './storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AirwayDataResponse, CatalogResponse, NavigationData, TerminalProceduresData } from '@zlayer/contracts';
 import { airportRouteIdent, preferredRouteAirports,
@@ -8,7 +9,7 @@ import { RecommendationResults } from './recommendation-results';
 import type { RouteMapPreview } from './map-preview';
 import { usePreviewPanel } from './use-preview-panel';
 import { useOnline } from '../../core/use-online';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
+import { usePluginState } from '../../core/ui/use-persistent-state';
 import { isBoolean } from '../../core/storage/ui-state';
 
 const HINT = 'Enter at least two airports: departure first and destination last. Intermediate waypoints do not affect recommendations.';
@@ -23,7 +24,7 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
   onUseRoute: (draft: RouteDraft) => void;
   onPreviewChange?: (preview: RouteMapPreview | undefined) => void;
 }) {
-  const [open, setOpen] = usePersistentState('recommendations-open', false, isBoolean);
+  const [open, setOpen] = usePluginState(pluginStorage, 'recommendations-open', false, isBoolean);
   const [preserveRestoredView, setPreserveRestoredView] = useState(open);
   // Results can unmount while the route is edited; a new airport pair is no longer a restored preview.
   const restoredEndpoints = useRef([tokens[0], tokens.at(-1)]);

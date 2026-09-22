@@ -11,7 +11,7 @@ test.use({ hasTouch: true });
 for (const width of [320, 1280]) test(`VTF connects the incoming route and preserves other gap connections at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await page.addInitScript(() => {
-    if (!localStorage.getItem('zlayer-route-draft-v1')) localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+    if (!localStorage.getItem('zlayer-plugin:routes:draft')) localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
       entries: ['KSJC', 'KSFO', 'UNKNOWN', 'KNUQ'].map((text, i) => ({ id: `entry-${i}`, text })) }));
   });
   const connections = () => page.evaluate(async () => {
@@ -86,11 +86,11 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
     const entry = published.terminal.approaches.procedures.find(procedure => procedure.id === 'KSNS:I31')!
       .transitions.find(transition => transition.id === 'SNS2')!.legs.find(leg => leg.fix?.ident === 'ARTYY')!.fix!;
     await page.addInitScript(({ procedure, entry }) => {
-      if (localStorage.getItem('zlayer-route-draft-v1')) return;
+      if (localStorage.getItem('zlayer-plugin:routes:draft')) return;
       localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: false }));
       localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1,
         center: [(-122 + entry.coordinate[0]!) / 2, entry.coordinate[1]], zoom: 9, bearing: 0, pitch: 0 }));
-      localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+      localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [
         { id: 'origin', text: '362729N1220000W' },
         { id: 'airport', text: 'KSNS', approach: { airportId: 'KSNS', procedureId: procedure.id,
           name: procedure.name, cycle: '2609', entry: { routeId: 'KSNS:I31', transitionId: 'transition-fix:SNS2:1',
@@ -103,7 +103,7 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
     await expect(page.getByLabel('Approach map details', { exact: true })).toBeVisible();
     const hideTerrain = page.getByLabel('Hide terrain toolbox', { exact: true });
     if (await hideTerrain.isVisible()) await hideTerrain.click();
-    const airport = await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[1]);
+    const airport = await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries[1]);
     const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
     const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const end = { x: start.x + 60, y: start.y + 70 };
@@ -125,7 +125,7 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
     await expect(tokens).toHaveText(['36°27′N 122°00′W', /^\d{2}°\d{2}′N \d{3}°\d{2}′W$/, 'KSNS']);
     await expect(bundle).toHaveText('ILS 31 · ARTYY');
     await expect(page.locator('.route-token.is-error')).toHaveCount(0);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[2])).toEqual({ ...airport,
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries[2])).toEqual({ ...airport,
       approach: { ...airport.approach, kind: 'approach', source: 'chart' } });
     const inserted = await tokens.nth(1).textContent();
     await page.screenshot({ path: testInfo.outputPath('approach-connector-insertion.png') });
@@ -169,7 +169,7 @@ for (const width of [320, 1280]) test(`NUQ missed approach connects to the OAK h
 for (const width of [320, 1280]) test(`entry selection previews, cancels and changes the map to VTF at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/test/browser/routes.html?map');
-  const savedDraft = await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'));
+  const savedDraft = await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'));
   const hasPoint = (name: string) => page.evaluate(name => {
     const map = (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit;
     return map.querySourceFeatures('route-plan').some(f => String(f.properties.ident).startsWith(name));
@@ -183,7 +183,7 @@ for (const width of [320, 1280]) test(`entry selection previews, cancels and cha
   await expect.poll(() => hasPoint('ARCHI')).toBe(true);
   await expect(page.locator('.route-attached-approach')).toHaveCount(0);
   await expect(picker.getByRole('img')).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'))).toBe(savedDraft);
+  expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(savedDraft);
   // The map remains interactive while the selection panel stays open.
   const center = await page.evaluate(() => (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit.getCenter().lng);
   const mapBox = (await page.getByLabel('Approach map', { exact: true }).boundingBox())!;
@@ -196,7 +196,7 @@ for (const width of [320, 1280]) test(`entry selection previews, cancels and cha
   await page.screenshot({ path: testInfo.outputPath('published-entry-preview.png') });
   await page.keyboard.press('Escape');
   await expect.poll(() => hasPoint('ARCHI')).toBe(false);
-  expect(await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'))).toBe(savedDraft);
+  expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(savedDraft);
   await choose(page);
   await page.getByRole('button', { name: 'ILS OR LOC RWY 28R', exact: true }).click();
   await picker.getByRole('radio', { name: 'ARCHI', exact: true }).check();
@@ -414,7 +414,7 @@ test('approach remains attached to its occurrence through drag and replacement c
 test('failed catalog loads can retry and unavailable saved approaches remain removable', async ({ page }) => {
   let fail = true;
   await page.route('**/route-approaches.json', route => fail ? route.fulfill({ status: 503 }) : route.fulfill({ json: catalog }));
-  await page.addInitScript(() => localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [{
+  await page.addInitScript(() => localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [{
     id: 'airport', text: 'KSFO', approach: { airportId: 'KSFO', procedureId: 'old', name: 'SAVED APPROACH', cycle: '2608' },
   }] })));
   await page.goto('/test/browser/routes.html');
@@ -451,7 +451,7 @@ test('a cancelled load leaves the route intact and cached approaches reopen offl
 });
 
 test('the production route bar offers the plate when an approach has no coded entry data', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+  await page.addInitScript(() => localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
     entries: [{ id: 'origin', text: 'KSMO' }, { id: 'airport', text: 'KSBA' }] })));
   await page.goto('/');
   const airport = page.locator('.route-token').last();
@@ -474,11 +474,11 @@ test('approach previews fit the main map beside the picker and clear when return
     const input = page.getByRole('textbox', { name: 'Add route waypoint' });
     await input.fill('KSNS '); await input.press('Enter');
     await expect(page.locator('.route-token').first()).toHaveClass(/is-airports/);
-    const saved = await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'));
+    const saved = await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'));
     await choose(page);
     const search = page.getByRole('searchbox', { name: 'Filter approaches' });
     await search.fill('ILS'); await search.press('Enter');
-    expect(await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'))).toBe(saved);
+    expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(saved);
     await page.getByRole('button', { name: 'ILS RWY 31', exact: true }).click();
     const picker = page.getByRole('dialog', { name: 'Choose entry', exact: true });
     await picker.getByRole('radio', { name: 'AANNE', exact: true }).check();
@@ -498,7 +498,7 @@ test('approach previews fit the main map beside the picker and clear when return
     await picker.getByRole('button', { name: '‹ Approaches', exact: true }).click();
     await expect.poll(() => magentaPixels(page)).toBe(0);
     await expect(page.locator('.route-attached-approach')).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem('zlayer-route-draft-v1'))).toBe(saved);
+    expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(saved);
   } finally { await request.post('/__test/reset'); }
 });
 
@@ -531,9 +531,9 @@ test('published entries, route depiction and approach switching survive a cold o
     await page.getByLabel('Find a state or territory').fill('California');
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
-    page.once('dialog', dialog => void dialog.accept());
     await page.getByText('Temporary files and storage limits', { exact: true }).click();
     await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check saved files', exact: true })).toBeEnabled();
     expect(await page.evaluate(async () => {
       const cache = await caches.open('zlayers-data-v6');

@@ -5,6 +5,11 @@ Recorded on 2026-09-21 against the local working trees in `zlayers` and sibling
 the chart URLs in the report were resolved to local files during validation.
 They do not verify a hosted deployment.
 
+Current contracts and composition live in [terminal procedures](../../../../../src/layers/routes/terminal-procedures.md).
+The [original negative probes](../results.json) retain the pre-fix reproductions;
+they are historical evidence, not outstanding defects. Source and geometry limits
+remain in the terminal guide and [approach coverage](../../../../../src/layers/routes/approach-coverage.md).
+
 ## Results
 
 | Check | Result |
@@ -64,6 +69,31 @@ the chart audit now fails clearly on this mismatch rather than reporting false
 export omissions. This was exercised when the navigation generation changed
 during the initial national PDF indexing run. The incremental refresh aligned
 the identities without reindexing books.
+
+## Earlier terminal audit
+
+The 20:14 and 20:51 UTC audits on 2026-09-21 have identical source coverage,
+counts, summaries and all 294 review records. Only `generatedAt`, the terminal
+artifact `sha256`, and `implementation` differ. The later full
+[terminal audit](terminal-audit.json) is retained. The earlier report's unique
+fields are below; overlaying them on the retained report reconstructs every
+parsed JSON value of the earlier run. Both runs use the same CIFP source hash.
+This preserves the earlier provenance without a second copy of its findings.
+
+```json
+{
+  "generatedAt": "2026-09-21T20:14:01.331Z",
+  "sha256": "6bd930069374186605e00a41e651782b18ff8ae4c7fbaaba5671b1fb0965722e",
+  "implementation": {
+    "coded-terminals.ts": "4a80a6d5ac04c345f6562c8caccda348ea625b1458f66263a8538ae53aea2968",
+    "approaches.ts": "034b55c2f3a612ccdd530db877f06a4d6cf114b8c8b4fac090513948304578ba",
+    "approach-path.ts": "daf7a04aa1bc56cd8cf654c12e280f342c87da2475fb3590b894870fd441f16d",
+    "approach-geometry.ts": "05714983a97c22d9b6e9ffd08a7ae020a43f4fc78a80df8e3aba18a7c59f8076",
+    "approach-path-geometry.ts": "d1572594da4e87aa40932a8023680c59f7d54c7c9e934b19d39fab8e8a965493",
+    "approach-joining.ts": "ab48c16f6fa4b37df8fe7c1a9477fcd231733fc4ca9330fcb624f4dc2716618a"
+  }
+}
+```
 
 ## Reproduction
 

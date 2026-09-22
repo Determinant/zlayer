@@ -22,7 +22,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   }
   if (context.parentURL?.includes('/routes/use-suggestions')) {
     if (specifier.endsWith('/history/client')) return { url: 'data:text/javascript,' + encodeURIComponent(
-      'export const queryRouteHistory = (...args) => globalThis.queryHistoryFixture(...args);'), shortCircuit: true };
+      'export const retainRouteHistory = () => () => {}; export const queryRouteHistory = (...args) => globalThis.queryHistoryFixture(...args);'), shortCircuit: true };
     if (specifier === './api') return { url: 'data:text/javascript,' + encodeURIComponent(
       'export const fetchPreferredRoutes = (...args) => globalThis.queryPreferredFixture(...args);'), shortCircuit: true };
   }

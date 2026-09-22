@@ -1,5 +1,6 @@
+import { pluginStorage } from './storage';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import type { PanelLayer } from '../../core/layers/product';
+import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { createPlatesController, type PlatesController } from './layer';
 import { ProcedureDialog, ProcedureLoading } from './viewer-dialog';
@@ -9,12 +10,23 @@ import { formatDateRange } from '../../core/format/time';
 
 export function createPlatesLayer() {
   const controller = createPlatesController(true);
+  const Panel = () => <PlatesPanel layer={controller} />;
+  const MapControl = () => <PlateMapControl layer={controller} />;
+  let showMenuAt: ((point: { x: number; y: number }) => boolean) | undefined;
   return {
-    ...controller,
-    panel: { side: 'right', tab: { edge: 'bottom', order: 0 } },
-    Panel: () => <PlatesPanel layer={controller} />,
-    MapControl: () => <PlateMapControl layer={controller} />,
-  } satisfies PanelLayer & PlatesController & { MapControl: () => React.JSX.Element };
+    ...controller, Panel, MapControl, storage: pluginStorage,
+    panels: [{ id: 'plate', title: controller.definition.title, Component: Panel, close: controller.close }],
+    overlays: [{ id: 'plate-map', Component: MapControl }],
+    contextAction: (point: { x: number; y: number }) => showMenuAt?.(point) ?? false,
+    mapContribution: { id: 'plates', async load(context) {
+      const initiallyFitted = context.preserveView ? controller.getSnapshot().mapImage : undefined;
+      const { createPlateMapLayer } = await import('./map');
+      const layer = createPlateMapLayer(controller, initiallyFitted);
+      return [{ ...layer, mount(map) { layer.mount(map); showMenuAt = layer.showMenuAt; },
+        unmount() { showMenuAt = undefined; layer.unmount(); } }];
+    } },
+  } satisfies LayerPlugin & PlatesController & { Panel: typeof Panel; MapControl: typeof MapControl;
+    contextAction(point: { x: number; y: number }): boolean };
 }
 
 function PlatesPanel({ layer }: { layer: PlatesController }) {

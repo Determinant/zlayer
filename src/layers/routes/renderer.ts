@@ -1,3 +1,5 @@
+import { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } from './map-contract';
+export { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } from './map-contract';
 import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
@@ -11,8 +13,6 @@ import { ROUTE_LINE_ANCHOR } from '../../core/map/layer';
 import { mapLabelKey, ROUTE_LABEL_IDS_STATE } from '../../core/map/label';
 import { formatWaypointLabel } from '../../core/format/coordinates';
 
-export const ROUTE_LEG_HIT_LAYER_ID = 'route-leg-hits';
-export const ROUTE_WAYPOINT_HIT_LAYER_ID = 'route-waypoint-hits';
 const ROUTE_COLOR = '#33c6ff';
 const APPROACH_RGB = [237, 98, 217] as const;
 const ROUTE_HALO_RGB = [4, 20, 34] as const;
@@ -61,7 +61,6 @@ type RouteFeatureCollection = {
   features: RouteFeature[];
 };
 
-export const ROUTE_SOURCE_ID = 'route-plan';
 export const ROUTE_DRAG_SOURCE_ID = 'route-drag';
 const ROUTE_DRAG_VISIBLE_STATE = 'zlayer-route-drag-visible';
 const dragOpacity = (opacity: number): ExpressionSpecification =>

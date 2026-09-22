@@ -1,6 +1,6 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import type { Bounds } from '@zlayer/contracts';
-import type { Segment } from '../terrain/geometry';
+import type { Segment } from '../../core/geo/route-corridor';
 
 export type ObstructionManifest = {
   schemaVersion: 1;

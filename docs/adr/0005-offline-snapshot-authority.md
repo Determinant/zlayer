@@ -16,7 +16,7 @@ digests in saved snapshots and cache URLs; every saved read validates those iden
 Legacy references without digests remain cache-only until explicitly updated.
 Legacy CS preservation lives at the persistence
 boundary. Existing `previous` records and cache namespaces remain compatible. See
-[offline storage](../offline-storage.md) for current selection and retention rules.
+[offline storage](../features/offline-storage.md) for current selection and retention rules.
 The proposed publisher format and separate on-disk artifact/selection records below
 remain future work. The diagnosis describes the code before these client changes.
 

@@ -1,3 +1,4 @@
+import { pluginStorage } from './storage';
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 import { formatDate, formatDateRange } from '../../core/format/time';
@@ -8,7 +9,7 @@ import { createRecommendationModel, recommendationGeometryKey, type RouteSuggest
 import type { RoutePreviewInset, RoutePreview, RouteMapPreview } from './map-preview';
 import { useSuggestions } from './use-suggestions';
 import { routeConditions } from './conditions';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
+import { usePluginState } from '../../core/ui/use-persistent-state';
 import { isString } from '../../core/storage/ui-state';
 import { isRecord } from '@zlayer/contracts';
 
@@ -21,13 +22,13 @@ export function RecommendationResults({ catalog, pair, navigation, airways, term
   onUseRoute: (draft: RouteDraft) => void;
   preserveView?: boolean;
 }) {
-  const [engine, setEngine] = usePersistentState('recommendation-engine', '', isString);
+  const [engine, setEngine] = usePluginState(pluginStorage, 'recommendation-engine', '', isString);
   const { history, preferred } = useSuggestions(catalog, pair, engine);
   const model = useMemo(() => createRecommendationModel(history.data, preferred.data, pair, navigation, airways, terminal),
     [history.data, preferred.data, pair, navigation, airways, terminal]);
   const scope = JSON.stringify([airportRouteIdent(pair.origin), airportRouteIdent(pair.destination), catalog.revision,
     catalog.routeHistory?.url, catalog.preferredRoutes?.url, engine]);
-  const [selection, setSelection] = usePersistentState<{ scope: string; id: string } | null>('recommendation-selection', null,
+  const [selection, setSelection] = usePluginState<{ scope: string; id: string } | null>(pluginStorage, 'recommendation-selection', null,
     (value): value is { scope: string; id: string } | null => value === null ||
       (isRecord(value) && typeof value.scope === 'string' && typeof value.id === 'string'));
   const preview = useMemo(() => model.preview(selection?.scope === scope ? selection.id : undefined), [model, selection, scope]);
@@ -68,7 +69,7 @@ type SectionProps = {
 };
 export function RecommendationSection({ id, title, rows, model, preview, source, controls, error, loading, empty,
   onRetry, onPreview, onUseRoute }: SectionProps) {
-  const [limit, setLimit] = usePersistentState(`recommendation-limit:${id}`, 5,
+  const [limit, setLimit] = usePluginState(pluginStorage, `recommendation-limit:${id}`, 5,
     (value): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 5);
   return <section className="route-recommend-section" aria-labelledby={`route-${id}-title`} data-route-category={id}>
     <div className="route-section-heading"><h3 id={`route-${id}-title`}>{title}<span>{rows.length || ''}</span></h3>
@@ -101,7 +102,7 @@ export function RecommendationSection({ id, title, rows, model, preview, source,
           </button>
           <button type="button" className="route-suggestion-use" aria-label={`Use route ${row.route}`} disabled={!row.draft}
             onClick={() => { if (row.draft) onUseRoute(row.draft); }}>Use</button>
-          {conditions.length > 0 && <PersistentDetails storageKey={`recommendation-conditions:${row.id}`} className="route-recommend-conditions">
+          {conditions.length > 0 && <PersistentDetails storage={pluginStorage} storageKey={`recommendation-conditions:${row.id}`} className="route-recommend-conditions">
             <summary title="Route restrictions">{conditions.map(([, value]) => value).join(' · ')}</summary>
             <dl>{conditions.map(([label, value], index) => <div key={`${index}:${label}`}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
           </PersistentDetails>}

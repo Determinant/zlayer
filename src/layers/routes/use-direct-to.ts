@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, type RouteDraft, type RoutePlan } from '@zlayer/domain';
-import type { OwnshipLayer } from '../ownship/layer';
+import type { GpsService } from '../../core/gps/service';
 import { directToFeature, directToPosition, directToRoutePoint, directToRouteProblem, type DirectToAction } from './direct-to';
 import { sameRouteDraft } from './draft';
 
@@ -14,7 +14,7 @@ export type DirectToConfirmation = {
 };
 
 /** Observe availability only; GPS motion does not rerender the whole workspace. */
-export function useDirectTo(layer: Pick<OwnshipLayer, 'subscribe' | 'getSnapshot'>, plan: RoutePlan,
+export function useDirectTo(layer: Pick<GpsService, 'subscribe' | 'getSnapshot'>, plan: RoutePlan,
   update: (edit: (draft: RouteDraft) => RouteDraft) => void): {
     action: DirectToAction | undefined;
     confirmation: DirectToConfirmation | undefined;

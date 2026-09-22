@@ -4,7 +4,7 @@ import type { Bounds } from '@zlayer/contracts';
 import { WorkerClient } from '../../core/data/worker-client';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { chartRoot } from '../../workspace/catalog/feed';
-import { routeSegments, type Segment } from '../terrain/geometry';
+import { routeSegments, type Segment } from '../../core/geo/route-corridor';
 import { OBSTRUCTION_SOURCE, OBSTRUCTION_LAYER, obstructionMinHeight, OBSTRUCTION_ICONS } from './definitions';
 import { emptyObstructions, installObstructions, syncObstructions } from './renderer';
 import { paddedObstructionBounds, obstructionBoundsContain, obstructionCountInView } from './coverage';

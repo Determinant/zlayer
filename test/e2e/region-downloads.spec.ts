@@ -92,6 +92,20 @@ for (const [width, height] of [[320, 568], [393, 852], [1280, 900]] as const) {
     expect(await page.locator('.region-row h4').allTextContents()).toEqual(order);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('saved-in-place.png') });
+
+    const remove = row.getByRole('button', { name: 'Remove', exact: true });
+    await remove.click();
+    const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Sep 3/ });
+    await expect(confirmation).toBeInViewport();
+    await expect(confirmation).toContainText('Files used by other saved regions will stay.');
+    await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+    expect(await confirmation.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('remove-confirmation.png') });
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible();
+    await expect(remove).toBeFocused();
+    await expect(row.locator('.offline-tag')).toHaveText('Saved');
   });
 }
 
@@ -109,11 +123,14 @@ test('pause, resume and removal remain available in the original region row', as
   await page.getByLabel('Settings and offline downloads').click();
   await row.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
-  page.once('dialog', dialog => void dialog.dismiss());
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
+  const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Sep 3/ });
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeFocused();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
-  page.once('dialog', dialog => void dialog.accept());
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(row.getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
   await expect(row.locator('.offline-tag')).toHaveCount(0);
 });
@@ -178,14 +195,14 @@ test('a file removal error leaves settings usable and removal can be retried', a
       throw new DOMException('The requested file could not be read', 'NotReadableError');
     };
   });
-  page.once('dialog', dialog => void dialog.accept());
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(row.getByRole('alert')).toContainText('The requested file could not be read');
   await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeEnabled();
   await page.getByLabel('Close settings').click();
   await page.getByLabel('Settings and offline downloads').click();
-  page.once('dialog', dialog => void dialog.accept());
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(row.getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
   await expect(row.getByRole('alert')).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -296,8 +313,11 @@ test('temporary cleanup can be cancelled or retried after a storage error withou
   const clean = page.getByRole('button', { name: 'Remove temporary charts and plates', exact: true });
   const check = page.getByRole('button', { name: 'Check saved files', exact: true });
 
-  page.once('dialog', dialog => void dialog.dismiss());
   await clean.click();
+  const confirmation = page.getByRole('alertdialog', { name: 'Remove temporary charts and plates?', exact: true });
+  await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(clean).toBeFocused();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
 
   await page.evaluate(() => {
@@ -307,15 +327,15 @@ test('temporary cleanup can be cancelled or retried after a storage error withou
       throw new Error('Temporary cleanup unavailable');
     };
   });
-  page.once('dialog', dialog => void dialog.accept());
   await clean.click();
+  await confirmation.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Temporary cleanup unavailable' })).toBeVisible();
   await expect(clean).toBeEnabled();
   await expect(check).toBeEnabled();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
 
-  page.once('dialog', dialog => void dialog.accept());
   await clean.click();
+  await confirmation.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(check).toBeEnabled();
   await check.click();
   await expect(check).toBeEnabled();

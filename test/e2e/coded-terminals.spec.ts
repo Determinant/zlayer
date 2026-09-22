@@ -22,7 +22,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch' : 'mouse', () =
     await page.route('**/route-approach-legs.json', route => route.fulfill({ json: terminal }));
     await page.route('**/route-approaches.json', route => route.fulfill({ json: catalog }));
     await page.addInitScript(() => {
-      if (!localStorage.getItem('zlayer-route-draft-v1')) localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+      if (!localStorage.getItem('zlayer-plugin:routes:draft')) localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
         entries: ['KSJC', 'KSNA'].map((text, i) => ({ id: `coded-${i}`, text })) }));
     });
     await page.goto('/test/browser/routes.html?sid&coded&map');
@@ -35,7 +35,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch' : 'mouse', () =
     await sid.getByRole('radio', { name: 'VLREE', exact: true }).check();
     await sid.getByText('Published restrictions', { exact: true }).click();
     await expect(sid).toContainText('STCLR: ≥ 900 ft · ≤ 230 kt');
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[0].departure)).toBeUndefined();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries[0].departure)).toBeUndefined();
     await showPath(page, 'STCLR', [-121.9, 37.3]);
     await page.screenshot({ path: info.outputPath('coded-sid-preview.png') });
     await sid.getByRole('button', { name: 'Add to route' }).click();
@@ -76,7 +76,7 @@ test('a coded approach remains selectable when the chart catalog cannot be loade
   await expect(page.getByRole('button', { name: 'View plate', exact: true })).toHaveCount(0);
   await showPath(page, 'AXMUL', [-122.25, 37.58]);
   await page.getByRole('button', { name: 'Add to route', exact: true }).click();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[0].approach.source)).toBe('cifp');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries[0].approach.source)).toBe('cifp');
   await page.reload();
   await showPath(page, 'AXMUL', [-122.25, 37.58]);
   await page.locator('.route-attached-approach').click();

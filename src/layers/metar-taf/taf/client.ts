@@ -1,9 +1,10 @@
+import { pluginStorage } from '../storage';
 import { isTafReport, type PointGeometry, type TafReport } from '@zlayer/contracts';
 import { normalizeIdentifier } from '@zlayer/domain';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
 export const TAF_REFRESH_MS = 5 * 60_000;
-const CACHE_KEY = 'zlayers.tafs.v1';
+const cacheSlot = pluginStorage.slot('tafs', 'zlayers.tafs.v1');
 const MAX_CACHED_STATIONS = 200;
 export type CachedTaf = { report?: TafReport; checkedAt?: number; missing?: boolean; error?: string };
 type NearbyCheck = { checkedAt?: number; error?: string };
@@ -15,7 +16,7 @@ export class TafClient {
 
   constructor(readonly endpoint: URL, readonly options: Options = {}) {
     try {
-      const saved: unknown = JSON.parse(options.storage?.getItem(CACHE_KEY) ?? 'null');
+      const saved: unknown = JSON.parse(cacheSlot.read(options.storage) ?? 'null');
       if (Array.isArray(saved)) {
         for (const report of saved.filter(isTafReport).slice(-MAX_CACHED_STATIONS)) {
           const id = normalizeIdentifier(report.icaoId);
@@ -130,7 +131,7 @@ export class TafClient {
     this.#trim();
     try {
       // Revalidate restored forecasts rather than persisting a claim of freshness.
-      this.options.storage?.setItem(CACHE_KEY, JSON.stringify([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : [])));
+      cacheSlot.write(JSON.stringify([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : [])), this.options.storage);
     } catch { /* In-memory caching continues when storage is unavailable. */ }
   }
 }
@@ -143,9 +144,7 @@ function newestFirst(a: TafReport, b: TafReport): number {
 let sharedClient: TafClient | undefined;
 export function getTafClient(): TafClient {
   if (sharedClient) return sharedClient;
-  let storage: Storage | undefined;
-  try { storage = window.localStorage; } catch { /* Optional browser storage. */ }
   const endpoint = import.meta.env?.VITE_ZLAYERS_TAF_URL?.trim() || '/weather/tafs.json';
-  sharedClient = new TafClient(new URL(endpoint, window.location.origin), { ...(storage ? { storage } : {}) });
+  sharedClient = new TafClient(new URL(endpoint, window.location.origin));
   return sharedClient;
 }

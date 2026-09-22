@@ -167,8 +167,8 @@ test('removing a region preserves files and the selection when another stored re
   const sharedUrl = await addUnreadableSelection(page, false);
   await page.getByLabel('Settings and offline downloads').click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
-  page.once('dialog', dialog => void dialog.accept());
   await page.locator('.download-card').getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.locator('.settings-error')).toContainText('could not be read');
   await expect(page.locator('.download-card')).toHaveCount(1);
   expect(await page.evaluate(async url => !!await (await caches.open('zlayers-chart-archives-v3')).match(url), sharedUrl)).toBe(true);

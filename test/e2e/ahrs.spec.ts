@@ -79,6 +79,54 @@ async function backgroundAhrs(page: Page) {
     .getByRole('button', { name: 'Background', exact: true }).click();
 }
 
+test('AHRS keeps GPS and heading when Ownship is disabled, and can restart while Ownship stays disabled', async ({ page }) => {
+  await page.clock.install();
+  await openAhrs(page, 'granted', true);
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
+  await page.clock.runFor(12_000);
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+  expect(await countWatches(page)).toBe(1);
+  const settings = async () => {
+    await backgroundAhrs(page);
+    await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
+  };
+  const row = (id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
+  await settings();
+  await row('ownship').getByRole('button', { name: /^Disable / }).click();
+  await expect(row('ownship').locator('.plugin-status')).toHaveText('Disabled');
+  await expect(row('ahrs').locator('.plugin-status')).toHaveText('Enabled');
+  expect(await countWatches(page)).toBe(1);
+  await page.getByLabel('Close settings').click();
+  await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+  await page.clock.runFor(1100);
+  const compass = page.getByTestId('hsi-compass');
+  const before = await compass.getAttribute('transform');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-yaw')));
+  await page.clock.runFor(100);
+  await expect(compass).not.toHaveAttribute('transform', before!);
+  await expect(page.locator('.ahrs-hsi-readout')).toHaveText(/^HDG /);
+  await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-steady')));
+  await settings();
+  await row('ahrs').getByRole('button', { name: /^Disable / }).click();
+  await expect.poll(() => countWatches(page)).toBe(0);
+  await row('ahrs').getByRole('button', { name: /^Enable / }).click();
+  await expect(row('ownship').locator('.plugin-status')).toHaveText('Disabled');
+  expect(await countWatches(page), 'enabling the plugin alone does not request GPS').toBe(0);
+  await page.getByLabel('Close settings').click();
+  await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.clock.runFor(12_000);
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+  await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
+  expect(await countWatches(page)).toBe(1);
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  expect(await countWatches(page)).toBe(0);
+});
+
 async function mockWakeLock(page: Page, mode: 'granted' | 'pending' | 'denied' | 'unsupported' = 'granted') {
   await page.addInitScript(mode => {
     let requests = 0, held = 0, released = 0;
@@ -565,9 +613,9 @@ test('level-flight vibration calibrates without GPS and the crossed HSI keeps mo
     window.dispatchEvent(new Event('test-ahrs-gps-restored'));
   });
   await page.clock.runFor(1100);
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL \d{3}°$/);
-  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
-  await expect(hsi.getByTestId('hsi-track')).toHaveCount(0);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^HDG \d{3}° [MT]$/);
+  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
+  await expect(hsi.getByTestId('hsi-track')).toBeVisible();
   await expect(hsi.getByTestId('hsi-invalid')).toHaveText('Heading');
   await page.evaluate(() => {
     window.dispatchEvent(new Event('test-ahrs-gps-lost'));
@@ -575,7 +623,7 @@ test('level-flight vibration calibrates without GPS and the crossed HSI keeps mo
   });
   await page.clock.runFor(3200);
   await expect(hsi.getByTestId('hsi-invalid')).toHaveText('No GPS');
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL \d{3}°$/);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^HDG \d{3}° [MT]$/);
   await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('HDG — M');
@@ -740,7 +788,7 @@ test('gravity fusion bounds uncertainty under Low Speed', async ({ page }) => {
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
-test('gravity fusion keeps heading unaligned and HSI geographic guidance unavailable', async ({ page }, testInfo) => {
+test('gravity fusion keeps heading unverified while HSI shows GPS-assisted heading and guidance', async ({ page }, testInfo) => {
   await page.clock.install();
   await openAhrs(page);
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('370000N1230000W 370000N1210000W');
@@ -753,10 +801,10 @@ test('gravity fusion keeps heading unaligned and HSI geographic guidance unavail
   await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
   await expect(diagnostics.locator('.ahrs-fusion-counts')).toContainText('0 used');
-  await expect(page.getByTestId('hsi-heading')).toHaveCount(0);
-  await expect(page.getByTestId('hsi-deviation')).toHaveCount(0);
-  await expect(page.getByTestId('hsi-track')).toHaveCount(0);
-  await expect(page.getByRole('img', { name: /^HSI\. Heading\. Relative direction / })).toBeVisible();
+  await expect(page.getByTestId('hsi-heading')).toBeVisible();
+  await expect(page.getByTestId('hsi-deviation')).toBeVisible();
+  await expect(page.getByTestId('hsi-track')).toBeVisible();
+  await expect(page.getByRole('img', { name: /^HSI\. Heading\. Estimated heading / })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 568 });
   await diagnostics.screenshot({ path: testInfo.outputPath('tilt-aiding-mobile.png') });
   expect(await diagnostics.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
@@ -773,7 +821,7 @@ test('gravity fusion keeps heading unaligned and HSI geographic guidance unavail
   await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
   await expect(page.getByTestId('hsi-invalid')).toHaveText('Heading');
-  await expect(page.getByTestId('hsi-deviation')).toHaveCount(0);
+  await expect(page.getByTestId('hsi-deviation')).toBeVisible();
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
@@ -999,6 +1047,9 @@ test('page visibility pauses instruments and automatically resumes the calibrate
     window.dispatchEvent(new CustomEvent('test-ahrs-pause-motion', { detail: true }));
     Reflect.deleteProperty(document, 'hidden');
     document.dispatchEvent(new Event('visibilitychange'));
+    // A resumed GPS watch does not replay a fix. Supply one before checking
+    // motion uncertainty instead of racing the stream's next one-second tick.
+    window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { altitude: 3048, altitudeAccuracy: 10 } }));
     // The first returning reading ages the missing interval; subsequent
     // readings can then correct tilt through gravity fusion.
     window.dispatchEvent(new DeviceMotionEvent('devicemotion', {
@@ -1160,7 +1211,7 @@ test('denied motion permission explains how to retry without starting GPS', asyn
   expect(await countWatches(page)).toBe(0);
 });
 
-test('HSI retains live inertial yaw when GPS track returns without heading alignment', async ({ page }, testInfo) => {
+test('HSI seeds geographic heading from GPS and carries it with gyro motion between fixes', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-09-18T12:00:00Z') });
   await openAhrs(page);
   const route = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
@@ -1194,8 +1245,9 @@ test('HSI retains live inertial yaw when GPS track returns without heading align
   await expect(hsi.getByTestId('hsi-track')).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 120 * 1852 / 3600 })));
   await page.clock.runFor(1100);
-  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^REL /);
+  await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^HDG /);
   await expect(hsi.getByTestId('hsi-invalid')).toContainText('Heading');
+  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
   const movingCompass = await hsi.getByTestId('hsi-compass').getAttribute('transform');
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-yaw')));
   await page.clock.runFor(100);
@@ -1206,8 +1258,9 @@ test('HSI retains live inertial yaw when GPS track returns without heading align
   await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-restored')));
   await page.clock.runFor(1100);
-  await expect(hsi.getByTestId('hsi-course')).toHaveCount(0);
-  await expect(hsi.getByTestId('hsi-relative-heading')).toBeVisible();
+  await expect(hsi.getByTestId('hsi-course')).toBeVisible();
+  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Heading');
+  await expect(hsi.getByTestId('hsi-relative-heading')).toHaveCount(0);
 });
 
 test('compact HSI follows the route, supports a selected leg, and flags lost GPS', async ({ page }, testInfo) => {

@@ -130,6 +130,41 @@ test('growing the filtered columns preserves all eligible fields and original co
     assert.equal(point.properties.label, `${i - 100}${i % 2 ? ' UC' : ''}\n(${500 + i})`);
     assert.equal(point.properties.icon, i < 500 ? 'obstruction-low-group-strobe' : 'obstruction-tall-group-strobe');
   }
+  const restored = ObstructionIndex.restore(index.snapshot(), index.expectedCount);
+  for (const zoom of [6.99, 7, 8, 9, 10, 13]) {
+    for (const routes of [[], [segment([-1, 0], [1, 0])]]) {
+      assert.deepEqual(restored.query([-1, -1, 1, 1], routes, zoom), index.query([-1, -1, 1, 1], routes, zoom));
+    }
+  }
+});
+
+test('filtered snapshots preserve empty results and reject incomplete or invalid records', () => {
+  const index = new ObstructionIndex(2);
+  assert.throws(() => index.snapshot(), /incomplete/);
+  index.add(feature('06-000001', 179.99, -0.123456789));
+  index.add(feature('06-000002', -179.99, 0.123456789));
+  index.finish();
+  const restored = ObstructionIndex.restore(index.snapshot(), 2);
+  assert.deepEqual(restored.query([179, -1, -179, 1], [], 13), index.query([179, -1, -179, 1], [], 13));
+  assert.throws(() => ObstructionIndex.restore(index.snapshot(), 1), /size/);
+  assert.throws(() => ObstructionIndex.restore(new ArrayBuffer(0), 2), /version/);
+  const mutations = [
+    (view: DataView) => view.setFloat64(8, -1, true),
+    (view: DataView) => view.setFloat64(16, NaN, true),
+    (view: DataView) => view.setFloat64(24, 91, true),
+    (view: DataView) => view.setInt32(32, 499, true),
+    (view: DataView) => view.setInt32(36, 100000, true),
+    (view: DataView) => view.setUint8(40, 255),
+    (view: DataView) => view.setUint8(41, 2),
+    (view: DataView) => view.setFloat64(42, view.getFloat64(8, true), true),
+  ];
+  for (const mutate of mutations) {
+    const snapshot = index.snapshot(); mutate(new DataView(snapshot));
+    assert.throws(() => ObstructionIndex.restore(snapshot, 2), /Invalid|Duplicate/);
+  }
+  const empty = new ObstructionIndex(1), low = feature('06-000001');
+  low.properties.heightAglFt = 499; empty.add(low); empty.finish();
+  assert.equal(ObstructionIndex.restore(empty.snapshot(), 1).size, 0);
 });
 
 test('the Walnut Grove towers near KSAC appear without a route and outside an unrelated route corridor', () => {
@@ -237,35 +272,90 @@ test('the rolling manifest resolves and verifies its immutable gzip dataset', as
   assert.equal(result.index.query([-1, -1, 1, 1], [segment([-1, 0], [1, 0])], 10).features.length, 1);
 });
 
-test('obstruction downloads hash once and cold cache reads reuse a receipt while rebuilding the index', async t => {
+test('reloads use only the filtered snapshot without a gzip download or decompression', async t => {
   const { stored } = cacheFixture(t);
-  const { bytes, manifest } = fixture();
+  const low = feature('06-000002'); low.properties.heightAglFt = 499;
+  const { bytes, manifest } = fixture([feature('06-000001'), low]);
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
   const url = new URL(manifest.dataset.path, manifestUrl).href;
   const fetch = t.mock.method(globalThis, 'fetch', async (url: string) =>
     url === manifestUrl ? Response.json(manifest) : new Response(new Uint8Array(bytes)));
-  // Hashing and bounded decompression each read the compressed blob once.
-  let readBytes = 0;
-  const slice = Blob.prototype.slice;
-  t.mock.method(Blob.prototype, 'slice', function (this: Blob, start?: number, end?: number, type?: string) {
-    const part = slice.call(this, start, end, type);
-    readBytes += part.size;
-    return part;
+  const first = await loadObstructions(manifestUrl);
+  const snapshotKey = [...stored.keys()].find(key => key !== manifestUrl)!;
+  assert.notEqual(snapshotKey, url);
+  assert.equal(stored.has(url), false, 'new loads must not retain the full gzip');
+  assert.equal((await stored.get(snapshotKey)!.clone().arrayBuffer()).byteLength, 8 + 34, 'only one eligible record is stored');
+  fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
+  t.mock.method(globalThis, 'DecompressionStream', function () { throw new Error('Unexpected decompression'); });
+  const second = await loadObstructions(manifestUrl);
+  assert.deepEqual(second.index.query([-1, -1, 1, 1], [], 10), first.index.query([-1, -1, 1, 1], [], 10));
+  assert.equal(second.sourceDate, first.sourceDate);
+});
+
+test('legacy gzip caches migrate offline and are deleted only after a successful snapshot save', async t => {
+  const { stored, cache } = cacheFixture(t);
+  const { bytes, manifest } = fixture();
+  const manifestUrl = 'https://charts.test/obstacles/manifest.json';
+  const url = new URL(manifest.dataset.path, manifestUrl).href;
+  stored.set(manifestUrl, Response.json(manifest));
+  stored.set(url, new Response(new Uint8Array(bytes)));
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('offline'); });
+  const put = cache.put;
+  const write = t.mock.method(cache, 'put', async () => { throw new Error('quota'); });
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+  assert.equal(stored.has(url), true);
+  write.mock.mockImplementation(put);
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+  assert.equal(stored.has(url), false);
+  t.mock.method(globalThis, 'DecompressionStream', function () { throw new Error('Unexpected decompression'); });
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+});
+
+test('damaged or mismatched filtered caches rebuild from verified source data', async t => {
+  const { stored } = cacheFixture(t);
+  const { bytes, manifest } = fixture();
+  const manifestUrl = 'https://charts.test/obstacles/manifest.json';
+  let downloads = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url === manifestUrl) return Response.json(manifest);
+    downloads++; return new Response(new Uint8Array(bytes));
   });
   await loadObstructions(manifestUrl);
-  assert.equal(readBytes, 2 * bytes.length);
-  assert.equal(stored.get(url)!.headers.get(VERIFIED_SHA256_HEADER), manifest.dataset.sha256);
-  fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
-  const { index } = await loadObstructions(manifestUrl);
-  assert.equal(index.query([-1, -1, 1, 1], [], 10).features.length, 1);
-  assert.equal(readBytes, 3 * bytes.length, 'cold loads only read the gzip for decompression');
+  const key = [...stored.keys()].find(key => key !== manifestUrl)!;
+  const original = stored.get(key)!;
+  for (const defect of ['checksum', 'source', 'version', 'truncated', 'receipt']) {
+    const body = new Uint8Array(await original.clone().arrayBuffer()), headers = new Headers(original.headers);
+    if (defect === 'checksum') body[body.length - 1]! ^= 1;
+    if (defect === 'source') headers.set('x-zlayer-obstruction-source', 'wrong source');
+    if (defect === 'version') {
+      new DataView(body.buffer).setUint32(0, 999, true);
+      headers.set(VERIFIED_SHA256_HEADER, createHash('sha256').update(body).digest('hex'));
+    }
+    if (defect === 'receipt') headers.delete(VERIFIED_SHA256_HEADER);
+    stored.set(key, new Response(defect === 'truncated' ? body.slice(1) : body, { headers }));
+    assert.equal((await loadObstructions(manifestUrl)).index.size, 1, defect);
+  }
+  assert.equal(downloads, 6);
+});
 
-  // A legacy entry without a receipt is verified once, then upgraded atomically.
-  stored.set(url, new Response(new Uint8Array(bytes)));
+test('a changed source gets its own filtered snapshot and never reuses an older index', async t => {
+  const { stored } = cacheFixture(t);
+  let current = fixture();
+  const manifestUrl = 'https://charts.test/obstacles/manifest.json';
+  let downloads = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url === manifestUrl) return Response.json(current.manifest);
+    downloads++; return new Response(new Uint8Array(current.bytes));
+  });
   await loadObstructions(manifestUrl);
-  assert.equal(readBytes, 5 * bytes.length);
-  await loadObstructions(manifestUrl);
-  assert.equal(readBytes, 6 * bytes.length);
+  current = fixture([feature('06-000002')]);
+  const updated = await loadObstructions(manifestUrl);
+  assert.equal(updated.index.query([-1, -1, 1, 1], [], 10).features[0]!.id, '06-000002');
+  assert.equal(downloads, 2);
+  assert.equal(stored.size, 3, 'one manifest and two independent source snapshots');
+  // The same digest with contradictory manifest counts must not reuse a prior snapshot.
+  current.manifest.dataset.count++;
+  await assert.rejects(loadObstructions(manifestUrl), /count/);
 });
 
 test('obstruction network headers cannot bypass hashing, and invalid receipts are reverified', async t => {
@@ -282,7 +372,8 @@ test('obstruction network headers cannot bypass hashing, and invalid receipts ar
   stored.set(url, new Response(new Uint8Array(bytes), { headers: { ...headers, [VERIFIED_SHA256_HEADER]: 'a'.repeat(64) } }));
   fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
   await loadObstructions(manifestUrl);
-  assert.equal(stored.get(url)!.headers.get(VERIFIED_SHA256_HEADER), manifest.dataset.sha256);
+  assert.equal(stored.has(url), false, 'verified legacy data is replaced by the filtered snapshot');
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
 });
 
 test('an unreadable obstruction cache is kept when a network repair is unavailable', async t => {
@@ -301,4 +392,24 @@ test('an unreadable obstruction cache is kept when a network repair is unavailab
   t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('offline'); });
   await assert.rejects(loadObstructions(manifestUrl), /offline/);
   assert.equal(stored.has(url), true);
+});
+
+test('a temporarily unreadable filtered snapshot is preserved and works on a later retry', async t => {
+  const { stored, cache } = cacheFixture(t);
+  const { bytes, manifest } = fixture();
+  const manifestUrl = 'https://charts.test/obstacles/manifest.json';
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: string) =>
+    url === manifestUrl ? Response.json(manifest) : new Response(new Uint8Array(bytes)));
+  await loadObstructions(manifestUrl);
+  const key = [...stored.keys()].find(key => key !== manifestUrl)!;
+  const match = cache.match;
+  const read = t.mock.method(cache, 'match', async (request: RequestInfo | URL) => {
+    if (String(request) === key) throw new DOMException('busy', 'NotReadableError');
+    return match(request);
+  });
+  fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
+  await assert.rejects(loadObstructions(manifestUrl), /offline/);
+  assert.equal(stored.has(key), true);
+  read.mock.mockImplementation(match);
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
 });

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createOwnshipLayer } from '../src/layers/ownship/layer';
-import { destination, GPS_STALE_MS } from '../src/layers/ownship/position';
+import { destination } from '../src/layers/ownship/position';
+import { createGpsService } from '../src/core/gps/service';
+import { GPS_STALE_MS } from '../src/core/gps/position';
 
 function setup(t: test.TestContext) {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1_800_000_000_000 });
@@ -18,13 +20,14 @@ function setup(t: test.TestContext) {
     },
     clearWatch(id: number) { active.delete(id); },
   };
-  const layer = createOwnshipLayer({ geolocation: () => supported ? api : undefined, secure: () => secure, visibility });
+  const gps = createGpsService({ geolocation: () => supported ? api : undefined, secure: () => secure, visibility });
+  const layer = createOwnshipLayer(gps);
   t.after(() => layer.detach());
   const fix = (id = callbacks.length - 1, offset = 0, coords: Partial<GeolocationCoordinates> = {}) =>
     callbacks[id]!.success({ timestamp: Date.now() + offset,
       coords: { latitude: 37, longitude: -122, accuracy: 5, speed: 60, heading: 90, ...coords } } as GeolocationPosition);
   const error = (code: number, id = callbacks.length - 1) => callbacks[id]!.error?.({ code } as GeolocationPositionError);
-  return { layer, active, callbacks, options, fix, error, visibility,
+  return { layer, gps, active, callbacks, options, fix, error, visibility,
     setSecure: (value: boolean) => { secure = value; }, setSupported: (value: boolean) => { supported = value; } };
 }
 
@@ -48,6 +51,18 @@ test('GPS waits for a consumer, uses a single high-accuracy watch and clears eve
   assert.equal(layer.getSnapshot().fix, null);
   fix();
   assert.equal(layer.getSnapshot().state, 'off', 'late callbacks cannot resurrect a disabled layer');
+});
+
+test('detaching during initial GPS publication releases the pending lease', t => {
+  const { layer, gps, active } = setup(t);
+  const unsubscribe = layer.subscribe(() => {
+    if (layer.getSnapshot().state === 'acquiring') layer.detach();
+  });
+  t.after(unsubscribe);
+  layer.setEnabled(true); layer.attach();
+  assert.equal(active.size, 0);
+  assert.equal(gps.getSnapshot().state, 'off');
+  assert.equal(layer.getSnapshot().state, 'off');
 });
 
 test('expiration uses the fix timestamp, stops the projection, and recovers with a fresh fix', t => {
@@ -265,9 +280,9 @@ test('high frequency fixes estimate motion without flicker and stop estimating o
 });
 
 test('tools share one GPS watch without enabling or centering the map aircraft', t => {
-  const { layer, fix, active, callbacks } = setup(t);
+  const { layer, gps, fix, active, callbacks } = setup(t);
   layer.attach();
-  const releaseAhrs = layer.acquire(), releaseOther = layer.acquire();
+  const releaseAhrs = gps.acquire(), releaseOther = gps.acquire();
   assert.equal(active.size, 1);
   fix();
   assert.equal(layer.getSnapshot().enabled, false);
@@ -286,12 +301,13 @@ test('tools share one GPS watch without enabling or centering the map aircraft',
 });
 
 test('a GPS lease observes background pauses without a map attachment', t => {
-  const { layer, fix, active, visibility } = setup(t);
-  const release = layer.acquire();
+  const { layer, gps, fix, active, visibility } = setup(t);
+  const release = gps.acquire();
   fix();
   visibility.hidden = true; visibility.dispatchEvent(new Event('visibilitychange'));
   assert.equal(active.size, 0);
-  assert.equal(layer.getSnapshot().state, 'paused');
+  assert.equal(gps.getSnapshot().state, 'paused');
+  assert.equal(layer.getSnapshot().state, 'off', 'a detached Ownship does not consume the shared fixes');
   visibility.hidden = false; visibility.dispatchEvent(new Event('visibilitychange'));
   assert.equal(active.size, 1);
   release();

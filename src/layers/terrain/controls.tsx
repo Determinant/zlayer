@@ -1,8 +1,9 @@
+import { pluginStorage } from './storage';
 import type { TerrainCoverage, TerrainStatus } from './types';
 import { terrainColor, TERRAIN_COLOR_STOPS } from './palette';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
+import { usePluginState } from '../../core/ui/use-persistent-state';
 import { CLEARANCE_COLORS, DEFAULT_TERRAIN_ALTITUDE, MAX_TERRAIN_ALTITUDE, TERRAIN_ALTITUDE_STEP } from './clearance';
 import './styles.css';
 
@@ -99,7 +100,7 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
   status: TerrainStatus; altitude: number | null; onAltitudeChange: (altitude: number | null) => void;
 } & CoverageProps) {
   const sliderId = useId();
-  const [lastAltitude, setLastAltitude] = usePersistentState('terrain-last-altitude', altitude ?? DEFAULT_TERRAIN_ALTITUDE,
+  const [lastAltitude, setLastAltitude] = usePluginState(pluginStorage, 'terrain-last-altitude', altitude ?? DEFAULT_TERRAIN_ALTITUDE,
     (value): value is number => typeof value === 'number' && Number.isFinite(value) &&
       value >= 0 && value <= MAX_TERRAIN_ALTITUDE && value % TERRAIN_ALTITUDE_STEP === 0);
   const [altitudeDraft, setAltitudeDraft] = useState<string | null>(null);

@@ -99,7 +99,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   };
 
   const layer: MapLayerModule<MetarInput> = {
-    id: 'metar', slot: 'weather', interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels'],
+    id: 'metar', slot: 'weather', overlayLayerIds: METAR_LAYER_IDS, interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels'],
     mount(target) {
       map = target;
       scopeDirty = true;
@@ -163,6 +163,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       }
       map = undefined;
       display = undefined;
+      input = { airports: undefined, enabled: false, airportsVisible: false };
       scope = [];
       loading = false;
       publish();

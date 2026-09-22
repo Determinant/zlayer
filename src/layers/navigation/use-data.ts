@@ -30,7 +30,7 @@ export function useNavigationData(
   const airwayKey = routing?.airways ? JSON.stringify([routing.revision, routing.airways]) : undefined;
 
   useEffect(() => {
-    if (!routing || !visibility.fixes || !airwayKey) return;
+    if (!routing || !visibility.fixes || !airwayKey) { setAirwayState(undefined); return; }
     const resource = routing.airways;
     if (!resource) return;
     let cancelled = false;
@@ -49,7 +49,7 @@ export function useNavigationData(
   }, [routing, airwayKey, visibility.fixes, online, inventoryVersion]);
 
   useEffect(() => {
-    if (!catalog) return;
+    if (!catalog) { setLoaded(current => Object.keys(current).length ? {} : current); return; }
     let cancelled = false;
     for (const layer of regionalNavigationLayers(catalog)) {
       if (!visibility[layer.id]) continue;

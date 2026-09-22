@@ -27,6 +27,7 @@ function createInstrumentTest() {
       phase: 'ready', crossed: false, warning: '', message: '', calibrationReason: 'ready', progress: 1,
       // Keep guidance visible throughout the low-speed digit tests as well.
       gpsLive: true, gpsUsable: true, gpsMessage: '', trueHeading: true,
+      hsiHeading: { degrees: yaw, source: 'ahrs' },
       gpsTime: start + second, speed: (knots + 4 * sweep) * METERS_PER_KNOT_SECOND,
       altitude: (feet + 40 * sweep) * METERS_PER_FOOT,
       altitudeAccuracy: 5,

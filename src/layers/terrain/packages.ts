@@ -1,16 +1,17 @@
 import { terrainArchiveUrl, terrainArchiveKey, terrainShardKey, isTerrainIndex, type TerrainArchive, type TerrainIndex, type TerrainShard } from '@zlayer/contracts';
-import { WholeFileChartCache } from '../charts/archive-cache';
+import { WholeFileCache } from '../../core/storage/archive-cache';
 import { CHART_CACHE } from '../../core/storage/cache-names';
 import { verificationReceipt } from '../../core/storage/verification-receipt';
 import { noteCacheAccess } from '../../core/storage/cache-access';
 import { withAbort } from '../../core/data/abort';
 import { InvalidDataError, ResourceError } from '../../core/data/errors';
 import { readTerrainArchive } from './archive';
-import { openFileCache } from '../../core/storage/download-file';
+import { openFileCache, storedFileBlob } from '../../core/storage/download-file';
+import { discardResponseBody } from '../../core/storage/response';
 import type { Tile } from './geometry';
 
 export type TerrainPackage = { root: string; shard: TerrainShard; grid?: 'EPSG:4326'; maxZoom?: 10 | 11; priority?: number };
-const archives = new WholeFileChartCache(undefined, 8, 4);
+const archives = new WholeFileCache(undefined, 8);
 type ParsedIndex = { data: TerrainIndex; byTile: ReadonlyMap<string, TerrainArchive> };
 // Cache at most 8,192 archive descriptors. Pending parses share the same budget.
 const indices = new Map<string, Promise<ParsedIndex>>();
@@ -30,7 +31,7 @@ async function readIndex(source: TerrainPackage, signal: AbortSignal, cacheOnly 
       await response?.body?.cancel();
       throw new ResourceError('storage', 'Saved terrain index is missing. Verify / update this region.');
     }
-    blob = await response.blob();
+    try { blob = await storedFileBlob(response); } finally { discardResponseBody(response); }
   } else {
     await noteCacheAccess(CHART_CACHE, url);
     signal.throwIfAborted();

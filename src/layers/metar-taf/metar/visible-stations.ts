@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
-import { AIRPORT_POINT_LAYER_IDS } from '../../navigation/definitions';
+import { AIRPORT_POINT_LAYER_IDS } from '../../navigation/map-contract';
 import { stationIdBatches } from './requests';
 
 export function visibleMetarStationIds(

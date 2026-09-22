@@ -1,14 +1,16 @@
 import { isRecord } from '@zlayer/contracts';
 import { createRouteEntry, routeTokensFromText, type RouteDraft, type RouteEntry } from '@zlayer/domain';
 import { parseRouteEntries } from './draft-storage';
+import { pluginStorage } from './storage';
 
-export const ROUTE_STASH_KEY = 'zlayer-route-stash-v1';
+const stashSlot = pluginStorage.slot('stash', 'zlayer-route-stash-v1');
+export const ROUTE_STASH_KEY = stashSlot.key;
 export type SavedRoute = { id: string; name: string; draft: RouteDraft };
 type StashStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-export function readRouteStash(storage: StashStorage = localStorage): SavedRoute[] {
+export function readRouteStash(storage?: StashStorage): SavedRoute[] {
   let raw: string | null;
-  try { raw = storage.getItem(ROUTE_STASH_KEY); }
+  try { raw = stashSlot.read(storage); }
   catch { throw new Error('Route stash is unavailable. Check site storage permissions and try again.'); }
   if (raw === null) return [];
   try {
@@ -36,9 +38,9 @@ export async function updateRouteStash(change: (routes: SavedRoute[]) => SavedRo
 }
 
 /** Synchronous storage primitive; browser callers use updateRouteStash for coordination. */
-export function changeRouteStash(change: (routes: SavedRoute[]) => SavedRoute[], storage: StashStorage = localStorage): SavedRoute[] {
+export function changeRouteStash(change: (routes: SavedRoute[]) => SavedRoute[], storage?: StashStorage): SavedRoute[] {
   const routes = change(readRouteStash(storage));
-  try { storage.setItem(ROUTE_STASH_KEY, JSON.stringify({ version: 1, routes })); }
+  try { stashSlot.write(JSON.stringify({ version: 1, routes }), storage); }
   catch { throw new Error('Could not save the route stash. Check available storage and site permissions, then try again.'); }
   return routes;
 }

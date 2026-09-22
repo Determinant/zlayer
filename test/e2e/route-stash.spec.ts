@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const stashKey = 'zlayer-route-stash-v1', draftKey = 'zlayer-route-draft-v1';
+const stashKey = 'zlayer-plugin:routes:stash', draftKey = 'zlayer-plugin:routes:draft';
 const approach = { airportId: 'KSFO', procedureId: 'ils', name: 'ILS OR LOC RWY 28R', cycle: '2609',
   entry: { routeId: 'KSFO:I28R', transitionId: 'transition:ARCHI', name: 'ARCHI', effectiveDate: '2026-09-03' } };
 const entries = [{ id: 'gps', text: '374529N1223030W' }, { id: 'sfo', text: 'KSFO', pinnedFeatureId: 'KSFO', approach }];

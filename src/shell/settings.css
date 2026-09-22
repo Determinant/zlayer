@@ -41,6 +41,16 @@
 .settings-dialog button:not(:disabled):hover { background: #204755; }
 .settings-dialog :is(button, input, select, summary):focus-visible, .settings-button:focus-visible { outline: 2px solid #61d6c5; outline-offset: 3px; }
 .settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 28px; padding: 24px; }
+.settings-body[hidden] { display: none; }
+.settings-tabs { display: flex; flex: 0 0 auto; gap: 8px; padding: 8px 24px; border-bottom: 1px solid #253b4e; }
+.settings-tabs [aria-selected="true"] { border-color: #61d6c5; background: #214b47; color: #d9fff5; }
+.plugin-list { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px;
+  border: 1px solid #294052; border-radius: 12px; background: #0e2231; }
+.plugin-row > div { min-width: 0; }
+.plugin-row > button { flex: 0 0 auto; }
+.plugin-status { color: #a8bfce; font-size: var(--settings-detail-size); }
+.plugin-row p { font-size: var(--settings-detail-size); }
 .settings-downloads { display: grid; gap: 28px; }
 .settings-downloads[hidden] { display: none; }
 .settings-cycle { display: grid; gap: 8px; max-width: 360px; color: #a8bfce; }

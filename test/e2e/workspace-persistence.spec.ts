@@ -169,7 +169,7 @@ test('a visited PDF page survives refresh, and corrupt presentation records do n
     localStorage.setItem('test-seeded', 'true');
     localStorage.setItem('zlayer-ui:layers-open', '{broken');
     localStorage.setItem('zlayer-ui:selected-feature', JSON.stringify({ version: 1, value: { type: 'Feature' } }));
-    localStorage.setItem('zlayer-ui:plate-selection', JSON.stringify({ version: 1, value: {
+    localStorage.setItem('zlayer-plugin:plates:plate-selection', JSON.stringify({ version: 1, value: {
       airport: { id: 'KSBA' }, procedure: { id: 'two-page', name: 'Two-page test plate' },
       cycle: '2026-09-03', effectiveDate: '2026-09-03', expirationDate: '2026-10-01',
       document: { url: `${location.origin}/two-page.pdf`, nativeUrl: `${location.origin}/two-page.pdf`,

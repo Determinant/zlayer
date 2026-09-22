@@ -1,5 +1,5 @@
 import type { Bounds } from '@zlayer/contracts';
-import { project, unproject } from '../terrain/geometry';
+import { project, unproject } from '../../core/geo/route-corridor';
 import type { ObstructionCollection } from './types';
 
 function eastOf(west: number, east: number): number { return east < west ? east + 360 : east; }

@@ -89,6 +89,8 @@ export const AhrsDiagnostics = memo(function AhrsDiagnostics({ layer, active }: 
       <div><dt>Local yaw σ</dt><dd>{angle(attitude.relativeYawStd)}</dd></div>
       <div><dt>Heading σ</dt><dd>{attitude.headingStatus !== 'tracking' ? 'Unknown' : angle(attitude.attitudeStd[2])}</dd></div>
       <div><dt>Heading</dt><dd title={attitude.headingReason}>{attitude.headingStatus === 'tracking' ? 'Aligned' : attitude.headingStatus === 'recovering' ? 'Recovering' : 'Aligning'}</dd></div>
+      <div><dt>HSI reference</dt><dd>{state.hsiHeading?.source === 'gps' ? 'GPS + gyro estimate'
+        : state.hsiHeading ? 'AHRS heading' : 'Relative'}</dd></div>
       <div><dt>Last alignment</dt><dd>{attitude.headingReference === 'relative' ? 'None' : attitude.headingReference === 'manual-true' ? 'Initial input' : 'GPS + IMU'}</dd></div>
       <div><dt>Last velocity aid</dt><dd>{Number.isFinite(attitude.fusionAge) ? `${attitude.fusionAge.toFixed(1)}s ago` : 'Never'}</dd></div>
       <div><dt>Last tilt aid</dt><dd>{Number.isFinite(attitude.tiltFusion.age) ? `${attitude.tiltFusion.age.toFixed(1)}s ago` : 'Never'}</dd></div>

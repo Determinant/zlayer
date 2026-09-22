@@ -65,6 +65,29 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
     leases: () => leases, stops: () => stops };
 }
 
+test('GPS supplies a provisional HSI heading carried by gyro motion, retained through loss and stowing, and cleared on stop', async t => {
+  const s = setup(t);
+  await s.layer.calibrate(); s.feed(11);
+  const ready = s.layer.readDisplaySnapshot();
+  assert.equal(ready.hsiHeading?.source, 'gps');
+  near(ready.hsiHeading!.degrees, 75);
+  assert.equal(ready.trueHeading, false, 'a provisional reference does not falsely validate filter heading');
+  s.layer.setVisible(false);
+  s.loseGps();
+  s.feed(2, { gps: false, gyro: [0, 0, 10 * RAD] });
+  const turned = s.layer.readDisplaySnapshot();
+  assert.ok(turned.hsiHeading!.degrees > 85, 'gyro motion carries geographic heading without GPS or visible instruments');
+  assert.equal(turned.warning, 'No GPS');
+  s.layer.setVisible(true);
+  near(s.layer.getSnapshot().hsiHeading!.degrees, turned.hsiHeading!.degrees);
+  t.mock.timers.tick(4000);
+  near(s.layer.readDisplaySnapshot().hsiHeading!.degrees, turned.hsiHeading!.degrees);
+  s.layer.stop();
+  assert.equal(s.layer.readDisplaySnapshot().hsiHeading, null);
+  await s.layer.calibrate(); s.feed(11, { gps: false });
+  assert.equal(s.layer.readDisplaySnapshot().hsiHeading, null, 'a new session without GPS starts relative');
+});
+
 test('in-progress calibration pauses without losing readings or counting the gap as progress', async t => {
   const s = setup(t);
   await s.layer.calibrate(); s.feed(4, { gps: false });

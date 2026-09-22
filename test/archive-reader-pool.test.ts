@@ -85,3 +85,42 @@ test('skips obsolete queued files but keeps a file needed by another tile', asyn
   await Promise.all([active, skipped, cancelledShared, stillNeeded]);
   assert.deepEqual(opened, ['active', 'shared']);
 });
+
+test('clear releases idle readers, cancels queued opens, and permits a fresh generation', async () => {
+  const opened: string[] = [], disposed: string[] = [];
+  const delayed = gate();
+  const pool = new ArchiveReaderPool(async url => {
+    opened.push(url);
+    if (url === 'old') await delayed.promise; // Simulate an opener that completes after cancellation.
+    return { dispose: () => { disposed.push(url); } };
+  }, 1);
+  const old = assert.rejects(pool.use('old', async () => assert.fail('stale action')), { name: 'AbortError' });
+  await tick();
+  const queued = assert.rejects(pool.use('queued', async () => assert.fail('queued action')), { name: 'AbortError' });
+  pool.clear(); pool.clear();
+  const fresh = pool.use('old', async () => {});
+  delayed.resolve();
+  await Promise.all([old, queued, fresh]);
+  assert.deepEqual(opened, ['old', 'old']);
+  assert.deepEqual(disposed, ['old']);
+  pool.clear(); await tick();
+  assert.deepEqual(disposed, ['old', 'old']);
+  for (let i = 0; i < 30; i++) {
+    await pool.use('repeat', async () => {});
+    pool.clear(); await tick();
+  }
+  assert.equal(disposed.length, opened.length, 'repeated reloads leave no resident readers');
+});
+
+test('aborting the last queued consumer releases its waiter immediately', async () => {
+  const reading = gate();
+  const pool = new ArchiveReaderPool(async () => ({ dispose() {} }), 1);
+  const active = pool.use('active', async () => reading.promise);
+  await tick();
+  const controller = new AbortController();
+  const cancelled = assert.rejects(pool.use('queued', async () => assert.fail('aborted action'), controller.signal), { name: 'AbortError' });
+  controller.abort();
+  await cancelled;
+  reading.resolve(); await active;
+  pool.clear();
+});

@@ -10,6 +10,11 @@ import { routeEditProperties } from '../src/layers/routes/editing';
 import type { NearbyFeature } from '../src/workspace/feature-selection';
 import { withMapLabelKeys } from '../src/core/map/label';
 import { resolveNavigationFeature } from '../src/layers/navigation/feature-details';
+import { createLayerInput } from '../src/core/layers/input';
+import { createLayerStore } from '../src/core/layers/store';
+import { MapLayerHost } from '../src/core/map/layer';
+import { createSelectionContribution } from '../src/workspace/map/selection';
+import type { RouteMapEditing, RoutePluginInput } from '../src/layers/routes/plugin';
 
 const navigation: FeatureCollectionResponse = { type: 'FeatureCollection',
   meta: { layer: 'fixes', revision: 'test', returned: 4, truncated: false },
@@ -100,6 +105,7 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
     nearby, insertions, previews, resolutions,
     setHitBounds: (bounds: typeof hitBounds) => { hitBounds = bounds; },
     boundsQueries: () => boundsQueries,
+    getRoute: () => route,
     setRoute: (next: RoutePlan, render = true) => { route = next; if (render) rendered = next; },
     setEditable: (value: boolean) => { editable = value; },
     click: () => handlers.get('click')!({ point: { x: 100, y: 100 } }),
@@ -785,4 +791,54 @@ test('destroy releases every map listener as well as an active drag', t => {
   assert.equal(handlers.size, 0);
   assert.equal(map.dragPan.enabled, true);
   assert.deepEqual(edits, []);
+});
+
+
+for (const failure of ['move', 'release'] as const) test(`a route preview failure on ${failure} preserves core selection and cancels the edit`, t => {
+  const feature = { ...navigation.features[3]!, layer: { id: 'fixes' } } as unknown as MapGeoJSONFeature;
+  const fixture = setup(t, [feature]);
+  fixture.gestures.destroy();
+  const selections: Array<GeoPointFeature | undefined> = [], errors: string[] = [];
+  const editing = createLayerStore<RouteMapEditing | undefined>(undefined);
+  const input = createLayerInput<RoutePluginInput>();
+  input.set({ route: fixture.getRoute(), routePreview: undefined, focusNonce: 0,
+    resolveFeature: value => value, onSelect: value => selections.push(value), onChooseNearby() {},
+    onRouteLegInsert() { assert.fail('must not edit after renderer failure'); },
+    onRouteWaypointReplace() { assert.fail('must not edit after renderer failure'); },
+    onRouteWaypointRemove() { assert.fail('must not edit after renderer failure'); },
+  });
+  const map = fixture.map as unknown as MapLibreMap;
+  const host = new MapLayerHost(map, (id, error) => errors.push(`${id}:${String(error)}`));
+  const selection = createSelectionContribution(input, {
+    editing, activeTool: createLayerStore({ active: false }), contextAction: () => false,
+  }, { map, signal: new AbortController().signal, preserveView: true,
+    interactiveLayerIds: () => ['fixes'], occupiedRects: () => [], targetBearing: () => 0,
+    run: (id, action) => host.run(id, action), reportError: error => { throw error; },
+  });
+  const renderer = { id: 'route', slot: 'route' as const, update() {},
+    mount() { editing.publish(value => host.run('route', () => {
+      if (failure === 'move' || !value.preview) throw new Error('preview failed');
+    })); },
+    unmount() { editing.publish(undefined); },
+  };
+  try {
+    host.mount([renderer, selection]);
+    fixture.touch('touchstart', 1);
+    assert.equal(fixture.map.dragPan.enabled, false);
+    fixture.touch('touchmove', 1, 150);
+    if (failure === 'release') fixture.touch('touchend', 0);
+    assert.equal(editing.getSnapshot(), undefined);
+    assert.equal(fixture.map.dragPan.enabled, true);
+    assert.equal(fixture.map.touchZoomRotate.enabled, true);
+    assert.deepEqual(errors, ['route:Error: preview failed']);
+    const click = fixture.handlers.get('click');
+    host.reconcile([renderer, selection]);
+    assert.equal(fixture.handlers.get('click'), click, 'failure does not replace selection listeners');
+    fixture.click(); // Consume the cancelled drag's compatibility click.
+    fixture.click();
+    assert.equal(selections.at(-1)?.id, feature.id);
+    fixture.mouse('contextmenu');
+    assert.equal(selections.at(-1)?.id, feature.id);
+    assert.equal(selections.length, 2);
+  } finally { host.unmount(); }
 });

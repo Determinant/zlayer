@@ -9,7 +9,7 @@ export type ChartCacheState = 'preparing' | 'ready' | 'unavailable';
 
 const PREPARATION_RETRY_DELAYS = [1_000, 3_000, 10_000];
 
-export function useChartCache(charts: readonly ChartRecord[] | undefined, onError: (message: string, code?: ResourceErrorCode) => void): {
+export function useChartCache(charts: readonly ChartRecord[] | undefined, onError: (message: string, code?: ResourceErrorCode) => void, active = true): {
   state: ChartCacheState;
   retry: () => void;
 } {
@@ -18,6 +18,7 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined, onErro
   const retry = useCallback(() => setAttempt(value => value + 1), []);
 
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
@@ -43,11 +44,12 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined, onErro
       navigator.serviceWorker?.removeEventListener('controllerchange', retry);
       window.removeEventListener('online', retry);
     };
-  }, [attempt, retry]);
+  }, [active, attempt, retry]);
 
   // Updating catalog metadata or error handlers must not restart preparation
   // and briefly hide chart sources that are already ready.
   useEffect(() => {
+    if (!active) return;
     const receiveMessage = (event: MessageEvent<unknown>) => {
       if (!isChartArchiveErrorMessage(event.data)) return;
       const message = event.data;
@@ -59,7 +61,7 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined, onErro
     return () => {
       navigator.serviceWorker?.removeEventListener('message', receiveMessage);
     };
-  }, [charts, onError]);
+  }, [active, charts, onError]);
 
   return { state, retry };
 }

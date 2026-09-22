@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
-import { isBoolean } from '../../core/storage/ui-state';
+import { usePersistentRecord } from '../../core/ui/use-persistent-state';
+import { ahrsMount, ahrsFullscreen } from './preferences';
 import type { Mount } from './estimator/device-frame';
 import type { FlightAlignmentReason } from './estimator/flight-alignment';
 import type { AhrsLayer, AhrsSnapshot } from './layer';
@@ -10,7 +10,7 @@ import { AhrsInstruments } from './instruments';
 import { InstrumentTest } from './instrument-test';
 import { useMagneticModel } from '../../core/geo/use-magnetic-model';
 import { fetchMagneticModel } from '../../workspace/catalog/catalog';
-import { AhrsWindow, AhrsFullScreenButton } from './full-screen';
+import { PanelSurface, FullScreenButton } from '../../core/ui/panel-surface';
 import { AhrsRecorderControl } from './recorder-control';
 import './styles.css';
 
@@ -38,7 +38,8 @@ function attitudeStatus(state: AhrsSnapshot): string {
   if (state.crossed) return state.message || 'Hold straight and level, then recalibrate.';
   if (state.attitude?.gpsAiding) return 'Calibrated · GPS attitude aiding active';
   if (state.attitude?.magneticFusion.active) return 'Calibrated · relative magnetic aiding active';
-  return state.trueHeading ? 'Calibrated · waiting for GPS attitude aiding' : 'Calibrated · relative attitude';
+  return state.trueHeading ? 'Calibrated · waiting for GPS attitude aiding'
+    : state.hsiHeading ? 'Calibrated · estimated heading' : 'Calibrated · relative attitude';
 }
 
 export function AhrsTool({ layer, route, revision, visible = true }: {
@@ -67,12 +68,11 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
     subscribe: (listener: () => void) => active ? layer.subscribe(listener) : () => {},
   }), [layer, active]);
   const state = useLayerSnapshot(source);
-  const [mount, setMount] = usePersistentState<Mount>('ahrs-mount', 'upright',
-    (value): value is Mount => value === 'upright' || value === 'flat');
+  const [mount, setMount] = usePersistentRecord(ahrsMount);
   const [heading, setHeading] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [fullScreen, setFullScreen] = usePersistentState('ahrs-fullscreen', false, isBoolean);
+  const [fullScreen, setFullScreen] = usePersistentRecord(ahrsFullscreen);
   const expanded = fullScreen && visible;
   const fullScreenButton = useRef<HTMLButtonElement>(null);
   const testDisplay = useRef<HTMLDivElement>(null);
@@ -99,7 +99,8 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
   const calibrationWaiting = state.phase === 'calibrating' &&
     !['collecting-imu', 'imu-stale', 'pose-changed'].includes(state.calibrationReason);
   const calibrationProgress = `${Math.floor(state.progress * 10)} / 10 s`;
-  return <AhrsWindow expanded={expanded} onExit={() => setFullScreen(false)} button={fullScreenButton}>
+  return <PanelSurface expanded={expanded} onExitFullScreen={() => setFullScreen(false)} fullScreenButton={fullScreenButton}
+    className="ahrs-window" role={expanded ? 'dialog' : 'presentation'} aria-label={expanded ? 'AHRS full screen' : undefined}>
     <section className="ahrs-tool" aria-label="AHRS toolbox">
       <header className="ahrs-heading"><h3>Attitude</h3>
         <div className="ahrs-heading-actions">
@@ -108,7 +109,8 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
             return layer.startRecording({ userAgent: navigator.userAgent,
               appScript: document.querySelector<HTMLScriptElement>('script[type="module"]')?.src ?? null });
           }} />
-          <AhrsFullScreenButton expanded={expanded} button={fullScreenButton} onClick={() => setFullScreen(value => !value)} />
+          <FullScreenButton expanded={expanded} button={fullScreenButton} onClick={() => setFullScreen(value => !value)}
+            className="ahrs-header-button ahrs-fullscreen-button" iconSize={expanded ? 20 : 14} />
         </div>
         <span className={`ahrs-gps${testing ? ' is-test' : state.gpsUsable ? ' is-live' : ''}`}><i />{testing ? 'TEST' : state.gpsLive ? state.gpsUsable ? 'GPS live' : 'GPS · low speed' : 'No GPS'}</span>
       </header>
@@ -129,9 +131,9 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
             <option value="upright">Upright · screen facing you</option><option value="flat">Flat · top edge forward</option>
           </select></label>
           <details><summary>True heading (optional)</summary>
-            <p>A known true heading initializes direction once during calibration. Without it, steady GPS motion can aid tilt; changing motion can establish heading and enable full GPS aiding.</p>
+            <p>A known true heading initializes direction once during calibration. Otherwise, moving GPS supplies an estimated heading carried by the gyros. Changing flight motion can refine heading; REL is used only until a geographic reference is available.</p>
             <label>True heading · degrees<input type="number" min="0" max="359.9" step="any" inputMode="decimal"
-              value={heading} onChange={event => setHeading(event.target.value)} placeholder="Relative attitude if blank" /></label>
+              value={heading} onChange={event => setHeading(event.target.value)} placeholder="Use GPS when available" /></label>
           </details>
           {state.message && !testing && <p className="ahrs-message" role="status">{state.message}</p>}
           <button type="submit" className="ahrs-primary">Calibrate</button>
@@ -159,5 +161,5 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
       </div>
       <footer className="ahrs-footnote">Experimental attitude · not flight validated</footer>
     </section>
-  </AhrsWindow>;
+  </PanelSurface>;
 }

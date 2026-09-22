@@ -17,10 +17,10 @@ test(`approach Direct to at ${width}px (${mode})`, async ({ page, request }, tes
     const coded = published.terminal.approaches.procedures.find(procedure => procedure.id === 'KSNS:I31')!;
     const target = coded.final.find(leg => leg.fix?.ident === 'FREZZ')!.fix!.coordinate;
     await page.addInitScript(({ procedure, target, mode }) => {
-      if (localStorage.getItem('zlayer-route-draft-v1')) return;
+      if (localStorage.getItem('zlayer-plugin:routes:draft')) return;
       localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: true }));
       localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: target, zoom: 11, bearing: 0, pitch: 0 }));
-      localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+      localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [
         { id: 'origin', text: 'KSMO' },
         { id: 'destination', text: 'KSNS', approach: { airportId: 'KSNS', procedureId: procedure.id,
           name: procedure.name, cycle: '2609', entry: { routeId: 'KSNS:I31', transitionId: 'transition-fix:SNS2:1',
@@ -139,9 +139,9 @@ test('Direct to is keyboard accessible from the waypoint context menu', async ({
 async function restoreFeature(page: Page, ident: string, coordinates: [number, number]) {
   await mockGps(page);
   await page.addInitScript(({ ident, coordinates }) => {
-    if (localStorage.getItem('zlayer-route-draft-v1')) return;
+    if (localStorage.getItem('zlayer-plugin:routes:draft')) return;
     localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: true }));
-    localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2, entries: [
+    localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2, entries: [
       { id: 'first', text: '340000N1180000W' }, { id: 'target', text: '350000N1190000W' },
       { id: 'last', text: '360000N1200000W' },
     ] }));
@@ -171,7 +171,7 @@ test('the entity icon precedes ID, trims the route, and persists the GPS origin 
   await expect(page.locator('.route-token strong')).toHaveText(['37°00′N 122°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);
   expect(dialogs).toEqual([]);
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-route-draft-v1')!).entries[0].text))
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!).entries[0].text))
     .toBe('370000N1220000W');
   await page.reload();
   await expect(page.locator('.route-token strong')).toHaveText(['37°00′N 122°00′W', '35°00′N 119°00′W', '36°00′N 120°00′W']);

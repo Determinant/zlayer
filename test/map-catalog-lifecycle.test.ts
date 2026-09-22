@@ -4,14 +4,12 @@ import test from 'node:test';
 import { Hooks, hookModule } from './helpers/hooks';
 import type { ComponentProps } from 'react';
 import type { CatalogResponse } from '@zlayer/contracts';
-import { emptyRoutePlan } from '@zlayer/domain';
-import { MetarClient } from '../src/layers/metar-taf/metar/client';
-import { createMetarLayer } from '../src/layers/metar-taf/metar/layer';
-import { DEFAULT_VISIBILITY } from '../src/layers/navigation/definitions';
-import { DEFAULT_FIX_DISPLAY } from '../src/layers/navigation/fix-display';
+import { createLayerInput } from '../src/core/layers/input';
 import { createOwnshipLayer } from '../src/layers/ownship/layer';
+import { createGpsService } from '../src/core/gps/service';
 
-const state = { created: 0, destroyed: 0, catalogs: [] as unknown[], camera: 'initial' };
+const input = createLayerInput<{ catalog: CatalogResponse }>();
+const state = { input, created: 0, destroyed: 0, catalogs: [] as unknown[], camera: 'initial' };
 Object.assign(globalThis, { testMapState: state });
 const moduleUrl = (source: string) => 'data:text/javascript,' + encodeURIComponent(source);
 const loader = registerHooks({ resolve(specifier, context, next) {
@@ -20,10 +18,11 @@ const loader = registerHooks({ resolve(specifier, context, next) {
     'export function jsx(type, props) { if (props.ref) props.ref.current = {}; return props; }'), shortCircuit: true };
   if (specifier === './runtime' && context.parentURL?.includes('/workspace/map/canvas')) return { url: moduleUrl(`
     export class MapRuntime {
-      constructor() { globalThis.testMapState.created++; globalThis.testMapState.camera = 'initial'; }
-      update(value) { globalThis.testMapState.catalogs.push(value.catalog); }
-      destroy() { globalThis.testMapState.destroyed++; }
-      focus() {} fitRoute() {}
+      constructor() { const s = globalThis.testMapState; s.created++; s.camera = 'initial';
+        const update = () => s.catalogs.push(s.input.require().catalog);
+        update(); this.unsubscribe = s.input.subscribe(update); }
+      destroy() { this.unsubscribe(); globalThis.testMapState.destroyed++; }
+      focus() {} fitRoute() {} setContributions() {}
     }`), shortCircuit: true };
   return next(specifier, context);
 } });
@@ -35,25 +34,24 @@ test('catalog refreshes update an existing map and preserve the user camera', ()
   Object.assign(globalThis, { testHooks: hooks });
   const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03',
     generatedAt: '2026-09-03T00:00:00Z', charts: [], navigation: [], weather: [] };
+  input.set({ catalog });
   let props: ComponentProps<typeof MapCanvas> = {
-    catalog, chartSelection: { base: '', overlay: '' }, visibility: DEFAULT_VISIBILITY,
-    fixContext: { fixDisplay: DEFAULT_FIX_DISPLAY, airways: undefined, priorityFixes: [] },
-    data: {}, route: emptyRoutePlan(''), routePreview: undefined,
-    metarLayer: createMetarLayer(new MetarClient(new URL('https://app.test/weather'))),
-    ownshipLayer: createOwnshipLayer(), ownshipEnabled: false, metarEnabled: false,
-    terrainEnabled: false, obstructionsEnabled: false, terrainAltitude: null, routeFocusNonce: 0, focusTarget: undefined,
-    onSelect() {}, onViewportChange() {}, onRouteLegInsert() {}, onRouteWaypointReplace() {},
-    onRouteWaypointRemove() {}, onReady() {}, onTerrainStatus() {}, onObstructionStatus() {},
-    onError(message) { assert.fail(message); },
+    contributions: [], orientation: createOwnshipLayer(createGpsService()), focusTarget: undefined,
+    onViewportChange() {}, onReady() {}, onError(message) { assert.fail(message); },
   };
   const catalogs = [catalog, { ...catalog }, { ...catalog, revision: '2026-10-01' }];
   const render = () => hooks.render(() => MapCanvas(props));
   render();
   state.camera = 'user-panned';
   for (const updated of catalogs.slice(1)) {
-    props = { ...props, catalog: updated };
+    input.set({ catalog: updated });
+    props = { ...props };
     render();
   }
+  props = { ...props, contributions: [{ id: 'new-plugin', async load() { return []; } }] };
+  render();
+  props = { ...props, contributions: [] };
+  render();
   assert.equal(state.created, 1);
   assert.equal(state.destroyed, 0);
   assert.deepEqual(state.catalogs, catalogs);

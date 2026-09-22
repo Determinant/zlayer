@@ -1,3 +1,4 @@
+import { pluginStorage } from './storage';
 import {
   useCallback,
   useEffect,
@@ -22,8 +23,7 @@ import { loadProcedureDocument, type ProcedureDownloadProgress } from './documen
 import { BlobRangeTransport } from './blob-range';
 import { procedurePageIndex } from './page-target';
 import { retainActiveFiles } from '../../offline/active-catalogs';
-import { readUiState, writeUiState } from '../../core/storage/ui-state';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
+import { usePluginState } from '../../core/ui/use-persistent-state';
 import { plateViewKey } from './persistence';
 import { isRecord } from '@zlayer/contracts';
 import type { PlateMapImage } from './map-image';
@@ -42,15 +42,17 @@ type ViewerState = {
 
 export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureViewerProps) {
   const key = plateViewKey(selection);
-  const [savedPage, setPageIndex] = usePersistentState<number | null>(`${key}:page`, null,
+  const [savedPage, setPageIndex] = usePluginState<number | null>(pluginStorage, `${key}:page`, null,
     (value): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0));
   const pageIndex = savedPage ?? selection.document.pageIndex;
   const zoomKey = `${key}:zoom`, scrollKey = `${key}:scroll`;
-  const [zoom, setZoom] = useState(() => readUiState(zoomKey, 1,
-    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 4));
-  const [savedScroll] = useState(() => readUiState(scrollKey, { left: 0, top: 0 },
+  const zoomRecord = pluginStorage.ui(zoomKey, 1,
+    (value): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0.5 && value <= 4);
+  const [zoom, setZoom] = useState(zoomRecord.read);
+  const scrollRecord = pluginStorage.ui(scrollKey, { left: 0, top: 0 },
     (value): value is { left: number; top: number } => isRecord(value) &&
-      [value.left, value.top].every(item => typeof item === 'number' && Number.isFinite(item) && item >= 0)));
+      [value.left, value.top].every(item => typeof item === 'number' && Number.isFinite(item) && item >= 0));
+  const [savedScroll] = useState(scrollRecord.read);
   const zoomRef = useRef(zoom);
   const scrollRef = useRef(savedScroll);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -72,8 +74,8 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         dirty.current.scroll = true;
       }
     }
-    if (dirty.current.zoom) writeUiState(zoomKey, zoomRef.current);
-    if (dirty.current.scroll) writeUiState(scrollKey, scrollRef.current);
+    if (dirty.current.zoom) zoomRecord.write(zoomRef.current);
+    if (dirty.current.scroll) scrollRecord.write(scrollRef.current);
     dirty.current = { zoom: false, scroll: false };
   }, [zoomKey, scrollKey]);
   const scheduleSave = useCallback((field: 'zoom' | 'scroll') => {

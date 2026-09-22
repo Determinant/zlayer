@@ -2,10 +2,12 @@ import type { ProcedureDocument } from './data';
 import { PDF_CACHE, VERIFIED_SHA256_HEADER } from '../../core/storage/cache-names';
 import { noteCacheAccess } from '../../core/storage/cache-access';
 import { readArtifact, verifyBlob } from '../../core/storage/artifacts';
-import { httpResourceError, InvalidDataError, ResourceError } from '../../core/data/errors';
+import { InvalidDataError, ResourceError } from '../../core/data/errors';
 import { discardResponseBody } from '../../core/storage/response';
 import { verificationReceipt } from '../../core/storage/verification-receipt';
-import { openFileCache, downloadFile, storedFileBlob, storeDownloadedFile, discardDownloadedFile, DOWNLOAD_MEMORY_LIMIT } from '../../core/storage/download-file';
+import { openFileCache, storedFileBlob, storeDownloadedFile, discardDownloadedFile, DOWNLOAD_MEMORY_LIMIT } from '../../core/storage/download-file';
+
+import { transferFile } from '../../core/storage/file-transfer';
 
 const CACHE_NAME = PDF_CACHE;
 export type ProcedureDownloadProgress = {
@@ -19,7 +21,6 @@ const requests = new Map<string, {
   result: Promise<{ blob: Blob; cached: boolean }>;
   updates: ProgressUpdates;
 }>();
-let downloading: Promise<void> = Promise.resolve();
 
 /** Offline download does not allocate an extra viewer ArrayBuffer for the book. */
 export async function cacheProcedureDocument(source: ProcedureDocument): Promise<void> {
@@ -99,47 +100,45 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
   } catch { /* Denied storage must not prevent online viewing. */ }
 
   onProgress({ phase: 'downloading', loaded: 0, total: source.byteLength });
-  // Viewer switches and explicit offline saves share one transfer/verification
-  // slot, including after a viewer closes while its download continues.
-  const result = downloading.then(() => download(source, onProgress, cache));
-  downloading = result.then(() => {}, () => {});
-  return result;
+  return download(source, onProgress, cache);
 }
 
 async function download(source: ProcedureDocument, onProgress: ProgressListener,
   cache: Awaited<ReturnType<typeof openFileCache>> | undefined): Promise<{ blob: Blob; cached: boolean }> {
-  const response = await fetch(procedureFetchUrl(source.url), {
-    cache: 'no-store', signal: AbortSignal.timeout(600_000),
-  });
-  if (response.status !== 200) {
-    discardResponseBody(response);
-    throw httpResourceError(response.status, source.source === 'faa-individual'
-      ? `FAA fallback unavailable (${response.status}). The /faa-procedures proxy or a hosted TPP book is required.`
-      : `Unable to load procedure book: ${response.status}`);
-  }
-  const { blob, sha256 } = await checkedPdf(response, source, undefined, onProgress)
-    .finally(() => discardResponseBody(response));
-  try {
-    if (cache) {
-      const saved = await storeDownloadedFile(cache, source.url, blob, pdfHeaders(blob, sha256));
-      await discardDownloadedFile(blob);
-      return { blob: saved, cached: true };
+  let lastPercent = 0, lastUpdate = performance.now();
+  return transferFile({ url: procedureFetchUrl(source.url), key: source.url, label: 'Procedure PDF',
+    byteLength: source.byteLength, timeoutMs: 600_000, exclusive: true,
+    validateResponse: requirePdfResponse,
+    statusMessage: status => source.source === 'faa-individual'
+      ? `FAA fallback unavailable (${status}). The /faa-procedures proxy or a hosted TPP book is required.`
+      : `Unable to load procedure book: ${status}`,
+    onProgress(loaded, total) {
+      const percent = total ? Math.min(100, Math.floor(loaded / total * 100)) : undefined;
+      const now = performance.now();
+      if (!loaded || (percent !== undefined ? percent > lastPercent : now - lastUpdate >= 100)) {
+        onProgress({ phase: 'downloading', loaded, total });
+        lastPercent = percent ?? 0; lastUpdate = now;
+      }
+    },
+  }, async ({ blob: downloaded, response }) => {
+    onProgress({ phase: 'preparing', loaded: downloaded.size, total: downloaded.size });
+    const { blob, sha256 } = await checkedPdf(response, source, undefined, downloaded);
+    try {
+      if (cache) {
+        const saved = await storeDownloadedFile(cache, source.url, blob, pdfHeaders(blob, sha256));
+        return { blob: saved, cached: true };
+      }
+    } catch (error) {
+      if (blob.size > DOWNLOAD_MEMORY_LIMIT) throw error;
+      // Small verified documents can still be viewed when storage is full.
     }
-  } catch (error) {
     if (blob.size > DOWNLOAD_MEMORY_LIMIT) {
-      await discardDownloadedFile(blob);
-      throw error;
+      throw new ResourceError('storage', 'This document needs local storage. Enable site storage and retry.');
     }
-    // Small verified documents can still be viewed when storage is full.
-  }
-  if (blob.size > DOWNLOAD_MEMORY_LIMIT) {
-    await discardDownloadedFile(blob);
-    throw new ResourceError('storage', 'This document needs local storage. Enable site storage and retry.');
-  }
-  // Unknown-size small PDFs may also have used disk. Preserve a bounded copy
-  // for online viewing before removing their uncommitted file.
-  try { return { blob: new Blob([await blob.arrayBuffer()], { type: 'application/pdf' }), cached: false }; }
-  finally { await discardDownloadedFile(blob); }
+    // Unknown-size small PDFs may also have used disk. Preserve a bounded copy
+    // for online viewing before removing their uncommitted file.
+    return { blob: new Blob([await blob.arrayBuffer()], { type: 'application/pdf' }), cached: false };
+  });
 }
 
 function pdfHeaders(blob: Blob, sha256: string): HeadersInit {
@@ -149,11 +148,9 @@ function pdfHeaders(blob: Blob, sha256: string): HeadersInit {
 }
 
 async function checkedPdf(response: Response, source: ProcedureDocument,
-  receipt?: string | null, onProgress?: ProgressListener): Promise<{ blob: Blob; sha256: string }> {
-  if (response.status !== 200 || !response.headers.get('content-type')?.toLowerCase().includes('application/pdf')) {
-    throw new InvalidDataError('Procedure response is not a complete PDF');
-  }
-  const blob = onProgress ? await downloadBlob(response, source, onProgress) : await storedFileBlob(response);
+  receipt?: string | null, downloaded?: Blob): Promise<{ blob: Blob; sha256: string }> {
+  requirePdfResponse(response);
+  const blob = downloaded ?? await storedFileBlob(response);
   try {
     if (!(await blob.slice(0, 1024).text()).includes('%PDF-')) throw new InvalidDataError('Procedure response is not a PDF');
     if (source.byteLength !== undefined && blob.size !== source.byteLength) {
@@ -173,28 +170,10 @@ async function checkedPdf(response: Response, source: ProcedureDocument,
   }
 }
 
-async function downloadBlob(response: Response, source: ProcedureDocument, onProgress: ProgressListener): Promise<Blob> {
-  // Catalog sizes describe decoded PDF bytes. An encoded Content-Length does not.
-  const encoding = response.headers.get('content-encoding');
-  const length = source.byteLength ?? ((!encoding || encoding === 'identity')
-    ? Number(response.headers.get('content-length')) : 0);
-  const total = Number.isFinite(length) && length > 0 ? length : undefined;
-  let loaded = 0, lastPercent = 0, lastUpdate = performance.now();
-  onProgress({ phase: 'downloading', loaded, total });
-  const blob = await downloadFile(response, { key: source.url, byteLength: source.byteLength, label: 'Procedure PDF',
-    onProgress(received) {
-      loaded = received;
-      const percent = total ? Math.min(100, Math.floor(loaded / total * 100)) : undefined;
-      const now = performance.now();
-      if (percent !== undefined ? percent > lastPercent : now - lastUpdate >= 100) {
-        onProgress({ phase: 'downloading', loaded, total });
-        lastPercent = percent ?? 0;
-        lastUpdate = now;
-      }
-    },
-  });
-  onProgress({ phase: 'preparing', loaded: blob.size, total: blob.size });
-  return blob;
+function requirePdfResponse(response: Response): void {
+  if (response.status !== 200 || !response.headers.get('content-type')?.toLowerCase().includes('application/pdf')) {
+    throw new InvalidDataError('Procedure response is not a complete PDF');
+  }
 }
 
 export function procedureFetchUrl(url: string, proxyRoot = import.meta.env?.VITE_ZLAYERS_PROCEDURE_PROXY_ROOT?.trim() || '/faa-procedures'): string {

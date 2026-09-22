@@ -216,7 +216,7 @@ test('missing magnetic data keeps true bearing available and leaves magnetic bea
 });
 
 async function workspaceRulerWithRoute(page: Page) {
-  await page.addInitScript(() => localStorage.setItem('zlayer-route-draft-v1', JSON.stringify({ version: 2,
+  await page.addInitScript(() => localStorage.setItem('zlayer-plugin:routes:draft', JSON.stringify({ version: 2,
     entries: ['350000N1200000W', '350000N1190000W', '360000N1190000W']
       .map((text, index) => ({ id: `ruler-entry-${index}`, text })),
   })));
@@ -241,7 +241,7 @@ for (const control of ['route menu', 'NavLog', 'waypoint menu'] as const) {
     await expect(panel).toBeVisible();
     const focus = control === 'route menu' ? page.getByRole('menuitem', { name: 'Show NavLog', exact: true })
       : control === 'NavLog' ? page.getByLabel('NavLog rows', { exact: true })
-        : page.getByRole('menuitem', { name: 'Replace route item', exact: true });
+        : panel.getByRole('menuitem').first();
     await expect(focus).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();

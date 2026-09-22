@@ -131,5 +131,5 @@ The diagnostics and recorder report force observations, GPS observations and
 magnetic observations separately. Delayed observations replay all state and
 qualification history. Current numerical results and model assumptions
 are recorded in the
-[v6 review](../../../../docs/ahrs-validation.md#v6-beta-verification);
+[v6 review](../validation.md#v6-beta-verification);
 static checking alone does not establish tuning, accuracy or convergence.

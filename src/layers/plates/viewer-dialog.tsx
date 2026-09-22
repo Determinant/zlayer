@@ -1,12 +1,14 @@
-import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { pluginStorage } from './storage';
+import { createContext, useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { EdgePanelFrame, useEdgePanel } from '../../core/ui/edge-panels';
+import { EdgePanelFrame, useEdgePanel, usePanelReturnFocus } from '../../core/ui/edge-panels';
+import { PanelSurface, FullScreenButton } from '../../core/ui/panel-surface';
 import { LoadingPlaceholder } from '../../core/ui/loading-placeholder';
 import { formatDate, formatDateRange } from '../../core/format/time';
 import type { ProcedureDocument, ProcedureSelection } from './data';
-import { usePersistentState } from '../../core/ui/use-persistent-state';
-import { isBoolean, writeUiState } from '../../core/storage/ui-state';
-import { plateViewKey } from './persistence';
+import { usePluginState } from '../../core/ui/use-persistent-state';
+import { isBoolean } from '../../core/storage/ui-state';
+import { plateViewKey, plateSelectionRecord } from './persistence';
 import type { ProcedureDownloadProgress } from './document-cache';
 
 export type PlateCacheState = 'saving' | 'cached' | 'unavailable';
@@ -26,59 +28,28 @@ export function ProcedureDialog({ selection, onClose, children }: {
   const panel = useEdgePanel('plate');
   const { open, setOpen, close } = panel;
   const [headerAction, setHeaderAction] = useState<HTMLSpanElement | null>(null);
-  const [fullScreen, setFullScreen] = usePersistentState(`${plateViewKey(selection)}:fullscreen`, false, isBoolean);
-  // The opener may disappear if the airport panel is closed independently.
-  const [opener] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  const [openerPanelId] = useState(() => opener?.closest('.edge-panel-body')?.id);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [fullScreen, setFullScreen] = usePluginState(pluginStorage, `${plateViewKey(selection)}:fullscreen`, false, isBoolean);
+  const restoreFocus = usePanelReturnFocus();
   const closeButton = useRef<HTMLButtonElement>(null);
   const fullScreenButton = useRef<HTMLButtonElement>(null);
-  const wasFullScreen = useRef(false);
-  const initiallyFocused = useRef(false);
   const titleId = useId();
   const source = selection.document;
   const dismiss = () => {
     const finish = () => {
-      writeUiState('plate-selection', null);
+      plateSelectionRecord.write(null);
       onClose();
-      requestAnimationFrame(() => {
-        if (opener?.isConnected && !opener.closest('[inert]')) opener.focus({ preventScroll: true });
-        else if (openerPanelId) document.querySelector<HTMLButtonElement>(`[aria-controls="${CSS.escape(openerPanelId)}"]`)
-          ?.focus({ preventScroll: true });
-      });
+      restoreFocus();
     };
     if (fullScreen) { setOpen(false); finish(); }
     else close(finish);
   };
 
-  useLayoutEffect(() => {
-    const dialog = dialogRef.current!;
-    return () => dialog.close();
-  }, []);
-
-  useLayoutEffect(() => {
-    const dialog = dialogRef.current!;
-    if (!open) { if (dialog.matches(':modal')) dialog.close(); return; }
-    if (fullScreen) {
-      dialog.close();
-      dialog.showModal();
-      fullScreenButton.current?.focus({ preventScroll: true });
-    } else {
-      if (wasFullScreen.current) dialog.close();
-      if (!dialog.open) dialog.setAttribute('open', '');
-      if (wasFullScreen.current) fullScreenButton.current?.focus({ preventScroll: true });
-      else if (!initiallyFocused.current) closeButton.current?.focus({ preventScroll: true });
-    }
-    initiallyFocused.current = true;
-    wasFullScreen.current = fullScreen;
-  }, [fullScreen, open]);
-
   return <EdgePanelFrame panel={panel} label={`${selection.airport.id} plate`}
     className={`procedure-panel${fullScreen ? ' is-fullscreen' : ''}`}
     icon={<><path d="M6 3h9l4 4v14H6Z" /><path d="M14 3v5h5M10 12h5m-5 4h5" /></>}>
-    <dialog ref={dialogRef} {...panel.bodyProps} open className="procedure-window edge-panel-body"
-      aria-modal={fullScreen || undefined} aria-labelledby={titleId}
-      onCancel={event => { event.preventDefault(); event.stopPropagation(); if (fullScreen) setFullScreen(false); }}>
+    <PanelSurface {...panel.bodyProps} visible={open} expanded={fullScreen} onExitFullScreen={() => setFullScreen(false)}
+      fullScreenButton={fullScreenButton} initialFocus={closeButton}
+      className="procedure-window edge-panel-body" aria-labelledby={titleId}>
       <article className={`procedure-viewer${fullScreen ? ' is-fullscreen' : ''}`}>
         <header>
           <div className="procedure-heading">
@@ -91,22 +62,13 @@ export function ProcedureDialog({ selection, onClose, children }: {
           <div className="procedure-viewer-actions">
             <span ref={setHeaderAction}
               className={`procedure-header-action${selection.procedure.kind === 'approach' ? ' is-reserved' : ''}`} />
-            <button ref={fullScreenButton} type="button" onClick={() => setFullScreen(value => !value)}
-              aria-label={fullScreen ? 'Exit full screen' : 'Enter full screen'}
-              title={fullScreen ? 'Exit full screen' : 'Enter full screen'} aria-pressed={fullScreen}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d={fullScreen
-                  ? 'M3 9h6V3m6 0v6h6M3 15h6v6m6 0v-6h6'
-                  : 'M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6'} />
-              </svg>
-            </button>
+            <FullScreenButton expanded={fullScreen} button={fullScreenButton} onClick={() => setFullScreen(value => !value)} />
             <button ref={closeButton} type="button" onClick={dismiss} aria-label="Close plate">×</button>
           </div>
         </header>
         <HeaderActionContext.Provider value={headerAction}>{children}</HeaderActionContext.Provider>
       </article>
-    </dialog>
+    </PanelSurface>
   </EdgePanelFrame>;
 }
 

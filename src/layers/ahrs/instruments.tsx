@@ -29,6 +29,8 @@ export const AhrsInstruments = memo(function AhrsInstruments({ layer, active, ro
       setView(previous => previous.state.attitude?.roll === state.attitude?.roll &&
         previous.state.attitude?.pitch === state.attitude?.pitch &&
         previous.state.attitude?.yaw === state.attitude?.yaw &&
+        previous.state.hsiHeading?.degrees === state.hsiHeading?.degrees &&
+        previous.state.hsiHeading?.source === state.hsiHeading?.source &&
         previous.state.attitude?.status === state.attitude?.status &&
         previous.state.attitude?.headingStatus === state.attitude?.headingStatus &&
         previous.state.attitude?.attitudeStd[2] === state.attitude?.attitudeStd[2] &&

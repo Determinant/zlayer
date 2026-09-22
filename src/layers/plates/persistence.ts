@@ -1,3 +1,4 @@
+import { pluginStorage } from './storage';
 import { isRecord } from '@zlayer/contracts';
 import type { ProcedureSelection } from './data';
 
@@ -24,3 +25,6 @@ export function plateViewKey(selection: ProcedureSelection): string {
 export function isMapPlateSelection(value: unknown): value is ProcedureSelection | null {
   return isProcedureSelection(value) && (value === null || value.procedure.kind === 'approach');
 }
+
+export const plateSelectionRecord = pluginStorage.ui('plate-selection', null, isProcedureSelection);
+export const mappedPlateRecord = pluginStorage.ui('plate-on-map', null, isMapPlateSelection);

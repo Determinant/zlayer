@@ -163,7 +163,7 @@ test('unavailable saved map plate offers retry and explicit removal without bloc
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(393);
   await page.screenshot({ path: testInfo.outputPath('plate-restore-error-mobile.png') });
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-ui:plate-on-map')!).value.procedure.id)).toBe('geo');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:plates:plate-on-map')!).value.procedure.id)).toBe('geo');
   available = true;
   await page.getByRole('button', { name: 'Retry IAP', exact: true }).click();
   await expectMapPlate(page, 'Georeferenced approach');

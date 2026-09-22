@@ -33,7 +33,7 @@ ordering and teardown. Product logic owns its transport, time semantics, interac
 targets, and freshness policy. Optional snapshot stores let React observe data without
 owning competing fetch loops.
 
-The implemented boundary is documented in [Layer by layer](../layer-modules.md).
+The implemented boundary is documented in [Layer plugins](../architecture/layer-plugins.md).
 These built-in entry points are still evolving; there is no supported external plugin API.
 Chart families use separate instances of one chart adapter; METAR owns visible-station
 demand, its observation cache, periodic refresh, and its own map source. Plates owns

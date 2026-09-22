@@ -7,7 +7,7 @@ Implementation update (2026-09-17): the MapLibre decision is implemented. The cu
 local style uses USGS Topo over shaded relief in development and production, with
 USGS attribution and bundled label glyphs. OSM remains the original provider direction,
 not the deployed default. The final provider/offline policy remains open; custom
-tiles or a complete style can be configured. See [data sources](../data-sources.md#basemap-policy).
+tiles or a complete style can be configured. See [data sources](../data/sources.md#basemap-policy).
 
 ## Context
 

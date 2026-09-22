@@ -1,7 +1,7 @@
 import type { CatalogReadSource } from '../../workspace/read-context';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { installChartLayers, syncChartSelection, chartResourceIds } from './renderer';
-import { observeChartFailures, registerMbtilesArchives } from './mbtiles-protocol';
+import { observeChartFailures, registerMbtilesArchives, retainChartReaders } from './mbtiles-protocol';
 import { observeOfflineInventory } from '../../offline/inventory-events';
 import { chartSourceKey } from './source-key';
 import { NO_CHARTS, type ChartFamilyDefinition, type ChartSelection } from './overlays';
@@ -15,6 +15,7 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
   let selection: ChartSelection = NO_CHARTS;
   let sourceKey = chartSourceKey(catalog, definition.id);
   let failed = false;
+  let releaseReaders: (() => void) | undefined;
   let stopObservingFailures: (() => void) | undefined;
   let stopObservingInventory: (() => void) | undefined;
   const sync = () => { if (map) syncChartSelection(map, catalog, selection, definition.id); };
@@ -30,6 +31,7 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
     id: definition.id, slot: 'charts',
     mount(target) {
       map = target;
+      releaseReaders = retainChartReaders();
       installChartLayers(map, catalog, selection, definition.id);
       map.on('move', sync);
       stopObservingFailures = observeChartFailures(chartId => {
@@ -63,11 +65,16 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
       stopObservingInventory?.(); stopObservingInventory = undefined;
       window.removeEventListener('online', retry);
       failed = false;
-      if (!map) return;
-      map.off('move', sync);
-      const ids = chartResourceIds(catalog, definition.id);
-      removeLayerResources(map, ids, ids);
-      map = undefined;
+      try {
+        if (map) {
+          map.off('move', sync);
+          const ids = chartResourceIds(catalog, definition.id);
+          removeLayerResources(map, ids, ids);
+        }
+      } finally {
+        map = undefined;
+        releaseReaders?.(); releaseReaders = undefined;
+      }
     },
   };
 }

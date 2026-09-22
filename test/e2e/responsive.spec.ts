@@ -11,8 +11,10 @@ async function openAirport(page: Page) {
 
 async function touchTarget(control: Locator) {
   const box = (await control.boundingBox())!;
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeGreaterThanOrEqual(44);
+  // Translated panels can report 43.9999847 for a 44px control. Allow only
+  // floating-point error, well below a CSS layout subpixel.
+  expect(box.width).toBeGreaterThanOrEqual(44 - 0.001);
+  expect(box.height).toBeGreaterThanOrEqual(44 - 0.001);
 }
 
 async function inside(control: Locator, bounds: { left: number; top: number; right: number; bottom: number }) {
