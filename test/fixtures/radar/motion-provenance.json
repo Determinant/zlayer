@@ -1,0 +1,23 @@
+[
+  {
+    "file": "20260924-012552-ktlx-sti.level3",
+    "source": "https://tgftp.nws.noaa.gov/SL.us008001/DF.of/DC.radar/DS.58sti/SI.ktlx/sn.last",
+    "byteLength": 3198,
+    "sha256": "a1b501e3944d6ec50d3282d05343799a2db909fbb3ebb696ef0a32ca8887a6a1",
+    "observedAt": "2026-09-24T01:25:52+00:00"
+  },
+  {
+    "file": "20260924-210657-khtx-sti.level3",
+    "source": "https://tgftp.nws.noaa.gov/SL.us008001/DF.of/DC.radar/DS.58sti/SI.khtx/sn.last",
+    "byteLength": 1392,
+    "sha256": "733f0c342465c19644238806ffe49a1493ad1e179647fdb92ffac85b1b96e479",
+    "observedAt": "2026-09-24T21:06:57+00:00"
+  },
+  {
+    "file": "20260924-211024-kamx-sti.level3",
+    "source": "https://tgftp.nws.noaa.gov/SL.us008001/DF.of/DC.radar/DS.58sti/SI.kamx/sn.last",
+    "byteLength": 3104,
+    "sha256": "d21b60968d762051dd03743f0fa2322a71f258341e474caf57bb06d8b2d22cd0",
+    "observedAt": "2026-09-24T21:10:24+00:00"
+  }
+]

@@ -16,6 +16,8 @@
   color: #d9fff5; background: #214b47; border-color: #4c8e83;
 }
 .ui-button--compact { min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: 12px; }
+/* Explicit opt-in for dense toolboxes, including touch screens. */
+.ui-button--slim { min-width: 44px; min-height: 32px; padding: 5px 8px; font-size: 12px; }
 .ui-button--icon {
   display: inline-grid; place-items: center; flex-shrink: 0;
   width: 44px; height: 44px; padding: 0;

@@ -153,12 +153,24 @@ delivery checks for each release.
 
 ### Surface analysis and imagery
 
-- Capture current/archived WPC bulletin fixtures; validate fronts, troughs and centers
-  against the authoritative chart before styling them.
-- Add current Surface Analysis and forecast Progs after Winds in the existing
-  scrollable AWC content-tab row, after their source/forecast semantics are qualified.
-- Compare NOAA GOES processing with available tile services; add NEXRAD and one
-  visible/IR family with synchronized six-frame animation.
+- Implemented locally: [Progs](../../src/layers/weather-awc/progs/README.md) adds
+  AWC/WPC analysis and forecast isobars, source labels, fronts, distinct boundaries and H/L centers,
+  prepared/cached independently by the weather server. Captured source fixtures,
+  native-time selection, optional offline snapshots and two slim rows of controls
+  accompany the feature. Deploy the matching server and app to make the new
+  endpoints available. Ridges use NOAA pressure contours and chart labels.
+  Precipitation shading, broader operational-chart comparison and physical-device
+  qualification remain.
+- Implemented locally: [Radar](../../src/layers/weather-awc/radar/README.md) adds
+  server-prepared current MRMS/NEXRAD composite and terminal TDWR contours, with
+  source times, expiration, optional offline files and six slim product tabs.
+  Deploy the matching server and app. Two-hour timeline rewind is implemented;
+  an optional NOAA STI storm-motion overlay adds server-cached projected cell
+  tracks aligned with the displayed radar. Captured-source motion regressions are
+  part of local verification; physical-device rendering qualification, automatic
+  playback and operational comparison remain.
+- Compare NOAA GOES processing with available tile services; add a visible/IR
+  family and synchronized six-frame animation.
 - Bound frame preload, cancellation and memory; measure on the reference tablet.
 
 Acceptance: source timestamps agree, degraded sources remain visible, and the full

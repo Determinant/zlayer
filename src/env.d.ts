@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_ZLAYERS_TAF_URL?: string;
   readonly VITE_ZLAYERS_AWC_GRID_URL?: string;
   readonly VITE_ZLAYERS_AWC_FEED_URL?: string;
+  readonly VITE_ZLAYERS_RADAR_FEED_URL?: string;
+  readonly VITE_ZLAYERS_PROGS_FEED_URL?: string;
   readonly VITE_ZLAYERS_PROCEDURE_PROXY_ROOT?: string;
 }
 

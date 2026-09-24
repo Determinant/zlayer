@@ -9,15 +9,16 @@ barbs, which coexist with cloud/icing shading and advisory outlines.
 field, while retaining barbs and advisories. Turning it off clears temperature
 shading; it does not restore an earlier cloud/icing field. Choosing another shaded
 field turns this switch off without changing **Show winds**.
-Switching toolbox tabs never changes those visibility choices. All four tabs use
-one horizontally scrollable core tab row and the same forecast timeline.
+Switching toolbox tabs never changes those visibility choices. The six weather
+tabs use two rows of core slim controls and share one horizontally scrollable timeline.
 
 Winds share the toolbox and timeline so pilots can compose them with cloud/icing
 and advisories. One wind stream supplies barbs and temperature. Icing retains its
 own altitude because its native coordinate differs. MSL uses forecast heights;
 standard-atmosphere pressure height must not be relabeled as MSL. This is CONUS
 HRRR model guidance, not sparse FB station forecasts. Extended runs, full profiles,
-Alaska/global coverage, Surface Analysis and Progs remain future work.
+and Alaska/global coverage remain future work. [Surface analysis and Progs](../progs/README.md)
+are a separate implemented overlay on the same timeline.
 
 ## Source and levels
 

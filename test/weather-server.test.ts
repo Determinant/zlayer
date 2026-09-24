@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readdir, rm, writeFile, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WeatherCache } from '../tools/weather-server/cache';
@@ -141,6 +141,37 @@ test('disk cache survives restart, detects corrupt bodies, and bounds storage', 
   await Promise.all(['KOAK', 'KSQL', 'KHWD'].map(id => restarted.get(resourceFor(metar.replace('KSFO', id)))));
   assert.ok(restarted.stats.bytes <= 14); assert.ok(restarted.stats.bytes >= 0);
   assert.ok((await readdir(path)).length <= 2);
+});
+
+test('warmer presence checks reuse authentication until raw or compressed file metadata changes', async t => {
+  const path = await directory(t), resource = resourceFor('/api/weather/advisories/cwa.json');
+  const options = { directory: path, maxBytes: 100_000, load: async () => { throw new Error('No upstream acquisition'); } };
+  const cache = new WeatherCache(options); await cache.restore();
+  const content = payload('weather'.repeat(1000)); await cache.put(resource, content);
+  const handle = await open(join(path, (await readdir(path))[0]!), 'r');
+  const prototype = Object.getPrototypeOf(handle) as FileHandle, stream = prototype.createReadStream;
+  await handle.close();
+  const reads = t.mock.method(prototype, 'createReadStream', function (this: FileHandle, ...args: Parameters<FileHandle['createReadStream']>) {
+    return stream.apply(this, args);
+  });
+  for (let i = 0; i < 4; i++) assert.equal(await cache.check(resource), true);
+  assert.equal(reads.mock.callCount(), 1, 'unchanged generations only check file metadata');
+  const restarted = new WeatherCache(options); await restarted.restore();
+  assert.equal(await restarted.check(resource), true); assert.equal(reads.mock.callCount(), 2);
+  for (const encoding of ['gzip', 'raw'] as const) {
+    if (encoding === 'raw') await restarted.put(resource, content);
+    const saved = await restarted.open(resource, encoding === 'gzip'); assert.ok(saved);
+    assert.equal(saved.gzip, encoding === 'gzip'); await saved.handle.close();
+    const file = await open(saved.entry.file, 'r+');
+    try {
+      await file.write(Buffer.from([0]), 0, 1, saved.offset);
+      const changed = new Date(Date.now() + 2000); await file.utimes(changed, changed);
+    } finally { await file.close(); }
+    assert.equal(await restarted.check(resource), false, `same-length ${encoding} damage is rejected`);
+  }
+  await restarted.put(resource, content);
+  const saved = await restarted.open(resource); assert.ok(saved); await saved.handle.close();
+  await rm(saved.entry.file); assert.equal(await restarted.check(resource), false);
 });
 
 test('restart rejects damaged cache metadata before accepting a saved response', async t => {

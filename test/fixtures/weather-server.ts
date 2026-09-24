@@ -6,13 +6,17 @@ import { createWeatherServer } from '../../tools/weather-server/server';
 import { PUBLISHED_CATALOG } from '../../tools/weather-server/warming';
 import { nativeForecastFiles } from './awc-native.mjs';
 import { advisorySource, WEATHER_NOW } from './awc-advisories';
+import { surfaceCatalog, surfaceChart } from './wpc';
 
+import { seedRadar } from './radar';
 const files = nativeForecastFiles();
 export async function fixtureWeather(directory: string, options: { onRaw?: (signal: AbortSignal | undefined, path: string) => void | Promise<void>;
   advisories?: () => { failure?: boolean; gairmet: unknown[]; sigmet: unknown; cwa: unknown } | undefined } = {}) {
   const app = await createWeatherServer({ directory, spacing: 0, now: () => WEATHER_NOW, startUpdates: false, log: message => console.error(message),
     fetch: async (input, init) => {
       const url = new URL(String(input));
+      if (url.pathname === '/api/data/progchart') return Response.json(surfaceCatalog());
+      if (url.pathname.startsWith('/data/products/wpc/')) return Response.json(surfaceChart(url.pathname.split('/').pop()!));
       if (url.hostname === 'aviationweather.gov') {
         const product = url.pathname.split('/').pop()!;
         const data = options.advisories ? options.advisories() : { gairmet: [0, 3, 6, 9, 12].map(h => advisorySource('gairmet', h)),
@@ -35,7 +39,7 @@ export async function fixtureWeather(directory: string, options: { onRaw?: (sign
     const catalog = await app.processing.catalog(product);
     const manifest = JSON.parse(catalog.body.toString()) as NativeManifest;
     const frames = select(manifest);
-    if (product === 'winds' && frames.length) await app.cache.put(terrainResource(manifest, frames[0]!),
+    if (product === 'winds' && frames.length && !app.cache.has(terrainResource(manifest, frames[0]!))) await app.cache.put(terrainResource(manifest, frames[0]!),
       await app.processing.forecast(manifest, frames[0]!, true));
     for (const frame of frames) {
       const resource = forecastResource(manifest, frame);
@@ -51,5 +55,6 @@ export async function fixtureWeather(directory: string, options: { onRaw?: (sign
       await app.cache.get(resourceFor(`/api/weather/advisories/${product}.json`));
     }
   }
-  return { ...app, warmForecast, warmAdvisories };
+  async function warmProgs() { app.progs.refresh(); await app.progs.close(); }
+  return { ...app, warmForecast, warmAdvisories, warmProgs, warmRadar: () => seedRadar(app.cache) };
 }

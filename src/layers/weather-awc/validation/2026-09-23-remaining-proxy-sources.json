@@ -1,0 +1,274 @@
+{
+  "date": "2026-09-23",
+  "scope": "HTTP source research only; no runtime changes, browser integration tests, long-term availability, rollover, cancellation or vendor numeric qualification.",
+  "origin": "https://zlayer.app",
+  "verdict": "No equivalent Google/NOAA direct replacement qualified for both products. Vietor is an independent G-AIRMET candidate; IFI retains NOMADS proxy.",
+  "comparisonMethod": "One-to-one matching by hazard/tag/forecast/level and nearest geometry. Geometry metric: symmetric maximum nearest-vertex distance with local spherical approximation (R=6371000m), independent of direction/start vertex. Field aliases issueTime/issue_time, validTime/valid_time, dueTo/due_to; normalize .000Z to Z. Receipt timestamps differ in subsecond precision and are excluded. Freezing qualifiers fzltop/fzlbase remain unchanged. No feature deduplication by tag: freezing lines share tags.",
+  "sources": [
+    {
+      "url": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore=0",
+      "sha256": "174ce4339bacd9f0f94964182b7697e4a1c12eb349475cd6b8bd078ed7399e20",
+      "bytes": 18011
+    },
+    {
+      "url": "https://avn.vietorweather.net/cgi-bin/data/gairmet.php?format=geojson&fore=0",
+      "sha256": "6d1107ef804469ce09eddde49706feca94b044cc0c4f02b69c0454fec80d8655",
+      "bytes": 19083
+    },
+    {
+      "url": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore=3",
+      "sha256": "a36e6166e58e0dd1a732d1515684aad62615e4e46d494c92c534f983762e431d",
+      "bytes": 19181
+    },
+    {
+      "url": "https://avn.vietorweather.net/cgi-bin/data/gairmet.php?format=geojson&fore=3",
+      "sha256": "bff2cee1099fa2d09504fdc3b6f8c9c77ee7f7efb1563cfe7562ca8aabf91674",
+      "bytes": 20302
+    },
+    {
+      "url": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore=6",
+      "sha256": "d2a6b0d5bbc00f75a7478cac06e8c5e66aeeee4b1f38a908eb9b42b752b9b4a8",
+      "bytes": 19047
+    },
+    {
+      "url": "https://avn.vietorweather.net/cgi-bin/data/gairmet.php?format=geojson&fore=6",
+      "sha256": "f34d39555e9bbfa37f9a58d6921bdb8ff9c34e82f4955fa921fb281f629ddae0",
+      "bytes": 20068
+    },
+    {
+      "url": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore=9",
+      "sha256": "3cd5444ac4458dd60b58e4dbccfff96445c8bd11cb15626ac69c48635c50277b",
+      "bytes": 16518
+    },
+    {
+      "url": "https://avn.vietorweather.net/cgi-bin/data/gairmet.php?format=geojson&fore=9",
+      "sha256": "60b5b9cd3fee52877e8ebb05b74eb09df735cf050df8c15a3b9d12f657964fab",
+      "bytes": 17422
+    },
+    {
+      "url": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore=12",
+      "sha256": "3090fa0ae0e7f56fd4020d6f52aa57b0af217c7dc7df472758c977912bff7657",
+      "bytes": 16766
+    },
+    {
+      "url": "https://avn.vietorweather.net/cgi-bin/data/gairmet.php?format=geojson&fore=12",
+      "sha256": "3856e970919424500ace3f1a7524e780cc390d0c8a49204e9ee929ecafd42d2c",
+      "bytes": 17621
+    },
+    {
+      "url": "https://www.weather.gov/source/zse/JSON/AWC-GAIRMET.json",
+      "sha256": "08ccef5b39a86667d5700734e8a0151906f74f9d6d5d21d2980ae154b288d0a4",
+      "bytes": 167396
+    }
+  ],
+  "vietor": {
+    "accessControlAllowOrigin": "*",
+    "apiKeyRequiredInSample": false,
+    "frames": [
+      {
+        "forecastHour": 0,
+        "awcFeatures": 26,
+        "vietorFeatures": 26,
+        "matchedFeatures": 26,
+        "geometryCounts": {
+          "Polygon": 15,
+          "LineString": 11
+        },
+        "maxNearestVertexDistanceM": 52.881,
+        "changedVertexCounts": 0,
+        "propertyDifferences": [
+          {
+            "hazard": "SFC_WND",
+            "tag": "1W",
+            "level": null,
+            "maxNearestVertexDistanceM": 0.0,
+            "sameVertexCount": true,
+            "propertyDifferences": {
+              "dueTo": {
+                "awc": "USTAINED SFC WINDS GREATER THAN 30 KTS",
+                "vietor": "SUSTAINED SFC WINDS GREATER THAN 30 KTS"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "forecastHour": 3,
+        "awcFeatures": 27,
+        "vietorFeatures": 27,
+        "matchedFeatures": 27,
+        "geometryCounts": {
+          "Polygon": 15,
+          "LineString": 12
+        },
+        "maxNearestVertexDistanceM": 52.736,
+        "changedVertexCounts": 0,
+        "propertyDifferences": [
+          {
+            "hazard": "SFC_WND",
+            "tag": "1W",
+            "level": null,
+            "maxNearestVertexDistanceM": 0.0,
+            "sameVertexCount": true,
+            "propertyDifferences": {
+              "dueTo": {
+                "awc": "USTAINED SFC WINDS GREATER THAN 30 KTS",
+                "vietor": "SUSTAINED SFC WINDS GREATER THAN 30 KTS"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "forecastHour": 6,
+        "awcFeatures": 26,
+        "vietorFeatures": 26,
+        "matchedFeatures": 26,
+        "geometryCounts": {
+          "Polygon": 17,
+          "LineString": 9
+        },
+        "maxNearestVertexDistanceM": 52.976,
+        "changedVertexCounts": 0,
+        "propertyDifferences": [
+          {
+            "hazard": "SFC_WND",
+            "tag": "1W",
+            "level": null,
+            "maxNearestVertexDistanceM": 0.0,
+            "sameVertexCount": true,
+            "propertyDifferences": {
+              "dueTo": {
+                "awc": "USTAINED SFC WINDS GREATER THAN 30 KTS",
+                "vietor": "SUSTAINED SFC WINDS GREATER THAN 30 KTS"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "forecastHour": 9,
+        "awcFeatures": 23,
+        "vietorFeatures": 23,
+        "matchedFeatures": 23,
+        "geometryCounts": {
+          "Polygon": 15,
+          "LineString": 8
+        },
+        "maxNearestVertexDistanceM": 52.834,
+        "changedVertexCounts": 0,
+        "propertyDifferences": [
+          {
+            "hazard": "SFC_WND",
+            "tag": "1W",
+            "level": null,
+            "maxNearestVertexDistanceM": 0.0,
+            "sameVertexCount": true,
+            "propertyDifferences": {
+              "dueTo": {
+                "awc": "USTAINED SFC WINDS GREATER THAN 30 KTS",
+                "vietor": "SUSTAINED SFC WINDS GREATER THAN 30 KTS"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "forecastHour": 12,
+        "awcFeatures": 22,
+        "vietorFeatures": 22,
+        "matchedFeatures": 22,
+        "geometryCounts": {
+          "Polygon": 15,
+          "LineString": 7
+        },
+        "maxNearestVertexDistanceM": 52.4,
+        "changedVertexCounts": 0,
+        "propertyDifferences": [
+          {
+            "hazard": "SFC_WND",
+            "tag": "1W",
+            "level": null,
+            "maxNearestVertexDistanceM": 0.0,
+            "sameVertexCount": true,
+            "propertyDifferences": {
+              "dueTo": {
+                "awc": "USTAINED SFC WINDS GREATER THAN 30 KTS",
+                "vietor": "SUSTAINED SFC WINDS GREATER THAN 30 KTS"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "caveats": [
+      "Independent service, not NOAA or Google hosting.",
+      "Approximately 53m maximum sampled vertex difference; raw narrative differs by one leading S in a wind description.",
+      "date pinning, amendments, cancellations, freshness, provider limits and uptime not qualified."
+    ]
+  },
+  "zse": {
+    "created": "2026-09-23T22:10:13+00:00",
+    "accessControlAllowOrigin": "*",
+    "num": 124,
+    "features": 176,
+    "conusFeatures": 124,
+    "additionalAlaskaFeatures": 52,
+    "freezingFeatures": 47,
+    "freezingFeaturesWithLevel": 0,
+    "freezingGeometryCounts": {
+      "LineString": 35,
+      "Polygon": 12
+    },
+    "verdict": "Reject as complete replacement: freezing heights omitted, 12 freezing lines converted to polygons, fzltop/fzlbase missing in sampled ICE 1C at forecast hour 0."
+  },
+  "ifi": {
+    "nomadsIndex": {
+      "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t20z.ifi.3km.conus.f018.grib2.idx",
+      "status": 200,
+      "bytes": 16075,
+      "sha256": "d9d35b24e20524e7f0aac585ad5919f1c5123beff26cacd03deebe68cfc6e867",
+      "accessControlAllowOrigin": null
+    },
+    "nomadsRange": {
+      "range": "bytes=0-15",
+      "status": 206,
+      "contentRange": "bytes 0-15/31869848",
+      "accessControlAllowOrigin": null
+    },
+    "googleHrrrDafsPrefix": {
+      "url": "https://storage.googleapis.com/storage/v1/b/high-resolution-rapid-refresh/o?prefix=dafs&maxResults=1",
+      "status": 200,
+      "items": 0,
+      "scope": "Only checks this prefix in the existing HRRR bucket; not proof no mirror exists elsewhere."
+    },
+    "gribstream": {
+      "model": "https://gribstream.com/models/dafsificonus",
+      "documentedFields": [
+        "ICESEV",
+        "ICPRB",
+        "SIPD"
+      ],
+      "documentedAltitudeLevels": 60,
+      "documentedForecastHours": [
+        1,
+        18
+      ],
+      "authorization": "Bearer token required; no authenticated data requested.",
+      "preflight": {
+        "url": "https://gribstream.com/api/v2/dafsificonus/runs",
+        "method": "OPTIONS",
+        "requestMethod": "POST",
+        "requestHeaders": "authorization,content-type",
+        "status": 405,
+        "accessControlAllowOrigin": null
+      },
+      "qualificationRemaining": [
+        "CORS support with provider agreement",
+        "numeric units, masks and category semantics",
+        "model cycle identity and resampling",
+        "account, quotas and redistribution terms"
+      ]
+    }
+  }
+}

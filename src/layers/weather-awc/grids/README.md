@@ -169,9 +169,11 @@ frame substitution or invented IFI F000. Icing uses exact native heights; winds 
 can reuse an applicable hourly grid without loading or uploading it again. Keep
 all published stops even when palette colors or a local view look unchanged.
 
-A changed time, level, field or generation clears obsolete imagery and inspection
-until matching numbers and pixels are ready. Cancelled results cannot regain the
-display. Warm replacements commit synchronously. Pan/zoom keeps the full-domain
+A changed time, level, field or generation clears obsolete imagery and inspected
+values until matching numbers and pixels are ready. Field and level changes retain
+the inspected location and panel state. Details show unavailable values while
+loading. Cancelled results cannot regain the display. Warm replacements commit
+synchronously. Pan/zoom keeps the full-domain
 image while any viewport SLD detail is redrawn, with matching pixels/bounds committed
 together. Point inspection always uses the committed full-domain numeric bundle.
 
@@ -183,7 +185,9 @@ validates, or a current frame if the pinned time disappeared. Its offline pointe
 advances only after a matching file saves; until then preserve the old offline
 catalog and restrict new acquisition to nearby frames.
 
-Load the selected frame first. Shaded fields then save Now through their horizon
+Load the selected frame first; speculative acquisitions start only after its
+validated data is usable, so an adjacent file's optional save cannot take the
+decoder slot ahead of the selection. Shaded fields then save Now through their horizon
 plus an older pinned frame, at the chosen altitude. Barbs alone warm adjacent hours;
 temperature extends that same wind stream to the selected-altitude horizon. No
 all-altitude PWA download is implied. Existing source inputs and saved conversions
@@ -203,6 +207,13 @@ receipts. Optional save failure leaves live/nearby data usable, stops distant wo
 and reports **Offline save incomplete**. **Retry forecasts** retries file/catalog
 saves and failed renderers. Rendering failures clear the layer and report errors;
 ordinary status updates cannot trigger endless redraw retries.
+
+Saved counts are reconciled against core file inventory after publication/eviction
+hints (including other windows), on resume or demand changes, and roughly once a
+minute during active clock updates. These batched checks read keys, not grid bodies, and
+do not touch LRU order. Evicted receipts become incomplete while decoded nearby data
+remains usable. They stop distant preparation until **Retry forecasts** or a verified
+file repair, avoiding repeated downloads that immediately evict one another.
 
 A saved timeline removes repeated downloads for retained files, not decoding or
 rendering. Distant saved files use receipt inventory during preparation and validate

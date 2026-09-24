@@ -3,7 +3,7 @@ import { register } from 'tsx/esm/api';
 register();
 const { fixtureWeather } = await import('../fixtures/weather-server.ts');
 import { createHash } from 'node:crypto';
-import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, extname } from 'node:path';
 import { build } from 'vite';
@@ -15,6 +15,7 @@ const port = Number(process.env.ZLAYER_TEST_PORT ?? 4197);
 process.env.VITE_ZLAYERS_CHART_ROOT = '/chart-data';
 process.env.VITE_ZLAYERS_CHART_REVISION = 'latest';
 process.env.VITE_ZLAYERS_AWC_FEED_URL = '';
+process.env.VITE_ZLAYERS_PROGS_FEED_URL = '';
 process.env.VITE_ZLAYERS_METAR_URL = '';
 process.env.VITE_ZLAYERS_TAF_URL = '';
 // Exercise either app factory with local fixtures, never an inherited live endpoint.
@@ -31,6 +32,7 @@ await build({ build: { outDir: directory, rolldownOptions: {
     edgePanelsTest: resolve('test/browser/edge-panels.html'),
     fixesTest: resolve('test/browser/fixes.html'),
     weatherMapTest: resolve('test/browser/weather-map.html'),
+    weatherProgsTest: resolve('test/browser/weather-progs.html'),
     weatherGridTest: resolve('test/browser/weather-grids.html'),
     weatherNativeTest: resolve('test/browser/weather-native.html'),
     obstructionTest: resolve('test/browser/obstructions.html'),
@@ -65,19 +67,29 @@ let awcRequests = 0;
 let gridRequests = 0, gridFileRequests = 0, gridFailure = false, gridCorrupt = false;
 let gridHeldPath, gridGate, releaseGridGate;
 let nativeFileRequests = 0;
+let progsRequests = 0, progsFailure = false;
 let weather;
+let weatherSeeded = false;
 async function resetWeather() {
   await weather?.close();
   const cacheDirectory = resolve(directory, 'weather-cache');
-  for (const file of await readdir(cacheDirectory).catch(() => [])) {
-    if (file.endsWith('.cache')) await rm(resolve(cacheDirectory, file));
-  }
+  const seedDirectory = resolve(directory, 'weather-seed');
+  await rm(cacheDirectory, { recursive: true, force: true });
+  if (weatherSeeded) await cp(seedDirectory, cacheDirectory, { recursive: true });
   weather = await fixtureWeather(cacheDirectory, { onRaw: () => { nativeFileRequests++; }, advisories: () => awcFixtures });
-  // Warm the selections exercised by these fixtures through the production cache.
+  // Re-publish the fixture's partial catalogs after production restore rejects
+  // their intentionally unprepared slices. Saved native samples are reused.
   await weather.warmForecast('clouds', manifest => manifest.frames);
   await weather.warmForecast('icing', manifest => manifest.frames.filter(frame => frame.altitudeFtMsl === 8000));
   await weather.warmForecast('winds', manifest => manifest.frames.filter(frame =>
     frame.pressureHpa >= 650 || frame.validTime === manifest.runTime + 3600000));
+  if (!weatherSeeded) {
+    // Each reset gets a pristine copy; mutated data cannot leak between tests.
+    await weather.warmProgs();
+    await weather.warmRadar();
+    await cp(cacheDirectory, seedDirectory, { recursive: true });
+    weatherSeeded = true;
+  }
   if (awcFixtures && !awcFixtures.failure) await weather.warmAdvisories();
   nativeFileRequests = 0;
 }
@@ -95,7 +107,13 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
 const server = createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
   if (disconnected && !path.startsWith('/__test/')) { request.socket.destroy(); return; }
-  if (path === '/__test/awc-counts') { response.end(JSON.stringify({ requests: awcRequests, grids: gridRequests, gridFiles: gridFileRequests, nativeFiles: nativeFileRequests })); return; }
+  if (path === '/__test/awc-counts') { response.end(JSON.stringify({ requests: awcRequests, grids: gridRequests, gridFiles: gridFileRequests, nativeFiles: nativeFileRequests, progs: progsRequests })); return; }
+  if (path.startsWith('/api/weather/radar/')) { weather.server.emit('request', request, response); return; }
+  if (path.startsWith('/api/weather/progs/')) {
+    if (/\/(analysis|forecast)\.json$/.test(path)) progsRequests++;
+    if (progsFailure) { response.writeHead(503, { 'Cache-Control': 'no-store' }).end(); return; }
+    weather.server.emit('request', request, response); return;
+  }
   if (path.startsWith('/api/weather/advisories/')) {
     awcRequests++;
     if (!awcFixtures || awcFixtures.failure) { response.writeHead(503).end(); return; }
@@ -134,6 +152,7 @@ const server = createServer(async (request, response) => {
       failBrowsingAirports = false;
       disconnected = false;
       awcFixtures = undefined; awcRequests = 0;
+      progsRequests = 0; progsFailure = false;
       await resetWeather();
       gridRequests = gridFileRequests = 0; gridFailure = gridCorrupt = false;
       nativeFileRequests = 0;
@@ -145,6 +164,9 @@ const server = createServer(async (request, response) => {
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/progs') {
+      let body = ''; for await (const chunk of request) body += chunk;
+      progsFailure = !!JSON.parse(body).failure;
     } else if (path === '/__test/awc-grids') {
       let body = ''; for await (const chunk of request) body += chunk;
       const data = JSON.parse(body);

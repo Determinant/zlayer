@@ -1,0 +1,51 @@
+[
+  {
+    "product": "cwa",
+    "checkedAt": 1790118230252,
+    "source": "https://aviationweather.gov/api/data/cwa",
+    "frames": [],
+    "advisories": 7,
+    "hazards": {
+      "TS": 7
+    },
+    "normalizedBytes": 6936,
+    "sha256": "a938640f51efacdd7819844584a3b24264e345f96d43af05cc6cd187f033f0fd"
+  },
+  {
+    "product": "gairmet",
+    "checkedAt": 1790118230252,
+    "source": "https://aviationweather.gov/api/data/gairmet",
+    "frames": [
+      1790110800000,
+      1790121600000,
+      1790132400000,
+      1790143200000,
+      1790154000000
+    ],
+    "advisories": 153,
+    "hazards": {
+      "FZLVL": 67,
+      "SFC_WND": 8,
+      "IFR": 27,
+      "MT_OBSC": 20,
+      "ICE": 8,
+      "TURB-HI": 16,
+      "TURB-LO": 4,
+      "LLWS": 3
+    },
+    "normalizedBytes": 138920,
+    "sha256": "5f260387574e1a8489b813b159eeea44f3863529e2888629dba36c8160085ad5"
+  },
+  {
+    "product": "sigmet",
+    "checkedAt": 1790118230252,
+    "source": "https://aviationweather.gov/api/data/airsigmet",
+    "frames": [],
+    "advisories": 26,
+    "hazards": {
+      "CONVECTIVE": 26
+    },
+    "normalizedBytes": 48930,
+    "sha256": "2ea6605734fa8d9c8f391d5f55ad2ea21a9b52a3a963056e6325376d1e864552"
+  }
+]

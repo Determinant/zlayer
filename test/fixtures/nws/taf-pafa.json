@@ -1,0 +1,14 @@
+{
+  "@context": {
+    "@version": "1.1",
+    "@vocab": "https://api.weather.gov/ontology#"
+  },
+  "@id": "https://api.weather.gov/products/08deaba7-e7cb-4df4-a419-c12675ff4884",
+  "id": "08deaba7-e7cb-4df4-a419-c12675ff4884",
+  "wmoCollectiveId": "FTAK31",
+  "issuingOffice": "PAFG",
+  "issuanceTime": "2026-09-23T17:20:00+00:00",
+  "productCode": "TAF",
+  "productName": "Terminal Aerodrome Forecast",
+  "productText": "\n000\nFTAK31 PAFG 231720\nTAFAFA\nTAF\nPAFA 231720Z 2318/2424 02003KT P6SM BKN050\n     FM240600 21004KT P6SM SCT040 SCT150=\n"
+}

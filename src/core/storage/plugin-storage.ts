@@ -1,6 +1,7 @@
 import { isRecord } from '@zlayer/contracts';
 import type { PersistentRecord } from './record';
 import { createPluginFileCache, type PluginFilePolicy, type PluginFileBudget } from './plugin-file-cache';
+import { subscribePluginFileChanges } from './plugin-file-events';
 
 type RecordOptions<T> = {
   version: number;
@@ -62,6 +63,7 @@ export function createPluginStorage(pluginId: string, legacyUi?: (name: string) 
     pluginId,
     /** Optional bounded offline browsing files; product validity remains with the plugin. */
     files: (name: string, policy: PluginFilePolicy) => createPluginFileCache(pluginId, name, policy, options.fileBudget),
+    subscribeFiles: (listener: () => void) => subscribePluginFileChanges(pluginId, listener),
     /** For coordinated saves/caches with an existing format; failures reach the owner. */
     slot,
     record,

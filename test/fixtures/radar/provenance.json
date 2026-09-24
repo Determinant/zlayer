@@ -1,0 +1,22 @@
+{
+  "20260924-202439-mrms.grib2.gz": {
+    "bytes": 1485849,
+    "sha256": "8a8bb6936bf10ee48956b6a18b1fe6c7be81b3cd5f920e7190365ba19b363086"
+  },
+  "20260924-202234-tokc.level3": {
+    "bytes": 131304,
+    "sha256": "bf866ffc02936e6da3ae59f4d28a2c2c3f69d8870a35379d6686f5cb0557dd0d"
+  },
+  "20260924-202301-tatl.level3": {
+    "bytes": 88479,
+    "sha256": "11fff63f60d9b149141cd2da323cb2de4312256433a38f98eb9eec5959033a15"
+  },
+  "20260924-202439-mrms.grib2.gz.aux.xml": {
+    "bytes": 668,
+    "sha256": "c1069d211886926d79971c33ec8f16808594a4a0a8ec2895111f5efb2fcea5e5"
+  },
+  "20260924-202439-mrms.grib2.gz.aux.xml.properties": {
+    "bytes": 43,
+    "sha256": "099852aba09d385f9b12eced3584a15bb33a2ab1a519daf7ef4ae1f667e95247"
+  }
+}
