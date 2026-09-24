@@ -74,7 +74,7 @@ export function metarWeatherProperties(metar: MetarFeature): GeoPointProperties 
     ...(metar.properties.rawOb !== undefined
       ? { rawMetar: metar.properties.rawOb }
       : {}),
-    weatherSource: 'AWC',
+    weatherSource: metar.properties.source === 'NWS' ? 'NWS' : metar.properties.source === 'NOAA' ? 'NOAA' : 'AWC',
   };
 }
 

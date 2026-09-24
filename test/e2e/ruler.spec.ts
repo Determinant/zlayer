@@ -275,9 +275,6 @@ for (const size of [{ width: 320, height: 568 }, { width: 744, height: 1133 }, {
     await page.setViewportSize(size);
     await page.goto('/');
     await expect(toggle(page)).toBeEnabled();
-    // The default terrain toolbox covers the center of a 320px map.
-    const terrain = page.getByRole('button', { name: 'Hide terrain toolbox', exact: true });
-    if (await terrain.isVisible()) await terrain.click();
     const layers = (await page.getByRole('button', { name: 'Open map layers', exact: true }).boundingBox())!;
     const ruler = (await toggle(page).boundingBox())!;
     expect(ruler.x).toBe(layers.x);

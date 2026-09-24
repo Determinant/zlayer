@@ -52,7 +52,6 @@ test('an approach fix appears once in nearby selection and keeps the existing fi
     }, { procedure, coordinate });
     await page.goto('/');
     await expect(page.locator('.route-attached-approach')).toHaveText('ILS 31 · ARTYY');
-    await page.getByLabel('Hide terrain toolbox', { exact: true }).click();
     const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
     const nearby = page.getByRole('dialog', { name: 'Nearby map features' });
     await expect(async () => {

@@ -13,16 +13,25 @@ import { createLayerInput, selectLayerStore, combineLayerStores } from '../../co
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { bindMapLayer } from '../../core/map/contribution';
+import type { ReportStatus, ReportStatusListener } from './station-weather';
 
 export function createMetarPlugin() {
   const layer = createMetarLayer();
+  const reportStatus = createLayerStore<Partial<Record<'METAR' | 'TAF', ReportStatus>>>({});
+  const setReportStatus: ReportStatusListener = (name, status) => {
+    const previous = reportStatus.getSnapshot();
+    if (previous[name] === status) return;
+    const next = { ...previous };
+    if (status) next[name] = status; else delete next[name];
+    reportStatus.publish(next);
+  };
   const input = createLayerInput<{ enabled: boolean; catalog: CatalogReadSource; onToggle(): void }>();
   const empty = { data: undefined as FeatureCollectionResponse | undefined, visible: false };
   const airports = createLayerStore(empty);
   const mapInput = combineLayerStores(input, airports, (state, airports) => ({
     enabled: state?.enabled ?? false, airports: airports.data, airportsVisible: airports.visible,
   }));
-  const controlsInput = selectLayerStore(input, state => state && ({ catalog: state.catalog, enabled: state.enabled, onToggle: state.onToggle }));
+  const controlsInput = selectLayerStore(input, state => state && ({ enabled: state.enabled, onToggle: state.onToggle }));
   const legendInput = selectLayerStore(input, state => state?.enabled);
   const weatherStatus = selectLayerStore(layer, snapshot => ({ ...snapshot.state, observedAt: snapshot.state.observedAt, weatherAirportCount: snapshot.weatherAirportCount }));
   const legendStatus = selectLayerStore(layer, snapshot => ({ observedAt: snapshot.state.observedAt, weatherAirportCount: snapshot.weatherAirportCount }));
@@ -44,10 +53,12 @@ export function createMetarPlugin() {
       });
     },
     storage: pluginStorage, preferences: metarPreferences,
-    ...layer, input,
-    controls: [{ id: 'metar', Component: Controls }], overlays: [{ id: 'flight-categories', Component: Legend }],
+    ...layer, input, reportStatus, setReportStatus,
+    controls: [{ id: 'metar', section: { id: 'awc-weather', title: 'AWC Weather' }, Component: Controls }], overlays: [{ id: 'flight-categories', Component: Legend }],
     mapContribution: { id: 'metar', async load() {
       return [bindMapLayer(layer.map, mapInput)];
     } },
-  } satisfies LayerPlugin & PluginExports<MetarApi, { navigation: NavigationApi }> & { input: typeof input };
+  } satisfies LayerPlugin & PluginExports<MetarApi, { navigation: NavigationApi }> & {
+    input: typeof input; reportStatus: typeof reportStatus; setReportStatus: ReportStatusListener;
+  };
 }

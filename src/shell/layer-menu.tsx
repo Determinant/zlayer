@@ -5,6 +5,23 @@ import { isBoolean } from '../core/storage/ui-state';
 import { LayerContributions } from '../core/layers/contributions';
 import type { UiContribution } from '../core/layers/plugin';
 import '../core/ui/map-tool-button.css';
+
+function MapDisplayControls({ controls }: { controls: readonly UiContribution[] }) {
+  const groups = new Map<string, { title?: string; contributions: UiContribution[] }>();
+  for (const control of controls) {
+    const key = control.section ? `section:${control.section.id}` : `control:${control.id}`;
+    const group = groups.get(key);
+    if (group) group.contributions.push(control);
+    else groups.set(key, { ...(control.section ? { title: control.section.title } : {}), contributions: [control] });
+  }
+  return [...groups].map(([key, { title, contributions }]) => title
+    ? <section className="layer-section" key={key} aria-label={title}>
+      <div className="section-title"><h3>{title}</h3></div>
+      <div className="layer-control-group"><LayerContributions contributions={contributions} /></div>
+    </section>
+    : <LayerContributions key={key} contributions={contributions} />);
+}
+
 export function LayerMenu({ controls, footer, activeCount, visibleFeatureCount }: {
   controls: readonly UiContribution[]; footer: readonly UiContribution[]; activeCount: number; visibleFeatureCount: number;
 }) {
@@ -68,7 +85,7 @@ export function LayerMenu({ controls, footer, activeCount, visibleFeatureCount }
               </span>
             </div>
 
-            <LayerContributions contributions={controls} />
+            <MapDisplayControls controls={controls} />
             <LayerContributions contributions={footer} />
           </div>
         </aside>

@@ -1,5 +1,5 @@
 import { withAbort } from '../data/abort';
-import { httpResourceError, ResourceError, resourceErrorCode } from '../data/errors';
+import { httpResourceError, InvalidDataError, ResourceError, resourceErrorCode } from '../data/errors';
 import { downloadFile, discardDownloadedFile, DOWNLOAD_MEMORY_LIMIT } from './download-file';
 import { discardResponseBody } from './response';
 
@@ -56,8 +56,10 @@ type FileRequest = {
 };
 
 /** One transfer budget per execution context, shared by every product. The slot
- * covers network, bounded disk writes, validation and publication. Cached reads
- * bypass it; callers must not recursively acquire a transfer from its callback.
+ * covers network, bounded disk writes, validation and publication. Requests with
+ * only a maximum reserve their body budget once headers supply the actual size.
+ * Cached reads bypass it; callers must not recursively acquire a transfer from
+ * its callback.
  * The callback must consume or publish its file before returning: uncommitted disk
  * files are removed on both success and failure. Small in-memory Blobs may escape. */
 export async function transferFile<T>(options: FileRequest,
@@ -66,8 +68,9 @@ export async function transferFile<T>(options: FileRequest,
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 0)) throw new RangeError('Invalid file byte limit');
   }
   const bound = options.byteLength ?? options.maximumBytes;
-  const reservation = reserve(!options.exclusive && bound !== undefined && bound <= SMALL_FILE_BYTES ? 1 : TRANSFER_SLOTS, options.signal);
-  const release = typeof reservation === 'function' ? reservation : await reservation;
+  const slots = !options.exclusive && (options.byteLength === undefined || options.byteLength <= SMALL_FILE_BYTES) ? 1 : TRANSFER_SLOTS;
+  const reservation = reserve(slots, options.signal);
+  let release = typeof reservation === 'function' ? reservation : await reservation;
   try {
     options.signal?.throwIfAborted();
     const timeout = AbortSignal.timeout(options.timeoutMs ?? 120_000);
@@ -77,13 +80,29 @@ export async function transferFile<T>(options: FileRequest,
     try {
       signal.throwIfAborted();
       options.validateResponse?.(response);
-      const length = options.byteLength ?? ((!response.headers.get('content-encoding') || response.headers.get('content-encoding') === 'identity')
-        ? Number(response.headers.get('content-length')) : 0);
-      const total = Number.isFinite(length) && length > 0 ? length : undefined;
-      options.onProgress?.(0, total);
+      // Fetch decodes HTTP content encodings. CORS can also hide that header,
+      // so infer an exact body length only when identity encoding is certain.
+      const encoding = response.headers.get('content-encoding');
+      const unencoded = encoding?.toLowerCase() === 'identity' || !encoding && response.type !== 'cors';
+      const header = unencoded ? response.headers.get('content-length') : null;
+      const declared = header !== null && /^\d+$/.test(header) && Number.isSafeInteger(Number(header)) ? Number(header) : undefined;
+      const length = options.byteLength ?? declared;
+      if (length !== undefined && options.maximumBytes !== undefined && length > options.maximumBytes) {
+        throw new InvalidDataError(`${options.label} exceeds its byte limit`);
+      }
+      const bodyBound = length ?? bound;
+      if (slots === 1 && (bodyBound === undefined || bodyBound > SMALL_FILE_BYTES)) {
+        // Do not let a slow prepared response monopolize the queue before it has
+        // a body. Release before upgrading so concurrent unknown-size responses
+        // cannot deadlock while each holds one slot. No body is read yet.
+        release(); release = () => {};
+        const bodyReservation = reserve(TRANSFER_SLOTS, signal);
+        release = typeof bodyReservation === 'function' ? bodyReservation : await bodyReservation;
+      }
+      options.onProgress?.(0, length);
       blob = await downloadFile(response, { key: options.key ?? options.url, label: options.label,
-        byteLength: options.byteLength, maximumBytes: options.maximumBytes,
-        ...(options.onProgress ? { onProgress: (loaded: number) => options.onProgress!(loaded, total) } : {}) });
+        byteLength: length, maximumBytes: options.maximumBytes,
+        ...(options.onProgress ? { onProgress: (loaded: number) => options.onProgress!(loaded, length) } : {}) });
       signal.throwIfAborted();
       return await consume({ blob, response });
     } finally {
@@ -94,7 +113,7 @@ export async function transferFile<T>(options: FileRequest,
 }
 
 async function requestFile(options: FileRequest, signal: AbortSignal): Promise<Response> {
-  const init = { cache: options.cache ?? 'no-store', signal };
+  const init: RequestInit = { cache: options.cache ?? 'no-store', signal };
   for (let attempt = 0; ; attempt++) {
     signal.throwIfAborted();
     try {

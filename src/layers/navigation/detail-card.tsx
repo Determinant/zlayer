@@ -1,7 +1,8 @@
 import { pluginStorage } from './storage';
 import { useId, type ReactNode } from 'react';
 import { TabList, tabPanelProps } from '../../core/ui/tabs';
-import { EdgePanelFrame, useEdgePanel, type PanelTab } from '../../core/ui/edge-panels';
+import { useEdgePanel, type PanelTab } from '../../core/ui/edge-panels';
+import { DetailPanel } from '../../core/ui/detail-panel';
 import { usePluginState } from '../../core/ui/use-persistent-state';
 import { formatDate } from '../../core/format/time';
 import { formatWaypointLabel } from '../../core/format/coordinates';
@@ -40,55 +41,44 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
   }
 
   return (
-    <EdgePanelFrame panel={panel} label={`${label} details`} tab={placement}
+    <DetailPanel panel={panel} label={`${label} details`} tab={placement}
+      title={label} titleHint={label === ident ? undefined : ident} actions={actions}
+      onClose={onClose} closeLabel="Close detail" wide={hasPlates}
       className={`feature-details-panel${hasPlates ? ' has-plates' : ''}`}
-      icon={<><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.01" /></>}>
-      <article {...panel.bodyProps}
-        className={`feature-card edge-panel-body${hasPlates ? ' has-plates' : ''}${feature.properties.kind === 'coordinate' ? ' is-coordinate' : ''}`}>
-        <button className="ui-button ui-button--quiet ui-button--compact ui-button--icon close-card" type="button" onClick={() => panel.close(onClose)} aria-label="Close detail">
-          ×
-        </button>
-        <div className="feature-card-heading">
-          <h2 title={label === ident ? undefined : ident}>{label}</h2>
-          <div className="feature-card-actions">
-            {actions}
-          </div>
-        </div>
-        <div className="feature-card-header">
-          <span className="eyebrow">{String(feature.properties.kind ?? 'FAA feature')}</span>
-          <p>{featureSubtitle(feature)}</p>
-          {feature.properties.kind !== 'coordinate' &&
-            <p className="feature-edition">FAA {formatDate(String(feature.properties.dataRevision ?? revision))}</p>}
-          {hasPlates && <TabList id={tabsId} label="Airport detail" tabs={DETAIL_TABS} value={activeTab}
-            onChange={next => { onIdentificationChange(false); setTab(next); }} className="feature-tabs" />}
-        </div>
-        <div className="feature-card-content panel-scroll" role="region" tabIndex={0}
-          aria-label={identification ? 'Feature identification' : selectedTab === 'info' ? 'Feature information' : 'Airport plates'}>
-          {identification && <div key="id" className="content-reveal">{identification}</div>}
-          <div {...(hasPlates ? tabPanelProps(tabsId, 'info', activeTab) : { hidden: !!identification })}>
-            {activeTab === 'info' && <div className="content-reveal">
-              {detailRows.length > 0 && <dl className="feature-facts">
-                {detailRows.map(({ label, value, wide, morse, notes, frequency }) => (
-                  <div key={label} className={frequency ? 'is-wide is-frequency' : wide ? 'is-wide' : undefined}>
-                    <dt>{label}</dt>
-                    <dd>{needsTerrainElevation && label === 'Elevation' ? elevation(panel.open)
-                      : frequency ? <AirportFrequencyValue {...{ label, value, ...(notes ? { notes } : {}) }} /> : <>
-                      {value}{morse && <span className="navaid-morse" role="img"
-                      aria-label={morse.description} title={`Morse identifier ${morse.identifier}`}>
-                      {morse.groups.map((code, index) => <span key={index} aria-hidden="true">{code}{' '}</span>)}
-                    </span>}</>}</dd>
-                  </div>
-                ))}
-              </dl>}
-              {info(panel.open)}
-              {hasRunways && <AirportRunways feature={feature} weather={runwayWeather} />}
-            </div>}
-          </div>
-          {hasPlates && <div {...tabPanelProps(tabsId, 'plates', activeTab)}>
-            {activeTab === 'plates' && <div className="content-reveal">{plates(panel.open)}</div>}
-          </div>}
-        </div>
-      </article>
-    </EdgePanelFrame>
+      bodyClassName={`${hasPlates ? 'has-plates' : ''}${feature.properties.kind === 'coordinate' ? ' is-coordinate' : ''}`}
+      icon={<><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.01" /></>}
+      contentLabel={identification ? 'Feature identification' : selectedTab === 'info' ? 'Feature information' : 'Airport plates'}
+      header={<>
+        <span className="eyebrow">{String(feature.properties.kind ?? 'FAA feature')}</span>
+        <p>{featureSubtitle(feature)}</p>
+        {feature.properties.kind !== 'coordinate' &&
+          <p className="feature-edition">FAA {formatDate(String(feature.properties.dataRevision ?? revision))}</p>}
+        {hasPlates && <TabList id={tabsId} label="Airport detail" tabs={DETAIL_TABS} value={activeTab}
+          onChange={next => { onIdentificationChange(false); setTab(next); }} className="feature-tabs" />}
+      </>}>
+      {identification && <div key="id" className="content-reveal">{identification}</div>}
+      <div {...(hasPlates ? tabPanelProps(tabsId, 'info', activeTab) : { hidden: !!identification })}>
+        {activeTab === 'info' && <div className="content-reveal">
+          {detailRows.length > 0 && <dl className="feature-facts">
+            {detailRows.map(({ label, value, wide, morse, notes, frequency }) => (
+              <div key={label} className={frequency ? 'is-wide is-frequency' : wide ? 'is-wide' : undefined}>
+                <dt>{label}</dt>
+                <dd>{needsTerrainElevation && label === 'Elevation' ? elevation(panel.open)
+                  : frequency ? <AirportFrequencyValue {...{ label, value, ...(notes ? { notes } : {}) }} /> : <>
+                  {value}{morse && <span className="navaid-morse" role="img"
+                  aria-label={morse.description} title={`Morse identifier ${morse.identifier}`}>
+                  {morse.groups.map((code, index) => <span key={index} aria-hidden="true">{code}{' '}</span>)}
+                </span>}</>}</dd>
+              </div>
+            ))}
+          </dl>}
+          {info(panel.open)}
+          {hasRunways && <AirportRunways feature={feature} weather={runwayWeather} />}
+        </div>}
+      </div>
+      {hasPlates && <div {...tabPanelProps(tabsId, 'plates', activeTab)}>
+        {activeTab === 'plates' && <div className="content-reveal">{plates(panel.open)}</div>}
+      </div>}
+    </DetailPanel>
   );
 }

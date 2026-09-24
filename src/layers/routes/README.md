@@ -136,6 +136,9 @@ consumes the resulting plan rather than interpreting route text again.
   waypoint using the same coordinate details and actions. Its marker lasts while
   that point is selected; viewing or closing it does not change the route.
   Nearby navigation features and route points retain their existing selection menu.
+  When plugins offer actions at the point, the shared map menu lists those actions
+  alongside the nearby features (or the temporary GPS waypoint). Opening the menu
+  alone does not select a feature or inspect weather; movement dismisses it.
 - GPS waypoint details preserve existing feature elevations and otherwise include
   approximate terrain elevation in feet MSL, rounded to 10 ft. The lookup uses the finest supported DEM at the saved coordinate,
   independently of zoom and terrain-layer visibility. Saved terrain packages take

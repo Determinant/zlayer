@@ -1,4 +1,4 @@
-.side-panels { --edge-handle-width: max(32px, var(--touch-target)); z-index: 12; }
+.side-panels { --edge-handle-width: max(32px, var(--touch-target)); }
 /* Layer-owned slots remain fixed relative to the map, independent of content. */
 .side-panels > .edge-panel-tabs {
   /* Align the lowest slot with the terrain tab on the left. */

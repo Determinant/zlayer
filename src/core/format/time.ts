@@ -66,6 +66,13 @@ export function formatTimestamp(value: TimeValue, options: TimeOptions = {}): st
   return parts ? `${parts.date} · ${parts.time}${parts.zone}` : unknown;
 }
 
+/** One date for Zulu and local clocks, unless their calendar days differ. */
+export function formatTimestampPair(value: TimeValue, { now = Date.now(), timeZone = 'local' }: TimeOptions = {}): string {
+  const utc = timestampParts(value, { now }), local = timestampParts(value, { now, timeZone });
+  if (!utc || !local) return unknown;
+  return `${utc.date} · ${utc.time}${utc.zone} / ${local.date === utc.date ? '' : `${local.date} · `}${local.time}${local.zone}`;
+}
+
 export function formatTimestampRange(from: TimeValue, to: TimeValue, options: TimeOptions = {}): string {
   const start = timestampParts(from, options), end = timestampParts(to, options);
   if (!start || !end || readDate(to)! < readDate(from)!) return unknown;

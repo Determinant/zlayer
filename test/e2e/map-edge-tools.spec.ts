@@ -11,10 +11,8 @@ async function openMap(page: Page) {
   const route = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
   await route.fill('KSBA KSMO');
   await route.press('Enter');
-  // Terrain starts open for a fresh user; stow it before exercising the toggles.
-  const terrain = page.getByRole('button', { name: 'Hide terrain toolbox', exact: true });
-  await expect(terrain).toBeVisible();
-  await terrain.click();
+  await expect(page.getByRole('button', { name: 'Show terrain toolbox', exact: true }))
+    .toHaveAttribute('aria-expanded', 'false');
 }
 
 async function insideMap(page: Page, locator: Locator) {
@@ -34,7 +32,11 @@ test.describe('touch map overlays', () => {
       await openMap(page);
       const contents = page.locator('.map-edge-content');
       await expect(page.locator('.map-edge-content:not([inert])')).toHaveCount(0);
-      for (const name of ['chart status', 'GPS status', 'AHRS toolbox', 'terrain toolbox']) {
+      await expect.poll(() => page.locator('.map-edge-tools .map-edge-handle').evaluateAll(tabs => tabs.every(tab => {
+        const box = tab.getBoundingClientRect();
+        return tab.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      }))).toBe(true);
+      for (const name of ['chart status', 'GPS status', 'AHRS toolbox', 'AWC Weather toolbox', 'terrain toolbox']) {
         const handle = page.getByRole('button', { name: `Show ${name}`, exact: true });
         const box = (await handle.boundingBox())!;
         expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
@@ -83,7 +85,7 @@ test.describe('touch map overlays', () => {
         await expect(page.getByRole('button', { name: `Show ${name}`, exact: true })).toHaveAttribute('aria-expanded', 'false');
         await expect(page.locator('.map-edge-content:not([inert])')).toHaveCount(0);
       }
-      await expect(contents).toHaveCount(4);
+      await expect(contents).toHaveCount(5);
       expect(await countWatches(page)).toBe(1);
       await page.getByRole('button', { name: 'Show terrain toolbox', exact: true }).tap();
       await expect(page.getByRole('spinbutton', { name: 'Selected altitude' })).toHaveValue('6500');

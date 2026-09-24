@@ -3,7 +3,7 @@ import { TabList, tabPanelProps } from '../core/ui/tabs';
 import { formatDate } from '../core/format/time';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { isBoolean } from '../core/storage/ui-state';
-import type { ChartCatalog } from '../workspace/catalog/catalog';
+import type { CatalogResponse } from '@zlayer/contracts';
 import type { CycleSelection } from '../workspace/catalog/cycles';
 import { ErrorBoundary } from '../core/layers/error-boundary';
 import { AboutLauncher } from './about';
@@ -17,7 +17,7 @@ import type { PluginControl } from '../core/layers/use-plugins';
 const SETTINGS_TABS = [{ value: 'general', label: 'General' }, { value: 'plugins', label: 'Plugins' }] as const;
 
 export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cycleNotice, plugins, onPluginChange, pluginError }: {
-  catalog: ChartCatalog;
+  catalog: CatalogResponse;
   cycles: string[];
   selection: CycleSelection;
   onCycleChange: (selection: CycleSelection) => void;

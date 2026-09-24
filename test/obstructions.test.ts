@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { ObstructionIndex, isObstructionManifest } from '../src/layers/obstructions/data';
+import { ObstructionIndex, isObstructionManifest, OBSTRUCTION_INDEX_VERSION } from '../src/layers/obstructions/data';
 import { decompressObstructions, readObstructionFeatures } from '../src/layers/obstructions/stream';
 import { parseObstructions, loadObstructions } from '../src/layers/obstructions/api';
 import { obstructionIcon, obstructionMinHeight, obstructionMinZoom, OBSTRUCTION_MIN_ZOOM } from '../src/layers/obstructions/definitions';
@@ -11,6 +11,9 @@ import { project, type Segment } from '../src/layers/terrain/geometry';
 import type { ObstructionFeature, ObstructionManifest } from '../src/layers/obstructions/types';
 import { cacheFixture } from './helpers/cache';
 import { VERIFIED_SHA256_HEADER } from '../src/core/storage/cache-names';
+
+const INDEX_CACHE = 'zlayers-plugin-files-v1:obstructions:indices';
+const FILE_DIGEST = 'x-zlayer-file-sha256';
 
 const feature = (id: string, lon = 0, lat = 0): ObstructionFeature => ({ type: 'Feature', id,
   geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { heightAglFt: 500,
@@ -273,7 +276,8 @@ test('the rolling manifest resolves and verifies its immutable gzip dataset', as
 });
 
 test('reloads use only the filtered snapshot without a gzip download or decompression', async t => {
-  const { stored } = cacheFixture(t);
+  const { stored: reference, namespace } = cacheFixture(t);
+  const { stored } = namespace(INDEX_CACHE);
   const low = feature('06-000002'); low.properties.heightAglFt = 499;
   const { bytes, manifest } = fixture([feature('06-000001'), low]);
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
@@ -283,7 +287,7 @@ test('reloads use only the filtered snapshot without a gzip download or decompre
   const first = await loadObstructions(manifestUrl);
   const snapshotKey = [...stored.keys()].find(key => key !== manifestUrl)!;
   assert.notEqual(snapshotKey, url);
-  assert.equal(stored.has(url), false, 'new loads must not retain the full gzip');
+  assert.equal(reference.has(url), false, 'new loads must not retain the full gzip');
   assert.equal((await stored.get(snapshotKey)!.clone().arrayBuffer()).byteLength, 8 + 34, 'only one eligible record is stored');
   fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
   t.mock.method(globalThis, 'DecompressionStream', function () { throw new Error('Unexpected decompression'); });
@@ -293,7 +297,8 @@ test('reloads use only the filtered snapshot without a gzip download or decompre
 });
 
 test('legacy gzip caches migrate offline and are deleted only after a successful snapshot save', async t => {
-  const { stored, cache } = cacheFixture(t);
+  const { stored, namespace } = cacheFixture(t);
+  const { cache } = namespace(INDEX_CACHE);
   const { bytes, manifest } = fixture();
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
   const url = new URL(manifest.dataset.path, manifestUrl).href;
@@ -312,7 +317,8 @@ test('legacy gzip caches migrate offline and are deleted only after a successful
 });
 
 test('damaged or mismatched filtered caches rebuild from verified source data', async t => {
-  const { stored } = cacheFixture(t);
+  const { namespace } = cacheFixture(t);
+  const { stored } = namespace(INDEX_CACHE);
   const { bytes, manifest } = fixture();
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
   let downloads = 0;
@@ -323,15 +329,15 @@ test('damaged or mismatched filtered caches rebuild from verified source data', 
   await loadObstructions(manifestUrl);
   const key = [...stored.keys()].find(key => key !== manifestUrl)!;
   const original = stored.get(key)!;
-  for (const defect of ['checksum', 'source', 'version', 'truncated', 'receipt']) {
+  for (const defect of ['checksum', 'size', 'version', 'truncated', 'receipt']) {
     const body = new Uint8Array(await original.clone().arrayBuffer()), headers = new Headers(original.headers);
     if (defect === 'checksum') body[body.length - 1]! ^= 1;
-    if (defect === 'source') headers.set('x-zlayer-obstruction-source', 'wrong source');
+    if (defect === 'size') headers.set('content-length', '0');
     if (defect === 'version') {
       new DataView(body.buffer).setUint32(0, 999, true);
-      headers.set(VERIFIED_SHA256_HEADER, createHash('sha256').update(body).digest('hex'));
+      headers.set(FILE_DIGEST, createHash('sha256').update(body).digest('hex'));
     }
-    if (defect === 'receipt') headers.delete(VERIFIED_SHA256_HEADER);
+    if (defect === 'receipt') headers.delete(FILE_DIGEST);
     stored.set(key, new Response(defect === 'truncated' ? body.slice(1) : body, { headers }));
     assert.equal((await loadObstructions(manifestUrl)).index.size, 1, defect);
   }
@@ -339,7 +345,7 @@ test('damaged or mismatched filtered caches rebuild from verified source data', 
 });
 
 test('a changed source gets its own filtered snapshot and never reuses an older index', async t => {
-  const { stored } = cacheFixture(t);
+  const { stored, namespace } = cacheFixture(t);
   let current = fixture();
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
   let downloads = 0;
@@ -352,7 +358,8 @@ test('a changed source gets its own filtered snapshot and never reuses an older 
   const updated = await loadObstructions(manifestUrl);
   assert.equal(updated.index.query([-1, -1, 1, 1], [], 10).features[0]!.id, '06-000002');
   assert.equal(downloads, 2);
-  assert.equal(stored.size, 3, 'one manifest and two independent source snapshots');
+  assert.equal(stored.size, 1, 'the reference cache retains only the manifest');
+  assert.equal(namespace(INDEX_CACHE).stored.size, 2, 'two independent source snapshots use the plugin namespace');
   // The same digest with contradictory manifest counts must not reuse a prior snapshot.
   current.manifest.dataset.count++;
   await assert.rejects(loadObstructions(manifestUrl), /count/);
@@ -395,7 +402,8 @@ test('an unreadable obstruction cache is kept when a network repair is unavailab
 });
 
 test('a temporarily unreadable filtered snapshot is preserved and works on a later retry', async t => {
-  const { stored, cache } = cacheFixture(t);
+  const { namespace } = cacheFixture(t);
+  const { stored, cache } = namespace(INDEX_CACHE);
   const { bytes, manifest } = fixture();
   const manifestUrl = 'https://charts.test/obstacles/manifest.json';
   const fetch = t.mock.method(globalThis, 'fetch', async (url: string) =>
@@ -412,4 +420,23 @@ test('a temporarily unreadable filtered snapshot is preserved and works on a lat
   assert.equal(stored.has(key), true);
   read.mock.mockImplementation(match);
   assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+});
+
+test('legacy filtered indices migrate offline without decompressing their national source', async t => {
+  const { stored, namespace } = cacheFixture(t);
+  const { manifest, blob } = fixture();
+  const manifestUrl = 'https://charts.test/obstacles/manifest.json', url = new URL(manifest.dataset.path, manifestUrl);
+  const index = await parseObstructions(blob, manifest), bytes = index.snapshot();
+  url.searchParams.set('zlayer-obstruction-index', [OBSTRUCTION_INDEX_VERSION,
+    manifest.dataset.bytes, manifest.dataset.uncompressedBytes, manifest.dataset.count].join('-'));
+  stored.set(manifestUrl, Response.json(manifest));
+  stored.set(url.href, new Response(bytes, { headers: { 'content-length': String(bytes.byteLength),
+    [VERIFIED_SHA256_HEADER]: createHash('sha256').update(new Uint8Array(bytes)).digest('hex'),
+    'x-zlayer-obstruction-source': [manifest.dataset.sha256, manifest.dataset.bytes, manifest.dataset.uncompressedBytes, manifest.dataset.count].join(':'),
+  } }));
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('offline'); });
+  t.mock.method(globalThis, 'DecompressionStream', function () { throw new Error('Unexpected decompression'); });
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+  assert.equal(stored.has(url.href), false);
+  assert.equal(namespace(INDEX_CACHE).stored.size, 1);
 });

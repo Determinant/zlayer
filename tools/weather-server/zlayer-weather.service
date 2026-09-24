@@ -1,0 +1,33 @@
+[Unit]
+Description=ZLayer weather cache and numeric grid preparation
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+DynamicUser=yes
+WorkingDirectory=/opt/zlayer-weather/current
+ExecStart=/opt/zlayer-weather/node/bin/node /opt/zlayer-weather/current/main.js
+Environment=NODE_ENV=production
+Environment=WEATHER_CACHE_DIR=/var/lib/zlayer-weather
+EnvironmentFile=-/etc/zlayer-weather.env
+StateDirectory=zlayer-weather
+StateDirectoryMode=0750
+UMask=0027
+# Leave CPU and memory available to other services on the host.
+CPUQuota=400%
+CPUWeight=10
+IOWeight=10
+Nice=10
+MemoryMax=2G
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

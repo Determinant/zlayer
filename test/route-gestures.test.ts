@@ -69,6 +69,9 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
   const previews: Array<RouteDragPreview | undefined> = [];
   const resolutions: GeoPointFeature[] = [];
   let editable = true;
+  let contextActions: import('../src/core/map/selection').MapContextAction[] = [];
+  const offeredActions: typeof contextActions[] = [];
+  let contextQueries = 0, menuDismissals = 0;
   const gestures = new MapGestures(map as unknown as MapLibreMap, {
     route: () => route, interactiveLayerIds: () => [], preview: input => previews.push(input.preview),
     resolveFeature: feature => {
@@ -76,11 +79,13 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
       return resolveNavigationFeature(feature, { fixes: references });
     },
     canEditRoute: () => editable,
+    contextActions: () => { contextQueries++; return contextActions; },
+    onCloseNearby: () => { menuDismissals++; },
     onSelect: feature => selections.push(feature), onRouteLegInsert: (afterEntryId, feature) => {
       assert.equal(kind, 'leg', 'unexpected insertion');
       insertions.push({ afterEntryId, feature });
     },
-    onChooseNearby: features => nearby.push(features),
+    onChooseNearby: (features, _point, actions = []) => { nearby.push(features); offeredActions.push(actions); },
     onRouteWaypointReplace: (index, feature) => {
       replacements.push({ index, feature });
     },
@@ -110,9 +115,33 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
     getRoute: () => route,
     setRoute: (next: RoutePlan, render = true) => { route = next; if (render) rendered = next; },
     setEditable: (value: boolean) => { editable = value; },
+    setContextActions: (actions: typeof contextActions) => { contextActions = actions; }, offeredActions,
+    contextQueries: () => contextQueries, menuDismissals: () => menuDismissals,
     click: () => handlers.get('click')!({ point: { x: 100, y: 100 } }),
   };
 }
+
+test('ordinary map clicks select navigation; context gestures offer plugin actions alongside nearby features', t => {
+  const features: MapGeoJSONFeature[] = [];
+  const fixture = setup(t, features);
+  let inspected = 0;
+  fixture.setContextActions([{ id: 'weather', label: 'Inspect weather', select() { inspected++; } }]);
+  fixture.click();
+  assert.equal(fixture.contextQueries(), 0);
+  assert.equal(fixture.selections.length, 1);
+  assert.equal(fixture.selections[0], undefined);
+  features.push({ ...navigation.features[0]!, layer: { id: 'airports' }, source: 'navigation' } as unknown as MapGeoJSONFeature);
+  fixture.click();
+  assert.equal(fixture.selections[1]!.properties.ident, 'KSFO');
+  fixture.mouse('contextmenu');
+  assert.equal(fixture.contextQueries(), 1);
+  assert.ok(fixture.nearby[0]!.some(item => item.feature.properties.ident === 'KSFO'));
+  assert.equal(inspected, 0, 'opening a menu must not inspect weather');
+  fixture.offeredActions[0]![0]!.select();
+  assert.equal(inspected, 1);
+  fixture.handlers.get('movestart')!({});
+  assert.equal(fixture.menuDismissals(), 1);
+});
 
 test('an unsnapped leg drop inserts the previewed GPS waypoint once and suppresses the following click', t => {
   const { touch, insertions, previews, target, click, selections } = setup(t, [], 'leg');

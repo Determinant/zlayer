@@ -28,7 +28,7 @@ test('the IAP menu stays open through StrictMode replay and restores focus on ex
   await page.goto(`${origin}/test/browser/plate-menu.html`);
   await expect(page.locator('body')).toHaveAttribute('data-effect-setups', '2');
   const map = page.getByRole('region', { name: 'Test map' });
-  const menu = page.getByRole('menu', { name: 'IAP actions' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
   const show = menu.getByRole('menuitem', { name: 'Show plate panel' });
   const hide = menu.getByRole('menuitem', { name: 'Hide IAP from map' });
   await map.click({ button: 'right', position: { x: 300, y: 300 } });

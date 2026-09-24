@@ -61,7 +61,7 @@ test('reset drains worker writes, prevents new writes, and discards resident cha
   } }));
   onFetch({ request: new Request(chartUrl), respondWith: work => { response = work; }, waitUntil: () => {} });
   assert.equal(await (await response).text(), 'chart', 'the worker holds a resident chart before reset');
-  onFetch({ request: new Request('https://app.test/weather/pending.json'), respondWith: work => { response = work; },
+  onFetch({ request: new Request('https://charts.tedyin.com/charts/pending.json'), respondWith: work => { response = work; },
     waitUntil: () => {} });
   await started;
   let acknowledged = false, stopped!: Promise<unknown>, ready!: () => void;
@@ -79,7 +79,7 @@ test('reset drains worker writes, prevents new writes, and discards resident cha
   assert.equal(stored.size, 1);
   stored.clear(); // The reset screen can now delete storage.
   await charts.delete(chartUrl);
-  onFetch({ request: new Request('https://app.test/weather/later.json'), respondWith: work => { response = work; },
+  onFetch({ request: new Request('https://charts.tedyin.com/charts/later.json'), respondWith: work => { response = work; },
     waitUntil: () => {} });
   await response;
   assert.equal(stored.size, 0, 'a stopped worker must not recreate deleted data');
@@ -189,7 +189,7 @@ test('concurrent PWA preparations acknowledge a rebuilt shell and report failure
   assert.deepEqual(replies.at(-1), { ok: true });
   fetch.mock.mockImplementation(async () => new Response('weather'));
   let response!: Promise<Response>;
-  const url = 'https://app.test/weather/ready.json';
+  const url = 'https://charts.tedyin.com/charts/ready.json';
   onFetch({ request: new Request(url), respondWith: work => { response = work; }, waitUntil: () => {} });
   await response;
   assert.equal(await (await caches.match(url))?.text(), 'weather');

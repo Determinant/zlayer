@@ -24,14 +24,14 @@ test('combined airport reports keep independent selections and refresh schedules
   await page.clock.install({ time: now });
   const searches = { metar: 0, taf: 0 };
   const own = { id: 'KSBA', coordinates: [-119.84, 34.43] };
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     const params = new URL(route.request().url()).searchParams;
     const nearby = params.has('bbox');
     if (nearby) searches.metar++;
     const reports = nearby ? stations : (params.get('ids') ?? '').split(',').includes('KSBA') ? [own] : [];
     return route.fulfill({ json: { type: 'FeatureCollection', features: reports.map(metar) } });
   });
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     const params = new URL(route.request().url()).searchParams;
     const nearby = params.has('bbox');
     if (nearby) searches.taf++;
@@ -95,13 +95,13 @@ test('cached reports open idle offline, resume on reconnect, and stop refreshing
   await page.clock.install({ time: now });
   const requests = { metar: 0, taf: 0 };
   let offline = false;
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     requests.metar++;
     if (offline) return route.abort('internetdisconnected');
     const nearby = new URL(route.request().url()).searchParams.has('bbox');
     return route.fulfill({ json: { type: 'FeatureCollection', features: nearby ? stations.map(metar) : [] } });
   });
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     requests.taf++;
     if (offline) return route.abort('internetdisconnected');
     const nearby = new URL(route.request().url()).searchParams.has('bbox');
@@ -172,13 +172,13 @@ test('hidden cards stay idle, cancel delayed nearby reports, and resume cleanly 
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   const obsolete = { id: 'KOLD', coordinates: [-118.45, 34.02] };
-  await context.route('**/weather/metars.geojson?*', async route => {
+  await context.route('**/api/weather/metars.geojson?*', async route => {
     const nearby = new URL(route.request().url()).searchParams.has('bbox');
     const delayed = nearby && ++searches.metar === 1;
     if (delayed) await pending;
     await route.fulfill({ json: { type: 'FeatureCollection', features: !nearby ? [] : (delayed ? [obsolete] : stations).map(metar) } });
   });
-  await context.route('**/weather/tafs.json?*', async route => {
+  await context.route('**/api/weather/tafs.json?*', async route => {
     const nearby = new URL(route.request().url()).searchParams.has('bbox');
     const delayed = nearby && ++searches.taf === 1;
     if (delayed) await pending;

@@ -25,6 +25,7 @@ Display scaling and browser chrome can change the available viewport.
 ## Contents
 
 - [Layout contract](#layout-contract)
+- [Startup status](#startup-status)
 - [Typography](#typography)
 - [Shared controls](#shared-controls)
 - [Automated regression coverage](#automated-regression-coverage)
@@ -55,14 +56,25 @@ Display scaling and browser chrome can change the available viewport.
 - Feature cards keep the identifier, append action and close control outside one
   scrollable body. Metadata, tabs and details remain reachable even in short windows.
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
-- Chart/MBTiles status, GPS and Terrain retain their compact contents and tuck away
+  Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
+  advisory, cloud, icing and wind controls use four content tabs inside its left toolbox.
+- Chart/MBTiles status, GPS, Terrain and AWC Weather retain their compact contents and tuck away
   off the left edge. Clicking or tapping a tab toggles its panel open or closed, on
   desktop and touch devices alike. Moving across the map or hovering another tab
   never changes the open state. Opening another tab switches panels, and Escape
   closes the active panel for keyboard users. Hidden controls leave the tab order while
-  GPS tracking, terrain rendering and selected altitude continue unchanged. Terrain
-  scrolls within the available map height in short landscape windows. Edge tabs
+  GPS tracking, terrain rendering and selected altitude continue unchanged. The
+  AWC Weather tab sits directly above Terrain; its time selection, filters and map
+  weather remain active when stowed. Its Advisories, Cloud, Icing and Winds content tabs
+  share core's keyboard navigation and retain selection while stowed. One forecast
+  timeline above the content tabs keeps the same selected time across all four.
+  The tab row scrolls horizontally, retaining normal text size and touch targets;
+  active wind barbs remain over the selected shaded forecast when switching tabs.
+  These toolboxes scroll within the available map height in short landscape windows. Edge tabs
   retain 44px touch targets without adding headers to the panels.
+  When the map container is at most 300px tall, the bottom tab stack uses a second
+  column 48px inward. AWC remains above Terrain, and the top/bottom stacks cannot
+  cover each other's touch targets. Panel widths account for that inset.
 - The experimental AHRS toolbox also opens from the left edge. Stowing an active
   session asks for confirmation and pauses display updates; calibration and
   estimation still receive every IMU sample. Stop ends the session. Full screen
@@ -72,13 +84,39 @@ Display scaling and browser chrome can change the available viewport.
   radius and opens a nearby-feature chooser when airport, navaid or fix points
   overlap. Ordinary clicks keep selecting the nearest rendered point directly.
   Empty-space context gestures open a temporary GPS waypoint with coordinates and
-  terrain elevation, without editing the route.
+  terrain elevation, without editing the route. When a plugin contributes actions,
+  the shared map menu combines them with nearby features or that coordinate waypoint.
+  Plate actions apply inside the current plate footprint. **Inspect weather** applies
+  while AWC weather is enabled and available at the point, including with its toolbox stowed; ordinary
+  taps never inspect weather. Releasing a long press cannot activate a newly opened
+  menu item. Moving the map dismisses the menu, and keyboard arrows/Home/End select
+  its actions. Plugins retain ownership of the commands and revoke them on unload.
 - Component styles consume the shared 44px touch minimum, including tablets with a
   mouse or trackpad. Text-entry controls use 16px on touch devices. MapLibre CSS is
   imported in a lower-priority cascade layer; lazy loading cannot override app controls.
 - Map and PDF ResizeObservers preserve the mounted view through rotation and folding.
   PDF fitting fills the available width at 100% zoom, allows vertical scrolling,
   limits canvas memory, and preserves explicit zoom.
+
+## Startup status
+
+The splash lists requested startup work using registered plugin names, alongside
+Workspace discovery and Map rendering. Hidden/disabled layers, empty routes, and
+terrain/obstruction coverage that requests no data do not add placeholder rows.
+Terrain's `idle` and `zoom` states mean there is no requested work, not an unfinished
+download. Activation failures from any registered plugin remain visible.
+
+Data adapters report loading, rendering, ready, cached, limited or unavailable from
+the same state used by the feature UI. AWC includes enabled advisories and the selected
+cloud/icing timeline's preparation count. METAR/TAF includes visible map reports and
+the active airport report cards. Live weather work is labeled **In background** and
+does not block a usable workspace. The progress bar counts required startup steps;
+background rows remain informative and are not falsely counted as ready.
+Startup still waits for required data, the first settled map and responsive frames.
+The [finishing phase](../architecture/workspace-startup.md) is one-way: background
+updates cannot rewind completed startup steps or alternate the final heading.
+The existing slow-start recovery action remains available, and later refreshes never
+bring the splash back.
 
 ## Typography
 
@@ -133,9 +171,15 @@ it once through `src/styles.css`; standalone UI fixtures import it directly when
 they do not load the application stylesheet. The shell owns workspace layout.
 
 Use `ui-button` on native action buttons and `ui-input` on text/search/number inputs,
-selects and textareas. Core owns their border, background, padding, typography,
+selects and textareas. Native fields use a dark color scheme so WebKit's select
+surface stays readable with the shared light text. Core owns their border,
+background, padding, typography,
 hover, keyboard focus and disabled treatment. Keep native attributes, refs, labels
 and event handlers with the feature; these classes add no JavaScript or wrapper DOM.
+
+Use `ui-progress` on a native `<progress>` element for determinate or indeterminate
+work, with an accessible label and product-owned `value`, `max` and `aria-valuetext`.
+Startup and AWC forecast preparation share its compact track and fill styling.
 
 ```tsx
 <label>Heading
@@ -148,8 +192,13 @@ Button modifiers are `ui-button--primary`, `ui-button--danger`, `ui-button--quie
 `ui-button--compact` and `ui-button--icon`. Icon buttons still need an accessible
 name. `ui-input--compact` is for dense toolboxes. Ordinary controls are at least
 44px high; compact controls start at 32px. Both honor the shared 44px touch minimum
-in width and height, including short action labels such as Use.
+in width and height, including short action labels such as Use. AWC's Prev/Now/Next
+and product-tab buttons deliberately share a 32px height on all devices to preserve
+room for forecast controls; both rows retain at least 44px button width.
 Fields use 16px text; compact fields use the shared 14px/16px touch font size.
+Native selects contain their internal painting so long values with expanded text
+spacing cannot widen an enclosing scroller in WebKit; their full option labels
+remain available in the native menu.
 Pressed/selected buttons follow their ARIA state. Preserve text-entry minimums and
 existing specialized geometry, including AHRS's compact bezel and 44px fullscreen
 buttons; see its [toolbox contract](../../src/layers/ahrs/README.md#toolbox-and-full-screen).
@@ -174,18 +223,53 @@ radio choices and instrument graphics retain their specialized presentation.
 Compact weather reports, including TAF formatting, stay plugin-owned; their
 ordinary controls still use core's styles and compact variants.
 Core's panel/tab/surface primitives continue to own their existing lifecycles.
+Selected edge handles paint above both panel bodies so overlapping left/right panels remain
+operable on narrow maps. Focusing a panel raises its body above the opposite edge;
+both selections and their mounted content stay intact. Stowed tabs stay below open
+bodies so short-map inset tabs cannot cover their controls. Core drives the body and
+handle with the same measured offset and reveal fraction.
+`ToolPanel` render children receive `(visible, panel)`, including the owning edge
+panel controller. Feature actions can request `panel.setOpen(true, onCommit)` to
+reveal their toolbox through core's existing stow guards; change local tabs only
+on commit and wait for `panel.open` before focusing controls.
+
+Selected navigation features and weather advisories use `core/ui/detail-panel.tsx`.
+`DetailPanel` composes `EdgePanelFrame` with the existing detail-card presentation:
+responsive bounds, heading/actions, close control, metadata fields and one focusable
+scroll body. Its styles live in core's UI entry. Pass the feature's `useEdgePanel`
+controller, labels, close callback and content; `wide` accommodates airport plates
+while features request opening on selection through that controller. Features keep their report content,
+tabs and demand decisions, without overriding the shared frame's width, header or
+scroll layout.
 
 Content tabs use `core/ui/tabs.tsx`: `TabList` owns the shared native buttons,
 selected state, roving tab stop and Left/Right/Home/End navigation. Pair it with
 `tabPanelProps` using the same base ID and tab values for panel IDs, labels and
-visibility. Settings, Terrain and Info/Plates use this primitive. Feature owners
+visibility. Settings, Terrain, AWC Weather and Info/Plates use this primitive. Feature owners
 retain selection storage and decide whether inactive content remains mounted;
 Info/Plates keeps inactive panel shells empty so hidden weather and PDF catalog
 content do not start work. Identification temporarily leaves both tabs unselected.
+The optional `scrollable` variant keeps a single horizontal row with core
+scrollbar styling and overflow-edge cues. Selection/resize reveals the active tab
+by scrolling only the row, preserving the enclosing panel/page position. AWC uses
+this variant so further product tabs do not require smaller labels or wrapping.
 
 The shared `.switch` indicator is also defined in core controls. Its native button
 owns `role="switch"` and `aria-checked`; local styles may adjust indicator dimensions
-and row layout. Core's UI entry owns the reduced-motion policy as well as the shared
+and row layout. For a standalone switch beside compact text, use `.ui-switch` on
+the button with an accessible name and a decorative `.switch` child. GPS, AWC Weather
+and Terrain use it in their toolbox headings. Its 27×16px indicator sits inside a
+36×24px target that grows to at least 44×44px on touch devices, with shared keyboard
+focus and disabled styling. The feature still owns state and activation:
+
+```tsx
+<button className="ui-switch" type="button" role="switch" aria-label="Show terrain"
+  aria-checked={enabled} onClick={onToggle}>
+  <span className="switch" aria-hidden="true"><i /></span>
+</button>
+```
+
+Core's UI entry owns the reduced-motion policy as well as the shared
 animations, so standalone UI imports receive the same behavior as the application.
 
 Scrollbar appearance also comes from core: every scrollable element uses the shared

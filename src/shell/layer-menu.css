@@ -58,6 +58,8 @@
   overflow-y: auto;
 }
 
+.layer-control-group { display: grid; gap: 5px; }
+
 @media (max-width: 640px) {
   .layer-menu { max-height: calc(100% - 2 * var(--map-panel-gap)); }
   .layer-popover { width: min(340px, calc(var(--safe-width) - 18px)); }

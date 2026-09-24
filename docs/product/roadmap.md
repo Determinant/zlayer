@@ -94,21 +94,69 @@ schematic geometry alone does not establish correctness.
 
 ## Weather expansion
 
+The `weather-awc` plugin implements G-AIRMET/domestic SIGMET/convective SIGMET/CWA display,
+freezing contours, time selection and advisory normalization. See the
+[plugin guide](../../src/layers/weather-awc/README.md) for current behavior.
+The [grid pipeline and display](../../src/layers/weather-awc/grids/README.md) now add
+cloud/freezing fields and native-altitude icing guidance to the same timeline.
+The TypeScript AWC/NOMADS gateway is implemented with shared disk caching, bounded
+refreshes, advisory normalization, numeric grid preparation and preserved source-check times.
+HRRR uses Google as the server’s upstream; the PWA reads native prepared fields
+and interpolates selected wind altitudes. The DO gateway is deployed; the
+[server guide](../../tools/weather-server/README.md#deployment) owns deployment.
+Independent operational comparison and reference-device
+qualification remain outstanding; implementation is not flight validation.
+
 ### Observations and advisories
 
-- Publish validated static AWC snapshots for production, with source health and one
-  upstream rate budget; development's pass-through is not that publisher.
+- METAR/TAF and SIGMET/CWA/G-AIRMET use the shared AWC gateway. METAR/TAF retain
+  the original AWC batching, nearby queries and report presentation. Their direct
+  NOAA/NWS adapters are retired; [source choices](../data/sources.md#source-choices-and-unresolved-alternatives)
+  explain the coverage and freshness differences.
+- The gateway and nginx routes for AWC/IFI are deployed on DO. Repeat deployment
+  checks when releasing changes; device qualification remains separate.
 - Add PIREP/AIREP filtering/deduplication and altitude bands.
-- Add SIGMET, G-AIRMET, Alaska AIRMET and CWA geometry/time slices.
-- Introduce a unified UTC controller and route-corridor emphasis.
+- Qualify Alaska AIRMET and international SIGMET as coverage extensions.
+- Add route-corridor emphasis to the implemented UTC advisory timeline.
 
 Acceptance: explicit source/valid times, bounded rendering at worst-case feature counts,
 correct time boundaries, and one failed product never disabling the workspace.
+
+### Cloud, freezing and icing forecasts
+
+Implemented: HRRR cloud coverage/base/top and both freezing diagnostics; IFI
+probability/severity/SLD at qualified native altitudes; worker conversion and core-cached numeric bundles,
+point inspection, bounded optional caching and the shared timeline. Negative SLD
+remains explicitly unknown and source bitmaps remain separate from terrain masks.
+
+The server prepares HRRR from Google's public NOAA mirror and IFI from NOMADS.
+Remaining: verify independent
+operational depictions and late-hour input lineage; resolve negative-SLD encoding;
+measure peak memory, scrubbing and readability on the reference tablet.
+
+Acceptance: frame labels match rendered/numeric data, missing guidance remains
+distinct from zero hazard, incompatible time/height grids are not combined, and
+scrubbing/caching meets the existing product budgets. See the
+[source limits](../../src/layers/weather-awc/grids/README.md#source-meaning-and-limits)
+for the remaining qualification work.
+
+### Winds and temperatures aloft
+
+Implemented: HRRR CONUS hourly pressure-level winds and
+temperature, independent zoom-spaced barbs over existing weather, optional
+temperature shading, shared timeline, worker conversion and core caching.
+The [winds guide](../../src/layers/weather-awc/grids/winds.md) specifies supported
+levels and representative source/browser validation. MSL slices below 18,000 ft
+and flight levels above are implemented. Extended forecast cycles and reference-device
+benchmarks remain; repeat production
+delivery checks for each release.
 
 ### Surface analysis and imagery
 
 - Capture current/archived WPC bulletin fixtures; validate fronts, troughs and centers
   against the authoritative chart before styling them.
+- Add current Surface Analysis and forecast Progs after Winds in the existing
+  scrollable AWC content-tab row, after their source/forecast semantics are qualified.
 - Compare NOAA GOES processing with available tile services; add NEXRAD and one
   visible/IR family with synchronized six-frame animation.
 - Bound frame preload, cancellation and memory; measure on the reference tablet.
@@ -125,5 +173,6 @@ tile/CDN cost measurements, operational-language review and support/runbooks.
 
 Rank further sources by pilot value, reliability, rendering cost and time-model
 compatibility: NWS alerts, SPC outlooks, WPC precipitation/winter products, lightning,
-NHC tracks and model icing/turbulence are candidates. Each must pass the adapter
+NHC tracks and model turbulence are candidates. Icing is covered by the expanded
+weather plan above. Each source must pass the adapter
 readiness checklist in [data sources](../data/sources.md).

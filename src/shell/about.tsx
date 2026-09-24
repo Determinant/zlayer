@@ -7,6 +7,7 @@ export function AboutLauncher() {
   const [open, setOpen] = usePersistentState('about-open', false, isBoolean);
   const dialog = useRef<HTMLDialogElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const release = document.querySelector('meta[name="zlayer-release"]')?.getAttribute('content');
 
   useEffect(() => {
     if (open) {
@@ -85,6 +86,9 @@ export function AboutLauncher() {
           <p>ZLayer is open source on{' '}
             <a href="https://github.com/Determinant/zlayer" target="_blank" rel="noopener noreferrer">GitHub</a>.
             {' '}Explore the code, report bugs, or build a layer of your own.</p>
+          {release && /^[a-f0-9]{16}$/.test(release) && <p><a href={`/source/${release}.tar.gz`}>
+            Download the source for this release
+          </a>.</p>}
           <p>New layers, better ways to work with plates, or a tool no one has
             thought of yet: contributions from pilots and developers will help
             shape what comes next. There’s room for your ideas here, layer by layer.</p>

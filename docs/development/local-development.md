@@ -2,9 +2,9 @@
 
 [Documentation](../README.md) / Development
 
-ZLayer has no runtime application server. The root package owns `src/`, `public/`,
-`test/` and Vite; `packages/contracts` and `packages/domain` are the only npm
-workspaces. Local proxies live in `tools/dev-proxy.ts`, not a separate application.
+The root package owns the PWA and `tools/weather-server/`, a small Node 24 TypeScript
+cache gateway. Only `packages/contracts` and `packages/domain` are npm workspaces.
+Vite's local forwarding rules live in `tools/dev-proxy.ts`.
 
 ## Contents
 
@@ -72,18 +72,25 @@ roots must follow the same cache and CORS contract.
 For preparation failures and retry behavior, see
 [chart-cache startup and recovery](../../src/layers/charts/README.md#startup-and-recovery).
 
-Vite provides four development-only proxies:
+With blank weather URL settings, Vite forwards `/api/weather/` to
+`https://zlayer.tedyin.com`, preserving paths and queries. Local development shares
+the shared prepared weather data through DO's same-origin proxy; it starts no weather
+backend or separate source cache.
 
-| Local path | Purpose |
-| --- | --- |
-| `/chart-data` | FAA static feed without cross-origin development requests |
-| `/weather/metars.geojson` | AWC METAR API, which does not permit direct browser CORS |
-| `/weather/tafs.json` | AWC TAF API; selected-airport and bounded nearby forecasts in JSON |
-| `/faa-procedures/<cycle>/<filename>.PDF` | Narrow FAA-only PDF fallback for the same in-app PDF.js viewer |
+To work on the [weather backend](../../tools/weather-server/README.md), run
+`npm run weather:serve` in one terminal and
+`WEATHER_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. This explicit local
+backend uses `.cache/weather/` and must prepare its own data. `WEATHER_API_ORIGIN`
+is a shell setting, not a browser URL or a Vite `.env` variable. Report URL overrides
+must follow the AWC GeoJSON/JSON contracts; archived advisory/grid overrides remain
+available for fixtures.
 
-Production must separately provide its data access/proxies; uploading `dist/` does
-not create them. Set `VITE_ZLAYERS_METAR_URL`, `VITE_ZLAYERS_TAF_URL` or
-`VITE_ZLAYERS_PROCEDURE_PROXY_ROOT` to test alternative delivery endpoints.
+Vite also forwards `/chart-data` to the FAA static feed and the qualified
+`/faa-procedures/<cycle>/<filename>.PDF` paths to FAA. Raw weather acquisition stays inside the server. Production must install the server and nginx routes
+separately; uploading `dist/` does not create them. The
+[plugin guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
+owns report freshness and [weather delivery](../../src/layers/weather-awc/README.md#development-and-production-delivery)
+owns advisory acquisition.
 Individual-only FAA plates, including military HIGH procedures, remain required even
 when all bound TPP books are hosted. See [deployment readiness](deployment.md)
 for exact host requirements and known release gaps.
@@ -113,6 +120,10 @@ Use it when debugging weather through the proxies above.
 
 ## Compatibility traps
 
+- Workspace controllers live in `App` state. `src/workspace/products.ts` reloads
+  the development page when controller/factory updates reach it, so React Fast
+  Refresh cannot leave old instances or map callbacks running after a source edit.
+  Component-only updates still use Fast Refresh; production builds omit this boundary.
 - `comlink` is pinned to **4.3.0**, matching the numeric message protocol embedded in
   the prebuilt `sql.js-httpvfs` worker. Upgrade wrapper and worker together; keep the
   bundled worker protocol test passing.
@@ -247,3 +258,11 @@ Playwright suite. Interactive fixture checks alone do not replace that suite.
 Follow [offline release checks](../features/offline-storage.md#release-checks),
 [responsive checks](../features/shared-ui.md) and [deployment readiness](deployment.md)
 before claiming a device or deployment is ready.
+
+### Local AWC forecast grids
+
+Leave `VITE_ZLAYERS_AWC_GRID_URL` blank to use the shared prepared forecasts through
+Vite's `/api/weather/` proxy. Backend development is an explicit opt-in described
+under [data and proxies](#data-and-proxies).
+The [grid guide](../../src/layers/weather-awc/grids/README.md) owns numeric meanings,
+worker budgets, source identity and offline behavior.

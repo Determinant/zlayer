@@ -30,21 +30,6 @@
   width: min(320px, 100%);
   text-align: left;
 }
-.startup-progress progress {
-  display: block;
-  width: 100%;
-  height: 5px;
-  flex-shrink: 0;
-  overflow: hidden;
-  appearance: none;
-  border: 0;
-  border-radius: 3px;
-  background: #203448;
-  accent-color: #61d6c5;
-}
-.startup-progress progress::-webkit-progress-bar { background: #203448; }
-.startup-progress progress::-webkit-progress-value { background: #61d6c5; border-radius: 3px; }
-.startup-progress progress::-moz-progress-bar { background: #61d6c5; border-radius: 3px; }
 .startup-progress ul {
   min-height: 60px;
   max-height: 240px;
@@ -57,9 +42,10 @@
 .startup-step { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 13px; }
 .startup-step-icon { flex: 0 0 14px; width: 14px; height: 14px; line-height: 14px; text-align: center; color: #61d6c5; }
 .startup-step > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
-.startup-step-state { flex-shrink: 0; margin-left: auto; padding-left: 10px; color: #91a8bb; font-size: 12px; }
+.startup-step-state { margin-left: auto; padding-left: 10px; color: #91a8bb; font-size: 12px; text-align: right; }
+.startup-step-state small { display: block; font-size: 11px; }
 .startup-step:is(.is-loading, .is-rendering) .startup-step-icon { border: 2px solid #315567; border-top-color: #61d6c5; border-radius: 50%; animation: startup-spin 1s linear infinite; }
-.startup-step.is-waiting, .startup-step.is-not-needed { color: #91a8bb; }
+.startup-step.is-waiting { color: #91a8bb; }
 .startup-step.is-limited .startup-step-icon, .startup-step.is-unavailable .startup-step-icon,
 .startup-step.is-limited .startup-step-state, .startup-step.is-unavailable .startup-step-state { color: #ffbd66; }
 .startup-recovery { max-width: 320px; margin-top: 22px; font-size: 13px; }

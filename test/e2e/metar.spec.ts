@@ -18,6 +18,45 @@ async function selectAirport(page: Page, id: string) {
   await page.locator('.search-results button').filter({ hasText: id }).click();
 }
 
+test('raw METAR, exact decoded values and category recover from the reverted NWS cache and survive reload', async ({ page, context }) => {
+  await page.clock.install({ time: now });
+  const coded = report('KSBA', -119.84, 34.43, now - 15 * 60_000);
+  coded.properties.rawOb = 'METAR KSBA 171745Z 28010KT 3SM BKN010 RMK AO2';
+  coded.properties.visib = 3;
+  Object.assign(coded.properties, { clouds: [{ cover: 'BKN', base: 10 }] });
+  await context.addInitScript(sensor => {
+    if (!localStorage.getItem('nws-regression-seeded')) {
+      localStorage.setItem('zlayer-plugin:metar:metars', JSON.stringify({ type: 'FeatureCollection', features: [sensor] }));
+      localStorage.setItem('nws-regression-seeded', 'true');
+    }
+  }, { ...coded, properties: { ...coded.properties, source: 'NWS', obsTime: now / 1000, rawOb: '', wspd: null } });
+  let offline = false;
+  await context.route('**/api/weather/metars.geojson?*', route => offline ? route.abort('internetdisconnected')
+    : route.fulfill({ json: collection([coded]) }));
+  const nwsRequests: string[] = [];
+  page.on('request', request => { if (new URL(request.url()).hostname === 'api.weather.gov') nwsRequests.push(request.url()); });
+  await page.goto('/');
+  await selectAirport(page, 'KSBA');
+  const metar = page.getByRole('region', { name: 'METAR', exact: true });
+  const value = (label: string) => metar.locator('dl > div').filter({ has: page.locator('dt', { hasText: new RegExp(`^${label}$`) }) }).locator('dd');
+  await expect(value('Raw')).toHaveText(coded.properties.rawOb);
+  await expect(value('Ceiling')).toHaveText('1,000 ft');
+  await expect(value('Visibility')).toHaveText('3 SM');
+  await expect(value('Flight category')).toHaveText('MVFR');
+  await expect(value('Wind')).toContainText('/280°T 10 kt');
+  await expect(metar).toContainText('Updated');
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  offline = true;
+  await context.setOffline(true);
+  await page.reload();
+  await expect(value('Raw')).toHaveText(coded.properties.rawOb);
+  await expect(value('Ceiling')).toHaveText('1,000 ft');
+  await expect(value('Visibility')).toHaveText('3 SM');
+  await expect(value('Flight category')).toHaveText('MVFR');
+  await expect(metar).toContainText('Cached report');
+  expect(nwsRequests).toEqual([]);
+});
+
 test('missing METARs default to nearest current report, switch without fetching, and retain choices offline', async ({ page, context }, testInfo) => {
   await page.clock.install({ time: now });
   const errors: string[] = [];
@@ -30,7 +69,7 @@ test('missing METARs default to nearest current report, switch without fetching,
     await route.fulfill({ response, json: body });
   });
   let offline = false, failed = false, searches = 0;
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     if (offline) return route.abort('internetdisconnected');
     if (!new URL(route.request().url()).searchParams.has('bbox')) return route.fulfill({ json: collection([]) });
     searches++;
@@ -48,6 +87,7 @@ test('missing METARs default to nearest current report, switch without fetching,
   ]);
   await expect(metar).toContainText(/Observation for KLAX · .* NM SE of KSMO/);
   await expect(metar).toContainText('METAR KLAX 171800Z');
+  await expect(metar).toContainText('269°M/280°T 10 kt');
   const ceiling = metar.locator('dl > div').filter({ has: page.locator('dt', { hasText: /^Ceiling$/ }) }).locator('dd');
   await expect(ceiling).toHaveText('1,200 ft');
   await expect(page.locator('.airport-runways')).toContainText('METAR wind unavailable');
@@ -75,6 +115,7 @@ test('missing METARs default to nearest current report, switch without fetching,
   await expect(selector).toHaveValue('KLAX');
   await expect(metar).toContainText('Cached report');
   await expect(ceiling).toHaveText('1,200 ft');
+  await expect(metar).toContainText('269°M/280°T 10 kt');
   await selector.selectOption('KTOA');
   await expect(metar).toContainText('METAR KTOA 171800Z');
   await expect(ceiling).toHaveText('None reported');
@@ -87,6 +128,24 @@ test('missing METARs default to nearest current report, switch without fetching,
   expect(errors).toEqual([]);
 });
 
+test('METAR wind retains true direction when magnetic data is unavailable and recovers on reconnect', async ({ page, context }) => {
+  await page.clock.install({ time: now });
+  let unavailable = true;
+  await context.route('**/nav/magnetic-model.json*', route => unavailable
+    ? route.fulfill({ status: 404 }) : route.continue());
+  await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({
+    json: collection([report('KSMO', -118.45, 34.02)]),
+  }));
+  await page.goto('/');
+  await selectAirport(page, 'KSMO');
+  const metar = page.getByRole('region', { name: 'METAR', exact: true });
+  await expect(metar).toContainText('—/280°T 10 kt');
+  await context.setOffline(true);
+  unavailable = false;
+  await context.setOffline(false);
+  await expect(metar).toContainText('269°M/280°T 10 kt');
+});
+
 test('airports without ICAO identifiers distinguish failed, offline and empty nearby searches', async ({ page, context }) => {
   await page.clock.install({ time: now });
   await context.route('**/nav/airports.geojson*', async route => {
@@ -96,7 +155,7 @@ test('airports without ICAO identifiers distinguish failed, offline and empty ne
     await route.fulfill({ response, json: body });
   });
   let failed = true;
-  await context.route('**/weather/metars.geojson?*', route => route.fulfill(
+  await context.route('**/api/weather/metars.geojson?*', route => route.fulfill(
     new URL(route.request().url()).searchParams.has('bbox') && failed ? { status: 400 } : { json: collection([]) }));
   await page.goto('/');
   await selectAirport(page, 'KSMO');
@@ -113,7 +172,7 @@ test('airports without ICAO identifiers distinguish failed, offline and empty ne
 test('own current METAR skips nearby discovery and a stale observation falls back', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let searches = 0;
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     const params = new URL(route.request().url()).searchParams;
     if (params.has('bbox')) { searches++; return route.fulfill({ json: collection(nearby) }); }
     return route.fulfill({ json: collection((params.get('ids') ?? '').split(',').flatMap(id => id === 'KSBA'
@@ -139,7 +198,7 @@ test('own current METAR skips nearby discovery and a stale observation falls bac
 test('a saved stale local METAR defaults ahead of stale nearby reports and survives offline reload', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let offline = false;
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     if (offline) return route.abort('internetdisconnected');
     const params = new URL(route.request().url()).searchParams;
     return route.fulfill({ json: collection(params.has('bbox')
@@ -171,7 +230,7 @@ test('a saved stale local METAR defaults ahead of stale nearby reports and survi
 
 test('offline default follows observation age, while manual choices remain selected', async ({ page, context }) => {
   await page.clock.install({ time: now });
-  await context.route('**/weather/metars.geojson?*', route => route.fulfill({ json: collection(
+  await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({ json: collection(
     new URL(route.request().url()).searchParams.has('bbox')
       ? [nearby[0]!, report('KLAX', -118.40, 33.94, now - 2 * 3600_000 + 120_000)] : []) }));
   await page.goto('/');
@@ -191,7 +250,7 @@ test('changing airports during discovery cannot replace the new airport report',
   await page.clock.install({ time: now });
   let release!: () => void, searching = false;
   const pending = new Promise<void>(resolve => { release = resolve; });
-  await context.route('**/weather/metars.geojson?*', async route => {
+  await context.route('**/api/weather/metars.geojson?*', async route => {
     const params = new URL(route.request().url()).searchParams;
     if (params.has('bbox')) {
       searching = true; await pending;

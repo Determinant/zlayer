@@ -72,6 +72,7 @@ test('AHRS remembers mount preference while requiring a new calibration', async 
 
 test('terrain remembers the last clearance altitude while elevation coloring is selected', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Show terrain toolbox', exact: true }).click();
   await page.getByRole('tab', { name: 'Clearance', exact: true }).click();
   const altitude = page.getByRole('spinbutton', { name: 'Selected altitude', exact: true });
   await altitude.fill('6500');

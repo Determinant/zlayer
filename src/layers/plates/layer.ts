@@ -11,7 +11,6 @@ export type PlatesSnapshot = {
   mapSelection?: ProcedureSelection;
   mapImageRestored?: boolean;
   mapRestoreError?: string;
-  mapMenuPoint?: { x: number; y: number };
 };
 
 /** Selection belongs to the plates product, independently of the map or airport card. */
@@ -28,13 +27,13 @@ export function createPlatesController(persist = false) {
     /** Release live rendering without deleting the selected document or its saved intent. */
     dispose() {
       restoration?.abort(); restoration = undefined;
-      const { mapImage, mapMenuPoint: _menu, mapRestoreError: _error, ...current } = store.getSnapshot();
+      const { mapImage, mapRestoreError: _error, ...current } = store.getSnapshot();
       if (mapImage) mapImage.canvas.width = mapImage.canvas.height = 0;
       store.publish({ ...current, requestId: current.requestId + 1 });
     },
     open(selection: ProcedureSelection) {
       if (persist) plateSelectionRecord.write(selection);
-      const { mapMenuPoint: _closed, ...current } = store.getSnapshot();
+      const current = store.getSnapshot();
       store.publish({ ...current, selection, requestId: current.requestId + 1 });
     },
     close(requestId?: number) {
@@ -54,7 +53,7 @@ export function createPlatesController(persist = false) {
         mappedPlateRecord.write(image.selection);
         plateSelectionRecord.write(null);
       }
-      const { mapMenuPoint: _closed, mapRestoreError: _error, ...next } = current;
+      const { mapRestoreError: _error, ...next } = current;
       store.publish({ ...next, selection: undefined, mapImage: image, mapSelection: image.selection, mapImageRestored: false });
       if (current.mapImage && current.mapImage !== image) current.mapImage.canvas.width = current.mapImage.canvas.height = 0;
     },
@@ -86,23 +85,12 @@ export function createPlatesController(persist = false) {
       const { mapRestoreError, ...next } = store.getSnapshot();
       if (mapRestoreError) store.publish(next);
     },
-    openMapMenu(image: PlateMapImage, point: { x: number; y: number }) {
-      const current = store.getSnapshot();
-      if (image !== current.mapImage) return;
-      store.publish({ ...current, mapMenuPoint: { x: point.x, y: point.y } });
-    },
-    closeMapMenu() {
-      const current = store.getSnapshot();
-      if (!current.mapMenuPoint) return;
-      const { mapMenuPoint: _closed, ...next } = current;
-      store.publish(next);
-    },
     hideFromMap(image = store.getSnapshot().mapImage) {
       const current = store.getSnapshot();
       if ((image && image !== current.mapImage) || (!current.mapSelection && !current.mapImage)) return;
       restoration?.abort();
       if (persist) mappedPlateRecord.write(null);
-      const { mapImage: _removed, mapMenuPoint: _closed, mapSelection: _selection,
+      const { mapImage: _removed, mapSelection: _selection,
         mapImageRestored: _restored, mapRestoreError: _error, ...next } = current;
       store.publish(next);
       if (image) image.canvas.width = image.canvas.height = 0;

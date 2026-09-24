@@ -4,7 +4,7 @@ import { usePersistentState } from '../core/ui/use-persistent-state';
 import { PersistentDetails } from '../core/ui/persistent-details';
 import { ConfirmationDialog } from '../core/ui/confirmation-dialog';
 import { isBoolean, isString } from '../core/storage/ui-state';
-import type { ChartCatalog } from '../workspace/catalog/catalog';
+import type { CatalogResponse } from '@zlayer/contracts';
 import { createBrowserDownloads, removeUnsavedFiles } from '../offline/browser-downloads';
 import { isDownloadActive, type DownloadPlan, type Download } from '../offline/downloads';
 import { formatBytes, storageStatus, type StorageStatus } from '../offline/storage';
@@ -16,7 +16,7 @@ import { RegionDownloadRow, type RegionDownloadEntry } from './region-download-r
 import type { RegionOperation } from './download-presentation';
 
 export default function Settings({ catalog, open }: {
-  catalog: ChartCatalog; open: boolean;
+  catalog: CatalogResponse; open: boolean;
 }) {
   const [downloads] = useState(() => createBrowserDownloads(file => cacheProcedureDocument({
     ...file, nativeUrl: file.url, pageIndex: 0, source: file.kind === 'faa-pdf' ? 'faa-individual' : 'combined-volume',
@@ -33,7 +33,7 @@ export default function Settings({ catalog, open }: {
   const [operation, setOperation] = useState<{ plan: DownloadPlan; action: RegionOperation }>();
   const [regionError, setRegionError] = useState<{ id: string; message: string }>();
   const [confirmation, setConfirmation] = useState<{ kind: 'region'; job: Download } | { kind: 'temporary' }>();
-  const [loadedIndex, setLoadedIndex] = useState<{ catalog: ChartCatalog; index: OfflinePlateIndex }>();
+  const [loadedIndex, setLoadedIndex] = useState<{ catalog: CatalogResponse; index: OfflinePlateIndex }>();
   const plateIndex = loadedIndex?.catalog === catalog ? loadedIndex.index : undefined;
   const [plateError, setPlateError] = useState<string>();
   const [plateAttempt, setPlateAttempt] = useState(0);

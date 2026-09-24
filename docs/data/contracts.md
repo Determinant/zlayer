@@ -27,6 +27,8 @@ recommendations. A malformed optional history resource does not disable FAA data
 - [Feature](#feature)
 - [METAR](#metar)
 - [TAF](#taf)
+- [AWC advisories](#awc-advisories)
+- [AWC forecast grids](#awc-forecast-grids)
 - [Route](#route)
 - [Workspace persistence](#workspace-persistence)
 - [Procedure](#procedure)
@@ -205,9 +207,18 @@ then by distance, treating the airport's own report as zero distance. The local
 report remains selectable after it ages; a manual selection survives refreshes.
 NIL observations and NIL/cancelled forecasts are excluded from station choices.
 
+Default METAR acquisition uses AWC through the shared weather gateway for map,
+card and nearby queries. `X-Weather-Checked-At` preserves the upstream check time
+on cache hits; attempt time and observation time remain separate. Station batches,
+nearby area queries and card refreshes retain the original AWC semantics. Older
+reports cannot replace newer usable observations. Saved reports from the retired
+direct adapters retain `source: NOAA` or `source: NWS` for honest offline labels;
+legacy raw-less NWS sensor records are discarded on restore. See the
+[plugin source contract](../../src/layers/metar-taf/README.md#source-access-and-report-presentation).
+
 ## TAF
 
-AWC TAF JSON is an array of runtime-validated `TafReport` objects with `icaoId`,
+The report contract follows AWC TAF JSON: runtime-validated `TafReport` objects with `icaoId`,
 `issueTime`, epoch-second `validTimeFrom`/`validTimeTo`, `rawTAF` and `fcsts`.
 Forecast periods retain `timeFrom`, `timeTo`, `timeBec`, `fcstChange`, probability,
 visibility in statute miles and cloud bases/vertical visibility in feet. These
@@ -216,6 +227,58 @@ preserved; period colors are derived separately and never joined into METAR map
 categories. Missing or mismatched forecast data is shown without a category color.
 The forecast cache retains the latest issuance/amendment for each selected station;
 failed refreshes do not update the last successful check or erase a saved forecast.
+The gateway forwards AWC TAF JSON without joining or reconstructing bulletins.
+Nearby TAF discovery retains AWC area-query coverage.
+
+## AWC advisories
+
+`AwcAdvisorySnapshot` version 1 carries one family (`gairmet`, `sigmet`, `cwa`),
+the successful upstream `checkedAt`, source URI, explicit `frameTimes`, and validated
+advisories. Times are UTC epoch **milliseconds**. Each advisory has an opaque
+content identity, native identifier/issuer/hazard, nullable issue time, geometry,
+altitude description, original bulletin text and preserved source properties. An
+absent or null CWA hazard normalizes to `UNK` (displayed as **Unspecified hazard**),
+with `sourceProperties` preserved unchanged; no hazard is inferred
+from bulletin text. Other supplied hazard codes remain intact. An
+optional `severity` string preserves G-AIRMET qualifiers; older snapshots use the
+preserved source property when displaying severity. Domestic SIGMET numeric
+severity codes are not interpreted as G-AIRMET text qualifiers.
+G-AIRMET stores a forecast hour and instantaneous valid time; interval advisories
+store an exclusive `validTo` and no forecast hour. The guard rejects mixed families,
+duplicate identities, invalid coordinates/rings, inconsistent forecast frames and
+invalid timestamps. Do not infer issue time from validity or model history from a
+successful check. Complete empty snapshots replace prior data; failures retain it.
+The server normalizes AWC collections into snapshots, retaining full bulletin text
+and weather properties. G-AIRMET normalizes its atomic five-frame package, including
+freezing contours. The browser validates these snapshots before using or saving them.
+The [plugin guide](../../src/layers/weather-awc/README.md) owns delivery, time
+selection, completeness limits and cache labeling.
+
+## AWC forecast grids
+
+The server discovers a validated native-source manifest from NOAA GRIB indexes.
+Its shared plugin contract retains exact field ranges, source-index digests, model
+cycle and altitude identity. Background Node workers verify GRIB metadata and
+prepare the complete native generation before its catalog becomes public. HTTP
+forecast requests only read these saved files. The browser verifies artifact
+identity, checksum and numeric bounds before rendering or saving through core. See the
+[grid guide](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract).
+Winds retain pressure-coordinate source catalogs and derive selected MSL/flight-level
+slices with a separate converter/altitude identity; the [winds guide](../../src/layers/weather-awc/grids/winds.md#source-and-levels)
+owns interpolation and saved-preference migration.
+The older preconverted format below remains for archived feeds and fixtures.
+
+`AwcGridManifest` version 1 separately validates HRRR cloud/freezing/winds and IFI icing
+families, immutable generation paths, native time/altitude identities, numeric
+field order, bounds/dimensions, byte limits and SHA-256. Cloud bundles contain five
+fields; icing bundles contain three compatible fields at one altitude. Wind bundles
+contain pressure-surface height, true east/north wind components and temperature,
+with an explicit `pressureHpa` value (100–1000, 25 hPa steps) and null MSL altitude.
+Cloud/icing frames cannot carry a wind pressure coordinate. See the
+[owning grid contract](../../src/layers/weather-awc/grids/README.md#published-contract)
+for the binary header, units, sentinels, sampling and lifecycle. The browser
+validates numeric data before displaying or caching it. Advisory snapshots and
+numeric grids have independent generations and source clocks.
 
 ## Route
 

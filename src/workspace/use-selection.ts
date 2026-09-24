@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isGeoPointFeature, type GeoPointFeature, type NavigationData } from '@zlayer/contracts';
 import { restoreRouteCoordinate, type RoutePlan } from '@zlayer/domain';
 import { PluginScope, type PluginRegistry } from '../core/layers/bridge';
-import type { NearbyFeature } from '../core/map/selection';
+import type { MapContextAction, NearbyFeature } from '../core/map/selection';
 import { usePersistentState } from '../core/ui/use-persistent-state';
 import { featureWithMetar, type MetarLayerSnapshot } from '../layers/metar-taf';
 import { resolveNavigationFeature } from '../layers/navigation';
@@ -57,7 +57,7 @@ export function useWorkspaceSelection({ context, navigationData, routePlan, regi
     if (context && savedFeature && !selectionContext) setSelectionContext({ feature: restoreRouteCoordinate(savedFeature), context,
       ...(savedRoutePointId === null ? {} : { routePointId: savedRoutePointId }) });
   }, [context, savedFeature, savedRoutePointId, selectionContext]);
-  const [nearbyFeatures, setNearbyFeatures] = useState<{ features: NearbyFeature[]; point: { x: number; y: number } }>();
+  const [nearbyFeatures, setNearbyFeatures] = useState<{ features: NearbyFeature[]; point: { x: number; y: number }; actions: MapContextAction[] }>();
   useEffect(() => {
     if (!navigationEnabled) setNearbyFeatures(undefined);
   }, [navigationEnabled]);
@@ -114,7 +114,8 @@ export function useWorkspaceSelection({ context, navigationData, routePlan, regi
     const releaseFiles = bundle ? retainActiveFiles(retainedResourceUrls(bundle.plan)) : undefined;
     return () => { releaseCatalog(); releaseFiles?.(); };
   }, [catalog, readContext]);
-  const chooseNearby = useCallback((features: NearbyFeature[], point: { x: number; y: number }) => setNearbyFeatures({ features, point }), []);
+  const chooseNearby = useCallback((features: NearbyFeature[], point: { x: number; y: number }, actions: MapContextAction[] = []) =>
+    setNearbyFeatures({ features, point, actions }), []);
   const closeNearby = useCallback(() => setNearbyFeatures(undefined), []);
 
   return { selected, feature, routePointId: selectionContext?.routePointId, catalog,

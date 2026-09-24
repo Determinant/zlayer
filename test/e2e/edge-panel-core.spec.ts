@@ -7,6 +7,28 @@ async function settled(group: Locator, name: string | null) {
 }
 
 for (const layout of ['rail', 'compact']) {
+  test(`overlapping edges retain reachable handles and controls with ${layout} tabs`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/test/browser/edge-panels.html?layout=${layout}`);
+    const left = page.locator('.edge-panels.is-left'), right = page.locator('.edge-panels.is-right');
+    const leftTab = left.locator('[data-edge-tab="left-a"] button');
+    const rightTab = right.locator('[data-edge-tab="right-a"] button');
+    await leftTab.click(); await settled(left, 'left-a');
+    await page.getByLabel('left-a value').fill('Left draft');
+    await rightTab.click(); await settled(right, 'right-a');
+    await page.getByLabel('right-a value').fill('Right draft');
+    // The opposite body's higher layer must not cover this handle.
+    await leftTab.click(); await settled(left, null);
+    await leftTab.click(); await settled(left, 'left-a');
+    const input = page.getByLabel('left-a value');
+    const box = (await input.boundingBox())!;
+    await input.click({ position: { x: box.width - 8, y: box.height / 2 } });
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue('Left draft');
+    await expect(page.getByLabel('right-a value')).toHaveValue('Right draft');
+    await expect(page.locator('.edge-panel.is-open')).toHaveCount(2);
+  });
+
   test(`registered layers share lifecycle on either edge with ${layout} tabs`, async ({ page }) => {
     await page.goto(`/test/browser/edge-panels.html?layout=${layout}`);
     const allInputs = page.locator('input');

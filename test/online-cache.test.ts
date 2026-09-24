@@ -85,7 +85,7 @@ test('online cache expiration protects all saved dependencies, previous versions
   for (const [cache, url] of [[CHART_CACHE, `${old}/unused.mbtiles`], [PDF_CACHE, `${old}/unused.pdf`],
     [DATA_CACHE, `${old}/nav/unused.json`]]) f.add(cache!, url!);
   f.add(DATA_CACHE, 'https://basemap.test/viewed.png');
-  f.add(DATA_CACHE, 'https://app.test/weather/metars.geojson');
+  f.add(DATA_CACHE, 'https://app.test/api/weather/metars.geojson');
   assert.deepEqual(await pruneOnlineCache([catalog(active)], { now }), { removed: 3 });
   assert.deepEqual([...f.stores.get(CHART_CACHE)!.keys()], [chart.url]);
   assert.deepEqual([...f.stores.get(PDF_CACHE)!.keys()], [plan.previous.files[0]!.url, openPlate]);

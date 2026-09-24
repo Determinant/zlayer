@@ -44,6 +44,10 @@ npm ci
 npm run dev
 ```
 
+`npm run dev` proxies weather to `https://zlayer.tedyin.com`, sharing DO's prepared
+forecasts. See [tools/weather-server](tools/weather-server/README.md) to opt into
+a local backend or deploy the DigitalOcean service.
+
 Development proxies the dated FAA assets at `charts.tedyin.com` so the browser uses
 the same feed shape as production. All published chart coverage is discovered from
 the feed manifests; the continuous basemap remains visible outside it.
@@ -61,7 +65,7 @@ enabled also runs the complete hosted matrix, including macOS WebKit;
 see [verification](docs/development/local-development.md#verification).
 See the [hosting contract](docs/development/deployment.md) for production requirements.
 
-The app lives in `src/`, tests in `test/`, and local proxy rules in
+The app lives in `src/`, the weather gateway in `tools/weather-server/`, tests in `test/`, and local proxy rules in
 `tools/dev-proxy.ts`. Only `packages/contracts` and `packages/domain` are npm
 workspaces. Run all commands from the root; `npm run build` produces static `dist/`.
 

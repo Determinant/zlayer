@@ -1,0 +1,132 @@
+{
+  "source": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t06z.wrfprsf01.grib2",
+  "reference": "GDAL 3.11.4 ENVI Float32, GRIB_NORMALIZE_UNITS=NO; rows reversed to source scan order. Rotation uses GDAL-transformed native cell coordinates and WMO grid-relative vector convention.",
+  "fields": [
+    {
+      "name": "wind-hgt.grib2",
+      "sourceSha256": "60e89341cb9d684609ec142f6e0db42f3e23d603f45ae38ed17d6a508ab3bf20",
+      "decodedSha256": "62c6002bf629ea73a0d4a917fe3a55c268fb2a96e39aff6f3b6ef397d06d42d8",
+      "identity": {
+        "runTime": 1790143200000,
+        "lead": 1,
+        "category": 3,
+        "parameter": 5,
+        "surface": 100,
+        "pressureHpa": 850
+      }
+    },
+    {
+      "name": "wind-tmp.grib2",
+      "sourceSha256": "8bc5b970ab2dcad70b0946a483499719aef0b89cb4105c7ea43f2502932e09f7",
+      "decodedSha256": "6cd5bd0b75b4a53370f9abfee062d9b217fd162aa7e20df99de7d0680b8f93d9",
+      "identity": {
+        "runTime": 1790143200000,
+        "lead": 1,
+        "category": 0,
+        "parameter": 0,
+        "surface": 100,
+        "pressureHpa": 850
+      }
+    },
+    {
+      "name": "wind-ugrd.grib2",
+      "sourceSha256": "f195a5fd95b246452dcbce661b794ed8bd7430f56dae4ce96ed97cf8700ea88c",
+      "decodedSha256": "5f904ad21c33c0c8e6f25353f05ce526d9ca8f0229a50a0df7e099ee58a64d28",
+      "identity": {
+        "runTime": 1790143200000,
+        "lead": 1,
+        "category": 2,
+        "parameter": 2,
+        "surface": 100,
+        "pressureHpa": 850
+      }
+    },
+    {
+      "name": "wind-vgrd.grib2",
+      "sourceSha256": "6998963fe1c0a612443b5be90d58e2155f45c2adb0c42c863f8596368aa0e9a7",
+      "decodedSha256": "22c95e57e2cf6beabc089e8dbe0717cb67c3032b0868639a01fb9afd8b460d38",
+      "identity": {
+        "runTime": 1790143200000,
+        "lead": 1,
+        "category": 2,
+        "parameter": 3,
+        "surface": 100,
+        "pressureHpa": 850
+      }
+    }
+  ],
+  "samples": [
+    {
+      "cell": 180000,
+      "longitude": -120.728980788259,
+      "latitude": 24.3282287884216,
+      "east": 5.6,
+      "north": -5.6,
+      "temperature": 13.7
+    },
+    {
+      "cell": 180799,
+      "longitude": -97.5051493306802,
+      "latitude": 26.9985306722925,
+      "east": -12.9,
+      "north": 6.1,
+      "temperature": 19.1
+    },
+    {
+      "cell": 181550,
+      "longitude": -75.6223619594385,
+      "latitude": 24.6357758393687,
+      "east": -2.0,
+      "north": 7.6,
+      "temperature": 18.3
+    },
+    {
+      "cell": 899600,
+      "longitude": -123.995660995806,
+      "latitude": 34.5928774017496,
+      "east": -0.6,
+      "north": -13.2,
+      "temperature": 18.5
+    },
+    {
+      "cell": 900399,
+      "longitude": -97.5059124734762,
+      "latitude": 37.7148894816085,
+      "east": -8.7,
+      "north": 4.4,
+      "temperature": 16.4
+    },
+    {
+      "cell": 901150,
+      "longitude": -72.5274093863324,
+      "latitude": 34.9520976459859,
+      "east": -15.5,
+      "north": -15.9,
+      "temperature": 15.3
+    },
+    {
+      "cell": 1709150,
+      "longitude": -128.92475072465,
+      "latitude": 46.1152308439877,
+      "east": 11.8,
+      "north": -3.0,
+      "temperature": 2.8
+    },
+    {
+      "cell": 1709949,
+      "longitude": -97.5070954871577,
+      "latitude": 49.7784768349129,
+      "east": 9.7,
+      "north": 21.9,
+      "temperature": 7.6
+    },
+    {
+      "cell": 1710700,
+      "longitude": -67.8437626642448,
+      "latitude": 46.536040594998,
+      "east": 2.0,
+      "north": -9.9,
+      "temperature": 2.2
+    }
+  ]
+}

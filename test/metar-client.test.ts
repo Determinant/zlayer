@@ -16,6 +16,44 @@ const report = (id: string, obsTime = '2026-09-15T17:00:00Z'): MetarFeature => (
 const response = (...features: MetarFeature[]) => Response.json({ type: 'FeatureCollection', features });
 const ids = (input: Parameters<typeof fetch>[0]) => new URL(String(input)).searchParams.get('ids')!.split(',');
 
+test('gateway cache hits retain source age while local attempts throttle repeated demand', async () => {
+  const now = Date.parse('2026-09-15T17:10:00Z'), checkedAt = now - 25_000;
+  let calls = 0;
+  const client = new MetarClient(endpoint, { now: () => now, fetch: async () => {
+    calls++;
+    return Response.json({ type: 'FeatureCollection', features: [report('KSFO')] },
+      { headers: { 'X-Weather-Checked-At': String(checkedAt) } });
+  } });
+  await client.refresh(['KSFO'], signal());
+  await client.refresh(['KSFO'], signal());
+  assert.equal(calls, 1);
+  assert.equal(client.get('KSFO')?.checkedAt, checkedAt);
+  assert.equal(client.get('KSFO')?.attemptedAt, now);
+  await client.refreshNearby([-122, 37], signal());
+  assert.equal(client.nearbyStatus([-122, 37])?.checkedAt, checkedAt);
+});
+
+test('legacy NWS sensor caches cannot hide an older coded METAR; existing AWC caches survive', async () => {
+  const sensor = report('KSFO', '2026-09-15T17:05:00Z');
+  sensor.properties = { ...sensor.properties, source: 'NWS', rawOb: '', wspd: null };
+  const awc = report('KOAK');
+  awc.properties.rawOb = 'METAR KOAK 151700Z 28010KT 10SM CLR';
+  let saved = JSON.stringify({ type: 'FeatureCollection', features: [sensor, awc] });
+  const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } };
+  const coded = report('KSFO');
+  coded.properties = { ...coded.properties, rawOb: 'METAR KSFO 151700Z 02003KT 10SM SCT006', wspd: 3 };
+  const client = new MetarClient(endpoint, { storage, now: () => Date.parse('2026-09-15T17:10:00Z'),
+    fetch: async () => response(coded) });
+  assert.equal(client.get('KSFO'), undefined);
+  assert.deepEqual(client.get('KOAK')?.report, awc);
+  await client.refresh(['KSFO'], signal());
+  assert.deepEqual(client.get('KSFO')?.report, coded);
+  assert.equal(client.get('KSFO')?.missing, false);
+  const restored = new MetarClient(endpoint, { storage });
+  assert.deepEqual(restored.get('KSFO')?.report, coded);
+  assert.deepEqual(restored.get('KOAK')?.report, awc);
+});
+
 for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} refresh replaces a future METAR and recovers after clock rollback`, async () => {
   const current = report('KSFO'), future = report('KSFO', '2026-09-16T17:00:00Z');
   let now = Date.parse('2026-09-15T18:00:00Z'), calls = 0;

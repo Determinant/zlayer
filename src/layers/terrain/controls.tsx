@@ -125,8 +125,8 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
     <div className="terrain-legend-heading"><strong>Terrain</strong>
       <span>{comparison ? 'Difference in ft' : 'ft MSL'}</span>
-      <button className="terrain-visibility" type="button" role="switch" aria-label="Show terrain" aria-checked={enabled}
-        onClick={onToggle}>{enabled ? 'On' : 'Off'}</button>
+      <button className="ui-switch" type="button" role="switch" aria-label="Show terrain" aria-checked={enabled}
+        onClick={onToggle}><span className="switch" aria-hidden="true"><i /></span></button>
     </div>
     <TerrainCoverageControl coverage={coverage} onCoverageChange={onCoverageChange} />
     {enabled && status.state === 'zoom' && <div className="terrain-zoom-hint" role="status">

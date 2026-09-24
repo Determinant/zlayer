@@ -1,6 +1,6 @@
-import type { Bounds } from './types.js';
+import type { Bounds, PointGeometry } from './types.js';
 
-export function isPointGeometry(value: unknown): boolean {
+export function isPointGeometry(value: unknown): value is PointGeometry {
   if (!isRecord(value) || value.type !== 'Point' || !Array.isArray(value.coordinates)) {
     return false;
   }

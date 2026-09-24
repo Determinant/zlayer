@@ -1,0 +1,595 @@
+{
+  "status": "one-cycle source sample; not an availability guarantee or complete vertical qualification",
+  "sampledAt": "2026-09-22T23:19:28.996898+00:00",
+  "referenceTime": "2026-09-22T21:00:00Z",
+  "availabilityEvidence": "All 18 indexes readable; GRIB messages decoded only for the records below.",
+  "indexes": [
+    {
+      "lead": 1,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2.idx",
+      "records": 180,
+      "indexSha256": "496b1a3ea7583b203fbdb4e87e6a1ac4e9d9f3333cd4c6f4c2eb297c1b22a3a0",
+      "gribContentLength": 30418584
+    },
+    {
+      "lead": 2,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f002.grib2.idx",
+      "records": 180,
+      "indexSha256": "f49d49775bffabe5416a0508b262c1d9d81e5367fad04c5045428e6574ec79e9",
+      "gribContentLength": 31821627
+    },
+    {
+      "lead": 3,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f003.grib2.idx",
+      "records": 180,
+      "indexSha256": "5a750ab50759b10d0b8f529600b9e36aa68c08f4cd28af093e9031b1c3d96dc7",
+      "gribContentLength": 32875218
+    },
+    {
+      "lead": 4,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f004.grib2.idx",
+      "records": 180,
+      "indexSha256": "ae26bd2c086ac8e30c11bb5b4fbfc8f8481df361927006354c27fe1f2072362c",
+      "gribContentLength": 32378229
+    },
+    {
+      "lead": 5,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f005.grib2.idx",
+      "records": 180,
+      "indexSha256": "332825e27c9836424a6b8f73f22f09ae42bfa4b6d02597948d5a9efdfd1291ae",
+      "gribContentLength": 31936816
+    },
+    {
+      "lead": 6,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f006.grib2.idx",
+      "records": 180,
+      "indexSha256": "1ab12a79309d6b5844dc9066a253ccab5e724ea5317f115bf2f300b434123d53",
+      "gribContentLength": 31416489
+    },
+    {
+      "lead": 7,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f007.grib2.idx",
+      "records": 180,
+      "indexSha256": "ee7e59718bf3f66907613c55daa9356b6cb12b3519bea465c4398fdc1551d689",
+      "gribContentLength": 30991645
+    },
+    {
+      "lead": 8,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f008.grib2.idx",
+      "records": 180,
+      "indexSha256": "1b90d0087673fa03264887bace4162ca73ac3c5e8ad9c1271407de45f4734be1",
+      "gribContentLength": 30786246
+    },
+    {
+      "lead": 9,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f009.grib2.idx",
+      "records": 180,
+      "indexSha256": "cbd39d6e79fe4eced2200608bd25de76f0e1bd257689cd25ff7f16046b75f30f",
+      "gribContentLength": 30852120
+    },
+    {
+      "lead": 10,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f010.grib2.idx",
+      "records": 180,
+      "indexSha256": "458f94c88fb4bbf87a2621aa1bb57bb32fa1a60b77c49972e4dbcb07a4c21d73",
+      "gribContentLength": 31066100
+    },
+    {
+      "lead": 11,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f011.grib2.idx",
+      "records": 180,
+      "indexSha256": "65fc766c12d00af2627c7fde612311c75ddffcb39e111d71fb48e919328106e7",
+      "gribContentLength": 31228624
+    },
+    {
+      "lead": 12,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f012.grib2.idx",
+      "records": 180,
+      "indexSha256": "bc6ef8472bf545cf2ae0b8f1c20d640d1e7cad19d0dd95d3e40c88eb37a398fa",
+      "gribContentLength": 31484287
+    },
+    {
+      "lead": 13,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f013.grib2.idx",
+      "records": 180,
+      "indexSha256": "9fddcfcf45d813854da05aff2edf3cc883dd480dbe09e945cd2fd2ed63d8e72f",
+      "gribContentLength": 31555835
+    },
+    {
+      "lead": 14,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f014.grib2.idx",
+      "records": 180,
+      "indexSha256": "84ff0faa602fbb59c14f1977d5776fcf1c1d239fd830e389303586e50a4878b7",
+      "gribContentLength": 31648119
+    },
+    {
+      "lead": 15,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f015.grib2.idx",
+      "records": 180,
+      "indexSha256": "80454edd27556a4b80d6e525eed61d197390bc891278f6f92fe40034edb79483",
+      "gribContentLength": 31887355
+    },
+    {
+      "lead": 16,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f016.grib2.idx",
+      "records": 180,
+      "indexSha256": "b92bbf988b5fb27fcf91672e5858c5c36557303430393801c90b3bd96ffb40f8",
+      "gribContentLength": 31617613
+    },
+    {
+      "lead": 17,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f017.grib2.idx",
+      "records": 180,
+      "indexSha256": "114d8d35a74d7c201ba734f20c134122902a8a412e6636ce4b49039d50b1d55b",
+      "gribContentLength": 31660472
+    },
+    {
+      "lead": 18,
+      "indexUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f018.grib2.idx",
+      "records": 180,
+      "indexSha256": "8c084ad45670f98f27d6ca15d0f6bb82895461f08685ce330a381a0d06beb7a8",
+      "gribContentLength": 31643379
+    }
+  ],
+  "records": [
+    {
+      "lead": 1,
+      "heightMetresMsl": 152.4,
+      "field": "probability",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "1:0:d=2026092221:ICPRB:152.4 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 0-238358/30418584",
+      "bytes": 238359,
+      "sha256": "980e9e5613d696b96bcaafe390f6832779bd915b53e3bc1509ec8151d991b42a",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 1261126,
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "negativeValidCells": 0,
+      "numericSha256": "24c3c0ccedb20db1eb3edb46b9d17298ad598c91b96b1e1ce1822bb80b2adce0",
+      "maskSha256": "5a159b055cfe6f27c2be34e19f357045c6b374cae3521e6100f6c2bdcec2499c"
+    },
+    {
+      "lead": 1,
+      "heightMetresMsl": 152.4,
+      "field": "sld",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "61:16521483:d=2026092221:SIPD:152.4 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 16521483-16759841/30418584",
+      "bytes": 238359,
+      "sha256": "7dc1018b61a4367aea89816e3692391832e16584268a248bd61f09b06cefe0a6",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 1261126,
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "negativeValidCells": 0,
+      "numericSha256": "24c3c0ccedb20db1eb3edb46b9d17298ad598c91b96b1e1ce1822bb80b2adce0",
+      "maskSha256": "5a159b055cfe6f27c2be34e19f357045c6b374cae3521e6100f6c2bdcec2499c"
+    },
+    {
+      "lead": 1,
+      "heightMetresMsl": 152.4,
+      "field": "severity",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "121:25749670:d=2026092221:var discipline=0 master_table=2 parmcat=19 parm=37:152.4 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 25749670-25749857/30418584",
+      "bytes": 188,
+      "sha256": "69fb442f345c8d87584390c7192db6c975e9104a92fadfb0a86a761c6ff055e5",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "negativeValidCells": 0,
+      "numericSha256": "1b4ff5343cc9e3432377e65fce69e77f689e88b76f5d2c6634fc22d27ab80442",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e",
+      "categories": [
+        0.0
+      ]
+    },
+    {
+      "lead": 1,
+      "heightMetresMsl": 9144,
+      "field": "probability",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "60:16516128:d=2026092221:ICPRB:9144 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 16516128-16521482/30418584",
+      "bytes": 5355,
+      "sha256": "2df9cd7409b55d0de2def21b86d4df17cf8bbfa9a437f7fff22144ea3abad335",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 0.6100000143051147,
+      "negativeValidCells": 0,
+      "numericSha256": "ce1aa28cbbd4674ad706f33221b4890a1b3b59647d920c61e3fd67c696384061",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e"
+    },
+    {
+      "lead": 1,
+      "heightMetresMsl": 9144,
+      "field": "sld",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "120:25738826:d=2026092221:SIPD:9144 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 25738826-25749669/30418584",
+      "bytes": 10844,
+      "sha256": "73c2932467fa64d0f4b16357bc235c6297fc1c206bdd1598bb073937ca1c635e",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": -0.09999999403953552,
+      "maximum": 0.7599999904632568,
+      "negativeValidCells": 4984,
+      "numericSha256": "7bdb32f0945ed175c6e20dfbd2311390e13d6bfc8023dd15a9e4f9e607a89a75",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e"
+    },
+    {
+      "lead": 1,
+      "heightMetresMsl": 9144,
+      "field": "severity",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f001.grib2",
+      "indexRecord": "180:30412075:d=2026092221:var discipline=0 master_table=2 parmcat=19 parm=37:9144 m above mean sea level:1 hour fcst:",
+      "contentRange": "bytes 30412075-30418583/30418584",
+      "bytes": 6509,
+      "sha256": "c41ccfc54f889fb2c5ee77f5968f71b68f1ece9753f83f07f83aa2b2e1e1af15",
+      "validTime": 1790114400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 4.0,
+      "negativeValidCells": 0,
+      "numericSha256": "a95e248f8954f845857435d81a50fa328937f8bc050072171f3f1e6db96b6066",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e",
+      "categories": [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ]
+    },
+    {
+      "lead": 16,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f016.grib2",
+      "indexRecord": "16:3670634:d=2026092221:ICPRB:2438.4 m above mean sea level:16 hour fcst:",
+      "contentRange": "bytes 3670634-3939919/31617613",
+      "bytes": 269286,
+      "sha256": "4509dcfd0cb8677923c88982ce3d349b4ff4b6c0f66bf4b2dfa1f4ba570796aa",
+      "validTime": 1790168400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35914,
+      "minimum": 0.0,
+      "maximum": 0.3100000023841858,
+      "negativeValidCells": 0,
+      "numericSha256": "c070e9bf8e96d99d790dfc00e0938db90c94e7b24e81ab427ae8dead2c1bd390",
+      "maskSha256": "4c9de7a7b6923ed0de0bfab6d9c67fb49ed9078beb84acbf7da0c8cafe44f236"
+    },
+    {
+      "lead": 16,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f016.grib2",
+      "indexRecord": "76:19622486:d=2026092221:SIPD:2438.4 m above mean sea level:16 hour fcst:",
+      "contentRange": "bytes 19622486-19876009/31617613",
+      "bytes": 253524,
+      "sha256": "7271853a0d48161b6d0269c8f495c8aa664e67404d2929c44a45f33b3bca3493",
+      "validTime": 1790168400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35914,
+      "minimum": -0.10000000149011612,
+      "maximum": 1.0,
+      "negativeValidCells": 34331,
+      "numericSha256": "1d3f05903eba2c85092d2e2f538ceea2d87e83bb460aad88d9b33ba117c800a0",
+      "maskSha256": "4c9de7a7b6923ed0de0bfab6d9c67fb49ed9078beb84acbf7da0c8cafe44f236"
+    },
+    {
+      "lead": 16,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f016.grib2",
+      "indexRecord": "136:26079424:d=2026092221:var discipline=0 master_table=2 parmcat=19 parm=37:2438.4 m above mean sea level:16 hour fcst:",
+      "contentRange": "bytes 26079424-26097919/31617613",
+      "bytes": 18496,
+      "sha256": "2c9f8d96fcea1c72787a29c09c1391a35e7e5c19c7ae6bf306ac1483ceeb15dd",
+      "validTime": 1790168400,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 4.0,
+      "negativeValidCells": 0,
+      "numericSha256": "6225f2f10cc3c878869b080654cfbca1d249f2a6346903dbf7e5593ab9b1bd95",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e",
+      "categories": [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ]
+    },
+    {
+      "lead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f017.grib2",
+      "indexRecord": "16:3667752:d=2026092221:ICPRB:2438.4 m above mean sea level:17 hour fcst:",
+      "contentRange": "bytes 3667752-3936626/31660472",
+      "bytes": 268875,
+      "sha256": "6f98e1de83e161558e8f555c2f3f50552cc313f6b8d28605d85064eced709f0f",
+      "validTime": 1790172000,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35602,
+      "minimum": 0.0,
+      "maximum": 0.2800000011920929,
+      "negativeValidCells": 0,
+      "numericSha256": "a9b5bf2a1c6d5d26285f01d4ada23936c6cf845a96e82b3d4587b588abeb70ec",
+      "maskSha256": "a0219bc19f30103e20a0550b4c0042fba06797d16aea23270e1a588897930db9"
+    },
+    {
+      "lead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f017.grib2",
+      "indexRecord": "76:19414652:d=2026092221:SIPD:2438.4 m above mean sea level:17 hour fcst:",
+      "contentRange": "bytes 19414652-19669238/31660472",
+      "bytes": 254587,
+      "sha256": "aa417aafe9c6d9dd61149e8bda8bb02978a2c21c3ea461cf9768f7d062529a2a",
+      "validTime": 1790172000,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35602,
+      "minimum": -0.10000000149011612,
+      "maximum": 1.0,
+      "negativeValidCells": 34435,
+      "numericSha256": "363f171118f314101cc41e82ac17e3908d5c43501c9e449f3612ef15a6c2c251",
+      "maskSha256": "a0219bc19f30103e20a0550b4c0042fba06797d16aea23270e1a588897930db9"
+    },
+    {
+      "lead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f017.grib2",
+      "indexRecord": "136:26041200:d=2026092221:var discipline=0 master_table=2 parmcat=19 parm=37:2438.4 m above mean sea level:17 hour fcst:",
+      "contentRange": "bytes 26041200-26060095/31660472",
+      "bytes": 18896,
+      "sha256": "e72ad01a080bd9570b30b430da20408385a65b7303a5eb8620d3184ca3086a04",
+      "validTime": 1790172000,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 4.0,
+      "negativeValidCells": 0,
+      "numericSha256": "8ee85bc82cdfa93c86173bd7e6360ea61f71181511b14778064d27dedad5437c",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e",
+      "categories": [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ]
+    },
+    {
+      "lead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f018.grib2",
+      "indexRecord": "16:3665317:d=2026092221:ICPRB:2438.4 m above mean sea level:18 hour fcst:",
+      "contentRange": "bytes 3665317-3932264/31643379",
+      "bytes": 266948,
+      "sha256": "f658dc0d2540f292de7527f3c54d69f719421d41735605a36a23854b1fa9040e",
+      "validTime": 1790175600,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35461,
+      "minimum": 0.0,
+      "maximum": 0.25,
+      "negativeValidCells": 0,
+      "numericSha256": "c2fd3954e4c0e5c533ad8178e390309ce1fd1eeeddc27c1593d959a1617427be",
+      "maskSha256": "f2ee40151a0536be9bec3b787a3a1c257ed65f5318cfd86d52eeb2d92596ae6b"
+    },
+    {
+      "lead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f018.grib2",
+      "indexRecord": "76:19223877:d=2026092221:SIPD:2438.4 m above mean sea level:18 hour fcst:",
+      "contentRange": "bytes 19223877-19477769/31643379",
+      "bytes": 253893,
+      "sha256": "e43d728bb5615362c99c22914f327b4bcae40d82955da624b5f8c483fdc41ec7",
+      "validTime": 1790175600,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 35461,
+      "minimum": -0.10000000149011612,
+      "maximum": 1.0,
+      "negativeValidCells": 34797,
+      "numericSha256": "c6d7bdbf7c3719a15f10bfb53f977ea07d6bfa469954ded973739a7248e7aec4",
+      "maskSha256": "f2ee40151a0536be9bec3b787a3a1c257ed65f5318cfd86d52eeb2d92596ae6b"
+    },
+    {
+      "lead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260922/dafs.t21z.ifi.3km.conus.f018.grib2",
+      "indexRecord": "136:25919850:d=2026092221:var discipline=0 master_table=2 parmcat=19 parm=37:2438.4 m above mean sea level:18 hour fcst:",
+      "contentRange": "bytes 25919850-25938241/31643379",
+      "bytes": 18392,
+      "sha256": "d314ba2a0e10ca3beaa9072b80f40a0eb55dd4633cc558378f2d9e39bca2978d",
+      "validTime": 1790175600,
+      "shape": [
+        1059,
+        1799
+      ],
+      "maskedCells": 0,
+      "minimum": 0.0,
+      "maximum": 4.0,
+      "negativeValidCells": 0,
+      "numericSha256": "94f0aab029202d6f26df9767a29f6fcec7a26d5a730bf00b370f4bf06085afe7",
+      "maskSha256": "fdee190f36bc1ccb4da851a81b958a54811f88823156ff57ebd890978458dc1e",
+      "categories": [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ]
+    }
+  ],
+  "lateLeadComparisons": [
+    {
+      "leftLead": 16,
+      "rightLead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "commonValidCells": 1869102,
+      "changedValidCells": 37436,
+      "changedMaskCells": 562,
+      "maximumAbsoluteDifference": 0.3100000023841858,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 16,
+      "rightLead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "commonValidCells": 1869102,
+      "changedValidCells": 18812,
+      "changedMaskCells": 562,
+      "maximumAbsoluteDifference": 1.1000000014901161,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 16,
+      "rightLead": 17,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "commonValidCells": 1905141,
+      "changedValidCells": 25247,
+      "changedMaskCells": 0,
+      "maximumAbsoluteDifference": 4.0,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 17,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "commonValidCells": 1869438,
+      "changedValidCells": 36847,
+      "changedMaskCells": 343,
+      "maximumAbsoluteDifference": 0.2800000011920929,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 17,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "commonValidCells": 1869438,
+      "changedValidCells": 17698,
+      "changedMaskCells": 343,
+      "maximumAbsoluteDifference": 1.1000000014901161,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 17,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "commonValidCells": 1905141,
+      "changedValidCells": 23208,
+      "changedMaskCells": 0,
+      "maximumAbsoluteDifference": 4.0,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 16,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "probability",
+      "commonValidCells": 1869015,
+      "changedValidCells": 42720,
+      "changedMaskCells": 877,
+      "maximumAbsoluteDifference": 0.3100000023841858,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 16,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "sld",
+      "commonValidCells": 1869015,
+      "changedValidCells": 25583,
+      "changedMaskCells": 877,
+      "maximumAbsoluteDifference": 1.1000000014901161,
+      "identicalValuesAndMask": false
+    },
+    {
+      "leftLead": 16,
+      "rightLead": 18,
+      "heightMetresMsl": 2438.4,
+      "field": "severity",
+      "commonValidCells": 1905141,
+      "changedValidCells": 31692,
+      "changedMaskCells": 0,
+      "maximumAbsoluteDifference": 4.0,
+      "identicalValuesAndMask": false
+    }
+  ],
+  "tools": {
+    "rasterio": "1.5.1",
+    "numpy": "2.5.3"
+  },
+  "rawCycleVolume": {
+    "checkedAt": "2026-09-22T23:22:36.004406+00:00",
+    "evidence": "HEAD Content-Length for 18 files; bodies not downloaded in full",
+    "bytes": 567268758,
+    "minimumFileBytes": 30418584,
+    "maximumFileBytes": 32875218,
+    "excluded": "HRRR, reprocessing, publisher output, retained generations and client egress"
+  }
+}

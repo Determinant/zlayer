@@ -23,7 +23,7 @@ test('TAF periods follow METAR with category colors, wrap on phones, and survive
   const requests: string[] = [];
   let offline = false;
   page.on('pageerror', error => errors.push(error.message));
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     // Mock responses bypass offline emulation, including after a reload.
     if (offline) return route.abort('internetdisconnected');
     const id = new URL(route.request().url()).searchParams.get('ids')!;
@@ -69,7 +69,7 @@ test('TAF periods follow METAR with category colors, wrap on phones, and survive
 test('a production service worker cannot hide failed TAF refreshes, and reconnecting recovers', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let failed = false;
-  await context.route('**/weather/tafs.json?*', route => route.fulfill({ status: failed ? 503 : 200,
+  await context.route('**/api/weather/tafs.json?*', route => route.fulfill({ status: failed ? 503 : 200,
     contentType: 'application/json', body: failed ? '' : JSON.stringify([report]) }));
   await page.goto('/');
   await selectAirport(page, 'KSBA');
@@ -100,7 +100,7 @@ test('airports without a TAF choose the nearest current station, allow switching
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   let offline = false, failed = false, nearbyRequests = 0;
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     if (offline) return route.abort('internetdisconnected');
     const params = new URL(route.request().url()).searchParams;
     if (params.has('bbox')) {
@@ -169,7 +169,7 @@ test('an airport without an ICAO weather identifier can still use nearby forecas
   });
   const requests: string[] = [];
   let failed = true;
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     requests.push(new URL(route.request().url()).searchParams.has('bbox') ? 'nearby' : 'station');
     if (failed) return route.fulfill({ status: 503 });
     return route.fulfill({ json: nearbyReports });
@@ -189,7 +189,7 @@ test('an airport without an ICAO weather identifier can still use nearby forecas
 
 test('automatic nearby selection follows forecast expiry while offline', async ({ page, context }) => {
   await page.clock.install({ time: now });
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     if (!new URL(route.request().url()).searchParams.has('bbox')) return route.fulfill({ status: 204 });
     return route.fulfill({ json: nearbyReports.slice(0, 2).map(report => report.icaoId === 'KLAX'
       ? { ...report, validTimeTo: from + 120 } : report) });
@@ -207,7 +207,7 @@ test('automatic nearby selection follows forecast expiry while offline', async (
 test('an expired local TAF remains selectable and becomes the default when nearby forecasts expire offline', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let offline = false;
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     if (offline) return route.abort('internetdisconnected');
     return route.fulfill({ json: new URL(route.request().url()).searchParams.has('bbox')
       ? [{ ...nearbyReports[1], validTimeTo: from + 120 }]
@@ -239,7 +239,7 @@ test('an expired local TAF remains selectable and becomes the default when nearb
 test('a recovered airport forecast stays current when nearby discovery fails', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let recovered = false, searches = 0;
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     if (new URL(route.request().url()).searchParams.has('bbox')) {
       searches++;
       return recovered ? route.fulfill({ status: 503 }) : route.fulfill({ json: nearbyReports });
@@ -269,7 +269,7 @@ test('changing airports during nearby discovery cannot replace the new airport f
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   let searching = false;
-  await context.route('**/weather/tafs.json?*', async route => {
+  await context.route('**/api/weather/tafs.json?*', async route => {
     const params = new URL(route.request().url()).searchParams;
     if (params.has('bbox')) {
       searching = true;

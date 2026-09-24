@@ -33,13 +33,16 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P0 | Chart Supplements | FAA d-CS XML/books via `faa-regs` | airport/page catalog + whole PDF books | Exact-page viewer and saved regional targets implemented; independent supplement interval retained |
 | P0 | Preferred/TEC routes and SID/STAR topology | FAA preferred-route and NASR exports via `faa-regs` | recommendations and compact route previews | Optional national references shared by route planning and regional saves |
 | P0 | Historical filed routes | Aeronautic AQ snapshot packaged by `faa-regs` | frequency-ranked recommendations | Gzip JSON decoded/indexed in a worker; source observation range retained |
-| P0 | METAR, TAF | AWC Data API; AWC full-dataset caches where appropriate | colored airport pins + detail | METAR map observations and selected-airport raw TAF periods implemented; shared static snapshot publisher remains |
+| P0 | METAR, TAF | AWC through the TypeScript cache gateway | colored airport pins + detail | Latest coded METAR and AWC TAF periods, normalized and cached in the browser |
 | P0 | Terrain | Packaged elevation from the chart feed; Mapzen Terrain Tiles on AWS (Terrarium) fallback | 500/1,000 ft route contours and translucent elevation bands; viewport elevation shading | [4/8 NM route corridor or viewport](../../src/layers/terrain/README.md), visible demand, bounded worker cache; regional saves include terrain packages |
 | P0 | Obstructions | FAA Daily DOF packaged by `faa-regs` | worker-indexed point symbols with source date | [Viewport/route decluttering](../../src/layers/obstructions/README.md) and on-demand caching implemented; excluded from regional completeness |
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
 | P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |
-| P0 | SIGMET, G-AIRMET, Alaska AIRMET, CWA | AWC GeoJSON/API/cache files | vector tiles | Approved for spike within published limits |
+| P0 | Domestic SIGMET, G-AIRMET, CWA | AWC through the TypeScript cache gateway | bounded GeoJSON | [Advisory timeline and server normalization](../../src/layers/weather-awc/README.md) implemented; [Weather service](../../tools/weather-server/README.md#deployment) |
+| P0 | Alaska AIRMET, international SIGMET | AWC API/cache files | bounded GeoJSON candidate | Coverage/source qualification remains |
+| P1 | Clouds, freezing height, icing probability/severity/SLD | NOAA HRRR and DAFS/IFI GRIB2 | immutable numeric grids; client shading and point values | [Server preparation and browser caching implemented](../../src/layers/weather-awc/grids/README.md); gateway on GCP behind DO’s HTTPS proxy, source caveats and reference-device validation remain |
+| P1 | Winds and temperature aloft | NOAA HRRR CONUS pressure-level GRIB2 | numeric vectors/temperature; zoom-spaced barbs and optional shading | [Browser-derived MSL slices below 18,000 ft and flight levels from FL180](../../src/layers/weather-awc/grids/winds.md), with core caching; reference-device qualification remains |
 | P0 | Station, airport, NAVAID, fix | AWC API; infrequent station cache | reference tiles/search | Approved for spike within published limits |
 | P0 | Surface fronts, troughs, highs/lows | WPC high-resolution coded surface bulletin | parsed vectors | Validate endpoint and parser before integration |
 | P1 | NEXRAD mosaic | NOAA nowCOAST OGC services or another explicit NOAA distribution endpoint | raster tiles | Compare latency, coverage, and service policy |
@@ -225,15 +228,44 @@ G-AIRMET/AIRMET, CWA, TCF, station/airport/navigation, and related products.
   and daily for stations.
 - Valid empty queries may return HTTP 204 (except GeoJSON) and must not be treated as a source outage.
 
-Implication: one controlled scheduled publisher should feed many viewers. Use cache files
-where they reduce query count and parse cost, and use constrained API calls for
-products without caches or for explicit detail/history queries.
+ZLayer uses one [weather server](../../tools/weather-server/README.md) for AWC,
+NOMADS IFI and HRRR from Google's public NOAA mirror. It respects source rate limits,
+validates complete responses, normalizes advisory snapshots and prepares numeric
+native grids in bounded workers through a shared cache. The PWA validates compact
+artifacts, interpolates selected wind altitudes, and keeps rendering, point
+inspection and durable offline caching. Valid empty responses and
+failed refreshes remain different states. Forecast catalogs are published only after all their files are saved; HTTP reads
+cannot start source acquisition or preparation. See the
+[server contract](../../tools/weather-server/README.md).
+The [METAR/TAF guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
+owns station demand, freshness and forecast interpretation.
 
-The current client uses same-origin METAR/TAF proxies through Vite and production
-nginx. A shared scheduled snapshot publisher remains planned. The
-[METAR/TAF plugin guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
-owns endpoint usage, nearby-station selection, cache/freshness policy, report
-presentation and forecast-category interpretation.
+### Source choices and unresolved alternatives
+
+AWC remains the report/advisory source through the shared server. The retired
+NWS/GIS experiments did not preserve the complete contract: NWS sensor updates
+could omit coded METAR text, TAF required separate XML/bulletin joins and had
+incomplete nearby discovery, and advisory text/geometry differed in sampled
+responses. NOAA GIS bulk reports had a roughly ten-minute publication cadence
+and bounded text columns. Sampled G-AIRMET alternatives omitted forecast hours,
+freezing contours or their heights. These are reasons for the current source
+choice, not claims that every alternative always fails.
+
+Google's public NOAA HRRR mirror supplies both indexes and ranges. Captured
+[sample comparisons](../../src/layers/weather-awc/validation/2026-09-23-hrrr-direct.json)
+matched selected Google/AWS bytes; unused index parameter names could differ, so
+indexes must come from the same mirror as their GRIB data. Current reads happen
+on the server, with no browser CORS dependency. The
+[grid contract](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract)
+owns source identity and numeric validation.
+
+The [DAFS inventory](https://www.nco.ncep.noaa.gov/pmb/products/dafs/) identifies
+operational IFI on NOMADS. A substitute must supply the same current cycles,
+fields, 60 native levels and forecast hours. Historical RAP/NBM icing, surface ice
+accumulation and similarly named NWS gridpoint fields do not meet that contract.
+No equivalent replacement was qualified. Negative-SLD encoding, late-hour input
+lineage and independent depiction checks remain in the
+[owning source guide](../../src/layers/weather-awc/grids/README.md#source-meaning-and-limits).
 
 ## WPC surface analysis
 

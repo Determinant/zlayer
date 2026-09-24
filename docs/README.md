@@ -51,6 +51,7 @@ The same engineering and feature contracts apply to human and AI contributors.
 - [Engineering guide](development/engineering.md): simplicity, ownership and recovery rules.
 - [Local development](development/local-development.md): setup, proxies, configuration and tests.
 - [Deployment](development/deployment.md): static-host contract, release gates and dated checks.
+- [Weather gateway](../tools/weather-server/README.md): AWC/NOMADS/HRRR acquisition, numeric preparation, source freshness and backend/gateway deployment.
 
 ## Architecture and design
 
@@ -77,6 +78,7 @@ guides stay in that same folder or its implementation subfolders.
 | Charts | [Selection, rendering and MBTiles](../src/layers/charts/README.md) |
 | Navigation | [Data, search and details](../src/layers/navigation/README.md); [fix display](../src/layers/navigation/fix-display.md) |
 | METAR/TAF | [Weather demand, freshness, nearby stations and report display](../src/layers/metar-taf/README.md) |
+| AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |
 | Plates | [Airport plates, document viewer and georeferenced overlays](../src/layers/plates/README.md) |
 | Routes | [Editing and recommendations](../src/layers/routes/README.md); [SID/STAR previews](../src/layers/routes/terminal-procedures.md), [approach geometry](../src/layers/routes/approach-geometry.md), [coverage and validation](../src/layers/routes/approach-coverage.md) |
 | Terrain | [Route/viewport elevation, sources and verification](../src/layers/terrain/README.md) |

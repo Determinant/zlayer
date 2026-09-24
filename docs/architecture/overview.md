@@ -2,13 +2,16 @@
 
 [Documentation](../README.md) / Architecture
 
-ZLayer is a static TypeScript PWA. Browsers read versioned files from a CDN; there
-is no application server, server-side database, account service, or per-user backend.
-Local state lives in browser storage.
+ZLayer is a static TypeScript PWA with a small shared weather cache gateway.
+Browsers read versioned files from a CDN; local user state lives in browser storage.
+The gateway stores disposable source responses and prepared numeric grids, with no database, account
+service or per-user backend.
 
 ```text
 FAA sources ──► faa-regs builder ──► dated static files ──► charts.tedyin.com ──► PWA
-AWC API ─────────────────────────────────────► Vite / production nginx proxy ───────┘
+AWC reports / advisories ────────────────────► TypeScript weather gateway ──────────┘
+NOAA IFI on NOMADS ──────────────────────────► TypeScript weather gateway ──────────┘
+NOAA HRRR on Google Cloud ───────────────────► TypeScript weather gateway ──────────┘
 USGS 3DEP / FAA Daily DOF ──► packaged static feed ──► terrain / obstruction workers ┘
 Terrarium elevation tiles ───────────────────► terrain fallback worker ─────────────┘
 Device Geolocation API ──────────────────────► shared GPS source ─► map / AHRS ──────┘
@@ -32,8 +35,12 @@ Device Motion API ────────────────────�
   complete d-TPP catalog, and combined electronic paper TPPs. Optional exports include
   preferred/TEC routes, terminal/approach geometry, route history and magnetic-model
   coefficients. Feed-wide terrain and obstruction products have independent versions.
-- Planned scheduled jobs fetch AWC/WPC/NOAA products, preserve raw fields and times, and
-  publish immutable snapshots plus an atomic `current.json` pointer.
+- The [weather server](../../tools/weather-server/README.md) shares AWC report/advisory
+  reads, NOMADS IFI and Google HRRR indexes/ranges. It validates source catalogs,
+  normalizes advisories and prepares native forecast fields in bounded Node
+  workers using TypeScript decoding, projection and wind rotation. The PWA caches
+  compact numeric artifacts through core and owns altitude interpolation,
+  rendering, point inspection and user offline storage.
 - Publishers validate schemas, bounds, cycles, checksums, and source freshness once
   for all clients.
 
@@ -79,7 +86,7 @@ Its presentation can be map imagery, weather circles and airport details, or a s
 procedure panel. A MapLibre style layer is only a rendering primitive within a product.
 
 Source is grouped by product under `src/layers/`: `charts/`, `metar-taf/`,
-`plates/`, `navigation/`, `routes/`, `terrain/`, `obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
+`weather-awc/`, `plates/`, `navigation/`, `routes/`, `terrain/`, `obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
 exposes internal entry points; these are still evolving, not a stable framework API.
 Map adapters and the chart service-worker adapter have separate entry points so the
 PDF viewer and map runtime remain lazy-loaded. `core/` holds reusable request, storage,
@@ -140,11 +147,20 @@ charts/<cycle>/
 └── tpp-<volume>.pdf
 ```
 
-Weather currently uses same-origin METAR/TAF proxies and product-owned caches.
-Optional approach and magnetic-model exports are located through the navigation
-manifest rather than fixed client-side filenames.
-The proposed `weather/<product>/<revision>/...` snapshots and `current.json`
-pointers belong to the future shared publisher, not the current feed contract.
+All default weather requests use the same-origin TypeScript weather server. It
+preserves source-check times and rejects expired live responses; user state and
+browser offline storage remain independent. The [AWC Weather plugin](../../src/layers/weather-awc/README.md)
+reads normalized snapshots and [prepared numeric grids](../../src/layers/weather-awc/grids/README.md).
+Source acquisition, GRIB decoding, projection and wind rotation run on the server.
+The browser worker validates compact native bands and interpolates selected wind
+altitudes for rendering and point extraction. Google remains the server's HRRR
+source; IFI uses NOMADS.
+Model run, source check and forecast-valid times remain independent of advisories.
+One bounded disk cache shares source responses and processed forecasts across
+viewers. Background updates prepare complete native generations before replacing
+their catalogs. HTTP forecast reads only serve saved output; report/advisory
+queries share their own cached acquisition. The
+[server guide](../../tools/weather-server/README.md) owns update and storage limits.
 
 Per-sheet MBTiles, receipts, and work files stay in the publisher's local
 `dist/mbtiles/<cycle>/` cache alongside `dist/zips/`, outside the publishable `charts/`
@@ -162,17 +178,18 @@ Every dated manifest is validated against that requested cycle.
    flyway overlay requiring the sectional base (coverage-limited, whole-file cached)
 3. Optional georeferenced IAP image
 4. Route-corridor terrain fill and contours, or viewport elevation shading
-5. Route lines, beneath navigation symbols
-6. FAA obstruction, airport, NAVAID, VFR waypoint and IFR fix symbols
-7. METAR airport circles
-8. Foreground terrain, selection, route and navaid-identification labels/interaction resources
-9. Optional GPS aircraft, accuracy and projection
+5. AWC forecast grid shading, then advisory fills and outlines, below the fixed weather anchor
+6. Route lines, beneath navigation symbols
+7. FAA obstruction, airport, NAVAID, VFR waypoint and IFR fix symbols
+8. METAR airport circles
+9. Foreground terrain, selection, route and navaid-identification labels/interaction resources
+10. Optional GPS aircraft, accuracy and projection
 
 The map host mounts charts, plates, terrain, navigation, weather, route, annotation and ownship slots in
 order. Explicit anchors keep route lines below navigation, and foreground resources
 are raised after mounting. Airways and SID/STARs appear through resolved route
-geometry; there is no standalone national airway layer. Radar/satellite, WPC analysis,
-PIREP observations and advisory products remain planned.
+geometry; there is no standalone national airway layer. Radar/satellite, WPC analysis
+and PIREP observations remain planned.
 
 Map contributions use fixed slots and namespaced IDs. Toggling one layer never
 rebuilds the map or changes unrelated ordering. An absent chart tile means “outside published

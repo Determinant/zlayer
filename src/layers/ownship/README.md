@@ -3,7 +3,8 @@
 [Documentation](../../../docs/README.md) / Plugins / ownship
 
 Open the left-side **GPS** tab to toggle **GPS aircraft** and allow device location.
-The compact On/Off switch stays available when GPS is off. GPS starts enabled when
+The compact core switch matches Terrain and AWC Weather, without a separate On/Off
+label, and stays available when GPS is off. GPS starts enabled when
 there is no saved preference; an explicit Off choice persists. Enabling the layer
 centers the map on the first fix. Reloading with GPS already enabled preserves the
 saved camera through that first fix. Later updates preserve panning and zooming;

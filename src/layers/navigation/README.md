@@ -26,6 +26,9 @@ belong to [Routes](../routes/README.md).
 
 ## Behavior, contracts and verification
 
+- Selected features use core's `DetailPanel`, shared with weather advisories, for
+  their frame, heading/close controls, metadata styling and scroll body. Navigation
+  retains its actions, Info/Plates tabs, content and refresh demand.
 - Airport Info/Plates uses core's [content tabs](../../../docs/features/shared-ui.md#shared-controls),
   including selected-state semantics and Left/Right/Home/End navigation. Selection
   remains plugin-persisted. Inactive panel shells stay empty; selecting another tab

@@ -9,17 +9,3 @@
 .ownship-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
 .ownship-summary { min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .ownship-status strong { color: #32b5ff; font-size: 11px; letter-spacing: .08em; }
-
-.ownship-status .ownship-toggle {
-  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
-  min-height: max(24px, var(--touch-target)); min-width: 58px; padding: 0 2px;
-  border: 0; background: transparent; color: var(--text-muted);
-}
-.ownship-toggle-track { position: relative; width: 27px; height: 16px; border-radius: 999px; background: #213247; }
-.ownship-toggle-track i {
-  position: absolute; top: 3px; left: 3px; width: 10px; height: 10px;
-  border-radius: 50%; background: #91a9bb; transition: transform 150ms ease;
-}
-.ownship-status .ownship-toggle[aria-checked='true'] { color: #61d6c5; }
-.ownship-toggle[aria-checked='true'] .ownship-toggle-track { background: #61d6c547; }
-.ownship-toggle[aria-checked='true'] .ownship-toggle-track i { background: #61d6c5; transform: translateX(11px); }

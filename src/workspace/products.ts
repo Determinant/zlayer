@@ -12,9 +12,16 @@ import { createObstructionsPlugin } from '../layers/obstructions/plugin';
 import { createChartsPlugin } from '../layers/charts/plugin';
 import { createNavigationPlugin } from '../layers/navigation/plugin';
 import { createRoutesPlugin } from '../layers/routes/plugin';
+import { createWeatherAwcPlugin } from '../layers/weather-awc/plugin';
 import { layerPlugins } from '../core/layers/plugin';
 import type { MapContribution } from '../core/map/contribution';
 import { createGpsService } from '../core/gps/service';
+
+// App retains these controllers in state. Fast Refresh would otherwise keep
+// instances and map callbacks from the previous modules after a code change.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => window.location.reload());
+}
 
 /** Explicit typed composition. Feature lifetimes outlive map and panel attachments. */
 export function createWorkspaceLayers() {
@@ -23,6 +30,7 @@ export function createWorkspaceLayers() {
   const obstructions = createObstructionsPlugin();
   const navigation = createNavigationPlugin();
   const metar = createMetarPlugin();
+  const weatherAwc = createWeatherAwcPlugin();
   const plates = createPlatesLayer();
   const gps = createGpsService();
   const ownship = createOwnshipPlugin(gps);
@@ -42,10 +50,11 @@ export function createWorkspaceLayers() {
     { ...obstructions, communication: registry.registration('obstructions', obstructions) },
     { ...navigation, communication: registry.registration('navigation', navigation) },
     { ...metar, communication: registry.registration('metar', metar) },
+    { ...weatherAwc, communication: registry.registration('weather-awc', weatherAwc) },
     { ...routes, communication: registry.registration('routes', routes) },
     { ...ruler, communication: registry.registration('ruler', ruler) },
     { ...ownship, communication: registry.registration('ownship', { publicApi: () => ({}) }) },
     { ...ahrs, communication: registry.registration('ahrs', ahrs) },
   ] as const);
-  return { charts, terrain, obstructions, navigation, metar, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
+  return { charts, terrain, obstructions, navigation, metar, weatherAwc, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
 }

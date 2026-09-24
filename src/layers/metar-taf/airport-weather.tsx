@@ -5,18 +5,20 @@ import { METAR_REFRESH_MS, type MetarClient } from './metar/client';
 import { MetarReportView } from './metar/report';
 import { getTafClient, TAF_REFRESH_MS } from './taf/client';
 import { TafReportView } from './taf/report';
-import { StationWeather } from './station-weather';
+import { StationWeather, type ReportStatusListener } from './station-weather';
 
 /** Reset both station selections when the selected airport changes. */
-export function AirportWeather({ feature, client, active = true }: {
+export function AirportWeather({ feature, client, active = true, revision, onStatus }: {
   feature: GeoPointFeature; client: MetarClient; active?: boolean;
+  revision?: string | undefined;
+  onStatus?: ReportStatusListener | undefined;
 }) {
   if (!isAirportFeature(feature)) return null;
   const tafClient = typeof window === 'undefined' ? undefined : getTafClient();
   return <Fragment key={featureKey(feature)}>
-    <StationWeather feature={feature} client={client} active={active} name="METAR" intervalMs={METAR_REFRESH_MS}
+    <StationWeather feature={feature} client={client} active={active} revision={revision} name="METAR" intervalMs={METAR_REFRESH_MS} onStatus={onStatus}
       refreshStation={(id, signal) => client.refresh([id], signal)} View={MetarReportView} />
-    <StationWeather feature={feature} client={tafClient} active={active} name="TAF" intervalMs={TAF_REFRESH_MS}
+    <StationWeather feature={feature} client={tafClient} active={active} name="TAF" intervalMs={TAF_REFRESH_MS} onStatus={onStatus}
       refreshStation={(id, signal) => tafClient?.refresh(id, signal)} View={TafReportView} />
   </Fragment>;
 }

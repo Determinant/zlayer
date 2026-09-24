@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { PlateMapMenu } from '../../src/layers/plates/map-menu';
+import { NearbyFeaturePicker } from '../../src/workspace/nearby-feature-picker';
 import '../../src/styles.css';
 
 let effectSetups = 0;
@@ -17,9 +17,11 @@ function Fixture() {
         if (visible) setPoint({ x: event.clientX, y: event.clientY });
       }} />
     <output style={{ position: 'absolute', top: 12, left: 12 }}>{visible ? 'Plate shown' : 'Plate hidden'}</output>
-    {point && <PlateMapMenu point={point} onClose={() => setPoint(undefined)}
-      onOpen={() => setPoint(undefined)}
-      onHide={() => { setVisible(false); setPoint(undefined); }} />}
+    {point && <NearbyFeaturePicker features={[]} point={point} onClose={() => setPoint(undefined)} onSelect={() => {}}
+      actions={[
+        { id: 'open', label: 'Show plate panel', select: () => setPoint(undefined) },
+        { id: 'hide', label: 'Hide IAP from map', select: () => setVisible(false) },
+      ]} />}
   </main>;
 }
 

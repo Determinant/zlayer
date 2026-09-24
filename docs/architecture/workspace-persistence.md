@@ -51,8 +51,9 @@ describes isolation and the compatibility reads from former global keys.
   rerendering the workspace. Reader scroll/zoom writes are debounced and flushed
   on page hiding/unmount, sampling the live scroll position even if the final
   scroll event is still queued. These gesture paths avoid localStorage on every frame.
-- A stowed panel retains its selection and stays stowed after reload. Existing
-  installations without a right-panel record use the prior selection-based
+- Left toolboxes start stowed when no valid saved selection exists. Saved open or
+  stowed choices still restore. A stowed panel retains its selection and stays
+  stowed after reload. Existing installations without a right-panel record use the prior selection-based
   default. Missing selections cannot leave an active empty right panel.
 - Plates and AHRS use the shared `core/ui/panel-surface.tsx` presentation primitive.
   Panel visibility and the feature's saved fullscreen preference remain separate:

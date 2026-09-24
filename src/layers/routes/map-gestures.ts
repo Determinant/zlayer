@@ -7,7 +7,7 @@ import { routeEditTarget } from './editing';
 import { routePointKeys } from './selection';
 import { unwrapRouteCoordinates } from './geometry';
 import { routeSnapFeature, ROUTE_SNAP_RADIUS_PX, type RouteSnap } from './snapping';
-import type { NearbyFeature, SelectFeature } from '../../core/map/selection';
+import type { MapContextAction, NearbyFeature, SelectFeature } from '../../core/map/selection';
 import { renderedSnapBounds } from './snap-bounds';
 
 type GestureOptions = {
@@ -18,8 +18,9 @@ type GestureOptions = {
   resolveFeature?: (feature: GeoPointFeature) => GeoPointFeature;
   preview: (input: { route: RoutePlan; preview?: RouteDragPreview }) => void;
   onSelect: SelectFeature;
-  onContextAction?: (point: { x: number; y: number }) => boolean;
-  onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }) => void;
+  contextActions?: (point: { x: number; y: number }) => MapContextAction[];
+  onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }, actions?: MapContextAction[]) => void;
+  onCloseNearby?: () => void;
   onRouteLegInsert: (afterEntryId: string, feature: GeoPointFeature) => void;
   onRouteWaypointReplace: (entryId: string, feature: GeoPointFeature) => void;
   onRouteWaypointRemove: (entryId: string) => void;
@@ -71,6 +72,7 @@ export class MapGestures {
     canvas.addEventListener('pointerdown', pointerDown);
     this.#unbind.push(() => canvas.removeEventListener('pointerdown', pointerDown));
     on('click', (event) => this.#selectFeature(event));
+    on('movestart', () => this.options.onCloseNearby?.());
     on('contextmenu', (event) => {
       event.preventDefault();
       this.#cancelNearbyLongPress();
@@ -116,6 +118,7 @@ export class MapGestures {
 
   destroy(): void {
     this.#cancelGesture();
+    this.options.onCloseNearby?.();
     for (const unbind of this.#unbind.splice(0)) unbind();
     if (this.#suppressClickTimer !== undefined) window.clearTimeout(this.#suppressClickTimer);
     window.removeEventListener('mouseup', this.#finishDragOutsideMap);
@@ -162,15 +165,17 @@ export class MapGestures {
       unique.set(featureKey(feature), feature);
     }
     nearby.push(...[...unique.values()].map(feature => ({ feature })));
-    if ((nearby.length > 1 || nearby[0]?.routeIndex !== undefined) && this.options.onChooseNearby) {
-      this.options.onChooseNearby(nearby, { x: point.x, y: point.y });
+    const actions = this.options.contextActions?.(point) ?? [];
+    if ((actions.length || nearby.length > 1 || nearby[0]?.routeIndex !== undefined) && this.options.onChooseNearby) {
+      this.options.onChooseNearby(nearby.length ? nearby : [{ feature: routeCoordinateFeature([longitude, coordinate.lat]) }],
+        { x: point.x, y: point.y }, actions);
     } else this.options.onSelect(nearby[0]?.feature ?? routeCoordinateFeature([longitude, coordinate.lat]), nearby[0]?.routePointId);
   }
 
   #contextAction(point: MapMouseEvent['point']): void {
     if (this.options.toolActive?.()) return;
     this.cancelRouteDrag();
-    if (!this.options.onContextAction?.(point)) this.#showNearby(point);
+    this.#showNearby(point);
   }
 
   #startNearbyLongPress(event: MapTouchEvent): void {

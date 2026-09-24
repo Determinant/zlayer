@@ -84,6 +84,23 @@ test('denied storage and failed migration writes leave a usable session without 
   assert.throws(() => scope.slot('stash').write('saved'), /denied/, 'explicit saves can report persistence failure');
 });
 
+test('optional record limits bound UTF-16 storage and skip oversized restores before decoding', t => {
+  const { values } = setup(t);
+  const scope = createPluginStorage('bounded', undefined, { maxRecordBytes: 8 });
+  scope.slot('raw').write('four');
+  assert.throws(() => scope.slot('raw').write('large'), /storage limit/);
+  assert.equal(scope.slot('raw').read(), 'four');
+  values.set(scope.slot('raw').key, 'too large');
+  assert.equal(scope.slot('raw').read(), null);
+  const record = scope.record('record', { version: 1, fallback: 'fallback',
+    decode: () => assert.fail('oversized record must not be decoded'), encode: (value: string) => value });
+  values.set(record.key, '"too large"');
+  assert.equal(record.read(), 'fallback');
+  assert.doesNotThrow(() => record.write('larger'));
+  assert.equal(values.get(record.key), '"too large"');
+  assert.throws(() => createPluginStorage('bounded', undefined, { maxRecordBytes: 0 }), /record limit/);
+});
+
 test('legacy route migration commits generated IDs in the namespace and explicit clearing survives reload', t => {
   const { values } = setup(t);
   const legacy = JSON.stringify({ version: 1, input: 'KSFO KSJC', pinnedFeatureIds: { 0: 'airport:KSFO' } });

@@ -11,7 +11,12 @@ export type PanelContribution = {
   readonly Component: ComponentType;
   readonly close?: () => void;
 };
-export type UiContribution = { readonly id: string; readonly Component: ComponentType };
+export type UiContribution = {
+  readonly id: string;
+  readonly Component: ComponentType;
+  /** Map Display can group independently loaded control rows under one heading. */
+  readonly section?: { readonly id: string; readonly title: string };
+};
 
 /** Trusted feature modules expose ordinary components and a lazy rendering entry. */
 export type LayerPlugin = {

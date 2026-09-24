@@ -13,6 +13,7 @@ raw METAR/TAF text, exports, and HTML `dateTime` values retain their original fo
 | Interval across years | `Dec 31, 2026–Jan 28, 2027` |
 | UTC timestamp | `Sep 18 · 14:32Z` |
 | Device-local timestamp | `Sep 18 · 07:32 PDT` |
+| Paired Zulu / local timestamp | `Sep 18 · 14:32Z / 07:32 PDT` |
 | Same-day time interval | `Sep 18 · 14:00–20:00Z` |
 | Source age | `<1m old`, `15m old`, `1h 30m old`, `30d old` |
 | Last successful check | `Checked now`, `Checked 5m ago` |
@@ -24,6 +25,8 @@ Omit the current year, include other years, and include both years in calendar
 intervals crossing a year boundary. UTC defines source calendar dates. Times use
 a 24-hour clock, with `Z` for UTC and an explicit zone for device-local times.
 Local annotations account for daylight-saving time at the displayed instant.
+Paired timestamps share the date only when both clocks fall on the same calendar
+day; otherwise each clock keeps its own date, including any required year.
 
 Age uses completed elapsed units and never rounds up. Below one day, retain hours
 and nonzero minutes; from one day onward use whole days. Seconds remain appropriate

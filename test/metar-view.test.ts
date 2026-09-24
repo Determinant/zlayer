@@ -4,8 +4,31 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { MetarFeature } from '@zlayer/contracts';
 import { MetarReportView } from '../src/layers/metar-taf/metar/report';
+import { formatMetarWind } from '../src/layers/metar-taf/metar/format';
 
 const now = Date.parse('2026-09-17T18:00:00Z');
+
+test('METAR wind shows magnetic/true bearings with east/west variation and north wraparound', () => {
+  for (const [direction, declination, expected] of [
+    [340, 13, '327°M/340°T'], ['340', -13, '353°M/340°T'],
+    [5, 13, '352°M/005°T'], [355, -12, '007°M/355°T'],
+    [0, 0, '360°M/360°T'], [360, 0.4, '360°M/360°T'],
+  ] as const) {
+    assert.equal(formatMetarWind({ metarWindDirection: direction, metarWindSpeedKt: 6, metarWindGustKt: 12 }, declination),
+      `${expected} 6G12 kt`);
+  }
+});
+
+test('METAR wind keeps missing magnetic references, calm and variable directions explicit', () => {
+  for (const declination of [undefined, null, NaN, Infinity]) {
+    assert.equal(formatMetarWind({ metarWindDirection: 340, metarWindSpeedKt: 6 }, declination), '—/340°T 6 kt');
+  }
+  assert.equal(formatMetarWind({ metarWindDirection: 0, metarWindSpeedKt: 0 }, 13), 'Calm');
+  assert.equal(formatMetarWind({ metarWindDirection: 'VRB', metarWindSpeedKt: 6 }, 13), 'VRB 6 kt');
+  assert.equal(formatMetarWind({ metarWindSpeedKt: 6 }, 13), 'Direction unavailable · 6 kt');
+  assert.equal(formatMetarWind({ metarWindDirection: 361, metarWindSpeedKt: 6 }, 13), 'Direction unavailable · 6 kt');
+  assert.equal(formatMetarWind({ metarWindDirection: 340 }, 13), undefined);
+});
 
 test('the METAR section always presents the selected report ceiling, including cached observations', () => {
   const cases: [MetarFeature['properties'], string][] = [

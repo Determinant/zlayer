@@ -8,6 +8,8 @@ controls and map lifecycle. Terrain observes displayed plans through the optiona
 Workspace composition supplies saved visibility/coverage/altitude preferences.
 Disabling Routes clears corridor demand; Viewport coverage remains independent. Terrain is enabled by default (including
 older preferences without a terrain setting); an explicit saved Off choice is respected.
+The toolbox starts stowed unless a saved left-toolbox selection opens it. Stowing
+only hides the controls; terrain rendering and saved coverage/altitude remain active.
 Coverage defaults to **Route**. In Route mode it has no demand
 until route geometry is displayed. Expanded airway/procedure legs and displayed
 route recommendations participate. Coverage follows fixed and schematic geometry,
@@ -108,8 +110,9 @@ so terrain follows the maneuver as well as the remaining connection.
 The **Route / Viewport** buttons in Layers and the terrain toolbox select coverage
 independently of **Elevation / Clearance** coloring. The coverage choice persists;
 older, missing or invalid preferences select Route. The terrain toolbox tab always
-stays available, including without a route and when terrain is disabled. Its On/Off
-switch controls the same preference as Layers. Route mode without a leg explains
+stays available, including without a route and when terrain is disabled. Its compact
+core header switch controls the same preference as Layers, with a small indicator
+and the shared touch target. Route mode without a leg explains
 that a route or Viewport coverage is needed; it makes no elevation requests.
 
 Viewport shades all visible tiles without requiring a route. It skips corridor

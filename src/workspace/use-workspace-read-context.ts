@@ -38,11 +38,12 @@ export function useWorkspaceReadContext(browsing: ChartCatalog | undefined) {
     return () => { stopped = true; stop(); };
   }, []);
   const resolved = useMemo(() => {
-    if (!browsing || !state.ready) return undefined;
-    return createWorkspaceReadContext(browsing, state.bundles);
+    if (!state.ready) return undefined;
+    const catalog = browsing ?? state.bundles[0]?.catalog;
+    return catalog ? createWorkspaceReadContext(catalog, state.bundles) : undefined;
   }, [browsing, state.bundles, state.ready]);
   const missing = state.bundles.filter(bundle => bundle.unavailable);
   const availability = missing.length ? `Saved files are missing for ${missing.map(bundle =>
     `${bundle.plan.title} · ${formatDate(bundle.plan.revision)}`).join(', ')}. Their saved editions remain selected; use Settings to repair.` : undefined;
-  return { context: resolved, bundles: state.bundles, error: state.error ?? availability };
+  return { context: resolved, bundles: state.bundles, ready: state.ready, error: state.error ?? availability };
 }

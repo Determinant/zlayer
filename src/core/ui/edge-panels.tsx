@@ -7,7 +7,7 @@ import { useBackDismiss } from './pwa-back';
 export type PanelSide = 'left' | 'right';
 /** Slots count away from an edge; removing a panel never compacts other slots. */
 export type PanelTab = { edge: 'top' | 'bottom'; order: number };
-export type PanelPlacement = { side: PanelSide; tab: PanelTab; bodyFromTop?: boolean };
+export type PanelPlacement = { side: PanelSide; tab: PanelTab; bodyFromEdge?: boolean };
 /** Return false to defer; call proceed after an optional feature-owned confirmation. */
 export type PanelStowGuard = (next: string | null, proceed: () => boolean) => boolean;
 type MountedPanel = { element: HTMLDivElement; beforeStow: PanelStowGuard };
@@ -99,6 +99,10 @@ export function EdgePanels({ side, active, onActiveChange, className = '', indiv
     const measure = () => {
       const area = element.getBoundingClientRect();
       const bounds = panel?.getBoundingClientRect();
+      if (individualTabs) for (const { element: frame } of mounted.current.values()) {
+        const width = frame.getBoundingClientRect().width - frame.querySelector('.map-edge-handle')!.getBoundingClientRect().width;
+        frame.style.setProperty('--edge-own-offset', `${width}px`);
+      }
       if (bounds) {
         const offset = individualTabs ? bounds.width - panel!.querySelector('.map-edge-handle')!.getBoundingClientRect().width
           : side === 'right' ? area.right - bounds.left : bounds.right - area.left;
@@ -108,7 +112,7 @@ export function EdgePanels({ side, active, onActiveChange, className = '', indiv
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
-    if (panel) observer.observe(panel);
+    for (const { element: frame } of mounted.current.values()) observer.observe(frame);
     let cancelled = false;
     if (active !== presented) {
       // Reading animations flushes the closing style. An empty list also
@@ -226,7 +230,11 @@ export function EdgePanelFrame({ panel, label, icon, tab, className = '', style,
     }}>
     <EdgePanelTab name={panel.name} tab={defaults?.tab ?? tab ?? { edge: 'top', order: 0 }}>
       <EdgeHandle ref={panel.handle} controls={panel.id} open={panel.selected} label={label} side={panel.side}
-        onClick={() => panel.selected ? panel.stow() : panel.setOpen(true)}>{icon}</EdgeHandle>
+        onClick={() => panel.selected ? panel.stow() : panel.setOpen(true, () => {
+          // WebKit does not focus pointer-activated buttons by default. Keep
+          // the requested body in front on touch as well as keyboard activation.
+          panel.handle.current?.focus({ preventScroll: true });
+        })}>{icon}</EdgeHandle>
     </EdgePanelTab>
     {children}
   </div>;

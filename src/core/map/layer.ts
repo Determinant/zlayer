@@ -5,6 +5,8 @@ import { LayerScope } from '../layers/scope';
 export const CHART_LAYER_ANCHOR = 'zlayer-chart-slot';
 export const PLATE_LAYER_ANCHOR = 'zlayer-plate-slot';
 export const TERRAIN_LAYER_ANCHOR = 'zlayer-terrain-slot';
+// Advisory/grid shading stays above terrain and below every route/navigation layer.
+export const WEATHER_LAYER_ANCHOR = 'zlayer-weather-slot';
 // Route lines sit above charts, but below navigation symbols and waypoint labels.
 export const ROUTE_LINE_ANCHOR = 'zlayer-route-line-slot';
 

@@ -27,7 +27,8 @@ async function record(group: Locator, control: Locator) {
         const name = tab.dataset.edgeTab!;
         if (!tabTops.has(name)) tabTops.set(name, handle.top);
         verticalError = Math.max(verticalError, Math.abs(handle.top - tabTops.get(name)!));
-        if (!tab.closest('.is-presented')) error = Math.max(error, Math.abs(right ? handle.right - edge.right : handle.left - edge.left));
+        const inset = parseFloat(getComputedStyle(tab).getPropertyValue('--edge-tool-inset')) || 0;
+        if (!tab.closest('.is-presented')) error = Math.max(error, Math.abs(right ? handle.right - edge.right : handle.left - edge.left - inset));
         const body = document.getElementById(button.getAttribute('aria-controls')!)!;
         if (getComputedStyle(body).visibility !== 'visible' || !body.getClientRects().length) continue;
         const box = body.getBoundingClientRect();

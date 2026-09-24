@@ -12,6 +12,8 @@ export function cacheFixture(t: TestContext, name = DATA_CACHE) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'caches');
   Object.defineProperty(globalThis, 'caches', { configurable: true, value: {
     open: async (name: string) => get(name).cache,
+    keys: async () => [...stores.keys()],
+    delete: async (name: string) => stores.delete(name),
     match: async (request: RequestInfo | URL, options?: MultiCacheQueryOptions) => {
       const candidates = options?.cacheName ? [stores.get(options.cacheName)] : [...stores.values()];
       for (const store of candidates) {
@@ -22,14 +24,15 @@ export function cacheFixture(t: TestContext, name = DATA_CACHE) {
     },
   } });
   t.after(() => original ? Object.defineProperty(globalThis, 'caches', original) : Reflect.deleteProperty(globalThis, 'caches'));
-  return get(name);
+  return { ...get(name), namespace: get };
 }
 
 function memoryCache() {
   const stored = new Map<string, Response>();
   const key = (request: RequestInfo | URL) => request instanceof Request ? request.url : String(request);
   const cache = {
-    keys: async () => [...stored.keys()].map(url => new Request(url)),
+    keys: async (request?: RequestInfo | URL) => [...stored.keys()].filter(url => !request || url === key(request)).map(url => new Request(url)),
+    matchAll: async () => [...stored.values()].map(response => response.clone()),
     match: async (request: RequestInfo | URL) => stored.get(key(request))?.clone(),
     put: async (request: RequestInfo | URL, response: Response) => { stored.set(key(request), response.clone()); },
     delete: async (request: RequestInfo | URL) => stored.delete(key(request)),

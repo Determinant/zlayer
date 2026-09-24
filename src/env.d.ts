@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_ZLAYERS_CHART_REVISION?: string;
   readonly VITE_ZLAYERS_METAR_URL?: string;
   readonly VITE_ZLAYERS_TAF_URL?: string;
+  readonly VITE_ZLAYERS_AWC_GRID_URL?: string;
+  readonly VITE_ZLAYERS_AWC_FEED_URL?: string;
   readonly VITE_ZLAYERS_PROCEDURE_PROXY_ROOT?: string;
 }
 

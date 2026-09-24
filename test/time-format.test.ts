@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatDate, formatDateRange, formatTimestamp, formatTimestampRange,
+import { formatDate, formatDateRange, formatTimestamp, formatTimestampPair, formatTimestampRange,
   formatAge, formatDataAge, formatCheckedAt } from '../src/core/format/time';
 
 const now = Date.parse('2026-10-18T14:32:00Z');
@@ -38,6 +38,10 @@ test('timestamps share date and 24-hour clock formats, with explicit UTC or loca
   assert.equal(formatTimestamp('2026-09-18T00:00:00Z', local), 'Sep 17 · 17:00 PDT');
   assert.equal(formatTimestampRange('2026-11-01T08:30:00Z', '2026-11-01T09:30:00Z', local),
     'Nov 1 · 01:30 PDT – Nov 1 · 01:30 PST');
+  assert.equal(formatTimestampPair('2026-09-23T16:49:00Z', local), 'Sep 23 · 16:49Z / 09:49 PDT');
+  assert.equal(formatTimestampPair('2026-09-23T00:30:00Z', local), 'Sep 23 · 00:30Z / Sep 22 · 17:30 PDT');
+  assert.equal(formatTimestampPair('2026-11-01T09:30:00Z', local), 'Nov 1 · 09:30Z / 01:30 PST');
+  assert.equal(formatTimestampPair('2027-01-01T00:30:00Z', local), 'Jan 1, 2027 · 00:30Z / Dec 31 · 16:30 PST');
 });
 
 test('currency ages round down, suppress zero remainders, and distinguish checks from source age', () => {
@@ -56,6 +60,7 @@ test('invalid, missing and future times never become fresh-looking labels', () =
   for (const value of [undefined, null, '', 'invalid', '2026-02-30', '2026-02-30T14:32:00Z', '2026-09-18T14:32:00', NaN, Infinity]) {
     assert.equal(formatDate(value, now), '—');
     assert.equal(formatTimestamp(value, { now }), '—');
+    assert.equal(formatTimestampPair(value, { now }), '—');
     assert.equal(formatDataAge(value, now), 'Age unknown');
     assert.equal(formatCheckedAt(value, now), 'Check time unknown');
   }

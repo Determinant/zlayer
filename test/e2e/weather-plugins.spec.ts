@@ -8,6 +8,29 @@ async function settings(page: Page) {
 }
 const row = (page: Page, id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
 
+test('Map Display groups METAR and advisories under one AWC Weather heading with either plugin loaded', async ({ page }, testInfo) => {
+  await page.goto('/');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  for (const [metar, advisories] of [[true, true], [false, true], [true, false], [false, false], [true, true]]) {
+    await settings(page);
+    for (const [id, enabled] of [['metar', metar], ['weather-awc', advisories]] as const) {
+      const toggle = row(page, id).getByRole('switch');
+      if ((await toggle.getAttribute('aria-checked')) !== String(enabled)) await toggle.click();
+    }
+    await page.getByLabel('Close settings').click();
+    await page.getByLabel('Open map layers', { exact: true }).click();
+    const section = page.getByRole('region', { name: 'AWC Weather', exact: true });
+    await expect(page.getByRole('heading', { name: 'AWC Weather', exact: true })).toHaveCount(metar || advisories ? 1 : 0);
+    await expect(section.getByRole('switch', { name: /METAR flight categories/ })).toHaveCount(metar ? 1 : 0);
+    await expect(section.getByRole('switch', { name: /Forecasts & advisories/ })).toHaveCount(advisories ? 1 : 0);
+    if (metar && advisories) {
+      await section.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath('awc-map-display.png'), animations: 'disabled' });
+    }
+    await page.getByLabel('Close map layers', { exact: true }).click();
+  }
+});
+
 test('navigation and weather enable independently and preserve their choices across refresh', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -47,7 +70,7 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
         ends: [{ id: '07', trueHeadingDeg: 70 }, { id: '25', trueHeadingDeg: 250 }] }];
     await route.fulfill({ response, json: body });
   });
-  await context.route('**/weather/metars.geojson?*', route => {
+  await context.route('**/api/weather/metars.geojson?*', route => {
     requests.metar++;
     return route.fulfill({ json: { type: 'FeatureCollection', features: [{ type: 'Feature',
       geometry: { type: 'Point', coordinates: [-119.84, 34.43] },
@@ -55,7 +78,7 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
         wdir: 280, wspd: 10, visib: 10 },
     }] } });
   });
-  await context.route('**/weather/tafs.json?*', route => {
+  await context.route('**/api/weather/tafs.json?*', route => {
     requests.taf++;
     return route.fulfill({ json: [{ icaoId: 'KSBA', lon: -119.84, lat: 34.43,
       issueTime: new Date(now).toISOString(), validTimeFrom: now / 1000, validTimeTo: now / 1000 + 86400,

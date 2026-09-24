@@ -56,25 +56,18 @@ test('a late render after closing or replacing its viewer cannot change the map'
   assert.equal(product.getSnapshot().mapImage, undefined);
 });
 
-test('a map menu is dismissed by viewer changes and cannot target a replacement plate', () => {
+test('actions captured for a previous overlay cannot hide its replacement', () => {
   const product = createPlatesController();
   const first = image('first'), second = image('second');
   product.open(first.selection);
   product.showOnMap(first, product.getSnapshot().requestId);
-  product.openMapMenu(first, { x: 100, y: 200 });
-  assert.equal(product.getSnapshot().mapImage, first);
   product.open(second.selection);
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
-  product.openMapMenu(first, { x: 100, y: 200 });
   product.showOnMap(second, product.getSnapshot().requestId);
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
-  product.openMapMenu(first, { x: 100, y: 200 });
   product.hideFromMap(first);
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
   assert.equal(product.getSnapshot().mapImage, second);
 });
 
-test('the map opens a menu only inside the footprint, keeps the plate until selected, and restores after reattachment', () => {
+test('map inspection identifies only the current footprint and restores after reattachment', () => {
   const product = createPlatesController();
   let layer = createPlateMapLayer(product);
   const sources = new Set<string>(), layers = new Set<string>();
@@ -112,29 +105,19 @@ test('the map opens a menu only inside the footprint, keeps the plate until sele
   product.open(third.selection);
   product.showOnMap(third, product.getSnapshot().requestId);
   assert.equal(fits, 3, 'a new explicit Show on map still fits after restoring an attachment');
-  assert.equal(layer.showMenuAt({ x: -118, y: 34 }), false);
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(layer.imageAt({ x: -118, y: 34 }), undefined);
   assert.equal(sources.size, 1);
   const point = { x: -119.5, y: 34.5 };
-  assert.equal(layer.showMenuAt(point), true);
-  assert.deepEqual(product.getSnapshot().mapMenuPoint, point);
-  assert.equal(sources.size, 1, 'opening the menu preserves the overlay');
+  assert.equal(layer.imageAt(point), third);
+  assert.equal(sources.size, 1, 'inspection preserves the overlay');
   assert.ok(product.getSnapshot().mapImage!.canvas.width > 0);
-  handlers.get('movestart')!();
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
-  assert.equal(sources.size, 1, 'moving the map only dismisses the menu');
-  layer.showMenuAt(point);
-  product.closeMapMenu();
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
-  assert.equal(sources.size, 1, 'dismissing the menu preserves the overlay');
-  layer.showMenuAt(point);
   layer.unmount();
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(layer.imageAt(point), undefined);
   assert.equal(handlers.size, 0);
   layer.mount(map);
-  layer.showMenuAt(point);
-  product.hideFromMap(product.getSnapshot().mapImage);
-  assert.equal(product.getSnapshot().mapMenuPoint, undefined);
+  assert.equal(layer.imageAt(point), third);
+  product.hideFromMap(third);
+  assert.equal(layer.imageAt(point), undefined);
   assert.equal(sources.size, 0);
   assert.equal(layers.size, 0);
   layer.unmount();

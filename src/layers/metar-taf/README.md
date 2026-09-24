@@ -12,6 +12,19 @@ is `metar`; it can be enabled or disabled independently of navigation. Forecasts
 observations keep separate meanings, freshness and demand even when shown in the
 same airport card.
 
+The independent [AWC Weather plugin](../weather-awc/README.md) owns advisory
+polygons and the forecast timeline. Map Display groups the METAR and advisory
+switches under one **AWC Weather** heading, while each plugin retains its own
+visibility, loading and cache ownership. The advisory toolbox lives in the left
+tab above Terrain; enabling advisories does not enable airport reports or change
+their clocks. Unimplemented catalog weather products are not shown as controls.
+
+The plugin is named **METAR/TAF** in the plugin list and startup status. Visible map
+report state and active airport report cards publish their own loading, cached,
+ready or unavailable status; card stowing/unmounting releases that demand. Startup
+shows this work as background activity, so slow observations or forecasts do not
+hold an otherwise usable workspace.
+
 Navigation contributes airport data and visibility to map weather when available.
 Without navigation enabled, weather stays enabled but has no airport map demand or
 Info panel to enrich. Enabling either plugin does not enable the other. Disabling
@@ -41,10 +54,12 @@ visibility setting remain `metar`; the directory name describes the module's sco
 Map METAR demand comes from rendered airport circles. Loading national airport references
 for search does **not** fetch METAR for every airport. Panning clears demand until
 movement settles. Airport visibility, the METAR toggle, document visibility, and
-network availability control whether map requests run. The client batches up to 100
-eligible visible station IDs per request, limits concurrency to two, uses a 20-second
-timeout, and retries transient failures once. Cached station checks avoid repeat
-requests when revisiting a view.
+network availability control whether map requests run. Map METARs use gateway AWC
+queries containing up to 100 station IDs, with two batches in flight, a 20-second
+timeout and one retry for transient failures. For example, 250 demanded airports
+need three requests, not 250 station lookups. Nearby METAR discovery uses a bounded
+geographic query, split at the dateline. Cached station checks avoid repeat requests
+when revisiting a view.
 
 While the weather plugin is loaded, an open airport Info card adds independent
 METAR and TAF demand through
@@ -52,6 +67,8 @@ METAR and TAF demand through
 Each report checks the airport's station on opening and at its own interval while
 online and visible. If the local report is absent or no longer current, a nearby
 search covers 50 NM; a manually selected alternative keeps nearby refreshes active.
+After nearby discovery, the displayed alternative receives the same station check
+as the airport's own report; other nearby METARs remain bulk-loaded.
 Changing airport, closing or stowing the card, or opening Plates cancels these requests without
 stopping map demand. Stowing preserves the selected stations and resumes demand
 when the card reopens. The card and map share the METAR client and cache. Nearby
@@ -82,20 +99,49 @@ domain package; the runway component adds no request loop beyond map/card demand
 
 ## Source access and report presentation
 
-The client reads same-origin `/weather/metars.geojson`. Vite and the production
-nginx configuration proxy it to bounded AWC GeoJSON queries. While an airport's
-Info card is open, an absent or older-than-two-hours METAR triggers a `bbox`
-search within 50 NM. As with TAFs, the nearest current observation is selected
-by default, and a matching dropdown lists station IDs, distances, and directions.
-Older saved reports remain selectable with a Stale label. Nearby observations
-stay in the labeled METAR section; they do not supply the selected airport's map
-category or runway wind components. TAFs use
-`/weather/tafs.json?ids=<ICAO>&format=json`, proxied to `/api/data/taf`, only while
-an airport's Info card is open. If its own forecast is unavailable, cancelled, NIL,
-or expired, a bounded `bbox` query finds TAF stations within 50 NM. The card defaults
-to the nearest current forecast, shows the source station's distance and direction,
-and offers the other stations in a dropdown. Expired saved forecasts remain
-selectable and explicitly labeled when current data is unavailable. The nearest
+Blank `VITE_ZLAYERS_METAR_URL` and `VITE_ZLAYERS_TAF_URL` use the same-origin
+`/api/weather/metars.geojson` and `/api/weather/tafs.json` routes. The
+[TypeScript weather gateway](../../../tools/weather-server/README.md) reads AWC, shares
+queries across viewers and keeps requested reports warm. Map, card and nearby
+requests use the same AWC source. The gateway preserves full coded reports and
+source fields; clients still validate and normalize the reports before display.
+
+Gateway responses carry `X-Weather-Checked-At`. A cache hit retains this upstream
+check time; the browser's attempt time remains separate. Nearby results use the
+oldest contributing check. A failed update preserves saved reports with visible
+cached/error state. The gateway never labels an expired response fresh.
+
+METAR batches up to 100 stations with
+two requests in flight, a two-hour lookback and one-minute demand cadence; TAF
+refreshes the selected station every five minutes. Both use complete AWC area
+queries for nearby reports and share station caches between map/card/nearby demand.
+Explicit report URLs must implement the same AWC contracts.
+
+AWC supplies complete coded reports and nearby queries. The retired NWS/GIS
+adapters had different publication delays and incomplete nearby TAF discovery;
+raw-less sensor updates cannot replace a coded METAR. Such legacy sensor caches
+are ignored on restore. Coded saved reports retain original labels until refreshed.
+
+### Report presentation and nearby weather
+
+Decoded METAR wind shows magnetic/true FROM bearings separated by a slash, followed
+by speed and gusts, for example `327°M/340°T 6 kt`. The shared WMM2025 model uses
+the selected report station's coordinates, observation time and zero ellipsoid
+height, including for nearby and cached reports. Missing or out-of-validity model
+data, or weak/polar fields, leave the magnetic value as `—` while retaining true
+direction. Calm, variable and unavailable directions retain their existing labels;
+the raw report and true-bearing runway-component calculations remain unchanged.
+Model loading follows the open report card and selected feed revision, using the
+shared reference cache and retrying on reopening or reconnection.
+
+While an airport's Info card is open, an absent or older-than-two-hours METAR
+triggers an AWC search within 50 NM. TAF makes an AWC area query when the local
+forecast is missing, NIL, cancelled or expired. Complete successful searches
+publish together; failure or cancellation cannot publish partial nearby reports.
+Clients share their own station/nearby
+caches and refresh clocks. The dropdown, nearest-current default, manual selection
+and labeled stale alternatives retain their existing behavior. Nearby reports do
+not supply the selected airport's map category or runway wind. The nearest
 station is a geographic default; it is not a claim of equivalent local weather.
 This follows [ForeFlight's nearby-forecast convention](https://support.foreflight.com/hc/en-us/articles/203723849-How-are-TAF-and-MOS-forecasts-selected-to-display-for-an-airport).
 
@@ -105,20 +151,20 @@ through core-managed slots (`zlayer-plugin:metar:metars` and
 slots are read when the new slot is absent; new cache writes stay in the plugin scope. Both retain the latest saved report after
 empty or failed requests, restore reports without claiming freshness, revalidate
 online, and bypass service-worker weather fallback with `cache: 'no-store'`.
-Both endpoints also explicitly bypass that fallback regardless of request cache
-mode. TAFs refresh every five minutes while the Info card is visible, versus one
+Legacy same-origin report endpoints also explicitly bypass that fallback regardless
+of request cache mode. TAFs refresh every five minutes while the Info card is visible, versus one
 minute for demanded METARs, and retain up to 200 stations versus 5,000 METAR stations.
 Nearby METARs and TAFs share their respective caches with direct station lookups,
 including station coordinates for offline discovery; switching among fetched alternatives needs no
 extra station request. Cached observations and forecasts remain available
 offline with their timestamps and stale state visible. Only fetched weather is
-saved; regional chart downloads do not prefetch weather. A shared scheduled snapshot
-publisher remains a future alternative to per-viewer API queries.
+saved; regional chart downloads do not prefetch weather. Acquisition uses the shared AWC gateway by default; report normalization and offline
+caching remain in the app. There is no scheduled weather publisher.
 
 TAF text stays coded below METAR, with one colored line per forecast period and no
 separate decoded TAF panel. Cached, expired, cancelled, missing and failed-refresh
 states are explicit; an empty nearby search has a distinct status from a failed refresh.
-The AWC JSON `fcsts` entries supply visibility in statute miles
+The normalized `fcsts` entries retain the AWC-compatible contract: visibility in statute miles
 and cloud bases/vertical visibility in **feet**, unlike METAR GeoJSON cloud bases
 in hundreds of feet. Raw change groups are matched to the decoded periods by type
 and start/end time and probability, tolerating wrapped whitespace and case variants.
@@ -133,7 +179,7 @@ lines show their local start time. These muted, right-aligned labels include the
 abbreviated month, day, 24-hour time, and zone, plus the year when it differs from
 the current year. Same-day ranges share their date and zone unless the zone
 changes; see [date and currency labels](../../../docs/features/date-time-display.md).
-The timestamps come from the AWC report's validity bounds or matched FM period,
+The timestamps come from the report's validity bounds or matched FM period,
 so month/year rollover and daylight saving are handled as dated instants rather
 than guessed from the current date.
 See the [AWC API schema](https://aviationweather.gov/data/schema/openapi.yaml) and
@@ -142,7 +188,7 @@ See the [AWC API schema](https://aviationweather.gov/data/schema/openapi.yaml) a
 ## Contracts and verification
 
 - [Source access policies](../../../docs/data/sources.md#awc-constraints-that-shape-the-system)
-  describe the upstream limits and planned shared publisher.
+  describe upstream limits, gateway routing and source comparisons.
 - [METAR](../../../docs/data/contracts.md#metar),
   [TAF](../../../docs/data/contracts.md#taf) and
   [runway wind](../../../docs/data/contracts.md#airport-runway-details-and-wind-components)

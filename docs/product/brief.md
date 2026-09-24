@@ -2,21 +2,22 @@
 
 [Documentation](../README.md) / Product
 
-Status: product direction; implementation status reviewed from source 2026-09-20
+Status: product direction; baseline reviewed from source 2026-09-20, weather milestone updated 2026-09-23
 Initial research date: 2026-09-12
 
 The scope and acceptance scenario below include planned capabilities. The current
 app provides VFR/IFR low charts, FAA navigation, persisted routes and recommendations,
-METARs/TAFs, plates with optional georeferenced map overlays, anchored approach previews,
+METARs/TAFs, AWC advisory polygons, cloud/freezing/icing grids, winds and temperatures
+aloft on a shared forecast timeline, plates with optional georeferenced map overlays, anchored approach previews,
 regional offline snapshots, packaged route/viewport terrain, FAA obstructions and optional
 device GPS. An experimental AHRS toolbox provides attitude, GPS instruments,
 HSI guidance for straight route legs and local recordings with GPX/JSON Lines downloads; device and
 flight validation remain outstanding. The camera, open panels
 and plate reading state restore across reloads. Settings offers a full reset of local
 app data. A local Route Stash saves and manages named structured route snapshots.
-Text route copying and sharing are implemented; shareable route/view URLs,
-the shared timeline, advisories, radar/satellite and route-corridor downloads remain
-planned. See the [roadmap](roadmap.md) for the implemented baseline and
+Text route copying and sharing are implemented. Production weather proxies and
+device qualification remain release work; shareable route/view URLs, radar/satellite
+and route-corridor downloads remain planned. See the [roadmap](roadmap.md) for the implemented baseline and
 remaining work, and [deployment readiness](../development/deployment.md) for release gates.
 
 ## Contents
@@ -133,7 +134,7 @@ remaining device/flight checks. These detailed contracts live with the plugin.
 - A tiled NEXRAD composite.
 - A tiled GOES visible or infrared product with a short, synchronized loop.
 - Optional phase-two products: NWS alerts, SPC outlooks, WPC QPF/excessive rainfall,
-  lightning, forecast winds/temperature, icing/turbulence grids, and NHC tracks.
+  lightning, turbulence grids, and NHC tracks.
 
 ### Trust and safety
 
