@@ -1,0 +1,336 @@
+{
+  "recordedAt": "2026-09-23",
+  "environment": "mcr.microsoft.com/playwright:v1.63.0-noble; Chromium; desktop Linux container",
+  "measurement": "Loaded-field selection to matching gridDisplay commit; acquisition, decode and subsequent GPU presentation excluded",
+  "viewport": {
+    "cssWidth": 1280,
+    "cssHeight": 900,
+    "deviceScaleFactor": 2,
+    "center": [
+      -100,
+      38
+    ],
+    "zoom": 7
+  },
+  "products": [
+    {
+      "product": "clouds",
+      "generation": "clouds-2026092300-636c50c028634236b841d98eeefead1a",
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "fields": [
+        "cloudCover",
+        "cloudBase",
+        "cloudTop",
+        "freezingLowest",
+        "freezingHighest"
+      ],
+      "frame": {
+        "validTime": 1790128800000,
+        "altitudeFtMsl": null,
+        "path": "runs/clouds-2026092300-636c50c028634236b841d98eeefead1a/f002.zwg.gz",
+        "bytes": 5244500,
+        "decodedBytes": 33292656,
+        "sha256": "8b1d97fc9b29440b1fbe1fb77b196772acd77ed4ff7ce4042ec025cf79a69201",
+        "sources": [
+          "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2"
+        ]
+      }
+    },
+    {
+      "product": "icing",
+      "generation": "icing-2026092300-8e8b363a9a954dd18cea9dcc476f193d",
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "fields": [
+        "icingProbability",
+        "icingSeverity",
+        "sldPotential"
+      ],
+      "frame": {
+        "validTime": 1790128800000,
+        "altitudeFtMsl": 8000,
+        "path": "runs/icing-2026092300-8e8b363a9a954dd18cea9dcc476f193d/f002-08000.zwg.gz",
+        "bytes": 100298,
+        "decodedBytes": 19975600,
+        "sha256": "709e1f1acd84f7dd771a05ea75a5f990bc5fabbc032aadcf3df1f17ec4425eff",
+        "sources": [
+          "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t00z.ifi.3km.conus.f002.grib2",
+          "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf00.grib2"
+        ]
+      }
+    }
+  ],
+  "before": {
+    "timings": [
+      {
+        "mode": "cloudBase",
+        "ms": 338,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 361,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 421,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 440,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 431,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudBase",
+        "ms": 335,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 377,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 417,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 440,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 396,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudBase",
+        "ms": 383,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 371,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 413,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 391,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 395,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 304,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 347,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 315,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 353,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 344,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 326,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 344,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 339,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 280,
+        "longestTask": 0
+      }
+    ],
+    "width": 2560,
+    "height": 1800,
+    "errors": []
+  },
+  "after": {
+    "timings": [
+      {
+        "mode": "cloudBase",
+        "ms": 11,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 6,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 13,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 18,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 87,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudBase",
+        "ms": 12,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 6,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 7,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 51,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 14,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudBase",
+        "ms": 19,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudTop",
+        "ms": 7,
+        "longestTask": 0
+      },
+      {
+        "mode": "cloudCover",
+        "ms": 12,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingLowest",
+        "ms": 11,
+        "longestTask": 0
+      },
+      {
+        "mode": "freezingHighest",
+        "ms": 59,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 67,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 125,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 10,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 62,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 52,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 10,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingSeverity",
+        "ms": 50,
+        "longestTask": 0
+      },
+      {
+        "mode": "icingProbability",
+        "ms": 65,
+        "longestTask": 0
+      },
+      {
+        "mode": "sldPotential",
+        "ms": 6,
+        "longestTask": 0
+      }
+    ],
+    "width": 2560,
+    "height": 1800,
+    "errors": []
+  }
+}

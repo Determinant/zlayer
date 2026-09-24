@@ -80,8 +80,16 @@ backend or separate source cache.
 To work on the [weather backend](../../tools/weather-server/README.md), run
 `npm run weather:serve` in one terminal and
 `WEATHER_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. This explicit local
-backend uses `.cache/weather/` and must prepare its own data. `WEATHER_API_ORIGIN`
-is a shell setting, not a browser URL or a Vite `.env` variable. Report URL overrides
+backend uses `.cache/weather/` and must prepare its own data. This also sends
+Progs through that backend; `/api/weather/progs/{analysis,forecast}.json`
+serves only its prepared WPC snapshots. Check `healthz.progs` before using a newly
+started backend. `VITE_ZLAYERS_PROGS_FEED_URL` can select an archived directory of
+validated surface snapshots; it defaults to `/api/weather/progs/`. Radar also uses
+this backend: `/api/weather/radar/latest.json` and immutable scan files. Inspect
+`healthz.radar` for readiness and unavailable stations.
+`VITE_ZLAYERS_RADAR_FEED_URL` overrides the prepared radar directory. Restart
+`npm run weather:serve` after backend edits; that command does not watch source files.
+`WEATHER_API_ORIGIN` is a shell setting, not a browser URL or a Vite `.env` variable. Report URL overrides
 must follow the AWC GeoJSON/JSON contracts; archived advisory/grid overrides remain
 available for fixtures.
 
@@ -159,6 +167,20 @@ without a desktop display. Missing browsers or display dependencies are failures
 This checks the current OS; the manual GitHub matrix retains separate Linux and
 macOS coverage.
 
+On Linux hosts without Playwright's Ubuntu-compatible browser libraries, use its
+matching container image (currently `v1.63.0-noble`, Node 24). Keep the image version
+aligned with the installed Playwright package. Run with the workspace owner's UID
+and GID so builds and test artifacts remain writable:
+
+```bash
+docker run --rm --shm-size=1g --user "$(id -u):$(id -g)" \
+  -e npm_config_cache=/tmp/zlayer-npm -v "$PWD:/work" -w /work \
+  mcr.microsoft.com/playwright:v1.63.0-noble npm run verify:full
+```
+
+The container's fixture port is isolated from host development servers. For a
+native run with an occupied fixture port, set `ZLAYER_TEST_PORT` to a free port.
+
 `npm run verify` runs import-boundary checks, strict TypeScript, tests and the production build.
 `npm run check:imports` separately checks source ownership, persistence migration entries,
 data/worker isolation from UI runtimes, and lazy renderer/decoder loading. Node tests
@@ -171,6 +193,9 @@ source-text assertions and incidental markup ordering.
 launch, saved-edition ownership, source recovery, responsive layout, routes, plates,
 TAF, terrain, GPS, AHRS, recordings and full reset. Its server builds into a temporary
 directory and supplies synthetic FAA/PDF/DEM/weather data without an external feed.
+Native weather samples are prepared once through the real weather server; resets
+restore a pristine copy of that cache. Startup allows four minutes for preparation;
+ordinary browser assertions retain their shorter timeouts.
 It uses port 4197 by default (`ZLAYER_TEST_PORT` overrides it) and does not replace `dist/`.
 
 ```bash
@@ -222,6 +247,8 @@ moving suites off GitHub's automatic path does not resolve their test failures.
 
 Interactive browser fixtures, served by Vite but excluded from ordinary builds:
 
+- `/test/browser/weather-progs.html`: actual MapLibre isobars, labels, fronts and pressure centers
+  from prepared WPC snapshots, forecast selection and style recovery.
 - `/test/browser/fixes.html`: real MapLibre placement, zoom/category/altitude controls,
   and selected fixes with background fixes off. Click rendered fixes too: tile-query
   properties must round-trip to the priority layer without worker errors.

@@ -34,7 +34,7 @@ class UpstreamQueue {
 
 export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number }) {
   const queues = { awc: new UpstreamQueue(2, options.spacing ?? 1000), nomads: new UpstreamQueue(4, options.spacing ?? 600),
-    hrrr: new UpstreamQueue(4, options.spacing ?? 100) };
+    hrrr: new UpstreamQueue(4, options.spacing ?? 100), radar: new UpstreamQueue(2, options.spacing ?? 250) };
   const fetcher = options.fetch ?? fetch;
   async function read(resource: Resource, signal: AbortSignal): Promise<Payload> {
     if (resource.upstream === 'prepared') throw new HttpError(500, 'Prepared data needs the processor');
@@ -101,11 +101,17 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
             previous = offset; return invalid;
           })) throw new InvalidForecastIndexError('Invalid GRIB index');
           headers['content-type'] = 'text/plain; charset=utf-8';
+        } else if (resource.kind === 'radar-index' || resource.kind === 'radar-data') {
+          if (!body.length) throw new HttpError(502, 'Empty radar source');
+          headers['content-type'] = resource.kind === 'radar-index' ? 'application/xml' : 'application/octet-stream';
         } else {
           if (status === 204) { status = 200; body = Buffer.from(resource.url.includes('format=geojson') ? '{"type":"FeatureCollection","features":[]}' : '[]'); }
           let value: unknown;
           try { value = JSON.parse(body.toString('utf8')); } catch { throw new HttpError(502, 'Invalid upstream JSON'); }
-          if (resource.url.includes('format=geojson')) {
+          if (resource.kind === 'surface') {
+            // Progs owns strict catalog/GeoJSON validation before publication.
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(502, 'Invalid surface JSON');
+          } else if (resource.url.includes('format=geojson')) {
             const c = value as { type?: string; features?: unknown[]; exceededTransferLimit?: boolean } | null;
             if (!c || c.type !== 'FeatureCollection' || !Array.isArray(c.features) || c.features.length >= 400 || c.exceededTransferLimit) throw new HttpError(502, 'Incomplete upstream feature collection');
           } else if (!Array.isArray(value) || value.length >= 400) throw new HttpError(502, 'Incomplete upstream reports');

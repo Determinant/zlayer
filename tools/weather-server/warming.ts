@@ -49,7 +49,7 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         // Settle the whole batch before retrying or releasing its retained files.
         const batch = await Promise.allSettled(candidate.files.slice(start, start + processing.concurrency).map(async file => {
           signal.throwIfAborted();
-          if (!await cache.read(file.resource)) {
+          if (!await cache.check(file.resource)) {
             const payload = await processing.forecast(candidate.manifest, file.frame, file.terrain);
             signal.throwIfAborted();
             await cache.put(file.resource, payload);
@@ -90,7 +90,7 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         if (!isNativeManifest(manifest) || manifest.product !== product) { await cache.discard(catalogResource(product)); continue; }
         const saved = generation(manifest, payload);
         let complete = true;
-        for (const file of saved.files) if (!await cache.read(file.resource)) { complete = false; break; }
+        for (const file of saved.files) if (!await cache.check(file.resource)) { complete = false; break; }
         if (complete) states.get(product)!.current = saved;
         else await cache.discard(catalogResource(product));
       }

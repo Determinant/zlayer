@@ -10,6 +10,7 @@ service or per-user backend.
 ```text
 FAA sources ──► faa-regs builder ──► dated static files ──► charts.tedyin.com ──► PWA
 AWC reports / advisories ────────────────────► TypeScript weather gateway ──────────┘
+AWC/WPC analysis / forecast GeoJSON ─────────► TypeScript weather gateway ──────────┘
 NOAA IFI on NOMADS ──────────────────────────► TypeScript weather gateway ──────────┘
 NOAA HRRR on Google Cloud ───────────────────► TypeScript weather gateway ──────────┘
 USGS 3DEP / FAA Daily DOF ──► packaged static feed ──► terrain / obstruction workers ┘
@@ -178,7 +179,7 @@ Every dated manifest is validated against that requested cycle.
    flyway overlay requiring the sectional base (coverage-limited, whole-file cached)
 3. Optional georeferenced IAP image
 4. Route-corridor terrain fill and contours, or viewport elevation shading
-5. AWC forecast grid shading, then advisory fills and outlines, below the fixed weather anchor
+5. AWC forecast grids/advisories/wind barbs, then radar, then WPC surface vectors and labels, below the fixed weather anchor
 6. Route lines, beneath navigation symbols
 7. FAA obstruction, airport, NAVAID, VFR waypoint and IFR fix symbols
 8. METAR airport circles
@@ -188,8 +189,9 @@ Every dated manifest is validated against that requested cycle.
 The map host mounts charts, plates, terrain, navigation, weather, route, annotation and ownship slots in
 order. Explicit anchors keep route lines below navigation, and foreground resources
 are raised after mounting. Airways and SID/STARs appear through resolved route
-geometry; there is no standalone national airway layer. Radar/satellite, WPC analysis
-and PIREP observations remain planned.
+geometry; there is no standalone national airway layer. [Radar observations and recent history](../../src/layers/weather-awc/radar/README.md)
+use the weather slot. Satellite and PIREP observations remain planned. [WPC analysis and Progs](../../src/layers/weather-awc/progs/README.md)
+use the same weather slot and prepared server delivery.
 
 Map contributions use fixed slots and namespaced IDs. Toggling one layer never
 rebuilds the map or changes unrelated ordering. An absent chart tile means “outside published

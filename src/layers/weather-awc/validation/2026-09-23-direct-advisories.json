@@ -1,0 +1,300 @@
+{
+  "date": "2026-09-23",
+  "scope": "Previously downloaded source research. This record does not execute or validate the application adapter.",
+  "cors": {
+    "origin": "https://zlayer.tedyin.com",
+    "observation": "NOAA GIS echoed this origin in Access-Control-Allow-Origin during HTTP research; no browser regression suite was run for this migration."
+  },
+  "acceptedPublicationCadenceMinutes": 10,
+  "responseFiles": [
+    {
+      "filename": "gis-111.json",
+      "endpoint": "https://mapservices.weather.noaa.gov/vector/rest/services/aviation/awc_aviation_weather/MapServer/111/query",
+      "sha256": "afa1a305def3d4b34e57359af137d7b846f17318f0428b6d2ba56781bf1c02c1",
+      "bytes": 32556,
+      "features": 16
+    },
+    {
+      "filename": "gis-113.json",
+      "endpoint": "https://mapservices.weather.noaa.gov/vector/rest/services/aviation/awc_aviation_weather/MapServer/113/query",
+      "sha256": "2510857ac0f58fabf6cae604617a230c3128a373472e4ba71e7e7964ff39f8d4",
+      "bytes": 7426,
+      "features": 5
+    },
+    {
+      "filename": "gis-110.json",
+      "endpoint": "https://mapservices.weather.noaa.gov/vector/rest/services/aviation/awc_aviation_weather/MapServer/110/query",
+      "sha256": "0c1a5cfe5760c6f36964fede2e9adf72b39df5a0b41cb60140d9bc12955c51f6",
+      "bytes": 33074,
+      "features": 15
+    },
+    {
+      "filename": "awc-sigmets.json",
+      "endpoint": "https://aviationweather.gov/api/data/airsigmet?format=geojson",
+      "sha256": "88694bd8ef1111c8238ae3cfc7084c7c40be7003586cdabdc55a5d9c08e09d4f",
+      "bytes": 18851,
+      "features": 16
+    },
+    {
+      "filename": "awc-cwas.json",
+      "endpoint": "https://aviationweather.gov/api/data/cwa?format=geojson",
+      "sha256": "c56cb5e324d6e16b7acfceb9858cd61e0b7323dbae20ae81dbe95e99014e140f",
+      "bytes": 2864,
+      "features": 5
+    }
+  ],
+  "bulletins": {
+    "sigmet": [
+      {
+        "issuer": "KKCI",
+        "seriesId": "41E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 707,
+        "awcRawSha256": "59eaafa416c18534fce8a77771840a58fc0f1f888010b853354f554c6a8b74c3",
+        "gisRawSha256": "59eaafa416c18534fce8a77771840a58fc0f1f888010b853354f554c6a8b74c3"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "42E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 657,
+        "awcRawSha256": "21e51c91cfe00e299d448b98991cb106bd92da8c0d447e39e74abf15ac9973cf",
+        "gisRawSha256": "21e51c91cfe00e299d448b98991cb106bd92da8c0d447e39e74abf15ac9973cf"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "43E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 693,
+        "awcRawSha256": "d03328f6bb70e3dd378a15ae40f10ba32f59502a741cb550ec80809ff1891c04",
+        "gisRawSha256": "d03328f6bb70e3dd378a15ae40f10ba32f59502a741cb550ec80809ff1891c04"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "44E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 666,
+        "awcRawSha256": "7bdd3d839f1e2b94121270ed5db3ce98319b1a4917ea82143a0d8efab96fc076",
+        "gisRawSha256": "7bdd3d839f1e2b94121270ed5db3ce98319b1a4917ea82143a0d8efab96fc076"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "93C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 785,
+        "awcRawSha256": "242b79efbee4885ad8790a7343ea941d62f109272046ec52beb80565d8c33b79",
+        "gisRawSha256": "242b79efbee4885ad8790a7343ea941d62f109272046ec52beb80565d8c33b79"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "94C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 780,
+        "awcRawSha256": "2021aa77a6d1933e0ae224a3d7e63c0684ad8196439909933a2b1134ed649699",
+        "gisRawSha256": "2021aa77a6d1933e0ae224a3d7e63c0684ad8196439909933a2b1134ed649699"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "95C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 770,
+        "awcRawSha256": "ed9ef6b7e4891478d29fc8a796da7fe0f02abf05a52afdf83c145add3d2323b0",
+        "gisRawSha256": "ed9ef6b7e4891478d29fc8a796da7fe0f02abf05a52afdf83c145add3d2323b0"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "96C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 773,
+        "awcRawSha256": "9bf6d3275ad67a80b0d4acadf5d061cdb2a36ba3a8ccdcfb05417cc3bc6d2dbb",
+        "gisRawSha256": "9bf6d3275ad67a80b0d4acadf5d061cdb2a36ba3a8ccdcfb05417cc3bc6d2dbb"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "45E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 682,
+        "awcRawSha256": "96e56ba8d3d362de63a80434daa5e72b00ce8eec7baa5332c328bbfa040eef21",
+        "gisRawSha256": "96e56ba8d3d362de63a80434daa5e72b00ce8eec7baa5332c328bbfa040eef21"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "46E",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 676,
+        "awcRawSha256": "dcded9ffd25a6381daab3ce7c8e4f27fc8a032ec58c5585d1d1321f3a10f965e",
+        "gisRawSha256": "dcded9ffd25a6381daab3ce7c8e4f27fc8a032ec58c5585d1d1321f3a10f965e"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "97C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 786,
+        "awcRawSha256": "2f8740c7a72de100440fe370c478391e6d5ea182e33aa1c690dc9ed3c8102eaf",
+        "gisRawSha256": "2f8740c7a72de100440fe370c478391e6d5ea182e33aa1c690dc9ed3c8102eaf"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "98C",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 783,
+        "awcRawSha256": "ebc9488e92c219e18daa6db70685198b6fb573e0ae83cb8fda929d6445c5f0fd",
+        "gisRawSha256": "ebc9488e92c219e18daa6db70685198b6fb573e0ae83cb8fda929d6445c5f0fd"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "56W",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 393,
+        "awcRawSha256": "96f67ce011bf018078ab41502a3f0d8ba5856b2648e3a9c3f4f662c5ccce7264",
+        "gisRawSha256": "96f67ce011bf018078ab41502a3f0d8ba5856b2648e3a9c3f4f662c5ccce7264"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "57W",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 399,
+        "awcRawSha256": "f5fe7955a98bf41b91d9c3ef628244ced0c8825854d2c102b4bf15f61e8d130c",
+        "gisRawSha256": "f5fe7955a98bf41b91d9c3ef628244ced0c8825854d2c102b4bf15f61e8d130c"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "58W",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 369,
+        "awcRawSha256": "caa80e2c832b7af8f133179498f83ce1607d892c8d988577eec5127a51198964",
+        "gisRawSha256": "caa80e2c832b7af8f133179498f83ce1607d892c8d988577eec5127a51198964"
+      },
+      {
+        "issuer": "KKCI",
+        "seriesId": "59W",
+        "hazard": "CONVECTIVE",
+        "validFrom": "2026-09-23T20:55:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 375,
+        "awcRawSha256": "2f2404b10c01b7ed5a4fb7e88925b3743bb2a471b65e383c2d6678247f6efb1f",
+        "gisRawSha256": "2f2404b10c01b7ed5a4fb7e88925b3743bb2a471b65e383c2d6678247f6efb1f"
+      }
+    ],
+    "cwa": [
+      {
+        "issuer": "ZMP",
+        "seriesId": "101",
+        "hazard": "TS",
+        "validFrom": "2026-09-23T21:30:00.000Z",
+        "validTo": "2026-09-23T22:00:00.000Z",
+        "rawCharacters": 190,
+        "awcRawSha256": "fc7fdf0b5e2c79eedea3f0f561be4254299e91bdba6a4ae251855df690fcc581",
+        "gisRawSha256": "fc7fdf0b5e2c79eedea3f0f561be4254299e91bdba6a4ae251855df690fcc581"
+      },
+      {
+        "issuer": "ZJX",
+        "seriesId": "401",
+        "hazard": "TS",
+        "validFrom": "2026-09-23T21:25:00.000Z",
+        "validTo": "2026-09-23T22:10:00.000Z",
+        "rawCharacters": 188,
+        "awcRawSha256": "fd32600c9daf8e2ded72b9f9b038d49ea12d71a664dfd72dfb1cb3b922ddf052",
+        "gisRawSha256": "fd32600c9daf8e2ded72b9f9b038d49ea12d71a664dfd72dfb1cb3b922ddf052"
+      },
+      {
+        "issuer": "ZJX",
+        "seriesId": "501",
+        "hazard": "TS",
+        "validFrom": "2026-09-23T21:27:00.000Z",
+        "validTo": "2026-09-23T22:10:00.000Z",
+        "rawCharacters": 193,
+        "awcRawSha256": "7bb32a2aa43a2f0dd2ba406a353bef536d0aeb266db086c1c9286fa86c882098",
+        "gisRawSha256": "7bb32a2aa43a2f0dd2ba406a353bef536d0aeb266db086c1c9286fa86c882098"
+      },
+      {
+        "issuer": "ZJX",
+        "seriesId": "601",
+        "hazard": "TS",
+        "validFrom": "2026-09-23T21:31:00.000Z",
+        "validTo": "2026-09-23T22:10:00.000Z",
+        "rawCharacters": 192,
+        "awcRawSha256": "a2921d8e3071a4841082fda4f8f34822adfe7b8178ea8acac25f7f49d8de2fcd",
+        "gisRawSha256": "a2921d8e3071a4841082fda4f8f34822adfe7b8178ea8acac25f7f49d8de2fcd"
+      },
+      {
+        "issuer": "ZMA",
+        "seriesId": "107",
+        "hazard": "TS",
+        "validFrom": "2026-09-23T20:56:00.000Z",
+        "validTo": "2026-09-23T22:55:00.000Z",
+        "rawCharacters": 186,
+        "awcRawSha256": "72e066713d34acfa8a2f7c173d1f1ed27ef9ba9165c90b6189ab962f9800e743",
+        "gisRawSha256": "72e066713d34acfa8a2f7c173d1f1ed27ef9ba9165c90b6189ab962f9800e743"
+      }
+    ]
+  },
+  "geometryComparison": {
+    "method": "Earlier comparison normalized ring orientation/start vertex and rounded coordinates to six decimals; discrepant outlines compared by nearest-vertex great-circle distance.",
+    "cwaMatching": 5,
+    "cwaTotal": 5,
+    "sigmetMatching": 14,
+    "sigmetTotal": 16,
+    "sigmetRoundingDifferences": [
+      {
+        "seriesId": "42E",
+        "maxNearestVertexDistanceNm": 0.00309865
+      },
+      {
+        "seriesId": "59W",
+        "maxNearestVertexDistanceNm": 0.00213481
+      }
+    ]
+  },
+  "gairmet": {
+    "gisLayer": 110,
+    "features": 15,
+    "forecastHours": [
+      0
+    ],
+    "freezingContours": 0,
+    "requiredForecastHours": [
+      0,
+      3,
+      6,
+      9,
+      12
+    ]
+  },
+  "limits": [
+    "The 16 matched SIGMETs were convective; other bulletin formats were not covered by this live sample.",
+    "SIGMET raw_text is limited to 8000 characters; CWA cwatext is limited to 1024. The adapter rejects text at those caps.",
+    "Real-time cancellation and publication latency across successive GIS cycles were not measured.",
+    "No tests, builds or compiler checks were run for the source migration at user request."
+  ]
+}

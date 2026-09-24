@@ -31,6 +31,10 @@ requires all three products to be ready; `ok: true` alone is insufficient.
 | `/api/weather/metars.geojson?ids=…` or `?bbox=…` | Original AWC METAR GeoJSON | 30 seconds |
 | `/api/weather/tafs.json?ids=…` or `?bbox=…` | Original AWC TAF JSON | 60 seconds |
 | `/api/weather/advisories/{gairmet,sigmet,cwa}.json` | Normalized advisories | 60 seconds |
+| `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
+| `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
+| `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
+| `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Retained up to 24 hours within the shared byte budget |
 | `/api/weather/grids/{clouds,icing,winds}.json` | Latest complete prepared generation | Up to 24 hours; original source times retained |
 | `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Up to 24 hours, within the shared byte budget |
 | `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Up to 24 hours, within the shared byte budget |
@@ -108,10 +112,52 @@ METAR/TAF preserve their query-based shared caching; they do not enter the numer
 preparation workers.
 
 `Cache-Control: no-store` prevents intermediary caches from extending freshness.
-JSON responses of at least 1 KiB use negotiated gzip. Already compressed numeric
+Prepared JSON of at least 1 KiB stores a gzip representation beside the original
+bytes during atomic publication (when smaller). Both encodings count toward the
+disk ceiling. HTTP streams the negotiated representation without buffering or
+recompressing it, and HEAD reads only metadata/stat information. Content digests
+are verified with bounded read buffers on the first body read after restart or a
+file-stat change; clients also authenticate their complete artifact. Forecast warmer
+completeness checks reuse this authentication while file size, modification time
+and change time remain unchanged, avoiding body reads and hashing every six minutes.
+Restarted or changed files authenticate both raw and gzip bytes before reuse;
+missing or damaged files return to preparation. Older saved
+files without a compressed representation stream unchanged until replaced.
+Query-based report/advisory JSON still uses negotiated gzip on response. Already compressed numeric
 slices are sent unchanged. Responses carry `X-Weather-Cache` and the decoded
 response payload's byte SHA-256; grids also carry their converter/source identity.
 HTTP forecasts always report HIT; query-based report/advisory misses can report MISS. No request bodies are logged.
+
+## Surface analysis and Progs
+
+`progs.ts` shares AWC's public Progs catalog acquisition between independent
+analysis and forecast background updates. Each family prepares every listed
+GeoJSON chart before publication, including isobars, labels, pressure centers,
+front qualifiers and distinct boundary types. It uses the shared AWC queue
+(two in flight, one-second spacing) and bounded disk cache. Bounds are 16 KiB
+for the catalog, 512 KiB per source chart and 8 MiB per prepared family.
+Successful updates check sources every five minutes and reuse normalized frames
+when the source URL/hash and reference/valid times are unchanged. Corrected bytes
+are parsed again. Restarts restore prepared frames and preserve the remaining
+source-check interval. Failures retry after 30 seconds with upstream backoff.
+Small version-3 catalogs are atomically saved with
+`X-Weather-Catalog: wpc-surface-v3-wpc-cardinal-v2`. They reference immutable,
+content-addressed chart files; changed charts are parsed, smoothed, validated and
+serialized in `progs-worker.js`, outside the HTTP event loop. Unchanged checks
+rewrite only metadata. Current/building files and ten minutes of preceding
+references are protected from grid-cache eviction. HTTP only reads saved files. Source checks survive cache hits/restarts.
+Isobar and front/boundary curves use AWC's full cardinal-spline parameters during preparation;
+unchanged curves are reused. The processing marker participates in family identity
+and invalidates former straight-line and front-only smoothed files on restart. Contour visibility
+is a browser preference and never changes server acquisition or preparation.
+
+Malformed, partial or rolled-back replacements retain the preceding complete
+family. Reference cycles are preserved per chart, allowing NOAA's mixed-cycle
+publication; same-cycle corrections retain new source hashes. Older monolithic server
+snapshots are replaced with catalogs and chart files during migration. `healthz.progs` reports readiness,
+valid times, checks and errors. Verify both families through HTTPS when deploying;
+numeric readiness alone does not qualify Progs. The [Progs guide](../../src/layers/weather-awc/progs/README.md)
+owns source URLs, interface stability, weather meaning, selection and recovery.
 
 ## Deployment
 
@@ -225,3 +271,39 @@ own weather meaning; the PWA owns altitude interpolation, presentation and user
 storage. Source references: [AWC API](https://aviationweather.gov/data/api/),
 [DAFS inventory](https://www.nco.ncep.noaa.gov/pmb/products/dafs/) and the
 [grid contract](../../src/layers/weather-awc/grids/README.md).
+
+## Radar preparation and history
+
+`radar.ts` acquires NOAA MRMS GRIB2 from its public S3 bucket and 45 TDWR product
+180 files from NWS TGFTP. Two additional isolated Node workers decode and prepare
+contours with 60-second job deadlines. The radar upstream queue permits two
+in-flight requests with 250 ms start spacing and normal overload backoff.
+Unchanged source hashes reuse prepared files. A complete catalog requires a
+national scan; individual terminal failures preserve saved scans with their original
+times and remain explicit in catalog status. The client limits observation age at
+the selected time, so an expired live image can still be eligible for history.
+National refresh has a dedicated slot and publishes independently of terminals;
+terminal rounds publish partial results every five stations. Between national
+checks, the idle slot backfills at most eight missing five-minute buckets per
+batch, with cancellation when live work is due. MRMS S3 listings use `start-after`
+to bound the listing to the history window throughout the UTC day. Scan timestamps
+are checked before expensive decoding; rejected unchanged hashes skip conversion
+and repeated identical station errors are suppressed. Terminal history accumulates as
+scans arrive. The rolling two-hour catalog retains one sample per station/bucket,
+bounded to one quarter of the configured cache budget and at most 1 GiB, prioritizing
+national history. The shared disk budget protects current/building files, published
+history and six minutes of preceding radar catalogs. HTTP reads never acquire or
+process radar. `healthz.radar` reports readiness, checked time, unavailable sites
+and the count of retained historical scans.
+
+`radar-motion.ts` independently collects small NOAA NEXRAD STI/product 58 files,
+prepares their native projected tracks, and publishes a small catalog plus immutable
+national snapshots. It shares source admission and the disk budget but no reflectivity
+worker slots. HTTP never starts collection or decoding. `healthz.radarMotion` exposes
+preparation, station availability and catalog status. The
+[Storm motion contract](../../src/layers/weather-awc/radar/README.md#storm-motion)
+owns time alignment, collection cadence, history retention and decoding limits.
+
+The server build includes `radar-worker.js` and `progs-worker.js`; deploy them with the matching main and
+shared files. See the [Radar guide](../../src/layers/weather-awc/radar/README.md)
+for exact source semantics, binary format qualification and client/storage limits.

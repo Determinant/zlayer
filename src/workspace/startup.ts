@@ -32,11 +32,13 @@ export function weatherStartupWork(state: ReturnType<WeatherController['getSnaps
     ...(p.awcGairmet || p.awcFreezing ? [state.products.gairmet] : []),
     ...(p.awcSigmet || p.awcConvective ? [state.products.sigmet] : []),
     ...(p.awcCwa ? [state.products.cwa] : []),
+    ...(p.awcRadar ? [{ ...state.radar, checkedAt: state.radar.snapshot?.checkedAt }] : []),
+    ...(p.awcProgs ? Object.values(state.progs) : []),
   ];
   const forecasts = forecastStreams(state);
   if (!records.length && !forecasts.length) return undefined;
   const prepared = forecastPreparation(state);
-  const error = records.some(record => record.error) || forecasts.some(({ grid, record, error }) =>
+  const error = state.advisoryDisplay.error || p.awcRadar && state.radarDisplay.error || records.some(record => record.error) || p.awcProgs && state.progsRenderError || forecasts.some(({ grid, record, error }) =>
     error || record.error || record.storageError || grid.preparation?.failed || grid.preparation?.limited);
   const pending = records.some(record => record.loading || online && !record.snapshot && !record.error) || forecasts.some(({ grid, record, loading }) =>
     loading || record.loading || online && (!record.manifest && !record.error || grid.preparation && grid.preparation.ready < grid.preparation.total));
@@ -44,7 +46,7 @@ export function weatherStartupWork(state: ReturnType<WeatherController['getSnaps
   const cached = available && (!online || records.some(record => record.snapshot && !record.checkedAt) ||
     forecasts.some(({ record, shown }) => shown && !record.checkedAt));
   return { blocking: false, state: error ? available ? 'limited' : 'unavailable'
-    : pending ? 'loading' : forecasts.some(f => f.rendering) ? 'rendering'
+    : pending ? 'loading' : (state.advisoryDisplay.loading || p.awcRadar && state.radarDisplay.loading || forecasts.some(f => f.rendering)) ? 'rendering'
       : cached ? 'cached' : available ? 'ready' : 'unavailable',
     ...(pending && !error && prepared && prepared.ready < prepared.total
       ? { detail: `Preparing forecasts · ${prepared.ready}/${prepared.total}` } : {}) };

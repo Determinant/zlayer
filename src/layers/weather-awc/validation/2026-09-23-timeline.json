@@ -1,0 +1,305 @@
+{
+  "date": "2026-09-23",
+  "environment": "Chromium, Playwright 1.63.0 container, live Vite NOAA proxy",
+  "viewport": {
+    "width": 1100,
+    "height": 750,
+    "center": [
+      -100,
+      38
+    ],
+    "zoom": 3
+  },
+  "measurement": "SHA-256 of the displayed field numeric Float32 bytes and the full map WebGL RGBA buffer; four selections per overlay: Now, Next, Next, Next.",
+  "before": [
+    {
+      "mode": "cloudCover",
+      "selected": null,
+      "now": "2026-09-23T05:54:43.246Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "8b8d7e25f477b12c4d4bbe05aabd9513a402b738a2609e59fed163636943bccb",
+      "pixels": "cdd9a14141bc8b1a6d854c5f4ae2896e8d2cc8791d340e0334ef1dbfa6309e96",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": true
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T06:00:00.000Z",
+      "now": "2026-09-23T05:54:43.246Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "8b8d7e25f477b12c4d4bbe05aabd9513a402b738a2609e59fed163636943bccb",
+      "pixels": "cdd9a14141bc8b1a6d854c5f4ae2896e8d2cc8791d340e0334ef1dbfa6309e96",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": true
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T07:00:00.000Z",
+      "now": "2026-09-23T05:54:43.246Z",
+      "valid": "2026-09-23T07:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "f84490abd5b862f459713ac6f17217b8023df8650483aa1d2c1817cd3538cb7a",
+      "pixels": "8fd1f8523660078ccec7b657f0f19b8b65d9abceaa818553b1767f88893f3a30",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T08:00:00.000Z",
+      "now": "2026-09-23T05:54:58.246Z",
+      "valid": "2026-09-23T08:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "3f047c27481d88a78c9bd09f578b6342ce905be1c6e8cd7f96b012bc82ba64e4",
+      "pixels": "9b33436f419ea095e34f87fb2d91e252d7fb2ff222ee4cc8ca2b0823001776a5",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": null,
+      "now": "2026-09-23T05:54:58.246Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "288879a8cf1284ded5cd440cccc54b9f1eb2ecc42d667bebd683e8726189c9a3",
+      "pixels": "cdb4dee589d0a4ffec1ae5b228c558d78c3774773a313d1dcdb0ad6b45942447",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T06:00:00.000Z",
+      "now": "2026-09-23T05:54:58.246Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "288879a8cf1284ded5cd440cccc54b9f1eb2ecc42d667bebd683e8726189c9a3",
+      "pixels": "cdb4dee589d0a4ffec1ae5b228c558d78c3774773a313d1dcdb0ad6b45942447",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T07:00:00.000Z",
+      "now": "2026-09-23T05:54:58.246Z",
+      "valid": "2026-09-23T07:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "9c244304628b7506767e4038246dfa4a0b70a879ca910828520122ace0e0b6eb",
+      "pixels": "f8fafcb62e19e7e3aed0bf4ba46e6609227cabf76c18fb49f13dd469504e7aba",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T08:00:00.000Z",
+      "now": "2026-09-23T05:54:58.246Z",
+      "valid": "2026-09-23T08:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "6d775cef8863a31409079f28bb409de5a9923ce28f05552168a03acfdf31206c",
+      "pixels": "de7b35c734f27a2a94d1993d1036a7f94b631525bc4a19f9cb8a202e927227c5",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    }
+  ],
+  "after": [
+    {
+      "mode": "cloudCover",
+      "selected": null,
+      "now": "2026-09-23T05:57:10.586Z",
+      "valid": "2026-09-23T05:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "ecc5130109932e7aaf6129e655eaec480267c0d96fa48f49c0ebfbde269d9d6b",
+      "pixels": "f5d107b269e12ac8f58b7adf10319c9cb9b3bc7040f162529fdd86d3794c25f2",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": true
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T06:00:00.000Z",
+      "now": "2026-09-23T05:57:25.586Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "8b8d7e25f477b12c4d4bbe05aabd9513a402b738a2609e59fed163636943bccb",
+      "pixels": "cdd9a14141bc8b1a6d854c5f4ae2896e8d2cc8791d340e0334ef1dbfa6309e96",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T07:00:00.000Z",
+      "now": "2026-09-23T05:57:25.586Z",
+      "valid": "2026-09-23T07:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "f84490abd5b862f459713ac6f17217b8023df8650483aa1d2c1817cd3538cb7a",
+      "pixels": "8fd1f8523660078ccec7b657f0f19b8b65d9abceaa818553b1767f88893f3a30",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "cloudCover",
+      "selected": "2026-09-23T08:00:00.000Z",
+      "now": "2026-09-23T05:57:25.586Z",
+      "valid": "2026-09-23T08:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "3f047c27481d88a78c9bd09f578b6342ce905be1c6e8cd7f96b012bc82ba64e4",
+      "pixels": "9b33436f419ea095e34f87fb2d91e252d7fb2ff222ee4cc8ca2b0823001776a5",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": null,
+      "now": "2026-09-23T05:57:25.586Z",
+      "valid": "2026-09-23T05:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "98a168138887446f95ec3519956e1b45be6b738711c9ba0b845d054db79a1d1f",
+      "pixels": "93ea7aa113f4602ef136e015493970bb87a65849bf8aa69fc1eb44aa51a0ecba",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T06:00:00.000Z",
+      "now": "2026-09-23T05:57:40.586Z",
+      "valid": "2026-09-23T06:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "288879a8cf1284ded5cd440cccc54b9f1eb2ecc42d667bebd683e8726189c9a3",
+      "pixels": "cdb4dee589d0a4ffec1ae5b228c558d78c3774773a313d1dcdb0ad6b45942447",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T07:00:00.000Z",
+      "now": "2026-09-23T05:57:40.586Z",
+      "valid": "2026-09-23T07:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "9c244304628b7506767e4038246dfa4a0b70a879ca910828520122ace0e0b6eb",
+      "pixels": "f8fafcb62e19e7e3aed0bf4ba46e6609227cabf76c18fb49f13dd469504e7aba",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": "2026-09-23T08:00:00.000Z",
+      "now": "2026-09-23T05:57:40.586Z",
+      "valid": "2026-09-23T08:00:00.000Z",
+      "run": "2026-09-23T04:00:00.000Z",
+      "numeric": "6d775cef8863a31409079f28bb409de5a9923ce28f05552168a03acfdf31206c",
+      "pixels": "de7b35c734f27a2a94d1993d1036a7f94b631525bc4a19f9cb8a202e927227c5",
+      "products": {
+        "clouds": {
+          "loading": false
+        },
+        "icing": {
+          "loading": false
+        }
+      }
+    }
+  ],
+  "sourceFiles": [
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf02.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf03.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf04.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf00.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f002.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f003.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f004.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf01.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f001.grib2"
+  ],
+  "sourceRangeStatuses": [
+    206
+  ],
+  "pageErrors": []
+}

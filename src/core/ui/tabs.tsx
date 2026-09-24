@@ -1,14 +1,15 @@
 import { useLayoutEffect, useRef } from 'react';
 
 /** Content tabs keep selection and panel lifetime with their owner. */
-export function TabList<T extends string>({ id, label, tabs, value, onChange, className = '', scrollable = false }: {
+export function TabList<T extends string>({ id, label, tabs, value, onChange, className = '', scrollable = false, size = 'compact' }: {
   id: string;
   label: string;
-  tabs: readonly { value: T; label: string }[];
+  tabs: readonly { value: T; label: string; accessibleLabel?: string; active?: boolean; description?: string }[];
   value: NoInfer<T> | undefined;
   onChange(value: NoInfer<T>): void;
   className?: string;
   scrollable?: boolean;
+  size?: 'compact' | 'slim';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -34,8 +35,9 @@ export function TabList<T extends string>({ id, label, tabs, value, onChange, cl
   }, [value, scrollable]);
   return <div ref={ref} className={`ui-tabs${scrollable ? ' ui-tabs--scrollable panel-scroll' : ''} ${className}`} role="tablist" aria-label={label}>
     {tabs.map((tab, index) => <button key={tab.value} type="button"
-      className="ui-button ui-button--quiet ui-button--compact" role="tab"
+      className={`ui-button ui-button--quiet ui-button--${size}`} role="tab"
       id={`${id}-${tab.value}-tab`} aria-controls={`${id}-${tab.value}-panel`}
+      aria-label={tab.accessibleLabel} data-active={tab.active || undefined} aria-description={tab.description}
       aria-selected={value === tab.value} tabIndex={value === tab.value || value === undefined && index === 0 ? 0 : -1}
       onClick={() => onChange(tab.value)} onKeyDown={event => {
         let next: number;

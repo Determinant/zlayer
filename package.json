@@ -30,6 +30,8 @@
     "@zlayer/contracts": "0.1.0",
     "@zlayer/domain": "0.1.0",
     "comlink": "4.3.0",
+    "d3-contour": "4.0.2",
+    "fast-png": "8.0.0",
     "hash-wasm": "4.12.0",
     "maplibre-gl": "6.9.0",
     "pdf-lib": "1.17.1",
@@ -38,12 +40,14 @@
     "proj4": "2.22.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "seek-bzip": "2.0.0",
     "sql.js": "^1.14.2",
     "sql.js-httpvfs": "^0.8.12",
     "topojson-client": "3.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@types/d3-contour": "3.0.6",
     "@types/node": "24.13.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

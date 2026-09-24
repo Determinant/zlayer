@@ -1,0 +1,31 @@
+{
+  "status": "one native-grid slice experiment; not a delivery contract or tablet benchmark",
+  "source": "2026-09-22 21Z DAFS IFI F001, 8000 ft",
+  "shape": [
+    1059,
+    1799
+  ],
+  "validCells": 1872948,
+  "maskedCells": 32193,
+  "negativeSldCells": 18293,
+  "maxProbabilityQuantizationError": 4.291534427824928e-08,
+  "maxPositiveSldQuantizationError": 4.768371586472142e-08,
+  "encoding": "experimental RGBA uint8 (probability x100, SLD x100/unmapped=254, severity, availability alpha); exact PNG round trip",
+  "decodedBytes": 7620564,
+  "numericPngBytes": 49218,
+  "numericGzipBytes": 44325,
+  "decodeAndPrepareMs": 144.57,
+  "pngEncodeMs": 53.16,
+  "excludes": [
+    "reprojection",
+    "XYZ tiling",
+    "display rasters",
+    "other altitudes/leads/cycles",
+    "network time",
+    "browser decode/GPU memory"
+  ],
+  "tools": {
+    "rasterio": "1.5.1",
+    "numpy": "2.5.3"
+  }
+}

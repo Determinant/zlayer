@@ -3,9 +3,10 @@ import type { AwcAdvisorySnapshot, WeatherAdvisory } from '@zlayer/contracts';
 export const HOUR = 3_600_000;
 
 /** Actual change points only. A retained selection cannot invent a stop for inactive data. */
-export function forecastStops(times: readonly number[], now: number, selected: number | null): (number | null)[] {
-  return [...(selected !== null && selected <= now ? [] : [null]),
-    ...new Set([...times.filter(time => time > now), ...(selected !== null && times.includes(selected) ? [selected] : [])])]
+export function forecastStops(times: readonly number[], now: number, selected: number | null, history: readonly number[] = []): (number | null)[] {
+  const past = history.filter(time => time < now);
+  return [...(past.length || selected === null || selected > now ? [null] : []),
+    ...new Set([...past, ...times.filter(time => time > now), ...(selected !== null && times.includes(selected) && (!past.length || selected !== now) ? [selected] : [])])]
     .sort((a, b) => (a ?? now) - (b ?? now));
 }
 

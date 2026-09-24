@@ -1,0 +1,157 @@
+{
+  "date": "2026-09-23",
+  "scope": "Local uncommitted working tree; sampled source equivalence and browser delivery, not a full-suite, deployment or device qualification.",
+  "googleDownloadRoot": "https://storage.googleapis.com/download/storage/v1/b/high-resolution-rapid-refresh/o/",
+  "comparisonRoot": "https://noaa-hrrr-bdp-pds.s3.amazonaws.com/",
+  "method": "Compare S3 single-part ETag with GCS md5Hash, object length, all index offsets and selected fields. Full GRIB bodies were not downloaded for the eight whole-file metadata comparisons. Index text differs on unused parameter names.",
+  "files": [
+    {
+      "path": "hrrr.20260923/conus/hrrr.t04z.wrfsfcf00.grib2",
+      "bytes": "136306345",
+      "s3_etag": "8acbfd6f691a7987735d475a804c5bb8",
+      "google_md5": "8acbfd6f691a7987735d475a804c5bb8",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 170
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t04z.wrfsfcf18.grib2",
+      "bytes": "172448948",
+      "s3_etag": "dc3654986a2d4e99fed54811134e2348",
+      "google_md5": "dc3654986a2d4e99fed54811134e2348",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 173
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t04z.wrfprsf00.grib2",
+      "bytes": "393769884",
+      "s3_etag": "ffa95b29d93392ca6e7b49edbc6af3b3",
+      "google_md5": "ffa95b29d93392ca6e7b49edbc6af3b3",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 708
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t04z.wrfprsf18.grib2",
+      "bytes": "458527523",
+      "s3_etag": "fe736efdd8975a33fdd558ebeee9e71a",
+      "google_md5": "fe736efdd8975a33fdd558ebeee9e71a",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 711
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t16z.wrfsfcf00.grib2",
+      "bytes": "151279632",
+      "s3_etag": "d33bf336ae7e4aaaa8e70f1860a6f283",
+      "google_md5": "d33bf336ae7e4aaaa8e70f1860a6f283",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 170
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t16z.wrfsfcf18.grib2",
+      "bytes": "159433196",
+      "s3_etag": "e1399ad1c0a7d336834d8d262020cc9d",
+      "google_md5": "e1399ad1c0a7d336834d8d262020cc9d",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 173
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t16z.wrfprsf00.grib2",
+      "bytes": "411274570",
+      "s3_etag": "876ec4dc034713038f1ff6ea6e01b811",
+      "google_md5": "876ec4dc034713038f1ff6ea6e01b811",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 708
+    },
+    {
+      "path": "hrrr.20260923/conus/hrrr.t16z.wrfprsf18.grib2",
+      "bytes": "443342191",
+      "s3_etag": "559fb419298d06c9aeebd55cdc7c5b8c",
+      "google_md5": "559fb419298d06c9aeebd55cdc7c5b8c",
+      "same_grib": true,
+      "same_offsets": true,
+      "same_selected_rows": true,
+      "index_rows": 711
+    }
+  ],
+  "downloadedRecord": {
+    "object": "hrrr.20260923/conus/hrrr.t04z.wrfsfcf01.grib2",
+    "field": "TCDC:entire atmosphere",
+    "bytes": 795977,
+    "sha256BothMirrors": "517b32fb0002a4c1e9dc168049f1fd57d66c2b1d2752df804036afc05e27cbad"
+  },
+  "browserEnvironment": "mcr.microsoft.com/playwright:v1.63.0-noble, localhost Vite, headless browsers",
+  "liveChromium": {
+    "result": {
+      "clouds": {
+        "values": [
+          65,
+          8440,
+          -9999,
+          14550,
+          14530
+        ],
+        "frames": 19
+      },
+      "winds": {
+        "values": [
+          5190,
+          -3.700000047683716,
+          22.899999618530273,
+          15.899999618530273
+        ],
+        "frames": 703
+      }
+    },
+    "cached": {
+      "clouds": {
+        "values": [
+          65,
+          8440,
+          -9999,
+          14550,
+          14530
+        ],
+        "frames": 19
+      },
+      "winds": {
+        "values": [
+          5190,
+          -3.700000047683716,
+          22.899999618530273,
+          15.899999618530273
+        ],
+        "frames": 703
+      }
+    },
+    "cacheMatch": true,
+    "cachedSourceRequests": 0,
+    "google": 51,
+    "googleRanges": 10,
+    "proxyHrrr": 0,
+    "errors": [],
+    "selection": "Newest complete run at check time; F001 clouds and 850 hPa winds at longitude -100, latitude 38. Run identity was not retained by this fixture.",
+    "cacheScope": "Source requests blocked after successful live loads; local Vite worker modules remain reachable. Fixture regressions separately cover reload and cache integrity."
+  },
+  "firefoxAndWebkit": {
+    "object": "hrrr.20260923/conus/hrrr.t04z.wrfsfcf01.grib2",
+    "responseType": "cors",
+    "status": 206,
+    "contentRange": "bytes 0-15/145765085",
+    "receivedBytes": 16,
+    "magic": "GRIB",
+    "missingObjectStatus": 404
+  }
+}

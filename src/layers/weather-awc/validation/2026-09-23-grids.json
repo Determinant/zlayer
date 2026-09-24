@@ -1,0 +1,930 @@
+{
+  "verifiedAtUtc": "2026-09-23T02:34:03Z",
+  "baseCommit": "34dd022c2bedf5b979a913f801d1839cd87abffc",
+  "workingTree": "Uncommitted weather expansion; not a production release",
+  "products": [
+    {
+      "product": "clouds",
+      "generation": "clouds-2026092300-636c50c028634236b841d98eeefead1a",
+      "runTime": 1790121600000,
+      "checkedAt": 1790130380188,
+      "publishedAt": 1790130482844,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "frames": 19,
+      "totalBytes": 108546656,
+      "minFrameBytes": 4905496,
+      "maxFrameBytes": 6156986,
+      "decodedBytes": 33292656,
+      "validated": [
+        {
+          "validTime": 1790121600000,
+          "altitudeFtMsl": null,
+          "sha256": "47f27c36a5de6821ab0d33f067f2a1988b9abfafc8be9e9bd99ebf812073b3af",
+          "bytes": 4905496,
+          "decodeMs": 204.32003599999996,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "cloudCover": 5,
+                "cloudBase": -9999,
+                "cloudTop": -9999,
+                "freezingLowest": 14060,
+                "freezingHighest": 14070
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "cloudCover": 100,
+                "cloudBase": 15220,
+                "cloudTop": -9999,
+                "freezingLowest": 14520,
+                "freezingHighest": 14500
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "cloudCover": 99,
+                "cloudBase": 24420,
+                "cloudTop": -9999,
+                "freezingLowest": 13610,
+                "freezingHighest": 13620
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "cloudCover": 1,
+                "cloudBase": -9999,
+                "cloudTop": -9999,
+                "freezingLowest": 16280,
+                "freezingHighest": 16270
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790128800000,
+          "altitudeFtMsl": null,
+          "sha256": "8b1d97fc9b29440b1fbe1fb77b196772acd77ed4ff7ce4042ec025cf79a69201",
+          "bytes": 5244500,
+          "decodeMs": 172.074185,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "cloudCover": 0,
+                "cloudBase": -9999,
+                "cloudTop": -9999,
+                "freezingLowest": 14190,
+                "freezingHighest": 14170
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "cloudCover": 100,
+                "cloudBase": 15130,
+                "cloudTop": 33530,
+                "freezingLowest": 14660,
+                "freezingHighest": 14670
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "cloudCover": 100,
+                "cloudBase": 3940,
+                "cloudTop": -9999,
+                "freezingLowest": 12810,
+                "freezingHighest": 12800
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "cloudCover": 3,
+                "cloudBase": -9999,
+                "cloudTop": -9999,
+                "freezingLowest": 15830,
+                "freezingHighest": 15850
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790186400000,
+          "altitudeFtMsl": null,
+          "sha256": "e486fcd6ebe708576009e5f7b6a9ff14fc4cb8f1b12d9db29fb610b501c72b18",
+          "bytes": 6156986,
+          "decodeMs": 172.91466200000002,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "cloudCover": 40,
+                "cloudBase": 140,
+                "cloudTop": -9999,
+                "freezingLowest": 15070,
+                "freezingHighest": 15060
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "cloudCover": 100,
+                "cloudBase": 16670,
+                "cloudTop": 37830,
+                "freezingLowest": 14130,
+                "freezingHighest": 14140
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "cloudCover": 100,
+                "cloudBase": 4700,
+                "cloudTop": 33890,
+                "freezingLowest": 12050,
+                "freezingHighest": 12040
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "cloudCover": 20,
+                "cloudBase": -9999,
+                "cloudTop": -9999,
+                "freezingLowest": 17130,
+                "freezingHighest": 17130
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "product": "icing",
+      "generation": "icing-2026092300-8e8b363a9a954dd18cea9dcc476f193d",
+      "runTime": 1790121600000,
+      "checkedAt": 1790130482849,
+      "publishedAt": 1790130812743,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "frames": 1080,
+      "totalBytes": 320446475,
+      "minFrameBytes": 43591,
+      "maxFrameBytes": 687963,
+      "decodedBytes": 19975600,
+      "validated": [
+        {
+          "validTime": 1790125200000,
+          "altitudeFtMsl": 500,
+          "sha256": "2c03c9f0b1e777856cd3c521f7dc5303c815727f57e386d82e3dd38c7b547ab4",
+          "bytes": 128561,
+          "decodeMs": 82.27582900000004,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": -9998,
+                "icingSeverity": -9998,
+                "sldPotential": -9998
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": -9999,
+                "icingSeverity": -9999,
+                "sldPotential": -9999
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790125200000,
+          "altitudeFtMsl": 8000,
+          "sha256": "cb6fd156f03e7a89e6290650b9272de0f868e36be1a00fb9f1d8dadd7b25a672",
+          "bytes": 99461,
+          "decodeMs": 93.97718800000007,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790125200000,
+          "altitudeFtMsl": 30000,
+          "sha256": "63912ee52b70890c596839079ac446287b441fad4ac8758fb5a51ddc442a8dd9",
+          "bytes": 43591,
+          "decodeMs": 76.41563199999996,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790128800000,
+          "altitudeFtMsl": 500,
+          "sha256": "c433f98f420584c74461eac6193a99a9636a3a32218fd072f649f05ab4689335",
+          "bytes": 128833,
+          "decodeMs": 70.81288199999995,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": -9998,
+                "icingSeverity": -9998,
+                "sldPotential": -9998
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": -9999,
+                "icingSeverity": -9999,
+                "sldPotential": -9999
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790128800000,
+          "altitudeFtMsl": 8000,
+          "sha256": "709e1f1acd84f7dd771a05ea75a5f990bc5fabbc032aadcf3df1f17ec4425eff",
+          "bytes": 100298,
+          "decodeMs": 83.79044500000009,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790128800000,
+          "altitudeFtMsl": 30000,
+          "sha256": "7f09e8392f405d9a9eb32b6f08efd6e00d04522101497af13e186d10c6293ae6",
+          "bytes": 46632,
+          "decodeMs": 86.25768599999992,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790186400000,
+          "altitudeFtMsl": 500,
+          "sha256": "1077a17bff412760e26a6072df84481620d947b0b528ba2b3e4d8c9a957fe9d6",
+          "bytes": 123644,
+          "decodeMs": 69.880044,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": -9998,
+                "icingSeverity": -9998,
+                "sldPotential": -9998
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": -9999,
+                "icingSeverity": -9999,
+                "sldPotential": -9999
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790186400000,
+          "altitudeFtMsl": 8000,
+          "sha256": "84737e603c88e420053bbc3083a215211b134b08a4a351ff2d60d97816409908",
+          "bytes": 110299,
+          "decodeMs": 84.92294300000003,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        },
+        {
+          "validTime": 1790186400000,
+          "altitudeFtMsl": 30000,
+          "sha256": "a9485b23e53a804fb2e58e28dc3cbab79ee61d6d28b27f6c7c0c20e1af5b049c",
+          "bytes": 56450,
+          "decodeMs": 76.60712699999999,
+          "samples": [
+            {
+              "longitude": -122.115,
+              "latitude": 37.461,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -104.67,
+              "latitude": 39.85,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -73.78,
+              "latitude": 40.64,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            },
+            {
+              "longitude": -90,
+              "latitude": 30,
+              "values": {
+                "icingProbability": 0,
+                "icingSeverity": 0,
+                "sldPotential": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "nativeCellChecks": {
+    "clouds": {
+      "generation": "clouds-2026092300-636c50c028634236b841d98eeefead1a",
+      "validTime": 1790128800000,
+      "sourceDigests": [
+        {
+          "field": "cloudCover",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2",
+          "sha256": "a91cac5b696026ff6b0e827dc93746d4224f621a94b68ab6e4af7407b8805e45"
+        },
+        {
+          "field": "cloudBase",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2",
+          "sha256": "1505c0f7f8b288413dbf7bfa4fe3d9d9961ac6c8e1fb4b0d380569c3ec122e86"
+        },
+        {
+          "field": "cloudTop",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2",
+          "sha256": "bc45bd91885f803e78dd04dd30b82821c05f84d6ffb62ebfeaacab50aa9ce84e"
+        },
+        {
+          "field": "freezingLowest",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2",
+          "sha256": "0d53c3ce9dccaf0f5fcc602934afae12f179c5f8eecf0b0fa99fb38af4996ada"
+        },
+        {
+          "field": "freezingHighest",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf02.grib2",
+          "sha256": "fdf7e7d37a70c8a57e49587db35b64123de16798db9556dea59b3b4f8ea733d1"
+        }
+      ],
+      "method": "250 deterministic output pixel centers transformed independently to native HRRR grid, direct nearest cell comparison after documented units/rounding",
+      "comparisons": 1250,
+      "mismatches": 0,
+      "states": {
+        "cloudCover": {
+          "value": 229,
+          "outside": 21
+        },
+        "cloudBase": {
+          "missing": 118,
+          "value": 111,
+          "outside": 21
+        },
+        "cloudTop": {
+          "missing": 169,
+          "value": 60,
+          "outside": 21
+        },
+        "freezingLowest": {
+          "value": 229,
+          "outside": 21
+        },
+        "freezingHighest": {
+          "value": 229,
+          "outside": 21
+        }
+      },
+      "samples": [
+        {
+          "field": "cloudBase",
+          "cells": [
+            {
+              "row": 89,
+              "column": 1283,
+              "value": -9999.0
+            },
+            {
+              "row": 657,
+              "column": 727,
+              "value": 4180.0
+            },
+            {
+              "row": 434,
+              "column": 1423,
+              "value": 4800.0
+            },
+            {
+              "row": 86,
+              "column": 1156,
+              "value": -9999.0
+            }
+          ]
+        },
+        {
+          "field": "freezingLowest",
+          "cells": [
+            {
+              "row": 89,
+              "column": 1283,
+              "value": 10780.0
+            },
+            {
+              "row": 657,
+              "column": 727,
+              "value": 15340.0
+            },
+            {
+              "row": 434,
+              "column": 1423,
+              "value": 13150.0
+            },
+            {
+              "row": 86,
+              "column": 1156,
+              "value": 12480.0
+            }
+          ]
+        }
+      ]
+    },
+    "icing": {
+      "generation": "icing-2026092300-8e8b363a9a954dd18cea9dcc476f193d",
+      "validTime": 1790128800000,
+      "source": {
+        "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t00z.ifi.3km.conus.f002.grib2",
+        "sha256": "9bb188d0f20ff9a8da1eabab14b673f6b7581673d800c9b0e259e61da7ecf8cc"
+      },
+      "terrainSource": [
+        {
+          "field": "terrain",
+          "url": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t00z.wrfsfcf00.grib2",
+          "sha256": "18f89d40979e4c66830bbca8c3183399af77593a4493f663fc3efec806631dee"
+        }
+      ],
+      "comparisons": 2250,
+      "mismatches": 0,
+      "checks": [
+        {
+          "altitudeFtMsl": 500,
+          "field": "icingProbability",
+          "states": {
+            "belowGround": 147,
+            "missing": 23,
+            "outside": 21,
+            "value": 59
+          }
+        },
+        {
+          "altitudeFtMsl": 500,
+          "field": "icingSeverity",
+          "states": {
+            "belowGround": 147,
+            "missing": 23,
+            "outside": 21,
+            "value": 59
+          }
+        },
+        {
+          "altitudeFtMsl": 500,
+          "field": "sldPotential",
+          "states": {
+            "belowGround": 147,
+            "missing": 23,
+            "outside": 21,
+            "value": 59
+          }
+        },
+        {
+          "altitudeFtMsl": 8000,
+          "field": "icingProbability",
+          "states": {
+            "value": 225,
+            "outside": 21,
+            "belowGround": 4
+          }
+        },
+        {
+          "altitudeFtMsl": 8000,
+          "field": "icingSeverity",
+          "states": {
+            "value": 225,
+            "outside": 21,
+            "belowGround": 4
+          }
+        },
+        {
+          "altitudeFtMsl": 8000,
+          "field": "sldPotential",
+          "states": {
+            "value": 225,
+            "outside": 21,
+            "belowGround": 4
+          }
+        },
+        {
+          "altitudeFtMsl": 30000,
+          "field": "icingProbability",
+          "states": {
+            "value": 229,
+            "outside": 21
+          }
+        },
+        {
+          "altitudeFtMsl": 30000,
+          "field": "icingSeverity",
+          "states": {
+            "value": 229,
+            "outside": 21
+          }
+        },
+        {
+          "altitudeFtMsl": 30000,
+          "field": "sldPotential",
+          "states": {
+            "value": 228,
+            "outside": 21,
+            "unknown": 1
+          }
+        }
+      ]
+    }
+  },
+  "desktopDisplaySamples": [
+    {
+      "kind": "vfr-sectional",
+      "mode": "cloudCover",
+      "readyMs": 579.7000000476837,
+      "heapBytes": 103107240,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "runTime": 1790121600000,
+      "validTime": 1790132400000,
+      "frameBytes": 5398900,
+      "decodedBytes": 33292656,
+      "errors": []
+    },
+    {
+      "kind": "ifr-low",
+      "mode": "cloudBase",
+      "readyMs": 530.6999999284744,
+      "heapBytes": 102602341,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "runTime": 1790121600000,
+      "validTime": 1790132400000,
+      "frameBytes": 5398900,
+      "decodedBytes": 33292656,
+      "errors": []
+    },
+    {
+      "kind": "vfr-sectional",
+      "mode": "freezingLowest",
+      "readyMs": 556.3999999761581,
+      "heapBytes": 103352502,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "runTime": 1790121600000,
+      "validTime": 1790132400000,
+      "frameBytes": 5398900,
+      "decodedBytes": 33292656,
+      "errors": []
+    },
+    {
+      "kind": "vfr-sectional",
+      "mode": "icingSeverity",
+      "readyMs": 305.5,
+      "heapBytes": 67540993,
+      "grid": {
+        "projection": "EPSG:3857",
+        "width": 1658,
+        "height": 1004,
+        "bounds": [
+          -125.99999999999997,
+          21.978213637213482,
+          -64.99389988576597,
+          50.999999999999986
+        ]
+      },
+      "runTime": 1790121600000,
+      "validTime": 1790132400000,
+      "frameBytes": 102681,
+      "decodedBytes": 19975600,
+      "errors": []
+    }
+  ],
+  "limits": [
+    "One NOAA cycle; original dated NOMADS files are transient.",
+    "Source comparisons check conversion, masks and sampling, not independent meteorological truth.",
+    "Desktop container rendering and heap observations are not a tablet peak-memory or flight qualification.",
+    "Negative SLD meanings and late-hour driving-model lineage remain unresolved."
+  ]
+}

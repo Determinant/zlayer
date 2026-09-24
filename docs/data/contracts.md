@@ -29,6 +29,7 @@ recommendations. A malformed optional history resource does not disable FAA data
 - [TAF](#taf)
 - [AWC advisories](#awc-advisories)
 - [AWC forecast grids](#awc-forecast-grids)
+- [WPC surface snapshots](#wpc-surface-snapshots)
 - [Route](#route)
 - [Workspace persistence](#workspace-persistence)
 - [Procedure](#procedure)
@@ -280,6 +281,36 @@ for the binary header, units, sentinels, sampling and lifecycle. The browser
 validates numeric data before displaying or caching it. Advisory snapshots and
 numeric grids have independent generations and source clocks.
 
+## WPC surface snapshots
+
+`SurfaceCatalog` version 3 describes a prepared WPC `analysis` or `forecast`
+family from AWC's public Progs catalog. The small catalog contains freshness,
+ordered frame identities, bounded geometry/document counts, and immutable chart
+paths with byte lengths and SHA-256. `SurfaceArtifact` version 1 files retain the
+processing revision and full chart. Source-check updates do not rewrite these
+files. The browser assembles `SurfaceSnapshot` version 2 for existing selection,
+rendering and inspection consumers. It preserves the original catalog,
+source URL, family source hash and minimum `checkedAt`. Each ordered frame has
+its own `validTime`, `referenceTime` (cycle, not issuance), source URL, byte SHA-256,
+source check, complete original GeoJSON and normalized features. All times are
+UTC epoch milliseconds. Forecast families may contain mixed reference cycles.
+
+Features retain source properties: H/L and tropical centers, independent text
+labels, isobars, and directed cold/warm/stationary/occluded/trough/dry-line/squall
+lines with forming/weakening qualifiers. Pressure numbers remain source-positioned
+labels; no inferred center/contour association is published. Isobar and front/boundary
+geometry contains prepared AWC-style cardinal curves, retaining every source control
+point and all 16 subdivisions per segment. Families are bounded to 8 MiB and
+400,000 positions to accommodate the complete smoothed forecast horizon.
+Date-line splits use MultiLineString geometry. Raw-file hash and source ordinal
+identify each feature; family identity also includes the processing revision.
+The runtime guard bounds frames, features, coordinates and source bytes and
+rejects malformed times, duplicate identities and unsupported feature types.
+The server validates every catalog-listed chart before atomic family publication;
+the browser revalidates before state or optional storage accepts it. See
+[Progs](../../src/layers/weather-awc/progs/README.md) for source interface dependency,
+ridge representation, frame selection, freshness and recovery.
+
 ## Route
 
 ```json
@@ -460,3 +491,25 @@ zero-based page indexes. Printed page labels are display metadata, never viewer
 indexes. The validator rejects duplicate/unknown books, duplicate airport/page
 targets, invalid hashes, and out-of-range pages. The CS validity interval must
 contain the selected chart revision; it need not equal the shorter TPP interval.
+
+## Radar observations and history
+
+`RadarCatalog` and `RadarContours` (schema version 1) describe server-prepared NOAA
+MRMS/TDWR scans. Every immutable path pins station, observation time and SHA-256;
+scan metadata retains the original source URL/hash and geographic bounds. Contours
+carry dBZ thresholds. The catalog identifies failed station checks separately from
+latest saved files. Its optional `history` array adds up to 1,200 immutable scan
+references within two hours of publication, retaining schema-version-1 compatibility.
+Each station/observation pair is unique within history; latest and history arrays
+may reference the same file. Read-only prepared endpoints, numerical decoding,
+observation-age limits, history retention, viewport demand and bounded whole-file caching are owned
+by the [Radar guide](../../src/layers/weather-awc/radar/README.md).
+
+`RadarMotionCatalog` and `RadarMotionSnapshot` (schema version 1) add independent
+NOAA STI cell tracks. Catalog references pin immutable snapshot SHA-256 and size;
+`availableAt` denotes collection time. Each snapshot keeps station observation
+times, raw source URL/hash, cell IDs, forecast interval and current/projected
+positions. Guards bound stations, tracks, coordinates, history and bytes. Motion
+is never substituted across a historical gap or shown newer than the displayed
+composite; [Storm motion](../../src/layers/weather-awc/radar/README.md#storm-motion)
+owns selection and expiration rules.

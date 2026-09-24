@@ -1,0 +1,14 @@
+{
+    "@context": {
+        "@version": "1.1",
+        "@vocab": "https://api.weather.gov/ontology#"
+    },
+    "@id": "https://api.weather.gov/products/266cafb5-548e-46f6-98e7-f9eb486832ab",
+    "id": "266cafb5-548e-46f6-98e7-f9eb486832ab",
+    "wmoCollectiveId": "FTUS46",
+    "issuingOffice": "KMTR",
+    "issuanceTime": "2026-09-23T17:27:00+00:00",
+    "productCode": "TAF",
+    "productName": "Terminal Aerodrome Forecast",
+    "productText": "\n000\nFTUS46 KMTR 231727\nTAFSFO\nTAF\nKSFO 231727Z 2318/2424 VRB05KT P6SM SCT200\n     FM232000 29015KT P6SM FEW200\n     FM240600 29010KT P6SM FEW010\n     FM241100 28005KT P6SM BKN010\n     FM241800 32009KT P6SM FEW010 BKN250\n     FM242100 29015KT P6SM SCT250=\n"
+}

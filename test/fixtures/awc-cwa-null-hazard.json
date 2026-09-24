@@ -1,0 +1,90 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "cwsu": "ZHU",
+        "name": "Houston",
+        "seriesId": "103",
+        "validTimeFrom": "2026-09-24T16:53:00.000Z",
+        "validTimeTo": "2026-09-24T17:56:00.000Z",
+        "hazard": null,
+        "qualifier": null,
+        "cwaText": "FAUS21 KZHU 241653\nZHU1 CWA 241653 \nZHU CWA 103 VALID UNTIL 241756\nFROM 30ENE DLF-40W PSX-40NNE BRO-60NW BRO-30ENE DLF\nAREA SCT SHRA/ISOL TS MOV FROM 13010KT. TOPS TO FL400. TX CW\n\n="
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -100.242,
+              29.554
+            ],
+            [
+              -97.069,
+              28.758
+            ],
+            [
+              -97.101,
+              26.537
+            ],
+            [
+              -98.17,
+              26.624
+            ],
+            [
+              -100.242,
+              29.554
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "cwsu": "ZKC",
+        "name": "Kansas City",
+        "seriesId": "301",
+        "validTimeFrom": "2026-09-24T17:34:00.000Z",
+        "validTimeTo": "2026-09-24T18:00:00.000Z",
+        "hazard": "TS",
+        "qualifier": "DVLPG TSRA",
+        "cwaText": "FAUS23 KZKC 241734\nZKC3 CWA 241734 \nZKC CWA 301 VALID UNTIL 241800 \nFROM 50ENE SLN-40WSW MCI-10E ICT-30NW ICT-40NW ICT-50ENE SLN\nDVLPG AREA TSRA. MOV FROM 21030KT TOPS TO FL380. KS\n\n=",
+        "top": 38000
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -96.631,
+              39.251
+            ],
+            [
+              -95.529,
+              39.027
+            ],
+            [
+              -97.37,
+              37.75
+            ],
+            [
+              -98.028,
+              38.102
+            ],
+            [
+              -98.179,
+              38.219
+            ],
+            [
+              -96.631,
+              39.251
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

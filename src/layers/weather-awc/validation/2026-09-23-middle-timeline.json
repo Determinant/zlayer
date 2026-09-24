@@ -1,0 +1,1902 @@
+{
+  "date": "2026-09-23",
+  "environment": "Chromium, Playwright 1.63.0 Linux container, Vite development app with live NOAA proxy",
+  "view": {
+    "width": 1100,
+    "height": 750,
+    "center": [
+      -100,
+      38
+    ],
+    "zoom": 3,
+    "icingAltitudeFtMsl": 8000
+  },
+  "method": "Hashes cover all numeric cells in each field and the complete map RGBA buffer. Warm latency runs from selection through the MapLibre render event after the committed frame; includes cache decoding/drawing and excludes network on hits. Timer gaps are host scheduling observations.",
+  "summary": [
+    {
+      "mode": "cloudCover",
+      "forecastCount": 17,
+      "firstValid": "2026-09-23T06:00:00.000Z",
+      "lastValid": "2026-09-23T22:00:00.000Z",
+      "uniqueImages": 17,
+      "uniqueFields": {
+        "cloudCover": 17,
+        "cloudBase": 17,
+        "cloudTop": 17,
+        "freezingLowest": 17,
+        "freezingHighest": 17
+      },
+      "changedPixelPercent": {
+        "min": 12.817939393939394,
+        "max": 14.63430303030303
+      },
+      "cachedSelectionMs": {
+        "median": 159.25,
+        "min": 143.20000004768372,
+        "max": 163.20000004768372
+      }
+    },
+    {
+      "mode": "icingSeverity",
+      "forecastCount": 16,
+      "firstValid": "2026-09-23T07:00:00.000Z",
+      "lastValid": "2026-09-23T22:00:00.000Z",
+      "uniqueImages": 16,
+      "uniqueFields": {
+        "icingProbability": 16,
+        "icingSeverity": 16,
+        "sldPotential": 16
+      },
+      "changedPixelPercent": {
+        "min": 0.24763636363636363,
+        "max": 0.45345454545454544
+      },
+      "cachedSelectionMs": {
+        "median": 120.29999995231628,
+        "min": 104.5,
+        "max": 127.5
+      }
+    }
+  ],
+  "horizon": [
+    {
+      "mode": "cloudCover",
+      "selected": 1790143200000,
+      "valid": 1790143200000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "8b8d7e25f477b12c4d4bbe05aabd9513a402b738a2609e59fed163636943bccb",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "7f278fbee46c61fb42b55ceaae33eac044984f21783ce50a06bdf46e3718492c",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "a2f8beaf99b64e0dda5428e3234f136c61618dc10a16a7b056143c629127de60",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "daa5d03d75d74439c98afd582b278d6f39cc8e583521afbb7dfec6c857c9b364",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "67b8a9cbffd9fa047b76f9eae893998f99f2f64e67334f120f813af595530973",
+          "changedCells": null,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "cdd9a14141bc8b1a6d854c5f4ae2896e8d2cc8791d340e0334ef1dbfa6309e96",
+        "changed": null,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 4638
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790146800000,
+      "valid": 1790146800000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "f84490abd5b862f459713ac6f17217b8023df8650483aa1d2c1817cd3538cb7a",
+          "changedCells": 715889,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "6043c760821d2a26d473e7e96f262b6754d09a6702a57d6b6046db433d6f3d32",
+          "changedCells": 786923,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "f450a99059208f8c5845ac006e28ccbd455779824a3f570a7826b7905fde12e1",
+          "changedCells": 442020,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "d28545176e3dccb4554a4e47eca5de0888c878b69987b1552c6de2fb22b43d2f",
+          "changedCells": 1475430,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "f5fd2bc38dbe7af975096b76a7e7cd3796fd934bdb8ee5368651ab9cb7cbe67c",
+          "changedCells": 1368564,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "8fd1f8523660078ccec7b657f0f19b8b65d9abceaa818553b1767f88893f3a30",
+        "changed": 120733,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 4636
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790150400000,
+      "valid": 1790150400000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "3f047c27481d88a78c9bd09f578b6342ce905be1c6e8cd7f96b012bc82ba64e4",
+          "changedCells": 704974,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "697d42c9d94effcbcf5bcfdf6ed4c2a8397da2c7a2adf4fbd62122df6532f699",
+          "changedCells": 806318,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "457fc9c4adc18e355322cee043dfbf4ec7900927966264f4d7508e016538aabb",
+          "changedCells": 481522,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "892ea24d3f6f0a57d3643b1e0eddf8dad131d0cdd4a6b3cfe6ac08a2df2e5397",
+          "changedCells": 1472900,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "1edcefd6d95c70bc2d53d1b37990d1c07b8d009a92e0b0b1fa5435767f394d96",
+          "changedCells": 1360639,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "9b33436f419ea095e34f87fb2d91e252d7fb2ff222ee4cc8ca2b0823001776a5",
+        "changed": 116256,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5316
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790154000000,
+      "valid": 1790154000000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "f0fee33568c5fafa859fac0485651f9e3d3117586f4f800757fd445b592bf16b",
+          "changedCells": 705480,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "50e230a6be4e870f566d7a3fc6f3aac1ca50d43e246eea4aacff2c46325990fc",
+          "changedCells": 818212,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "0a9042a632fe8c9adf1f09151d4fdfd33df4f481e0e8a0bb48016bce04c687be",
+          "changedCells": 509241,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "b86d98b48b7e5bcf39d582f1a3d6c72a26a5a75c61daa7ff88d9192a4a89c555",
+          "changedCells": 1472434,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "c26c6a8270d2493b916c78fc9ba047b8c936b8ee5e4462a043ef5721e40ef314",
+          "changedCells": 1360350,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "eb361e825fd6c6727ea5dc42dfa7c2378494c37e60dca73887d510f669a17829",
+        "changed": 114165,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5271
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790157600000,
+      "valid": 1790157600000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "9b9933d276c5f394ebba169bef3b98ad7cf949cab78a00da76680d65dd9d446c",
+          "changedCells": 699015,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "3fedd9b8d4da344a268a8aa059d1d0afa0941310441af1290344309eb4f028a9",
+          "changedCells": 832694,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "717f34f5a6ce1f0cb605b9f89e5e917b71c30e548aeb7be033e004f732b9b00b",
+          "changedCells": 538604,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "8eb82164957dcc167749d3132f4f793a67cb0231d8d6e0542c08bc0dd3bf0c59",
+          "changedCells": 1473108,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "a426b9b3e176fe1ccfc08ef8f0a0135b55a54e35b560c447aa3dae7fe969684f",
+          "changedCells": 1361881,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "4ad659de5aeec6ad17584d0673d3d7aeec5ea2477cf956c51b9861472aa09d13",
+        "changed": 111165,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5276
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790161200000,
+      "valid": 1790161200000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "74e760dc677d6c599de48edbb4559abbdca3faef9c09469e10f11bb6cbf15dca",
+          "changedCells": 688843,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "c209f3804289dfb310d604e877b50f351ac207a9b65d92349a3a3551c90e1b86",
+          "changedCells": 853711,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "d67607c5e26a82f54519781ec53f7a655a9749a2ae5ec8aa0342738ccb734593",
+          "changedCells": 569183,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "b772c1ea85ce78749fd784c6a4ff03559117e65572ac90178e842059b1d463f7",
+          "changedCells": 1471033,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "47846bd0ea802af8134825a2ce8224080a9ce15fe5c35b85840b91d684e68f33",
+          "changedCells": 1352727,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "c2a22c41daf2e2859df41a7b4569d9d746234f62339281415b2752db3c455829",
+        "changed": 107866,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 4899
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790164800000,
+      "valid": 1790164800000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "2765a110d7fe0fcef605c3ef3a19145c11af624445092ebc8c69b55b6b7baf19",
+          "changedCells": 686690,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "7f62a3071faccbe950466c4a73e7dbfb47b5be4734fc0724b04899828e8bf827",
+          "changedCells": 873762,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "79877f844281660a645405f3a702e04399cc211fc9f5b4c2623d256a94a7a3fc",
+          "changedCells": 590788,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "03f04503469075dfa7fb302715ffb02e889fb207f296b51e4e3c42586cef1799",
+          "changedCells": 1470898,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "f1646f578eda85c5a3f291ff7104e7288690e37bf8a97356c923f22553c1e2be",
+          "changedCells": 1354051,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "c6edf11557d3a4b0d9f699949b747a94144403c851029ec4b627ee4bd8033ae0",
+        "changed": 105748,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 7079
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790168400000,
+      "valid": 1790168400000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "7434bf179a1e58e0ca7a2b1b1a82c4b21cfb14eaa32e1354777dbd721f09a2b6",
+          "changedCells": 708876,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "e9b068b5449f9835ab1fd76f78f0e91a626b209792db6bb67f9a93a266900c23",
+          "changedCells": 888794,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "cdfe9e1ee6f98368e2a92c933815bf5d63d56a1b13ffbfe3185fdd7e7c3c67e0",
+          "changedCells": 604831,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "198afe31db6c08338e6e23ef795e2160ddce0dc3a53c0a76400726eae5b48fee",
+          "changedCells": 1469265,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "d1f3d4d951d9a806a08d43bf0e5ef883603369386d8041f08c6f792f94df8aff",
+          "changedCells": 1349088,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "5a196524852aecf9cd9a29b55cf440b02ab33c46733fc77b31fac3a30ccd67e8",
+        "changed": 109180,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5306
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790172000000,
+      "valid": 1790172000000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "2f9dd2d48f7692745b5bc50c3a537e741eaa17c4fa2b31f6c78d6959f3f9f299",
+          "changedCells": 720606,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "8f3f1e1eabb797a8c2bde3c6f6119ba9100421495a888c320e0ede0f45d58d37",
+          "changedCells": 906427,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "2a4d59c18120dbb315dd03fafa4f74d30ccee785f29ce4cde612e204c8c308e0",
+          "changedCells": 616657,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "7341d79a6d69d673be034b49ab9987c95ebfe9d4a087c83db0a4ec95551b2124",
+          "changedCells": 1470879,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "9bfb87853b56dbd910285e14ce20bc95545008ca8a0f9c0ee51cab59ade3dd3f",
+          "changedCells": 1352217,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "cf7879c9da25aef561295588b07a3ed0987a27cdb7146270d182ae0e423c8df5",
+        "changed": 108753,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 8912
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790175600000,
+      "valid": 1790175600000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "d76bf98b1c767f3e3ae3b19c2e5e65d01fcc90773ddef335bce38d24914d2717",
+          "changedCells": 728296,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "374e9c57fb6ca81c33d5eaaf787b54f4300e912e82961b534901a380b3369bc6",
+          "changedCells": 926187,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "fcec78cdcef87f463b1d3766d34db9a7b471431430879316619d407724f9d0a0",
+          "changedCells": 622448,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "a5ec6262f3322e7da276bfd710210c3877e30ac91b659e89109d80f6b1b588ec",
+          "changedCells": 1468937,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "2e6a448ec434137527344245a626330704e76355b7fd227e43f8a7ea63beca17",
+          "changedCells": 1347574,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "38c474e8c8ee589193c48f1375abab3b00b904e81fd1e3b55c9b4493b8a5043c",
+        "changed": 106945,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5153
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790179200000,
+      "valid": 1790179200000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "c60dfe7ce05362e1c9f920eedf866fa8a24506d88a9db19c9960ab08d3ec74e6",
+          "changedCells": 726940,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "6284b2c41a7d84b510bb7b80572445c4db19f279a29c390ea7115898673f3304",
+          "changedCells": 939567,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "33a60f16f1165d8a5fd574e7415758db41de785316966949f809dece93ab94a8",
+          "changedCells": 620467,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "41aa5bff087e05f6eaa1a8a58640dc9e742bf7f99eead08bba7f37bdde974dc4",
+          "changedCells": 1470682,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "4ac788bbeb293b502df6178e9199f468bca41db887f3ae9c0c3996710c99b331",
+          "changedCells": 1353230,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "c103b5a1dab8b2db39df51543369edbb652ffa9156484f3ee631129cf73ecde5",
+        "changed": 105890,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 6145
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790182800000,
+      "valid": 1790182800000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "1eaa5a755135b216fb2737a15cbba44f3d7295a62e5c503513923d99c8b79072",
+          "changedCells": 730284,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "0fe839d4c8e3410334f980a9839f89cc98e4f9bfc8eb94324a09790f666b7dcb",
+          "changedCells": 946596,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "c174393776e8623391c7d0881f9c7c5eed507d58e64ef227f9ba410c58873037",
+          "changedCells": 621521,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "e92d0e12051a957f4488a573d52bd652c258f978326e6dfc2688211c5ae1db39",
+          "changedCells": 1470445,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "f122637153ec94d9b758b1d51983049855ca176d084dd3ef6a3b21d876222892",
+          "changedCells": 1352745,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "f705656b2f738b9e9ba02b5d09bad5a6a15bc58d4c307e22b1877333055b75cf",
+        "changed": 107348,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 6548
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790186400000,
+      "valid": 1790186400000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "9c6a80cd01493ca494688756a4bdd5d880ac021ff2157980437996e4d3a7836b",
+          "changedCells": 726961,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "8d4e07decec9bab02b91b03b2b74c6d8c0c7f9356e65658a67db9cbc7f7a5d29",
+          "changedCells": 963073,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "4e21cdc64ed25758a8aebd7286381508aa20180fa3218b060c1f64738d5fb7f8",
+          "changedCells": 629097,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "c761619466c885c62e60192cfa45898b84fe102f1a7e9bf8abc42bf39513403b",
+          "changedCells": 1471313,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "80f7611b66359c532a64a6da4f4354d6c1f61b459d7ac9eacc5c9e6470664bcf",
+          "changedCells": 1354913,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "c76a2125880c4b3cb330f6d65755840b0f35d2d245549cfd7e36beedf76f3435",
+        "changed": 108692,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5871
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790190000000,
+      "valid": 1790190000000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "a269e081721d3a69a943172984bf4e00de6b94172dd2a533b5907f37be0a935a",
+          "changedCells": 715070,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "219999bb024beac6ef4652330dee3583fda6fbde424837c9d1f4cf15e9284bf1",
+          "changedCells": 979994,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "19e6074d0cb3201f3ddc35e51558a24d285e679cfb28b1cbc56b414abeeafb05",
+          "changedCells": 644603,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "d541a524d0b50a9a942104b53484da868452100faa3173185b9fae01eaa80151",
+          "changedCells": 1472537,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "a9f160b060c2beff1bab0e12b8085683183b54d07fc09e6ba5f4b202485d8837",
+          "changedCells": 1357545,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "41bb5ea4c5f61bb9f804187208f7cf989ac95a073ffc748a1ab6cfb54bfbb4b7",
+        "changed": 107111,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5203
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790193600000,
+      "valid": 1790193600000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "f47aec8e3a14941279f5188621513f3441178aaf48d4d967be6bc58f7fb7c2cf",
+          "changedCells": 710285,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "0353b3d789ed9cdaf0cc1ffae672f1ca804b0346a8fa7df520a84237159d4b60",
+          "changedCells": 994856,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "0f76484230ab5858eddbf06f4b93b5a4bd854f0ab42525d56f9d023f79f00ee4",
+          "changedCells": 654282,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "2d6fc0c934700dc93f4852cc669e4b3162f21887a2ae76e672e51b36775136f9",
+          "changedCells": 1469889,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "61674cb76b5dc6d5bc8521cab3c1aef3f37dc2e23169b661c644b06e701ed0ac",
+          "changedCells": 1352075,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "0b6f053732cfa8e70f49965996342f7b2691539e48425e20d5c34ee6e3903946",
+        "changed": 109255,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 6597
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790197200000,
+      "valid": 1790197200000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "e43fe2083d2e452e01f5ebae334d93a00e08f837ea990e7d15560ee85307aab9",
+          "changedCells": 709018,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "2d170e018849b9f6567f57d637ca65ba1c13522c1418aa1fe8a70ab2a0c214e5",
+          "changedCells": 1012959,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "398c85aa3dee57d00c770f966644c3e3773d0e4b40ec11b701672bc1b2e91842",
+          "changedCells": 658411,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "5001a41668df7d126faf69305fce801cf91abf5534bbe6ab749b79896541c41b",
+          "changedCells": 1472699,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "5585d113a1012cd1345bc507b80f7f275066b82f1329a7cafd256740f1f51460",
+          "changedCells": 1360554,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "eef14ea68db7704a18b64fa8cca003bf4cb12b5d79f9d19b92ef279e28864e4b",
+        "changed": 114365,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 5104
+    },
+    {
+      "mode": "cloudCover",
+      "selected": 1790200800000,
+      "valid": 1790200800000,
+      "run": 1790136000000,
+      "fields": {
+        "cloudCover": {
+          "hash": "99beded6e40076a417b8f9e8337c1f5e0eae7542bfb9e2eef13916769f0eac41",
+          "changedCells": 685896,
+          "totalCells": 1664632
+        },
+        "cloudBase": {
+          "hash": "a8d8997eccc7125eaa665b18f14f2fc3fc49d008747e506ff1a1dab26121f7ea",
+          "changedCells": 1022192,
+          "totalCells": 1664632
+        },
+        "cloudTop": {
+          "hash": "22faa18cedf2eb72dde1192950e67bc2940ddbd7799491475e2ce0d757515e81",
+          "changedCells": 674699,
+          "totalCells": 1664632
+        },
+        "freezingLowest": {
+          "hash": "55ee865339e9df575453ed0fe22fcb1fe7b7f8cafbfdd2f0014a80e43e6e4d1c",
+          "changedCells": 1474559,
+          "totalCells": 1664632
+        },
+        "freezingHighest": {
+          "hash": "8b9cc7b908949494013d7033a9a81415aa7fcb494060aa17c03f66cb05e85968",
+          "changedCells": 1364764,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "4453c90e8af1db59b56ac96db3c1165cddf9dc02d28a137bd93c4fe25fe5aa99",
+        "changed": 113895,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 4898
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790146800000,
+      "valid": 1790146800000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "daad5c160996d876bd596378b3c4690c085ca8ac437b137d4673076afcd9cf16",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "9c244304628b7506767e4038246dfa4a0b70a879ca910828520122ace0e0b6eb",
+          "changedCells": null,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "05a14ce0b1381eb67b00411ad432e0e4072ba1efdbca86c61d9097d79e9fb7f3",
+          "changedCells": null,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "f8fafcb62e19e7e3aed0bf4ba46e6609227cabf76c18fb49f13dd469504e7aba",
+        "changed": null,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1735
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790150400000,
+      "valid": 1790150400000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "914cf90771d2629817eb5115f933eb1bcca5d4c9bf5d99faa64ea91f19626d74",
+          "changedCells": 12787,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "6d775cef8863a31409079f28bb409de5a9923ce28f05552168a03acfdf31206c",
+          "changedCells": 7618,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "05c6f537f05bcaf73a057d287d91411c2677e73cb777ea1080d1761efd997bc2",
+          "changedCells": 4492,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "de7b35c734f27a2a94d1993d1036a7f94b631525bc4a19f9cb8a202e927227c5",
+        "changed": 2074,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1991
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790154000000,
+      "valid": 1790154000000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "872e6549ab32a5678c33753343ffac65355ef546d69e44731d4bc80c1b26ded4",
+          "changedCells": 14522,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "73809fbd15510821a4858cad6865e52e563a6ce4b88a979292bce132f9fadc27",
+          "changedCells": 8066,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "55eb2b70991b21bde3ce87911ee332c649427978aded6181216264e8f44bbc36",
+          "changedCells": 5437,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "d21cbb045b6de737125d2b1ad52f7b1e60b28d2c3855780e43cfb6d7f3e406bf",
+        "changed": 2310,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 2581
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790157600000,
+      "valid": 1790157600000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "8b4ad689684c244e82a9e82620e8d8c15a6303ee6e2f8d48b975ee2a1864f8fb",
+          "changedCells": 16306,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "dae0f23e79b5561311f0e2719779e3ab64da5c315473b3ccf804c2ef05e42e61",
+          "changedCells": 9261,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "0488d21b9fb9201ee34be1c2e7662c6985d0a51ca94bfb89a283134270fd5c8c",
+          "changedCells": 6225,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "6b57cd174df3f24ad528d105fc0ca1273d801555c1a259da1888df0a7915b793",
+        "changed": 2640,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1817
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790161200000,
+      "valid": 1790161200000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "7f8c9391e51e41f39a43e941558c86d478e523b99fbef0b0ccf55aab7c755ef5",
+          "changedCells": 18472,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "311adbaaafd31537c4c5eb180917d34db242844dcee43cbec2ec6fe6cb0a899e",
+          "changedCells": 10051,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "a13d19686dfc94126ece1e848ceb8ad6c70fbfc45c85272770836bf703386cfb",
+          "changedCells": 6967,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "792e949df8e70c78bb62c4cff7d87ade34882f24c7bcaea275cc430a6ded485b",
+        "changed": 2914,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 2745
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790164800000,
+      "valid": 1790164800000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "e9be57121a1f645817b1e4b93b7e8c07012656e303f66f63440648303d3522e3",
+          "changedCells": 19907,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "da9f8c4b22b1c00433b20643c9cb625a892a5865cc10b7c65c1633a6be2edd38",
+          "changedCells": 9401,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "b5aa036b1b6ee4a19cfa36cbe94ec9344a3fe47b5be480dc2a991eb4630a211a",
+          "changedCells": 6374,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "4fffbb1ac9d7acaa1a8b19afc2a72bfdb276f3ae3d755ee34f983ad99c3efb43",
+        "changed": 2950,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1973
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790168400000,
+      "valid": 1790168400000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "673e8da8b2d671f8f4e35cdc83b4c7ee658dd661ebf465d7ecb64a0fd3fd34bc",
+          "changedCells": 21189,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "af27d2de138cd60308baa132a5637346e8905b9acd83cd23ea3dcddfa8030e13",
+          "changedCells": 10347,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "4504a6d6796d402762c6fc58ff7230f9af6087e1bbaf4b809fd160957048d441",
+          "changedCells": 6919,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "afd8b69118cdea4ee922c89c6e9b06e499abe5340132357ef0268ecb0b35efe3",
+        "changed": 3215,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1881
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790172000000,
+      "valid": 1790172000000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "0c17e58f24def4eed599582f3b5169119a6b969590b6fc4afcf67320313a51df",
+          "changedCells": 21439,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "d53bab51e33fc71e8643e7b4772234c51cffb570041d51ce184268b65d62f6d1",
+          "changedCells": 10568,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "9ec330ad9bb64c9960f07a7c15b8e1aeed5c9bba36519d6e7a8fb69302da8da3",
+          "changedCells": 7112,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "1d3cbde7aa3375819a303315a82c154ab286706bb9eb58885b6b5f2ec976bb95",
+        "changed": 3298,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 2561
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790175600000,
+      "valid": 1790175600000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "946612eb4f15bd78085acfab86f077ff8403a2904cd61fd54a491f6382140e03",
+          "changedCells": 21774,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "a05606f22c8ba8b0a3a19634fd3593edf1193bbf4249613d564fdb696df08d51",
+          "changedCells": 11211,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "2ad820c7087483ea2f3e0d6f14580ce98434253a6d8d5e48fc899cf157644985",
+          "changedCells": 7428,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "7d5784a446eb3e9c797eabae0829a809ccbcdf6779b6113911080b33e1db22a8",
+        "changed": 3423,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1753
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790179200000,
+      "valid": 1790179200000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "eefce45769e5a990ae2291862dc3bae92b0797b61c80239d49a7564c21e5a42d",
+          "changedCells": 21725,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "dd6c6462e6be3504fe11a3eb8adfc6d07bc9d494b2283aba32485a2ba79807e5",
+          "changedCells": 12508,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "b31f2198c106a44c2cbd5b7522a34bcb23a627f880a4b5fec6d8ed765caff957",
+          "changedCells": 9177,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "1a7d27993508542d21441d4f3da29169a44db28e4bffe4a0244945702f8b3493",
+        "changed": 3741,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 2511
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790182800000,
+      "valid": 1790182800000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "0d7d84f53b5d69f9807822ad7f13b5787ed135d29036c096e09d83da1c75cde5",
+          "changedCells": 19357,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "398ad2642b373977f6349e906bd8320bac94975c8399399dc7c8fc199cff28fe",
+          "changedCells": 12350,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "f10818bde56ff5f5b475223bb8f641949fec010e614b8e414a9e295e5f8bc533",
+          "changedCells": 10528,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "2b113dea043798b7e005ff04d40a6f6a6dfbec40dc60e82b5b7c1e43c56afce8",
+        "changed": 3573,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1776
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790186400000,
+      "valid": 1790186400000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "dd91ee18df43b309edac56a6367a787d6edde9c0f644f24b02c392ee4aef4e37",
+          "changedCells": 13477,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "cc6250e8189cf04e71a6d8b1b30e999c8e85f36ed06f68cf08f48f32d3b4c2a5",
+          "changedCells": 8662,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "5c260703f77f542eac562538deafe79a16af2049a3fcd99c6901a6782fec23eb",
+          "changedCells": 8099,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "7ce5018a28979d4573f8253f0b091e7bece5d85edc597c2d8c59339450b226b7",
+        "changed": 2684,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1899
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790190000000,
+      "valid": 1790190000000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "9edff1820b0e24096a4e36c896c85900e15ddec1b7b6f04e239b993398ab31a8",
+          "changedCells": 10976,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "8d178345f5104f3a255b93c908b78a859fc41630bd214f41dff0d4501f087f78",
+          "changedCells": 8030,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "b0dbd684a50cf8bf7cb0b7877ab02bab455f222e7dc6c1dc3de66a7eca891d98",
+          "changedCells": 7108,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "b9b88259230403dfbcaa3fee180612618d2f5df0355a4c911a143732c68a37a9",
+        "changed": 2474,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1968
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790193600000,
+      "valid": 1790193600000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "4fef61ac7d7342d256b125056d5856ebb3e8a01a3616a80cfa40fed54b9d9e5d",
+          "changedCells": 10484,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "e93cacf20f9766a9d89d0c43a3774f82afce94d10e1155593093826b1aa80c0b",
+          "changedCells": 6459,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "bfe76ac5dffd1a3fe9eebdf8da731203f292125954309e2f034ee2979d681fe9",
+          "changedCells": 5086,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "ad72208da3142311a5b6e4c62a89256279be9bbd27ff2051a7e223e5d98b9dd9",
+        "changed": 2134,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 2434
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790197200000,
+      "valid": 1790197200000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "e9da79f973902c37d4a56974324332278e3d653ddb65611a175e63a7f765c757",
+          "changedCells": 10291,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "b0f0985a9d61306ee6c0cf00721018e268738b84e8a36b07f78fd86b2173f303",
+          "changedCells": 6061,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "91bdaf9eeb2b242b90d8be318a0041a57ea494ef6fc14eb51b068bdf65ecdaeb",
+          "changedCells": 4527,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "f5273e47f322f698c9e3e4a277822e7e1c0879edaeae42667d23d4250407efbb",
+        "changed": 2043,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 3365
+    },
+    {
+      "mode": "icingSeverity",
+      "selected": 1790200800000,
+      "valid": 1790200800000,
+      "run": 1790136000000,
+      "fields": {
+        "icingProbability": {
+          "hash": "b4990c21e66bb1e497c66d59bf027cd2517745bae3ad60d1ff75a0fa0ec23edb",
+          "changedCells": 10286,
+          "totalCells": 1664632
+        },
+        "icingSeverity": {
+          "hash": "b9bb5c51b28b9a0f08671a779195421598d2084da71ed636f63c44cc4e8cd33f",
+          "changedCells": 6108,
+          "totalCells": 1664632
+        },
+        "sldPotential": {
+          "hash": "e6229570cf39fa1234bf051540599eac072502236e2658c49c554c1418c37ab2",
+          "changedCells": 4205,
+          "totalCells": 1664632
+        }
+      },
+      "pixels": {
+        "hash": "17d61fda8f21fb07cb25d38da71e9b1f71ea50acd46202e8b6f7fec0a736ebe0",
+        "changed": 2148,
+        "total": 825000
+      },
+      "acquisitionAndProbeMs": 1916
+    }
+  ],
+  "finalWarmSamples": [
+    {
+      "mode": "cloudCover",
+      "samples": [
+        {
+          "time": 1790154000000,
+          "elapsed": 143.20000004768372,
+          "maxGap": 6.5,
+          "uploads": 1
+        },
+        {
+          "time": 1790157600000,
+          "elapsed": 155.69999992847443,
+          "maxGap": 17.299999952316284,
+          "uploads": 1
+        },
+        {
+          "time": 1790161200000,
+          "elapsed": 162.10000002384186,
+          "maxGap": 8.5,
+          "uploads": 1
+        },
+        {
+          "time": 1790164800000,
+          "elapsed": 160.5,
+          "maxGap": 12,
+          "uploads": 1
+        },
+        {
+          "time": 1790154000000,
+          "elapsed": 158.5,
+          "maxGap": 9,
+          "uploads": 1
+        },
+        {
+          "time": 1790157600000,
+          "elapsed": 160,
+          "maxGap": 14.699999928474426,
+          "uploads": 1
+        },
+        {
+          "time": 1790161200000,
+          "elapsed": 157.89999997615814,
+          "maxGap": 15.800000071525574,
+          "uploads": 1
+        },
+        {
+          "time": 1790164800000,
+          "elapsed": 163.20000004768372,
+          "maxGap": 9.600000023841858,
+          "uploads": 1
+        }
+      ],
+      "repeatedSameFrame": {
+        "uploads": 0,
+        "renders": 1
+      },
+      "extraSourceRequests": 0
+    },
+    {
+      "mode": "icingSeverity",
+      "samples": [
+        {
+          "time": 1790154000000,
+          "elapsed": 104.5,
+          "maxGap": 5.800000071525574,
+          "uploads": 1
+        },
+        {
+          "time": 1790157600000,
+          "elapsed": 118.59999990463257,
+          "maxGap": 16.699999928474426,
+          "uploads": 1
+        },
+        {
+          "time": 1790161200000,
+          "elapsed": 116.5,
+          "maxGap": 15.800000071525574,
+          "uploads": 1
+        },
+        {
+          "time": 1790164800000,
+          "elapsed": 122,
+          "maxGap": 14.900000095367432,
+          "uploads": 1
+        },
+        {
+          "time": 1790154000000,
+          "elapsed": 112.40000009536743,
+          "maxGap": 16.5,
+          "uploads": 1
+        },
+        {
+          "time": 1790157600000,
+          "elapsed": 123.29999995231628,
+          "maxGap": 16.799999952316284,
+          "uploads": 1
+        },
+        {
+          "time": 1790161200000,
+          "elapsed": 127.5,
+          "maxGap": 9.799999952316284,
+          "uploads": 1
+        },
+        {
+          "time": 1790164800000,
+          "elapsed": 124.19999992847443,
+          "maxGap": 19.799999952316284,
+          "uploads": 1
+        }
+      ],
+      "repeatedSameFrame": {
+        "uploads": 0,
+        "renders": 1
+      },
+      "extraSourceRequests": 0
+    }
+  ],
+  "finalImagesMatchPriorImages": true,
+  "gpuUploads": {
+    "beforePerChangedFrame": 2,
+    "afterPerChangedFrame": 1,
+    "repeatedFrame": 0
+  },
+  "sourceFiles": [
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf01.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf02.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf03.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf04.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf05.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf06.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf07.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf08.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf09.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf10.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf11.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf12.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf13.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf14.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf15.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf16.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf17.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf18.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.20260923/conus/hrrr.t04z.wrfsfcf00.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f002.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f003.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f004.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f005.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f006.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f007.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f008.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f009.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f010.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f011.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f012.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f013.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f014.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f015.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f016.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f017.grib2",
+    "https://nomads.ncep.noaa.gov/pub/data/nccf/com/dafs/prod/dafs.20260923/dafs.t04z.ifi.3km.conus.f018.grib2"
+  ],
+  "limits": "One desktop CONUS view and one live cycle; does not reproduce the reported unidentified local tick pair or establish physical-device timing. Performance samples are observations, not a paired latency benchmark.",
+  "timelineRegression": {
+    "environment": "Playwright 1.63.0 Linux container; production-built fixture app; actual weather-awc plugin factory and toolbox",
+    "beforeCorrection": {
+      "focusedUnitTests": 27,
+      "failed": 3,
+      "failures": [
+        "inactive products add timeline steps",
+        "pinned grid selection aliases a nearby frame",
+        "Now inserted after a pinned frame when the clock passes it"
+      ]
+    },
+    "afterCorrection": {
+      "npmRunVerify": {
+        "passed": true,
+        "rootTests": 1322,
+        "contractTests": 17,
+        "domainTests": 141,
+        "checksAndBuildPassed": true
+      },
+      "chromiumWeatherSuite": {
+        "passed": 21
+      },
+      "chromiumNativeFullApp": {
+        "passed": 1,
+        "futureStepsPerProduct": 17,
+        "products": [
+          "cloudCover",
+          "icingSeverity"
+        ],
+        "assertions": [
+          "active-source stops",
+          "selected and committed valid times",
+          "numeric point values",
+          "changed rendered pixels",
+          "cached backward steps without source downloads"
+        ]
+      },
+      "chromiumClockRollover": {
+        "passed": 1
+      },
+      "webkitNativeFullAppAndClockRollover": {
+        "passed": 2
+      },
+      "gitDiffCheckPassed": true
+    },
+    "nativeAppCommand": "ZLAYER_TEST_NATIVE_WEATHER=1 npx playwright test test/e2e/weather-awc-grids.spec.ts --grep 'full toolbox'",
+    "sourceSha256": {
+      "src/layers/weather-awc/time.ts": "63f0a11b2d9b5aa92ec3494bb80720baeddab41c1fded44b176558d45cde49ee",
+      "src/layers/weather-awc/controller.ts": "d8881b45157b782e59e5a2444e7524b67981a86b4fe9799335e3c4075afa822c",
+      "src/layers/weather-awc/controls.tsx": "012cac35f97d34c0385688cb4a37760c5a9c843c68c79d39b1ad0432ad7ed06c",
+      "src/layers/weather-awc/grids/controller.ts": "859a5891ef60aa2c513165897f30e73ae5fba8d869c058a7c3ff2be743b8fab7",
+      "src/layers/weather-awc/grids/map.ts": "db061b18220a01ead9b5f4039a23188eb889e104a1d3c41d335aabec97413001",
+      "test/e2e/weather-awc-grids.spec.ts": "5bd71ac33dd41a1cd087a3390dc1ca164f354647034e87a030452e6fb033aa2a",
+      "test/e2e/weather-native.spec.ts": "82250a317fb8f37786d631aee0e1440a417adef2660c89ef49a95c0463fb932f",
+      "test/fixtures/awc-native.mjs": "c565bb9c0cfbc94f875e188ad1586d81196a441d5e21ec653c0678c8f1c43387",
+      "test/e2e/server.mjs": "287b6ae3e567e0bc05d5132231898b0953faac51c33b2d20b168686c426f9d58"
+    },
+    "limits": "Synthetic app fixtures qualify timeline wiring and rendered results. Earlier live-field hashes do not establish shared-UI correctness. No deployment, physical-device or operational weather claim."
+  },
+  "backgroundPreparation": {
+    "environment": "Playwright 1.63.0 Chromium/Linux container, fresh profile, Vite app on localhost:4173, real NOAA proxy sources, CONUS view at zoom 3, 1100x750 viewport",
+    "method": "Load the initial cloud frame; let controller prepare all remaining times without selection changes; abort NOAA requests and signal offline; measure selection through committed MapLibre render for every future hour.",
+    "live": {
+      "started": "2026-09-23T06:44:51.354Z",
+      "errors": [],
+      "progress": [
+        {
+          "elapsedMs": 0,
+          "preparation": {
+            "ready": 1,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 3197.899999976158,
+          "preparation": {
+            "ready": 2,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 6403,
+          "preparation": {
+            "ready": 3,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 9691.100000023842,
+          "preparation": {
+            "ready": 4,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 12817.700000047684,
+          "preparation": {
+            "ready": 5,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 15963,
+          "preparation": {
+            "ready": 6,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 19111.5,
+          "preparation": {
+            "ready": 7,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 22107.399999976158,
+          "preparation": {
+            "ready": 8,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 25253.200000047684,
+          "preparation": {
+            "ready": 9,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 28531.100000023842,
+          "preparation": {
+            "ready": 10,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 31902.5,
+          "preparation": {
+            "ready": 11,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 35383.5,
+          "preparation": {
+            "ready": 12,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 38794.200000047684,
+          "preparation": {
+            "ready": 13,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 42207.799999952316,
+          "preparation": {
+            "ready": 14,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 45693.799999952316,
+          "preparation": {
+            "ready": 15,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 49116.700000047684,
+          "preparation": {
+            "ready": 16,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 52473.60000002384,
+          "preparation": {
+            "ready": 17,
+            "total": 18,
+            "failed": 0
+          }
+        },
+        {
+          "elapsedMs": 55838,
+          "preparation": {
+            "ready": 18,
+            "total": 18,
+            "failed": 0
+          }
+        }
+      ],
+      "selections": [
+        {
+          "requested": 1790146800000,
+          "valid": 1790146800000,
+          "elapsedMs": 158.10000002384186,
+          "imageHash": "d51bf15b651b80f1228ed1a7e85184f4c65e1e57a0fd0d5e76f69bfc797fbb43"
+        },
+        {
+          "requested": 1790150400000,
+          "valid": 1790150400000,
+          "elapsedMs": 162.19999992847443,
+          "imageHash": "b13e856b4fbdcd92a1a4515932b77882683c1d010f54456f998c1d34aa26fc1c"
+        },
+        {
+          "requested": 1790154000000,
+          "valid": 1790154000000,
+          "elapsedMs": 182.90000009536743,
+          "imageHash": "0dabcca927d19ec7539a82c8afaba40e5c2b3658471446bce15e468d9a3c1d7d"
+        },
+        {
+          "requested": 1790157600000,
+          "valid": 1790157600000,
+          "elapsedMs": 159.69999992847443,
+          "imageHash": "a93590e94bda3034a4269c13cf058f385414c64362d7533d76f7c98369525252"
+        },
+        {
+          "requested": 1790161200000,
+          "valid": 1790161200000,
+          "elapsedMs": 168.60000002384186,
+          "imageHash": "1d80cc30d46819a7630baa820920214827b90502724f07047269a433a32b993f"
+        },
+        {
+          "requested": 1790164800000,
+          "valid": 1790164800000,
+          "elapsedMs": 162.09999990463257,
+          "imageHash": "72bb50f294d54bbc1056bbf0bdc8639e0b1946a315067ffef929afbff6cb104a"
+        },
+        {
+          "requested": 1790168400000,
+          "valid": 1790168400000,
+          "elapsedMs": 169.39999997615814,
+          "imageHash": "021332da217333a2fe081046b46d2e440bab1a0666668b9f6ebf78f891913ccc"
+        },
+        {
+          "requested": 1790172000000,
+          "valid": 1790172000000,
+          "elapsedMs": 176.19999992847443,
+          "imageHash": "834ca5348f7bfa37930a91d5c217086c693e13b1d11cffe7c9b19f579e009f2b"
+        },
+        {
+          "requested": 1790175600000,
+          "valid": 1790175600000,
+          "elapsedMs": 177.09999990463257,
+          "imageHash": "74166ebdcb4c13e0d08e67b56f082b28a57b91a4f9ca74e82122e65c59d24654"
+        },
+        {
+          "requested": 1790179200000,
+          "valid": 1790179200000,
+          "elapsedMs": 171.09999990463257,
+          "imageHash": "434ad9882ad707301c0a2fa465b1a2527f92c1b263df047aa08b87f57d1082be"
+        },
+        {
+          "requested": 1790182800000,
+          "valid": 1790182800000,
+          "elapsedMs": 171,
+          "imageHash": "aad9e52c4a6c510ea93424d7bfb2a80164731cf8b6f71e624c19d516ececfe2d"
+        },
+        {
+          "requested": 1790186400000,
+          "valid": 1790186400000,
+          "elapsedMs": 160.89999997615814,
+          "imageHash": "5788de37a91c2ade8b403acb623614cbde10e7edf045bbadf5a4a1f72866073e"
+        },
+        {
+          "requested": 1790190000000,
+          "valid": 1790190000000,
+          "elapsedMs": 155.70000004768372,
+          "imageHash": "230e359df1ed8a13935e2e085f7b6a635e1904b1552f80e5eee29a911a816519"
+        },
+        {
+          "requested": 1790193600000,
+          "valid": 1790193600000,
+          "elapsedMs": 170.39999997615814,
+          "imageHash": "8707b3e1d36efca7b05497eca10f99bd7b3e676088d467e9953d7877ef3a217f"
+        },
+        {
+          "requested": 1790197200000,
+          "valid": 1790197200000,
+          "elapsedMs": 156.5,
+          "imageHash": "c4580cb25b05011efb087cae2473369a82076d74086690c116e646d4f03dd492"
+        },
+        {
+          "requested": 1790200800000,
+          "valid": 1790200800000,
+          "elapsedMs": 186.19999992847443,
+          "imageHash": "6c977601b4cceb6ff1fa2aa2dd31eb0d612a51d03b417a4d41370a379a01f63f"
+        },
+        {
+          "requested": 1790204400000,
+          "valid": 1790204400000,
+          "elapsedMs": 186.39999997615814,
+          "imageHash": "740e9b7c901623dbe8786ce271de1141081945a6725939270ea273cceb5a4809"
+        }
+      ],
+      "firstDisplayMs": 9360,
+      "initial": {
+        "selected": null,
+        "valid": 1790143200000,
+        "run": 1790139600000,
+        "textureUploads": 1
+      },
+      "totalPreparationMs": 65247,
+      "sourceRequestsAfterPreparation": 90,
+      "prepared": {
+        "valid": 1790143200000,
+        "textureUploads": 1,
+        "preparation": {
+          "ready": 18,
+          "total": 18,
+          "failed": 0
+        },
+        "files": 18,
+        "compressedBytes": 99438171
+      },
+      "sourceRequestsAfterBrowsing": 90,
+      "mapErrors": []
+    },
+    "summary": {
+      "medianWarmSelectionMs": 169.39999997615814,
+      "minWarmSelectionMs": 155.70000004768372,
+      "maxWarmSelectionMs": 186.39999997615814,
+      "uniqueFutureImages": 17,
+      "savedMiB": 94.8316297531128,
+      "additionalSourceRequests": 0
+    },
+    "verification": {
+      "npmRunVerifyPassed": true,
+      "focusedGridUnitCases": 14,
+      "chromiumGridAndNativeBrowserCases": 15,
+      "chromiumNativeFullToolboxCases": 2,
+      "webkitCases": [
+        "all native cloud times prepared and replayed offline",
+        "native conversion, cross-window sharing and offline reopening",
+        "clock rollover",
+        "combined native timeline"
+      ],
+      "note": "The first WebKit combined test exceeded its default five-second expectation while preparation advanced to 16/18. The test now allows thirty seconds for full preparation and passes; other assertions are unchanged."
+    },
+    "sourceSha256": {
+      "src/layers/weather-awc/grids/controller.ts": "1ba45b0cb058830055ba89feb9cb067e1b987efb0b5ba5fcb2509bc18bfa8f31",
+      "src/layers/weather-awc/grids/native-client.ts": "524496974725199c8f0d8e43dc00089682c4b92938d5bea14151911cec5d0a4f",
+      "src/layers/weather-awc/grids/client.ts": "e7b77378b6bf893a414a46007d2ae746eb35ff7f8641138aecfb9d586fbde0d3",
+      "src/layers/weather-awc/grids/map.ts": "db061b18220a01ead9b5f4039a23188eb889e104a1d3c41d335aabec97413001",
+      "src/layers/weather-awc/controls.tsx": "a64262467c3be0560bde1fb1d0ce902e86f0527cd1ab1df233bea979befd9837",
+      "src/layers/weather-awc/grids/controls.tsx": "ac85f587e67fde8cd0fbd6a918dc5dcd1043a8fbe89896a5711b302780918b63",
+      "test/weather-awc-grids.test.ts": "ec37dd309222bb2d89699caf16db94ba53af212b83eaa843c555343cc85a9e5b",
+      "test/e2e/weather-awc-grids.spec.ts": "5ec997bbf59211df0c4d58c2d806779eac07190559dc887c54688ce603e203f6",
+      "test/e2e/weather-native.spec.ts": "95f58fa1410f1ed5b0c269c0cca99a2a740495e28416fd23b9cf8993d5b4b9e9"
+    },
+    "limits": "One live HRRR run and container/network sample. Initial preparation remains asynchronous and network dependent. No physical-device, release-suite or flight qualification claim."
+  },
+  "completeSetPreparation": {
+    "environment": "Playwright 1.63.0 Chromium/Linux container, fresh profile, Vite localhost:4173, real NOAA sources, same 05Z HRRR source run and viewport as backgroundPreparation",
+    "method": "Wait for complete-set initial display, then disable source requests and browse every future hour through committed MapLibre render.",
+    "live": {
+      "started": "2026-09-23T06:53:58.495Z",
+      "errors": [],
+      "progress": [
+        {
+          "elapsedMs": 0,
+          "preparation": {
+            "ready": 18,
+            "total": 18,
+            "failed": 0
+          }
+        }
+      ],
+      "selections": [
+        {
+          "requested": 1790146800000,
+          "valid": 1790146800000,
+          "elapsedMs": 163.09999990463257,
+          "imageHash": "d51bf15b651b80f1228ed1a7e85184f4c65e1e57a0fd0d5e76f69bfc797fbb43"
+        },
+        {
+          "requested": 1790150400000,
+          "valid": 1790150400000,
+          "elapsedMs": 173.29999995231628,
+          "imageHash": "b13e856b4fbdcd92a1a4515932b77882683c1d010f54456f998c1d34aa26fc1c"
+        },
+        {
+          "requested": 1790154000000,
+          "valid": 1790154000000,
+          "elapsedMs": 168.89999997615814,
+          "imageHash": "0dabcca927d19ec7539a82c8afaba40e5c2b3658471446bce15e468d9a3c1d7d"
+        },
+        {
+          "requested": 1790157600000,
+          "valid": 1790157600000,
+          "elapsedMs": 149.5,
+          "imageHash": "a93590e94bda3034a4269c13cf058f385414c64362d7533d76f7c98369525252"
+        },
+        {
+          "requested": 1790161200000,
+          "valid": 1790161200000,
+          "elapsedMs": 174,
+          "imageHash": "1d80cc30d46819a7630baa820920214827b90502724f07047269a433a32b993f"
+        },
+        {
+          "requested": 1790164800000,
+          "valid": 1790164800000,
+          "elapsedMs": 156.5,
+          "imageHash": "72bb50f294d54bbc1056bbf0bdc8639e0b1946a315067ffef929afbff6cb104a"
+        },
+        {
+          "requested": 1790168400000,
+          "valid": 1790168400000,
+          "elapsedMs": 161.80000007152557,
+          "imageHash": "021332da217333a2fe081046b46d2e440bab1a0666668b9f6ebf78f891913ccc"
+        },
+        {
+          "requested": 1790172000000,
+          "valid": 1790172000000,
+          "elapsedMs": 167.10000002384186,
+          "imageHash": "834ca5348f7bfa37930a91d5c217086c693e13b1d11cffe7c9b19f579e009f2b"
+        },
+        {
+          "requested": 1790175600000,
+          "valid": 1790175600000,
+          "elapsedMs": 200.59999990463257,
+          "imageHash": "74166ebdcb4c13e0d08e67b56f082b28a57b91a4f9ca74e82122e65c59d24654"
+        },
+        {
+          "requested": 1790179200000,
+          "valid": 1790179200000,
+          "elapsedMs": 206.89999997615814,
+          "imageHash": "434ad9882ad707301c0a2fa465b1a2527f92c1b263df047aa08b87f57d1082be"
+        },
+        {
+          "requested": 1790182800000,
+          "valid": 1790182800000,
+          "elapsedMs": 160.70000004768372,
+          "imageHash": "aad9e52c4a6c510ea93424d7bfb2a80164731cf8b6f71e624c19d516ececfe2d"
+        },
+        {
+          "requested": 1790186400000,
+          "valid": 1790186400000,
+          "elapsedMs": 192.5,
+          "imageHash": "5788de37a91c2ade8b403acb623614cbde10e7edf045bbadf5a4a1f72866073e"
+        },
+        {
+          "requested": 1790190000000,
+          "valid": 1790190000000,
+          "elapsedMs": 175,
+          "imageHash": "230e359df1ed8a13935e2e085f7b6a635e1904b1552f80e5eee29a911a816519"
+        },
+        {
+          "requested": 1790193600000,
+          "valid": 1790193600000,
+          "elapsedMs": 161.40000009536743,
+          "imageHash": "8707b3e1d36efca7b05497eca10f99bd7b3e676088d467e9953d7877ef3a217f"
+        },
+        {
+          "requested": 1790197200000,
+          "valid": 1790197200000,
+          "elapsedMs": 167.90000009536743,
+          "imageHash": "c4580cb25b05011efb087cae2473369a82076d74086690c116e646d4f03dd492"
+        },
+        {
+          "requested": 1790200800000,
+          "valid": 1790200800000,
+          "elapsedMs": 178.79999995231628,
+          "imageHash": "6c977601b4cceb6ff1fa2aa2dd31eb0d612a51d03b417a4d41370a379a01f63f"
+        },
+        {
+          "requested": 1790204400000,
+          "valid": 1790204400000,
+          "elapsedMs": 162.39999997615814,
+          "imageHash": "740e9b7c901623dbe8786ce271de1141081945a6725939270ea273cceb5a4809"
+        }
+      ],
+      "firstDisplayMs": 32140,
+      "initial": {
+        "selected": null,
+        "valid": 1790143200000,
+        "run": 1790139600000,
+        "textureUploads": 1
+      },
+      "totalPreparationMs": 32177,
+      "sourceRequestsAfterPreparation": 90,
+      "prepared": {
+        "valid": 1790143200000,
+        "textureUploads": 1,
+        "preparation": {
+          "ready": 18,
+          "total": 18,
+          "failed": 0
+        },
+        "files": 18,
+        "compressedBytes": 99438171
+      },
+      "sourceRequestsAfterBrowsing": 90,
+      "mapErrors": []
+    },
+    "summary": {
+      "medianWarmSelectionMs": 167.90000009536743,
+      "minWarmSelectionMs": 149.5,
+      "maxWarmSelectionMs": 206.89999997615814,
+      "sameSourceRun": true,
+      "matchingImages": true,
+      "precedingPreparationMs": 65247,
+      "completeSetPreparationMs": 32177,
+      "additionalSourceRequests": 0
+    },
+    "verification": {
+      "focusedGridUnitCases": 15,
+      "chromiumWeatherCasesPassed": 16,
+      "chromiumNativeFullToolboxCasesPassed": 2,
+      "webkitCasesPassed": 4,
+      "note": "The initial Chromium run passed 15/16; the missing-time case exposed a loading-state bug. After fixing it, that case and complete-set publication both passed. Other cases retain their earlier results.",
+      "npmRunVerifyPassed": true,
+      "sharedStartupProgressCasesPassed": 2
+    },
+    "sourceSha256": {
+      "src/layers/weather-awc/grids/controller.ts": "4976e308daf0959611673f7256f354af02b801f916695b7b7d2e61a6af0227ab",
+      "src/layers/weather-awc/grids/native-source.ts": "ee468374be5ceceb49a01243b8e0f6a8ed8e2e82696fadd7780e482534a1fccd",
+      "src/layers/weather-awc/grids/client.ts": "7e6cc1b769cf32cfd3d039709c15bc13ad6c6da6262393fb377cf41600d0898f",
+      "src/layers/weather-awc/controls.tsx": "e8fd46620b30d8ebfd6972ebaf3da60b556f50621b730a144f13fdb1f2f4ddd5",
+      "src/layers/weather-awc/grids/controls.tsx": "f830447cb4fe69942e3a8dac109a95c1704c3d7f368c259325fbb72830bf6605",
+      "src/core/ui/controls.css": "9e6bc14d46b618113b84e2c6dccfc243858d62c5b83ede4ef55785b218f99d92",
+      "src/shell/startup-screen.tsx": "6f27f58005d38c5fab95bcf6b745fdca2593dbc8b75b914d09a1afc4856c08ef",
+      "src/shell/startup-screen.css": "8a4d258a82ef54dacebd59331dbf58e064415c0c18c3e728008034d71f4a3e69",
+      "test/weather-awc-grids.test.ts": "a75e9b9c420c1e8180eaadf4c300888e6e8eed45cff0a49e6793570bb80d189a",
+      "test/e2e/weather-awc-grids.spec.ts": "529442c94dec03c6ee9b98d865671ef9cebfef49cfcd924896b975d6890d2b22",
+      "test/e2e/weather-native.spec.ts": "c5f3544c7bb18a21ffee3974eb993eb5f9ab21dd11cc05679a40293a0aa362f0"
+    },
+    "limits": "Sequential network observations with matching source/output, not a controlled multi-run benchmark, device peak-memory measurement or full release qualification."
+  }
+}

@@ -14,5 +14,6 @@ export default defineConfig({
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {},
   },
-  webServer: { command: 'node test/e2e/server.mjs', url: baseURL, timeout: 60_000 },
+  // The real weather processor prepares the native fixture cache once at startup.
+  webServer: { command: 'node test/e2e/server.mjs', url: baseURL, timeout: 240_000 },
 });

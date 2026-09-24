@@ -1,0 +1,138 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 10083,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -157.92999267599998,
+          21.35000038100003
+        ]
+      },
+      "properties": {
+        "objectid": 10083,
+        "stationname": "PHNL",
+        "locationname": "HONOLULU_INTL/OAHU",
+        "timeobs": 1790196780000,
+        "rawdata": "PHNL 232053Z 07015G26KT 10SM FEW024 SCT038 31/20 A2997 RMK AO2 PK WND 08026/2047 SLP147 T03060200 50003 $",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 10095,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -118.40000152599998,
+          33.93000030500008
+        ]
+      },
+      "properties": {
+        "objectid": 10095,
+        "stationname": "KLAX",
+        "locationname": "LOS_ANGELES_INTL",
+        "timeobs": 1790196780000,
+        "rawdata": "KLAX 232053Z 26011KT 10SM CLR 25/19 A2984 RMK AO2 SLP102 T02500189 58011 $",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 10104,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -119.83000183099995,
+          34.43000030500008
+        ]
+      },
+      "properties": {
+        "objectid": 10104,
+        "stationname": "KSBA",
+        "locationname": "",
+        "timeobs": 1790196780000,
+        "rawdata": "KSBA 232053Z 22007KT 180V250 10SM CLR 26/18 A2983 RMK AO2 SLP102 T02560183 58013 $",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 10397,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.449999987999945,
+          51.47999954200003
+        ]
+      },
+      "properties": {
+        "objectid": 10397,
+        "stationname": "EGLL",
+        "locationname": "LONDON/HEATHROW",
+        "timeobs": 1790196600000,
+        "rawdata": "EGLL 232050Z AUTO 31004KT 260V360 9999 NCD 16/09 Q1026",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 10659,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -147.86999511699997,
+          64.80999755900007
+        ]
+      },
+      "properties": {
+        "objectid": 10659,
+        "stationname": "PAFA",
+        "locationname": "FAIRBANKS_INTL_ARPT",
+        "timeobs": 1790196780000,
+        "rawdata": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 10953,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.37999725299994,
+          37.61000061000004
+        ]
+      },
+      "properties": {
+        "objectid": 10953,
+        "stationname": "KSFO",
+        "locationname": "SAN_FRANCISCO_INTL",
+        "timeobs": 1790196960000,
+        "rawdata": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+        "tblname": "METAR"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 11674,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -123.18000030499996,
+          49.18999862700008
+        ]
+      },
+      "properties": {
+        "objectid": 11674,
+        "stationname": "CYVR",
+        "locationname": "VANCOUVER INT'L A BC",
+        "timeobs": 1790197200000,
+        "rawdata": "CYVR 232100Z 14010KT 30SM FEW023 SCT048TCU SCT052TCU SCT071 SCT120 18/11 A3011 RMK SC2TCU1TCU1AC1AC1 TCU TR AC TR AC TR SLP199",
+        "tblname": "METAR"
+      }
+    }
+  ]
+}

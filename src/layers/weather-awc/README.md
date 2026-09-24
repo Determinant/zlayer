@@ -3,8 +3,10 @@
 [Documentation](../../../docs/README.md) / Plugins / weather-awc
 
 The independent `weather-awc` plugin supplies G-AIRMETs, domestic/convective SIGMETs,
-CWAs and freezing contours, plus CONUS cloud, freezing, icing, wind and temperature
-forecasts. Map weather starts off. METAR/TAF and navigation remain independent plugins.
+CWAs and freezing contours, CONUS cloud/freezing/icing/wind/temperature forecasts,
+WPC pressure charts through [Progs](progs/README.md), and current/recent
+[NEXRAD/TDWR radar](radar/README.md) with optional storm-motion tracks.
+Map weather starts off. METAR/TAF and navigation remain independent plugins.
 The [grid guide](grids/README.md) owns numeric meanings, preparation and offline
 budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs.
 The [weather server](../../../tools/weather-server/README.md) owns source acquisition
@@ -12,16 +14,20 @@ and shared prepared data.
 
 ## Display and selection
 
-The left-edge toolbox has four core content tabs: **Advisories**, **Cloud**,
-**Icing**, and **Winds**, sharing one master switch and timeline. Switching tabs or
+The left-edge toolbox has six core content tabs in two rows: **Advis.**,
+**Progs**, **Radar**, then **Cloud**, **Icing**, and **Winds**, sharing one master switch and timeline. Switching tabs or
 stowing the toolbox preserves displayed weather, filters, time and altitudes.
-Cloud and Icing choose one shaded field. Wind barbs are independent; temperature
+An enabled-product dot is separate from the selected control tab. Progs and wind
+barbs are independent overlays. Cloud and Icing choose one shaded field; temperature
 replaces the shaded field. Icing and winds have separate altitude controls.
 
 Use core controls, tabs, `ToolPanel`, `DetailPanel`, stowing, focus and keyboard
 behavior. Product-specific layouts, discrete forecast/altitude sliders, legends and
 map rendering stay in this plugin. The timeline and tabs remain above a scrolling
-body; short maps scroll the whole toolbox. Map Display groups this plugin and
+body. The bottom-anchored toolbox is 656px tall, capped by available map height,
+so its upper edge rises by one 36px row. Product tabs and Prev/Now/Next use core's
+explicit slim option (32px height, at least 44px width), including on touch screens;
+maps at most 536px tall scroll the whole toolbox. Map Display groups this plugin and
 METAR/TAF under **AWC Weather** without coupling their loading or visibility.
 
 Advisory switches distinguish G-AIRMET, non-convective SIGMET, convective SIGMET,
@@ -33,14 +39,36 @@ They remain visible with the generic hazard color and inspectable until expiry.
 Boundaries share opaque 2px strokes and a subtle white halo; fills use 10% opacity.
 The map and legend share the hazard palette. Weather lies above terrain and below
 routes and navigation at `WEATHER_LAYER_ANCHOR`, including after style recovery or remounting.
+Within weather, the top-to-bottom priority is **Progs → Radar → other weather**.
+Radar sits above advisory fills/outlines, wind barbs and forecast shading, directly
+below all Progs strokes and labels. Lazy loading, toggles and style recovery retain
+this order regardless of which overlay becomes available first.
 
 The timeline contains the union of enabled G-AIRMET snapshots, SIGMET/CWA validity
-boundaries, the shaded field's native times at its selected level, and enabled
-wind times. Marks occupy actual time positions, stacking product colors when they
-coincide. Inactive products contribute no stops. Prev/Next, dragging and arrow keys
-use these same stops; Now follows the clock. Selection retains absolute time across
-tab/field changes, even if a new field has no coverage there. An unavailable pinned
-time gets no invented tick. Next skips elapsed stops; Now remains a separate action.
+boundaries, the shaded field's native times at its selected level, enabled wind
+times, enabled Progs forecast snapshots, and retained national radar observation times.
+Radar history extends the scale before Now using five-minute spacing; its
+[guide](radar/README.md#history-and-timeline) owns history selection and retention.
+The horizontally scrollable forecast scale
+keeps at least 11px per hour, with hourly ticks and date headers, including across
+the seven-day Progs horizon. UTC labels appear every four hours and at the selected
+hour, with nearby labels omitted to leave the selection readable. The heading and
+accessible slider value retain the full selected time. Marks occupy actual time positions, stacking product colors when they
+coincide. Inactive products contribute no stops; hourly ruler ticks do not invent
+forecasts. Dragging the scale pans without changing the weather selection; dragging
+the native handle, tapping its track, Prev/Next and arrow keys use the native stops.
+Selection and resize reveal the handle by scrolling only the scale. Refreshes and
+clock ticks preserve manual browsing. The 16px handle stays above the product marks,
+with its 44px touch target and 32px Prev/Now/Next buttons.
+
+Now follows the wall clock, including source/grid publications, explicit Now actions,
+and visibility, page restoration or window-focus events after mobile suspension.
+Refreshing the clock does not change source-check or chart-validity timestamps.
+Selection retains absolute time across tab/field changes, even if a new field has
+no coverage there. An unavailable pinned
+time gets no invented tick. Next skips elapsed forecast stops; enabled radar adds
+retained observation stops before Now. Now remains a separate action and, with
+radar history, a stop between observations and forecasts.
 
 G-AIRMET uses the last 0/3/6/9/12-hour snapshot at or before selection, within its
 package and less than one three-hour cadence old. It never shows a future snapshot
@@ -54,8 +82,12 @@ Right-click/long-press offers **Inspect weather** for available data. It opens c
 Weather Details panel with numeric values and all overlapping advisories; ordinary
 clicks retain navigation/route/ruler behavior. Stowing the toolbox preserves both
 inspection and weather. Explicit inspection reopens details, while source updates
-preserve their stowed state. The point forecast groups matching provider/run/time
-metadata and keeps different sources and altitudes explicit. **Change** beside a
+preserve their stowed state. Preference changes, including Cloud/Icing forecast
+dropdowns, preserve the inspected location and the details panel's open or stowed
+state. Open details update for the chosen field once matching data is displayed;
+closed details stay closed. Turning off AWC weather clears the inspection.
+The point forecast groups matching provider/run/time metadata and keeps different
+sources and altitudes explicit. **Change** beside a
 wind/icing altitude opens its control without changing the inspected point or time.
 
 Advisory cards lead with hazard, product/identifier, office, altitude and validity;
@@ -81,12 +113,18 @@ It verifies complete-family delivery, source preservation and exclusive expiry.
 Malformed hazard types, blank hazard strings and invalid validity still reject
 the replacement; the missing-hazard fallback applies only to CWA.
 
-The browser reads normalized snapshots, serially refreshing enabled families every
+The browser reads normalized advisory snapshots, serially refreshing enabled families every
 five minutes after completion while mounted, visible and online. Each request has
 a 30-second timeout and 4 MiB decoded JSON bound. One failed family leaves others
 usable. Whole successful snapshots replace their family, including withdrawals
 and empty results; there is no bulletin-history archive or synthesized cancellation
 feed. Detaching stops acquisition; style recovery preserves controller state.
+
+Advisory counts include only IDs accepted by the map source. Pending submissions
+hide the preceding geometry. Source errors hide all advisory geometry and expose
+**Retry advisories**; retry or a successful source refresh recreates the failed
+source even when bulletin IDs are unchanged. Recovery preserves the wind, radar,
+Progs and navigation layer order, and late completions cannot revive old output.
 
 Source-check, issue and valid times remain distinct. Cache hits cannot advance the
 source check. Errors, restored-only snapshots, clock rollback and checks older than
@@ -94,9 +132,12 @@ ten minutes show cached/unverified state. Offline data keeps its original times.
 The service worker bypasses `/api/weather/` and `cache: no-store` requests so a
 failed live check cannot silently become a successful cached response.
 
-Core storage slots retain the last validated snapshot for each family, plus three
-forecast catalogs. Each record is capped at 4 MiB of UTF-16 text: at most 24 MiB
-across these six slots, subject to browser quota. They carry endpoint identity;
+Core storage slots retain the last validated snapshot for each advisory family,
+three forecast catalogs, two small Progs file pointers, and radar/motion catalogs. Each record is capped at
+4 MiB of UTF-16 text, subject to browser quota; these ten slots therefore have a
+40 MiB aggregate ceiling. The [Progs guide](progs/README.md) owns
+its larger, server-smoothed chart files and compatibility with former inline snapshots.
+All carry endpoint identity;
 explicit archived feeds restore only their own snapshots. Recognized former
 same-origin snapshot identities can restore offline without claiming a fresh check.
 Oversized/corrupt records are ignored, and optional save failure preserves live data.
@@ -117,3 +158,7 @@ and saves offline using core APIs. Catalogs are published only after every liste
 reads never acquire sources or run conversion. Feed overrides remain
 for archived data and fixtures. See [local development](../../../docs/development/local-development.md#data-and-proxies)
 and the [server deployment guide](../../../tools/weather-server/README.md#deployment).
+
+[Historical validation records](validation/README.md) retain source investigations
+and measurements from earlier implementations. Current behavior belongs in these
+guides; current verification follows the repository's precommit checks.

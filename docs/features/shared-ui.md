@@ -57,7 +57,7 @@ Display scaling and browser chrome can change the available viewport.
   scrollable body. Metadata, tabs and details remain reachable even in short windows.
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
   Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
-  advisory, cloud, icing and wind controls use four content tabs inside its left toolbox.
+  advisory, Progs, radar, cloud, icing and wind controls use six content tabs in two rows inside its left toolbox.
 - Chart/MBTiles status, GPS, Terrain and AWC Weather retain their compact contents and tuck away
   off the left edge. Clicking or tapping a tab toggles its panel open or closed, on
   desktop and touch devices alike. Moving across the map or hovering another tab
@@ -65,11 +65,14 @@ Display scaling and browser chrome can change the available viewport.
   closes the active panel for keyboard users. Hidden controls leave the tab order while
   GPS tracking, terrain rendering and selected altitude continue unchanged. The
   AWC Weather tab sits directly above Terrain; its time selection, filters and map
-  weather remain active when stowed. Its Advisories, Cloud, Icing and Winds content tabs
-  share core's keyboard navigation and retain selection while stowed. One forecast
-  timeline above the content tabs keeps the same selected time across all four.
-  The tab row scrolls horizontally, retaining normal text size and touch targets;
-  active wind barbs remain over the selected shaded forecast when switching tabs.
+  weather remain active when stowed. Its Advisories, Progs, Radar, Cloud, Icing and Winds content tabs
+  share core's keyboard navigation and retain selection while stowed. One weather
+  timeline above the content tabs combines recent radar observations and forecasts
+  while preserving the selected time across all six tabs.
+  The selector uses two fixed rows with core's explicit slim sizing; enabled-product
+  dots remain distinct from the selected tab. The bottom-anchored toolbox grows
+  upward by 36px (656px preferred height), capped by available map height. Active
+  wind barbs, radar and Progs remain over the selected shaded forecast when switching tabs.
   These toolboxes scroll within the available map height in short landscape windows. Edge tabs
   retain 44px touch targets without adding headers to the panels.
   When the map container is at most 300px tall, the bottom tab stack uses a second
@@ -189,12 +192,15 @@ Startup and AWC forecast preparation share its compact track and fill styling.
 ```
 
 Button modifiers are `ui-button--primary`, `ui-button--danger`, `ui-button--quiet`,
-`ui-button--compact` and `ui-button--icon`. Icon buttons still need an accessible
+`ui-button--compact`, `ui-button--slim` and `ui-button--icon`. Icon buttons still need an accessible
 name. `ui-input--compact` is for dense toolboxes. Ordinary controls are at least
 44px high; compact controls start at 32px. Both honor the shared 44px touch minimum
-in width and height, including short action labels such as Use. AWC's Prev/Now/Next
-and product-tab buttons deliberately share a 32px height on all devices to preserve
-room for forecast controls; both rows retain at least 44px button width.
+in width and height, including short action labels such as Use. Explicit
+`ui-button--slim` retains a 32px minimum height, 44px minimum width and compact
+padding/type on every device, including touch screens. `TabList size="slim"`
+selects this same core option; its default remains compact with the shared touch
+minimum. AWC's Prev/Now/Next and both product rows use the slim option consistently
+to preserve room for forecast controls. Enlarged text can increase the height.
 Fields use 16px text; compact fields use the shared 14px/16px touch font size.
 Native selects contain their internal painting so long values with expanded text
 spacing cannot widen an enclosing scroller in WebKit; their full option labels
@@ -252,7 +258,8 @@ content do not start work. Identification temporarily leaves both tabs unselecte
 The optional `scrollable` variant keeps a single horizontal row with core
 scrollbar styling and overflow-edge cues. Selection/resize reveals the active tab
 by scrolling only the row, preserving the enclosing panel/page position. AWC uses
-this variant so further product tabs do not require smaller labels or wrapping.
+two rows of slim tabs; its separate hourly weather scale scrolls horizontally
+without widening the toolbox or changing the shared 32px button height.
 
 The shared `.switch` indicator is also defined in core controls. Its native button
 owns `role="switch"` and `aria-checked`; local styles may adjust indicator dimensions

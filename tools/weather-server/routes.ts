@@ -1,6 +1,8 @@
+import { RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
+
 export const MiB = 1024 * 1024;
 export type Resource = {
-  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'prepared';
+  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'surface' | 'radar-index' | 'radar-data' | 'prepared';
   ttl: number; maxBytes: number; range?: string; indexHash?: string; multipleGribs?: true;
 };
 export class HttpError extends Error {
@@ -27,12 +29,24 @@ export function resourceFor(path: string, range?: string): Resource {
   if (path.split('?')[0] !== url.pathname || /%/.test(url.pathname)) throw new HttpError(400, 'Invalid request path');
   const query = url.searchParams;
   if ([...query.keys()].some(key => query.getAll(key).length !== 1)) throw new HttpError(400, 'Duplicate query parameter');
-  if (/^\/api\/weather\/(advisories\/(gairmet|sigmet|cwa)|grids\/(clouds|icing|winds))\.json$/.test(url.pathname) ||
+  if (/^\/api\/weather\/radar\/motion\/(?:latest|[a-f0-9]{64})\.json$/.test(url.pathname)) {
+    if (query.size || range) throw new HttpError(400, 'Prepared storm motion takes no query or range');
+    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000,
+      maxBytes: url.pathname.endsWith('/latest.json') ? 32 * 1024 : RADAR_MOTION_MAX_BYTES };
+  }
+  if (/^\/api\/weather\/radar\/(?:latest\.json|(?:CONUS|T[A-Z]{3})\/\d{13}-[a-f0-9]{64}\.json)$/.test(url.pathname)) {
+    if (query.size || range) throw new HttpError(400, 'Prepared radar takes no query or range');
+    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000, maxBytes: 16 * MiB };
+  }
+  if (/^\/api\/weather\/(advisories\/(gairmet|sigmet|cwa)|grids\/(clouds|icing|winds)|progs\/(analysis|forecast))\.json$/.test(url.pathname) ||
+    /^\/api\/weather\/progs\/(analysis|forecast)\/[a-f0-9]{64}\.json$/.test(url.pathname) ||
     /^\/api\/weather\/grids\/(?:(?:clouds|icing)\/\d{13}-\d{1,2}-\d{1,5}|winds\/\d{13}-\d{1,2}-p\d{3,4})-[a-f0-9]{64}\.zwp\.gz$/.test(url.pathname) ||
     /^\/api\/weather\/grids\/winds\/\d{13}-terrain-[a-f0-9]{64}\.zwt\.gz$/.test(url.pathname)) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
     return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
-      ttl: url.pathname.includes('/advisories/') ? 60_000 : 86_400_000, maxBytes: url.pathname.endsWith('.json') ? 4 * MiB : 16 * MiB };
+      ttl: url.pathname.includes('/advisories/') ? 60_000 : 86_400_000,
+      maxBytes: url.pathname.includes('/progs/') ? /\/(analysis|forecast)\.json$/.test(url.pathname) ? SURFACE_CATALOG_MAX_BYTES : SURFACE_MAX_BYTES
+        : url.pathname.endsWith('.json') ? 4 * MiB : 16 * MiB };
   }
   const product = url.pathname === '/api/weather/metars.geojson' ? 'metar' : url.pathname === '/api/weather/tafs.json' ? 'taf' : undefined;
   if (product) {

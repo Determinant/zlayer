@@ -44,7 +44,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P1 | Clouds, freezing height, icing probability/severity/SLD | NOAA HRRR and DAFS/IFI GRIB2 | immutable numeric grids; client shading and point values | [Server preparation and browser caching implemented](../../src/layers/weather-awc/grids/README.md); gateway on GCP behind DO’s HTTPS proxy, source caveats and reference-device validation remain |
 | P1 | Winds and temperature aloft | NOAA HRRR CONUS pressure-level GRIB2 | numeric vectors/temperature; zoom-spaced barbs and optional shading | [Browser-derived MSL slices below 18,000 ft and flight levels from FL180](../../src/layers/weather-awc/grids/winds.md), with core caching; reference-device qualification remains |
 | P0 | Station, airport, NAVAID, fix | AWC API; infrequent station cache | reference tiles/search | Approved for spike within published limits |
-| P0 | Surface fronts, troughs, highs/lows | WPC high-resolution coded surface bulletin | parsed vectors | Validate endpoint and parser before integration |
+| P0 | Surface pressure charts, fronts and ridges | AWC Progs catalog and WPC GeoJSON | server-prepared vectors | [Progs implemented](../../src/layers/weather-awc/progs/README.md); NOAA isobars/labels represent ridges; operational comparison remains outstanding |
 | P1 | NEXRAD mosaic | NOAA nowCOAST OGC services or another explicit NOAA distribution endpoint | raster tiles | Compare latency, coverage, and service policy |
 | P1 | GOES visible/IR | NOAA GOES-R open object-store data or nowCOAST OGC service | COG/raster tiles | Preferred production path; benchmark both modes |
 | Reference only | COD NEXLAB satellite imagery | Link to NEXLAB with credit | outbound link | No automated retrieval without written permission |
@@ -269,25 +269,41 @@ lineage and independent depiction checks remain in the
 
 ## WPC surface analysis
 
-WPC publishes surface analyses every three hours and documents both standard and
-high-resolution coded surface bulletins. The high-resolution bulletin represents
-fronts/troughs as ordered coordinates precise to tenths of a degree and pressure
-centers as pressure-coordinate pairs. This is preferable to georeferencing a chart
-image because it produces selectable, stylable vector features.
+WPC surface analysis and forecast charts reach Progs through the same catalog and
+GeoJSON products used by AWC's web view. The [owning guide](../../src/layers/weather-awc/progs/README.md)
+records exact source paths, chart identity, source bounds and the dependency on
+AWC's web-product interface rather than a documented stable API. The weather server
+prepares full pressure contours, source labels, H/L and tropical centers, distinct
+front/boundary types and frontogenesis/frontolysis qualifiers. Each chart's own
+reference cycle and absolute valid time are retained, including mixed-cycle
+publication and daily forecasts through seven days.
 
-The WPC integration spike must pin the authoritative latest/archive URLs, save fixtures,
-and implement rollover-safe valid-time parsing. Keep a link to the corresponding WPC
-chart as the authoritative visual cross-check. WPC's general shapefile directory is
-useful for later products but its advertised subset should not be assumed to contain
-the surface analysis.
+NOAA contours and chart annotations depict pressure ridges; no local ridge axis
+is derived. The earlier coded bulletins omit isobars and combine several boundaries
+into TROF, so they cannot satisfy the complete chart contract. Captured fixtures
+cover all files in one source catalog. Broader archived-source and operational
+comparison remains outstanding. WPC's general GIS directory should not be assumed
+to contain every surface chart field.
 
 References:
 
+- [AWC Progs catalog](https://aviationweather.gov/api/data/progchart)
+- [AWC API access policy](https://aviationweather.gov/data/api/)
+- [WPC surface chart](https://www.wpc.ncep.noaa.gov/html/sfc2.shtml)
 - [WPC surface-analysis description and schedule](https://www.wpc.ncep.noaa.gov/html/about_sfc.shtml)
-- [High-resolution bulletin format](https://www.wpc.ncep.noaa.gov/html/read_coded_bull_hr.shtml)
-- [WPC GIS products](https://www.wpc.ncep.noaa.gov/html/about_gis.shtml)
 
 ## Satellite and radar
+
+Implemented locally: [Radar](../../src/layers/weather-awc/radar/README.md) combines
+NOAA MRMS quality-controlled composite reflectivity with FAA TDWR product 180
+terminal detail. The weather server acquires numerical GRIB2/Level III observations,
+prepares contours once, and publishes immutable files for all viewers. Current
+observations expire after 15 minutes. A rolling two-hour history supports timeline
+rewind: national scans backfill from NOAA S3, while terminal history accumulates as
+scans arrive. An optional storm-motion overlay uses NOAA NEXRAD STI/product 58
+forecast cell positions from NWS TGFTP, collected and cached independently by the
+same server. Motion history accumulates as scans arrive and follows the displayed
+radar time. Automatic playback remains planned.
 
 College of DuPage demonstrates the desired high-resolution, multi-band, rapid-loop
 experience. Its [terms](https://weather.cod.edu/terms/) permit linking to images with

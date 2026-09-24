@@ -139,7 +139,7 @@ capabilities for every plugin.
 | [charts/](../../src/layers/charts/README.md) | VFR/IFR selection definitions, rendering, MBTiles/package readers, archive caching, offline planning and service-worker adapter |
 | [navigation/](../../src/layers/navigation/README.md) | Navigation/airway loaders, search, airport/runway/frequency details, symbols, fix display and navaid identification |
 | [metar-taf/](../../src/layers/metar-taf/README.md) | Report clients/caches, station selection, refresh, weather details, runway wind and METAR map rendering |
-| [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory vectors and numeric cloud/freezing/icing forecasts, shared timeline, native altitude controls, point inspection and source status |
+| [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory and surface-analysis/Progs vectors, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
@@ -801,7 +801,8 @@ antimeridian-crossing chart bounds intentionally use different guards.
 
 1. Debounce a changed demand set for 250 ms by default; airport cards use zero delay.
 2. Keep one refresh active, cancelling obsolete work and waiting for it to settle.
-3. Refresh after the previous refresh completes at the product's interval.
+3. Refresh after the previous refresh completes at the product's interval;
+   an optional retry interval shortens recovery after a failed refresh.
 4. Stop when demand is empty or disabled; destroy cancels timers and active work.
 
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#demand-refresh-and-recovery)
@@ -904,6 +905,15 @@ can retry decoding. Checksum and content-validation failures still repair corrup
 files. Without working Web Locks,
 existing bytes can still be read but optional writes are skipped.
 
+A successful save is a receipt at that moment, not a permanent offline guarantee.
+`storage.subscribeFiles(listener)` supplies coalesced plugin-scoped mutation hints,
+including other windows when BroadcastChannel is available; unsubscribe on detach.
+Owners reconcile previously authenticated receipts with `files.retained(references,
+signal)`, which batches key inventory without reading bodies or changing LRU order.
+Presence never replaces content validation on use. Recheck on resume and periodically
+while active as well: browser eviction need not emit a hint. A file removed during
+decoding still yields usable data but no current save receipt.
+
 Concurrent callers for the same complete identity and acquisition policy share a
 pending result within a page/worker. Treat that result as read-only. One caller's
 cancellation does not cancel other users; the last cancellation aborts acquisition.
@@ -958,7 +968,8 @@ Unknown encoded size is bounded by `maxFileBytes`; optional storage failure stil
 leaves a validated live result usable. Cache-only never invokes a producer.
 
 AWC is the first consumer: it declares a shared 96-file / 256 MiB ceiling across
-forecast, model-terrain and compatibility caches, with a 48-hour unused lifetime.
+forecast, model-terrain, Progs, radar/motion and compatibility caches, with a
+48-hour shared unused lifetime and shorter product-specific limits.
 Its controller displays the selection first, then saves cloud/icing forecast times
 at the chosen icing altitude, warming a bounded decoded neighborhood. Winds load the selected time and
 altitude first, prefetching adjacent hours. Numeric operations share one CPU slot;
@@ -978,6 +989,7 @@ Use the existing APIs where the resource has different requirements:
 | Plates | Core transfers/files already support large PDF range reads and verified saves. Shared pending-request machinery could be extracted later while preserving progress, legacy migration and required-save failures. |
 | Obstructions | Uses `files.derive` for the filtered numeric index, with four files / 32 MiB and 14-day unused retention. Core migrates old filtered snapshots and gzip files on demand; the plugin validates original source identity and streamed records. Shared reference JSON/explicit saves keep their separate retention. |
 | METAR/TAF and advisory snapshots | Use core storage slots and refresh scheduling. Their mutable report merging, amendments, withdrawals and source freshness belong to their clients, not immutable-file caching. |
+| Progs surface charts | Load immutable, server-prepared chart files through `files.loadResult`, keyed by endpoint and artifact digest. Small freshness catalogs reference successfully saved charts; unchanged checks reuse geometry. Asynchronous restoration cannot replace live data. The [Progs guide](../../src/layers/weather-awc/progs/README.md) owns limits and legacy-snapshot compatibility. |
 | Navigation and route reference JSON | Already use validated `fetchJson`, immutable identities and saved-snapshot authority. Keep explicit offline packs outside an opportunistic LRU. |
 
 ## Verification history and remaining checks

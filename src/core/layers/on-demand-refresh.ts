@@ -1,5 +1,6 @@
 type RefreshOptions = {
   intervalMs: number;
+  retryIntervalMs?: number;
   debounceMs?: number;
   refresh: (ids: readonly string[], signal: AbortSignal) => Promise<void>;
   onState: (loading: boolean) => void;
@@ -43,13 +44,18 @@ export class OnDemandRefresh {
     const controller = new AbortController();
     this.#active = controller;
     this.options.onState(true);
+    let failed = false;
     try { await this.options.refresh(key.split(','), controller.signal); }
-    catch (error) { if (!controller.signal.aborted) this.options.onError(error); }
+    catch (error) {
+      failed = true;
+      if (!controller.signal.aborted) this.options.onError(error);
+    }
     finally {
       this.#active = undefined;
       if (!this.#destroyed) {
         this.options.onState(false);
-        this.#schedule(controller.signal.aborted ? this.options.debounceMs ?? 250 : this.options.intervalMs);
+        this.#schedule(controller.signal.aborted ? this.options.debounceMs ?? 250
+          : failed ? this.options.retryIntervalMs ?? this.options.intervalMs : this.options.intervalMs);
       }
     }
   }
