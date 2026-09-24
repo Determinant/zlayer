@@ -261,7 +261,7 @@ async function fetchChartManifest(
       const manifest = await fetchDocument(
         `${packageRoot}/manifest.json`,
         (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 2,
-        'FAA chart package manifest', revision, signal,
+        'FAA chart package manifest', revision, signal, supportedChartFamilies,
       );
       return { manifest, root, packageRoot };
     } catch (error) {
@@ -272,7 +272,7 @@ async function fetchChartManifest(
     const manifest = await fetchDocument(
       `${root}/chart-manifest.json`,
       (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 1,
-      'FAA chart manifest', revision, signal,
+      'FAA chart manifest', revision, signal, supportedChartFamilies,
     );
     return { manifest, root };
   } catch (error) {
@@ -283,7 +283,7 @@ async function fetchChartManifest(
     const manifest = await fetchDocument(
       `${revisionRoot}/chart-manifest.json`,
       (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 1,
-      'FAA chart manifest', revision, signal,
+      'FAA chart manifest', revision, signal, supportedChartFamilies,
     );
     return { manifest, root: revisionRoot };
   }
@@ -300,11 +300,34 @@ async function fetchDocument<T>(
   label: string,
   revision: string,
   signal?: AbortSignal,
+  normalize?: (value: unknown) => unknown,
 ): Promise<T> {
   // A manual upload can expand the same FAA cycle; retain only a validated fallback.
   return fetchJson(url, (value): value is T => guard(value) &&
     isRecord(value) && value.effectiveDate === revision, label,
-    { revalidate: true, ...(signal ? { signal } : {}) });
+    { revalidate: true, ...(signal ? { signal } : {}), ...(normalize ? { normalize } : {}) });
+}
+
+/** An added chart family must not invalidate products this client understands.
+ * Remove only explicitly unsupported families and references to their archives;
+ * malformed supported records and dangling region dependencies still fail validation. */
+function supportedChartFamilies(value: unknown): unknown {
+  const hasKind = (item: unknown): item is Record<string, unknown> & { kind: string } =>
+    isRecord(item) && isNonEmptyString(item.kind);
+  const supported = (item: { kind: string }) => PUBLISHED_CHART_KINDS.has(item.kind as Exclude<ChartKind, 'unknown'>);
+  if (!isRecord(value) || !Array.isArray(value.charts) || !value.charts.every(hasKind)) return value;
+  const charts = value.charts.filter(supported);
+  if (value.schemaVersion === 1) return { ...value, charts };
+  if (value.schemaVersion !== 2 || !Array.isArray(value.archives) || !value.archives.every(hasKind) ||
+      !value.archives.every(item => isNonEmptyString(item.id)) ||
+      !hasUniqueStrings(value.archives.map(item => item.id as string)) || !Array.isArray(value.regions)) return value;
+  const excluded = new Set(value.archives.filter(item => !supported(item)).map(item => item.id));
+  const regions = value.regions.map((region: unknown) => {
+    if (!isRecord(region) || !Array.isArray(region.archiveIds) ||
+        !region.archiveIds.every(isNonEmptyString) || !hasUniqueStrings(region.archiveIds)) return region;
+    return { ...region, archiveIds: region.archiveIds.filter(id => !excluded.has(id)) };
+  });
+  return { ...value, charts, archives: value.archives.filter(supported), regions };
 }
 
 function requiredProduct(

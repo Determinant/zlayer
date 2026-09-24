@@ -6,6 +6,8 @@ import { normalizeIdentifier, metarStationId as reportStationId, metarObservatio
 import { METAR_LOOKBACK_HOURS, stationIdBatches } from './requests';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
+import { weatherCheckedAt } from '../../../core/data/fetch-json';
+
 export { observationTime, reportStationId };
 
 export const METAR_REFRESH_MS = 60_000;
@@ -50,6 +52,8 @@ export class MetarClient {
       const saved: unknown = JSON.parse(cacheSlot.read(options.storage) ?? 'null');
       if (isMetarFeatureCollection(saved)) {
         for (const report of saved.features.slice(-MAX_CACHED_STATIONS)) {
+          // Discard the retired adapter's raw-less sensor records, not coded weather.
+          if (report.properties.source === 'NWS' && report.properties.sourceVersion !== 1) continue;
           const id = reportStationId(report);
           if (id) this.#stations.set(id, { report });
         }
@@ -97,8 +101,10 @@ export class MetarClient {
     if (age !== undefined && age >= 0 && age < METAR_REFRESH_MS) return;
     try {
       const reports = new Map<string, MetarFeature>();
+      let checkedAt = this.#now();
       for (const bbox of boxes) {
-        const collection = await this.#request({ bbox }, signal);
+        const { collection, checkedAt: sourceCheckedAt } = await this.#request({ bbox }, signal);
+        checkedAt = Math.min(checkedAt, sourceCheckedAt);
         for (const report of collection.features) {
           const id = reportStationId(report);
           const distance = stationDistance(point, report);
@@ -110,9 +116,9 @@ export class MetarClient {
       const ids = new Set([...reports.keys(), ...[...this.#stations.entries()]
         .filter(([, entry]) => entry.report && stationDistance(point, entry.report) <= NEARBY_STATION_RADIUS_NM)
         .map(([id]) => id)]);
-      for (const id of ids) this.#accept(id, reports.get(id));
+      for (const id of ids) this.#accept(id, reports.get(id), checkedAt);
       this.#areas.delete(key);
-      this.#areas.set(key, { checkedAt: this.#now(), attemptedAt: this.#now() });
+      this.#areas.set(key, { checkedAt, attemptedAt: this.#now() });
     } catch (error) {
       signal.throwIfAborted();
       this.#areas.set(key, { ...previous, attemptedAt: this.#now(),
@@ -139,14 +145,14 @@ export class MetarClient {
         signal.throwIfAborted();
         const batch = batches[nextBatch++]!;
         try {
-          const collection = await this.#request({ ids: batch.join(',') }, signal);
+          const { collection, checkedAt } = await this.#request({ ids: batch.join(',') }, signal);
           signal.throwIfAborted();
           const reports = new Map<string, MetarFeature>();
           for (const report of collection.features) {
             const id = reportStationId(report);
             if (id) reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
           }
-          for (const id of batch) this.#accept(id, reports.get(id));
+          for (const id of batch) this.#accept(id, reports.get(id), checkedAt);
         } catch (error) {
           signal.throwIfAborted();
           for (const id of batch) {
@@ -164,7 +170,7 @@ export class MetarClient {
     await Promise.all(Array.from({ length: Math.min(2, batches.length) }, worker));
   }
 
-  async #request(query: { ids: string } | { bbox: string }, signal: AbortSignal): Promise<MetarFeatureCollection> {
+  async #request(query: { ids: string } | { bbox: string }, signal: AbortSignal): Promise<{ collection: MetarFeatureCollection; checkedAt: number }> {
     const url = new URL(this.#endpoint);
     url.searchParams.delete('ids');
     url.searchParams.delete('bbox');
@@ -178,14 +184,15 @@ export class MetarClient {
           signal: AbortSignal.any([signal, AbortSignal.timeout(this.#options.timeoutMs ?? 20_000)]),
           cache: 'no-store',
         });
-        if (response.status === 204) return { type: 'FeatureCollection', features: [] };
+        if (response.status === 204) return { collection: { type: 'FeatureCollection', features: [] },
+          checkedAt: weatherCheckedAt(response, this.#now()) };
         if (!response.ok) {
           await response.body?.cancel();
           throw new MetarHttpError(response.status);
         }
         const body: unknown = await response.json();
         if (!isMetarFeatureCollection(body)) throw new Error('AWC METAR returned invalid GeoJSON');
-        return body;
+        return { collection: body, checkedAt: weatherCheckedAt(response, this.#now()) };
       } catch (error) {
         signal.throwIfAborted();
         const retryable = error instanceof TypeError ||
@@ -201,13 +208,16 @@ export class MetarClient {
     return (this.#options.now ?? Date.now)();
   }
 
-  #accept(id: string, received: MetarFeature | undefined): void {
-    const previous = this.get(id)?.report;
+  #accept(id: string, received: MetarFeature | undefined, checkedAt: number): void {
+    const saved = this.get(id), previous = saved?.report;
     const now = this.#now();
+    // A shared cache hit must not replace a newer successful source check.
+    if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
+      (!received || previous && observationTime(previous) <= now && observationTime(received) <= observationTime(previous))) return;
     const report = preferredReport(previous, received, now);
     this.#stations.delete(id);
     this.#stations.set(id, {
-      ...(report ? { report } : {}), checkedAt: now, attemptedAt: now,
+      ...(report ? { report } : {}), checkedAt, attemptedAt: now,
       missing: !received || report !== received,
     });
   }
@@ -258,6 +268,6 @@ function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void
 }
 
 export function createMetarClient(): MetarClient {
-  const metarUrl = import.meta.env?.VITE_ZLAYERS_METAR_URL?.trim() || '/weather/metars.geojson';
+  const metarUrl = import.meta.env?.VITE_ZLAYERS_METAR_URL?.trim() || '/api/weather/metars.geojson';
   return new MetarClient(new URL(metarUrl, window.location.origin));
 }

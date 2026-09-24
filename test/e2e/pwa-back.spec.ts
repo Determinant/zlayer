@@ -132,7 +132,7 @@ for (const standalone of ['display-mode', 'ios'] as const) {
         await expect(page.getByRole('button', { name: 'Close map layers', exact: true })).toBeVisible();
         await back(page);
         await expect(page.getByRole('button', { name: 'Open map layers', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Hide terrain toolbox', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Show terrain toolbox', exact: true })).toBeVisible();
       });
 
       test('AHRS exits fullscreen, closes its recorder, and preserves the stow confirmation', async ({ page }) => {

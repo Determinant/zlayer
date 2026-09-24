@@ -11,7 +11,7 @@ import { loadMapContributions } from '../../core/map/load-contributions';
 import type { MapContribution, MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
 import { occupiedMapRegions } from './occupied-regions';
-import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
+import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
 import { mapErrorMessage } from './errors';
@@ -185,7 +185,7 @@ export class MapRuntime {
   #installLayers(): void {
     if (!this.#styleReady || this.#lifetime.signal.aborted) return;
     // Keep terrain visible above plates, including when either layer is refreshed.
-    for (const id of [CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]) {
+    for (const id of [CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]) {
       if (!this.#map.getLayer(id)) this.#map.addLayer({
         id, type: 'background', paint: { 'background-opacity': 0 },
       });

@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { expectMapPlate, hideMapPlate } from './plate-map-fixture';
+import { gridFixture } from '../fixtures/awc-grids';
+import { WEATHER_NOW } from '../fixtures/awc-advisories';
 
 test.use({ hasTouch: true });
 
@@ -54,6 +56,33 @@ async function center(page: Page) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+test('weather, plate actions and navigation share one map menu while the AWC toolbox is open', async ({ page, request }) => {
+  await page.clock.install({ time: WEATHER_NOW });
+  await request.post('/__test/awc-grids', { data: { products: [gridFixture('clouds')] } });
+  await page.reload();
+  await showPlate(page);
+  await page.getByRole('button', { name: 'Show AWC Weather toolbox', exact: true }).click();
+  await page.getByRole('switch', { name: 'Show AWC weather', exact: true }).click();
+  for (const name of ['G-AIRMET', 'SIGMET', 'Convective SIGMET', 'CWA']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
+  await page.getByRole('tab', { name: 'Cloud', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Forecast overlay', exact: true }).selectOption('cloudCover');
+  await expect(page.locator('.awc-grid-status')).toContainText('Valid Sep 22 · 21:00Z');
+  const point = await center(page);
+  await page.mouse.click(point.x, point.y, { button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
+  await expect(menu.getByRole('menuitem', { name: 'Inspect weather', exact: true })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Show plate panel', exact: true })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Hide IAP from map', exact: true })).toBeVisible();
+  expect(await menu.getByRole('menuitem').count()).toBeGreaterThan(3);
+  await menu.getByRole('menuitem', { name: 'Inspect weather', exact: true }).click();
+  await expect(page.getByRole('article', { name: 'Forecast at selected point' })).toBeVisible();
+  await expectMapPlate(page);
+  await page.getByRole('button', { name: 'Hide AWC Weather toolbox', exact: true }).click();
+  await page.mouse.click(point.x, point.y, { button: 'right' });
+  await expect(menu.getByRole('menuitem', { name: 'Inspect weather', exact: true })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Show plate panel', exact: true })).toBeVisible();
+});
+
 test('right-click offers the plate panel and removal only inside the plate, and dismissal preserves it', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -62,7 +91,7 @@ test('right-click offers the plate panel and removal only inside the plate, and 
   const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
   await page.mouse.click(box.x + 40, box.y + box.height / 2, { button: 'right' });
   await expectMapPlate(page);
-  const menu = page.getByRole('menu', { name: 'IAP actions' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
   await expect(menu).toHaveCount(0);
   await showPlate(page, 'SECOND APPROACH');
   const point = await center(page);
@@ -110,7 +139,7 @@ test('touch gestures preserve the IAP, and a long press offers the plate panel a
   await showPlate(page);
   await page.screenshot({ path: testInfo.outputPath('iap-mobile.png') });
   const point = await center(page);
-  const menu = page.getByRole('menu', { name: 'IAP actions' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [
     { x: point.x - 25, y: point.y, id: 1 }, { x: point.x + 25, y: point.y, id: 2 },
@@ -165,10 +194,10 @@ test('a long press near the map edge cannot activate the menu underneath the rel
       .toBeGreaterThan(zoomBefore + step - 0.01);
   }
   const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
-  const point = { x: box.x + box.width - 20, y: box.y + box.height - 60 };
+  const point = { x: box.x + box.width - 20, y: box.y + box.height - 80 };
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
-  const menu = page.getByRole('menu', { name: 'IAP actions' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
   await expect(menu).toBeVisible();
   const hide = menu.getByRole('menuitem', { name: 'Hide IAP from map' });
   const bounds = (await hide.boundingBox())!;
@@ -187,7 +216,7 @@ test('a long press near the map edge cannot activate the menu underneath the rel
   await expect(menu).toBeVisible();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(menu.getByRole('menuitem', { name: 'Show plate panel' })).toBeFocused();
-  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowDown');
   await expect(hide).toBeFocused();
   await page.keyboard.press('Enter');
   await expectMapPlate(page, null);

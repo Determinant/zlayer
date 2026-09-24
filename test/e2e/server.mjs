@@ -1,4 +1,7 @@
 import { createServer } from 'node:http';
+import { register } from 'tsx/esm/api';
+register();
+const { fixtureWeather } = await import('../fixtures/weather-server.ts');
 import { createHash } from 'node:crypto';
 import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,6 +14,11 @@ const directory = await mkdtemp(resolve(tmpdir(), 'zlayer-e2e-'));
 const port = Number(process.env.ZLAYER_TEST_PORT ?? 4197);
 process.env.VITE_ZLAYERS_CHART_ROOT = '/chart-data';
 process.env.VITE_ZLAYERS_CHART_REVISION = 'latest';
+process.env.VITE_ZLAYERS_AWC_FEED_URL = '';
+process.env.VITE_ZLAYERS_METAR_URL = '';
+process.env.VITE_ZLAYERS_TAF_URL = '';
+// Exercise either app factory with local fixtures, never an inherited live endpoint.
+process.env.VITE_ZLAYERS_AWC_GRID_URL = process.env.ZLAYER_TEST_NATIVE_WEATHER === '1' ? '' : '/api/weather/grids/';
 process.env.VITE_ZLAYERS_BASEMAP_TILE_URL = `http://127.0.0.1:${port}/basemap.png`;
 process.env.VITE_ZLAYERS_BASEMAP_STYLE_URL = '';
 process.env.VITE_ZLAYERS_TERRAIN_TILE_URL = `http://127.0.0.1:${port}/terrain/{z}/{x}/{y}.png`;
@@ -23,6 +31,8 @@ await build({ build: { outDir: directory, rolldownOptions: {
     edgePanelsTest: resolve('test/browser/edge-panels.html'),
     fixesTest: resolve('test/browser/fixes.html'),
     weatherMapTest: resolve('test/browser/weather-map.html'),
+    weatherGridTest: resolve('test/browser/weather-grids.html'),
+    weatherNativeTest: resolve('test/browser/weather-native.html'),
     obstructionTest: resolve('test/browser/obstructions.html'),
     routeEditor: resolve('test/browser/routes.html'), routeMap: resolve('test/browser/route-map.html'), terrainTest: resolve('test/browser/terrain.html'),
     ownshipTest: resolve('test/browser/ownship.html'), graphicsTest: resolve('test/browser/graphics.html'),
@@ -50,6 +60,28 @@ let failUpdatedBook = false;
 let failNevadaAirports = false;
 let failBrowsingAirports = false;
 let disconnected = false;
+let awcFixtures;
+let awcRequests = 0;
+let gridRequests = 0, gridFileRequests = 0, gridFailure = false, gridCorrupt = false;
+let gridHeldPath, gridGate, releaseGridGate;
+let nativeFileRequests = 0;
+let weather;
+async function resetWeather() {
+  await weather?.close();
+  const cacheDirectory = resolve(directory, 'weather-cache');
+  for (const file of await readdir(cacheDirectory).catch(() => [])) {
+    if (file.endsWith('.cache')) await rm(resolve(cacheDirectory, file));
+  }
+  weather = await fixtureWeather(cacheDirectory, { onRaw: () => { nativeFileRequests++; }, advisories: () => awcFixtures });
+  // Warm the selections exercised by these fixtures through the production cache.
+  await weather.warmForecast('clouds', manifest => manifest.frames);
+  await weather.warmForecast('icing', manifest => manifest.frames.filter(frame => frame.altitudeFtMsl === 8000));
+  await weather.warmForecast('winds', manifest => manifest.frames.filter(frame =>
+    frame.pressureHpa >= 650 || frame.validTime === manifest.runTime + 3600000));
+  if (awcFixtures && !awcFixtures.failure) await weather.warmAdvisories();
+  nativeFileRequests = 0;
+}
+await resetWeather();
 let appRelease;
 let failAppInstall = false;
 let mismatchedAppHtml = false;
@@ -63,6 +95,23 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
 const server = createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
   if (disconnected && !path.startsWith('/__test/')) { request.socket.destroy(); return; }
+  if (path === '/__test/awc-counts') { response.end(JSON.stringify({ requests: awcRequests, grids: gridRequests, gridFiles: gridFileRequests, nativeFiles: nativeFileRequests })); return; }
+  if (path.startsWith('/api/weather/advisories/')) {
+    awcRequests++;
+    if (!awcFixtures || awcFixtures.failure) { response.writeHead(503).end(); return; }
+    weather.server.emit('request', request, response); return;
+  }
+  if (path.startsWith('/api/weather/grids/')) {
+    gridRequests++;
+    if (path.endsWith('.gz')) gridFileRequests++;
+    if (path === gridHeldPath) await gridGate;
+    const file = fixtures.get(path);
+    if (!file && !gridFailure) { weather.server.emit('request', request, response); return; }
+    if (gridFailure || !file) { response.writeHead(gridFailure ? 503 : 404, { 'Cache-Control': 'no-store' }).end(); return; }
+    const body = gridCorrupt && path.endsWith('.gz') ? Buffer.alloc(file.body.length) : file.body;
+    response.writeHead(200, { 'Content-Type': file.type, 'Content-Length': body.length, 'Cache-Control': 'no-store' });
+    response.end(body); return;
+  }
   if (path === '/chart-data/download-memory/archive.mbtiles') {
     const size = 20 * 1024 * 1024, chunk = Buffer.alloc(256 * 1024);
     response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': size });
@@ -84,6 +133,11 @@ const server = createServer(async (request, response) => {
       failNevadaAirports = false;
       failBrowsingAirports = false;
       disconnected = false;
+      awcFixtures = undefined; awcRequests = 0;
+      await resetWeather();
+      gridRequests = gridFileRequests = 0; gridFailure = gridCorrupt = false;
+      nativeFileRequests = 0;
+      releaseGridGate?.(); gridHeldPath = gridGate = releaseGridGate = undefined;
       appRelease = undefined;
       failAppInstall = false;
       mismatchedAppHtml = false;
@@ -91,6 +145,26 @@ const server = createServer(async (request, response) => {
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/awc-grids') {
+      let body = ''; for await (const chunk of request) body += chunk;
+      const data = JSON.parse(body);
+      gridFailure = !!data.failure; gridCorrupt = !!data.corrupt;
+      if (data.releaseFrame || data.holdFrame) {
+        releaseGridGate?.(); gridHeldPath = gridGate = releaseGridGate = undefined;
+        if (data.holdFrame) {
+          gridHeldPath = `/api/weather/grids/${data.holdFrame}`;
+          gridGate = new Promise(resolve => { releaseGridGate = resolve; });
+        }
+      }
+      for (const item of data.products ?? []) {
+        fixtures.set(`/api/weather/grids/${item.manifest.product}.json`, { type: 'application/json', body: Buffer.from(JSON.stringify(item.manifest)) });
+        for (const [path, encoded] of Object.entries(item.files)) fixtures.set(`/api/weather/grids/${path}`, { type: 'application/octet-stream', body: Buffer.from(encoded, 'base64') });
+      }
+    } else if (path === '/__test/awc') {
+      let body = '';
+      for await (const chunk of request) body += chunk;
+      awcFixtures = JSON.parse(body);
+      await resetWeather();
     } else if (path === '/__test/hold-chart-archives') {
       chartArchiveGate = new Promise(resolve => { releaseChartArchives = resolve; });
     } else if (path === '/__test/allow-chart-archives') {
@@ -146,6 +220,20 @@ const server = createServer(async (request, response) => {
       Object.assign(tpp, { generatedAt: catalog.generatedAt, airportCount: catalog.airports.length,
         procedureCount: catalog.airports.reduce((sum, airport) => sum + airport.procedures.length, 0) });
       setJson(`${root}/tpp/manifest.json`, tpp);
+    } else if (path === '/__test/add-chart-family' || path === '/__test/invalid-chart-feed') {
+      for (const [url, file] of originalFixtures) {
+        if (!url.endsWith('/mbtiles/manifest.json')) continue;
+        const manifest = JSON.parse(file.body);
+        if (path.endsWith('invalid-chart-feed')) manifest.charts[0].sha256 = 'invalid';
+        else {
+          const kind = 'ifr-high', original = manifest.archives[0];
+          const id = original.id.replace(original.kind, kind);
+          manifest.charts.push({ ...manifest.charts[0], kind, id: `${kind}-test`, file: `${kind}-test.mbtiles` });
+          manifest.archives.push({ ...original, kind, id, file: `${id}-${original.sha256}.mbtiles` });
+          for (const region of manifest.regions) if (region.archiveIds.includes(original.id)) region.archiveIds.push(id);
+        }
+        fixtures.set(url, { type: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
+      }
     } else if (path === '/__test/legacy-latest-charts') {
       const root = '/chart-data/2026-09-03/mbtiles';
       const { effectiveDate, generatedAt, charts } = JSON.parse(originalFixtures.get(`${root}/manifest.json`).body);
@@ -208,5 +296,5 @@ server.listen(port, '127.0.0.1');
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
   server.close();
   server.closeAllConnections();
-  void rm(directory, { recursive: true, force: true }).finally(() => process.exit());
+  void weather.close().then(() => rm(directory, { recursive: true, force: true })).finally(() => process.exit());
 });

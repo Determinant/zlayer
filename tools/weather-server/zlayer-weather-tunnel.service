@@ -1,0 +1,22 @@
+[Unit]
+Description=Private connection to the ZLayer weather backend
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+DynamicUser=yes
+EnvironmentFile=/etc/zlayer-weather-tunnel.env
+LoadCredential=ssh-key:/etc/zlayer-weather-tunnel/id_ed25519
+ExecStart=/usr/bin/ssh -F /dev/null -NT -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/zlayer-weather-tunnel/known_hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i %d/ssh-key -L 127.0.0.1:8788:127.0.0.1:8787 ${WEATHER_SSH_TARGET}
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -11,6 +11,8 @@
     "packages/*"
   ],
   "scripts": {
+    "weather:serve": "node --import=tsx tools/weather-server/main.ts",
+    "weather:build": "node tools/weather-server/build.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "check": "npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",

@@ -97,6 +97,7 @@ test('host reserves current tab positions and rejects collisions or missing assi
   assert.deepEqual(PANEL_LAYOUT.gps, { side: 'left', tab: { edge: 'top', order: 1 } });
   assert.deepEqual(PANEL_LAYOUT.plate, { side: 'right', tab: { edge: 'bottom', order: 0 } });
   assert.equal(PANEL_LAYOUT.details.tab.order, 1);
+  assert.deepEqual(PANEL_LAYOUT['weather-awc'], { side: 'left', tab: { edge: 'bottom', order: 1 }, bodyFromEdge: true });
   assert.throws(() => panelPlacement(PANEL_LAYOUT, 'unassigned'), /Missing panel placement/);
   assert.throws(() => validatePanelLayout({ ...PANEL_LAYOUT, other: PANEL_LAYOUT.gps }), /Panel slot collision/);
   assert.throws(() => validatePanelLayout({ other: { side: 'left', tab: { edge: 'top', order: -1 } } }), /Invalid panel placement/);

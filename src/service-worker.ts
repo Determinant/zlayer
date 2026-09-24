@@ -83,8 +83,7 @@ worker.addEventListener('fetch', (event) => {
   }
   // Weather products own their persistent caches and must see actual refresh failures,
   // including when browser cache settings override the request's cache mode.
-  if (event.request.cache === 'no-store' || (sameOrigin &&
-    ['/weather/metars.geojson', '/weather/tafs.json'].includes(url.pathname))) return;
+  if (event.request.cache === 'no-store' || sameOrigin && url.pathname.startsWith('/api/weather/')) return;
 
   // The page validates/revalidates navigation manifests and owns their offline
   // fallback. Cache-mode overrides must not replay an older same-cycle build.
@@ -104,11 +103,6 @@ worker.addEventListener('fetch', (event) => {
 
   if (!development && sameOrigin && shellDefinition.assets.includes(url.pathname)) {
     respond(cacheFirst(new Request(`${url.origin}${url.pathname}`), shellCache));
-    return;
-  }
-
-  if (sameOrigin && url.pathname.startsWith('/weather/')) {
-    respond(networkFirst(event.request, dataCache));
     return;
   }
 

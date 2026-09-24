@@ -767,7 +767,9 @@ test('terrain toolbox stays available without a route or while disabled, and rem
       JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: false }));
   });
   await page.goto('/');
+  await page.getByRole('button', { name: 'Show terrain toolbox', exact: true }).click();
   const routeLegend = page.getByLabel('Route terrain elevation');
+  await expect(routeLegend.getByRole('switch', { name: 'Show terrain', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(routeLegend).toContainText('Add a route or select Viewport');
   await routeLegend.getByRole('button', { name: 'Viewport', exact: true }).click();
   await page.getByRole('button', { name: 'Open map layers', exact: true }).click();

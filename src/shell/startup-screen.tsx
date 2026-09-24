@@ -4,18 +4,19 @@ import { startupStepPending, type StartupStep } from '../workspace/startup';
 import './startup-screen.css';
 
 const STEP_LABELS: Record<StartupStep['state'], string> = {
-  waiting: 'Waiting', loading: 'Loading…', rendering: 'Rendering…', ready: 'Ready', limited: 'Limited data',
-  unavailable: 'Unavailable', 'not-needed': 'Not needed here',
+  waiting: 'Waiting', loading: 'Loading…', rendering: 'Rendering…', ready: 'Ready', cached: 'Cached data', limited: 'Limited data',
+  unavailable: 'Unavailable',
 };
-const OPENING_STEPS: readonly StartupStep[] = [{ label: 'Workspace', state: 'loading' }];
+const OPENING_STEPS: readonly StartupStep[] = [{ id: 'workspace', label: 'Workspace', state: 'loading' }];
 
 export function StartupScreen({ steps = OPENING_STEPS, message, slow = false, onContinue }: {
   steps?: readonly StartupStep[]; message?: string; slow?: boolean; onContinue?: (() => void) | undefined;
 }) {
-  const finished = steps.filter(step => !startupStepPending(step)).length;
-  const opening = steps[0]?.state === 'loading';
-  const loading = steps.filter(step => step.state === 'loading');
-  const pluginsLoading = loading.filter(step => step.label !== 'Map');
+  const required = steps.filter(step => step.blocking !== false);
+  const finished = required.filter(step => !startupStepPending(step)).length;
+  const opening = steps.some(step => step.id === 'workspace' && startupStepPending(step));
+  const loading = required.filter(startupStepPending);
+  const pluginsLoading = loading.filter(step => step.id !== 'map' && step.id !== 'workspace');
   const status = message ?? (opening ? 'Opening your workspace…' : pluginsLoading.length
     ? pluginsLoading.length === 1 ? `Loading ${pluginsLoading[0]!.label}…` : `Loading ${pluginsLoading.length} plugins…`
     : loading.length ? 'Preparing your map…' : 'Finishing up…');
@@ -43,14 +44,15 @@ export function StartupScreen({ steps = OPENING_STEPS, message, slow = false, on
     <h1 ref={title} id="startup-title" tabIndex={-1}>ZLayer</h1>
     <p id="startup-status" role="status">{status}</p>
     <div className="startup-progress">
-      <progress aria-label="Startup progress" max={steps.length} value={opening ? undefined : finished}
-        aria-valuetext={opening ? 'Opening your workspace' : `${finished} of ${steps.length} steps finished`} />
+      <progress className="ui-progress" aria-label="Startup progress" max={required.length} value={opening ? undefined : finished}
+        aria-valuetext={opening ? 'Opening your workspace' : `${finished} of ${required.length} steps finished`} />
       <ul className="panel-scroll" aria-label="Startup steps" tabIndex={0}>
-        {steps.map(step => <li key={step.label} className={`startup-step is-${step.state}`}>
+        {steps.map(step => <li key={step.id} className={`startup-step is-${step.state}`}>
           <span className="startup-step-icon" aria-hidden="true">
             {step.state === 'ready' ? '✓' : step.state === 'limited' || step.state === 'unavailable' ? '!' : ''}
           </span>
-          <span>{step.label}</span><span className="startup-step-state">{STEP_LABELS[step.state]}</span>
+          <span>{step.label}</span><span className="startup-step-state">{step.detail ?? STEP_LABELS[step.state]}
+            {step.blocking === false && startupStepPending(step) && <small>In background</small>}</span>
         </li>)}
       </ul>
     </div>

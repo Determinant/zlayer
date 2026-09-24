@@ -25,9 +25,9 @@ test('production service worker preserves METAR failures for product retry and s
   // Product caches remain authoritative even if browser settings replace the
   // caller's no-store mode. Never turn an upstream error into a cached success.
   let interceptedWeather = false;
-  for (const path of ['metars.geojson', 'tafs.json']) {
+  for (const path of ['metars.geojson', 'tafs.json', 'advisories/cwa.json', 'grids/clouds.json']) {
     for (const query of ['ids=KSFO', 'bbox=37,-123,38,-121']) {
-      handleFetch({ request: new Request(`https://app.test/weather/${path}?${query}`),
+      handleFetch({ request: new Request(`https://app.test/api/weather/${path}?${query}`),
         respondWith() { interceptedWeather = true; } });
     }
   }
@@ -43,7 +43,7 @@ test('production service worker preserves METAR failures for product retry and s
     calls++;
     return upstreamStatus === 200 ? report.clone() : new Response(null, { status: upstreamStatus });
   });
-  const client = new MetarClient(new URL('https://app.test/weather/metars.geojson'), {
+  const client = new MetarClient(new URL('https://app.test/api/weather/metars.geojson'), {
     now: () => now, retryDelayMs: 0,
     fetch: async (input, init) => {
       const request = new Request(input, init);

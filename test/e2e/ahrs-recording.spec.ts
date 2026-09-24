@@ -19,7 +19,6 @@ async function open(page: Page) {
   });
   await page.goto('/');
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-  await page.getByRole('button', { name: 'Hide terrain toolbox', exact: true }).click();
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
   await page.getByRole('button', { name: 'AHRS recorder', exact: true }).click();
   const menu = page.getByRole('region', { name: 'AHRS recordings', exact: true });

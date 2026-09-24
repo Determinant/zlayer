@@ -32,35 +32,6 @@
 
 .plate-map-control .plate-map-retry { font-size: 12px; }
 
-.plate-map-menu {
-  position: absolute;
-  z-index: 12;
-  width: min(230px, calc(100% - 24px));
-  padding: 4px;
-  border: 1px solid #365065;
-  border-radius: 10px;
-  background: rgba(8, 20, 35, 0.97);
-  box-shadow: 0 14px 38px #0006;
-}
-.plate-map-menu button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: max(44px, var(--touch-target));
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 6px;
-  color: #d9e9f2;
-  background: transparent;
-  text-align: left;
-  font-size: 13px;
-  cursor: pointer;
-}
-.plate-map-menu svg { flex: 0 0 auto; }
-.plate-map-menu button:hover, .plate-map-menu button:focus-visible { background: #61d6c51f; }
-.plate-map-menu button:focus-visible { outline: 2px solid #68cdbf; outline-offset: -2px; }
-
 .procedure-state.is-error {
   color: #efa7a0;
 }

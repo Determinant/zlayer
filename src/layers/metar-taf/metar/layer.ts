@@ -170,7 +170,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     },
   };
   return {
-    definition: { id: 'metar', title: 'METAR information' } satisfies ProductLayer['definition'],
+    definition: { id: 'metar', title: 'METAR/TAF' } satisfies ProductLayer['definition'],
     client, map: layer, getSnapshot: store.getSnapshot, subscribe: store.subscribe,
   };
 }

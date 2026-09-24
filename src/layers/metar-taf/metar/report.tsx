@@ -1,14 +1,23 @@
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import type { MetarFeature } from '@zlayer/contracts';
 import { metarWeatherProperties } from '@zlayer/domain';
 import type { ReportViewProps } from '../station-weather';
 import { metarReportSummary } from './summary';
 import { formatObservationTime } from './format';
 import { metarDetailRows } from './details';
+import { magneticField } from '../../../core/geo/magnetic-model';
+import { useMagneticModel } from '../../../core/geo/use-magnetic-model';
+import { fetchMagneticModel } from '../../../workspace/catalog/catalog';
 
-export function MetarReportView({ entry, loading, online, now, source, emptyMessage }: ReportViewProps<MetarFeature>) {
+export function MetarReportView({ entry, loading, online, now, source, emptyMessage, revision, active = true }: ReportViewProps<MetarFeature>) {
   const properties = entry?.report ? metarWeatherProperties(entry.report) : undefined;
   const observedAt = properties?.metarObservedAt;
+  const model = useMagneticModel(revision, active && !!entry?.report, fetchMagneticModel);
+  const [longitude, latitude] = entry?.report?.geometry.coordinates ?? [];
+  const field = useMemo(() => model && longitude !== undefined && latitude !== undefined && observedAt
+    ? magneticField(model, [longitude, latitude], 0, Date.parse(observedAt)) : null,
+  [model, longitude, latitude, observedAt]);
+  const declination = field && field.horizontal >= 6000 && Math.abs(latitude!) < 90 ? field.declination : null;
   const weather = metarReportSummary(entry, now);
   const cached = weather.cached || !online;
   const label = entry?.report ? cached ? 'Cached report' : weather.label
@@ -27,7 +36,7 @@ export function MetarReportView({ entry, loading, online, now, source, emptyMess
       {entry?.report && loading && <span> · Refreshing…</span>}
     </p>
     {properties && <dl>
-      {metarDetailRows(properties).map(({ label, value, wide }) => <div key={label} className={wide ? 'is-wide' : undefined}>
+      {metarDetailRows(properties, declination).map(({ label, value, wide }) => <div key={label} className={wide ? 'is-wide' : undefined}>
         <dt>{label}</dt><dd>{value}</dd>
       </div>)}
     </dl>}

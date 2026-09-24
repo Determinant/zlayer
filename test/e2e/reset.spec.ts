@@ -30,6 +30,15 @@ test('full reset requires confirmation, stops other windows, clears app storage 
     localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, longitude: -119, latitude: 34, zoom: 8, bearing: 0, pitch: 0 }));
     localStorage.setItem('zlayers.metars.v1', '[]');
     localStorage.setItem('zlayers.tafs.v1', '[]');
+    localStorage.setItem('zlayer-plugin:weather-awc:cwa', '{"test":"saved advisory"}');
+    localStorage.setItem('zlayer-plugin:weather-awc:grid-clouds', '{"test":"saved forecast manifest"}');
+    await (await caches.open('zlayers-awc-grids-v1')).put('/saved-forecast.zwg.gz', new Response('saved forecast bytes'));
+    await (await caches.open('zlayers-plugin-files-v1:weather-awc:grids')).put('/saved-frame.zwg.gz', new Response('saved forecast bytes'));
+    await (await caches.open('zlayers-plugin-files-v1:weather-awc:grids:access')).put('/saved-frame.zwg.gz', new Response(null));
+    for (const name of ['converted-grids', 'model-terrain']) {
+      await (await caches.open(`zlayers-plugin-files-v1:weather-awc:${name}`)).put('/converted-weather', new Response('converted bytes'));
+      await (await caches.open(`zlayers-plugin-files-v1:weather-awc:${name}:access`)).put('/converted-weather', new Response(null));
+    }
     for (const key of ['plate-on-map', 'side-panel', 'identification-open', 'ahrs-mount']) {
       localStorage.setItem(`zlayer-ui:${key}`, JSON.stringify({ version: 1, value: null }));
     }

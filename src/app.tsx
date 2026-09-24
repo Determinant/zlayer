@@ -47,7 +47,8 @@ import { ErrorBoundary } from './core/layers/error-boundary';
 import { MapEdgeTools } from './shell/map-edge-tools';
 import { NearbyFeaturePicker } from './workspace/nearby-feature-picker';
 import { StartupScreen } from './shell/startup-screen';
-import { startupStepPending, workspaceStartupSteps } from './workspace/startup';
+import { weatherStartupWork, workspaceStartupSteps } from './workspace/startup';
+import { selectLayerStore } from './core/layers/input';
 import { useWorkspaceSelection } from './workspace/use-selection';
 import { useStartup } from './shell/use-startup';
 
@@ -59,7 +60,11 @@ export function App() {
   const mapStartupFailed = useCallback(() => setMapFailed(true), []);
   const online = useOnline();
   const { catalog: browsingCatalog, cycles, selection, selectCycle, error: catalogError, cycleNotice } = useCatalog();
-  const { context, bundles, error: regionError } = useWorkspaceReadContext(browsingCatalog);
+  const { context, bundles, ready: savedRegionsReady, error: regionError } = useWorkspaceReadContext(browsingCatalog);
+  const workspaceCycleNotice = !browsingCatalog && context
+    ? `Using saved FAA cycle ${formatDate(context.browsing.revision)}. ${catalogError
+      ? 'Chart feed refresh failed; saved regions remain available.' : 'Checking for chart updates.'}`
+    : cycleNotice;
   const [workspaceLayers] = useState(createWorkspaceLayers);
   const [mapPreferences, setMapPreferences] = useMapPreferences(workspaceLayers.plugins);
   const [mapView, setMapView] = useMapView();
@@ -78,6 +83,10 @@ export function App() {
   const obstructionStatus = useLayerSnapshot(workspaceLayers.obstructions.status);
   const { metar: metarLayer, plates, ownship: ownshipLayer } = workspaceLayers;
   const metarSnapshot = useLayerSnapshot(metarLayer);
+  const reportStatus = useLayerSnapshot(metarLayer.reportStatus);
+  const awcStartupStore = useMemo(() => selectLayerStore(workspaceLayers.weatherAwc.controller,
+    state => weatherStartupWork(state, online)), [workspaceLayers, online]);
+  const awcStartup = useLayerSnapshot(awcStartupStore);
   const plateSnapshot = useLayerSnapshot(plates);
   const [viewport, setViewport] = useState<Bounds>();
   const visibleBundles = useMemo(() => visibleSavedBundles(bundles, viewport), [bundles, viewport]);
@@ -189,23 +198,28 @@ export function App() {
       ...pluginActions.navigation });
     workspaceLayers.metar.input.set({ catalog: context, enabled: metarEnabled,
       ...pluginActions.metar });
+    workspaceLayers.weatherAwc.input.set({ ...mapPreferences, revision: context.browsing.revision,
+      awcEnabled: !!loaded['weather-awc'] && mapPreferences.awcEnabled,
+      change: patch => setMapPreferences(current => ({ ...current, ...patch })) });
     workspaceLayers.routes.input.set(route.mapInput);
     workspaceLayers.selectionInput.set({
       resolveFeature: resolveMapFeature, onSelect: selectFeature,
-      onChooseNearby: featureSelection.chooseNearby });
+      onChooseNearby: featureSelection.chooseNearby, onCloseNearby: featureSelection.closeNearby });
   });
 
-  const startupSteps = workspaceStartupSteps({ context, mapIdle,
+  const startupSteps = workspaceStartupSteps({ context, mapIdle, plugins: plugins.controlsList,
     navigation: { enabled: !!loaded.navigation, visibility, loadState, loading: navigationPending, issues: navigationIssues, airways },
     routes: { enabled: !!loaded.routes, hasEntries: route.hasEntries, status: route.status },
     plates: { enabled: !!loaded.plates, snapshot: plateSnapshot },
     charts: { count: activeChartCount, state: chartCacheState },
     terrain: { enabled: terrainEnabled, state: terrainStatus.state },
     obstructions: { enabled: obstructionsEnabled, state: obstructionStatus.state },
+    metar: { snapshot: metarSnapshot, reports: Object.values(reportStatus) },
+    awc: awcStartup,
   });
-  const startup = useStartup(!startupSteps.some(startupStepPending), mapFailed);
-  if (catalogError && !context) return <CatalogError message={catalogError} />;
-  if (!context) return <StartupScreen steps={startupSteps} slow={startup.slow} />;
+  const startup = useStartup(startupSteps, mapFailed);
+  if (catalogError && savedRegionsReady && !context) return <CatalogError message={catalogError} />;
+  if (!context) return <StartupScreen steps={startup.steps} slow={startup.slow} />;
 
   return (
     <><fieldset className="workspace-startup-gate" role="presentation" disabled={!startup.complete}>
@@ -228,8 +242,8 @@ export function App() {
         />}
 
         <div className="topbar-meta">
-          <SettingsLauncher catalog={browsingCatalog!} cycles={cycles} selection={selection}
-            onCycleChange={selectCycle} cycleNotice={cycleNotice}
+          <SettingsLauncher catalog={context.browsing} cycles={cycles} selection={selection}
+            onCycleChange={selectCycle} cycleNotice={workspaceCycleNotice}
             plugins={plugins.controlsList} onPluginChange={plugins.setLoaded} pluginError={plugins.error} />
         </div>
       </header>
@@ -261,13 +275,13 @@ export function App() {
 
           <LayerContributions contributions={plugins.overlays} />
 
-          {nearbyFeatures && <NearbyFeaturePicker features={nearbyFeatures.features} point={nearbyFeatures.point}
+          {nearbyFeatures && <NearbyFeaturePicker features={nearbyFeatures.features} point={nearbyFeatures.point} actions={nearbyFeatures.actions}
             onSelect={selectFeature} onClose={featureSelection.closeNearby} />}
 
           <LayerMenu controls={plugins.controls} footer={plugins.footer}
             visibleFeatureCount={visibleFeatureCount}
             activeCount={Object.values(visibility).filter(Boolean).length + (chartSelection.base ? 1 : 0) +
-              (chartSelection.overlay ? 1 : 0) + (metarEnabled ? 1 : 0) + (terrainEnabled ? 1 : 0) + (obstructionsEnabled ? 1 : 0)} />
+              (chartSelection.overlay ? 1 : 0) + (metarEnabled ? 1 : 0) + (terrainEnabled ? 1 : 0) + (obstructionsEnabled ? 1 : 0) + (loaded['weather-awc'] && mapPreferences.awcEnabled ? 1 : 0)} />
           <MapEdgeTools layout={PANEL_LAYOUT}>
             <LayerPanels panels={plugins.panels} layout={PANEL_LAYOUT} />
           </MapEdgeTools>
@@ -278,7 +292,7 @@ export function App() {
             {visibleNavigationIssues.length > 0 && <div className="feed-status" role="status">
               {navigationIssueMessages(visibleNavigationIssues).join(' ')} Reconnect or repair the affected download.
             </div>}
-            {cycleNotice && <div className="feed-status" role="status">{cycleNotice}</div>}
+            {workspaceCycleNotice && <div className="feed-status" role="status">{workspaceCycleNotice}</div>}
             {!online && <div className="offline-banner" role="status">Offline · Saved content remains available. Uncached areas are unavailable; weather may be stale.</div>}
             {chartSelection.base && chartCacheState === 'unavailable' && (
               <div className="map-runtime-error" role="alert">
@@ -288,9 +302,9 @@ export function App() {
               </div>
             )}
 
-            {browsingCatalog!.issues.length > 0 && (
+            {!!browsingCatalog?.issues.length && (
               <div className="feed-status" role="status">
-                {browsingCatalog!.issues.map(issue => <p key={issue.product}>{issue.product}: {issue.message}</p>)}
+                {browsingCatalog.issues.map(issue => <p key={issue.product}>{issue.product}: {issue.message}</p>)}
                 <button className="ui-button" type="button" onClick={() => window.location.reload()}>Reload feeds</button>
               </div>
             )}
@@ -311,6 +325,7 @@ export function App() {
                 feature={featureSelection.feature ?? selected}
                 catalog={context}
                 metarClient={metarLayer.client}
+                onWeatherStatus={metarLayer.setReportStatus}
                 features={{ routes: !!loaded.routes, weather: !!loaded.metar, terrain: !!loaded.terrain, plates: !!loaded.plates }}
                 procedureResource={featureSelection.catalog?.procedures}
                 editionUnavailable={!featureSelection.catalog}
@@ -330,7 +345,7 @@ export function App() {
       </section>
       {loaded.routes && loaded.ownship && <DirectToDialog confirmation={route.confirmation} />}
     </main></fieldset>
-    {!startup.complete && <StartupScreen steps={startupSteps} slow={startup.slow} onContinue={startup.finish} />}</>
+    {!startup.complete && <StartupScreen steps={startup.steps} slow={startup.slow} onContinue={startup.finish} />}</>
   );
 }
 

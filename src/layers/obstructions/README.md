@@ -72,10 +72,13 @@ into compact numeric arrays and a spatial index. Only eligible viewport features
 are sent to MapLibre; the national file never enters React or a map source.
 
 After validating the complete source, the worker persists only the filtered numeric
-index in the shared reference cache. Downloads still use `transferFile` for bounded
-disk writes, scheduling and cleanup; the full gzip is temporary. Existing gzip
+index through core's per-plugin `files.derive()` cache (`obstructions:indices`). Downloads still use `transferFile` for bounded
+disk writes, scheduling and cleanup; the full gzip is temporary. Existing filtered snapshots and gzip
 caches migrate without downloading again and are removed only after a successful
-index save. Storage failures leave the validated in-memory index usable.
+index save. Storage failures leave the validated in-memory index usable. Core owns hashing,
+publication, corruption repair and eviction: four files / 32 MiB, with an 8 MiB
+per-file ceiling and a 14-day unused lifetime. Shared reference JSON and explicit
+regional saves retain their existing ownership and retention.
 
 The local binary format uses an 8-byte version/count header and 34 bytes per
 eligible record, with explicit little-endian numbers and Float64 coordinates.

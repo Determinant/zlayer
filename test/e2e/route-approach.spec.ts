@@ -98,6 +98,7 @@ for (const touch of [false, true]) test(`dragging the leg into an approach inser
       ] }));
     }, { procedure, entry });
     await page.goto('/');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
     const bundle = page.locator('.route-attached-approach'), tokens = page.locator('.route-token strong');
     await expect(bundle).toHaveText('ILS 31 · ARTYY');
     await expect(page.getByLabel('Approach map details', { exact: true })).toBeVisible();
@@ -470,7 +471,6 @@ test('approach previews fit the main map beside the picker and clear when return
     await page.setViewportSize({ width: 320, height: 568 });
     await page.clock.setFixedTime(new Date('2026-09-20T23:00:00Z'));
     await page.goto('/');
-    await page.getByLabel('Hide terrain toolbox', { exact: true }).click();
     const input = page.getByRole('textbox', { name: 'Add route waypoint' });
     await input.fill('KSNS '); await input.press('Enter');
     await expect(page.locator('.route-token').first()).toHaveClass(/is-airports/);

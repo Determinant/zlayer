@@ -5,9 +5,12 @@ import { OnDemandRefresh } from '../../core/layers/on-demand-refresh';
 import { hasCurrentReport, stationChoices, NEARBY_STATION_RADIUS_NM, type NearbyStation, type WeatherReport } from './nearby-stations';
 
 type Point = PointGeometry['coordinates'];
+export type ReportStatus = 'loading' | 'ready' | 'cached' | 'unavailable';
+export type ReportStatusListener = (name: 'METAR' | 'TAF', status: ReportStatus | undefined) => void;
 type CachedReport<Report> = { report?: Report; checkedAt?: number; missing?: boolean; error?: string };
 export type ReportViewProps<Report> = {
   entry: CachedReport<Report> | undefined; loading: boolean; online: boolean; now: number;
+  revision?: string | undefined; active?: boolean;
   source?: ReactNode; emptyMessage?: string | undefined;
 };
 type StationClient<Report extends WeatherReport> = {
@@ -19,14 +22,16 @@ type StationClient<Report extends WeatherReport> = {
 };
 
 /** Each mounted report owns its selection, refresh cadence and cleanup. */
-export function StationWeather<Report extends WeatherReport>({ feature, client, active = true, name, intervalMs, refreshStation, View }: {
+export function StationWeather<Report extends WeatherReport>({ feature, client, active = true, revision, name, intervalMs, refreshStation, View, onStatus }: {
   feature: GeoPointFeature;
   client: StationClient<Report> | undefined;
   active?: boolean;
+  revision?: string | undefined;
   name: 'METAR' | 'TAF';
   intervalMs: number;
   refreshStation: (stationId: string, signal: AbortSignal) => Promise<void> | undefined;
   View: ComponentType<ReportViewProps<Report>>;
+  onStatus?: ReportStatusListener | undefined;
 }) {
   const id = preferredWeatherStationId(feature);
   const stationId = id && /^[A-Z0-9]{4}$/.test(id) ? id : undefined;
@@ -88,6 +93,13 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
   const nearby = selected && selected.stationId !== stationId ? selected : undefined;
   const entry = nearby ? client?.get(nearby.stationId) : data.own;
   const error = !ownCurrent || nearby ? data.nearbyStatus?.error : undefined;
+  const reportStatus: ReportStatus = loading ? 'loading' : !entry?.report ? 'unavailable'
+    : !online || error || entry.error || entry.missing || entry.checkedAt === undefined || !hasCurrentReport(entry.report, now) ? 'cached' : 'ready';
+  const reportActivity = useEffectEvent((status: ReportStatus | undefined) => onStatus?.(name, status));
+  useEffect(() => {
+    reportActivity(active && client ? reportStatus : undefined);
+    return () => reportActivity(undefined);
+  }, [active, client, reportStatus]);
   const emptyMessage = !online ? `No saved nearby ${name} within ${NEARBY_STATION_RADIUS_NM} NM · Offline`
     : error ? `Nearby ${name} unavailable · Refresh failed`
     : data.nearbyStatus?.checkedAt !== undefined ? `No nearby ${name} within ${NEARBY_STATION_RADIUS_NM} NM.` : undefined;
@@ -106,5 +118,5 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
       : <>{description} for {selected.stationId}.</>}</p>
   </div>;
   return <View entry={error ? { ...entry, error } : entry} loading={loading} online={online} now={now}
-    source={source} emptyMessage={emptyMessage} />;
+    source={source} emptyMessage={emptyMessage} revision={revision} active={active} />;
 }

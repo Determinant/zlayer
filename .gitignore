@@ -11,6 +11,7 @@ test-results/
 playwright-report/
 .turbo/
 .vite/
+.cache/
 *.log
 *.tsbuildinfo
 

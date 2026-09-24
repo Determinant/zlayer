@@ -3,6 +3,7 @@ import { offlineRecords, readOfflineRecord, writeOfflineRecord } from '../../cor
 import type { ChartCatalog } from './catalog';
 import { defaultCycleSelection, isSupportedCycle, type CycleSelection } from './cycles';
 import { chartRoot } from './feed';
+import { formatDate } from '../../core/format/time';
 
 function prefix(): string { return `catalog:${chartRoot()}:`; }
 function selectionKey(): string { return `catalog-selection:${chartRoot()}`; }
@@ -51,5 +52,8 @@ export function retainCachedProducts(fresh: ChartCatalog, cached?: ChartCatalog)
       if (cached.routeHistory) result.routeHistory = cached.routeHistory;
     } else if (cached.procedures) result.procedures = cached.procedures;
   }
+  if (cached.charts.length) result.issues = result.issues.map(issue => issue.product === 'charts'
+    ? { ...issue, message: `Chart refresh failed; using saved FAA ${formatDate(cached.revision)} charts. ${issue.message}` }
+    : issue);
   return result;
 }

@@ -10,9 +10,13 @@ export type NearbyFeature = {
 
 export type SelectFeature = (feature: GeoPointFeature | undefined, routePointId?: string) => void;
 
+/** Applicable plugin actions share the map's nearby-feature menu. */
+export type MapContextAction = { id: string; label: string; select(): void };
+
 /** Workspace selection inputs remain available without an editing plugin. */
 export type MapSelectionInput = {
   resolveFeature(feature: GeoPointFeature): GeoPointFeature;
   onSelect: SelectFeature;
-  onChooseNearby(features: NearbyFeature[], point: { x: number; y: number }): void;
+  onChooseNearby(features: NearbyFeature[], point: { x: number; y: number }, actions?: MapContextAction[]): void;
+  onCloseNearby?(): void;
 };

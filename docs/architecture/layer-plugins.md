@@ -96,6 +96,11 @@ external distribution, compatibility and permissions remain separate decisions.
    Shared typography and scrollbar appearance already come from the application stylesheet.
    Keep feature layout, compact report formatting such as TAF, and specialized
    instrument or map graphics local; avoid copying shared control rules into plugin CSS.
+   Map Display controls can declare `section: { id, title }` to share a host-owned
+   heading with other plugins. Such contributions render only their control rows;
+   the shell groups them at the first member's position and omits empty groups.
+   METAR and advisories use `awc-weather` / **AWC Weather** while retaining independent
+   lifecycle and preferences. Ungrouped contributions retain their own sections.
 7. **Own cleanup and acquisition.** Bind live work to its actual lifetime:
    activation/connection scopes for integrations, map scopes for attachments, and
    component cleanup for UI demand. Make `dispose` release live resources while retaining
@@ -134,6 +139,7 @@ capabilities for every plugin.
 | [charts/](../../src/layers/charts/README.md) | VFR/IFR selection definitions, rendering, MBTiles/package readers, archive caching, offline planning and service-worker adapter |
 | [navigation/](../../src/layers/navigation/README.md) | Navigation/airway loaders, search, airport/runway/frequency details, symbols, fix display and navaid identification |
 | [metar-taf/](../../src/layers/metar-taf/README.md) | Report clients/caches, station selection, refresh, weather details, runway wind and METAR map rendering |
+| [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory vectors and numeric cloud/freezing/icing forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
@@ -165,6 +171,11 @@ feature-owned bodies; `nearby-feature-picker.tsx` handles overlapping map hits.
 `use-selection.ts` coordinates saved selection, its source edition and retention,
 navaid identification and right-panel actions. `startup.ts` derives initial
 readiness steps from feature state; the shell owns their presentation and timing.
+Startup rows take identities and display names from plugin registrations. Only
+requested data work adds a row after activation; add its readiness mapping in
+`workspace/startup.ts` when a feature introduces startup acquisition. Optional live
+weather is reported separately from the steps that block opening the workspace.
+See [startup status](../features/shared-ui.md#startup-status) for states and progress.
 Shared numeric pixel work belongs in `core/graphics/`, date/time labels in
 `core/format/`, and storage compatibility in `offline/compatibility/`.
 
@@ -224,7 +235,7 @@ import individual features. Type-only imports do not load runtimes.
 
 ## Plugin contract and composition
 
-`core/layers/plugin.ts` defines `LayerPlugin`. All ten feature directories expose
+`core/layers/plugin.ts` defines `LayerPlugin`. All built-in feature directories expose
 one; most use `plugin.ts`/`plugin.tsx`, while plates keeps `createPlatesLayer` as its
 entry. `workspace/products.ts` creates stable instances and validates identities.
 
@@ -256,6 +267,14 @@ A `LayerStore<T>` exposes immutable snapshots; `useLayerSnapshot` uses React's
 external-store subscription API. Detail-specific refresh demand stays in the feature.
 Public feature commands/components may extend the common contribution contract;
 new dependencies remain typed composition changes.
+
+Map context actions use `core/map/selection.ts`'s typed `MapContextAction`. The
+workspace gathers applicable plugin actions and nearby navigation features into
+one menu; plugins guard the offered commands with their scope and current intent.
+Weather inspection remains available while weather is enabled, regardless of
+whether its toolbox is open or stowed. Plate actions require the current overlay
+footprint. Neither feature installs a competing context-menu
+listener or consumes ordinary map clicks.
 
 Navigation owns detail presentation. The workspace supplies route actions, weather,
 elevation, runway wind and plate bodies through typed props/render functions.
@@ -362,7 +381,7 @@ and individual capabilities have their own state. Routes exposes its plan, previ
 and scoped edit commands while an observable `editing` capability is present only
 for a healthy map attachment. Its public editing types do not depend on the renderer.
 Renderer failure revokes editing without disconnecting core selection.
-Ruler exposes its active-tool state; Plates exposes its optional map context action.
+Ruler exposes its active-tool state; Plates and AWC Weather expose applicable map context actions.
 Selection watches these through the registry for its own map lifetime.
 
 Terrain and obstructions discover Routes and observe its displayed plans, including
@@ -624,8 +643,10 @@ descend and bottom slots ascend. `workspace/panel-layout.ts` reserves these posi
 | GPS status / `gps` | Left | Top | 1 |
 | AHRS toolbox / `ahrs` | Left | Top | 2 |
 | Terrain toolbox / `terrain` | Left | Bottom | 0 |
+| AWC Weather toolbox / `weather-awc` | Left | Bottom | 1 |
 | Plate reader / `plate` | Right | Bottom | 0 |
 | Feature details / `details` | Right | Bottom | 1 |
+| Weather advisory details / `weather-awc-details` | Right | Bottom | 2 |
 
 Every tabbed contribution requires a placement. Duplicate panel IDs and occupied
 `(side, anchor, slot)` positions fail validation. Hidden or closed panels and panels
@@ -633,14 +654,19 @@ of disabled plugins reserve their slots; lazy-load order cannot move tabs. Multi
 plugin each need an identity and placement. Preserve saved panel IDs or migrate them.
 Core owns rail bounds and collision/overflow handling; features cannot override
 placement or compensate with positioning offsets. The shell supplies responsive
-insets and features can size their bodies through `className`. AHRS's tab offset
-does not lower its entire panel. Compact attached tabs and separate rails use the
+insets and features can size their bodies through `className`. A `bodyFromEdge`
+placement lets a toolbox body reach its anchor edge independently of its tab slot:
+AHRS starts at the top boundary, and AWC extends to the bottom boundary while its
+tab remains above Terrain. Compact attached tabs and separate rails use the
 same controller and support either side.
 
 `EdgePanel` inherits its name, label, and placement from the registration. It opens
 on mount by default; use `autoOpen={false}` for a persistent, initially stowed tool.
 A render-function child receives `setOpen`, `stow`, and `close(onClose)`. A feature
-with a custom body, such as the native plate dialog, uses `useEdgePanel` with
+showing selected-object details uses `DetailPanel` with its `useEdgePanel`
+controller; navigation and AWC advisories share that frame, heading, close action
+and scroll body. See the [shared UI contract](../features/shared-ui.md#shared-controls).
+A feature with a custom body, such as the native plate dialog, uses `useEdgePanel` with
 `EdgePanelFrame` and spreads `panel.bodyProps` onto its `.edge-panel-body` element.
 The frame still supplies its tab, keyboard behavior and registration. Nested menus
 consume Escape with `stopPropagation`; preventing a field's native Escape behavior
@@ -781,6 +807,11 @@ antimeridian-crossing chart bounds intentionally use different guards.
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#demand-refresh-and-recovery)
 owns station demand, refresh intervals, nearby selection, cached-report recovery,
 map presentation and runway-wind behavior.
+The [AWC Weather guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+owns advisory demand, complete family snapshots and their source-check freshness.
+Its network-only core `requestJson` helper never falls back internally; the product
+retains and labels the original snapshot on failure. Advisory fills/outlines use
+the fixed `WEATHER_LAYER_ANCHOR` between terrain and route/navigation resources.
 
 ## File downloads
 
@@ -792,12 +823,23 @@ or publishes verified bytes with `storeDownloadedFile` before returning. Core al
 discards uncommitted temporary files, including on validation or storage failure.
 The existing writer preserves 64 KiB awaited disk writes and the 8 MiB in-memory
 fallback ceiling. Large files use local files and receipt-only Cache Storage.
+When the caller supplies only a maximum, a valid unencoded `Content-Length`
+provides the exact byte bound for allocation and validation. Small responses then
+avoid temporary disk writes, while truncated, oversized or over-limit bodies are
+rejected. Encoded responses and CORS responses whose encoding header may be hidden
+retain the caller's conservative bound.
 HTTP requests default to `cache: 'no-store'`; callers can supply a `cache` policy
 when browser HTTP caching is part of their acquisition contract.
 
 One queue is shared across products in each page/worker: up to four files of at
-most 4 MiB may transfer together; large, unknown-size and explicitly exclusive
-document transfers occupy the entire queue through validation and publication.
+most 4 MiB may transfer together. A request with only a maximum starts with one
+slot while waiting for headers; its declared response length and maximum then
+determine the body reservation. Large or still unknown-size bodies acquire the
+entire queue before consumption, through validation and publication. Explicitly
+exclusive transfers and files with a known large size reserve it from the start.
+Upgrades release their initial slot before queuing, so simultaneous responses
+cannot deadlock while holding partial reservations. Cancellation discards the
+waiting response and releases its reservation.
 Cached reads bypass that queue. Pages, workers and the service worker are separate
 execution contexts; this is not a global browser-process RAM budget. The offline
 manager still owns region pause/resume and progress: pausing stops new files and
@@ -807,7 +849,8 @@ lets active files finish; resume verifies and skips complete files.
 inspection, repair and bounded archive retention for charts and packaged terrain.
 The chart `archive-cache.ts`/`worker.ts` entries are compatibility exports only.
 Plates supplies PDF signature/content checks and progress presentation; obstruction
-data supplies hash/schema/index checks and uses the file-aware shared data cache.
+data supplies hash/schema/index checks and uses the derived-artifact plugin cache
+described below.
 Legacy terrain PNGs use the same transfer path with a 4 MiB response ceiling.
 
 `readManagedFile` is for bounded decoder reads of files whose acquisition already
@@ -816,6 +859,126 @@ Reference JSON continues through core's validated `fetchJson`, and small weather
 results through their shared clients. Decoded indices, raster tiles and render
 caches remain product-owned. Import checks prohibit plugin-local `fetch` calls and
 direct use of the low-level `downloadFile` writer so new plugins reuse these tools.
+
+### Plugin file caches
+
+`storage.files(name, policy)` provides optional persistent caching for immutable,
+bounded files decoded in memory. It builds on core's `transferFile`; plugins must
+not implement another Cache Storage loop or transfer queue for these resources.
+The core-assigned namespace is `zlayers-plugin-files-v1:<plugin-id>:<name>`, with
+small LRU receipts in its `:access` namespace. All participate in full local reset.
+
+`createPluginStorage(id, legacyUi, { fileBudget })` can also impose one aggregate
+`maxEntries`, `maxBytes` and `maxUnusedMs` ceiling across the plugin's file namespaces.
+Both namespace and aggregate limits apply. Inventory includes dormant namespaces
+from older versions/source configurations. Optional `legacyCaches` maps explicitly
+owned older cache names to their original per-file ceilings; entries without length
+headers conservatively count that entire allowance. Namespace publication uses one
+plugin lock, with ordered access receipts for LRU across namespaces/windows even when
+clocks tie or roll back. Quota recovery can evict another namespace belonging to
+that plugin. These limits count file payloads; keys/receipts and browser overhead
+are additional. The optional `maxRecordBytes` separately limits each structured
+slot/record in UTF-16 bytes, before writes and before parsing restored strings.
+Owners must also bound the number of records they create.
+
+The plugin declares positive `maxEntries`, `maxBytes`, `maxFileBytes` and
+`maxUnusedMs` limits. A `load` supplies the source URL, complete identity (digest,
+decoder/schema version and source metadata), exact compressed byte length, label,
+abort signal and a `validate(bytes, signal)` callback. The callback checks the
+content and returns decoded data; every cached or downloaded file passes it before
+use or publication. `cacheOnly` forbids network acquisition. A `legacyCache` may
+name an existing file namespace to migrate after successful validation/publication.
+Changing validation semantics requires a new identity. A URL alone is insufficient.
+
+Core owns bounded cached reads, shared transfer scheduling, LRU count/byte/unused-age
+cleanup, corruption repair, quota recovery and cross-window locking. Reads touch
+only small receipts, including when clocks tie or move backward. Retention batches
+receipt headers under the publication lock and tests file presence without reading
+its body again. Publication first
+makes room within the namespace and optional plugin budgets; quota pressure can
+evict their other LRU files.
+Other plugins' data and explicitly saved regions are not eviction candidates.
+Storage failures leave validated live data usable. A typed decoder-worker failure
+does not invalidate saved bytes or start a replacement download; a later request
+can retry decoding. Checksum and content-validation failures still repair corrupt
+files. Without working Web Locks,
+existing bytes can still be read but optional writes are skipped.
+
+Concurrent callers for the same complete identity and acquisition policy share a
+pending result within a page/worker. Treat that result as read-only. One caller's
+cancellation does not cancel other users; the last cancellation aborts acquisition.
+Separate windows coordinate acquisition through a resource lock and recheck storage
+before downloading. Cache-only callers do not wait on an active network transfer.
+No decoded result is retained after its request settles; feature display/decoder
+memory remains plugin-owned. Expensive loads can pass a shared `run` function from
+`core/data/task-limiter`: admission happens after request sharing/resource locking,
+before any cache body, network input or decoded output is allocated. Cancelled
+queued tasks never start; active tasks hold their slot until cleanup finishes.
+This bounds processing concurrency per execution context without replacing core's
+transfer scheduler. Producers using nested file caches must not acquire the same
+limiter recursively. Cleanup happens on successful use/publication, not on
+an independent timer. Retention is opportunistic and does not prove offline completeness.
+
+`files.derive({ url, identity, create, validate, signal, cacheOnly, legacy })` extends the
+same cache to browser-generated artifacts. On a miss, `create(signal)` uses shared
+core acquisition to obtain inputs and returns a bounded encoded `ArrayBuffer`.
+Core validates, hashes and stores the artifact under the declared identity and
+policy; reads verify its receipt before plugin decoding. Input decoding/conversion
+runs only on a miss, inside the resource lock. Producers must return independent
+buffers and respond to cancellation; no source/format logic moves into core.
+A derived artifact's identity must include source revisions and converter version.
+An optional `legacy` list supplies exact old cache names/keys and source-aware
+conversion callbacks. Old bytes are removed only after a successful new save.
+The migration source is protected from eviction while publishing its replacement,
+including when both formats share a namespace. If both copies cannot fit, keep the
+original and return the validated live result without a new save receipt.
+A producer/migrator can return `{ value }` for an already validated object that is
+too large to serialize within the file ceiling; core returns it without persistence.
+Loads may provide `onReady(value)`, a notification of validated data before optional
+encoding/publication finishes. A derived producer receives `create(signal, ready)`
+and may call `ready(value)` only after complete source/numeric validation; migration
+callbacks receive the same third argument. Readiness is broadcast once to current
+and late callers of that shared request, respecting each caller's cancellation.
+Observer exceptions cannot invalidate data or another caller's save. Readiness is
+not a persistence receipt: the returned promise continues to own admission,
+cancellation, source locks and cleanup until the work finishes. Producers can return
+`{ value }` if optional encoding fails after a usable result exists. The consumer
+must retain that live value without claiming an offline save.
+`pluginFileKey` constructs exact old identities for migration; `readDerivedArtifact`
+performs a bounded, receipt-authenticated read before product conversion.
+
+`loadResult`/`deriveResult` additionally expose `{ value, saved }`, so preparation
+must not equate a usable live result with an offline save. `has` checks file size
+and receipt headers without decoding; content still requires validation on use.
+Optional storage waits are abortable and capped at ten seconds. Actual writes/
+deletes retain their publication lock until they settle, even after the caller
+stops waiting. This prevents a hung cache operation from holding decode admission
+or a late mutation from racing a new publication.
+Unknown encoded size is bounded by `maxFileBytes`; optional storage failure still
+leaves a validated live result usable. Cache-only never invokes a producer.
+
+AWC is the first consumer: it declares a shared 96-file / 256 MiB ceiling across
+forecast, model-terrain and compatibility caches, with a 48-hour unused lifetime.
+Its controller displays the selection first, then saves cloud/icing forecast times
+at the chosen icing altitude, warming a bounded decoded neighborhood. Winds load the selected time and
+altitude first, prefetching adjacent hours. Numeric operations share one CPU slot;
+a wind job's input waits leave scalar acquisition and decoding available.
+Replacements clear the previous forecast while loading. The [AWC grid guide](../../src/layers/weather-awc/grids/README.md)
+owns preparation and retry behavior.
+Core shares acquisition/conversion and retains the compressed artifacts; the plugin
+owns preparation order, cancellation and progress. Manifest refresh, weather validity, original source timestamps and
+stale/unavailable presentation remain with AWC. The same split applies to future
+immutable forecast, radar or satellite files with qualified source contracts.
+
+Use the existing APIs where the resource has different requirements:
+
+| Plugin/resource | Current fit and possible future reuse |
+| --- | --- |
+| Charts and packaged terrain | Already use core `WholeFileCache` and file-backed downloads; regional pinning and range reads remain authoritative. Do not apply opportunistic frame eviction to saved archives. |
+| Plates | Core transfers/files already support large PDF range reads and verified saves. Shared pending-request machinery could be extracted later while preserving progress, legacy migration and required-save failures. |
+| Obstructions | Uses `files.derive` for the filtered numeric index, with four files / 32 MiB and 14-day unused retention. Core migrates old filtered snapshots and gzip files on demand; the plugin validates original source identity and streamed records. Shared reference JSON/explicit saves keep their separate retention. |
+| METAR/TAF and advisory snapshots | Use core storage slots and refresh scheduling. Their mutable report merging, amendments, withdrawals and source freshness belong to their clients, not immutable-file caching. |
+| Navigation and route reference JSON | Already use validated `fetchJson`, immutable identities and saved-snapshot authority. Keep explicit offline packs outside an opportunistic LRU. |
 
 ## Verification history and remaining checks
 

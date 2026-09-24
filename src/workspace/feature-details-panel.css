@@ -1,87 +1,7 @@
-.feature-details-panel {
-  --edge-handle-width: max(32px, var(--touch-target));
-  --detail-edge-gap: 0px;
-  position: absolute;
-  right: var(--detail-edge-gap);
-  bottom: 34px;
-  display: flex;
-  flex-direction: column;
-  width: min(330px, calc(100% - var(--edge-handle-width) - 8px));
-  max-height: calc(100% - 100px);
-  pointer-events: none;
-}
-
-.feature-details-panel.has-plates {
-  width: min(390px, calc(100% - var(--edge-handle-width) - 8px));
-  height: min(620px, calc(100% - 100px));
-}
-
-.feature-details-panel > .map-edge-handle {
-  position: absolute;
-  left: calc(100% - var(--edge-handle-width) + var(--detail-edge-gap));
-  top: 0;
-  transition: left 180ms ease;
-}
-.feature-details-panel.is-open > .map-edge-handle { left: calc(-1 * var(--edge-handle-width)); }
-
-.feature-card {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  padding: 12px;
-  border: 1px solid rgba(151, 199, 228, 0.19);
-  border-radius: 9px 0 0 9px;
-  background: rgba(8, 20, 35, 0.95);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
-  backdrop-filter: blur(18px);
-  transform: translateX(calc(100% + var(--detail-edge-gap)));
-}
-
-.feature-card-content {
-  /* Non-airport cards have an automatic height, so their details need an
-   * intrinsic flex basis. min-height still lets tall cards scroll. */
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-}
-
-.feature-card-content:focus {
-  /* Keep this region focusable for keyboard scrolling without framing the
-   * entire panel. Interactive controls retain their own focus indicators. */
-  outline: none;
-}
-
-.feature-card-heading {
-  display: flex;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 10px;
-  padding-right: max(36px, var(--touch-target));
-  min-height: max(36px, var(--touch-target));
-  margin-bottom: 8px;
-}
-
-.feature-card-heading h2 {
-  min-width: 0;
-  margin: 0;
-  font-size: 27px;
-  overflow-wrap: anywhere;
-}
-
 .feature-card.is-coordinate .feature-card-heading h2 {
   font-size: 22px;
 }
 
-.feature-card-actions { display: flex; align-items: center; gap: 8px; }
 .identify-feature-button,
 .direct-to-button {
   display: grid;
@@ -105,49 +25,6 @@
   margin: 4px 0 12px;
   color: #8fa7b9;
   font-size: 13px;
-}
-
-.feature-card-header {
-  flex: 0 0 auto;
-  min-height: 0;
-}
-
-.close-card { position: absolute; top: 12px; right: 12px; height: max(36px, var(--touch-target)); }
-
-.feature-card dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-  margin: 0 0 14px;
-  border: 1px solid rgba(151, 199, 228, 0.1);
-  border-radius: 10px;
-  background: rgba(151, 199, 228, 0.08);
-}
-
-.feature-card dl div {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  background: #0c1a2b;
-}
-
-.feature-card dl div.is-wide {
-  grid-column: 1 / -1;
-}
-
-.feature-card dt {
-  color: var(--text-muted);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.feature-card dd {
-  margin: 0;
-  color: #d6e7f1;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .feature-card .feature-facts > div { align-content: start; }
@@ -299,44 +176,11 @@
 
 .feature-tabs { margin: 0 0 12px; }
 
-@media (max-width: 640px) {
-  .feature-details-panel,
-  .feature-details-panel.has-plates {
-    bottom: 28px;
-    width: calc(100% - var(--edge-handle-width) - 8px);
-  }
-}
-
-/* Respond to the map's actual space, including keyboard and safe-area changes.
- * Keep the header and tabs reachable while the details scroll. */
+/* Navigation metadata and tabs adapt inside the shared core frame. */
 @container workspace (max-height: 400px) {
-  .feature-details-panel,
-  .feature-details-panel.has-plates {
-    --detail-edge-gap: 72px;
-    top: 8px;
-    bottom: 8px;
-    width: min(390px, calc(100% - 82px - var(--edge-handle-width)));
-    height: auto;
-    max-height: none;
-  }
-  .feature-details-panel > .map-edge-handle { top: 56px; }
-  .feature-card { padding: clamp(8px, 3cqh, 12px); }
-  .feature-card-heading { margin-bottom: 4px; }
-  /* Keep the identifier and Info/Plates tabs fixed, while preserving body
-   * space for scrolling in short landscape and keyboard-sized maps. */
   .feature-card-header > p { display: none; }
   .feature-tabs { margin-bottom: 6px; }
-  .close-card { top: clamp(8px, 3cqh, 12px); right: clamp(8px, 3cqh, 12px); }
 }
-
 @container workspace (max-height: 300px) {
-  .feature-details-panel,
-  .feature-details-panel.has-plates {
-    top: 0;
-    bottom: 0;
-  }
-  .feature-card { padding: 4px; }
-  .feature-card-heading { margin-bottom: 0; }
   .feature-tabs { margin-bottom: 0; }
-  .close-card { top: 4px; right: 4px; }
 }

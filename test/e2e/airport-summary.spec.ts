@@ -21,7 +21,7 @@ for (const touch of [false, true]) test.describe(`airport map selection (${touch
       });
       await route.fulfill({ response, json: body });
     });
-    await context.route('**/weather/metars.geojson?*', route => route.fulfill({ json: {
+    await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({ json: {
       type: 'FeatureCollection', features: tier === 'weather' ? [{
         type: 'Feature', geometry: { type: 'Point', coordinates: [-118.45, 34.02] },
         properties: { id: 'KSMO', obsTime: Date.now() / 1000, fltcat: 'VFR', rawOb: 'KSMO TEST METAR' },
@@ -29,7 +29,7 @@ for (const touch of [false, true]) test.describe(`airport map selection (${touch
     } }));
     await page.addInitScript(() => {
       localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-118.45, 34.02], zoom: 12 }));
-      // Keep the phone's label clear of the initially open terrain toolbox.
+      // Keep the phone's label clear by explicitly stowing the toolboxes.
       localStorage.setItem('zlayer-ui:edge-tool', JSON.stringify({ version: 1, value: null }));
     });
     await page.goto('/');
@@ -72,8 +72,8 @@ test('airport summary shows elevation, runway and local frequencies on desktop, 
     ] });
     await route.fulfill({ response, json: body });
   });
-  await context.route('**/weather/metars.geojson?*', route => route.fulfill({ json: { type: 'FeatureCollection', features: [] } }));
-  await context.route('**/weather/tafs.json?*', route => route.fulfill({ status: 204 }));
+  await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({ json: { type: 'FeatureCollection', features: [] } }));
+  await context.route('**/api/weather/tafs.json?*', route => route.fulfill({ status: 204 }));
   await page.goto('/');
   await selectAirport(page, 'KSMO');
   const facts = page.locator('.feature-facts');

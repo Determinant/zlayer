@@ -4,7 +4,7 @@ import type { ScreenRect } from '../../core/map/contribution';
 export function occupiedMapRegions(container: HTMLElement): ScreenRect[] {
   const rect = container.getBoundingClientRect();
   return [...(container.closest('.map-stage') ?? container.parentElement ?? container)
-    .querySelectorAll<HTMLElement>('.ruler-card, .ruler-toggle, .layer-control-button, .map-navigation-control, .map-edge-handle, .edge-panel-body')]
+    .querySelectorAll<HTMLElement>('[data-map-occupied], .ruler-card, .ruler-toggle, .layer-control-button, .map-navigation-control, .map-edge-handle, .edge-panel-body')]
     .filter(element => !element.closest('[inert]') && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
     .map(element => {
       const box = element.getBoundingClientRect();

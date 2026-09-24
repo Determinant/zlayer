@@ -3,7 +3,7 @@
 [Documentation](../../../docs/README.md) / Plugins / plates
 
 The [core plugin bridge](../../../docs/architecture/layer-plugins.md#inter-plugin-communication)
-exposes the public `open` command, `opened` notification and optional map context action.
+exposes the public `open` command, `opened` notification and applicable map context actions.
 The workspace observes `opened` to select the reader panel. Data-only catalog readers
 remain usable independently of the viewer plugin’s enablement.
 `data.ts` owns `procedureSelection`, used by the airport list and route pickers
@@ -133,11 +133,13 @@ The viewer closes and the map fits the plate. Only one IAP can be shown: a new
 selection replaces the previous overlay once its geographic data and image are
 ready. Opening or closing the normal PDF viewer leaves the current overlay alone.
 
-Right-click or long-press inside the plate to open its menu. **Show plate panel**
+Right-click or long-press inside the plate to open the shared map menu. Applicable
+weather inspection and nearby navigation entries appear alongside its actions.
+**Show plate panel**
 opens that overlay's exact plate and edition in the reader, restoring its saved
 reading state while keeping the overlay and map view. **Hide IAP from map** removes
 the overlay. Opening or dismissing the menu leaves the plate in place;
-Escape or clicking outside closes the menu. Once the plate is ready, no status
+Escape, moving the map or clicking outside closes the menu. Once the plate is ready, no status
 banner covers the map. Panning, pinching and gestures outside the plate retain
 their normal map behavior. The overlay restores after
 reload from its exact saved PDF/approach target, including offline when the PDF

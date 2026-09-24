@@ -3,6 +3,7 @@
   position: absolute; inset: 0; pointer-events: none;
   --edge-handle-width: max(32px, var(--touch-target, 0px));
   --edge-panel-reveal: 0;
+  --edge-body-layer: calc(var(--edge-body-base-layer, 12) + 1);
   transition: --edge-panel-reveal 180ms ease;
 }
 .edge-panels[data-revealed] { --edge-panel-reveal: 1; }
@@ -17,10 +18,14 @@
 .edge-panels.is-right > .edge-panel-tabs { right: 0; }
 .edge-panels:has(:modal) > .edge-panel-tabs { visibility: hidden; }
 .edge-panels :modal { pointer-events: auto; }
-.edge-panels > .edge-panel.is-presented { z-index: 1; }
-.edge-panel-tabs > [data-edge-tab] { position: absolute; z-index: 0; }
+.edge-panels > .edge-panel { z-index: auto; }
+/* Selected handles remain reachable across overlapping edges. Focusing either panel
+ * brings its body forward without stowing the other edge or losing its state. */
+.edge-panels:focus-within { --edge-body-layer: 14; }
+.edge-panels > .edge-panel > .edge-panel-body { z-index: var(--edge-body-layer); }
+.edge-panel-tabs > [data-edge-tab] { position: absolute; z-index: var(--edge-body-base-layer, 12); }
 .edge-panel-tabs > .is-presented {
-  z-index: 2;
+  z-index: 16;
   transform: translateX(calc(-1 * var(--edge-panel-direction) * var(--edge-panel-offset, 0px) * var(--edge-panel-reveal)));
 }
 .edge-panel-body {
@@ -42,12 +47,18 @@
 /* Compact panels carry their own handle. The same reveal fraction and
  * direction apply on either edge; feature CSS only supplies their dimensions. */
 .edge-panels.has-individual-tabs > .edge-panel {
-  transform: translateX(calc(var(--edge-panel-direction) * (100% - var(--edge-handle-width))));
+  --edge-panel-shift: calc(var(--edge-panel-direction) * var(--edge-own-offset, 0px));
 }
 .edge-panels.has-individual-tabs > .edge-panel.is-presented {
-  transform: translateX(calc(var(--edge-panel-direction) * var(--edge-panel-offset) * (1 - var(--edge-panel-reveal))));
+  --edge-panel-shift: calc(var(--edge-panel-direction) * var(--edge-own-offset, 0px) * (1 - var(--edge-panel-reveal)));
 }
-.edge-panels.has-individual-tabs > .edge-panel > .edge-panel-body { transform: none; }
+.edge-panels.has-individual-tabs > .edge-panel > .edge-panel-body {
+  position: relative; transform: translateX(var(--edge-panel-shift));
+}
+.edge-panels.has-individual-tabs > .edge-panel .map-edge-handle {
+  z-index: var(--edge-body-base-layer, 12); transform: translateX(var(--edge-panel-shift));
+}
+.edge-panels.has-individual-tabs > .edge-panel.is-presented .map-edge-handle { z-index: 16; }
 .edge-panels.is-left.has-individual-tabs > .edge-panel > .edge-panel-body { order: -1; }
 .edge-panels.is-right.has-individual-tabs > .edge-panel > .edge-panel-body { order: 1; }
 

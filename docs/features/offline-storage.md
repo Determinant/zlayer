@@ -327,6 +327,40 @@ and can be dismissed individually.
 
 Regional saves include published elevation terrain; they do **not** bulk-download
 the background basemap or promise current weather.
+
+[AWC Weather](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+retains only its latest successfully fetched advisory family snapshots in scoped
+plugin storage. They keep original source times and become cached/unverified on
+restart or failed refresh; Now still expires interval polygons offline. These
+snapshots are not part of regional chart acquisition and do not promise a complete
+offline forecast. [Numeric cloud/freezing/icing guidance](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
+additionally retains three endpoint-scoped source manifests. AWC's converted
+cloud/icing/wind frames, native pressure inputs, model terrain, prepared images and
+compatibility caches share one
+**96-file / 256 MiB** payload budget through core's [plugin file cache](../architecture/layer-plugins.md#plugin-file-caches).
+Structured advisory/catalog slots are separately size/count bounded; see the
+[AWC persistence guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence).
+The selected frame displays first; remaining cloud times and icing times at the
+chosen altitude save in the background. Cloud bundles include all cloud/freezing
+fields; winds warm adjacent hours at the chosen MSL altitude or flight level,
+retaining the derived slice for offline reuse. The saved catalog
+pointer advances only after a matching replacement file saves successfully;
+failed or cancelled saves preserve the previous offline catalog. All products share one
+admitted numeric operation and a 96 MiB decoded neighborhood. A wind input wait
+does not occupy scalar acquisition or decoding. Progress counts
+saved files with a restorable catalog; storage failures keep live/nearby data usable and report an incomplete
+offline save instead of downloading and discarding the entire horizon. Preparation
+stops while hidden, disabled or offline. Offline access remains available for
+individually retained frames.
+Least recently used files are evicted under count/byte pressure, and other files
+unused for 48 hours are cleaned up during cache use. Access metadata is separate
+from compressed bodies; decoded history is limited to the active neighborhood. Cache hits reuse
+the converted artifact without repeating GRIB decoding/projection; core coordinates
+concurrent conversion and verifies persisted artifact checksums. Legacy preconverted
+feeds retain their separate migration path, including offline. Only retained time/altitude files
+work offline; automatic preparation is opportunistic, not a verified offline pack,
+all-altitude forecast cube or regional-weather download. Full local
+reset removes file/access namespaces and legacy caches along with plugin slots.
 Basemap resources are retained as viewed; missing ones do not disable saved chart
 overlays. Weather keeps its observation times and stale/unavailable labels. Downloads
 show their FAA cycle; saved means retained, not current or suitable for navigation.
@@ -341,6 +375,17 @@ selected date stays pinned, including existing saved selections from older relea
 Choose **Latest** again to resume automatic selection. Offline launches use saved
 catalogs and the last validated date list, with a notice when the list cannot refresh.
 Saved catalogs from older releases are discovered without migration.
+
+A failed or incompatible chart-feed refresh cannot replace valid cached chart
+metadata. If only the saved browsing catalog remains, its chart identities stay
+usable and the refresh notice names that saved edition. When browsing catalogs and
+the cycle list are unavailable, startup can instead use the newest committed
+regional snapshot. It retains that snapshot's exact metadata and file identities;
+missing files remain gaps and repairable downloads. Settings, navigation and saved
+plates remain accessible without successful discovery or a new manifest. Restoring
+regional metadata finishes before startup declares the chart feed unavailable.
+A later successful refresh resumes browsing while regional edition ownership remains
+unchanged. These fallbacks do not claim that uncached areas are available offline.
 
 The global date selects the **browsing edition** and the edition for new downloads.
 Completed regional selections override it both online and offline. Charts, airport

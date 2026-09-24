@@ -11,7 +11,7 @@ export async function expectMapPlate(page: Page, name: string | null = 'TEST APP
 /** The caller has positioned the map with the plate at its visible center. */
 export async function hideMapPlate(page: Page) {
   await page.locator('.maplibregl-canvas').click({ button: 'right' });
-  const menu = page.getByRole('menu', { name: 'IAP actions' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
   await menu.getByRole('menuitem', { name: 'Hide IAP from map' }).click();
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page, null);

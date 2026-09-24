@@ -3,6 +3,8 @@ import { isTafReport, type PointGeometry, type TafReport } from '@zlayer/contrac
 import { normalizeIdentifier } from '@zlayer/domain';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
+import { weatherCheckedAt } from '../../../core/data/fetch-json';
+
 export const TAF_REFRESH_MS = 5 * 60_000;
 const cacheSlot = pluginStorage.slot('tafs', 'zlayers.tafs.v1');
 const MAX_CACHED_STATIONS = 200;
@@ -49,12 +51,15 @@ export class TafClient {
     if (previous?.checkedAt !== undefined && !previous.error && now >= previous.checkedAt && now - previous.checkedAt < TAF_REFRESH_MS) return;
     try {
       const reports = new Map<string, TafReport>();
+      let checkedAt = now;
       for (const box of boxes) {
         const url = new URL(this.endpoint);
         url.searchParams.delete('ids');
         url.searchParams.set('bbox', box);
         url.searchParams.set('format', 'json');
-        for (const report of await this.#request(url, signal)) {
+        const result = await this.#request(url, signal);
+        checkedAt = Math.min(checkedAt, result.checkedAt);
+        for (const report of result.reports) {
           const id = normalizeIdentifier(report.icaoId);
           if (!id || !/^[A-Z0-9]{4}$/.test(id) || stationDistance(point, report) > NEARBY_STATION_RADIUS_NM) continue;
           const current = reports.get(id);
@@ -66,9 +71,9 @@ export class TafClient {
       const ids = new Set([...reports.keys(), ...[...this.#stations.entries()]
         .filter(([, entry]) => entry.report && stationDistance(point, entry.report) <= NEARBY_STATION_RADIUS_NM)
         .map(([id]) => id)]);
-      for (const id of ids) this.#accept(id, reports.get(id));
+      for (const id of ids) this.#accept(id, reports.get(id), checkedAt);
       this.#areas.delete(key);
-      this.#areas.set(key, { checkedAt: (this.options.now ?? Date.now)() });
+      this.#areas.set(key, { checkedAt });
       this.#save();
     } catch (error) {
       signal.throwIfAborted();
@@ -89,9 +94,9 @@ export class TafClient {
     url.searchParams.set('ids', id);
     url.searchParams.set('format', 'json');
     try {
-      const body = await this.#request(url, signal);
-      const received = body.filter(report => normalizeIdentifier(report.icaoId) === id).sort(newestFirst)[0];
-      this.#accept(id, received);
+      const { reports, checkedAt } = await this.#request(url, signal);
+      const received = reports.filter(report => normalizeIdentifier(report.icaoId) === id).sort(newestFirst)[0];
+      this.#accept(id, received, checkedAt);
       this.#save();
     } catch (error) {
       signal.throwIfAborted();
@@ -100,7 +105,7 @@ export class TafClient {
     }
   }
 
-  async #request(url: URL, signal: AbortSignal): Promise<TafReport[]> {
+  async #request(url: URL, signal: AbortSignal): Promise<{ reports: TafReport[]; checkedAt: number }> {
     const response = await (this.options.fetch ?? fetch)(url, {
       cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(this.options.timeoutMs ?? 20_000)]),
     });
@@ -111,15 +116,18 @@ export class TafClient {
     const body: unknown = response.status === 204 ? [] : await response.json();
     if (!Array.isArray(body) || !body.every(isTafReport)) throw new Error('AWC TAF returned invalid data');
     signal.throwIfAborted();
-    return body;
+    return { reports: body, checkedAt: weatherCheckedAt(response, (this.options.now ?? Date.now)()) };
   }
 
-  #accept(id: string, received: TafReport | undefined): void {
-    const previous = this.get(id)?.report;
+  #accept(id: string, received: TafReport | undefined, checkedAt: number): void {
+    const saved = this.get(id), previous = saved?.report;
+    // A shared cache hit must not replace a newer successful source check.
+    if (saved?.checkedAt !== undefined && saved.checkedAt <= (this.options.now ?? Date.now)() && saved.checkedAt > checkedAt &&
+      (!received || previous && newestFirst(previous, received) <= 0)) return;
     const report = previous && (!received || newestFirst(previous, received) < 0) ? previous : received;
     this.#stations.delete(id);
     this.#stations.set(id, {
-      ...(report ? { report } : {}), checkedAt: (this.options.now ?? Date.now)(), missing: !received || report !== received,
+      ...(report ? { report } : {}), checkedAt, missing: !received || report !== received,
     });
   }
 
@@ -144,7 +152,7 @@ function newestFirst(a: TafReport, b: TafReport): number {
 let sharedClient: TafClient | undefined;
 export function getTafClient(): TafClient {
   if (sharedClient) return sharedClient;
-  const endpoint = import.meta.env?.VITE_ZLAYERS_TAF_URL?.trim() || '/weather/tafs.json';
+  const endpoint = import.meta.env?.VITE_ZLAYERS_TAF_URL?.trim() || '/api/weather/tafs.json';
   sharedClient = new TafClient(new URL(endpoint, window.location.origin));
   return sharedClient;
 }

@@ -33,25 +33,20 @@ export function createPlateMapLayer(product: PlatesController, initiallyFitted?:
     mount(next: MapLibreMap) {
       map = next; image = undefined;
       unsubscribe = product.subscribe(sync);
-      map.on('movestart', product.closeMapMenu);
       sync();
     },
     update() {},
     unmount() {
       unsubscribe?.(); unsubscribe = undefined;
       if (map) {
-        map.off('movestart', product.closeMapMenu);
         removeLayerResources(map, [LAYER], [SOURCE]);
       }
       map = undefined; image = undefined;
-      product.closeMapMenu();
     },
-    showMenuAt(point: { x: number; y: number }): boolean {
-      if (!map || !image) return false;
+    imageAt(point: { x: number; y: number }): PlateMapImage | undefined {
+      if (!map || !image) return undefined;
       const location = map.unproject([point.x, point.y]);
-      if (!plateContains(image, [location.lng, location.lat])) return false;
-      product.openMapMenu(image, point);
-      return true;
+      return plateContains(image, [location.lng, location.lat]) ? image : undefined;
     },
-  } satisfies MapLayerModule<void> & { showMenuAt: (point: { x: number; y: number }) => boolean };
+  } satisfies MapLayerModule<void> & { imageAt: (point: { x: number; y: number }) => PlateMapImage | undefined };
 }

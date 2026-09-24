@@ -44,7 +44,7 @@ if (requested || new URL(location.href).searchParams.get('reset') === '1') {
     try { ({ App } = await import('./app')); }
     catch {
       view.render(<StartupScreen message="The workspace could not open."
-        steps={[{ label: 'Workspace', state: 'unavailable' }]} slow />);
+        steps={[{ id: 'workspace', label: 'Workspace', state: 'unavailable' }]} slow />);
       return;
     }
     if (resetPending()) { openResetScreen(); return; }

@@ -9,11 +9,13 @@ import { hasAirportPlates } from '../layers/plates/data';
 import { AirportWeather, RunwayWind, RunwayWindNotes, type MetarClient } from '../layers/metar-taf';
 import { FeatureRouteActions, type FeatureRoute } from '../layers/routes/feature-actions';
 import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
+import type { ReportStatusListener } from '../layers/metar-taf/station-weather';
 
 type FeatureDetailsPanelProps = {
   feature: GeoPointFeature;
   catalog?: CatalogReadSource | undefined;
   metarClient: MetarClient;
+  onWeatherStatus?: ReportStatusListener;
   procedureResource: ProcedureResourceRecord | undefined;
   revision: string;
   savedSupplement?: SavedSupplement | undefined;
@@ -27,7 +29,7 @@ type FeatureDetailsPanelProps = {
 };
 
 /** Explicit detail composition; each feature owns its presentation and data demand. */
-export function FeatureDetailsPanel({ feature, catalog, metarClient, procedureResource, revision, savedSupplement,
+export function FeatureDetailsPanel({ feature, catalog, metarClient, onWeatherStatus, procedureResource, revision, savedSupplement,
   editionUnavailable = false, identification, onIdentificationChange, route, onClose, onOpenProcedure,
   features = { routes: true, weather: true, terrain: true, plates: true } }: FeatureDetailsPanelProps) {
   const ident = featureIdent(feature);
@@ -41,7 +43,7 @@ export function FeatureDetailsPanel({ feature, catalog, metarClient, procedureRe
         onClick={() => onIdentificationChange(!identification)}>ID</button>
     </>}
     elevation={active => features.terrain ? <WaypointElevation feature={feature} catalog={catalog} active={active} /> : null}
-    info={active => features.weather ? <AirportWeather feature={feature} client={metarClient} active={active} /> : null}
+    info={active => features.weather ? <AirportWeather feature={feature} client={metarClient} active={active} revision={revision} onStatus={onWeatherStatus} /> : null}
     runwayWeather={features.weather ? {
       notes: <RunwayWindNotes properties={feature.properties} />,
       wind: heading => <RunwayWind heading={heading} properties={feature.properties} />,

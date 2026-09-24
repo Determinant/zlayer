@@ -7,7 +7,7 @@ import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { createPlatesController, type PlatesController } from './layer';
 import { ProcedureDialog, ProcedureLoading } from './viewer-dialog';
-import { PlateMapMenu } from './map-menu';
+import type { PlateMapImage } from './map-image';
 import { retainActiveFiles } from '../../offline/active-catalogs';
 import { formatDateRange } from '../../core/format/time';
 
@@ -16,14 +16,22 @@ export function createPlatesLayer() {
   const opened = createLayerEvents<Parameters<PlatesApi['open']>[0]>();
   const open: PlatesApi['open'] = selection => { controller.open(selection); opened.emit(selection); };
   const Panel = () => <PlatesPanel layer={controller} />;
-  const MapControl = () => <PlateMapControl layer={controller} onOpen={open} />;
-  let showMenuAt: ((point: { x: number; y: number }) => boolean) | undefined;
+  const MapControl = () => <PlateMapControl layer={controller} />;
+  let imageAt: ((point: { x: number; y: number }) => PlateMapImage | undefined) | undefined;
   return {
     ...controller,
     publicApi(scope) {
       return {
         open: scope.command(open),
-        contextAction: scope.command(point => showMenuAt?.(point) ?? false),
+        contextActions: scope.command(point => {
+          const image = imageAt?.(point);
+          return image ? [
+            { id: 'plates:open', label: 'Show plate panel', select: scope.command(() => {
+              if (controller.getSnapshot().mapImage === image) open(image.selection);
+            }) },
+            { id: 'plates:hide', label: 'Hide IAP from map', select: scope.command(() => controller.hideFromMap(image)) },
+          ] : [];
+        }),
         opened: { subscribe: listener => scope.listen(opened.events, listener) },
       };
     },
@@ -34,8 +42,8 @@ export function createPlatesLayer() {
       const initiallyFitted = context.preserveView ? controller.getSnapshot().mapImage : undefined;
       const { createPlateMapLayer } = await import('./map');
       const layer = createPlateMapLayer(controller, initiallyFitted);
-      return [{ ...layer, mount(map) { layer.mount(map); showMenuAt = layer.showMenuAt; },
-        unmount() { showMenuAt = undefined; layer.unmount(); } }];
+      return [{ ...layer, mount(map) { layer.mount(map); imageAt = layer.imageAt; },
+        unmount() { imageAt = undefined; layer.unmount(); } }];
     } },
   } satisfies LayerPlugin & PluginExports<PlatesApi>;
 }
@@ -56,8 +64,8 @@ function PlatesPanel({ layer }: { layer: PlatesController }) {
   );
 }
 
-function PlateMapControl({ layer, onOpen }: { layer: PlatesController; onOpen: PlatesApi['open'] }) {
-  const { mapImage, mapMenuPoint, mapSelection, mapRestoreError } = useLayerSnapshot(layer);
+function PlateMapControl({ layer }: { layer: PlatesController }) {
+  const { mapImage, mapSelection, mapRestoreError } = useLayerSnapshot(layer);
   useEffect(() => {
     if (!mapSelection) return;
     return retainActiveFiles([mapSelection.document.url]);
@@ -80,9 +88,6 @@ function PlateMapControl({ layer, onOpen }: { layer: PlatesController; onOpen: P
       {mapRestoreError && <button type="button" className="ui-button plate-map-retry" onClick={layer.retryMapRestore}>Retry IAP</button>}
       <button className="ui-button ui-button--icon" type="button" onClick={() => layer.hideFromMap(mapImage)} aria-label="Hide IAP from map" title="Hide IAP from map">×</button>
     </aside>}
-    {mapImage && mapMenuPoint && <PlateMapMenu point={mapMenuPoint} onClose={layer.closeMapMenu}
-      onOpen={() => onOpen(mapImage.selection)}
-      onHide={() => layer.hideFromMap(mapImage)} />}
   </>;
 }
 

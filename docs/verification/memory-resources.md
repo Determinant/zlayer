@@ -91,9 +91,11 @@ Download constraints now enforced by the application:
   large new downloads present a storage/browser error instead of buffering them.
 - Core's file-transfer queue is shared by products within each execution context.
   One PDF transfer/verification/publication runs per page, including downloads
-  continuing after their viewer closes. A file above **4 MiB**, of unknown size,
-  or explicitly exclusive occupies that context's entire transfer budget; up to
-  four smaller files may overlap. Separate pages/workers have separate budgets.
+  continuing after their viewer closes. A body above **4 MiB** or still of unknown
+  size occupies that context's entire transfer budget; up to four smaller files
+  may overlap. A request with only a maximum uses one slot until response headers
+  determine its body reservation. Known large files and explicitly exclusive
+  transfers reserve the whole budget from the start. Separate pages/workers have separate budgets.
   Completed chart Blobs have a **16 MiB** aggregate retention cap as well as the
   existing entry limit. Eviction preserves durable files.
 - Ordinary failures cancel the body, abort the writer, and remove uncommitted
@@ -234,6 +236,7 @@ after later editions replace them.
 | IAP on-map | One static MapLibre canvas source; each reprojection canvas capped at 4,194,304 pixels/16 MiB and 3,072 px per side; temporary and replaced canvases released | Preparation uses both a source and output canvas. The existing map plate, PDF viewer and GPU texture can overlap those allocations. The per-canvas cap is not a total plate-memory limit. Pans and zooms reuse the static texture. |
 | Reference caches | Successful requests coalesced; failures retryable; generally 24 ready entries per ResourceCache; regional caches use WeakMap ownership | National navigation, airways, procedures and history still use whole-document parsing. Concurrent loads and multiple editions can overlap; entry counts do not bound bytes. |
 | METAR/TAF | Station/area caches bounded; visible-demand refresh and aborts; handlers removed on unmount | Weather snapshots/joins still allocate per update, now with the early airport filter. |
+| AWC Weather | One admitted forecast decode/conversion per page, with two scalar acquisitions and one independent wind job, each capped at 16 MiB compressed input; 96 MiB decoded neighborhood and up to 48 MiB of nearby full-domain rasters; temperature shares wind data; core enforces one 256 MiB / 96-file persistent payload budget across AWC namespaces | Wind interpolation can overlap two boundary levels, one incoming level and its output (about 101.6 MiB). Displayed/replacement bundles, terrain, decoder scratch, compressed inputs and raster/GPU copies are additional. These are working-set controls, not a total process RAM cap. [AWC grid budgets](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets) own the allocation and eviction details. |
 | AHRS | Sensor lifecycle tied to activity/visibility; bounded recording buffer (2 Mi characters), 128 Ki-character chunks, one storage writer; capture stops when storage falls behind. GPX/debug exports read 64 KiB pieces in a worker and append to an OPFS temporary file; unavailable/full storage falls back to at most 8 MiB. Repeated downloads reuse the recent URL; a different export releases the prior fallback payload first. | Estimator matrices produce short-lived allocations. Limits bound application buffers, not total browser memory; long-session capture/export still needs physical iPhone measurement. |
 | Map | One resize owner; sources/layers removed on detach; terrain/chart bitmap cleanup covered by graphics tests | MapLibre caches and framebuffer size scale with viewport/device density. No new global density or tile-cache limits were imposed without an allocation profile. |
 

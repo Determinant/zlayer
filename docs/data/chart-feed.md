@@ -40,8 +40,13 @@ The validated cycle list and catalogs are stored separately per feed root.
 Cached catalogs appear before network revalidation and remain usable offline.
 A failed selection keeps the active catalog; a late response from an abandoned
 selection cannot change it. Every manifest is validated against the requested date
-before entering the reference cache. Network failures may reuse only same-date
-products, never navigation/procedures from another edition.
+before entering the reference cache. Failed refreshes, including invalid new
+manifests, retain the last valid cached manifest or the saved catalog's same-date
+products, never navigation/procedures from another edition. When the saved catalog
+supplies charts after a refresh failure, the notice identifies the saved edition.
+Committed regional snapshots can also open the workspace independently when the
+browsing catalog and discovery metadata are unavailable; see
+[offline startup](../features/offline-storage.md#browsing-and-saved-editions).
 
 Date discovery requires a readable `cycles.json`, including CORS when using a
 cross-origin root. The existing production `/chart-data/` alias serves this file
@@ -219,8 +224,16 @@ not permission to delete previously published files with an upload sync's delete
 
 Source chart bounds describe the rectangular extent of the applied cutline; package
 bounds describe a storage-grid cell. Neither replaces the actual transparent cutline
-mask. New chart kinds or incompatible packaging require coordinated publisher and
-consumer changes.
+mask. Within supported schema/packaging versions, additional chart kinds are
+additive. The client excludes explicitly unsupported families (currently including
+`ifr-high`) from chart records, archives and references to those archives in regions.
+It still validates all supported records, unique archive identities, region dependency
+completeness and unknown/dangling references. Records without an identifiable family
+are invalid; a feed with no supported charts cannot become the browsing edition.
+The original response remains cached, and the supported subset is derived and
+validated on both network and offline reads. Incompatible schemas or packaging
+still require coordinated publisher and consumer changes. Previously deployed
+clients with stricter family guards require a compatible feed until updated.
 
 ### Navigation rebuilds within a cycle
 

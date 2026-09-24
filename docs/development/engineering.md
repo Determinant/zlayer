@@ -7,6 +7,7 @@
 ```text
 src/                   React/Vite PWA: product layers, shared core, workspace shell
 public/                static app assets
+tools/weather-server/  Node TypeScript AWC/NOMADS cache gateway
 test/                  unit tests, browser fixtures and Playwright regressions
 tools/                 import checks, local proxies, offline shell and boundary builder
 packages/contracts/    shared data types and runtime document guards
@@ -18,6 +19,15 @@ docs/                  contracts, decisions and verification guides
 The root package owns the application. Only the shared packages are npm workspaces;
 development tooling is not a second application. Production publishes static `dist/`
 and consumes the dated artifacts built by `faa-regs`.
+The small [weather server](../../tools/weather-server/README.md) shares AWC, NOMADS
+and Google HRRR acquisition, normalizes advisories, and prepares numeric grids in
+bounded Node workers using the existing TypeScript algorithms. The PWA validates
+and caches those artifacts through core, interpolates selected wind altitudes,
+then renders and inspects numeric bands. One bounded server cache shares source
+reads and native grids across viewers. Background updates prepare complete native
+generations before publishing catalogs. HTTP forecast reads never acquire sources
+or perform conversion; wind altitude interpolation remains in the PWA.
+There is no weather database; user state stays in the PWA.
 
 Each plugin's documentation starts at `src/layers/<plugin>/README.md`. Keep its
 behavior, algorithms, design rationale and validation beside its implementation;
@@ -47,6 +57,9 @@ completeness.
 Plugin file downloads must use core's shared acquisition tools; see the
 [file-download contract](../architecture/layer-plugins.md#file-downloads).
 Do not add a feature-owned fetch loop, whole-response buffer or transfer queue.
+Immutable bounded files that need optional offline browsing use the scoped
+[plugin file cache](../architecture/layer-plugins.md#plugin-file-caches), with
+product-defined identity, validation and retention limits.
 Small structured responses use the shared JSON/client helpers. Import checks reject
 direct `fetch` calls and low-level download-writer imports in plugin modules.
 

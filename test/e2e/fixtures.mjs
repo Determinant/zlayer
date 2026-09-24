@@ -148,7 +148,7 @@ export async function fixtureFiles() {
       airports: [{ faaId: 'SBA', name: 'TEST AIRPORT', city: 'SANTA BARBARA', state: 'CALIFORNIA',
         volumeId: 'SW', printedPage: '1', pageIndex: 0 }] });
   }
-  add('/weather/metars.geojson', { type: 'FeatureCollection', features: [] });
+  add('/api/weather/metars.geojson', { type: 'FeatureCollection', features: [] });
   add('/route-approaches.json', JSON.parse(await readFile(new URL('../fixtures/route-approaches.json', import.meta.url), 'utf8')));
   add('/route-approach-legs.json', JSON.parse(await readFile(new URL('../fixtures/route-approach-legs.json', import.meta.url), 'utf8')));
   add('/basemap.png', png, 'image/png');

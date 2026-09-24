@@ -3,11 +3,21 @@ import test from 'node:test';
 import { isTafReport, type TafReport } from '@zlayer/contracts';
 import { TafClient, TAF_REFRESH_MS } from '../src/layers/metar-taf/taf/client';
 
-const endpoint = new URL('https://app.test/weather/tafs.json');
+const endpoint = new URL('https://app.test/api/weather/tafs.json');
 const now = Date.parse('2026-09-17T19:00:00Z');
 const report = (fields: Partial<TafReport> = {}): TafReport => ({ icaoId: 'KSFO', issueTime: '2026-09-17T18:00:00Z',
   validTimeFrom: now / 1000, validTimeTo: now / 1000 + 86400, rawTAF: 'TAF KSFO TEST', fcsts: [], ...fields });
 const signal = () => new AbortController().signal;
+
+test('TAF gateway hits preserve the source-check time for station and nearby results', async () => {
+  const checkedAt = now - 50_000;
+  const client = new TafClient(endpoint, { now: () => now, fetch: async () =>
+    Response.json([report({ lat: 37, lon: -122 })], { headers: { 'X-Weather-Checked-At': String(checkedAt) } }) });
+  await client.refresh('KSFO', signal());
+  assert.equal(client.get('KSFO')?.checkedAt, checkedAt);
+  await client.refreshNearby([-122, 37], signal());
+  assert.equal(client.nearbyStatus([-122, 37])?.checkedAt, checkedAt);
+});
 
 for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} TAF refresh recovers after the wall clock moves backward`, async () => {
   let time = now, calls = 0;
@@ -36,7 +46,7 @@ test('requests only the selected station, selects the latest amendment, and thro
     return Response.json([report({ icaoId: 'KJFK' }), report(), latest]);
   } });
   await client.refresh(' ksfo ', signal());
-  assert.equal(calls[0]?.pathname, '/weather/tafs.json');
+  assert.equal(calls[0]?.pathname, '/api/weather/tafs.json');
   assert.deepEqual([...calls[0]!.searchParams], [['ids', 'KSFO'], ['format', 'json']]);
   assert.equal(client.get('KSFO')?.report?.rawTAF, latest.rawTAF);
   await client.refresh('KSFO', signal());

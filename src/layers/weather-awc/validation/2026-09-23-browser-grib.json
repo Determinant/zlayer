@@ -1,0 +1,211 @@
+{
+  "grid": {
+    "projection": "EPSG:3857",
+    "width": 1658,
+    "height": 1004,
+    "bounds": [
+      -126,
+      21.978213637213482,
+      -64.99389988576598,
+      51
+    ]
+  },
+  "evidence": [
+    {
+      "name": "hrrr-116.grib2",
+      "field": "cloudCover",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 6,
+        "parameter": 1,
+        "surface": 10
+      },
+      "elapsedMs": 105.72765100000001,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "f590a93bacf8449577cc9a458440b243c5384044522228eb6f939b3486f83f03",
+      "sourceSha256": "21c4db99c6b4f65ec7c631dc22915016a8f35747b00df979878f7e6ddf10df16"
+    },
+    {
+      "name": "hrrr-118.grib2",
+      "field": "cloudBase",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 3,
+        "parameter": 5,
+        "surface": 2
+      },
+      "elapsedMs": 72.734906,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "21e57ea7a2832e408d099378c27f779924401dbfd55fe6e0b145e788094c8013",
+      "sourceSha256": "0c270f0f112a55b592682e1a63fb05672a13a123afe70f48c8fd18241da15a19"
+    },
+    {
+      "name": "hrrr-121.grib2",
+      "field": "cloudTop",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 3,
+        "parameter": 5,
+        "surface": 3
+      },
+      "elapsedMs": 58.35902199999998,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "4d28cadb942971c58c602c15e1472d6334647a698714344ab3e4b57a5b1e7fe5",
+      "sourceSha256": "a09f950f1e21d0797b03de33884ec2a69d6e679456624eb466be5efcb00dff58"
+    },
+    {
+      "name": "hrrr-139.grib2",
+      "field": "freezingLowest",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 3,
+        "parameter": 5,
+        "surface": 4
+      },
+      "elapsedMs": 110.45423799999998,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "4e7c28f83335ed4953e706fe864b27d7ccdff38aedbc144e441ea4d79e29799d",
+      "sourceSha256": "faa52ce95808ce63a88a643430a886c78e8f4cf8fd18e8e652c837e48e05300f"
+    },
+    {
+      "name": "ifi-16.grib2",
+      "field": "icingProbability",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 19,
+        "parameter": 233,
+        "surface": 102
+      },
+      "elapsedMs": 47.49224800000002,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "b46e973b0638bca31853f917b9f0fe43fbb4818274e56beba4338f1a717dfe72",
+      "sourceSha256": "fa87b277cf0c2e3f7e0481a521c74305ef40fffb9d5c2a3c24af1415f2534e83"
+    },
+    {
+      "name": "ifi-76.grib2",
+      "field": "sldPotential",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 19,
+        "parameter": 217,
+        "surface": 102
+      },
+      "elapsedMs": 49.62640299999998,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "3fd06375633611d3208ceb4fb6af1d1963bef393895288b270287218a5a9edeb",
+      "sourceSha256": "a622f76cc52cdb33558a44b7f16ba917605d23f22e5726188407e34936251208"
+    },
+    {
+      "name": "ifi-136.grib2",
+      "field": "icingSeverity",
+      "identity": {
+        "runTime": 1790110800000,
+        "lead": 1,
+        "category": 19,
+        "parameter": 37,
+        "surface": 102
+      },
+      "elapsedMs": 46.19097799999997,
+      "grid": {
+        "width": 1799,
+        "height": 1059,
+        "latitude": 21.138123,
+        "longitude": -122.719528,
+        "originLatitude": 38.5,
+        "meridian": -97.5,
+        "parallel1": 38.5,
+        "parallel2": 38.5,
+        "dx": 3000,
+        "dy": 3000,
+        "signature": "000000510300001d11f50000001e06000000000000000000000000000000000007070000042301428acb0e249cd808024b76a00fa56ea0002dc6c0002dc6c00040024b76a0024b76a00000000000000000"
+      },
+      "differentCells": 0,
+      "expectedSha256": "004d7fc19a9b4797a64dd08cb32da33ed105f19b4d4ce31c5db4157b7217b3bd",
+      "sourceSha256": "56c15bf63a060c0a5dc2785348b9cebe19ac27aea08c65c61b3f722d5eba9bac"
+    }
+  ]
+}

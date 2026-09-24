@@ -10,7 +10,7 @@ async function settings(page: Page) {
 const row = (page: Page, id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
 const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!));
 
-test('all ten plugins disable and re-enable without replacing the map or erasing a route', async ({ page }) => {
+test('all eleven plugins disable and re-enable without replacing the map or erasing a route', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await mockGps(page);
@@ -25,17 +25,17 @@ test('all ten plugins disable and re-enable without replacing the map or erasing
   await page.getByRole('button', { name: 'Fit route on map', exact: true }).click();
   await page.locator('.maplibregl-canvas').evaluate(canvas => canvas.setAttribute('data-original-map', 'true'));
   await settings(page);
-  await expect(page.locator('.plugin-row')).toHaveCount(10);
+  await expect(page.locator('.plugin-row')).toHaveCount(11);
   const savedDraft = await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'));
   // Wait for the explicit Fit action before checking that toggles preserve it.
   await expect.poll(async () => (await camera(page)).center[0]).toBeCloseTo(-119.145, 2);
   await page.waitForTimeout(650);
   const before = await camera(page);
-  for (const id of ['ahrs', 'ruler', 'ownship', 'terrain', 'obstructions', 'charts', 'metar', 'plates', 'navigation', 'routes']) {
+  for (const id of ['ahrs', 'ruler', 'ownship', 'terrain', 'obstructions', 'charts', 'metar', 'weather-awc', 'plates', 'navigation', 'routes']) {
     await row(page, id).getByRole('switch', { checked: true }).click();
     await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   }
-  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(11);
   await expect.poll(() => countWatches(page)).toBe(0);
   await expect(page.locator('.route-bar')).toHaveCount(0);
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
@@ -43,13 +43,14 @@ test('all ten plugins disable and re-enable without replacing the map or erasing
   await expect(page.locator('.maplibregl-canvas[data-original-map="true"]')).toHaveCount(1);
   expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:routes:draft'))).toBe(savedDraft);
   expect(await camera(page)).toEqual(before);
-  for (const id of ['charts', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'routes', 'ruler', 'ownship', 'ahrs']) {
+  for (const id of ['charts', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'weather-awc', 'routes', 'ruler', 'ownship', 'ahrs']) {
     await row(page, id).getByRole('switch', { checked: false }).click();
     await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   }
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.route-token')).toHaveCount(2);
-  await expect(page.locator('.map-edge-tool')).toHaveCount(4);
+  await expect(page.locator('.map-edge-tool')).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Show AWC Weather toolbox', exact: true })).toBeVisible();
   await expect.poll(() => countWatches(page)).toBe(1);
   await sendFix(page, { longitude: -119, latitude: 35 });
   await page.waitForTimeout(700);
@@ -122,19 +123,19 @@ test('disabling plates retains reader state and falls back to airport informatio
 
 test('a workspace saved with every plugin disabled starts with core settings available', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('zlayer-ui:plugins-unloaded', JSON.stringify({ version: 1,
-    value: ['charts', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'routes', 'ruler', 'ownship', 'ahrs'] })));
+    value: ['charts', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'weather-awc', 'routes', 'ruler', 'ownship', 'ahrs'] })));
   await page.goto('/');
   await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
   await expect(page.locator('.route-bar')).toHaveCount(0);
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
   expect((await page.locator('.maplibregl-canvas').boundingBox())!.height).toBeGreaterThan(100);
   await settings(page);
-  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(11);
   await page.getByRole('tab', { name: 'General', exact: true }).click();
   await expect(page.getByLabel('FAA data cycle')).toBeVisible();
   await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
   await row(page, 'navigation').getByRole('switch').click();
-  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(9);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
   await page.getByLabel('Close settings').click();
   await expect(page.getByLabel('Search FAA navigation data')).toBeVisible();
 });

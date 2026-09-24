@@ -27,6 +27,7 @@
 /* For text, number, search, select and textarea; ranges, checkboxes and radio
  * inputs retain their native or feature-specific presentation. */
 .ui-input {
+  color-scheme: dark;
   min-width: 0; width: 100%; min-height: max(44px, var(--touch-target)); padding: 10px;
   border: 1px solid #46606e; border-radius: 6px; color: #e5edf1; background: #091725;
   font: inherit; font-size: max(16px, var(--input-font-size)); line-height: 1.4;
@@ -34,14 +35,39 @@
 .ui-input--compact {
   min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: var(--input-font-size);
 }
+/* WebKit's native selected-value painting can extend beyond a narrow control
+ * with enlarged text spacing. Keep that ink inside the field, not its scroller. */
+select.ui-input { contain: paint; }
 textarea.ui-input { resize: vertical; }
-.ui-button:where(:focus-visible), .ui-input:where(:focus-visible) {
+.ui-button:where(:focus-visible), .ui-input:where(:focus-visible), .ui-switch:where(:focus-visible) {
   outline: 2px solid #85e6db; outline-offset: 2px;
 }
-.ui-button:where(:disabled), .ui-input:where(:disabled) { opacity: .45; cursor: default; }
+.ui-button:where(:disabled), .ui-input:where(:disabled), .ui-switch:where(:disabled) { opacity: .45; cursor: default; }
 
 .ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: rgba(255, 255, 255, 0.06); }
 .ui-tabs > .ui-button { flex: 1; }
+.ui-tabs--scrollable { flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; border-inline: 2px solid transparent; }
+.ui-tabs--scrollable > .ui-button { flex: 0 0 auto; white-space: nowrap; }
+.ui-tabs--scrollable[data-overflow-start="true"] { border-left: 2px solid var(--text-muted); }
+.ui-tabs--scrollable[data-overflow-end="true"] { border-right: 2px solid var(--text-muted); }
+
+.ui-progress {
+  display: block; width: 100%; height: 5px; flex-shrink: 0; overflow: hidden;
+  appearance: none; border: 0; border-radius: 3px; background: #203448; accent-color: #61d6c5;
+}
+.ui-progress::-webkit-progress-bar { background: #203448; }
+.ui-progress::-webkit-progress-value { background: #61d6c5; border-radius: 3px; }
+.ui-progress::-moz-progress-bar { background: #61d6c5; border-radius: 3px; }
+
+/* Standalone switch button for compact headings; the indicator stays small
+ * while the shared touch minimum enlarges the hit target. */
+.ui-switch {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  min-width: max(36px, var(--touch-target)); min-height: max(24px, var(--touch-target));
+  padding: 4px; border: 0; border-radius: 6px; background: transparent;
+  color: inherit; font: inherit; vertical-align: middle; cursor: pointer;
+}
+.ui-switch:where(:hover:not(:disabled)) { background: rgba(255, 255, 255, 0.06); }
 
 /* Shared switch indicator; the native button owns its accessible state. */
 .switch {
