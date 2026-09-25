@@ -63,7 +63,8 @@ test('enabling winds preserves in-flight cloud saves and returning from temperat
     assert.ok(frame); requested.push(frame.path);
     return new Response(Uint8Array.from(Buffer.from(fixture.files[frame.path]!, 'base64')));
   });
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) }, client);
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    grids: client });
   t.after(() => controller.detach());
   let preferences = weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover',
     awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false });
@@ -216,8 +217,8 @@ test('Now keeps the preceding grid hour through its final minute without crossin
 test('enabled weather offers inspection without a toolbox and only selects after choosing its action', t => {
   environment(t);
   t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
-  const controller = createWeatherController({ restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
-    refresh: async product => advisorySnapshot(product) });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async product => advisorySnapshot(product) } });
   t.after(() => controller.detach());
   const enabled = { ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} };
   controller.configure(enabled);
@@ -251,8 +252,8 @@ test('time selection requires a published frame and survives refresh only while 
   environment(t);
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
   let base = WEATHER_NOW;
-  const controller = createWeatherController({ restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
-    refresh: async product => advisorySnapshot(product, base) });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async product => advisorySnapshot(product, base) } });
   const input = { ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} };
   controller.configure(input);
   controller.selectTime(WEATHER_NOW + HOUR);
@@ -353,13 +354,13 @@ test('controller isolates failures, pins time across refreshes, expires offline 
   const env = environment(t);
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
   const calls: AwcAdvisoryProduct[] = [];
-  const controller = createWeatherController({ restore: () => ({ loading: false }), async refresh(product) {
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), async refresh(product) {
     calls.push(product);
     if (product === 'sigmet') throw new Error('source outage');
     const snapshot = advisorySnapshot(product);
     if (product === 'cwa') snapshot.advisories[0]!.validTo = WEATHER_NOW + 6_000;
     return snapshot;
-  } });
+  } } });
   const input = { ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} };
   controller.configure(input); controller.attach();
   t.mock.timers.tick(0); await flush();
@@ -400,7 +401,8 @@ test('fresh grid data advances Now even while mobile clock timers are suspended'
     requested.push(frame.validTime); throw new Error('Raster loading ends this fixture');
   });
   t.mock.method(grids, 'prepare', async () => { throw new Error('Background loading ends this fixture'); });
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) }, grids);
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    grids: grids });
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover',
     awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false }), change() {} });
   controller.attach(); t.mock.timers.tick(0); await flush();
@@ -417,8 +419,8 @@ test('fresh grid data advances Now even while mobile clock timers are suspended'
 test('Now actions and page resume update the clock immediately while preserving a pinned forecast', t => {
   const env = environment(t);
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
-  const controller = createWeatherController({ restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
-    refresh: async product => advisorySnapshot(product) });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async product => advisorySnapshot(product) } });
   t.after(() => controller.detach());
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
   controller.attach();
@@ -449,10 +451,11 @@ test('timeline steps follow displayed products and altitude while the shared sel
   icing.frames = icing.frames.filter(frame => frame.validTime !== selected || frame.altitudeFtMsl === 12000);
   const grids = new GridClient('https://app.test/');
   t.mock.method(grids, 'restore', (product: 'clouds' | 'icing') => ({ manifest: product === 'clouds' ? clouds : icing, loading: false }));
-  const controller = createWeatherController({
+  const controller = createWeatherController({ advisories: {
     restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
     refresh: async product => advisorySnapshot(product),
-  }, grids);
+  },
+    grids: grids });
   const input = { ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} };
   controller.configure(input);
   assert.equal(controller.forecastTimes().includes(selected), false, 'an inactive grid must not add empty hourly steps to advisories');
@@ -483,8 +486,9 @@ test('timeline unions actual advisory validity boundaries and grid frames for en
   const clouds = gridFixture('clouds').manifest;
   const grids = new GridClient('https://app.test/');
   t.mock.method(grids, 'restore', (product: string) => ({ loading: false, ...(product === 'clouds' ? { manifest: clouds } : {}) }));
-  const controller = createWeatherController({ restore: product => ({ snapshot: snapshots[product], loading: false }),
-    refresh: async product => snapshots[product] }, grids);
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: snapshots[product], loading: false }),
+    refresh: async product => snapshots[product] },
+    grids: grids });
   const input = { ...weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover' }), change() {} };
   controller.configure(input);
   assert.deepEqual(controller.forecastTimes(), [...new Set([
@@ -512,13 +516,14 @@ test('surface file restoration survives failed refreshes, cannot replace live da
   const live = { ...saved, sourceHash: 'b'.repeat(64) };
   let restore!: (state: SurfaceState) => void, restoreSignal!: AbortSignal;
   let finish!: (value: SurfaceSnapshot) => void, fail!: (reason: Error) => void;
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) }, undefined, {
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    progs: {
     restore: async (product, signal) => {
       if (product === 'forecast') return { loading: false };
       restoreSignal = signal;
       return new Promise<SurfaceState>(resolve => { restore = resolve; });
     }, refresh: async product => product === 'forecast' ? { ...live, product } : new Promise<SurfaceSnapshot>((resolve, reject) => { finish = resolve; fail = reject; }),
-  });
+  } });
   t.after(() => controller.detach());
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true }), change() {} });
   controller.attach(); t.mock.timers.tick(0); await flush();
@@ -541,13 +546,13 @@ test('late work cannot publish after detach/remount and all loading flags clear 
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
   let complete: (() => void) | undefined;
   let oldSignal: AbortSignal | undefined;
-  const controller = createWeatherController({ restore: () => ({ loading: false }),
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }),
     async refresh(product, signal) {
       oldSignal = signal;
       await new Promise<void>(resolve => { complete = resolve; });
       return advisorySnapshot(product);
     },
-  });
+  } });
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
   controller.attach(); t.mock.timers.tick(0); await flush();
   controller.detach();
@@ -558,12 +563,75 @@ test('late work cannot publish after detach/remount and all loading flags clear 
   controller.detach();
 });
 
+for (const advisory of ['gairmet', 'sigmet', 'cwa'] as const) test(`all weather acquisition streams clear loading on detach and offline reattach (${advisory})`, async t => {
+  const env = environment(t);
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  const signals: AbortSignal[] = [];
+  const pending = async (signal: AbortSignal): Promise<never> => {
+    signals.push(signal);
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  };
+  const catalog = { restore: () => ({ loading: false }), refresh: pending, load: async (): Promise<never> => { throw new Error('No image requested'); } };
+  const grids = new GridClient('https://app.test/');
+  t.mock.method(grids, 'restore', () => ({ loading: false }));
+  t.mock.method(grids, 'refresh', (_product: unknown, signal: AbortSignal) => pending(signal));
+  const controller = createWeatherController({
+    advisories: { restore: () => ({ loading: false }), refresh: async (product, signal) =>
+      product === advisory ? pending(signal) : advisorySnapshot(product) },
+    progs: { restore: async () => ({ loading: false }), refresh: (_product, signal) => pending(signal) },
+    grids, radar: catalog, motion: catalog, coverage: catalog,
+  });
+  t.after(controller.detach);
+  const mode = advisory === 'sigmet' ? 'icingProbability' : 'cloudCover';
+  controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true, awcRadar: true, awcRadarMotion: true, awcProgs: true,
+    awcGridMode: mode, awcWindBarbs: true, awcCwa: true }), change() {} });
+  controller.attach(); t.mock.timers.tick(0); await flush();
+  const loading = () => {
+    const s = controller.getSnapshot();
+    return [s.products[advisory].loading, s.progs.analysis.loading, s.progs.forecast.loading,
+      s.radar.loading, s.radarMotion.loading, s.coverage.loading,
+      s.grid.products[mode === 'cloudCover' ? 'clouds' : 'icing'].loading, s.wind.products.winds.loading];
+  };
+  assert.deepEqual(loading(), Array(8).fill(true));
+  controller.detach(); await flush();
+  assert.deepEqual(loading(), Array(8).fill(false));
+  assert.equal(signals.length, 8); assert.ok(signals.every(signal => signal.aborted));
+  env.navigator.onLine = false;
+  controller.attach(); t.mock.timers.tick(0); await flush();
+  assert.deepEqual(loading(), Array(8).fill(false));
+  assert.equal(signals.length, 8);
+  controller.detach();
+});
+
+test('renderer status does not move the weather clock, and Progs retries do not retry numeric fields', t => {
+  environment(t);
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  const controller = createWeatherController({ advisories: {
+    restore: product => ({ snapshot: advisorySnapshot(product), loading: false }), refresh: async product => advisorySnapshot(product),
+  } });
+  controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
+  const time = controller.forecastTimes().find(time => time > WEATHER_NOW)!;
+  controller.selectTime(time);
+  t.mock.timers.setTime(WEATHER_NOW + 24 * HOUR);
+  controller.setRadarDisplay({ loading: false, sites: [] });
+  controller.setGridRenderError('Renderer failed');
+  assert.equal(controller.getSnapshot().now, WEATHER_NOW);
+  assert.equal(controller.getSnapshot().selectedTime, time);
+  controller.retryProgs();
+  assert.equal(controller.getSnapshot().progsRetry, 1);
+  assert.equal(controller.getSnapshot().forecastRetry, 0);
+  controller.retryForecasts();
+  assert.equal(controller.getSnapshot().progsRetry, 1);
+  assert.equal(controller.getSnapshot().forecastRetry, 1);
+  controller.detach();
+});
+
 test('advisory reattachment keeps shading below route/navigation layers and releases map resources', t => {
   t.after(() => host.unmount());
   const env = environment(t); env.navigator.onLine = false;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
-  const controller = createWeatherController({ restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
-    refresh: async () => { throw new Error('Offline must not request'); } });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async () => { throw new Error('Offline must not request'); } } });
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
   const sources = new Map<string, unknown>();
   const order = [WEATHER_LAYER_ANCHOR, 'route-line', ROUTE_LINE_ANCHOR, 'navigation'];
@@ -590,8 +658,8 @@ test('advisory reattachment keeps shading below route/navigation layers and rele
 test('advisory source failures clear shown counts and recover unchanged IDs without changing layer order', async t => {
   const env = environment(t); env.navigator.onLine = false;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
-  const controller = createWeatherController({ restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
-    refresh: async () => { throw new Error('Offline must not request'); } });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async () => { throw new Error('Offline must not request'); } } });
   controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
   type Layer = { id: string; layout?: Record<string, unknown> };
   const layers: Layer[] = [{ id: WEATHER_LAYER_ANCHOR }, { id: 'navigation' }];

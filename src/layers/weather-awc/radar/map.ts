@@ -60,8 +60,15 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
     const state = controller.getSnapshot();
     const candidates = state.preferences.awcEnabled && state.preferences.awcRadar ? currentRadar(state.radar.snapshot, state.selectedTime, state.now) : [];
     const composite = candidates.find(file => file.site === 'CONUS'), bounds = composite ? map.getBounds() : undefined;
-    const selected = !composite ? [] : candidates.filter(file => file.site === 'CONUS' || map.getZoom() >= 7 &&
-      file.bounds[0] < bounds!.getEast() && file.bounds[2] > bounds!.getWest() && file.bounds[1] < bounds!.getNorth() && file.bounds[3] > bounds!.getSouth());
+    const selected = !composite ? [] : candidates.filter(file => {
+      if (file.site === 'CONUS') return true;
+      if (map.getZoom() < 7) return false;
+      // MapLibre can expose a viewport outside ±180° while drawing a repeated
+      // world. Compare the terminal footprint in that same world copy.
+      const [west, south, east, north] = file.bounds;
+      const shift = 360 * Math.round(((bounds!.getWest() + bounds!.getEast()) / 2 - (west + east) / 2) / 360);
+      return west + shift < bounds!.getEast() && east + shift > bounds!.getWest() && south < bounds!.getNorth() && north > bounds!.getSouth();
+    });
     const next = selected.map(file => file.sha256).join('/');
     if (next === identity && retry === state.radarRetry && (!state.radarDisplay.error || attemptedCatalog === state.radar.snapshot)) return;
     attemptedCatalog = state.radar.snapshot; retry = state.radarRetry; identity = next;

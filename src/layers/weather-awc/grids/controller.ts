@@ -1,39 +1,22 @@
 import { awcGridProduct, type AwcGridMode, type AwcGridProduct } from '@zlayer/contracts';
 import { OnDemandRefresh } from '../../../core/layers/on-demand-refresh';
 import { withAbort } from '../../../core/data/abort';
-import { currentFrame } from '../time';
 import { GridClient, type GridProductState } from './client';
 import { gridKey, type DecodedGrid } from './format';
-import type { ForecastFrame, ForecastManifest } from './native-source';
-import { windFrames } from './wind-levels';
+import type { ForecastManifest } from './native-source';
+import { framesAt, gridScope, planPreparation, type GridInput, type PlannedFrame, type GridPreparation } from './planning';
+import { GridReceipts, GRID_RETRY_MS } from './receipts';
 
 export type GridState = {
   products: Record<AwcGridProduct, GridProductState>;
   data?: DecodedGrid | undefined; loading: boolean; error?: string | undefined;
   nearby?: readonly DecodedGrid[] | undefined;
-  preparation?: { ready: number; total: number; failed: number; limited?: boolean; error?: string } | undefined;
+  preparation?: GridPreparation | undefined;
 };
-type Input = { enabled: boolean; mode: AwcGridMode; altitude: number; time: number; online: boolean; visible: boolean;
-  concurrency?: number; prepareTimeline?: boolean; pausePreparation?: boolean };
-type Frame = { frame: ForecastFrame; key: string };
-type Progress = { saved: Map<string, boolean>; errors: Map<string, { at: number; message: string }> };
-const RETRY_MS = 60_000, REQUEST_MS = 60_000;
-const framesAt = (manifest: ForecastManifest, altitude: number): ForecastFrame[] => manifest.product === 'winds'
-  ? windFrames(manifest, altitude) : manifest.frames.filter(frame => manifest.product !== 'icing' || frame.altitudeFtMsl === altitude);
+const REQUEST_MS = 60_000;
 export function gridTimes(state: GridState, mode: AwcGridMode, altitude: number): number[] {
   const product = awcGridProduct(mode), manifest = product && state.products[product].manifest;
   return manifest ? [...new Set(framesAt(manifest, altitude).map(frame => frame.validTime))] : [];
-}
-function plan(manifest: ForecastManifest, input: Input) {
-  const frames = framesAt(manifest, input.altitude), times = frames.map(frame => frame.validTime);
-  const now = Date.now(), current = currentFrame(times, now, manifest.cadenceMs) ?? now;
-  const selectedTime = currentFrame(times, input.time, manifest.cadenceMs);
-  const horizon = frames.filter(frame => frame.validTime >= current || frame.validTime === selectedTime)
-    .sort((a, b) => a.validTime - b.validTime).map(frame => ({ frame, key: gridKey(manifest, frame) }));
-  const selected = horizon.find(item => item.frame.validTime === selectedTime);
-  const index = horizon.findIndex(item => item.frame.validTime === (selectedTime ?? current));
-  const nearby = index < 0 ? [] : [horizon[index], horizon[index + 1], horizon[index - 1]].filter((item): item is Frame => !!item);
-  return { selected, horizon, nearby, saves: input.online && input.prepareTimeline !== false ? horizon : nearby };
 }
 async function request<T>(task: AbortController, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const timeout = setTimeout(() => task.abort(new Error('Forecast loading timed out')), REQUEST_MS);
@@ -53,9 +36,9 @@ export function createGridController(client: GridClient, changed: (state: GridSt
     const manifest = state.products[product].manifest;
     if (manifest) savedCatalogs.set(product, manifest);
   }
-  const progress = new Map<AwcGridProduct, Progress>();
+  const progress = new Map<AwcGridProduct, GridReceipts>();
   const saves = new Map<string, AbortController>();
-  let input: Input | undefined, scheduler: OnDemandRefresh | undefined;
+  let input: GridInput | undefined, scheduler: OnDemandRefresh | undefined;
   let selected: { key: string; online: boolean; task: AbortController } | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined, stopMemory: (() => void) | undefined;
   let stopFiles: (() => void) | undefined, inventoryTask: AbortController | undefined;
@@ -74,22 +57,20 @@ export function createGridController(client: GridClient, changed: (state: GridSt
     incoming.delete(manifest.product);
     productState(manifest.product, next);
   };
-  const persistCatalog = (manifest: ForecastManifest, receipts: Progress) => {
+  const persistCatalog = (manifest: ForecastManifest, receipts: GridReceipts) => {
     const record = state.products[manifest.product];
     if (record.manifest !== manifest || savedCatalogs.get(manifest.product) === manifest || record.storageError ||
-      ![...receipts.saved.values()].some(saved => saved)) return;
+      ![...receipts.frames.values()].some(receipt => receipt.saved)) return;
     // Display readiness does not prove persistence. Keep the previous offline
     // catalog until this catalog has at least one successful file receipt.
     const saved = client.remember(manifest);
     if (saved) savedCatalogs.set(manifest.product, manifest);
     else productState(manifest.product, { ...record, storageError: 'Forecasts could not be saved for reopening offline.' });
   };
-  const progressFor = (product: AwcGridProduct, horizon: readonly Frame[]) => {
+  const progressFor = (product: AwcGridProduct, horizon: readonly PlannedFrame[]) => {
     let record = progress.get(product);
-    if (!record) { record = { saved: new Map(), errors: new Map() }; progress.set(product, record); }
-    const keys = new Set(horizon.map(item => item.key)), now = Date.now();
-    for (const key of record.saved.keys()) if (!keys.has(key)) record.saved.delete(key);
-    for (const [key, error] of record.errors) if (!keys.has(key) || now < error.at || now - error.at >= RETRY_MS) record.errors.delete(key);
+    if (!record) { record = new GridReceipts(); progress.set(product, record); }
+    record.retain(horizon.map(item => item.key), Date.now());
     return record;
   };
   const scheduleInventory = () => {
@@ -103,15 +84,13 @@ export function createGridController(client: GridClient, changed: (state: GridSt
       const demand = input, product = demand && awcGridProduct(demand.mode);
       const manifest = product && (incoming.get(product) ?? state.products[product]).manifest;
       if (!demand || !product || !manifest || !families.includes(product)) return;
-      const { horizon } = plan(manifest, demand), receipts = progressFor(product, horizon);
-      const items = horizon.filter(item => receipts.saved.has(item.key));
-      const before = items.map(item => receipts.saved.get(item.key));
+      const { horizon } = gridScope(manifest, demand, Date.now()), receipts = progressFor(product, horizon);
+      const items = horizon.filter(item => receipts.frames.get(item.key)?.saved !== undefined);
+      const before = items.map(item => receipts.frames.get(item.key)!);
       const task = inventoryTask = new AbortController(); inventoryDirty = false;
       void request(task, signal => client.checkSaved(manifest, items.map(item => item.frame), signal)).then(saved => {
         if (inventoryTask !== task || task.signal.aborted || inventoryDirty || progress.get(product) !== receipts) return;
-        items.forEach((item, i) => {
-          if (receipts.saved.get(item.key) === before[i]) receipts.saved.set(item.key, saved[i]!);
-        });
+        receipts.reconcileInventory(items.map((item, i) => ({ key: item.key, receipt: before[i]!, saved: saved[i]! })));
       }).catch(() => { /* A later publication, resume or periodic check can retry. */ }).finally(() => {
         if (inventoryTask !== task) return;
         inventoryTask = undefined; inventoryCheckedAt = Date.now();
@@ -120,26 +99,26 @@ export function createGridController(client: GridClient, changed: (state: GridSt
       });
     }, 250);
   };
-  const show = (manifest: ForecastManifest, data: DecodedGrid, receipts: Progress, saving = false) => {
+  const show = (manifest: ForecastManifest, data: DecodedGrid, receipts: GridReceipts, saving = false) => {
     const key = gridKey(manifest, data.frame), saved = client.saved(data);
-    if (saved || !saving) receipts.saved.set(key, saved);
-    receipts.errors.delete(key); adopt(manifest);
+    receipts.loaded(key, saved, saving); adopt(manifest);
     publish({ data, loading: false, error: undefined });
   };
-  const select = (manifest: ForecastManifest, frame: Frame | undefined, receipts: Progress, online: boolean) => {
+  const select = (manifest: ForecastManifest, frame: PlannedFrame | undefined, receipts: GridReceipts, online: boolean) => {
     if (!frame) { cancelSelected(); publish({ data: undefined, loading: false, error: undefined }); return; }
     if (state.data && gridKey(state.data.manifest, state.data.frame) === frame.key) {
       // Update source metadata without discarding bytes or their save receipt.
       const data = client.peek(manifest, frame.frame) ?? state.data;
       if (state.data !== data) publish({ data });
-      if (client.saved(data)) receipts.saved.set(frame.key, true);
+      if (client.saved(data)) receipts.saved(frame.key, true);
       adopt(manifest); return;
     }
     if (selected?.key === frame.key && selected.online === online) return;
     cancelSelected();
     const cached = client.peek(manifest, frame.frame);
     if (cached) { show(manifest, cached, receipts); return; }
-    if (receipts.errors.has(frame.key)) { publish({ data: undefined, loading: false, error: receipts.errors.get(frame.key)!.message }); return; }
+    const failure = receipts.frames.get(frame.key)?.error;
+    if (failure) { publish({ data: undefined, loading: false, error: failure.message }); return; }
     const task = new AbortController(); selected = { key: frame.key, online, task };
     publish({ data: undefined, loading: true, error: undefined });
     const loading = request(task, signal => client.load(manifest, frame.frame, signal, online, data => {
@@ -153,34 +132,22 @@ export function createGridController(client: GridClient, changed: (state: GridSt
     }, error => {
       if (selected?.task !== task) return;
       const message = error instanceof Error ? error.message : 'Forecast unavailable';
-      receipts.errors.set(frame.key, { at: Date.now(), message });
-      if (state.data && gridKey(state.data.manifest, state.data.frame) === frame.key) receipts.saved.set(frame.key, false);
-      else { receipts.saved.delete(frame.key); publish({ data: undefined, error: message }); }
+      const displayed = !!state.data && gridKey(state.data.manifest, state.data.frame) === frame.key;
+      receipts.failed(frame.key, message, Date.now(), displayed);
+      if (!displayed) publish({ data: undefined, error: message });
       publish({ loading: false });
     }).finally(() => { if (selected?.task === task) { selected = undefined; reconcile(); } });
   };
-  const prepare = (manifest: ForecastManifest, scope: ReturnType<typeof plan>, receipts: Progress, demand: Input, canSave: boolean) => {
-    // Resource-lock hashing is asynchronous. Let the selected frame become
-    // usable before a speculative file can take the single decoder/save slot.
-    const capacity = demand.pausePreparation || selected && (!state.data || !demand.online) ? 0
-      : Math.max(0, (demand.concurrency ?? 2) - Number(!!selected) - saves.size);
-    if (!capacity) return;
-    // Until the catalog is saved, only acquire/retry nearby files. Their first
-    // successful receipt unlocks the catalog and then the rest of the horizon.
-    const work = savedCatalogs.get(manifest.product) === manifest ? scope.saves : scope.nearby;
-    const queue = work.filter(item => !saves.has(item.key) && !receipts.errors.has(item.key) &&
-      (item.key !== scope.selected?.key || !!state.data && !selected))
-      .map(item => ({ ...item, warm: client.wants(manifest, item.frame) && !client.peek(manifest, item.frame) }))
-      .filter(item => item.warm || demand.online && canSave && receipts.saved.get(item.key) !== true)
-      .sort((a, b) => Number(b.warm) - Number(a.warm) || Math.abs(a.frame.validTime - demand.time) - Math.abs(b.frame.validTime - demand.time) || b.frame.validTime - a.frame.validTime);
-    for (const item of queue.slice(0, capacity)) {
+  const prepare = (manifest: ForecastManifest, starts: readonly PlannedFrame[], receipts: GridReceipts, demand: GridInput, hasSelection: boolean) => {
+    for (const item of starts) {
+      if (input !== demand || !scheduler) break;
       const task = new AbortController(); saves.set(item.key, task);
       void request(task, signal => client.prepare(manifest, item.frame, signal, demand.online)).then(saved => {
         if (saves.get(item.key) !== task) return;
-        receipts.saved.set(item.key, saved);
-        if (!scope.selected) adopt(manifest);
+        receipts.saved(item.key, saved);
+        if (!hasSelection) adopt(manifest);
       }, error => {
-        if (saves.get(item.key) === task) receipts.errors.set(item.key, { at: Date.now(), message: error instanceof Error ? error.message : 'Forecast preparation failed' });
+        if (saves.get(item.key) === task) receipts.failed(item.key, error instanceof Error ? error.message : 'Forecast preparation failed', Date.now());
       }).finally(() => { if (saves.get(item.key) === task) { saves.delete(item.key); reconcile(); } });
     }
   };
@@ -202,28 +169,31 @@ export function createGridController(client: GridClient, changed: (state: GridSt
       publish({ data: undefined, nearby: undefined, loading: record.loading, error: record.error,
         preparation: record.loading ? { ready: 0, total: 0, failed: 0 } : undefined }); return;
     }
-    const scope = plan(manifest, demand), receipts = progressFor(product, scope.horizon);
+    const scope = gridScope(manifest, demand, Date.now()), receipts = progressFor(product, scope.horizon);
     client.neighborhood(product, manifest, scope.nearby.map(item => item.frame));
     const wanted = new Set(scope.saves.map(item => item.key));
     for (const [key, task] of saves) if (!wanted.has(key)) { task.abort(); saves.delete(key); }
     select(manifest, scope.selected, receipts, demand.online);
-    if (input !== demand) return;
+    if (input !== demand || !scheduler) return;
     persistCatalog(manifest, receipts);
-    const current = state.products[product], metadataSaved = savedCatalogs.get(product) === manifest;
-    const limited = scope.saves.some(item => receipts.saved.get(item.key) === false) || current.manifest === manifest && !!current.storageError;
+    const current = state.products[product];
     const nearby = scope.nearby.flatMap(item => client.peek(manifest, item.frame) ?? []);
     if (nearby.length !== state.nearby?.length || nearby.some((data, index) => data !== state.nearby?.[index])) publish({ nearby });
-    prepare(manifest, scope, receipts, demand, !limited);
-    const errors = scope.saves.flatMap(item => receipts.errors.get(item.key) ?? []);
-    const preparation = !demand.online || !scope.saves.length ? undefined : {
-      ready: metadataSaved ? scope.saves.filter(item => receipts.saved.get(item.key) === true).length : 0,
-      total: scope.saves.length, failed: errors.length, ...(limited ? { limited: true } : {}), ...(errors.length ? { error: errors[0]!.message } : {}) };
-    if (JSON.stringify(preparation) !== JSON.stringify(state.preparation)) publish({ preparation });
-    const retry = Math.min(...errors.map(error => error.at + RETRY_MS));
-    if (Number.isFinite(retry)) retryTimer = setTimeout(reconcile, Math.max(1, Math.min(RETRY_MS, retry - Date.now())));
-    if (inventoryDirty || Date.now() < inventoryCheckedAt || Date.now() - inventoryCheckedAt >= RETRY_MS) scheduleInventory();
+    if (input !== demand || !scheduler) return;
+    const work = planPreparation(scope, demand, receipts.frames, {
+      selectedPending: !!selected, dataReady: !!state.data, catalogSaved: savedCatalogs.get(product) === manifest,
+      storageError: current.manifest === manifest && !!current.storageError, saving: new Set(saves.keys()),
+      warm: new Set(scope.horizon.filter(item => client.wants(manifest, item.frame) && !client.peek(manifest, item.frame)).map(item => item.key)),
+    });
+    prepare(manifest, work.starts, receipts, demand, !!scope.selected);
+    if (input !== demand || !scheduler) return;
+    if (JSON.stringify(work.preparation) !== JSON.stringify(state.preparation)) publish({ preparation: work.preparation });
+    if (Number.isFinite(work.retryAt)) retryTimer = setTimeout(reconcile, Math.max(1, Math.min(GRID_RETRY_MS, work.retryAt - Date.now())));
+    if (inventoryDirty || Date.now() < inventoryCheckedAt || Date.now() - inventoryCheckedAt >= GRID_RETRY_MS) scheduleInventory();
   };
   function reconcile() {
+    // Store and decoded-memory publications can synchronously configure us again.
+    // Finish the current effects, then plan against the newest input and receipts.
     if (updating) { rerun = true; return; }
     updating = true;
     try { do { rerun = false; update(); } while (rerun); } finally { updating = false; }
@@ -233,19 +203,19 @@ export function createGridController(client: GridClient, changed: (state: GridSt
   };
   return {
     getSnapshot: () => state,
-    configure(next: Input) {
-      if (input && (Object.keys({ ...input, ...next }) as (keyof Input)[]).every(key => input![key] === next[key])) {
+    configure(next: GridInput) {
+      if (input && (Object.keys({ ...input, ...next }) as (keyof GridInput)[]).every(key => input![key] === next[key])) {
         // The parent's clock still ticks while a past hour is selected. Browser
         // eviction may be silent even though the forecast inputs did not change.
-        if (Date.now() < inventoryCheckedAt || Date.now() - inventoryCheckedAt >= RETRY_MS) scheduleInventory();
+        if (Date.now() < inventoryCheckedAt || Date.now() - inventoryCheckedAt >= GRID_RETRY_MS) scheduleInventory();
         return;
       }
-      if (input?.online !== next.online) { cancelSelected(); cancelSaves(); for (const record of progress.values()) record.errors.clear(); }
+      if (input?.online !== next.online) { cancelSelected(); cancelSaves(); for (const record of progress.values()) record.clearErrors(); }
       if (input?.online !== next.online || input?.visible !== next.visible || input?.mode !== next.mode || input?.altitude !== next.altitude) inventoryDirty = true;
       input = next; if (scheduler) reconcile();
     },
     retry() {
-      for (const record of progress.values()) { record.errors.clear(); for (const [key, saved] of record.saved) if (!saved) record.saved.delete(key); }
+      for (const record of progress.values()) record.retry();
       for (const product of families) {
         const { storageError, ...record } = state.products[product];
         if (storageError) productState(product, record);
@@ -255,25 +225,26 @@ export function createGridController(client: GridClient, changed: (state: GridSt
     attach() {
       stopMemory = client.subscribeMemory(reconcile);
       stopFiles = client.subscribeFiles(scheduleInventory);
-      scheduler = new OnDemandRefresh({ intervalMs: 5 * 60_000, debounceMs: 0, onError() {}, onState(loading) { if (!loading) finishChecks(); },
+      scheduler = new OnDemandRefresh({ intervalMs: 5 * 60_000, retryIntervalMs: 30_000, debounceMs: 0, onError() {}, onState(loading) { if (!loading) finishChecks(); },
         async refresh(ids, signal) {
+          const failures: unknown[] = [];
           for (const product of ids as AwcGridProduct[]) {
             productState(product, { ...state.products[product], loading: true }); reconcile();
             try {
               const manifest = await client.refresh(product, signal); signal.throwIfAborted();
               incoming.set(product, { manifest, checkedAt: Date.now(), loading: false });
-              progress.get(product)?.errors.clear();
-              scheduler!.options.intervalMs = 5 * 60_000;
+              progress.get(product)?.clearErrors();
               const { error: _old, ...current } = state.products[product];
               productState(product, { ...current, loading: false });
               if (!current.manifest) adopt(manifest);
             } catch (error) {
               if (signal.aborted) return;
-              scheduler!.options.intervalMs = 30_000;
+              failures.push(error);
               productState(product, { ...state.products[product], loading: false, error: error instanceof Error ? error.message : 'Forecast refresh failed' });
             }
             reconcile();
           }
+          if (failures.length) throw new AggregateError(failures, 'Forecast refresh failed');
         } });
       reconcile();
     },

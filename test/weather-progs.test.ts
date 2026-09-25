@@ -164,9 +164,12 @@ test('catalog identity, unknown records, wrong metadata, missing isobars and inv
 test('surface charts hold across other products’ stops, bridge to the first prog, and stop at the published horizon', () => {
   const analysis = parse('analysis'), forecast = parse('forecast');
   const records = { analysis: { snapshot: analysis, loading: false }, forecast: { snapshot: forecast, loading: false } };
-  assert.equal(surfaceFrame(records, null, WEATHER_NOW).frame?.validTime, WEATHER_NOW - 3 * HOUR);
+  assert.deepEqual(surfaceFrame(records, null, WEATHER_NOW), { product: 'analysis', frame: analysis.frames[0] });
+  assert.deepEqual(surfaceFrame({ ...records, analysis: { loading: false } }, null, WEATHER_NOW), { product: 'analysis' },
+    'Now never substitutes a forecast when analysis is missing');
   assert.equal(surfaceFrame(records, null, WEATHER_NOW - 4 * HOUR).frame, undefined);
-  assert.equal(surfaceFrame(records, null, WEATHER_NOW + 3 * HOUR).frame, undefined);
+  assert.deepEqual(surfaceFrame(records, null, WEATHER_NOW + 3 * HOUR), { product: 'analysis' },
+    'Now never substitutes a forecast when analysis has expired');
   assert.deepEqual(surfaceFrame(records, WEATHER_NOW + HOUR, WEATHER_NOW), {
     product: 'analysis', frame: analysis.frames[0], nextTime: forecast.frames[0]!.validTime,
   });

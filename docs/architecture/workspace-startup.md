@@ -56,8 +56,9 @@ compact summary so a growing list cannot expand the heading indefinitely.
 Plugin readiness is feature-specific. Initial visible map content waits for data
 and rendering, while METAR/TAF and sensor UI can be usable with a local loading or
 waiting state. AWC responses, GPS acquisition, and AHRS sensor readings do not
-hold the splash. Requested AWC advisories and cloud/icing preparation, plus visible
-METAR/TAF map reports and active airport report cards, appear as background rows.
+hold the splash. Requested weather acquisition, preparation and rendering,
+including Progs coverage, appear as background rows as described in
+[startup status](../features/shared-ui.md#startup-status).
 They do not count toward the required-step progress bar. Detailed weather and
 sensor status remains with the owning UI.
 

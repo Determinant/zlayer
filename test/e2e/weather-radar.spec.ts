@@ -34,6 +34,28 @@ test('prepared composite and terminal contours render together, survive style re
   expect(raw).toEqual([]); expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
 });
 
+test('terminal radar follows the visible world copy without reloading the scans', async ({ page }) => {
+  const files: string[] = [];
+  page.on('request', request => { if (/\/radar\/(CONUS|T\w{3})\//.test(request.url())) files.push(request.url()); });
+  await page.goto('/test/browser/weather-progs.html');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  await page.evaluate(() => {
+    window.progsMapAudit.change({ awcRadar: true, awcProgs: false });
+    window.progsMapAudit.map.jumpTo({ center: [-122, 37.3], zoom: 7.5 });
+  });
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);
+  const loaded = [...files];
+  for (const longitude of [238, -482, -122]) {
+    await page.evaluate(longitude => window.progsMapAudit.map.jumpTo({ center: [longitude, 37.3] }), longitude);
+    await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);
+    await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.queryRenderedFeatures(undefined, {
+      layers: window.progsMapAudit.map.getStyle().layers.filter(layer => layer.id.startsWith('weather-awc-radar-fill')).map(layer => layer.id),
+    }).some(feature => feature.properties.dbz === 55))).toBe(true);
+  }
+  expect(files).toEqual(loaded);
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+});
+
 for (const size of [{ width: 393, height: 852 }, { width: 320, height: 568 }, { width: 852, height: 393 }]) {
   test(`six slim tabs and radar controls fit ${size.width}×${size.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(size); await page.goto('/');
@@ -84,17 +106,32 @@ for (const size of [{ width: 393, height: 852 }, { width: 320, height: 568 }, { 
   });
 }
 
-test('radar reopens from whole-file storage offline and expires without a refreshed observation', async ({ page, context }) => {
-  await page.goto('/test/browser/weather-progs.html');
-  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
-  await page.evaluate(() => { window.progsMapAudit.change({ awcRadar: true }); window.progsMapAudit.map.setZoom(7.5); });
-  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);
-  await context.setOffline(true);
-  // Recreate the map/controller lifecycle with the origin disconnected. Files
-  // must come from the plugin file cache, not an HTTP cache or retained geometry.
-  await page.evaluate(() => window.progsMapAudit.recover());
-  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);
+test('radar reopens from whole-file storage offline and expires without a refreshed observation', async ({ page, request }) => {
+  await page.goto('/');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('button', { name: 'Show AWC Weather toolbox', exact: true }).click();
+  await page.getByRole('switch', { name: 'Show AWC weather', exact: true }).click();
+  await page.getByRole('tab', { name: 'Radar', exact: true }).click();
+  await page.getByRole('switch', { name: 'Radar mosaic', exact: true }).click();
+  const frame = page.locator('.awc-radar-frame');
+  await expect(frame).toContainText('Shown: CONUS');
+  const saved = await page.evaluate(() => localStorage.getItem('zlayer-plugin:weather-awc:radar'));
+  expect(saved).toBeTruthy();
+  // Display readiness precedes optional publication. Wait for the national file
+  // before discarding the page, its clients and all decoded geometry.
+  await expect.poll(() => page.evaluate(async () => (await (await caches.open('zlayers-plugin-files-v1:weather-awc:radar')).keys())
+    .some(key => key.url.includes('/CONUS/')))).toBe(true);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await page.addInitScript(() => Object.defineProperty(navigator, 'onLine', { get: () => false }));
+  await request.post('/__test/disconnect');
+  await expect(request.get('/')).rejects.toThrow();
+  await page.reload();
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('tab', { name: 'Radar', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Radar mosaic', exact: true })).toBeChecked();
+  await expect(frame).toContainText('Shown: CONUS');
+  expect(await page.evaluate(() => localStorage.getItem('zlayer-plugin:weather-awc:radar'))).toBe(saved);
   await page.clock.fastForward(16 * 60_000);
-  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual([]);
-  await context.setOffline(false);
+  await expect(frame).toContainText('No current national radar');
+  await expect(frame).not.toContainText('Shown:');
 });

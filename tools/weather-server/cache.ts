@@ -51,7 +51,7 @@ export class WeatherCache {
           const prepared = entry.resource.kind === 'prepared' && origin === 'http://weather.invalid' &&
             resourceFor(new URL(entry.resource.url).pathname).key === entry.resource.key;
           if (!(prepared || ['https://aviationweather.gov', 'https://nomads.ncep.noaa.gov', 'https://storage.googleapis.com', 'https://noaa-mrms-pds.s3.amazonaws.com', 'https://tgftp.nws.noaa.gov'].includes(origin) &&
-            ['json', 'package', 'index', 'range', 'surface', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
+            ['json', 'package', 'index', 'range', 'surface', 'coverage-image', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
             typeof entry.resource.key !== 'string' || !entry.resource.key ||
             !Number.isSafeInteger(entry.resource.ttl) || entry.resource.ttl <= 0 || entry.resource.ttl > 86_400_000 ||
             ![200, 206].includes(entry.status) || !entry.headers || typeof entry.headers !== 'object' || Array.isArray(entry.headers) ||
@@ -212,9 +212,9 @@ export class WeatherCache {
         const error = cause instanceof HttpError ? cause : new HttpError(502, 'Weather source unavailable', 5);
         if (this.failures.size >= 5000) this.failures.delete(this.failures.keys().next().value!);
         this.failures.set(resource.key, { error, until: (this.options.now ?? Date.now)() + Math.max(5, error.retryAfter) * 1000 });
-        // Discovery probes unpublished cycles. A missing index is expected;
+        // Discovery probes unpublished cycles; NDFD images can be unpublished.
         // exhausted discovery or a failed pinned artifact logs its outer failure.
-        if (resource.kind !== 'index' || error.status !== 404) {
+        if (!['index', 'coverage-image'].includes(resource.kind) || error.status !== 404) {
           this.options.log?.(`Update failed (${error.status}): ${resource.url}: ${String(cause)}`);
         }
         throw error;

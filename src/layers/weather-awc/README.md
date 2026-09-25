@@ -4,7 +4,7 @@
 
 The independent `weather-awc` plugin supplies G-AIRMETs, domestic/convective SIGMETs,
 CWAs and freezing contours, CONUS cloud/freezing/icing/wind/temperature forecasts,
-WPC pressure charts through [Progs](progs/README.md), and current/recent
+WPC pressure charts and NDFD weather coverage through [Progs](progs/README.md), and current/recent
 [NEXRAD/TDWR radar](radar/README.md) with optional storm-motion tracks.
 Map weather starts off. METAR/TAF and navigation remain independent plugins.
 The [grid guide](grids/README.md) owns numeric meanings, preparation and offline
@@ -39,14 +39,16 @@ They remain visible with the generic hazard color and inspectable until expiry.
 Boundaries share opaque 2px strokes and a subtle white halo; fills use 10% opacity.
 The map and legend share the hazard palette. Weather lies above terrain and below
 routes and navigation at `WEATHER_LAYER_ANCHOR`, including after style recovery or remounting.
-Within weather, the top-to-bottom priority is **Progs → Radar → other weather**.
+Within weather, Progs strokes/labels sit above radar, which sits above other weather.
 Radar sits above advisory fills/outlines, wind barbs and forecast shading, directly
 below all Progs strokes and labels. Lazy loading, toggles and style recovery retain
 this order regardless of which overlay becomes available first.
+Progs weather shading sits below advisory outlines and wind barbs, above numeric
+field shading. Its separate switch allows either or both kinds of shading.
 
 The timeline contains the union of enabled G-AIRMET snapshots, SIGMET/CWA validity
 boundaries, the shaded field's native times at its selected level, enabled wind
-times, enabled Progs forecast snapshots, and retained national radar observation times.
+times, enabled Progs pressure/coverage forecast stops, and retained national radar observation times.
 Radar history extends the scale before Now using five-minute spacing; its
 [guide](radar/README.md#history-and-timeline) owns history selection and retention.
 The horizontally scrollable forecast scale
@@ -119,6 +121,13 @@ a 30-second timeout and 4 MiB decoded JSON bound. One failed family leaves other
 usable. Whole successful snapshots replace their family, including withdrawals
 and empty results; there is no bulletin-history archive or synthesized cancellation
 feed. Detaching stops acquisition; style recovery preserves controller state.
+Controller dependencies are named by product. `selection.ts` owns pure advisory
+filtering and timeline reconciliation; renderer status updates do not change the
+weather clock or selection. Source updates and clock events explicitly call
+`reconcileAndPublish` with the current wall clock. `catalog-refresh.ts` shares catalog polling/cancellation for radar, storm
+motion and Progs coverage. Detaching clears loading flags before destroying the
+schedulers. Product retry counters isolate Progs from numeric fields, and grid
+catalog retries use the shared scheduler's failure interval.
 
 Advisory counts include only IDs accepted by the map source. Pending submissions
 hide the preceding geometry. Source errors hide all advisory geometry and expose
@@ -133,9 +142,9 @@ The service worker bypasses `/api/weather/` and `cache: no-store` requests so a
 failed live check cannot silently become a successful cached response.
 
 Core storage slots retain the last validated snapshot for each advisory family,
-three forecast catalogs, two small Progs file pointers, and radar/motion catalogs. Each record is capped at
-4 MiB of UTF-16 text, subject to browser quota; these ten slots therefore have a
-40 MiB aggregate ceiling. The [Progs guide](progs/README.md) owns
+three forecast catalogs, Progs chart/coverage pointers, and radar/motion catalogs.
+Each record is capped at 4 MiB of UTF-16 text, subject to browser quota; individual
+catalog contracts impose smaller bounds. The [Progs guide](progs/README.md) owns
 its larger, server-smoothed chart files and compatibility with former inline snapshots.
 All carry endpoint identity;
 explicit archived feeds restore only their own snapshots. Recognized former

@@ -110,8 +110,9 @@ Terrain's `idle` and `zoom` states mean there is no requested work, not an unfin
 download. Activation failures from any registered plugin remain visible.
 
 Data adapters report loading, rendering, ready, cached, limited or unavailable from
-the same state used by the feature UI. AWC includes enabled advisories and the selected
-cloud/icing timeline's preparation count. METAR/TAF includes visible map reports and
+the same state used by the feature UI. AWC includes enabled advisories, radar,
+Progs pressure charts/weather coverage, and the selected numeric timeline's
+preparation count. METAR/TAF includes visible map reports and
 the active airport report cards. Live weather work is labeled **In background** and
 does not block a usable workspace. The progress bar counts required startup steps;
 background rows remain informative and are not falsely counted as ready.

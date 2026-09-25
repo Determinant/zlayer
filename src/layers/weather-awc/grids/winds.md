@@ -9,8 +9,8 @@ barbs, which coexist with cloud/icing shading and advisory outlines.
 field, while retaining barbs and advisories. Turning it off clears temperature
 shading; it does not restore an earlier cloud/icing field. Choosing another shaded
 field turns this switch off without changing **Show winds**.
-Switching toolbox tabs never changes those visibility choices. The six weather
-tabs use two rows of core slim controls and share one horizontally scrollable timeline.
+Switching toolbox tabs never changes those visibility choices. The
+[plugin guide](../README.md#display-and-selection) owns the shared toolbox and timeline.
 
 Winds share the toolbox and timeline so pilots can compose them with cloud/icing
 and advisories. One wind stream supplies barbs and temperature. Icing retains its

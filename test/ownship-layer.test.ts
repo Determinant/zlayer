@@ -20,7 +20,8 @@ function setup(t: test.TestContext) {
     },
     clearWatch(id: number) { active.delete(id); },
   };
-  const gps = createGpsService({ geolocation: () => supported ? api : undefined, secure: () => secure, visibility });
+  const gps = createGpsService({ geolocation: () => supported ? api : undefined, secure: () => secure, visibility,
+    now: () => (Date.now() - 1_800_000_000_000) / 1000 });
   const layer = createOwnshipLayer(gps);
   t.after(() => layer.detach());
   const fix = (id = callbacks.length - 1, offset = 0, coords: Partial<GeolocationCoordinates> = {}) =>

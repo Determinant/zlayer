@@ -1,8 +1,8 @@
-import { RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
+import { PROGS_COVERAGE_MAX_BYTES, PROGS_COVERAGE_CATALOG_MAX_BYTES, RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
 
 export const MiB = 1024 * 1024;
 export type Resource = {
-  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'surface' | 'radar-index' | 'radar-data' | 'prepared';
+  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
   ttl: number; maxBytes: number; range?: string; indexHash?: string; multipleGribs?: true;
 };
 export class HttpError extends Error {
@@ -29,6 +29,11 @@ export function resourceFor(path: string, range?: string): Resource {
   if (path.split('?')[0] !== url.pathname || /%/.test(url.pathname)) throw new HttpError(400, 'Invalid request path');
   const query = url.searchParams;
   if ([...query.keys()].some(key => query.getAll(key).length !== 1)) throw new HttpError(400, 'Duplicate query parameter');
+  if (/^\/api\/weather\/progs\/coverage(?:\.json|\/[a-f0-9]{64}\.png)$/.test(url.pathname)) {
+    if (query.size || range) throw new HttpError(400, 'Prepared coverage takes no query or range');
+    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000,
+      maxBytes: url.pathname.endsWith('.json') ? PROGS_COVERAGE_CATALOG_MAX_BYTES : PROGS_COVERAGE_MAX_BYTES };
+  }
   if (/^\/api\/weather\/radar\/motion\/(?:latest|[a-f0-9]{64})\.json$/.test(url.pathname)) {
     if (query.size || range) throw new HttpError(400, 'Prepared storm motion takes no query or range');
     return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000,

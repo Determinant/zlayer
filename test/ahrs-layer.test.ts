@@ -32,7 +32,7 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
   const notify = () => listeners.forEach(listener => listener());
   const fix = (change: Partial<NonNullable<typeof location.fix>> = {}) => {
     location = { state: 'tracking', fix: {
-      timestamp: Date.now(), accuracy: 5, speed: 55, track: 75, estimated: false, coordinates: [-122, 37], ...change,
+      timestamp: Date.now(), time: now(), altitude: null, altitudeAccuracy: null, accuracy: 5, speed: 55, track: 75, estimated: false, coordinates: [-122, 37], ...change,
     } };
     notify();
   };
@@ -61,7 +61,7 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
       return () => pending.forEach(listener => listener());
     },
     loseGps: () => { location = { ...location, state: 'stale' }; notify(); },
-    gpsStatus: (state: string) => { location = { ...location, state }; notify(); },
+    gpsStatus: (state: ReturnType<AhrsGpsSource['getSnapshot']>['state']) => { location = { ...location, state }; notify(); },
     leases: () => leases, stops: () => stops };
 }
 
@@ -561,7 +561,10 @@ test('GPS motion aligns heading, while an unsupported jump to low speed is rejec
     t.mock.timers.tick(20);
     const truth = turn(i / 50, 120);
     s.imu(truth.sample.gyro, truth.sample.specificForce);
-    if (i % 50 === 0) s.fix(truth.fix);
+    if (i % 50 === 0) {
+      const { time: _trajectoryTime, ...fix } = truth.fix;
+      s.fix(fix);
+    }
   }
   const state = s.layer.readDisplaySnapshot();
   assert.equal(state.phase, 'ready');

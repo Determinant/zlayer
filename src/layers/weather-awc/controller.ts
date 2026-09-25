@@ -5,15 +5,19 @@ import type { MapContextAction } from '../../core/map/selection';
 import { OnDemandRefresh } from '../../core/layers/on-demand-refresh';
 import { AdvisoryClient, ADVISORY_REFRESH_MS, type AdvisoryState } from './client';
 import { GridClient } from './grids/client';
-import { createGridController, gridTimes, type GridState } from './grids/controller';
+import { createGridController, type GridState } from './grids/controller';
 import type { DecodedGrid } from './grids/format';
 import { advisoryFrame } from './time';
 import { weatherAwcPreferences, type WeatherAwcPreferences } from './preferences';
 import { ProgsClient, type SurfaceState } from './progs/client';
 import { surfaceFrame, type SurfaceStates } from './progs/time';
 import { RadarClient, type RadarState } from './radar/client';
-import { radarTimes } from './radar/time';
 import { isSurfacePressureLabel } from './progs/palette';
+import { ProgsCoverageClient, type ProgsCoverageState } from './progs/coverage-client';
+import { progsCoverageFrame } from './progs/coverage-time';
+import type { ProgsCoverageFile } from '@zlayer/contracts';
+import { catalogRefresh, stopRefresh } from './catalog-refresh';
+import { forecastChanges, forecastTimes, reconcileWeatherTime, advisoryEnabled } from './selection';
 import { RadarMotionClient, type RadarMotionState } from './radar/motion-client';
 import type { RadarMotionFile, RadarMotionSnapshot } from '@zlayer/contracts';
 
@@ -22,7 +26,7 @@ export type WeatherAwcInput = WeatherAwcPreferences & {
 };
 export type GridDisplay = { data: DecodedGrid; mode: AwcGridField; sld: boolean };
 export type WeatherTimeProduct = AwcAdvisoryProduct | AwcGridProduct | 'progs' | 'radar';
-type State = {
+export type WeatherState = {
   preferences: WeatherAwcPreferences;
   now: number;
   selectedTime: number | null;
@@ -45,12 +49,15 @@ type State = {
   radarMotion: RadarMotionState;
   radarMotionDisplay: { loading: boolean; cells: number; stations: number; oldest?: number; newest?: number; error?: string };
   progs: SurfaceStates;
+  progsRetry: number;
+  coverage: ProgsCoverageState;
+  coverageDisplay: { loading: boolean; validTime?: number; error?: string };
   progsRenderError?: string | undefined;
 };
-export const shadedGrid = (state: State): GridState => state.preferences.awcGridMode === 'temperature' ? state.wind : state.grid;
+export const shadedGrid = (state: WeatherState): GridState => state.preferences.awcGridMode === 'temperature' ? state.wind : state.grid;
 /** One status per requested data stream, even when temperature and barbs share it.
  * Every requested renderer must commit before that stream is ready. */
-export function forecastStreams(state: State) {
+export function forecastStreams(state: WeatherState) {
   const p = state.preferences, shading = awcGridProduct(p.awcGridMode);
   const products: AwcGridProduct[] = !p.awcEnabled ? [] : [
     ...(shading && shading !== 'winds' ? [shading] : []),
@@ -67,7 +74,7 @@ export function forecastStreams(state: State) {
       rendering: !!grid.data && (shade && grid.data !== shaded || barbs && grid.data !== symbols) };
   });
 }
-export function forecastPreparation(state: State) {
+export function forecastPreparation(state: WeatherState) {
   const tasks = forecastStreams(state).map(({ grid }) => grid.preparation).filter(task => !!task);
   if (!tasks.length) return undefined;
   // A newly enabled stream may still be discovering its total. Its pending
@@ -77,30 +84,33 @@ export function forecastPreparation(state: State) {
     failed: sum.failed + task.failed, limited: sum.limited || !!task.limited,
   }), { ready: 0, total: 0, failed: 0, limited: false });
 }
-function advisoryEnabled(a: WeatherAdvisory, p: WeatherAwcPreferences): boolean {
-  return a.product === 'gairmet' ? a.hazard === 'FZLVL' || a.hazard === 'M_FZLVL' ? p.awcFreezing : p.awcGairmet &&
-    (a.hazard === 'ICE' ? p.awcIcing : a.hazard.startsWith('TURB') ? p.awcTurbulence : a.hazard === 'IFR' ? p.awcIfr
-      : a.hazard === 'MT_OBSC' ? p.awcMountain : a.hazard === 'SFC_WND' || a.hazard === 'LLWS' ? p.awcWind : true)
-    : a.product === 'cwa' ? p.awcCwa : a.hazard === 'CONVECTIVE' ? p.awcConvective : p.awcSigmet;
-}
-export function createWeatherController(client: Pick<AdvisoryClient, 'restore' | 'refresh'>, gridClient?: GridClient,
-  progsClient?: Pick<ProgsClient, 'restore' | 'refresh'>, radarClient?: Pick<RadarClient, 'restore' | 'refresh' | 'load'>,
-  motionClient?: Pick<RadarMotionClient, 'restore' | 'refresh' | 'load'>) {
+type WeatherClients = {
+  advisories: Pick<AdvisoryClient, 'restore' | 'refresh'>;
+  grids?: GridClient;
+  progs?: Pick<ProgsClient, 'restore' | 'refresh'>;
+  radar?: Pick<RadarClient, 'restore' | 'refresh' | 'load'>;
+  motion?: Pick<RadarMotionClient, 'restore' | 'refresh' | 'load'>;
+  coverage?: Pick<ProgsCoverageClient, 'restore' | 'refresh' | 'load'>;
+};
+export function createWeatherController({ advisories: client, grids: gridClient, progs: progsClient,
+  radar: radarClient, motion: motionClient, coverage: coverageClient }: WeatherClients) {
   const altitudeControls = createLayerEvents<'icing' | 'winds'>();
-  const gridController = gridClient && createGridController(gridClient, grid => { publish({ grid }); syncGrid(); });
-  const windController = gridClient && createGridController(gridClient, wind => { publish({ wind }); syncGrid(); }, ['winds']);
+  const gridController = gridClient && createGridController(gridClient, grid => { reconcileAndPublish({ grid }); syncGrid(); });
+  const windController = gridClient && createGridController(gridClient, wind => { reconcileAndPublish({ wind }); syncGrid(); }, ['winds']);
   const emptyGrid = (): GridState => ({ products: { clouds: { loading: false }, icing: { loading: false }, winds: { loading: false } }, loading: false });
-  const store = createLayerStore<State>({ preferences: weatherAwcPreferences.select({}), now: Date.now(),
+  const store = createLayerStore<WeatherState>({ preferences: weatherAwcPreferences.select({}), now: Date.now(),
     selectedTime: null, selectedIds: [], forecastRetry: 0, advisoryRetry: 0, advisoryDisplay: { loading: false, ids: [] },
     grid: gridController?.getSnapshot() ?? emptyGrid(), wind: windController?.getSnapshot() ?? emptyGrid(),
     radar: radarClient?.restore() ?? { loading: false }, radarRetry: 0, radarDisplay: { loading: false, sites: [] },
     radarMotion: motionClient?.restore() ?? { loading: false }, radarMotionDisplay: { loading: false, cells: 0, stations: 0 },
-    progs: { analysis: { loading: false }, forecast: { loading: false } },
+    coverage: coverageClient?.restore() ?? { loading: false }, coverageDisplay: { loading: false },
+    progsRetry: 0, progs: { analysis: { loading: false }, forecast: { loading: false } },
     products: { gairmet: client.restore('gairmet'), sigmet: client.restore('sigmet'), cwa: client.restore('cwa') } });
   let input: WeatherAwcInput | undefined;
   let scheduler: OnDemandRefresh | undefined;
   let radarScheduler: OnDemandRefresh | undefined;
   let motionScheduler: OnDemandRefresh | undefined;
+  let coverageScheduler: OnDemandRefresh | undefined;
   let progsScheduler: OnDemandRefresh | undefined;
   let progsRestore: AbortController | undefined;
   let stop: (() => void) | undefined;
@@ -115,25 +125,6 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
     if (!interactions.size) resumeTimer = setTimeout(() => { resumeTimer = undefined; pausePreparation = false; syncGrid(); }, 150);
   };
   const pauseForInput = () => { pausePreparation = true; scheduleResume(); };
-  const forecastChanges = (state = store.getSnapshot()) => {
-    const changes = new Map<number, Set<WeatherTimeProduct>>(), p = state.preferences;
-    const add = (product: WeatherTimeProduct, times: readonly number[]) => {
-      for (const time of times) {
-        if (!changes.has(time)) changes.set(time, new Set());
-        changes.get(time)!.add(product);
-      }
-    };
-    if (p.awcGairmet || p.awcFreezing) add('gairmet', state.products.gairmet.snapshot?.frameTimes ?? []);
-    for (const product of ['sigmet', 'cwa'] as const) add(product, state.products[product].snapshot?.advisories
-      .filter(a => advisoryEnabled(a, p)).flatMap(a => [a.validFrom, a.validTo!]) ?? []);
-    const product = awcGridProduct(p.awcGridMode);
-    if (product && product !== 'winds') add(product, gridTimes(state.grid, p.awcGridMode, p.awcGridAltitude));
-    if (p.awcWindBarbs || product === 'winds') add('winds', gridTimes(state.wind, 'temperature', p.awcWindAltitude));
-    if (p.awcProgs) add('progs', state.progs.forecast.snapshot?.frames.map(frame => frame.validTime) ?? []);
-    if (p.awcRadar) add('radar', radarTimes(state.radar.snapshot, state.now));
-    return [...changes].sort(([a], [b]) => a - b).map(([time, products]) => ({ time, products: [...products] }));
-  };
-  const forecastTimes = (state = store.getSnapshot()): readonly number[] => forecastChanges(state).map(change => change.time);
   const syncGrid = () => {
     const s = store.getSnapshot(), p = s.preferences;
     const winds = p.awcWindBarbs || p.awcGridMode === 'temperature', scalar = p.awcGridMode !== 'none' && p.awcGridMode !== 'temperature';
@@ -143,29 +134,18 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
     windController?.configure({ ...shared, enabled: p.awcEnabled && winds, mode: 'temperature', altitude: p.awcWindAltitude,
       prepareTimeline: p.awcGridMode === 'temperature' });
   };
-  const publish = (patch: Partial<State>) => {
-    // Mobile timers can remain suspended after a source request completes.
-    // Every publication and explicit Now action uses the actual wall clock.
-    const next = { ...store.getSnapshot(), ...patch, now: Date.now() };
-    // A field/altitude change preserves the absolute selection even without
-    // matching coverage. Inactive catalogs validate that selection, but must
-    // not populate Next/Prev with steps that change nothing on the map.
-    if (next.selectedTime !== null && !forecastTimes(next).includes(next.selectedTime) &&
-      ![...Object.values(next.grid.products), ...Object.values(next.wind.products)].some(product => product.manifest?.frames.some(frame => frame.validTime === next.selectedTime)) &&
-      !next.progs.forecast.snapshot?.frames.some(frame => frame.validTime === next.selectedTime) &&
-      !(next.selectedTime <= next.now && radarTimes(next.radar.snapshot, next.now).some(time => time <= next.selectedTime!))) {
-      next.selectedTime = null;
-      next.selectedIds = []; next.gridPoint = undefined;
-    }
+  const reconcileAndPublish = (patch: Partial<WeatherState>) => {
+    const next = reconcileWeatherTime({ ...store.getSnapshot(), ...patch }, Date.now());
     store.publish(next);
   };
+  const publishDisplay = (patch: Partial<WeatherState>) => store.publish({ ...store.getSnapshot(), ...patch });
   const productState = (product: AwcAdvisoryProduct, patch: AdvisoryState) => {
-    publish({ now: Date.now(), products: { ...store.getSnapshot().products, [product]: patch } });
+    reconcileAndPublish({ products: { ...store.getSnapshot().products, [product]: patch } });
     scheduleClock?.();
     syncGrid();
   };
   const progsState = (product: SurfaceProduct, patch: SurfaceState) => {
-    publish({ now: Date.now(), progs: { ...store.getSnapshot().progs, [product]: patch } });
+    reconcileAndPublish({ progs: { ...store.getSnapshot().progs, [product]: patch } });
     syncGrid();
   };
   const demand = () => {
@@ -175,6 +155,7 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
     if (p.awcSigmet || p.awcConvective) ids.push('sigmet');
     if (p.awcCwa) ids.push('cwa');
     scheduler?.setDemand(ids, p.awcEnabled && navigator.onLine && document.visibilityState !== 'hidden');
+    coverageScheduler?.setDemand(['coverage'], p.awcEnabled && p.awcProgs && p.awcProgsCoverage && navigator.onLine && document.visibilityState !== 'hidden');
     progsScheduler?.setDemand(SURFACE_PRODUCTS, p.awcEnabled && p.awcProgs && navigator.onLine && document.visibilityState !== 'hidden');
     radarScheduler?.setDemand(['radar'], p.awcEnabled && p.awcRadar && navigator.onLine && document.visibilityState !== 'hidden');
     motionScheduler?.setDemand(['motion'], p.awcEnabled && p.awcRadar && p.awcRadarMotion && navigator.onLine && document.visibilityState !== 'hidden');
@@ -190,62 +171,69 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
     clearTimeout(resumeTimer); resumeTimer = undefined; interactions.clear(); pausePreparation = false;
     scheduleClock = undefined;
     stop?.(); stop = undefined;
-    scheduler?.destroy(); scheduler = undefined;
-    radarScheduler?.destroy(); radarScheduler = undefined;
-    motionScheduler?.destroy(); motionScheduler = undefined;
-    progsScheduler?.destroy(); progsScheduler = undefined;
+    stopRefresh(scheduler); scheduler = undefined;
+    stopRefresh(radarScheduler); radarScheduler = undefined;
+    stopRefresh(motionScheduler); motionScheduler = undefined;
+    stopRefresh(coverageScheduler); coverageScheduler = undefined;
+    stopRefresh(progsScheduler); progsScheduler = undefined;
     progsRestore?.abort(); progsRestore = undefined;
     picker = undefined; locate = undefined;
     gridController?.detach();
     windController?.detach();
-    for (const product of AWC_ADVISORY_PRODUCTS) {
-      const state = store.getSnapshot().products[product];
-      if (state.loading) productState(product, { ...state, loading: false });
-    }
-    for (const product of SURFACE_PRODUCTS) {
-      const state = store.getSnapshot().progs[product];
-      if (state.loading) progsState(product, { ...state, loading: false });
-    }
   };
   return {
-    ...store, visibleAdvisories, forecastTimes, forecastChanges,
-    setAdvisoryDisplay(advisoryDisplay: State['advisoryDisplay']) {
-      if (JSON.stringify(store.getSnapshot().advisoryDisplay) !== JSON.stringify(advisoryDisplay)) publish({ advisoryDisplay });
+    ...store, visibleAdvisories,
+    forecastTimes: () => forecastTimes(store.getSnapshot()),
+    forecastChanges: () => forecastChanges(store.getSnapshot()),
+    setAdvisoryDisplay(advisoryDisplay: WeatherState['advisoryDisplay']) {
+      if (JSON.stringify(store.getSnapshot().advisoryDisplay) !== JSON.stringify(advisoryDisplay)) publishDisplay({ advisoryDisplay });
     },
     retryAdvisories() {
-      publish({ advisoryRetry: store.getSnapshot().advisoryRetry + 1 });
+      reconcileAndPublish({ advisoryRetry: store.getSnapshot().advisoryRetry + 1 });
       scheduler?.setDemand([], false); demand();
     },
     loadRadar(file: RadarFile, signal: AbortSignal, onReady?: (value: RadarContours) => void) {
       if (!radarClient) throw new Error('Radar client is unavailable');
       return radarClient.load(file, signal, onReady);
     },
-    setRadarDisplay(radarDisplay: State['radarDisplay']) {
-      if (JSON.stringify(store.getSnapshot().radarDisplay) !== JSON.stringify(radarDisplay)) publish({ radarDisplay });
+    setRadarDisplay(radarDisplay: WeatherState['radarDisplay']) {
+      if (JSON.stringify(store.getSnapshot().radarDisplay) !== JSON.stringify(radarDisplay)) publishDisplay({ radarDisplay });
     },
     loadRadarMotion(file: RadarMotionFile, signal: AbortSignal, onReady?: (value: RadarMotionSnapshot) => void) {
       if (!motionClient) throw new Error('Storm motion client is unavailable');
       return motionClient.load(file, signal, onReady);
     },
-    setRadarMotionDisplay(radarMotionDisplay: State['radarMotionDisplay']) {
-      if (JSON.stringify(store.getSnapshot().radarMotionDisplay) !== JSON.stringify(radarMotionDisplay)) publish({ radarMotionDisplay });
+    setRadarMotionDisplay(radarMotionDisplay: WeatherState['radarMotionDisplay']) {
+      if (JSON.stringify(store.getSnapshot().radarMotionDisplay) !== JSON.stringify(radarMotionDisplay)) publishDisplay({ radarMotionDisplay });
     },
     retryRadar() {
-      publish({ radarRetry: store.getSnapshot().radarRetry + 1 });
+      reconcileAndPublish({ radarRetry: store.getSnapshot().radarRetry + 1 });
       motionScheduler?.setDemand([], false);
       radarScheduler?.setDemand([], false); demand();
+    },
+    coverageSelection() {
+      const state = store.getSnapshot();
+      return progsCoverageFrame(state.coverage.snapshot, state.selectedTime, state.now);
+    },
+    loadCoverage(file: ProgsCoverageFile, signal: AbortSignal) {
+      if (!coverageClient) throw new Error('NDFD coverage client is unavailable');
+      return coverageClient.load(file, signal);
+    },
+    setCoverageDisplay(coverageDisplay: WeatherState['coverageDisplay']) {
+      if (JSON.stringify(store.getSnapshot().coverageDisplay) !== JSON.stringify(coverageDisplay)) publishDisplay({ coverageDisplay });
     },
     surfaceSelection() {
       const s = store.getSnapshot();
       return surfaceFrame(s.progs, s.selectedTime, s.now);
     },
     retryProgs() {
-      publish({ forecastRetry: store.getSnapshot().forecastRetry + 1 });
+      reconcileAndPublish({ progsRetry: store.getSnapshot().progsRetry + 1 });
       progsScheduler?.setDemand([], false);
+      coverageScheduler?.setDemand([], false);
       demand();
     },
     setProgsRenderError(progsRenderError: string | undefined) {
-      if (store.getSnapshot().progsRenderError !== progsRenderError) publish({ progsRenderError });
+      if (store.getSnapshot().progsRenderError !== progsRenderError) publishDisplay({ progsRenderError });
     },
     altitudeControls: altitudeControls.events,
     showAltitudeControls(product: 'icing' | 'winds') { altitudeControls.emit(product); },
@@ -254,20 +242,20 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
       if (interactions.size) pausePreparation = true;
       scheduleResume(); syncGrid();
     },
-    setWindDisplay(windDisplay: DecodedGrid | undefined) { if (store.getSnapshot().windDisplay !== windDisplay) publish({ windDisplay }); },
-    setWindRenderError(windRenderError: string | undefined) { if (store.getSnapshot().windRenderError !== windRenderError) publish({ windRenderError }); },
+    setWindDisplay(windDisplay: DecodedGrid | undefined) { if (store.getSnapshot().windDisplay !== windDisplay) publishDisplay({ windDisplay }); },
+    setWindRenderError(windRenderError: string | undefined) { if (store.getSnapshot().windRenderError !== windRenderError) publishDisplay({ windRenderError }); },
     setGridDisplay(gridDisplay: GridDisplay | undefined) {
       const previous = store.getSnapshot().gridDisplay;
-      if (previous?.data !== gridDisplay?.data || previous?.mode !== gridDisplay?.mode || previous?.sld !== gridDisplay?.sld) publish({ gridDisplay });
+      if (previous?.data !== gridDisplay?.data || previous?.mode !== gridDisplay?.mode || previous?.sld !== gridDisplay?.sld) publishDisplay({ gridDisplay });
     },
-    setGridRenderError(gridRenderError: string | undefined) { if (store.getSnapshot().gridRenderError !== gridRenderError) publish({ gridRenderError }); },
+    setGridRenderError(gridRenderError: string | undefined) { if (store.getSnapshot().gridRenderError !== gridRenderError) publishDisplay({ gridRenderError }); },
     configure(next: WeatherAwcInput) {
       input = next;
       const preferences = weatherAwcPreferences.select(next);
       if (JSON.stringify(preferences) !== JSON.stringify(store.getSnapshot().preferences)) {
         // Preference changes update the inspected weather without dismissing it.
         // Keep selection identities stable so stowed details do not reopen.
-        publish(preferences.awcEnabled ? { preferences } : { preferences, selectedIds: [], gridPoint: undefined });
+        reconcileAndPublish(preferences.awcEnabled ? { preferences } : { preferences, selectedIds: [], gridPoint: undefined });
       }
       demand();
     },
@@ -276,15 +264,15 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
       input?.change(patch);
     },
     retryForecasts() {
-      publish({ forecastRetry: store.getSnapshot().forecastRetry + 1 });
+      reconcileAndPublish({ forecastRetry: store.getSnapshot().forecastRetry + 1 });
       gridController?.retry(); windController?.retry();
     },
     selectTime(time: number | null) {
       if (time !== store.getSnapshot().selectedTime) pauseForInput();
-      if (time === null || forecastTimes().includes(time)) publish({ selectedTime: time, selectedIds: [], gridPoint: undefined });
+      if (time === null || forecastTimes(store.getSnapshot()).includes(time)) reconcileAndPublish({ selectedTime: time, selectedIds: [], gridPoint: undefined });
       syncGrid();
     },
-    clearSelection() { publish({ selectedIds: [], gridPoint: undefined }); },
+    clearSelection() { reconcileAndPublish({ selectedIds: [], gridPoint: undefined }); },
     setLocator(next: typeof locate) { locate = next; },
     setPicker(next: typeof picker) { picker = next; },
     contextActions(point: { x: number; y: number }): MapContextAction[] {
@@ -301,7 +289,7 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
         }
         const selectedIds = ids.filter(id => visible.has(id));
         const currentPoint = store.getSnapshot().gridDisplay || store.getSnapshot().windDisplay ? gridPoint : undefined;
-        if (selectedIds.length || currentPoint) publish({ selectedIds, gridPoint: currentPoint });
+        if (selectedIds.length || currentPoint) reconcileAndPublish({ selectedIds, gridPoint: currentPoint });
       } }];
     },
     attach() {
@@ -360,30 +348,15 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
           const failure = results.find(result => result.status === 'rejected');
           if (failure?.status === 'rejected') throw failure.reason;
         } });
-      if (radarClient) radarScheduler = new OnDemandRefresh({ intervalMs: 60_000, retryIntervalMs: 30_000, debounceMs: 0,
-        onState(loading) { if (!loading && store.getSnapshot().radar.loading) publish({ radar: { ...store.getSnapshot().radar, loading: false } }); },
-        onError() {}, async refresh(_ids, signal) {
-          publish({ radar: { ...store.getSnapshot().radar, loading: true } });
-          try {
-            const snapshot = await radarClient.refresh(signal); signal.throwIfAborted();
-            publish({ radar: { snapshot, loading: false } });
-          } catch (error) {
-            if (!signal.aborted) publish({ radar: { ...store.getSnapshot().radar, loading: false, error: error instanceof Error ? error.message : 'Radar refresh failed' } });
-            throw error;
-          }
-        } });
-      if (motionClient) motionScheduler = new OnDemandRefresh({ intervalMs: 60_000, retryIntervalMs: 30_000, debounceMs: 0,
-        onState(loading) { if (!loading && store.getSnapshot().radarMotion.loading) publish({ radarMotion: { ...store.getSnapshot().radarMotion, loading: false } }); },
-        onError() {}, async refresh(_ids, signal) {
-          publish({ radarMotion: { ...store.getSnapshot().radarMotion, loading: true } });
-          try {
-            const snapshot = await motionClient.refresh(signal); signal.throwIfAborted();
-            publish({ radarMotion: { snapshot, loading: false } });
-          } catch (error) {
-            if (!signal.aborted) publish({ radarMotion: { ...store.getSnapshot().radarMotion, loading: false, error: error instanceof Error ? error.message : 'Storm motion refresh failed' } });
-            throw error;
-          }
-        } });
+      if (radarClient) radarScheduler = catalogRefresh({ intervalMs: 60_000,
+        read: () => store.getSnapshot().radar, publish: radar => reconcileAndPublish({ radar }),
+        refresh: signal => radarClient.refresh(signal) });
+      if (motionClient) motionScheduler = catalogRefresh({ intervalMs: 60_000,
+        read: () => store.getSnapshot().radarMotion, publish: radarMotion => reconcileAndPublish({ radarMotion }),
+        refresh: signal => motionClient.refresh(signal) });
+      if (coverageClient) coverageScheduler = catalogRefresh({ intervalMs: ADVISORY_REFRESH_MS,
+        read: () => store.getSnapshot().coverage, publish: coverage => reconcileAndPublish({ coverage }),
+        refresh: (signal, ready) => coverageClient.refresh(signal, ready) });
       let timer: ReturnType<typeof setTimeout>;
       scheduleClock = () => {
         clearTimeout(timer);
@@ -393,7 +366,7 @@ export function createWeatherController(client: Pick<AdvisoryClient, 'restore' |
         const next = Math.min(now + 15_000, ...boundaries.filter(t => t > now));
         timer = setTimeout(tick, next - now);
       };
-      const tick = () => { publish({ now: Date.now() }); demand(); scheduleClock?.(); };
+      const tick = () => { reconcileAndPublish({ now: Date.now() }); demand(); scheduleClock?.(); };
       document.addEventListener('visibilitychange', tick);
       window.addEventListener('online', tick);
       window.addEventListener('offline', tick);

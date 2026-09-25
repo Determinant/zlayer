@@ -4,6 +4,7 @@ import { mockGps, sendFix, countWatches, stats } from './ownship-fixture';
 test.use({ hasTouch: true });
 
 test('aircraft and 1 min vector render through MapLibre, stay aligned on rotation, expire and remount', { tag: '@smoke' }, async ({ page }, testInfo) => {
+  await page.clock.install();
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await mockGps(page);
@@ -41,7 +42,6 @@ test('aircraft and 1 min vector render through MapLibre, stay aligned on rotatio
   expect((await stats(page)).center[0]).toBeCloseTo(-121.5);
   await page.getByRole('button', { name: 'Center aircraft' }).click();
   await expect.poll(async () => (await stats(page)).center[0]).toBeCloseTo(-122.001);
-  await page.clock.install();
   await sendFix(page);
   await page.clock.fastForward(10_001);
   await expect(page.getByLabel('GPS aircraft status')).toContainText('GPS fix stale');
@@ -63,18 +63,18 @@ test('aircraft and 1 min vector render through MapLibre, stay aligned on rotatio
 
 for (const rate of [-1, 1]) {
   test(`the blue track vector curves ${rate < 0 ? 'left' : 'right'} while ownship stays at the current fix`, async ({ page }, testInfo) => {
+    await page.clock.install();
     await mockGps(page);
     await page.goto('/test/browser/ownship.html');
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-    const startTime = Date.now();
-    await page.clock.setFixedTime(startTime);
+    await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
     await page.getByRole('switch', { name: 'GPS aircraft' }).click();
     await sendFix(page, { heading: 90 - 2 * rate });
-    await expect.poll(async () => (await stats(page)).moving).toBe(false);
     for (const second of [1, 2]) {
-      await page.clock.setFixedTime(startTime + second * 1000);
+      await page.clock.runFor(1000);
       await sendFix(page, { heading: 90 + (second - 2) * rate });
     }
+    await page.clock.resume();
     await expect.poll(async () => (await stats(page)).turnRate).toBeCloseTo(rate, 8);
     await expect.poll(async () => (await stats(page)).rendered).toContain('ownship-trace');
     const geometry = (await stats(page)).geometry as GeoJSON.FeatureCollection;

@@ -2,7 +2,7 @@ import { isRadarMotionCatalog, isRadarMotionSnapshot, RADAR_MOTION_MAX_BYTES,
   type RadarMotionCatalog, type RadarMotionFile, type RadarMotionSnapshot } from '@zlayer/contracts';
 import { requestJson } from '../../../core/data/fetch-json';
 import { pluginStorage } from '../storage';
-import { preparedJson } from '../prepared-json';
+import { preparedJson } from '../prepared-file';
 
 export type RadarMotionState = { snapshot?: RadarMotionCatalog; loading: boolean; error?: string };
 const files = pluginStorage.files('radar-motion', { maxEntries: 24, maxBytes: 16 * 1024 * 1024, maxFileBytes: RADAR_MOTION_MAX_BYTES, maxUnusedMs: 3600_000 });

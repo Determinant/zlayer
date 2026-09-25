@@ -1,3 +1,4 @@
+import { ProgsCoverageClient } from './progs/coverage-client';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import type { PluginExports } from '../../core/layers/bridge';
 import { createLayerInput } from '../../core/layers/input';
@@ -20,10 +21,12 @@ export function createWeatherAwcPlugin() {
   const gridEndpoint = import.meta.env?.VITE_ZLAYERS_AWC_GRID_URL?.trim();
   const progsEndpoint = import.meta.env?.VITE_ZLAYERS_PROGS_FEED_URL?.trim();
   const radarEndpoint = import.meta.env?.VITE_ZLAYERS_RADAR_FEED_URL?.trim();
-  const controller = createWeatherController(client, new GridClient(new URL(gridEndpoint || '/api/weather/grids/', origin).href.replace(/\/?$/, '/'), !gridEndpoint),
-    new ProgsClient(new URL(progsEndpoint || '/api/weather/progs/', origin).href.replace(/\/?$/, '/')),
-    new RadarClient(new URL(radarEndpoint || '/api/weather/radar/', origin).href.replace(/\/?$/, '/')),
-    new RadarMotionClient(new URL(radarEndpoint || '/api/weather/radar/', origin).href.replace(/\/?$/, '/')));
+  const controller = createWeatherController({ advisories: client,
+    grids: new GridClient(new URL(gridEndpoint || '/api/weather/grids/', origin).href.replace(/\/?$/, '/'), !gridEndpoint),
+    coverage: new ProgsCoverageClient(new URL(progsEndpoint || '/api/weather/progs/', origin).href.replace(/\/?$/, '/')),
+    progs: new ProgsClient(new URL(progsEndpoint || '/api/weather/progs/', origin).href.replace(/\/?$/, '/')),
+    radar: new RadarClient(new URL(radarEndpoint || '/api/weather/radar/', origin).href.replace(/\/?$/, '/')),
+    motion: new RadarMotionClient(new URL(radarEndpoint || '/api/weather/radar/', origin).href.replace(/\/?$/, '/')) });
   const input = createLayerInput<WeatherAwcInput & { revision?: string }>();
   function Details() {
     const state = useLayerSnapshot(input);

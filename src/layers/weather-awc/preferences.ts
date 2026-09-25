@@ -14,6 +14,7 @@ export const weatherAwcPreferences = pluginPreferences(pluginStorage, saved => (
   awcRadar: booleanPreference(saved.awcRadar, false),
   awcRadarMotion: booleanPreference(saved.awcRadarMotion, false),
   awcProgs: booleanPreference(saved.awcProgs, false),
+  awcProgsCoverage: booleanPreference(saved.awcProgsCoverage, true),
   awcProgsIsobars: booleanPreference(saved.awcProgsIsobars, true),
   awcGairmet: booleanPreference(saved.awcGairmet, true),
   awcSigmet: booleanPreference(saved.awcSigmet, true),

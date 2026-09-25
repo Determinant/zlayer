@@ -1,3 +1,4 @@
+import { ProgsCoverageClient } from '../../src/layers/weather-awc/progs/coverage-client';
 import { Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { MapLayerHost, WEATHER_LAYER_ANCHOR } from '../../src/core/map/layer';
@@ -17,8 +18,10 @@ const style = () => ({ version: 8 as const, glyphs: '/fonts/{fontstack}/{range}.
 const map = new MapLibreMap({ container: 'map', center: [-122, 37.3], zoom: 6.7, fadeDuration: 0, attributionControl: false, style: style() });
 const errors: string[] = [];
 map.on('error', event => errors.push(event.error.message));
-const controller = createWeatherController(new AdvisoryClient(new URL('/api/weather/advisories/', location.href).href, true),
-  undefined, new ProgsClient(new URL('/api/weather/progs/', location.href).href), new RadarClient(new URL('/api/weather/radar/', location.href).href));
+const controller = createWeatherController({ advisories: new AdvisoryClient(new URL('/api/weather/advisories/', location.href).href, true),
+    coverage: new ProgsCoverageClient(new URL('/api/weather/progs/', location.href).href),
+    progs: new ProgsClient(new URL('/api/weather/progs/', location.href).href),
+    radar: new RadarClient(new URL('/api/weather/radar/', location.href).href) });
 let preferences = weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true, awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false });
 const change = (patch: Partial<WeatherAwcPreferences>) => { preferences = { ...preferences, ...patch }; controller.configure({ ...preferences, change }); };
 change({});
@@ -26,7 +29,7 @@ const host = new MapLayerHost(map, (_id, error) => errors.push(String(error)));
 const layer = createWeatherMap(controller);
 map.on('load', () => host.mount([layer]));
 const audit = { map, errors,
-  state: controller.getSnapshot, select: controller.selectTime, change,
+  state: controller.getSnapshot, select: controller.selectTime, retry: controller.retryProgs, change,
   features: () => map.queryRenderedFeatures(undefined, { layers: SURFACE_LAYERS.filter(id => map.getLayer(id)) }).map(f => f.properties),
   recover: () => { host.unmount(); map.once('style.load', () => host.mount([layer])); map.setStyle(style(), { diff: false }); },
 };

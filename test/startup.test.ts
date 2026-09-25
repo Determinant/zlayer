@@ -48,7 +48,7 @@ test('all plugin activation failures are visible, but optional report loading do
 });
 
 test('weather startup distinguishes requested work, offline absence, cached data, preparation and failed frames', () => {
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) });
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) } });
   const initial = controller.getSnapshot();
   assert.equal(weatherStartupWork(initial, true), undefined);
   const state = { ...initial, preferences: weatherAwcPreferences.select({ awcEnabled: true }) };
@@ -67,7 +67,7 @@ test('weather startup distinguishes requested work, offline absence, cached data
 });
 
 test('wind-only startup and shared preparation account for pressure-level guidance and restored data', () => {
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) });
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) } });
   const state = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true,
     awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false, awcWindBarbs: true }) };
   assert.equal(weatherStartupWork(state, true)?.state, 'loading');
@@ -93,8 +93,24 @@ test('wind-only startup and shared preparation account for pressure-level guidan
   assert.equal(weatherStartupWork(state, true)?.blocking, false);
 });
 
+test('enabled Progs coverage acquisition and rendering failures remain visible as nonblocking startup work', () => {
+  const controller = createWeatherController({ advisories: {
+    restore: product => ({ loading: false, snapshot: advisorySnapshot(product) }), refresh: async product => advisorySnapshot(product),
+  } });
+  const state = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true }) };
+  assert.equal(weatherStartupWork(state, true)?.state, 'loading');
+  state.coverage = { loading: false, error: 'Coverage source failed' };
+  assert.equal(weatherStartupWork(state, true)?.state, 'limited');
+  assert.equal(weatherStartupWork(state, true)?.blocking, false);
+  state.coverage = { loading: false };
+  state.coverageDisplay = { loading: false, error: 'Coverage renderer failed' };
+  assert.equal(weatherStartupWork(state, true)?.state, 'limited');
+  state.preferences.awcProgsCoverage = false;
+  assert.equal(weatherStartupWork(state, true)?.state, 'loading', 'disabled shading errors do not affect requested chart work');
+});
+
 test('temperature and barbs share preparation but wait for both requested displays, ignoring inactive errors', () => {
-  const controller = createWeatherController({ restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) });
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) } });
   const state = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true,
     awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false, awcWindBarbs: true, awcGridMode: 'temperature' }) };
   const manifest = gridFixture('winds').manifest;

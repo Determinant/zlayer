@@ -13,9 +13,10 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 setWorkerUrl(workerUrl);
 const native = new URLSearchParams(location.search).has('native');
-const controller = createWeatherController({ restore: () => ({ loading: false }),
+const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }),
   refresh: async () => { throw new Error('Advisories are disabled in this fixture'); },
-}, new GridClient(new URL('/api/weather/grids/', location.href).href, native));
+},
+    grids: new GridClient(new URL('/api/weather/grids/', location.href).href, native) });
 let preferences = weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover',
   awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false });
 const change = (patch: Partial<WeatherAwcPreferences>) => {

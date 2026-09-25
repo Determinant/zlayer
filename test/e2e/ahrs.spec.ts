@@ -1081,6 +1081,34 @@ test('page visibility pauses instruments and automatically resumes the calibrate
   expect(await countWatches(page)).toBe(1);
 });
 
+test('fresh GPS survives sleep and wall-clock corrections without restarting the calibrated AHRS', async ({ page }) => {
+  await page.clock.install();
+  await openAhrs(page, 'granted', true);
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
+  await page.clock.runFor(12_000);
+  await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
+  for (const correction of [60_000, -120_000]) {
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(await countWatches(page)).toBe(0);
+    // Advance wall time independently of performance.now(), as on Android sleep.
+    await page.clock.setSystemTime(await page.evaluate(() => Date.now()) + correction);
+    await page.evaluate(() => {
+      Reflect.deleteProperty(document, 'hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.clock.runFor(1100);
+    await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
+    await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+    await expect(page.locator('.ahrs-setup')).toHaveCount(0);
+    await expect(page.getByRole('img', { name: 'Ground speed: 120 knots', exact: true })).toBeVisible();
+    expect(await countWatches(page)).toBe(1);
+  }
+});
+
 test('incomplete and mistimed readings recover without stopping the live session', async ({ page }) => {
   await page.clock.install();
   await openAhrs(page);
