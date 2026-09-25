@@ -35,6 +35,7 @@ test('old converted floats migrate to compact bands with every source blocked', 
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/test/browser/weather-native.html');
   const expected = await page.evaluate(() => window.nativeWeather.load('clouds', true));
+  const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
   await page.evaluate(() => window.nativeWeather.legacyCloud());
   await page.reload(); await page.route(FORECAST_REQUESTS, route => route.abort());
   expect(await page.evaluate(() => window.nativeWeather.load('clouds', false))).toEqual(expected);
@@ -42,35 +43,38 @@ test('old converted floats migrate to compact bands with every source blocked', 
     const keys = await (await caches.open('zlayers-plugin-files-v1:weather-awc:converted-grids')).keys();
     return keys.length === 1 && decodeURIComponent(keys[0]!.url).includes('packed-v1/');
   })).toBe(true);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
 });
 
 test('wind altitudes share prepared sources, preserve MSL/flight-level identity and reopen offline', async ({ page, request }) => {
   test.setTimeout(120_000);
   await page.clock.setFixedTime(WEATHER_NOW);
   await page.goto('/test/browser/weather-native.html');
-  const reads = async () => (await (await request.get('/__test/awc-counts')).json()).nativeFiles;
-  const msl = await page.evaluate(() => window.nativeWeather.wind(5000, true));
-  expect(msl.values[0]).toBe(5000); expect(msl.values[3]).toBe(10);
-  expect(await reads()).toBe(0);
-  const nearby = await page.evaluate(() => window.nativeWeather.wind(5500, true));
-  expect(nearby.values[0]).toBe(5500); expect(nearby.values.slice(1)).toEqual(msl.values.slice(1));
-  expect(await reads()).toBe(0); // Native pressure inputs were prepared before the browser opened.
+  const reads = async () => (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  const msl = await page.evaluate(() => window.nativeWeather.wind(5500, true));
+  expect(msl.values[0]).toBe(5500); expect(msl.values[3]).toBe(10);
+  const initialReads = await reads();
+  expect(initialReads).toBeGreaterThan(1);
+  // The 5,500 ft search warms the pressure inputs also needed at 5,000 ft.
+  const nearby = await page.evaluate(() => window.nativeWeather.wind(5000, true));
+  expect(nearby.values[0]).toBe(5000); expect(nearby.values.slice(1)).toEqual(msl.values.slice(1));
+  expect(await reads()).toBe(initialReads);
   const flightLevel = await page.evaluate(() => window.nativeWeather.wind(18000, true));
   // The fixture's forecast heights intentionally differ from standard atmosphere.
   expect(flightLevel.values[0]).toBeGreaterThan(18730); expect(flightLevel.values[0]).toBeLessThan(19720);
   expect(flightLevel.values.slice(1)).toEqual(msl.values.slice(1));
-  expect(await reads()).toBe(0);
+  expect(await reads()).toBeGreaterThan(initialReads);
   // FL430 selects native bracketing pressures; derived floating-point pressures
   // are never part of the server artifact identity.
   const high = await page.evaluate(() => window.nativeWeather.wind(43000, true));
   expect(high.values[3]).toBe(10);
   const acquired = await reads();
   await page.reload(); await page.route(FORECAST_REQUESTS, route => route.abort());
-  for (const [altitude, expected] of [[5000, msl], [5500, nearby], [18000, flightLevel], [43000, high]] as const) {
+  for (const [altitude, expected] of [[5500, msl], [5000, nearby], [18000, flightLevel], [43000, high]] as const) {
     expect(await page.evaluate(altitude => window.nativeWeather.wind(altitude, false), altitude)).toEqual(expected);
   }
   expect(await reads()).toBe(acquired);
+  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
 });
 
 test('a cold wind response does not block ready cloud forecasts from loading and saving', async ({ page }) => {
@@ -147,7 +151,8 @@ test('saves every cloud time in the background, then browses the whole timeline 
     .toEqual({ ready: 18, total: 18, failed: 0 });
   expect(await displayed()).toBe(now);
   expect(await page.evaluate(() => window.weatherGridFixture.textureUploads)).toBe(1);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
+  const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  expect(acquired).toBeGreaterThan(0);
   await page.route(FORECAST_REQUESTS, route => route.abort());
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'onLine', { get: () => false }); window.dispatchEvent(new Event('offline'));
@@ -158,7 +163,7 @@ test('saves every cloud time in the background, then browses the whole timeline 
     await expect.poll(() => page.evaluate(() => window.weatherGridFixture.value())).toBe([75, 0, 25, 50, 10][hour % 5]);
   }
   await expect(page.getByRole('button', { name: 'Next weather time' })).toBeDisabled();
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
 });
 
 test('Next and Prev replace cloud/icing pixels with one upload per frame and none for repeated selections', async ({ page, request }) => {
@@ -200,7 +205,7 @@ test('Next and Prev replace cloud/icing pixels with one upload per frame and non
     await page.waitForFunction(() => {
       const p = window.weatherGridFixture.controller.getSnapshot().grid.preparation; return p && p.ready === p.total;
     });
-    const acquired = (await (await request.get('/__test/awc-counts')).json()).nativeFiles;
+    const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
     await previous.click();
     await expect.poll(shown).toEqual({ time: now + 3600000, value: 0 });
     await expect.poll(pixel).toEqual([255, 255, 255, 255]);
@@ -214,7 +219,7 @@ test('Next and Prev replace cloud/icing pixels with one upload per frame and non
       for (let n = 0; n < 20; n++) controller.selectTime(time);
     });
     await settle(); expect(await uploads()).toBe(initialUploads + 4);
-    expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(acquired);
+    expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
   }
   expect(await page.evaluate(() => window.weatherGridFixture.errors)).toEqual([]);
 });
@@ -240,25 +245,25 @@ test('prepared grids share work between windows, reopen offline, and repair from
   const clouds = await page.evaluate(() => window.nativeWeather.load('clouds', true));
   expect(clouds).toEqual({ frames: 19, values: [75, 3280, 19690, 9840, 14760] });
   const first = await (await request.get('/__test/awc-counts')).json();
-  expect(first.nativeFiles).toBe(0);
+  expect(first.gridFiles).toBe(1);
   expect(await page.evaluate(async () => (await (await caches.open('zlayers-plugin-files-v1:weather-awc:converted-grids')).keys()).length)).toBe(1);
   await page.evaluate(() => window.nativeWeather.load('clouds', true));
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(first.nativeFiles);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(first.gridFiles);
   const second = await context.newPage();
   await second.clock.install({ time: WEATHER_NOW });
   await second.goto('/test/browser/weather-native.html');
   await expect.poll(() => second.evaluate(() => !!window.nativeWeather)).toBe(true);
   const values = await Promise.all([page, second].map(tab => tab.evaluate(() => window.nativeWeather.load('icing', true))));
   expect(values).toEqual([{ frames: 1080, values: [70,3,0.25] }, { frames: 1080, values: [70,3,0.25] }]);
-  const acquired = (await (await request.get('/__test/awc-counts')).json()).nativeFiles;
-  expect(acquired, 'published fields serve both windows without source acquisition').toBe(0);
+  const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  expect(acquired, 'both windows share one missing icing-file download').toBe(first.gridFiles + 1);
   await second.close();
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!window.nativeWeather)).toBe(true);
   await page.route(FORECAST_REQUESTS, route => route.abort());
   expect(await page.evaluate(() => window.nativeWeather.load('clouds', false))).toEqual(clouds);
   expect(await page.evaluate(() => window.nativeWeather.load('icing', false))).toEqual(values[0]);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(acquired);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
   await page.unroute(FORECAST_REQUESTS);
   await page.evaluate(async () => {
     const cache = await caches.open('zlayers-plugin-files-v1:weather-awc:converted-grids');
@@ -267,7 +272,9 @@ test('prepared grids share work between windows, reopen offline, and repair from
     await cache.put(key, new Response(new Uint8Array(Number(old.headers.get('content-length'))), { headers: old.headers }));
   });
   expect(await page.evaluate(() => window.nativeWeather.load('clouds', true))).toEqual(clouds);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(acquired); // Repair uses the shared prepared artifact without rereading GRIBs.
+  const repaired = await (await request.get('/__test/awc-counts')).json();
+  expect(repaired.gridFiles, 'repair downloads the corrupt cloud file exactly once').toBe(acquired + 1);
+  expect(repaired.nativeFiles, 'repair reads the prepared server artifact without rereading GRIBs').toBe(0);
 });
 
 test('cloud, icing and wind requests reuse one bounded worker, release it when idle and reopen offline', async ({ page }) => {

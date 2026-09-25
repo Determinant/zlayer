@@ -19,13 +19,16 @@ test('published wind pressure slices serve both windows, mask terrain and reopen
   expect(results[0]).toEqual(results[1]); expect(results[0]!.frames).toBe(703);
   expect(results[0]!.values[0]).toBe(5940); expect(results[0]!.values[3]).toBe(10);
   expect(Math.hypot(results[0]!.values[1]!, results[0]!.values[2]!)).toBeCloseTo(Math.hypot(10, 5) * 1.94384, 0);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(1);
   const below = await page.evaluate(() => window.nativeWeather.load('winds', true, 1000));
   expect(below.values).toEqual([-9998, -9998, -9998, -9998]);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(2);
   await context.route(FORECAST_REQUESTS, route => route.abort());
   await page.reload();
   expect(await page.evaluate(() => window.nativeWeather.load('winds', false, 850))).toEqual(results[0]);
+  const reopened = await (await request.get('/__test/awc-counts')).json();
+  expect(reopened.gridFiles).toBe(2);
+  expect(reopened.nativeFiles).toBe(0);
   await context.unroute(FORECAST_REQUESTS);
   await second.close();
 });
@@ -60,15 +63,14 @@ test('native wind barbs load on demand, overlay clouds, retain bounded density a
     const state = window.weatherGridFixture.controller.getSnapshot();
     return [state.grid.preparation, state.wind.preparation].every(p => p && p.ready === p.total);
   }, undefined, { timeout: 60_000 });
-  // Browsing and saving published forecasts never acquire source records.
-  await expect.poll(async () => (await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(0);
-  const acquired = (await (await request.get('/__test/awc-counts')).json()).nativeFiles;
+  const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  expect(acquired).toBeGreaterThan(0);
   for (const zoom of [6, 8, 11]) {
     await page.evaluate(zoom => window.weatherGridFixture.map.jumpTo({ zoom, bearing: zoom === 8 ? 65 : 0, pitch: zoom === 11 ? 45 : 0 }), zoom);
     await expect.poll(async () => (await symbols()).length).toBeGreaterThan(5);
     expect((await symbols()).length).toBeLessThan(350);
   }
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(acquired);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
   await page.evaluate(() => window.weatherGridFixture.map.jumpTo({ zoom: 7, bearing: 0, pitch: 0 }));
   await page.screenshot({ path: testInfo.outputPath('native-wind-barbs.png') });
   await page.route(FORECAST_REQUESTS, route => route.abort());
@@ -83,7 +85,7 @@ test('native wind barbs load on demand, overlay clouds, retain bounded density a
   await page.evaluate(() => window.weatherGridFixture.controller.change({ awcWindBarbs: false }));
   await expect.poll(() => page.evaluate(() => !!window.weatherGridFixture.map.getLayer('weather-awc-wind-barbs'))).toBe(false);
   expect(await page.evaluate(() => window.weatherGridFixture.value())).toBe(10);
-  expect((await (await request.get('/__test/awc-counts')).json()).nativeFiles).toBe(acquired);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
   expect(await page.evaluate(() => window.weatherGridFixture.errors)).toEqual([]);
 });
 

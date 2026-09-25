@@ -6,6 +6,8 @@ The original 1800 × 1200 RGBA PNG is retained without re-encoding. It exercises
 image validation against an actual AWC product; it is not current weather.
 SHA-256: `52373c1b860ab014429111f9cc6bd11743a4b7d0865565a0f6aefa1b9e2cf06e`.
 `../progs-coverage.ts` supplies synthetic colors for deterministic renderer tests.
+The browser fixture serves different stripe colors at the analysis and forecast
+stops so pixel assertions detect an image left over from the preceding selection.
 
 Bounds and legend were checked against AWC's operational GFA page and
 <https://aviationweather.gov/assets/map-BY_ek-uh.js> on the same date.

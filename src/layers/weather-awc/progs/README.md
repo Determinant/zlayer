@@ -194,7 +194,7 @@ to `/api/weather/progs/{analysis,forecast}/<sha256>.json` chart artifacts;
 `SurfaceSnapshot` version 2 remains the assembled client representation.
 Independent background family updates share one cached catalog acquisition, then prepare every listed chart in their
 family before atomic publication. Forecast acquisition is sequential through the
-existing AWC queue (two requests in flight across products, one-second spacing).
+server's [shared AWC queue](../../../../tools/weather-server/README.md#source-and-cache-contract).
 Successful updates check sources every five minutes; unchanged chart URL/hash and
 reference/valid times reuse the already normalized geometry. Changed bytes are
 parsed, smoothed, validated and serialized in bounded Node worker jobs, including
@@ -218,8 +218,9 @@ failed family does not block the other. Current/building files and ten minutes o
 preceding catalog references are protected from grid eviction inside the existing
 cache budget. Files remain eligible for retention up to 24 hours.
 `healthz.progs` exposes readiness, valid times, source checks and errors per family.
-Former monolithic server snapshots are replaced during migration. The current
-publication marker is `wpc-surface-v3-wpc-cardinal-v2`; chart artifacts carry the
+Former monolithic and earlier smoothing revisions are replaced during migration;
+straight isobars and front-only smoothing cannot qualify as the current output.
+The current publication marker is `wpc-surface-v3-wpc-cardinal-v2`; chart artifacts carry the
 `wpc-cardinal-v2` processing revision. Family identity includes prepared chart
 hashes, and the renderer uses the selected chart hash. Updating another forecast
 chart or a source-check timestamp therefore does not rebuild the current map.
@@ -282,5 +283,6 @@ iPhone or operational-weather qualification. Rerun checks after source changes.
 bounded image/catalog validation, native-time gaps, independent publication,
 corrections, failed replacements, HTTP reads, server restart, browser file
 authentication, optional saves and offline restoration. Browser checks cover
-coverage pixels/layer order, gaps, retries, style recovery, wrapped worlds,
-legend/preferences and a full offline app reload with the origin disconnected.
+distinct analysis/forecast coverage pixels, layer order, gaps, retries, style
+recovery, wrapped worlds, legend/preferences and a full offline app reload with
+the origin disconnected.

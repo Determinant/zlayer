@@ -14,19 +14,16 @@ There is one bounded disk cache, no database or separate publishing process.
 
 ## Run locally
 
-`npm run dev` forwards weather to `https://zlayer.tedyin.com`, reusing DO's shared
-prepared data. It starts no local backend. To develop this service, use Node 24+
-and run `npm run weather:serve` separately from the repository root. It listens on
+`npm run dev` forwards weather to `https://zlayer.tedyin.com`, reusing GCP's shared
+prepared data through DO's HTTPS proxy. It starts no local backend. To develop this
+service, use Node 24+ and run `npm run weather:serve` separately from the repository root. It listens on
 `127.0.0.1:8787` with `.cache/weather/`. Start the PWA with
 `WEATHER_API_ORIGIN=http://127.0.0.1:8787 npm run dev` to opt into that local backend.
 
-`/api/weather/healthz` separates process status from each forecast product's
-`ready`, published run, preparation count and last error. Deployment readiness
-requires all three products to be ready; `ok: true` alone is insufficient.
-`progsCoverage` independently reports NDFD image readiness, source-check time,
-published valid times, unpublished times and failures. The
-[Progs guide](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
-owns its source format, bounds, validation and PWA recovery contract.
+`/api/weather/healthz` separates process status from each product's readiness,
+source times, preparation progress and failures. Use the
+[deployment readiness checklist](#deployment-readiness) before serving a release;
+`ok: true` alone is insufficient.
 
 ## Source and cache contract
 
@@ -136,33 +133,17 @@ HTTP forecasts always report HIT; query-based report/advisory misses can report 
 ## Surface analysis and Progs
 
 `progs.ts` shares AWC's public Progs catalog acquisition between independent
-analysis and forecast background updates. Each family prepares every listed
-GeoJSON chart before publication, including isobars, labels, pressure centers,
-front qualifiers and distinct boundary types. It uses the shared AWC queue
-(two in flight, one-second spacing) and bounded disk cache. Bounds are 16 KiB
-for the catalog, 512 KiB per source chart and 8 MiB per prepared family.
-Successful updates check sources every five minutes and reuse normalized frames
-when the source URL/hash and reference/valid times are unchanged. Corrected bytes
-are parsed again. Restarts restore prepared frames and preserve the remaining
-source-check interval. Failures retry after 30 seconds with upstream backoff.
-Small version-3 catalogs are atomically saved with
-`X-Weather-Catalog: wpc-surface-v3-wpc-cardinal-v2`. They reference immutable,
-content-addressed chart files; changed charts are parsed, smoothed, validated and
-serialized in `progs-worker.js`, outside the HTTP event loop. Unchanged checks
-rewrite only metadata. Current/building files and ten minutes of preceding
-references are protected from grid-cache eviction. HTTP only reads saved files. Source checks survive cache hits/restarts.
-Isobar and front/boundary curves use AWC's full cardinal-spline parameters during preparation;
-unchanged curves are reused. The processing marker participates in family identity
-and invalidates former straight-line and front-only smoothed files on restart. Contour visibility
-is a browser preference and never changes server acquisition or preparation.
+analysis and forecast background updates; `progs-coverage.ts` independently
+publishes companion NDFD images. Both use this service's shared source queue and
+disk cache. Chart preparation runs in `progs-worker.js`, and PNG validation in
+`progs-coverage-worker.js`, outside the HTTP event loop. HTTP serves the resulting
+catalogs and immutable files without acquiring or processing upstream data.
 
-Malformed, partial or rolled-back replacements retain the preceding complete
-family. Reference cycles are preserved per chart, allowing NOAA's mixed-cycle
-publication; same-cycle corrections retain new source hashes. Older monolithic server
-snapshots are replaced with catalogs and chart files during migration. `healthz.progs` reports readiness,
-valid times, checks and errors. Verify both families through HTTPS when deploying;
-numeric readiness alone does not qualify Progs. The [Progs guide](../../src/layers/weather-awc/progs/README.md)
-owns source URLs, interface stability, weather meaning, selection and recovery.
+The Progs guide owns [pressure-chart acquisition and recovery](../../src/layers/weather-awc/progs/README.md#acquisition-and-recovery)
+and [NDFD coverage](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage),
+including source interfaces, publication markers, format limits, polling/retry
+intervals, retention, migration and rollback/correction rules. It also owns weather
+meaning and PWA selection, rendering and recovery.
 
 ## Deployment
 
@@ -174,6 +155,21 @@ development through Vite. No public GCP weather port or browser CORS setup is
 needed. Direct `/weather/` source proxies remain retired.
 
 <a id="digitalocean-droplet"></a>
+
+### Deployment readiness
+
+Use the same checks on GCP's loopback service, through the DO tunnel before a
+proxy cutover, and through public HTTPS after activation:
+
+- Require `healthz.forecasts.clouds`, `.icing` and `.winds`, both `healthz.progs`
+  families, and `healthz.progsCoverage` to report `ready: true`.
+- Read reports, all three advisory snapshots, and a prepared numeric slice for
+  each model. Read both pressure-chart catalogs and a referenced chart file from
+  each family, plus the coverage catalog and a referenced PNG. Verify chart/PNG
+  lengths and hashes against their catalog references. Unpublished coverage images remain
+  explicit gaps and do not prevent a complete catalog from being ready.
+- Check that repeated reads and restart hits preserve bytes and source-check
+  timestamps. Review failures with `journalctl -u zlayer-weather`.
 
 ### Service installation
 
@@ -204,10 +200,7 @@ after an unexpected exit. A listener failure stops background work and exits uns
 so the service can restart. The unit caps weather at four CPUs and 2 GiB RAM, with
 lower CPU/I/O priority for other host services. Restart attempts remain enabled during a prolonged failure; no SSH login or user
 session is required. Subsequent releases switch `current`, restart the unit, and
-require all three `healthz.forecasts` products to be ready before cutover.
-Also require both `healthz.progs` families and `healthz.progsCoverage` to be ready;
-verify the coverage catalog and an image through public HTTPS. Unpublished chart
-images remain explicit gaps and do not prevent a complete catalog from being ready.
+must meet the [readiness checklist](#deployment-readiness).
 For the initial publication or a converter migration, prepare on a separate
 loopback port/cache first, then stop both processes and move the prepared cache
 with the release pointer. Never let two processes write one cache directory.
@@ -219,9 +212,9 @@ On DO, install `zlayer-weather-tunnel.service`, a restricted SSH key at
 `/etc/zlayer-weather-tunnel.env` containing `WEATHER_SSH_TARGET=user@host`.
 The GCP SSH account should allow forwarding only to `127.0.0.1:8787`.
 Enable the tunnel with systemd; it reconnects automatically and binds only DO's
-loopback. Confirm all three products are ready through `127.0.0.1:8788` before
-changing nginx. Keep the old backend available until that cutover succeeds, then
-disable it so only GCP performs background source updates.
+loopback. Apply the [readiness checklist](#deployment-readiness) through
+`127.0.0.1:8788` before changing nginx. Keep the old backend available until that
+cutover succeeds, then disable it so only GCP performs background source updates.
 
 Add
 [weather-api.nginx.conf](../../docs/development/weather-api.nginx.conf) inside
@@ -260,9 +253,8 @@ docker run -d --name zlayer-weather --restart unless-stopped \
 Use systemd or Docker with persistent storage and prepare data before serving the
 first forecast catalog. The standard 4 GiB cache fits on gcp0’s root disk; no large
 data-disk mount or storage drop-in is required. Replicas do not share
-caches or upstream quotas. Verify reports, all three advisory snapshots and a
-prepared slice for each model through HTTPS. Repeats and restart hits must retain
-bytes and source-check timestamps. Review logs with `journalctl -u zlayer-weather`.
+caches or upstream quotas. The same [readiness checklist](#deployment-readiness)
+applies to either installation method.
 
 ## Verification and ownership
 
