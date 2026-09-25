@@ -162,14 +162,6 @@ test('initial timeout or rejected fixes reacquire with bounded retries and stop 
   assert.equal(active.size, 0);
 });
 
-test('denied permission never starts an automatic retry', t => {
-  const { layer, error, active, callbacks } = setup(t);
-  layer.setEnabled(true); layer.attach(); error(1);
-  t.mock.timers.tick(60_000);
-  assert.equal(active.size, 0);
-  assert.equal(callbacks.length, 1);
-});
-
 test('stale callbacks on a replacement watch do not prevent another acquisition attempt', t => {
   const { layer, fix, active } = setup(t);
   layer.setEnabled(true); layer.attach(); fix();

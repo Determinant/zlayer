@@ -342,8 +342,12 @@ Reference vectors in `test/fixtures/WMM2025_TEST_VALUES.txt` are from
 The coefficient fixture is the published chart export of
 [NOAA/BGS WMM2025](https://doi.org/10.25921/aqfd-sd83), retrieved 2026-09-18.
 
-Custom GPS ports can provide optional `coordinates` as `[longitude, latitude]`;
-omitting position leaves attitude support intact.
+`AhrsGpsSource` uses the shared `GpsService` snapshot contract. Each non-null
+`GpsFix` includes `coordinates` as `[longitude, latitude]`, its original epoch
+`timestamp`, and normalized monotonic `time`; custom sources must provide the
+same fields and clock semantics. See the
+[shared GPS contract](../../../docs/architecture/layer-plugins.md#shared-gps-service).
+An absent fix leaves IMU attitude support intact while GPS guidance is unavailable.
 The HSI shares AHRS's GPS lease and adds no location watch.
 
 ## Calibration and validity

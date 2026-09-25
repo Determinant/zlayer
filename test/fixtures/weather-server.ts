@@ -11,7 +11,8 @@ import { surfaceCatalog, surfaceChart } from './wpc';
 
 import { seedRadar } from './radar';
 const files = nativeForecastFiles();
-const coverage = coveragePng();
+// Distinct pixels make a stale image detectable when selecting a forecast.
+const coverage = { analysis: coveragePng(), forecast: coveragePng(1) };
 export async function fixtureWeather(directory: string, options: { onRaw?: (signal: AbortSignal | undefined, path: string) => void | Promise<void>;
   advisories?: () => { failure?: boolean; gairmet: unknown[]; sigmet: unknown; cwa: unknown } | undefined } = {}) {
   const app = await createWeatherServer({ directory, spacing: 0, now: () => WEATHER_NOW, startUpdates: false, log: message => console.error(message),
@@ -19,7 +20,8 @@ export async function fixtureWeather(directory: string, options: { onRaw?: (sign
       const url = new URL(String(input));
       if (url.pathname === '/api/data/progchart') return Response.json(surfaceCatalog());
       if (url.pathname.endsWith('_ndfd_sfc_wx_m.png')) return url.pathname.includes('_F168_')
-        ? new Response(null, { status: 404 }) : new Response(coverage, { headers: { 'content-type': 'image/png' } });
+        ? new Response(null, { status: 404 }) : new Response(url.pathname.includes('_F000_') ? coverage.analysis : coverage.forecast,
+          { headers: { 'content-type': 'image/png' } });
       if (url.pathname.startsWith('/data/products/wpc/')) return Response.json(surfaceChart(url.pathname.split('/').pop()!));
       if (url.hostname === 'aviationweather.gov') {
         const product = url.pathname.split('/').pop()!;

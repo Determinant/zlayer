@@ -23,24 +23,35 @@ async function enable(page: Page, prepared = true) {
   }
 }
 
-test('NDFD shading renders beneath chart features, clears at gaps and recovers after source failure and style replacement', async ({ page }, testInfo) => {
+test('NDFD pixels follow chart times beneath pressure features, clear at gaps and recover after source failure and style replacement', async ({ page }, testInfo) => {
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/test/browser/weather-progs.html');
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-22T18:00:00Z'));
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
   const screenshot = await page.screenshot({ path: testInfo.outputPath('progs-with-coverage.png') });
-  const greenPixels = (image: Buffer) => page.evaluate(async png => {
+  const coveragePixels = (image: Buffer, color: number[]) => page.evaluate(async ({ png, color }) => {
     const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob());
     const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
     const ctx = canvas.getContext('2d')!; ctx.drawImage(bitmap, 0, 0); bitmap.close();
-    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    // The map stays centered inside the first fixture stripe, including wrapped
+    // worlds. Other stripes must not let the preceding image satisfy this check.
+    const size = Math.round(64 * canvas.width / innerWidth);
+    const pixels = ctx.getImageData(Math.floor((canvas.width - size) / 2), Math.floor((canvas.height - size) / 2), size, size).data;
     let count = 0;
-    for (let i = 0; i < pixels.length; i += 4) if (Math.abs(pixels[i]! - 57) < 4 && Math.abs(pixels[i + 1]! - 171) < 4 && Math.abs(pixels[i + 2]! - 105) < 4) count++;
+    for (let i = 0; i < pixels.length; i += 4) if (color.every((value, channel) => Math.abs(pixels[i + channel]! - value) < 4)) count++;
     return count;
-  }, image.toString('base64'));
-  expect(await greenPixels(screenshot)).toBeGreaterThan(1000);
+  }, { png: image.toString('base64'), color });
+  // Original rain/snow colors at 75% opacity over the fixture background.
+  const green = [57, 171, 105], blue = [61, 142, 188];
+  expect(await coveragePixels(screenshot, green)).toBeGreaterThan(1000);
   const order = await page.evaluate(() => window.progsMapAudit.map.getStyle().layers.map(layer => layer.id));
   expect(order.indexOf('weather-awc-progs-coverage-raster')).toBeLessThan(order.indexOf('weather-awc-progs-fronts'));
+  await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames[1]!.validTime));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  await expect.poll(async () => coveragePixels(await page.screenshot(), blue)).toBeGreaterThan(1000);
+  await page.evaluate(() => window.progsMapAudit.select(null));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-22T18:00:00Z'));
+  await expect.poll(async () => coveragePixels(await page.screenshot(), green)).toBeGreaterThan(1000);
   await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames.at(-1)!.validTime));
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBeUndefined();
   expect(await page.evaluate(() => !!window.progsMapAudit.map.getLayer('weather-awc-progs-coverage-raster'))).toBe(false);
@@ -62,10 +73,11 @@ test('NDFD shading renders beneath chart features, clears at gaps and recovers a
     await page.evaluate(longitude => window.progsMapAudit.map.jumpTo({ center: [longitude, 37.3] }), longitude);
     await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
     expect(await page.evaluate(() => window.progsMapAudit.state().coverageDisplay.error)).toBeUndefined();
-    expect(await greenPixels(await page.screenshot())).toBeGreaterThan(1000);
+    expect(await coveragePixels(await page.screenshot(), blue)).toBeGreaterThan(1000);
   }
   await page.evaluate(() => window.progsMapAudit.recover());
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  await expect.poll(async () => coveragePixels(await page.screenshot(), blue)).toBeGreaterThan(1000);
   expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual(['Coverage test failure', 'Refresh recovery failure']);
 });
 
