@@ -16,5 +16,6 @@ export * from './terrain.js';
 export * from './awc-weather.js';
 export * from './awc-grids.js';
 export * from './surface-weather.js';
+export * from './progs-coverage.js';
 export * from './radar-weather.js';
 export * from './radar-motion.js';

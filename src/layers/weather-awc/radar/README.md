@@ -50,7 +50,9 @@ represent thresholds, not an exact pixel-color readout. Values below 5 dBZ are n
 shown. Empty space does not establish radar coverage or absence of weather.
 
 The national overlay appears at all zooms. Only intersecting terminal files load
-at regional zoom, through core's whole-file cache. The controller owns demand;
+at regional zoom, through core's whole-file cache. Intersection uses the visible
+world copy, so panning through ±180° does not drop terminal detail or reload
+unchanged scans. The controller owns demand;
 map movement changes the selected prepared files without upstream requests.
 National and terminal geometry use separate sources. Eight interleaved threshold
 layers per source preserve stronger-echo priority across both sources; changing
@@ -195,8 +197,10 @@ checked GDAL values/geometry and Python bzip2/struct radial samples. It covers
 partial sweeps, source identity, expiration/clock rollback, prepared-only HTTP,
 unchanged scan reuse, history backfill, byte/window retention, mixed timeline
 coordinates, failure isolation and disk restoration. Browser regressions
-exercise combined and historical rendering, source-free browser requests, style recovery,
-offline file reuse, forecast hiding/expiration and six slim tabs at phone sizes.
+exercise combined and historical rendering, wrapped terminal coverage without
+new file requests, source-free browser requests, style recovery, saved catalog/file
+restoration after a full app reload with the origin disconnected, forecast
+hiding/expiration and six slim tabs at phone sizes.
 [Fixture provenance](../../../../test/fixtures/radar/README.md) records the captures.
 
 `test/weather-radar-motion.test.ts` adds captured STI decoding, empty/new-cell

@@ -6,6 +6,7 @@ import { mountWindMap } from './grids/wind-map';
 import { ADVISORY_COLORS } from './palette';
 import { mountRadarMap } from './radar/map';
 import { mountRadarMotionMap, MOTION_LAYERS } from './radar/motion-map';
+import { mountProgsCoverageMap } from './progs/coverage-map';
 import { mountProgsMap, SURFACE_LAYERS } from './progs/map';
 
 const SOURCE = 'weather-awc-advisories';
@@ -23,6 +24,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
   let winds: ReturnType<typeof mountWindMap> | undefined;
   let radar: ReturnType<typeof mountRadarMap> | undefined;
   let motion: ReturnType<typeof mountRadarMotionMap> | undefined;
+  let coverage: ReturnType<typeof mountProgsCoverageMap> | undefined;
   let progs: ReturnType<typeof mountProgsMap> | undefined;
   const visible = (show: boolean) => {
     for (const id of ADVISORY_LAYERS) if (map?.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
@@ -51,6 +53,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     if (!map) return;
     grids?.update();
     winds?.update();
+    coverage?.update();
     progs?.update();
     radar?.update();
     motion?.update();
@@ -98,6 +101,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
       radar = mountRadarMap(map, controller, () => [...MOTION_LAYERS, ...SURFACE_LAYERS].find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
       motion = mountRadarMotionMap(map, controller, () => SURFACE_LAYERS.find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
       winds = mountWindMap(map, controller, ADVISORY_LAYERS[1]!);
+      coverage = mountProgsCoverageMap(map, controller, ADVISORY_LAYERS[0]!);
       progs = mountProgsMap(map, controller, WEATHER_LAYER_ANCHOR);
       controller.setPicker(point => {
         if (!map || !controller.getSnapshot().preferences.awcEnabled) return [];
@@ -114,6 +118,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
       winds?.destroy(); winds = undefined;
       radar?.destroy(); radar = undefined;
       motion?.destroy(); motion = undefined;
+      coverage?.destroy(); coverage = undefined;
       progs?.destroy(); progs = undefined;
       controller.detach();
       if (map) {

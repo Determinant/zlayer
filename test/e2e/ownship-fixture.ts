@@ -21,6 +21,7 @@ export async function mockGps(page: Page) {
     });
     window.addEventListener('test-gps-count', () => {
       document.body.dataset.gpsWatches = String(watches.size);
+      document.body.dataset.gpsStarts = String(next);
     });
   });
 }
@@ -29,5 +30,8 @@ export const sendFix = (page: Page, coords: Partial<GeolocationCoordinates> = {}
   window.dispatchEvent(new CustomEvent('test-gps-position', { detail: coords })), coords);
 export const countWatches = (page: Page) => page.evaluate(() => {
   window.dispatchEvent(new Event('test-gps-count')); return Number(document.body.dataset.gpsWatches);
+});
+export const countWatchStarts = (page: Page) => page.evaluate(() => {
+  window.dispatchEvent(new Event('test-gps-count')); return Number(document.body.dataset.gpsStarts);
 });
 export const stats = (page: Page) => page.evaluate(() => window.ownshipFixture.stats());

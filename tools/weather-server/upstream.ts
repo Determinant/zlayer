@@ -101,6 +101,9 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
             previous = offset; return invalid;
           })) throw new InvalidForecastIndexError('Invalid GRIB index');
           headers['content-type'] = 'text/plain; charset=utf-8';
+        } else if (resource.kind === 'coverage-image') {
+          if (response.headers.get('content-type')?.split(';')[0] !== 'image/png') throw new HttpError(502, 'Expected NDFD PNG');
+          headers['content-type'] = 'image/png';
         } else if (resource.kind === 'radar-index' || resource.kind === 'radar-data') {
           if (!body.length) throw new HttpError(502, 'Empty radar source');
           headers['content-type'] = resource.kind === 'radar-index' ? 'application/xml' : 'application/octet-stream';

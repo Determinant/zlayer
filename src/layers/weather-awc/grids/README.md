@@ -193,8 +193,18 @@ temperature extends that same wind stream to the selected-altitude horizon. No
 all-altitude PWA download is implied. Existing source inputs and saved conversions
 are reused. Field changes within a bundle reuse its numbers.
 
-The controller derives selection, nearby and save queues from one plan. New
-selections join matching in-flight work before releasing speculative consumers.
+`planning.ts` derives the selected/nearby horizon, then computes speculative
+starts, preparation status and retry deadlines from explicit inputs and receipt
+state. These decisions perform no acquisition or storage. `controller.ts` applies
+the plan and owns cancellation, catalog adoption and optional persistence; its
+reconciliation guard handles synchronous store and decoded-memory callbacks.
+`receipts.ts` owns per-frame save/error bookkeeping, pruning and retry eligibility.
+Inventory checks retain receipt identities, so late results cannot overwrite a
+newer save or repair even if its saved flag has the same value. New selections
+join matching in-flight work before releasing speculative consumers.
+The client's decoded-frame receipts use the same identity check before applying
+inventory results, so stale checks cannot overwrite newer persistence evidence
+before the controller receives them. Metadata-only frame copies share that identity.
 Map gestures pause new speculative starts; selection changes debounce them for
 150 ms. Relevant work already running finishes even if enabling another stream
 reduces concurrency. Selected loads continue while preparation is paused.

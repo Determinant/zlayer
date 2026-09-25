@@ -7,6 +7,7 @@ import { HttpError, MiB, resourceFor } from './routes.ts';
 import { createUpstream } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
+import { createProgsCoverageWarming, PUBLISHED_COVERAGE } from './progs-coverage';
 import { createProgsWarming, PUBLISHED_PROGS } from './progs';
 import { createRadarWarming, PUBLISHED_RADAR } from './radar';
 import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
@@ -34,6 +35,8 @@ export async function createWeatherServer(options: { directory: string; maxBytes
   await warming.restore();
   const progs = createProgsWarming(cache, shutdown.signal, options);
   await progs.restore();
+  const coverage = createProgsCoverageWarming(cache, shutdown.signal, options);
+  await coverage.restore();
   const radar = createRadarWarming(cache, shutdown.signal, options);
   await radar.restore();
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
@@ -56,15 +59,16 @@ export async function createWeatherServer(options: { directory: string; maxBytes
       if (request.method !== 'GET' && request.method !== 'HEAD') { response.setHeader('Allow', 'GET, HEAD'); throw new HttpError(405, 'GET or HEAD required'); }
       if (request.url === '/api/weather/healthz') {
         response.setHeader('Content-Type', 'application/json');
-        response.end(JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, radar: radar.status, radarMotion: motion.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
+        response.end(JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status, radar: radar.status, radarMotion: motion.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
       const resource = resourceFor(request.url ?? '', request.headers.range);
       const forecast = new URL(resource.url).pathname.startsWith('/api/weather/grids/');
       const surface = new URL(resource.url).pathname.startsWith('/api/weather/progs/');
+      const coveragePath = new URL(resource.url).pathname.startsWith('/api/weather/progs/coverage');
       const radarPath = new URL(resource.url).pathname.startsWith('/api/weather/radar/');
       const radarFile = radarPath && !resource.url.endsWith('/latest.json');
       const motionPath = new URL(resource.url).pathname.startsWith('/api/weather/radar/motion/');
-      const surfaceFile = surface && /\/[a-f0-9]{64}\.json$/.test(resource.url);
+      const surfaceFile = surface && /\/[a-f0-9]{64}\.(?:json|png)$/.test(resource.url);
       if (forecast || surface || radarPath) {
         const saved = await cache.open(resource, acceptsGzip(request.headers['accept-encoding']), request.method !== 'HEAD');
         if (!saved) throw new HttpError(radarFile || surfaceFile || !resource.url.endsWith('.json') ? 404 : 503,
@@ -72,7 +76,7 @@ export async function createWeatherServer(options: { directory: string; maxBytes
         const { entry, handle, offset, length, gzip } = saved;
         try {
           const catalog = !radarFile && !surfaceFile && resource.url.endsWith('.json');
-          if (catalog && entry.headers['x-weather-catalog'] !== (motionPath ? PUBLISHED_MOTION : radarPath ? PUBLISHED_RADAR : surface ? PUBLISHED_PROGS : PUBLISHED_CATALOG)) {
+          if (catalog && entry.headers['x-weather-catalog'] !== (motionPath ? PUBLISHED_MOTION : radarPath ? PUBLISHED_RADAR : coveragePath ? PUBLISHED_COVERAGE : surface ? PUBLISHED_PROGS : PUBLISHED_CATALOG)) {
             throw new HttpError(503, 'Prepared weather has not been published', 30);
           }
           if (response.destroyed) return;
@@ -115,6 +119,7 @@ export async function createWeatherServer(options: { directory: string; maxBytes
   const refresh = () => {
     warming.refresh();
     progs.refresh();
+    coverage.refresh();
     radar.refresh();
     motion.refresh();
     for (const path of metadata) void cache.get(resourceFor(path), undefined, shutdown.signal).catch(() => {});
@@ -127,6 +132,7 @@ export async function createWeatherServer(options: { directory: string; maxBytes
     await processing.close();
     await warming.close();
     await progs.close();
+    await coverage.close();
     await radar.close();
     await motion.close();
     await cache.drain();
@@ -134,5 +140,5 @@ export async function createWeatherServer(options: { directory: string; maxBytes
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     clearTimeout(forced);
   })(); }
-  return { server, cache, processing, progs, radar, motion, close };
+  return { server, cache, processing, progs, coverage, radar, motion, close };
 }

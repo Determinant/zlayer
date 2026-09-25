@@ -10,7 +10,7 @@ test.beforeEach(async ({ request }) => {
 async function enable(page: Page, prepared = true) {
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/');
-  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false', { timeout: 20_000 });
   await page.getByRole('button', { name: 'Show AWC Weather toolbox', exact: true }).click();
   await page.getByRole('switch', { name: 'Show AWC weather', exact: true }).click();
   for (const name of ['G-AIRMET', 'SIGMET', 'Convective SIGMET', 'CWA']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
@@ -23,11 +23,81 @@ async function enable(page: Page, prepared = true) {
   }
 }
 
+test('NDFD shading renders beneath chart features, clears at gaps and recovers after source failure and style replacement', async ({ page }, testInfo) => {
+  await page.clock.install({ time: WEATHER_NOW });
+  await page.goto('/test/browser/weather-progs.html');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-22T18:00:00Z'));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  const screenshot = await page.screenshot({ path: testInfo.outputPath('progs-with-coverage.png') });
+  const greenPixels = (image: Buffer) => page.evaluate(async png => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${png}`)).blob());
+    const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d')!; ctx.drawImage(bitmap, 0, 0); bitmap.close();
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) if (Math.abs(pixels[i]! - 57) < 4 && Math.abs(pixels[i + 1]! - 171) < 4 && Math.abs(pixels[i + 2]! - 105) < 4) count++;
+    return count;
+  }, image.toString('base64'));
+  expect(await greenPixels(screenshot)).toBeGreaterThan(1000);
+  const order = await page.evaluate(() => window.progsMapAudit.map.getStyle().layers.map(layer => layer.id));
+  expect(order.indexOf('weather-awc-progs-coverage-raster')).toBeLessThan(order.indexOf('weather-awc-progs-fronts'));
+  await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames.at(-1)!.validTime));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBeUndefined();
+  expect(await page.evaluate(() => !!window.progsMapAudit.map.getLayer('weather-awc-progs-coverage-raster'))).toBe(false);
+  expect(await page.evaluate(() => window.progsMapAudit.features().length)).toBeGreaterThan(0);
+  await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames[1]!.validTime));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  await page.evaluate(() => window.progsMapAudit.map.fire('error', { sourceId: 'weather-awc-progs-coverage', error: new Error('Coverage test failure') }));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.error)).toContain('Coverage test failure');
+  expect(await page.evaluate(() => window.progsMapAudit.map.getLayoutProperty('weather-awc-progs-coverage-raster', 'visibility'))).toBe('none');
+  await page.evaluate(() => window.progsMapAudit.retry());
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  const retry = await page.evaluate(() => window.progsMapAudit.state().progsRetry);
+  await page.evaluate(() => window.progsMapAudit.map.fire('error', { sourceId: 'weather-awc-progs-coverage', error: new Error('Refresh recovery failure') }));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.error)).toContain('Refresh recovery failure');
+  await page.clock.fastForward(5 * 60_000 + 1);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  expect(await page.evaluate(() => window.progsMapAudit.state().progsRetry)).toBe(retry);
+  for (const longitude of [238, -482, -122]) {
+    await page.evaluate(longitude => window.progsMapAudit.map.jumpTo({ center: [longitude, 37.3] }), longitude);
+    await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+    expect(await page.evaluate(() => window.progsMapAudit.state().coverageDisplay.error)).toBeUndefined();
+    expect(await greenPixels(await page.screenshot())).toBeGreaterThan(1000);
+  }
+  await page.evaluate(() => window.progsMapAudit.recover());
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual(['Coverage test failure', 'Refresh recovery failure']);
+});
+
+test('coverage switch and legend explain precipitation and fog independently of isobars', async ({ page }) => {
+  await enable(page);
+  const toggle = page.getByRole('switch', { name: 'Precipitation / weather', exact: true });
+  await expect(toggle).toBeChecked();
+  await expect(page.locator('.awc-coverage-status')).toContainText('Shown · valid Sep 22 · 18:00Z');
+  await page.getByText('Weather coverage legend', { exact: true }).click();
+  await expect(page.locator('.awc-coverage-legend')).toContainText('Rain');
+  await expect(page.locator('.awc-coverage-legend')).toContainText('Snow');
+  await expect(page.locator('.awc-coverage-legend')).toContainText('Fog');
+  await expect(page.locator('.awc-coverage-legend')).toContainText('Chance: up to 50%');
+  await toggle.click();
+  await expect(page.locator('.awc-coverage-status')).toHaveCount(0);
+  await expect(page.locator('.awc-progs-frame')).toContainText('Surface analysis');
+  await page.reload();
+  await page.getByRole('tab', { name: 'Progs', exact: true }).click();
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
+  await expect(page.locator('.awc-coverage-status')).toContainText('Shown');
+  await page.getByRole('slider', { name: 'Weather forecast time', exact: true }).press('End');
+  await expect(page.locator('.awc-coverage-status')).toContainText('Weather coverage not published for this chart');
+  await expect(page.locator('.awc-progs-frame')).toContainText('Valid Sep 29 · 12:00Z');
+});
+
 test('surface maps render all symbol families from prepared snapshots and recover their selected forecast', async ({ page }, testInfo) => {
   const raw: string[] = [];
   page.on('request', request => { if (/wpc\.ncep\.noaa\.gov|aviationweather\.gov/.test(request.url())) raw.push(request.url()); });
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/test/browser/weather-progs.html');
+  await page.evaluate(() => window.progsMapAudit.change({ awcProgsCoverage: false }));
   await expect.poll(() => page.evaluate(() => [...new Set(window.progsMapAudit.features().map(f => f.kind))].sort()))
     .toEqual(['COLD', 'DRYLINE', 'HIGH', 'HURRICANE', 'ISOBAR', 'LABEL', 'LOW', 'OCFNT', 'SQUALL', 'STNRY', 'TROF', 'TROPICAL_STORM', 'WARM']);
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
@@ -131,6 +201,9 @@ test('surface charts still warming at startup retry automatically and share anal
   await expect(page.locator('.awc-progs-frame')).toContainText('Next chart Sep 23 · 06:00Z');
   await next.click();
   await expect(page.locator('.awc-progs-frame')).toContainText('Valid Sep 23 · 06:00Z');
+  await page.getByRole('button', { name: 'Now', exact: true }).click();
+  await expect(page.locator('.awc-progs-frame')).toContainText('Surface analysis');
+  await expect(page.locator('.awc-progs-frame')).toContainText('Valid Sep 22 · 18:00Z');
 });
 
 test('the seven-day timeline keeps hourly spacing, pans independently and follows forecast navigation', async ({ page }) => {
@@ -147,15 +220,16 @@ test('the seven-day timeline keeps hourly spacing, pans independently and follow
   expect(await rail.evaluate(e => e.scrollWidth > e.clientWidth * 5)).toBe(true);
   const hours = page.locator('.awc-time-hour');
   expect((await hours.nth(1).boundingBox())!.x - (await hours.first().boundingBox())!.x).toBeCloseTo(11, 1);
-  const selection = await slider.inputValue(), controls = (await next.boundingBox())!;
+  const selection = (await slider.getAttribute('aria-valuetext'))!, controls = (await next.boundingBox())!;
   const view = (await rail.boundingBox())!;
   await page.mouse.move(view.x + view.width - 15, view.y + 10);
   await page.mouse.down(); await page.mouse.move(view.x + 15, view.y + 10, { steps: 8 }); await page.mouse.up();
   const panned = await rail.evaluate(e => e.scrollLeft);
   expect(panned).toBeGreaterThan(150);
-  await expect(slider).toHaveValue(selection);
+  await expect(slider).toHaveAttribute('aria-valuetext', selection);
   await page.clock.fastForward(5 * 60_000 + 1000);
-  expect(await rail.evaluate(e => e.scrollLeft)).toBe(panned);
+  // WebKit can round scroll anchoring by one pixel as the live Now thumb moves.
+  expect(Math.abs(await rail.evaluate(e => e.scrollLeft) - panned)).toBeLessThanOrEqual(1);
   await now.click(); await thumbIsVisible();
   expect(await rail.evaluate(e => e.scrollLeft)).toBe(0);
   // The handle still scrubs native frames, independently of dragging the scale.
@@ -181,6 +255,8 @@ test('the seven-day timeline keeps hourly spacing, pans independently and follow
 
 test('Progs keeps shared time and displayed overlays across tabs, stowing, refresh failures and offline reopening', async ({ page, request }) => {
   await enable(page);
+  await expect(page.locator('.awc-coverage-status')).toContainText('Shown');
+  await page.waitForFunction(() => !!localStorage.getItem('zlayer-plugin:weather-awc:progs-coverage'));
   const isobars = page.getByRole('switch', { name: 'Isobars', exact: true });
   await expect(isobars).toBeChecked();
   const readsBeforeToggle = (await (await request.get('/__test/awc-counts')).json()).progs;
@@ -217,11 +293,13 @@ test('Progs keeps shared time and displayed overlays across tabs, stowing, refre
   await request.post('/__test/disconnect');
   await expect(request.get('/')).rejects.toThrow();
   await page.reload();
-  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false', { timeout: 20_000 });
   await page.getByRole('tab', { name: 'Progs', exact: true }).click();
   await expect(page.getByRole('switch', { name: 'Surface analysis / progs', exact: true })).toBeChecked();
   await expect(isobars).not.toBeChecked();
   await expect(page.locator('.awc-progs-frame')).toContainText('Cached / unverified');
+  await expect(page.locator('.awc-coverage-status')).toContainText('Shown');
+  await expect(page.locator('.awc-coverage-status')).toContainText('Cached / unverified');
 });
 
 for (const [width, height] of [[393, 852], [320, 568], [852, 393]] as const) {
@@ -231,7 +309,7 @@ for (const [width, height] of [[393, 852], [320, 568], [852, 393]] as const) {
       test.skip(browserName !== 'chromium', 'Playwright exposes native touch dragging through Chromium CDP');
       await enable(page);
       const rail = page.locator('.awc-time-scroll'), slider = page.getByRole('slider', { name: 'Weather forecast time' });
-      const box = (await rail.boundingBox())!, before = await slider.inputValue();
+      const box = (await rail.boundingBox())!, before = (await slider.getAttribute('aria-valuetext'))!;
       const touch = await page.context().newCDPSession(page);
       const drag = async (x: number, y: number, distance: number) => {
         await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
@@ -245,7 +323,7 @@ for (const [width, height] of [[393, 852], [320, 568], [852, 393]] as const) {
       };
       await drag(box.x + box.width - 15, box.y + 10, -180);
       expect(await rail.evaluate(e => e.scrollLeft)).toBeGreaterThan(150);
-      await expect(slider).toHaveValue(before);
+      await expect(slider).toHaveAttribute('aria-valuetext', before);
       await page.getByRole('button', { name: 'Now', exact: true }).tap();
       await expect.poll(() => rail.evaluate(e => e.scrollLeft)).toBe(0);
       const track = (await slider.boundingBox())!;

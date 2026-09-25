@@ -278,6 +278,13 @@ front/boundary types and frontogenesis/frontolysis qualifiers. Each chart's own
 reference cycle and absolute valid time are retained, including mixed-cycle
 publication and daily forecasts through seven days.
 
+Progs also acquires AWC's companion NDFD PNGs for precipitation/weather shading.
+They have separate source checks and can be missing at otherwise published chart
+stops. Original colors, source hashes, native valid times and explicit gaps are
+retained; the filename cycle is not an NDFD issuance time. The
+[coverage contract](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
+records bounds, legend meaning and the limits of this AWC web interface.
+
 NOAA contours and chart annotations depict pressure ridges; no local ridge axis
 is derived. The earlier coded bulletins omit isobars and combine several boundaries
 into TROF, so they cannot satisfy the complete chart contract. Captured fixtures

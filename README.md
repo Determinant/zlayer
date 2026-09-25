@@ -44,9 +44,9 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` proxies weather to `https://zlayer.tedyin.com`, sharing DO's prepared
+`npm run dev` proxies weather to `https://zlayer.tedyin.com`, sharing GCP's prepared
 forecasts. See [tools/weather-server](tools/weather-server/README.md) to opt into
-a local backend or deploy the DigitalOcean service.
+a local backend or deploy the service behind DigitalOcean's HTTPS proxy.
 
 Development proxies the dated FAA assets at `charts.tedyin.com` so the browser uses
 the same feed shape as production. All published chart coverage is discovered from

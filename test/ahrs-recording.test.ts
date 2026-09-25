@@ -185,7 +185,7 @@ for (const speed of [null, 0, 50]) test(`layer recording replays calibration, ${
   let sample!: (value: ImuSample) => void;
   let notify!: () => void;
   const layer = createAhrsLayer({
-    getSnapshot: () => ({ state: 'tracking', fix: { timestamp: Date.now(), accuracy: 5,
+    getSnapshot: () => ({ state: 'tracking', fix: { timestamp: Date.now(), time: now(), accuracy: 5,
       speed, track: speed === 0 ? null : 90, estimated: false, coordinates: [-122, 37], altitude: 3048, altitudeAccuracy: 5 } }),
     subscribe(listener) { notify = listener; return () => {}; }, acquire: () => () => {}, retry() {},
   }, { now, timeOrigin: origin, recorder: s.recorder,
@@ -234,8 +234,8 @@ test('magnetic fusion records and replays through mount trim, stowing and sensor
   const now = () => (Date.now() - origin) / 1000;
   let sample!: (value: ImuSample) => void, magnetic!: MagneticCallbacks, notify = () => {};
   const layer = createAhrsLayer({
-    getSnapshot: () => ({ state: 'tracking', fix: { timestamp: Date.now(), accuracy: 3,
-      speed: 50, track: 40, estimated: false, coordinates: [-122, 37] } }),
+    getSnapshot: () => ({ state: 'tracking', fix: { timestamp: Date.now(), time: now(), accuracy: 3,
+      speed: 50, track: 40, estimated: false, coordinates: [-122, 37], altitude: null, altitudeAccuracy: null } }),
     subscribe(callback) { notify = callback; return () => {}; }, acquire: () => () => {}, retry() {},
   }, { now, timeOrigin: origin, recorder: s.recorder,
     motion: (_mount, callback, _issue, compass) => {

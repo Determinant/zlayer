@@ -1,7 +1,7 @@
 import { isRecord, isSha256, isSurfaceSnapshot, isSurfaceCatalog, isSurfaceArtifact, surfacePositions, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES, type SurfaceProduct, type SurfaceSnapshot, type SurfaceCatalog, type SurfaceArtifact, type SurfaceFrame } from '@zlayer/contracts';
 import { requestJson } from '../../../core/data/fetch-json';
 import { pluginStorage } from '../storage';
-import { preparedJson } from '../prepared-json';
+import { preparedJson } from '../prepared-file';
 
 export type SurfaceState = { snapshot?: SurfaceSnapshot; checkedAt?: number; error?: string; loading: boolean };
 const legacyFiles = Object.fromEntries((['analysis', 'forecast'] as const).map(product => [product, pluginStorage.files(`progs-${product}`, {

@@ -542,6 +542,69 @@ test('evicted horizon receipts become incomplete without a download loop and exp
   assert.equal(controller.getSnapshot().preparation?.limited, true, 'unchanged pinned-hour inputs still reconcile inventory');
 });
 
+test('an inventory result cannot undo a newer receipt obtained while selecting another hour', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  const manifest = gridFixture('clouds').manifest, client = new GridClient('https://app.test/');
+  t.mock.method(client, 'restore', () => ({ loading: false, manifest }));
+  t.mock.method(client, 'refresh', async () => manifest);
+  t.mock.method(client, 'load', async (_manifest: typeof manifest, frame: typeof manifest.frames[number]) =>
+    ({ manifest, frame, values: new Float32Array(240), byteLength: 976 }));
+  rememberLoadedFrames(t, client);
+  t.mock.method(client, 'prepare', async (...args: Parameters<GridClient['prepare']>) => { await client.load(...args); return true; });
+  let notify = () => {};
+  t.mock.method(client, 'subscribeFiles', (listener: () => void) => { notify = listener; return () => {}; });
+  const controller = createGridController(client, () => {}, ['clouds']); t.after(() => controller.detach());
+  const input = { enabled: true, mode: 'cloudCover' as const, altitude: 0, time: WEATHER_NOW, online: true, visible: true };
+  controller.configure(input); controller.attach(); t.mock.timers.tick(0); await flush();
+  t.mock.timers.tick(250); await flush();
+  assert.deepEqual(controller.getSnapshot().preparation, { ready: 3, total: 3, failed: 0 });
+  const distant = WEATHER_NOW + 3 * 3600000;
+  let finish!: () => void;
+  t.mock.method(client, 'checkSaved', (_manifest: typeof manifest, frames: typeof manifest.frames) =>
+    new Promise<boolean[]>(resolve => { finish = () => resolve(frames.map(frame => frame.validTime !== distant)); }));
+  notify(); t.mock.timers.tick(250); await flush();
+  // Reading the distant hour produces a newer successful receipt with the same
+  // saved=true value; the inventory request still describes its preceding save.
+  controller.configure({ ...input, time: distant }); await flush();
+  assert.equal(controller.getSnapshot().data?.frame.validTime, distant);
+  controller.configure(input); await flush();
+  finish(); await flush();
+  assert.deepEqual(controller.getSnapshot().preparation, { ready: 3, total: 3, failed: 0 });
+  assert.equal(controller.getSnapshot().data?.frame.validTime, WEATHER_NOW);
+});
+
+test('a late inventory read cannot erase the real client receipt of a repaired file', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  const fixture = gridFixture('clouds'), manifest = fixture.manifest, frame = manifest.frames[1]!;
+  const { cache, stored } = cacheFixture(t, 'zlayers-plugin-files-v1:weather-awc:grids');
+  const client = new GridClient('https://receipt-repair.test/');
+  t.after(() => client.neighborhood('clouds'));
+  t.mock.method(globalThis, 'fetch', async () => new Response(bytes(fixture.files[frame.path]!)));
+  client.neighborhood('clouds', manifest, [frame]);
+  const data = await client.load(manifest, frame, signal(), true);
+  assert.equal(client.saved(data), true);
+  stored.clear();
+  assert.deepEqual(await client.checkSaved(manifest, [frame], signal()), [false]);
+  assert.equal(client.saved(data), false);
+  const keys = cache.keys.bind(cache);
+  let release!: () => void, started!: () => void, held = false;
+  const waiting = new Promise<void>(resolve => { started = resolve; });
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  t.after(() => release());
+  t.mock.method(cache, 'keys', async (...args: Parameters<typeof keys>) => {
+    const snapshot = await keys(...args);
+    if (!held) { held = true; started(); await blocked; }
+    return snapshot;
+  });
+  const oldInventory = client.checkSaved(manifest, [frame], signal());
+  await waiting;
+  assert.equal(await client.prepare(manifest, frame, signal(), true), true);
+  assert.equal(client.saved(data), true);
+  release();
+  assert.deepEqual(await oldInventory, [true], 'a newer save supersedes the old missing-file observation');
+  assert.equal(client.saved(data), true);
+});
+
 test('forecast freshness agrees across toolbox and inspection, including clock rollback and stale browser checks', () => {
   const manifest = gridFixture('winds').manifest, record = { loading: false, manifest, checkedAt: WEATHER_NOW };
   assert.equal(forecastIsStale(record, manifest, WEATHER_NOW, false), false);

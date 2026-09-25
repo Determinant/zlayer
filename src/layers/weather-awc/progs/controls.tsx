@@ -22,18 +22,46 @@ function BoundaryLegend({ kind }: { kind: SurfaceBoundary }) {
 
 export function ProgsControls({ controller }: { controller: WeatherController }) {
   const state = useLayerSnapshot(controller), { frame, product, nextTime } = controller.surfaceSelection();
-  const record = state.progs[product];
+  const record = state.progs[product], coverage = controller.coverageSelection();
+  const coverageState = state.coverage, display = state.coverageDisplay;
+  const coverageStale = coverageState.restored || !!coverageState.error || !coverageState.snapshot ||
+    state.now < coverageState.snapshot.checkedAt || state.now - coverageState.snapshot.checkedAt > 10 * 60_000;
   return <div className="awc-progs-controls">
     <button type="button" role="switch" aria-checked={state.preferences.awcProgs}
       className="ui-button ui-button--quiet ui-button--slim awc-progs-toggle" onClick={() => controller.change({ awcProgs: !state.preferences.awcProgs })}>
       <span>Surface analysis / progs</span><span className="switch" aria-hidden="true"><i /></span>
     </button>
-    <small>Now shows the latest analysis. Use the timeline for forecast pressure charts.</small>
+    <small>Now shows the latest analysis. Use the timeline for forecast charts and weather coverage.</small>
     {state.preferences.awcProgs && <>
       <button type="button" role="switch" aria-checked={state.preferences.awcProgsIsobars}
         className="ui-button ui-button--quiet ui-button--slim awc-progs-toggle" onClick={() => controller.change({ awcProgsIsobars: !state.preferences.awcProgsIsobars })}>
         <span>Isobars</span><span className="switch" aria-hidden="true"><i /></span>
       </button>
+      <button type="button" role="switch" aria-checked={state.preferences.awcProgsCoverage}
+        className="ui-button ui-button--quiet ui-button--slim awc-progs-toggle" onClick={() => controller.change({ awcProgsCoverage: !state.preferences.awcProgsCoverage })}>
+        <span>Precipitation / weather</span><span className="switch" aria-hidden="true"><i /></span>
+      </button>
+      {state.preferences.awcProgsCoverage && <>
+        <div className="awc-coverage-status" role="status">
+          <strong>NDFD weather · CONUS</strong>
+          <span>{display.validTime !== undefined ? `Shown · valid ${formatTimestamp(display.validTime)}`
+            : display.loading || coverageState.loading ? 'Loading weather coverage…'
+            : display.error || coverageState.error ? 'Weather coverage unavailable'
+            : coverage && !coverage.file ? 'Weather coverage not published for this chart'
+            : 'No weather coverage for this time'}</span>
+          {coverageState.snapshot && <small>{coverageState.loading ? 'Refreshing…' : coverageStale ? 'Cached / unverified' : 'Checked'}</small>}
+          {(display.error || coverageState.error) && <small className="awc-error">{display.error || coverageState.error}</small>}
+        </div>
+        <details className="awc-coverage-legend"><summary>Weather coverage legend</summary>
+          <table><thead><tr><th>Precipitation</th><th>Chance</th><th>Likely</th></tr></thead><tbody>
+            {([['Rain', '#009641', '#065d2c'], ['Snow', '#0570b0', '#081d58'], ['Mix', '#b66dff', '#490092'], ['Ice', '#ff72b9', '#e40072']] as const)
+              .map(([name, chance, likely]) => <tr key={name}><th>{name}</th><td><i style={{ backgroundColor: chance }} /></td><td><i style={{ backgroundColor: likely }} /></td></tr>)}
+          </tbody></table>
+          <div>{([['Severe thunderstorms', '#99000d'], ['Haze', '#cdcbd3'], ['Smoke', '#8e8981'], ['Fog', '#f0e442'], ['Dust', '#924900']] as const)
+            .map(([name, color]) => <span key={name}><i style={{ backgroundColor: color }} />{name}</span>)}</div>
+          <small>Chance: up to 50%; likely: over 50%. NOAA forecast coverage; transparent areas do not establish clear conditions.</small>
+        </details>
+      </>}
       <div className="awc-progs-frame" role="status">
         <strong>{product === 'analysis' ? 'Surface analysis' : 'Surface forecast'}</strong>
         <span>{frame ? `Valid ${formatTimestamp(frame.validTime)}` : record.loading ? 'Loading surface weather…'
@@ -43,7 +71,7 @@ export function ProgsControls({ controller }: { controller: WeatherController })
         {frame && <small>{frame.features.length} features · {surfaceStatus(record, state.now).label}</small>}
       </div>
       {state.progsRenderError && <div className="awc-error" role="status">{state.progsRenderError}</div>}
-      {(state.progsRenderError || SURFACE_PRODUCTS.some(p => state.progs[p].error)) &&
+      {(state.progsRenderError || state.preferences.awcProgsCoverage && (display.error || coverageState.error) || SURFACE_PRODUCTS.some(p => state.progs[p].error)) &&
         <button type="button" className="ui-button ui-button--slim" onClick={() => controller.retryProgs()}>Retry surface weather</button>}
       <div className="awc-surface-legend" aria-label="Surface weather legend">
         {(['COLD', 'WARM', 'STNRY', 'OCFNT', 'TROF', 'DRYLINE', 'SQUALL'] as const).map(kind => <span key={kind}>
@@ -63,6 +91,12 @@ export function ProgsControls({ controller }: { controller: WeatherController })
             {value.error && <small className="awc-error">{value.error}</small>}
           </div>;
         })}
+        {state.preferences.awcProgsCoverage && coverageState.snapshot && <div className="awc-product-status" data-product="progs-coverage">
+          <strong>NDFD weather coverage</strong>
+          <span>Source checked {formatTimestamp(coverageState.snapshot.checkedAt)}</span>
+          <small>{coverageState.snapshot.frames.filter(frame => frame.file).length} published images · missing images remain gaps</small>
+        </div>}
+        <a href="https://aviationweather.gov/gfa/help/" target="_blank" rel="noreferrer">AWC weather coverage guide</a>
         <a href="https://www.wpc.ncep.noaa.gov/html/sfc2.shtml" target="_blank" rel="noreferrer">NOAA / Weather Prediction Center</a>
       </details>
     </>}

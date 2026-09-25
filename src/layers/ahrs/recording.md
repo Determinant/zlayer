@@ -69,11 +69,15 @@ line. Each line has `sequence`, `type`, `time` and `data`. Sequence numbers star
 at zero and preserve callback order, including delayed GPS observations.
 
 `time` is receipt time in monotonic seconds. The header's `context.timeOrigin`
-is epoch milliseconds: `timeOrigin + time * 1000` gives the corresponding epoch
-time. The IMU sample retains its own timestamp, raw motion includes the browser's
+is epoch milliseconds: `timeOrigin + time * 1000` gives an epoch projection of the
+monotonic timeline. That projection can diverge from wall time after device sleep
+or clock adjustment; GPS's original epoch timestamp remains authoritative for its
+acquisition UTC. The IMU sample retains its own timestamp, raw motion includes the browser's
 `eventTimestamp` and `interval` in milliseconds, normalized `time`, `receivedTime`
 and timestamp `clock` (`event` or `epoch-event`). GPS retains its original
-epoch timestamp plus the converted acquisition time. Receipt/acquisition times
+epoch timestamp plus core's normalized acquisition `fix.time` (also recorded as
+GPS event data `time` for existing replay readers). Core preserves source age using
+the clock relationship at receipt, rather than the header's fixed origin. Receipt/acquisition times
 must not be interchanged when replaying delayed observations. Browser motion
 event creation time is not guaranteed to be the hardware sampling instant.
 

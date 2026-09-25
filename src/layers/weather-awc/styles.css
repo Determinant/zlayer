@@ -127,6 +127,12 @@
 .awc-surface-legend b, .awc-surface-legend svg { display: inline-block; flex: 0 0 54px; width: 54px; height: 24px; text-align: center; background: #e7eff2; border-radius: 3px; }
 .awc-surface-legend b { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: #202020; font-size: 16px; line-height: 1; }
 .awc-surface-legend i { font-style: normal; }
+.awc-coverage-status { display: grid; gap: 4px; }
+.awc-coverage-legend table { width: 100%; margin: 6px 0; border-collapse: collapse; text-align: left; }
+.awc-coverage-legend th, .awc-coverage-legend td { padding: 3px; font-weight: normal; }
+.awc-coverage-legend i { display: inline-block; width: 24px; height: 12px; border: 1px solid #666; flex-shrink: 0; }
+.awc-coverage-legend > div { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 6px; }
+.awc-coverage-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .awc-front-cold { color: #0057b8; }
 .awc-front-warm { color: #c2183a; }
 .awc-grid-controls .ui-field { display: grid; gap: 6px; }

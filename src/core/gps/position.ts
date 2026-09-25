@@ -10,7 +10,10 @@ const RADIANS = Math.PI / 180;
 export type GpsFix = {
   coordinates: [number, number];
   accuracy: number;
+  /** Original acquisition timestamp, milliseconds since Unix epoch. */
   timestamp: number;
+  /** Acquisition time in performance.now() seconds, normalized once at receipt. */
+  time: number;
   track: number | null;
   speed: number | null;
   altitude: number | null;
@@ -18,16 +21,22 @@ export type GpsFix = {
   estimated: boolean;
 };
 
+export type GpsClock = { timestamp: number; time: number };
+
 /** Browser heading is course over ground, clockwise from true north. */
 export function readGpsFix(
-  position: GeolocationPosition, previous: GpsFix | null, now: number, motionOrigin: GpsFix | null = previous,
+  position: GeolocationPosition, previous: GpsFix | null, clock: GpsClock, motionOrigin: GpsFix | null = previous,
 ): GpsFix | null {
   const { latitude, longitude, accuracy, heading, speed, altitude, altitudeAccuracy } = position.coords;
   const timestamp = position.timestamp;
-  if (![latitude, longitude, accuracy, timestamp].every(Number.isFinite) || Math.abs(latitude) > 90 ||
-    Math.abs(longitude) > 180 || accuracy < 0 || timestamp > now + 1000 || now - timestamp >= GPS_STALE_MS ||
-    (previous && timestamp <= previous.timestamp)) return null;
-  const fix: GpsFix = { coordinates: [longitude, latitude], accuracy, timestamp,
+  // Preserve source age rather than treating callback delivery as acquisition.
+  // A small future timestamp may reflect clock rounding; never put it after receipt.
+  const age = Math.max(0, clock.timestamp - timestamp);
+  const time = clock.time - age / 1000;
+  if (![latitude, longitude, accuracy, timestamp, clock.timestamp, time].every(Number.isFinite) || Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180 || accuracy < 0 || timestamp > clock.timestamp + 1000 || age >= GPS_STALE_MS ||
+    (previous && (timestamp <= previous.timestamp || time <= previous.time))) return null;
+  const fix: GpsFix = { coordinates: [longitude, latitude], accuracy, timestamp, time,
     speed: validSpeed(speed) ? speed : null,
     altitude: altitude != null && Number.isFinite(altitude) ? altitude : null,
     altitudeAccuracy: altitudeAccuracy != null && Number.isFinite(altitudeAccuracy) && altitudeAccuracy >= 0 ? altitudeAccuracy : null,
@@ -37,7 +46,7 @@ export function readGpsFix(
   // Some devices provide positions but omit velocity. Derive only from movement
   // larger than both fixes' uncertainty, never from stationary GPS jitter.
   if (motionOrigin && motionOrigin.accuracy <= GPS_MOTION_ACCURACY_METERS && (fix.speed === null || fix.track === null)) {
-    const seconds = (timestamp - motionOrigin.timestamp) / 1000;
+    const seconds = time - motionOrigin.time;
     const distance = distanceMeters(motionOrigin.coordinates, fix.coordinates);
     if (seconds >= 1 && seconds <= GPS_STALE_MS / 1000 && validSpeed(distance / seconds) &&
       distance > Math.max(5, accuracy + motionOrigin.accuracy)) {

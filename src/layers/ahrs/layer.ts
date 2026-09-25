@@ -1,5 +1,6 @@
 import { ESTIMATOR_MODEL } from './estimator/state-layout.js';
 import { createLayerStore } from '../../core/layers/store';
+import type { GpsService } from '../../core/gps/service';
 import { Ahrs, DEFAULTS, validateImuSample } from './estimator/ahrs';
 import { FlightAlignment, MIN_FLIGHT_GPS_SPEED, type FlightAlignmentIssue, type FlightAlignmentReason } from './estimator/flight-alignment';
 import { G, RAD, rotate, type Quaternion } from './estimator/math';
@@ -10,19 +11,8 @@ import { createAhrsRecorder, type AhrsRecorder } from './recording';
 import { validPosition, type Position } from './navigation';
 import { HeadingReference, type HsiHeading } from './heading-reference';
 
-/** Compatible with the shared core GPS service; AHRS leases it while motion is enabled. */
-export type AhrsGpsSource = {
-  getSnapshot(): { state: string; fix: {
-    timestamp: number; accuracy: number; speed: number | null; track: number | null; estimated: boolean;
-    coordinates?: Position;
-    /** GPS altitude in meters, when the source supplies it. */
-    altitude?: number | null;
-    altitudeAccuracy?: number | null;
-  } | null };
-  subscribe(listener: () => void): () => void;
-  acquire(): () => void;
-  retry(): void;
-};
+/** Core owns acquisition and timing; AHRS only leases and evaluates its fixes. */
+export type AhrsGpsSource = Pick<GpsService, 'getSnapshot' | 'subscribe' | 'acquire' | 'retry'>;
 type Phase = 'idle' | 'requesting' | 'calibrating' | 'ready' | 'error';
 type Warning = '' | 'Calibration' | 'Motion' | 'No GPS' | 'Low Speed' | 'Uncertainty';
 export type AhrsSnapshot = {
@@ -96,7 +86,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     // Another consumer may keep the shared source live after this session stops.
     const snapshot = releaseGps ? gps.getSnapshot() : { state: 'off', fix: null };
     const fix = snapshot.fix;
-    const time = fix ? (fix.timestamp - environment.timeOrigin) / 1000 : -Infinity;
+    const time = fix?.time ?? -Infinity;
     const age = environment.now() - time;
     const live = snapshot.state === 'tracking' && fix !== null && age >= -0.1 && age <= 3 &&
       fix.accuracy >= 0 && fix.accuracy <= 50 && !fix.estimated &&

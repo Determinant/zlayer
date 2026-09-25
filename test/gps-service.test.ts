@@ -12,7 +12,9 @@ function setup(t: test.TestContext) {
   const active = new Set<number>();
   const callbacks: { success: PositionCallback; error: PositionErrorCallback | null | undefined }[] = [];
   const visibility = Object.assign(new EventTarget(), { hidden: false });
-  const gps = createGpsService({ secure: () => true, visibility, geolocation: () => ({
+  let clockOffset = 0;
+  const now = () => (Date.now() - origin) / 1000 - clockOffset;
+  const gps = createGpsService({ secure: () => true, visibility, now, geolocation: () => ({
     watchPosition(success, error) {
       const id = callbacks.length;
       callbacks.push({ success, error }); active.add(id);
@@ -23,8 +25,148 @@ function setup(t: test.TestContext) {
   const fix = (id = callbacks.length - 1) => callbacks[id]!.success({ timestamp: Date.now(),
     coords: { latitude: 37, longitude: -122, accuracy: 5, speed: 55, heading: 75, altitude: 3048, altitudeAccuracy: 10 },
   } as GeolocationPosition);
-  return { gps, active, callbacks, visibility, fix, origin, now: () => (Date.now() - origin) / 1000 };
+  return { gps, active, callbacks, visibility, fix, origin, now,
+    offsetClock: (seconds: number) => { clockOffset += seconds; } };
 }
+
+test('silent initial and replacement watches have deadlines even without browser errors', t => {
+  const s = setup(t), release = s.gps.acquire();
+  t.after(release);
+  t.mock.timers.tick(15_000);
+  assert.equal(s.gps.getSnapshot().state, 'unavailable');
+  t.mock.timers.tick(5000);
+  assert.deepEqual([...s.active], [1]);
+  s.fix();
+  const previous = s.gps.getSnapshot().fix;
+  t.mock.timers.tick(10_000);
+  assert.equal(s.gps.getSnapshot().state, 'stale');
+  assert.deepEqual([...s.active], [2]);
+  for (let i = 0; i < 3; i++) {
+    t.mock.timers.tick(15_000); t.mock.timers.tick(5000);
+    assert.deepEqual([...s.active], [3 + i]);
+    assert.equal(s.gps.getSnapshot().fix, previous);
+  }
+  s.fix(2);
+  assert.equal(s.gps.getSnapshot().state, 'stale', 'retired watches cannot restore tracking');
+  s.fix();
+  assert.equal(s.gps.getSnapshot().state, 'tracking');
+  release();
+  t.mock.timers.tick(60_000);
+  assert.equal(s.callbacks.length, 6);
+  assert.equal(s.active.size, 0);
+});
+
+test('invalid callbacks and repeated errors cannot keep postponing recovery', t => {
+  const s = setup(t), release = s.gps.acquire();
+  t.after(release);
+  s.callbacks[0]!.error?.({ code: 2 } as GeolocationPositionError);
+  for (let i = 0; i < 4; i++) {
+    t.mock.timers.tick(1000);
+    s.callbacks[0]!.error?.({ code: 3 } as GeolocationPositionError);
+  }
+  t.mock.timers.tick(1000);
+  assert.deepEqual([...s.active], [1]);
+  s.fix();
+  const previous = s.gps.getSnapshot().fix;
+  for (let i = 0; i < 9; i++) {
+    t.mock.timers.tick(1000);
+    s.callbacks[1]!.success({ timestamp: previous!.timestamp,
+      coords: { latitude: 37, longitude: -122, accuracy: 5 } } as GeolocationPosition);
+    assert.equal(s.gps.getSnapshot().fix, previous);
+  }
+  t.mock.timers.tick(1000);
+  assert.equal(s.gps.getSnapshot().state, 'stale');
+  assert.deepEqual([...s.active], [2]);
+});
+
+test('core preserves acquisition delay and owns monotonic GPS time across sleep and wall-clock corrections', t => {
+  const s = setup(t), release = s.gps.acquire();
+  t.after(release);
+  t.mock.timers.tick(2000); s.fix();
+  assert.equal(s.gps.getSnapshot().fix!.time, 2);
+  // A clock discontinuity must clear the consumers' motion history before recovery.
+  const states: string[] = [];
+  t.after(s.gps.subscribe(() => states.push(s.gps.getSnapshot().state)));
+  for (const correction of [60_000, -120_000]) {
+    t.mock.timers.setTime(Date.now() + correction + 2000);
+    s.offsetClock(correction / 1000);
+    s.fix();
+    assert.equal(s.gps.getSnapshot().state, 'tracking');
+    assert.equal(s.gps.getSnapshot().fix!.time, s.now());
+    assert.deepEqual(states.splice(0), ['stale', 'tracking']);
+  }
+  t.mock.timers.tick(2000);
+  s.callbacks.at(-1)!.success({ timestamp: Date.now() - 500,
+    coords: { latitude: 37, longitude: -122, accuracy: 5, heading: 90, speed: 55 } } as GeolocationPosition);
+  assert.equal(s.gps.getSnapshot().fix!.time, s.now() - .5, 'receipt must not freshen a delayed observation');
+});
+
+test('both consumers recover from sleep without recreating AHRS or its clock origin', async t => {
+  const s = setup(t), ownship = createOwnshipLayer(s.gps);
+  ownship.setEnabled(true); ownship.attach();
+  t.after(ownship.detach);
+  const ahrs = createAhrsLayer(s.gps, { now: s.now, timeOrigin: s.origin,
+    motion: () => ({ start: async () => {}, stop() {} }),
+  });
+  t.after(ahrs.stop);
+  await ahrs.calibrate(); s.fix();
+  assert.equal(ahrs.readDisplaySnapshot().gpsLive, true);
+  s.visibility.hidden = true; s.visibility.dispatchEvent(new Event('visibilitychange'));
+  t.mock.timers.tick(60_000); s.offsetClock(60);
+  s.visibility.hidden = false; s.visibility.dispatchEvent(new Event('visibilitychange'));
+  for (let i = 1; i <= 5; i++) {
+    t.mock.timers.tick(1000); s.fix();
+    assert.equal(ownship.getSnapshot().state, 'tracking');
+    assert.equal(ahrs.readDisplaySnapshot().gpsLive, true);
+    assert.equal(ahrs.readDisplaySnapshot().gpsTime, i);
+  }
+  t.mock.timers.tick(3100);
+  assert.equal(ahrs.readDisplaySnapshot().gpsLive, false, 'AHRS keeps its stricter freshness gate');
+  assert.equal(ownship.getSnapshot().state, 'tracking');
+  s.fix();
+  assert.equal(ahrs.readDisplaySnapshot().gpsLive, true);
+  ownship.setEnabled(false); ownship.setEnabled(true);
+  assert.equal(s.callbacks.length, 2, 'toggling a consumer preserves a healthy shared watch');
+  ownship.retry();
+  assert.equal(s.callbacks.length, 3, 'explicit retry replaces the watch for both consumers');
+  t.mock.timers.tick(1000); s.fix();
+  assert.equal(ahrs.readDisplaySnapshot().gpsLive, true);
+});
+
+test('a clock correction clears inferred velocity and permits synchronous teardown', t => {
+  const s = setup(t), release = s.gps.acquire();
+  t.after(release);
+  s.fix();
+  t.mock.timers.setTime(Date.now() + 62_000); s.offsetClock(60);
+  s.callbacks.at(-1)!.success({ timestamp: Date.now(),
+    coords: { latitude: 37, longitude: -121.99, accuracy: 5, speed: null, heading: null } } as GeolocationPosition);
+  assert.equal(s.gps.getSnapshot().state, 'tracking');
+  assert.equal(s.gps.getSnapshot().fix!.speed, null, 'never infer movement across a clock discontinuity');
+  assert.equal(s.gps.getSnapshot().fix!.track, null);
+  t.after(s.gps.subscribe(() => { if (s.gps.getSnapshot().state === 'stale') release(); }));
+  t.mock.timers.setTime(Date.now() + 62_000); s.offsetClock(60);
+  s.fix();
+  assert.equal(s.gps.getSnapshot().state, 'off');
+  assert.equal(s.gps.getSnapshot().fix, null);
+  t.mock.timers.tick(60_000);
+  assert.equal(s.callbacks.length, 1, 'a released session cannot publish or schedule its new fix');
+  assert.equal(s.active.size, 0);
+});
+
+test('hiding or releasing while an acquisition deadline fires cancels recovery', t => {
+  const s = setup(t), release = s.gps.acquire();
+  t.after(release);
+  s.visibility.hidden = true; s.visibility.dispatchEvent(new Event('visibilitychange'));
+  t.mock.timers.tick(60_000);
+  assert.equal(s.callbacks.length, 1);
+  assert.equal(s.active.size, 0);
+  s.visibility.hidden = false; s.visibility.dispatchEvent(new Event('visibilitychange'));
+  t.after(s.gps.subscribe(() => { if (s.gps.getSnapshot().state === 'unavailable') release(); }));
+  t.mock.timers.tick(15_000); t.mock.timers.tick(60_000);
+  assert.equal(s.gps.getSnapshot().state, 'off');
+  assert.equal(s.callbacks.length, 2);
+  assert.equal(s.active.size, 0);
+});
 
 test('core GPS is passive until leased and shares one watch across independently released consumers', t => {
   const s = setup(t);

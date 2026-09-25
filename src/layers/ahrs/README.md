@@ -111,6 +111,11 @@ temporary sensor pauses preserve the running estimator.
 Temporary motion pauses keep the session, including when returning from a hidden
 page. Fresh readings resume calibration or attitude automatically. The shared GPS
 provider may suspend its hardware watch while hidden and restart it on return.
+GPS acquisition times are normalized to the motion clock by core when received.
+AHRS consumes that time directly, preserving delivery delay and its stricter
+three-second freshness/quality gates. It does not derive GPS time from a fixed
+epoch offset or own a separate watch/retry loop. This permits fresh GPS to recover
+after device sleep or wall-clock corrections without reloading or recalibrating.
 
 ### Toolbox and full screen
 

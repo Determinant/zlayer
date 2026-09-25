@@ -434,7 +434,7 @@ neither plugin provides GPS to the other or declares it as a prerequisite.
 The service exposes `getSnapshot()`, `subscribe()`, `acquire()` and `retry()`.
 Construction and subscriptions are passive. The first lease starts one browser
 Geolocation watch; additional leases reuse it. Each release callback is idempotent.
-The last release clears the watch, retries, expiry timer, visibility listener and
+The last release clears the watch, deadline timer, visibility listener and
 velocity sampling history. Consumers release their own leases rather than shutting
 down the shared source. The service instance outlives individual plugin attachments.
 Notifications are synchronous: stopping or replacing a consumer during a callback
@@ -456,6 +456,30 @@ same fixes, but each feature applies its own display and quality policy. AHRS re
 its stricter freshness/aiding gates and smooth gyro-driven HSI heading; Ownship owns
 centering, turn trends and map projection. GPS data and subscriptions alone never
 enable the map aircraft, move the camera or start motion sensors.
+
+One service-owned timer covers acquisition, fix expiry and retry. Every new watch
+has a 15-second acquisition deadline even if the browser sends neither success nor
+error. Acquisition failure keeps the last position explicitly stale, or reports
+unavailable before the first fix, and retries after five seconds. Repeated errors
+or invalid callbacks cannot postpone that retry. A valid fix replaces the deadline
+with its remaining ten-second lifetime; duplicate observations cannot refresh it.
+Expiry requests a new uncached fix because stationary browser watches need not
+report periodically. Permission denial cancels automatic recovery until explicit
+retry or return to the app. `retry()` replaces the shared watch for all consumers;
+toggling one consumer preserves a watch still leased by another.
+
+Each `GpsFix` carries its original epoch-millisecond `timestamp` and a core-normalized
+acquisition `time` in `performance.now()` seconds. Core samples both clocks at receipt
+and subtracts the source observation's age, so delivery delay remains visible.
+Timestamp rounding up to one second ahead of wall time is clamped to receipt;
+larger future timestamps and fixes at least ten seconds old are rejected. Acquisition
+time must advance: duplicate/out-of-order callbacks never become new observations.
+Consumers use `time` directly for motion-clock comparisons; subtracting the page's
+fixed `performance.timeOrigin` from GPS epoch timestamps fails when clocks diverge
+after device sleep or wall-clock adjustment. A change over one second in the clock
+relationship clears motion/order history and notifies consumers of a stale boundary
+before accepting a new fix. This allows clock rollback recovery without inferring
+velocity across the discontinuity. Visibility suspension likewise clears history.
 
 ## Enabling and disabling
 

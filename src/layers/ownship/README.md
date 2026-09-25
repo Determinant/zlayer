@@ -60,9 +60,10 @@ unknown track, or accuracy worse than 100 meters uses a position dot. Missing
 speed suppresses the projection. A fix that has not updated for 10 seconds becomes
 a gray last-position dot with **GPS fix stale**; the projection is removed.
 The service restarts a silent watch to request a fresh uncached position, since
-browser watches need not send periodic updates while stationary. Transient
-acquisition failures retry after five seconds, retaining a clearly stale last
-position where available. Permission denial stops retries until the user retries
+browser watches need not send periodic updates while stationary. Core also imposes
+a 15-second acquisition deadline on each new watch, including replacements, when
+the browser supplies neither fixes nor errors. Acquisition failures retry after
+five seconds, retaining a clearly stale last position where available. Permission denial stops retries until the user retries
 or returns to the app. Reacquisition preserves panning; replacing the map centers
 the new map on its first fresh fix unless it restores a saved camera.
 
@@ -78,6 +79,11 @@ Disabling Ownship does not disable AHRS or interrupt its GPS; disabling AHRS doe
 not interrupt Ownship. Stop all consumers to stop location use. Neither the service
 nor Ownship saves position history; optional [AHRS recordings](../ahrs/recording.md)
 do include GPS fixes.
+
+The GPS switch expresses Ownship demand, not successful acquisition. **Retry GPS**
+explicitly restarts the shared watch even while AHRS holds its lease. Clock changes
+and sleep recovery belong to core; consumers receive the same normalized fixes and
+clear their motion history across interruptions.
 
 AHRS can calibrate and show live IMU attitude even if this source has never supplied
 a fix. No fix or a fix below the aiding speed puts a red cross over the moving AI;

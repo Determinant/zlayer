@@ -6,8 +6,8 @@ Progs adds NOAA/WPC surface pressure charts to the existing weather map. It is a
 independent overlay: changing a tab or shaded field does not turn it off. Progs
 starts off and its switch is saved with plugin preferences. NOAA's analysis and
 forecast coverage varies by chart; the numeric weather fields retain their CONUS
-coverage. The six product tabs use two rows of shared 32px slim controls. The
-bottom-anchored toolbox grows upward and scrolls inside short phone viewports.
+coverage. The [plugin guide](../README.md#display-and-selection) owns shared tabs,
+timeline and toolbox sizing on short viewports.
 
 Progs matches Radar's 12px control/status text and 11px supporting metadata.
 The main switch, Isobars switch and retry action use core's 32px slim buttons,
@@ -22,6 +22,78 @@ annotations remain visible. NOAA's text records do not classify center versus
 contour pressure, so the switch groups all pressure numbers without guessing a
 geometric association. Hidden pressure numbers are not inspectable. Switching it neither fetches nor rebuilds a
 chart, and its state survives forecast changes, stowing and style recovery.
+
+The separate **Precipitation / weather** switch also starts on and saves its
+preference. It adds AWC's NDFD shading beneath advisory outlines, wind barbs,
+radar and the pressure-chart strokes. Turning it off leaves the pressure chart
+visible. Coverage has its own loading, displayed-valid-time and error status;
+chart readiness never implies that the shading is available.
+
+## Precipitation and weather coverage
+
+AWC's operational [GFA guide](https://aviationweather.gov/gfa/help/) describes the
+colored areas as NDFD weather coverage. They are separate from WPC's vector
+pressure charts: green is rain, blue snow, purple mixed precipitation, pink ice,
+and yellow fog. The expandable legend retains AWC's chance/likely colors, severe
+thunderstorm, haze, smoke and dust colors. Chance means probability up to 50%;
+likely means over 50%. These are forecasts, including the image shown beside the
+latest analysis. Transparent pixels do not establish clear conditions.
+
+The server acquires the companion
+`/data/products/wpc/YYYYMMDD/YYYYMMDD_HH_Fhhh_ndfd_sfc_wx_m.png` images for the native
+stops in the same Progs catalog. This is an undocumented AWC web-product interface,
+checked against the operational GFA renderer on September 25, 2026. The original
+PNG colors and pixels are retained. AWC's Web Mercator image bounds are
+`[-134.691116, 18.898478, -61.308891, 56.152813]` (west/south/east/north); the product
+covers CONUS, not the whole pressure-chart domain. The supported RGBA images are
+900×600 or 1800×1200 pixels. Dimensions, encoding, PNG checksums and decoded pixel
+count are validated before publication, in a cancellable worker.
+
+Each image has its own valid time, source URL, byte hash and source-check time.
+`chartReferenceTime` identifies the WPC filename cycle, **not** an NDFD model run
+or issuance time. PNGs contain no embedded valid-time metadata: identity depends
+on the catalog and dated source filename. We do not infer hourly images, extract
+numeric conditions from colors, or synchronize separate source checks by
+retimestamping them.
+
+Now selects the image at the most recent analysis stop, for at most six hours.
+Forecast selection uses the preceding native stop until the next stop; the final
+stop applies only at its exact time. Each absent image breaks that interval.
+AWC can return 404 for a chart whose pressure geometry is published, particularly
+at the distant end of the horizon. Such stops remain explicit gaps, labelled
+**Weather coverage not published for this chart**. Other acquisition or validation
+failures retain the preceding catalog and show an error. Missing data is never
+represented as a clear-weather image or filled with an earlier frame.
+
+`/api/weather/progs/coverage.json` serves `ProgsCoverageCatalog` version 1. Immutable
+images live at `/api/weather/progs/coverage/<sha256>.png`. The independent background
+updater shares AWC's request queue and catalog cache with pressure charts. It
+publishes only after all available images validate and save, checks every five
+minutes, and retries failures after thirty seconds. Corrected bytes replace an
+image even within the same naming cycle. Rollbacks cannot replace a newer chart
+range or overlapping reference cycle. HTTP performs no upstream acquisition.
+Current/building files and ten minutes of preceding catalog references are
+protected in the server's shared cache; restart restores validated publication.
+`healthz.progsCoverage` reports readiness, checks, available times, gaps and errors.
+
+Catalogs are limited to 64 KiB and 32 stops; PNGs to 1 MiB each and 8 MiB per
+catalog. Browser storage holds at most 32 images / 8 MiB for 48 hours inside the
+shared weather budget. The browser authenticates each image's length/hash before
+use, reuses unchanged bytes and verifies retention before persisting a catalog.
+Validated live images can display before optional saving completes. Failed saves
+preserve the preceding offline pointer. A restored catalog is unverified, and an
+evicted image reports unavailable when selected. Checks older than ten minutes,
+clock rollback and refresh failures are also unverified.
+
+Map changes hide the preceding image while its replacement loads. The renderer
+keeps one decoded image, uses nearest-neighbor sampling at 75% opacity, supports
+wrapped map worlds, and releases images on teardown. Source failures clear the
+displayed time and expose **Retry surface weather**. That action retries Progs
+and its shading without retrying failed numeric-field renderers. Style recovery
+restores the selected image from the retained controller/cache.
+A successful live catalog refresh also retries failed shading, including after
+reconnect repairs the same image hash. Ordinary clock/status updates do not retry
+failures, and healthy imagery is retained through unchanged refreshes.
 
 ## Source and weather meaning
 
@@ -205,3 +277,10 @@ stops, startup retry, thumb/tick overlap,
 offline reopening, stowing and touch layouts at 393×852,
 320×568 and 852×393 CSS pixels. These are browser-emulation checks, not physical
 iPhone or operational-weather qualification. Rerun checks after source changes.
+
+`test/weather-progs-coverage.test.ts` checks the [captured NDFD PNG](../../../../test/fixtures/ndfd/README.md),
+bounded image/catalog validation, native-time gaps, independent publication,
+corrections, failed replacements, HTTP reads, server restart, browser file
+authentication, optional saves and offline restoration. Browser checks cover
+coverage pixels/layer order, gaps, retries, style recovery, wrapped worlds,
+legend/preferences and a full offline app reload with the origin disconnected.

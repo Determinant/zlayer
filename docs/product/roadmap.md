@@ -102,8 +102,9 @@ cloud/freezing fields and native-altitude icing guidance to the same timeline.
 The TypeScript AWC/NOMADS gateway is implemented with shared disk caching, bounded
 refreshes, advisory normalization, numeric grid preparation and preserved source-check times.
 HRRR uses Google as the server’s upstream; the PWA reads native prepared fields
-and interpolates selected wind altitudes. The DO gateway is deployed; the
-[server guide](../../tools/weather-server/README.md#deployment) owns deployment.
+and interpolates selected wind altitudes. The
+[server guide](../../tools/weather-server/README.md#deployment) owns the GCP backend
+and DigitalOcean HTTPS proxy deployment, including release checks.
 Independent operational comparison and reference-device
 qualification remain outstanding; implementation is not flight validation.
 
@@ -113,8 +114,6 @@ qualification remain outstanding; implementation is not flight validation.
   the original AWC batching, nearby queries and report presentation. Their direct
   NOAA/NWS adapters are retired; [source choices](../data/sources.md#source-choices-and-unresolved-alternatives)
   explain the coverage and freshness differences.
-- The gateway and nginx routes for AWC/IFI are deployed on DO. Repeat deployment
-  checks when releasing changes; device qualification remains separate.
 - Add PIREP/AIREP filtering/deduplication and altitude bands.
 - Qualify Alaska AIRMET and international SIGMET as coverage extensions.
 - Add route-corridor emphasis to the implemented UTC advisory timeline.
@@ -156,11 +155,12 @@ delivery checks for each release.
 - Implemented locally: [Progs](../../src/layers/weather-awc/progs/README.md) adds
   AWC/WPC analysis and forecast isobars, source labels, fronts, distinct boundaries and H/L centers,
   prepared/cached independently by the weather server. Captured source fixtures,
-  native-time selection, optional offline snapshots and two slim rows of controls
+  native-time selection, optional offline snapshots and independent slim controls
   accompany the feature. Deploy the matching server and app to make the new
   endpoints available. Ridges use NOAA pressure contours and chart labels.
-  Precipitation shading, broader operational-chart comparison and physical-device
-  qualification remain.
+  NDFD precipitation/weather shading now uses independently prepared AWC images,
+  an explicit chance/likely/fog legend and visible gaps at unpublished times.
+  Broader operational-chart comparison and physical-device qualification remain.
 - Implemented locally: [Radar](../../src/layers/weather-awc/radar/README.md) adds
   server-prepared current MRMS/NEXRAD composite and terminal TDWR contours, with
   source times, expiration, optional offline files and six slim product tabs.

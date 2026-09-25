@@ -1,7 +1,7 @@
 import { isRadarCatalog, isRadarContours, RADAR_MAX_BYTES, type RadarCatalog, type RadarFile, type RadarContours } from '@zlayer/contracts';
 import { requestJson } from '../../../core/data/fetch-json';
 import { pluginStorage } from '../storage';
-import { preparedJson } from '../prepared-json';
+import { preparedJson } from '../prepared-file';
 import { createTaskLimiter } from '../../../core/data/task-limiter';
 
 export type RadarState = { snapshot?: RadarCatalog; loading: boolean; error?: string };

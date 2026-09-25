@@ -23,6 +23,10 @@ and run `npm run weather:serve` separately from the repository root. It listens 
 `/api/weather/healthz` separates process status from each forecast product's
 `ready`, published run, preparation count and last error. Deployment readiness
 requires all three products to be ready; `ok: true` alone is insufficient.
+`progsCoverage` independently reports NDFD image readiness, source-check time,
+published valid times, unpublished times and failures. The
+[Progs guide](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
+owns its source format, bounds, validation and PWA recovery contract.
 
 ## Source and cache contract
 
@@ -35,6 +39,7 @@ requires all three products to be ready; `ok: true` alone is insufficient.
 | `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
 | `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
 | `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Retained up to 24 hours within the shared byte budget |
+| `/api/weather/progs/coverage.json` and `/api/weather/progs/coverage/<sha256>.png` | Independent NDFD weather-image catalog with explicit unpublished stops, and authenticated AWC PNGs | Source checks every five minutes; 30-second failure retry; immutable images retained within the shared budget |
 | `/api/weather/grids/{clouds,icing,winds}.json` | Latest complete prepared generation | Up to 24 hours; original source times retained |
 | `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Up to 24 hours, within the shared byte budget |
 | `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Up to 24 hours, within the shared byte budget |
@@ -183,7 +188,7 @@ Install a supported Node 24 runtime at `/opt/zlayer-weather/node` (or adjust
 `ExecStart` in the supplied unit). Copy the complete `tools/weather-server/dist/`
 contents to `/opt/zlayer-weather/releases/<release>/` and atomically point
 `/opt/zlayer-weather/current` at that directory. The build includes its module
-package metadata, two Node entries and shared algorithms; production needs no npm
+package metadata, the server entry, all worker entries and shared algorithms; production needs no npm
 installation. Keep previous releases for rollback.
 
 ```bash
@@ -200,6 +205,9 @@ so the service can restart. The unit caps weather at four CPUs and 2 GiB RAM, wi
 lower CPU/I/O priority for other host services. Restart attempts remain enabled during a prolonged failure; no SSH login or user
 session is required. Subsequent releases switch `current`, restart the unit, and
 require all three `healthz.forecasts` products to be ready before cutover.
+Also require both `healthz.progs` families and `healthz.progsCoverage` to be ready;
+verify the coverage catalog and an image through public HTTPS. Unpublished chart
+images remain explicit gaps and do not prevent a complete catalog from being ready.
 For the initial publication or a converter migration, prepare on a separate
 loopback port/cache first, then stop both processes and move the prepared cache
 with the release pointer. Never let two processes write one cache directory.
@@ -304,6 +312,7 @@ preparation, station availability and catalog status. The
 [Storm motion contract](../../src/layers/weather-awc/radar/README.md#storm-motion)
 owns time alignment, collection cadence, history retention and decoding limits.
 
-The server build includes `radar-worker.js` and `progs-worker.js`; deploy them with the matching main and
-shared files. See the [Radar guide](../../src/layers/weather-awc/radar/README.md)
+The server build includes `worker.js`, `radar-worker.js`, `progs-worker.js` and
+`progs-coverage-worker.js`; deploy the entire build with its matching `main.js`,
+package metadata and shared files. See the [Radar guide](../../src/layers/weather-awc/radar/README.md)
 for exact source semantics, binary format qualification and client/storage limits.

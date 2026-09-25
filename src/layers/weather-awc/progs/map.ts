@@ -71,7 +71,7 @@ function cycloneImage(hurricane: boolean): ImageData {
 export function mountProgsMap(map: Map, controller: WeatherController, before: string) {
   let shown: SurfaceFrame | undefined, key = '', revision = 0, destroyed = false;
   let isobars = controller.getSnapshot().preferences.awcProgsIsobars;
-  let retry = controller.getSnapshot().forecastRetry;
+  let retry = controller.getSnapshot().progsRetry;
   const images = new Set<string>();
   const clearResources = () => {
     for (const id of [...SURFACE_LAYERS].reverse()) if (map.getLayer(id)) map.removeLayer(id);
@@ -98,8 +98,8 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
     }
     const frame = state.preferences.awcEnabled && state.preferences.awcProgs ? selection.frame : undefined;
     const identity = frame ? `${frame.artifactHash ?? state.progs[selection.product].snapshot!.sourceHash}:${frame.validTime}` : '';
-    const retryRender = !!state.progsRenderError && retry !== state.forecastRetry;
-    retry = state.forecastRetry;
+    const retryRender = !!state.progsRenderError && retry !== state.progsRetry;
+    retry = state.progsRetry;
     if (key === identity && !retryRender) return;
     if (retryRender) clearResources();
     key = identity;

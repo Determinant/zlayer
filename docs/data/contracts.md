@@ -311,6 +311,19 @@ the browser revalidates before state or optional storage accepts it. See
 [Progs](../../src/layers/weather-awc/progs/README.md) for source interface dependency,
 ridge representation, frame selection, freshness and recovery.
 
+`ProgsCoverageCatalog` version 1 separately describes AWC's NDFD weather shading
+at native chart stops. Each frame has `validTime`, `chartReferenceTime`, source
+URL and `checkedAt`; `chartReferenceTime` is a filename cycle, not NDFD issuance.
+An optional `file` carries an immutable `coverage/<sha256>.png` path, SHA-256 and
+byte length. Its absence means AWC returned 404 for that stop; it breaks coverage
+selection rather than extending an earlier image. The catalog retains the original
+source catalog and its hash. PNGs have fixed AWC Web Mercator bounds, supported
+900×600/1800×1200 RGBA geometry, and unchanged source colors. Limits are 32 stops,
+64 KiB per catalog, 1 MiB per image and 8 MiB for all listed images. The server
+validates images before independent atomic publication; the browser authenticates
+their hashes before rendering or saving. The [Progs coverage guide](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
+owns source limitations, image gaps, time selection, rendering and cache recovery.
+
 ## Route
 
 ```json

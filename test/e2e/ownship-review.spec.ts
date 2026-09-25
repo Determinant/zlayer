@@ -1,7 +1,37 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockGps, sendFix, countWatches, stats } from './ownship-fixture';
+import { mockGps, sendFix, countWatches, countWatchStarts, stats } from './ownship-fixture';
 
 test.use({ hasTouch: true });
+
+test('silent initial and replacement GPS watches recover without reloading the page', async ({ page }) => {
+  await page.clock.install();
+  await mockGps(page);
+  await page.goto('/test/browser/ownship.html');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.getByRole('switch', { name: 'GPS aircraft' }).click();
+  await page.clock.runFor(15_001);
+  await expect(page.getByLabel('GPS aircraft status')).toContainText('GPS unavailable');
+  await page.clock.runFor(5000);
+  expect(await countWatchStarts(page)).toBe(2);
+  expect(await countWatches(page)).toBe(1);
+  await sendFix(page);
+  await expect(page.getByLabel('GPS aircraft status')).toContainText('120 kt');
+  await page.clock.runFor(10_001);
+  await expect(page.getByLabel('GPS aircraft status')).toContainText('GPS fix stale');
+  expect(await countWatchStarts(page)).toBe(3);
+  await page.clock.runFor(20_001);
+  expect(await countWatchStarts(page)).toBe(4);
+  expect(await countWatches(page)).toBe(1);
+  await sendFix(page, { longitude: -122.01 });
+  await expect(page.getByLabel('GPS aircraft status')).toContainText('120 kt');
+  await expect.poll(async () => ((await stats(page)).geometry as GeoJSON.FeatureCollection)
+    .features.find(feature => feature.properties?.kind === 'aircraft')?.geometry)
+    .toEqual({ type: 'Point', coordinates: [-122.01, 37] });
+  await page.getByRole('switch', { name: 'GPS aircraft' }).click();
+  await page.clock.runFor(30_000);
+  expect(await countWatches(page)).toBe(0);
+  expect(await countWatchStarts(page)).toBe(4);
+});
 
 // Native permission/provider integration stays in this suite. Graphics tests use
 // deterministic fixes: Playwright 1.63 Linux WebKit's geolocation override emits

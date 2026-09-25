@@ -16,7 +16,9 @@ export type GridProductState = { manifest?: ForecastManifest; checkedAt?: number
 export class GridClient {
   private readonly memory = new Map<string, DecodedGrid>();
   private readonly targets = new Map<AwcGridProduct, { key: string; bytes: number }[]>();
-  private readonly receipts = new WeakMap<DecodedGrid, boolean>();
+  // Receipt objects distinguish a newer save from the same boolean value read
+  // before an asynchronous inventory check. Metadata-only copies share a token.
+  private readonly receipts = new WeakMap<DecodedGrid, { saved: boolean }>();
   private retained = new Set<string>();
   private readonly listeners = new Set<() => void>();
   subscribeMemory(listener: () => void): () => void {
@@ -47,13 +49,19 @@ export class GridClient {
     const key = gridKey(manifest, frame), previous = this.memory.get(key);
     if (!previous || previous.manifest === manifest) return previous;
     const value = { ...previous, manifest, frame };
-    this.receipts.set(value, this.saved(previous)); this.memory.set(key, value);
+    const receipt = this.receipts.get(previous);
+    if (receipt) this.receipts.set(value, receipt);
+    this.memory.set(key, value);
     return value;
   }
-  saved(data: DecodedGrid): boolean { return this.receipts.get(data) === true; }
+  saved(data: DecodedGrid): boolean { return this.receipts.get(data)?.saved === true; }
   subscribeFiles(listener: () => void): () => void { return pluginStorage.subscribeFiles(listener); }
   /** Reconcile old save receipts without decoding, touching LRU, or downloading. */
   async checkSaved(manifest: ForecastManifest, selected: readonly ForecastFrame[], signal: AbortSignal): Promise<boolean[]> {
+    const before = selected.map(frame => {
+      const data = this.peek(manifest, frame);
+      return data && this.receipts.get(data);
+    });
     const converted = selected.filter(frame => 'levels' in frame || 'records' in frame);
     const archived = selected.filter(frame => 'path' in frame);
     const [native, legacy] = await Promise.all([
@@ -64,9 +72,13 @@ export class GridClient {
     signal.throwIfAborted();
     const retained = new Map<ForecastFrame, boolean>([...converted.map((frame, i) => [frame, native[i]!] as const),
       ...archived.map((frame, i) => [frame, legacy[i]!] as const)]);
-    return selected.map(frame => {
+    return selected.map((frame, index) => {
       const saved = retained.get(frame)!, memory = this.peek(manifest, frame);
-      if (memory) this.receipts.set(memory, saved);
+      if (memory) {
+        const current = this.receipts.get(memory);
+        if (current !== before[index]) return current?.saved === true;
+        this.receipts.set(memory, { saved });
+      }
       return saved;
     });
   }
@@ -138,7 +150,7 @@ export class GridClient {
     // The immutable identity already validates these values. Preserve the
     // displayed object when only its persistence receipt needed recovery.
     const data = this.peek(manifest, frame) ?? live ?? result.value;
-    this.receipts.set(data, result.saved);
+    this.receipts.set(data, { saved: result.saved });
     if (this.wants(manifest, frame)) this.memory.set(gridKey(manifest, frame), data);
     return data;
   }
