@@ -55,7 +55,8 @@ test('NDFD pixels follow chart times beneath pressure features, clear at gaps an
   await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames.at(-1)!.validTime));
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBeUndefined();
   expect(await page.evaluate(() => !!window.progsMapAudit.map.getLayer('weather-awc-progs-coverage-raster'))).toBe(false);
-  expect(await page.evaluate(() => window.progsMapAudit.features().length)).toBeGreaterThan(0);
+  // Coverage can clear before the independent pressure source finishes drawing.
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.features().length)).toBeGreaterThan(0);
   await page.evaluate(() => window.progsMapAudit.select(window.progsMapAudit.state().coverage.snapshot!.frames[1]!.validTime));
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));
   await page.evaluate(() => window.progsMapAudit.map.fire('error', { sourceId: 'weather-awc-progs-coverage', error: new Error('Coverage test failure') }));

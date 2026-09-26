@@ -1,4 +1,5 @@
-import type { Map, GeoJSONSource, ErrorEvent, ExpressionSpecification } from 'maplibre-gl';
+import type { Map, ExpressionSpecification } from 'maplibre-gl';
+import { createSourceSubmission } from '../source-submission';
 import type { SurfaceBoundary, SurfaceFrame, SurfacePhase } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';
 import { isSurfacePressureLabel, SURFACE_COLORS } from './palette';
@@ -69,7 +70,7 @@ function cycloneImage(hurricane: boolean): ImageData {
 }
 
 export function mountProgsMap(map: Map, controller: WeatherController, before: string) {
-  let shown: SurfaceFrame | undefined, key = '', revision = 0, destroyed = false;
+  let shown: SurfaceFrame | undefined, key = '', destroyed = false;
   let isobars = controller.getSnapshot().preferences.awcProgsIsobars;
   let retry = controller.getSnapshot().progsRetry;
   const images = new Set<string>();
@@ -82,13 +83,10 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
   const visibility = (visible: boolean) => {
     for (const id of SURFACE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible && (!ISOBAR_LAYERS.includes(id) || isobars) ? 'visible' : 'none');
   };
-  const fail = (error: unknown) => {
-    revision++; shown = undefined; visibility(false);
+  const submission = createSourceSubmission(map, SOURCE, error => {
+    shown = undefined; visibility(false);
     controller.setProgsRenderError(error instanceof Error ? error.message : 'Surface rendering failed');
-  };
-  const onError = (event: ErrorEvent & { sourceId?: string }) => {
-    if (!destroyed && key && event.sourceId === SOURCE) fail(event.error);
-  };
+  });
   const update = () => {
     if (destroyed) return;
     const state = controller.getSnapshot(), selection = controller.surfaceSelection();
@@ -101,12 +99,12 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
     const retryRender = !!state.progsRenderError && retry !== state.progsRetry;
     retry = state.progsRetry;
     if (key === identity && !retryRender) return;
-    if (retryRender) clearResources();
+    if (submission.failed) clearResources();
     key = identity;
-    const version = ++revision;
+    const version = submission.begin();
     // Never leave the old frame visible under the newly selected valid time.
     shown = undefined; visibility(false); controller.setProgsRenderError(undefined);
-    if (!frame) return;
+    if (!frame) { submission.invalidate(); return; }
     void (async () => {
       if (!map.getSource(SOURCE)) {
         map.addSource(SOURCE, { type: 'geojson', attribution: 'NOAA / Weather Prediction Center', tolerance: 0,
@@ -144,18 +142,17 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
           layout: { visibility: 'none', 'icon-image': ['concat', 'weather-awc-front-', ['get', 'kind'], '-normal'],
             'icon-allow-overlap': true, 'icon-ignore-placement': true } }, before);
       }
-      await (map.getSource(SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features: frame.features.map(feature => ({
+      const accepted = await submission.submit(version, { type: 'FeatureCollection', features: frame.features.map(feature => ({
         type: 'Feature', id: feature.id, geometry: feature.geometry, properties: { id: feature.id, kind: feature.kind,
           ...('text' in feature ? { text: feature.text, txtcol: String(feature.sourceProperties.txtcol ?? ''), pressureLabel: isSurfacePressureLabel(feature) } : {}),
           ...('phase' in feature ? { phase: feature.phase } : {}) },
       })) });
-      if (destroyed || version !== revision) return;
+      if (!accepted) return;
       shown = frame; visibility(true);
-    })().catch(error => { if (!destroyed && version === revision) fail(error); });
+    })().catch(error => submission.reject(version, error));
   };
-  map.on('error', onError);
   return { update, get shown() { return shown; }, destroy() {
-    destroyed = true; revision++; map.off('error', onError);
+    destroyed = true; submission.destroy();
     clearResources();
   } };
 }

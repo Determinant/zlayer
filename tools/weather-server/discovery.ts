@@ -66,12 +66,15 @@ async function discoverRun(read: ReadSource, product: AwcGridProduct, signal: Ab
       const lead = index.lead;
       if (product === 'clouds') {
         const records: NativeFrame['records'] = {};
-        for (const field of AWC_GRID_FIELDS.clouds) records[field] = select(index, HRRR_FIELDS[field][0], HRRR_FIELDS[field][1]);
+        for (const field of AWC_GRID_FIELDS.clouds) {
+          const { parameterName, surfaceName } = HRRR_FIELDS[field];
+          records[field] = select(index, parameterName, surfaceName);
+        }
         frames.push({ validTime: runTime + lead * 3600000, altitudeFtMsl: null, records, sources: [SOURCE_ROOT + index.path] });
       } else if (product === 'winds') {
         for (const pressureHpa of WIND_PRESSURES) {
           const records: NativeFrame['records'] = { terrain: terrain! };
-          for (const field of AWC_GRID_FIELDS.winds) records[field] = select(index, WIND_FIELDS[field][0], `${pressureHpa} mb`);
+          for (const field of AWC_GRID_FIELDS.winds) records[field] = select(index, WIND_FIELDS[field].parameterName, `${pressureHpa} mb`);
           frames.push({ validTime: runTime + lead * 3600000, altitudeFtMsl: null, pressureHpa, records,
             sources: [SOURCE_ROOT + index.path, SOURCE_ROOT + terrainIndex!.path] });
         }

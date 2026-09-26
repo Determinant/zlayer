@@ -7,7 +7,8 @@ import { optionalStorage, StorageTimeoutError } from './optional-storage';
 import { notifyPluginFileChange } from './plugin-file-events';
 
 export type PluginFileResult<T> = { value: T; saved: boolean };
-type FileReference = { url: string; identity: string; byteLength?: number; signal: AbortSignal };
+type FileRetention = { group: string; cohort?: string; keep?: readonly string[] };
+type FileReference = { url: string; identity: string; byteLength?: number; signal: AbortSignal; retention?: FileRetention };
 
 export type PluginFilePolicy = {
   maxEntries: number;
@@ -17,8 +18,11 @@ export type PluginFilePolicy = {
   /** Read and validate pre-service files before migrating them on demand. */
   legacyCache?: string;
 };
-/** Shared ceiling across every file namespace owned by one plugin. */
-export type PluginFileBudget = Pick<PluginFilePolicy, 'maxEntries' | 'maxBytes' | 'maxUnusedMs'> & {
+type FileLimits = Pick<PluginFilePolicy, 'maxEntries' | 'maxBytes' | 'maxUnusedMs'>;
+/** The default pool and optional independent category pools share one publication lock. */
+export type PluginFileBudget = FileLimits & {
+  /** Named pools have separate ceilings and cannot evict one another. Limits are additive. */
+  groups?: Readonly<Record<string, FileLimits>>;
   /** Older browsing caches owned by this plugin, with their original per-file ceiling. */
   legacyCaches?: Readonly<Record<string, number>>;
 };
@@ -26,6 +30,9 @@ type FileRequest<T> = {
   url: string;
   /** Complete source/format identity, including digest and decoder version. */
   identity: string;
+  /** Product-owned retention, independent of immutable file identity. Files in
+   * this cohort cannot evict one another, including on quota recovery. */
+  retention?: FileRetention;
   byteLength: number;
   label: string;
   validate(bytes: ArrayBuffer, signal: AbortSignal): Promise<T>;
@@ -48,7 +55,7 @@ type DerivedRequest<T> = Omit<FileRequest<T>, 'byteLength' | 'retries'> & {
 };
 type CacheRequest<T> = FileRequest<T> | DerivedRequest<T>;
 type Stores = { name: string; files: Cache; access: Cache | undefined };
-type Entry = { stores: Stores; key: Request; bytes: number; used: number; sequence: number };
+type Entry = { stores: Stores; key: Request; bytes: number; used: number; sequence: number; group: string | undefined; cohort: string | undefined };
 type MigrationSource = { cache: string; key: string };
 type Pending = { controller: AbortController; users: number; result: Promise<unknown>;
   ready?: { value: unknown }; listeners: Set<(value: unknown) => void> };
@@ -57,6 +64,8 @@ const USED = 'x-zlayer-last-used';
 const VERSION = 'x-zlayer-file-version';
 const DIGEST = 'x-zlayer-file-sha256';
 const SEQUENCE = 'x-zlayer-access-sequence';
+const GROUP = 'x-zlayer-retention-group';
+const COHORT = 'x-zlayer-retention-cohort';
 async function digest(bytes: ArrayBuffer): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(v => v.toString(16).padStart(2, '0')).join('');
 }
@@ -71,6 +80,12 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     .every(value => Number.isSafeInteger(value) && value > 0) || policy.maxFileBytes > budget.maxBytes)) {
     throw new Error('Invalid plugin file budget');
   }
+  for (const [group, limits] of Object.entries(budget?.groups ?? {})) {
+    if (!/^[a-z][a-z0-9-]*$/.test(group) || ![limits.maxEntries, limits.maxBytes, limits.maxUnusedMs]
+      .every(value => Number.isSafeInteger(value) && value > 0)) throw new Error('Invalid plugin file group');
+  }
+  const groupLimits = (group: string | undefined) => group !== undefined && budget?.groups && Object.hasOwn(budget.groups, group)
+    ? budget.groups[group] : undefined;
   const prefix = `zlayers-plugin-files-v1:${pluginId}:`;
   const cacheName = `${prefix}${name}`;
   const publicationLock = `${prefix}publication`;
@@ -102,13 +117,15 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
       const bytes = Number((metadata ?? file)?.headers.get('content-length')) || (!stores.access ? limit : 0);
       const timestamp = Number((metadata ?? file)?.headers.get(USED));
       const sequence = Number(metadata?.headers.get(SEQUENCE));
+      const group = (metadata ?? file)?.headers.get(GROUP) ?? undefined;
+      const cohort = (metadata ?? file)?.headers.get(COHORT) ?? undefined;
       discardResponseBody(metadata); discardResponseBody(file);
       if (!Number.isSafeInteger(bytes) || bytes <= 0 || bytes > limit) {
         await remove(stores, key, signal); continue;
       }
       // Missing metadata and clock rollback receive a fresh retention grace period.
       const used = timestamp > 0 && timestamp <= now ? timestamp : now;
-      result.push({ stores, key, bytes, used, sequence: Number.isSafeInteger(sequence) && sequence > 0 ? sequence : 0 });
+      result.push({ stores, key, bytes, used, sequence: Number.isSafeInteger(sequence) && sequence > 0 ? sequence : 0, group, cohort });
     }
     const present = new Set(result.map(entry => entry.key.url));
     for (const key of keys) if (!present.has(key.url)) { signal.throwIfAborted(); await stores.access?.delete(key); }
@@ -120,7 +137,9 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     signal.throwIfAborted();
     await stores.access?.delete(key);
   }
-  async function touch(stores: Stores, key: string, bytes: number, sequence: number, signal: AbortSignal) {
+  const retentionHeaders = (retention?: FileRetention) => retention
+    ? { [GROUP]: retention.group, ...(retention.cohort ? { [COHORT]: retention.cohort } : {}) } : {};
+  async function touch(stores: Stores, key: string, bytes: number, sequence: number, signal: AbortSignal, retention?: FileRetention) {
     // Reorder only the tiny receipt, not the file. Works even when wall-clock
     // timestamps tie or roll back, and publication's lock orders other windows.
     signal.throwIfAborted();
@@ -128,9 +147,10 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     signal.throwIfAborted();
     await stores.access!.put(key, new Response(null, { headers: {
       'content-length': String(bytes), [USED]: String(Date.now()), [SEQUENCE]: String(sequence),
+      ...retentionHeaders(retention),
     } }));
   }
-  async function prune(stores: Stores, key: string, bytes: number, signal: AbortSignal, protectedLegacy?: MigrationSource) {
+  async function prune(stores: Stores, key: string, bytes: number, signal: AbortSignal, retention?: FileRetention, protectedLegacy?: MigrationSource) {
     const entries = await inventory(stores, signal);
     if (budget) {
       // Include dormant namespaces from previous versions/source configurations.
@@ -146,25 +166,38 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
       entries.sort((a, b) => a.sequence - b.sequence);
     }
     const sequence = entries.reduce((max, entry) => Math.max(max, entry.sequence), 0) + 1;
-    const others = entries.filter(entry => entry.stores.name !== cacheName || entry.key.url !== key);
+    const limits = retention ? groupLimits(retention.group)! : budget;
+    const keep = new Set(retention?.keep);
+    const protectedFile = (entry: Entry) => entry.stores.name === cacheName && keep.has(entry.key.url);
+    // Unknown/older categories stay in the bounded default pool. A category's
+    // reads, writes and quota recovery never remove another category's files.
+    const others = entries.filter(entry => (entry.stores.name !== cacheName || entry.key.url !== key) &&
+      (retention ? entry.group === retention.group : !groupLimits(entry.group)));
     let total = others.reduce((sum, entry) => sum + entry.bytes, bytes), count = others.length + 1;
     let localBytes = others.filter(entry => entry.stores.name === cacheName).reduce((sum, entry) => sum + entry.bytes, bytes);
     let localCount = others.filter(entry => entry.stores.name === cacheName).length + 1;
     const retained: Entry[] = [];
     for (const entry of others) {
       if (protectedLegacy && entry.stores.name === protectedLegacy.cache && entry.key.url === protectedLegacy.key) continue;
+      if (protectedFile(entry) || retention?.cohort && entry.cohort === retention.cohort) continue;
       const local = entry.stores.name === cacheName;
-      if (Date.now() - entry.used > (local ? policy.maxUnusedMs : budget!.maxUnusedMs)
+      if (Date.now() - entry.used > (local ? Math.min(policy.maxUnusedMs, limits?.maxUnusedMs ?? Infinity) : limits!.maxUnusedMs)
         || local && (localBytes > policy.maxBytes || localCount > policy.maxEntries)
-        || budget && (total > budget.maxBytes || count > budget.maxEntries)) {
+        || limits && (total > limits.maxBytes || count > limits.maxEntries)) {
         await remove(entry.stores, entry.key, signal); total -= entry.bytes; count--;
         if (local) { localBytes -= entry.bytes; localCount--; }
       } else retained.push(entry);
     }
     // A protected migration source stays intact if both copies cannot fit.
     if (localBytes > policy.maxBytes || localCount > policy.maxEntries ||
-      budget && (total > budget.maxBytes || count > budget.maxEntries)) throw new Error('Plugin file budget exhausted');
-    return { victims: retained, sequence };
+      limits && (total > limits.maxBytes || count > limits.maxEntries)) throw new Error('Plugin file budget exhausted');
+    // Category saves may reclaim disposable/default files on actual browser
+    // quota pressure, but no category is a victim of another category.
+    const disposable = retention ? entries.filter(entry => !groupLimits(entry.group) &&
+      (entry.stores.name !== cacheName || entry.key.url !== key) &&
+      !protectedFile(entry) &&
+      !(protectedLegacy && entry.stores.name === protectedLegacy.cache && entry.key.url === protectedLegacy.key)) : [];
+    return { victims: [...disposable, ...retained], sequence };
   }
 
   async function acquire<T>(request: CacheRequest<T>, key: string, signal: AbortSignal, locks: LockManager | undefined, ready: (value: T) => void): Promise<PluginFileResult<T>> {
@@ -176,16 +209,17 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
         const sha256 = 'create' in request ? await digest(bytes) : undefined;
         return await optionalStorage(storageSignal => locks.request(publicationLock, { signal: storageSignal }, async () => {
           storageSignal.throwIfAborted();
-          const { victims, sequence } = await prune(stores, key, bytes.byteLength, storageSignal, protectedLegacy);
+          const { victims, sequence } = await prune(stores, key, bytes.byteLength, storageSignal, request.retention, protectedLegacy);
           for (;;) {
             storageSignal.throwIfAborted();
             try {
               await stores.files.put(key, new Response(bytes, { headers: {
                 'content-length': String(bytes.byteLength), [USED]: String(Date.now()), [VERSION]: crypto.randomUUID(),
                 ...(sha256 ? { [DIGEST]: sha256 } : {}),
+                ...retentionHeaders(request.retention),
               } }));
               notifyPluginFileChange(pluginId);
-              await touch(stores, key, bytes.byteLength, sequence, storageSignal);
+              await touch(stores, key, bytes.byteLength, sequence, storageSignal, request.retention);
               return true;
             } catch (error) {
               if (!(error instanceof DOMException && error.name === 'QuotaExceededError') || !victims.length) throw error;
@@ -218,8 +252,8 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
           saved = await optionalStorage(storageSignal => locks.request(publicationLock, { signal: storageSignal }, async () => {
             // Another file's eviction may have removed this entry while it decoded.
             if (!(await stores.files.keys(key)).length) return false;
-            const { sequence } = await prune(stores, key, bytes.byteLength, storageSignal);
-            await touch(stores, key, bytes.byteLength, sequence, storageSignal);
+            const { sequence } = await prune(stores, key, bytes.byteLength, storageSignal, request.retention);
+            await touch(stores, key, bytes.byteLength, sequence, storageSignal, request.retention);
             return true;
           }), signal).catch(() => false);
         } else {
@@ -307,9 +341,14 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
       if (!request.identity || !('create' in request) && (!Number.isSafeInteger(request.byteLength) || request.byteLength <= 0 || request.byteLength > policy.maxFileBytes)) {
         throw new Error(`${request.label} exceeds its file cache limits`);
       }
+      if (request.retention && (!groupLimits(request.retention.group) || request.retention.cohort !== undefined &&
+        !/^[\x21-\x7e]{1,256}$/.test(request.retention.cohort))) throw new Error('Invalid plugin file retention');
+      if (request.retention?.keep && (request.retention.keep.length > 256 || request.retention.keep.some(key => typeof key !== 'string' || !key))) {
+        throw new Error('Invalid plugin file retention references');
+      }
       const key = pluginFileKey(request);
       // Cache-only requests cannot join a network request or inherit its policy.
-      const id = JSON.stringify([cacheName, key, !!request.cacheOnly, policy, budget]);
+      const id = JSON.stringify([cacheName, key, !!request.cacheOnly, policy, budget, request.retention]);
       return share(id, request.signal, request.onReady, async (signal, ready) => {
         const admitted = (locks: LockManager | undefined) => request.run
           ? request.run(signal, () => acquire(request, key, signal, locks, ready)) : acquire(request, key, signal, locks, ready);
@@ -355,14 +394,22 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     async has(request: FileReference): Promise<boolean> {
       request.signal.throwIfAborted();
       let response: Response | undefined;
+      let receipt: Response | undefined;
       try {
         const stores = await open(request.signal);
         response = await optionalStorage(async () => stores?.files.match(pluginFileKey(request)), request.signal, discardResponseBody);
         const size = Number(response?.headers.get('content-length'));
-        return response?.status === 200 && Number.isSafeInteger(size) && size > 0 && size <= policy.maxFileBytes &&
+        const valid = response?.status === 200 && Number.isSafeInteger(size) && size > 0 && size <= policy.maxFileBytes &&
           (request.byteLength === undefined ? /^[a-f0-9]{64}$/.test(response.headers.get(DIGEST) ?? '') : size === request.byteLength);
+        if (!valid || !request.retention) return valid;
+        // Older files must pass a validated load before preparation can count
+        // them under a new category/cohort. Never touch LRU or adopt on presence.
+        receipt = await optionalStorage(async () => stores?.access?.match(pluginFileKey(request)), request.signal, discardResponseBody);
+        const headers = (receipt ?? response)!.headers;
+        return headers.get(GROUP) === request.retention.group &&
+          (headers.get(COHORT) ?? undefined) === request.retention.cohort;
       } catch { request.signal.throwIfAborted(); return false; }
-      finally { discardResponseBody(response); }
+      finally { discardResponseBody(response); discardResponseBody(receipt); }
     },
   };
 }

@@ -1,5 +1,6 @@
 import { GRID_MISSING, type AwcGridField, type AwcGridManifest, type AwcGridFrame } from '@zlayer/contracts';
-import { CONVERTER_VERSION, nativeManifest, type ForecastFrame, type ForecastManifest, type SourceFrame } from './native-source';
+import type { ForecastFrame, ForecastManifest } from './native-source';
+export { gridKey } from './identity';
 import { currentFrame } from '../time';
 import { windFrames } from './wind-levels';
 import { readBand, type GridBand } from './packed';
@@ -16,35 +17,6 @@ export function gridMatchesTime(data: DecodedGrid, time: number): boolean {
       frame.pressureHpa === data.frame.pressureHpa)).map(frame => frame.validTime);
   return currentFrame(times, time, data.manifest.cadenceMs) === data.frame.validTime;
 }
-// Identical numeric bytes can occur at different valid times or heights. Their
-// labels, geometry and source provenance still belong to distinct resources.
-const sourceIdentity = (frame: SourceFrame) => 'records' in frame ? frame : { ...frame, sha256: frame.sha256.toLowerCase() };
-// Validated catalogs/descriptors are immutable. Avoid serializing every possible
-// wind bracket on each renderer/controller update; replacement objects get new keys.
-// Keep one complete hourly horizon plus recent selections, not every visited altitude.
-const windKeys = new WeakMap<ForecastManifest, Map<ForecastFrame, string>>();
-export function gridKey(manifest: ForecastManifest, frame: ForecastFrame): string {
-  const wind = 'levels' in frame;
-  let keys = windKeys.get(manifest);
-  const cached = wind && keys?.get(frame);
-  if (cached) return cached;
-  // Shared geometry belongs once in the key; every possible vertical bracket
-  // still contributes its full source identity, including unrequested levels.
-  const identity = wind ? { converter: 'wind-vertical-v2', ...frame, levels: frame.levels.map(sourceIdentity) } : sourceIdentity(frame);
-  const key = nativeManifest(manifest) ? JSON.stringify([
-    CONVERTER_VERSION, manifest.product, manifest.model, manifest.runTime, manifest.grid, manifest.fields, identity,
-  ]) : JSON.stringify([
-    manifest.product, manifest.model, manifest.generation, manifest.runTime, manifest.checkedAt, manifest.publishedAt,
-    manifest.grid, manifest.fields, identity,
-  ]);
-  if (wind) {
-    if (!keys) { keys = new Map(); windKeys.set(manifest, keys); }
-    keys.set(frame, key);
-    if (keys.size > 32) keys.delete(keys.keys().next().value!);
-  }
-  return key;
-}
-
 /** Gzip is file encoding, not HTTP Content-Encoding. Bound output before allocation. */
 export async function decodeGrid(bytes: ArrayBuffer, manifest: AwcGridManifest, frame: AwcGridFrame, signal: AbortSignal): Promise<DenseGrid> {
   const values = await decodeVerifiedValues(bytes, manifest, frame, signal);

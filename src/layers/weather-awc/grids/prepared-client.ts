@@ -1,12 +1,12 @@
 import { transferFile } from '../../../core/storage/file-transfer';
-import { FORECAST_CACHE_BYTES, pluginStorage } from '../storage';
-import { gridKey } from './format';
+import { pluginStorage } from '../storage';
+import { gridKey, forecastPath } from './identity';
 import type { NativeFrame, NativeManifest } from './native-source';
 import { terrainKey, terrainPath } from './model-terrain';
 
 export const MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const pressureLevels = pluginStorage.files('pressure-levels', {
-  maxEntries: 64, maxBytes: FORECAST_CACHE_BYTES, maxFileBytes: MAX_ARTIFACT_BYTES, maxUnusedMs: 48 * 3600000,
+  maxEntries: 64, maxBytes: 256 * 1024 * 1024, maxFileBytes: MAX_ARTIFACT_BYTES, maxUnusedMs: 48 * 3600000,
 });
 const terrain = pluginStorage.files('model-terrain', {
   maxEntries: 4, maxBytes: 32 * 1024 * 1024, maxFileBytes: 8 * 1024 * 1024, maxUnusedMs: 48 * 3600000,
@@ -17,9 +17,7 @@ const digest = async (bytes: ArrayBuffer) => [...new Uint8Array(await crypto.sub
 /** Authentication is shared by direct forecasts and cached interpolation inputs. */
 export async function preparedSource(baseUrl: string, manifest: NativeManifest, frame: NativeFrame, modelTerrain = false) {
   const identity = await digest(new TextEncoder().encode(modelTerrain ? terrainKey(manifest, frame) : gridKey(manifest, frame)).buffer);
-  const level = frame.pressureHpa ? `p${frame.pressureHpa}` : frame.altitudeFtMsl ?? 0;
-  const path = modelTerrain ? terrainPath(manifest, identity)
-    : `${manifest.product}/${manifest.runTime}-${(frame.validTime - manifest.runTime) / 3600000}-${level}-${identity}.zwp.gz`;
+  const path = modelTerrain ? terrainPath(manifest, identity) : forecastPath(manifest, frame, identity);
   return { url: new URL(path, baseUrl).href, identity };
 }
 

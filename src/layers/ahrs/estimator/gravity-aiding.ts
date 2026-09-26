@@ -5,7 +5,8 @@ import { skew, transpose, zeros } from './linalg.js';
 import { ACCELERATION, TRANSIENT_ACCELERATION, N } from './state-layout.js';
 import type { AhrsOptions } from './types.js';
 
-export type GravityObservation = { time: number; force: Vec3; variance: number; gyro?: Vec3 };
+export type GravityObservation = { time: number; force: Vec3; variance: number; gyro?: Vec3;
+  steadyForce?: Vec3; steadyGyro?: Vec3 };
 
 /** f_body = Rᵀ(a_world - g_world) + b_accel.
  * Acceleration is a correlated nuisance state, not a zero-acceleration fact or
@@ -27,7 +28,9 @@ export function fuseGravity(s: NavState, observation: GravityObservation, config
   const consecutive = observation.time - s.tilt.lastAttempt <= config.maxGap + 1e-9;
   s.tilt.lastAttempt = observation.time;
   const load = norm(sub(observation.force, s.ba)) / G;
-  const quiet = load > .85 && load < 1.15 && observation.gyro !== undefined && norm(sub(observation.gyro, s.bg)) < .05;
+  const steadyLoad = norm(sub(observation.steadyForce ?? observation.force, s.ba)) / G;
+  const steadyGyro = observation.steadyGyro ?? observation.gyro;
+  const quiet = steadyLoad > .85 && steadyLoad < 1.15 && steadyGyro !== undefined && norm(sub(steadyGyro, s.bg)) < .05;
   s.tilt.quietSince = quiet ? (consecutive ? Math.min(s.tilt.quietSince, observation.time) : observation.time) : Infinity;
   if (load < .1) {
     s.tilt.rejected++;

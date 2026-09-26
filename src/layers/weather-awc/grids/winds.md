@@ -176,6 +176,15 @@ core's `converted-grids` cache. Revisiting a retained selected slice needs no ne
 interpolation; nearby altitudes can reuse native inputs. The PWA does not download
 the complete vertical matrix during startup.
 
+Finished wind slices have a separate 19-file / 304 MiB category budget, sufficient
+for the whole hourly horizon at the per-file maximum. One endpoint/source
+generation/altitude is protected during its reads and saves: its hours cannot
+evict one another. Older wind selections make room for a replacement altitude/run.
+Pressure inputs and terrain remain in the disposable pool and cannot evict
+finished slices or other weather categories. If browser quota is still insufficient,
+live data remains usable while offline saving reports incomplete; it does not
+delete another hour in the same selection to retry indefinitely.
+
 Flight levels require the two bracketing pressures, or one exact match. MSL starts
 near standard-atmosphere pressure, expanding only where unresolved cells' actual
 forecast heights require more levels. Only two expanding boundary levels remain

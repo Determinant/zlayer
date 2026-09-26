@@ -89,10 +89,11 @@ test('HSI uses the AHRS-owned geographic reference independently of raw GPS trac
   const output = render(state);
   assert.match(output, /GPS\/IMU · TRUE/);
   assert.match(output, /HDG 075° T/);
-  assert.match(output, /Heading\. Estimated heading 075° true/);
+  assert.match(output, /Estimated heading 075° true/);
   assert.match(output, /rotate\(-75\)" data-testid="hsi-compass"/);
   assert.match(output, /rotate\(15\)" data-testid="hsi-course"/);
-  for (const id of ['invalid', 'heading', 'deviation']) assert.match(output, new RegExp(`data-testid="hsi-${id}"`));
+  for (const id of ['heading-estimate', 'heading', 'deviation']) assert.match(output, new RegExp(`data-testid="hsi-${id}"`));
+  assert.doesNotMatch(output, /data-testid="hsi-invalid"/);
   state.track = 120;
   assert.match(render(state), /rotate\(-75\)" data-testid="hsi-compass"/, 'raw GPS cannot jump the compass');
   assert.match(render(state), /rotate\(45\)" data-testid="hsi-track"/);
@@ -177,6 +178,22 @@ test('missing route shows an empty state without hiding heading', () => {
   const output = renderToStaticMarkup(createElement(Hsi, { state }));
   assert.match(output, /Add a route/);
   assert.match(output, /HDG 075° T/);
+  assert.doesNotMatch(output, /data-testid="hsi-invalid"/);
+  assert.match(output, /data-testid="hsi-caution">No route/);
+});
+
+test('GPS-assisted heading still flags degraded tilt, missing motion and low-speed guidance', () => {
+  const state = snapshot();
+  state.hsiHeading = { degrees: 75, source: 'gps' };
+  for (const change of [
+    { warning: 'Motion' as const }, { warning: 'Uncertainty' as const }, { gpsUsable: false, speed: 5 },
+    { attitude: { ...state.attitude!, status: 'degraded' as const } },
+  ]) {
+    const output = render({ ...state, ...change });
+    assert.match(output, /data-testid="hsi-invalid"/);
+    assert.match(output, /Estimated heading/);
+    assert.match(output, /data-testid="hsi-course"/);
+  }
 });
 
 test('low speed retains heading-referenced course and CDI, including at rest', () => {
@@ -250,7 +267,8 @@ test('magnetic rose, heading, track and course share one correction while CDI ge
   assert.match(trackDisplay, /Course 077° magnetic/);
   assert.match(trackDisplay, /rotate\(15\)" data-testid="hsi-track"/);
   assert.match(trackDisplay, /data-testid="hsi-course"/);
-  assert.match(trackDisplay, /data-testid="hsi-invalid"/);
+  assert.doesNotMatch(trackDisplay, /data-testid="hsi-invalid"/);
+  assert.match(trackDisplay, /data-testid="hsi-heading-estimate"/);
   assert.match(trackDisplay, /data-testid="hsi-heading"/);
   assert.match(trackDisplay, /HDG 062° M/);
 });

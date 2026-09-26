@@ -17,6 +17,7 @@ export class ProgsClient {
   constructor(readonly baseUrl: string) {}
   private artifact(product: SurfaceProduct, sourceHash: string, checkedAt: number, signal: AbortSignal) {
     return { url: new URL(`${product}.json`, this.baseUrl).href, identity: JSON.stringify([2, product, sourceHash, checkedAt]),
+      retention: { group: 'progs' },
       label: 'WPC surface weather', signal,
       validate: async (bytes: ArrayBuffer): Promise<SurfaceSnapshot> => {
         const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
@@ -75,9 +76,11 @@ export class ProgsClient {
         ready(file, cached);
         // Other weather caches can evict a chart while its decoded data remains
         // live. Check the file again before keeping the offline catalog pointer.
-        if (await charts.has({ url: new URL(file.path, this.baseUrl).href, identity: file.sha256, byteLength: file.byteLength, signal })) return true;
+        if (await charts.has({ url: new URL(file.path, this.baseUrl).href, identity: file.sha256, byteLength: file.byteLength, signal,
+          retention: { group: 'progs' } })) return true;
       }
       const result = await charts.loadResult({ url: new URL(file.path, this.baseUrl).href, identity: file.sha256,
+        retention: { group: 'progs' },
         byteLength: file.byteLength, signal, cacheOnly, label: 'WPC surface chart',
         validate: async bytes => {
           const value = await preparedJson(bytes, file.sha256);

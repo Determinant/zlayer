@@ -287,7 +287,7 @@ is drawn. Each part of the HSI uses the inputs it needs:
 
 | Situation | Heading display | Route information |
 | --- | --- | --- |
-| GPS is usable; estimator heading is still unverified | GPS seeds **HDG**, then gyros carry it; the **Heading** cross remains after calibration. | Fresh position and a supported route show magenta course/CDI and all route readings beneath the cross. |
+| GPS is usable; estimator heading is still unverified | GPS seeds **HDG**, then gyros carry it. With calibrated, current motion and acceptable tilt uncertainty, show amber **Estimated heading** and **GPS/IMU**, without a red cross. | Fresh position and a supported route show magenta course/CDI and all route readings. |
 | Heading becomes uncertain or the estimator reacquires alignment | Keep the geographic heading and smooth subsequent corrections. | Keep available course/CDI and route readings beneath the warning. |
 | GPS is lost or speed falls below the movement gate | Keep the established geographic reference; live gyros continue turning it. | Low speed preserves guidance from a fresh position. GPS loss removes live position-based guidance, while heading remains visible. |
 | Motion pauses or calibration is still in progress | Show any available geographic reference under the warning; usable GPS can still supply an estimate. Do not extrapolate missing gyro motion. | Keep guidance when its position and geographic reference are available. |
@@ -296,6 +296,10 @@ is drawn. Each part of the HSI uses the inputs it needs:
 Stopping or starting a new calibration clears the session's reference. Stowing,
 full-screen changes, GPS loss and heading recovery preserve it. GPS recovery
 restores available guidance without requiring recalibration.
+The provisional display does not verify nose heading or change estimator
+uncertainty: wind can separate heading from GPS track. GPS loss, low speed, motion
+pauses and high tilt uncertainty still cross out an unsupported GPS/IMU estimate.
+A missing route is a text caution; it does not cross out a usable compass.
 
 The session owns heading in [heading-reference.ts](heading-reference.ts) and exposes
 it as `AhrsSnapshot.hsiHeading`. This provisional reference leaves the navigation
@@ -407,8 +411,12 @@ calibration when it supplies evidence of a turn or acceleration.
 
 Sample-to-sample sensor noise is checked separately from changes in half-second,
 time-weighted IMU averages. The averages must stay within 1°/s gyro and
-0.75 m/s² force RMS variation over the window; raw scatter is bounded at 10°/s
-and 2 m/s² respectively. Mean rotation above 1°/s or gravity magnitude error
+0.75 m/s² force RMS variation over the window. Angular excursion about the mean
+rate must stay within 1° RMS: every observed gyro interval contributes, including
+within-interval motion. This distinguishes small, rapid oscillation from a mount
+wandering through a large angle. Raw scatter is additionally bounded at 50°/s and
+1 g RMS, so extreme inputs cannot pass solely because their means cancel.
+Mean rotation above 1°/s or gravity magnitude error
 above 8% still prevents alignment. These averages only affect calibration
 qualification; live propagation continues to receive every motion sample.
 The overall bias, force average and scatter use observed time too, so changing
@@ -416,7 +424,9 @@ sample cadence cannot give one direction of rocking disproportionate weight.
 Accepted slow motion increases the initial gyro-bias uncertainty: the prior uses
 at least the half-second gyro-mean scatter rather than treating every sample as
 independent noise. These are engineering acceptance limits, with synthetic
-regressions for vibration and gentle ±0.8° rocking, not measured aircraft limits.
+regressions for ±0.3° rapid vibration, stronger force scatter and gentle ±0.8°
+rocking, not measured aircraft limits. Vibration exceeding the raw bounds,
+changing mean force/rate, angular wandering and sustained turns still block calibration.
 
 Collecting ten seconds of readings is not the same as passing calibration.
 A rejected window shows **Waiting**, an incomplete progress bar, and the
@@ -461,6 +471,16 @@ Gyros drive attitude propagation. Every fresh accelerometer sample is an
 observation of gravity plus kinematic acceleration; GPS velocity constrains the
 integral of that same acceleration. Both can correct simultaneously without
 counting accelerometer input twice. Rejected GPS fixes cannot pause gravity aiding.
+
+Short-period accelerometer scatter increases observation variance so vibration
+does not force false tilt or gyro-bias corrections. Time-aware 0.25-second sensor
+means and a 0.5-second residual-energy average use every delivered sample. They
+do not replace raw motion inputs, introduce an attitude dead band, or reduce the
+configured noise floor. Smoothed force/rate also qualify post-gap gravity recovery;
+the actual observation and its timestamp remain unchanged. Sensor clipping,
+aliasing before browser delivery and vibration-induced DC bias are not repaired
+by this software. See [gravity-aiding.md](estimator/gravity-aiding.md) for the model
+and [validation](validation.md#v7-vibration-and-hsi-regressions) for the synthetic limits.
 
 A persistent acceleration component with a slow random walk preserves
 sustained-acceleration/tilt ambiguity while allowing previous acceleration
@@ -543,7 +563,7 @@ the relative reference; orientation-dependent magnetic distortion is not. Online
 body-bias estimation needs sufficient motion and does not replace platform or
 installation calibration. The **Uncertainty** details show local-yaw uncertainty,
 source activity, accepted/rejected counts and rejection reasons. Recordings use
-model identifier `kinematic-ahrs-v6` and a 30×30 joint covariance. See
+model identifier `kinematic-ahrs-v7` and a 30×30 joint covariance. See
 [magnetic-fusion.md](estimator/magnetic-fusion.md) for the equations, browser
 limitations, calibration policy, timing and validation status.
 
@@ -631,6 +651,8 @@ compass-drift and layer uncertainty limits were retained. See the
 [dated test results](validation.md#v6-beta-verification)
 for measured errors, vibration/gap checks and remaining statistical evidence.
 These checks do not substitute for recorded phone/aircraft data.
+The [v7 vibration and HSI regressions](validation.md#v7-vibration-and-hsi-regressions)
+record the newer adaptive-noise, calibration and display checks separately.
 
 - `test/ahrs-calibration.test.ts`: stationary sensor noise, level-flight rocking and
   vibration at multiple and changing sample rates with/without GPS, measured

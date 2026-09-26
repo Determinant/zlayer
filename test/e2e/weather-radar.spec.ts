@@ -16,8 +16,8 @@ test('prepared composite and terminal contours render together, survive style re
   await page.evaluate(time => window.progsMapAudit.select(time), past);
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);
   await expect.poll(() => page.evaluate(() => {
-    const data = window.progsMapAudit.map.getSource('weather-awc-radar')!.serialize().data as { features: { geometry: { coordinates: number[][][][] } }[] };
-    return data.features[0]?.geometry.coordinates[0]?.[0]?.[0]?.[0];
+    const data = window.progsMapAudit.map.getSource('weather-awc-radar')!.serialize().data as { features: { geometry: { coordinates: number[][][] } }[] };
+    return data.features[0]?.geometry.coordinates[0]?.[0]?.[0];
   })).toBeCloseTo(-122.3 + 92 / 300, 5);
   await page.evaluate(() => window.progsMapAudit.recover());
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().radarDisplay.sites)).toEqual(['CONUS', 'TOKC']);

@@ -6,20 +6,27 @@ Open the left-side **GPS** tab to toggle **GPS aircraft** and allow device locat
 The compact core switch matches Terrain and AWC Weather, without a separate On/Off
 label, and stays available when GPS is off. GPS starts enabled when
 there is no saved preference; an explicit Off choice persists. Enabling the layer
-centers the map on the first fix. Reloading with GPS already enabled preserves the
-saved camera through that first fix. Later updates preserve panning and zooming;
-**Center aircraft** returns to the current position.
+centers the map on the first fix. In north-up, reloading with GPS already enabled
+preserves the saved camera through that first fix. Later north-up updates preserve
+panning and zooming; **Center aircraft** returns to the current position.
 Enabling GPS while its renderer loads still centers on the first fix. Turning it
 off and back on during that load also counts as an explicit enable action.
 
 The orientation button beside the zoom controls switches between **N UP** (north
 up, the default) and **TRK UP** (GPS ground track up). The choice persists across
-reloads and shares the existing GPS watch. Track-up rotates the map without
-recentering or changing zoom. If GPS is off, stale, inaccurate, or has no usable
-track, it holds the current bearing and shows **Waiting for GPS track**; following
-resumes when a usable track returns. North-up works without GPS.
+reloads and shares the existing GPS watch. Selecting track-up centers the aircraft
+and rotates the map to its GPS ground track. Each fresh, accurate fix updates the
+center without changing zoom, including the first fix after restoring track-up.
+If GPS is off, stale, unavailable, or inaccurate (worse than 100 meters), automatic
+movement stops and the camera holds its current center and bearing. Pending GPS
+centering and any active GPS follow animation are cancelled; following resumes on
+a usable fix. A fresh, accurate position without a ground track still centers the
+aircraft while holding the bearing. Missing track shows **Waiting for GPS track**.
+North-up works without GPS and does not continuously follow position.
 
-GPS rotation waits for a pan, zoom, or route-fit animation to finish. **Fit route**
+GPS following waits for a pan, zoom, or route-fit animation to finish. A manual
+pan or **Fit route** keeps its center until the next usable GPS fix; a fix received
+during the movement is applied after it ends. **Fit route**
 calculates its center and zoom at the selected orientation, including the held
 bearing while waiting for track, and respects the recommendation panel's padding.
 Manual rotation returns to the selected orientation when the gesture ends if that
@@ -64,8 +71,9 @@ browser watches need not send periodic updates while stationary. Core also impos
 a 15-second acquisition deadline on each new watch, including replacements, when
 the browser supplies neither fixes nor errors. Acquisition failures retry after
 five seconds, retaining a clearly stale last position where available. Permission denial stops retries until the user retries
-or returns to the app. Reacquisition preserves panning; replacing the map centers
-the new map on its first fresh fix unless it restores a saved camera.
+or returns to the app. Reacquisition preserves panning in north-up and resumes
+centering in track-up; replacing the map centers the new map on its first fresh
+fix unless it restores a saved north-up camera.
 
 GPS requires HTTPS (localhost also works), location permission, and a device
 location provider. High accuracy is requested; the browser chooses the provider.
@@ -95,14 +103,15 @@ or GPS instrument readings; see the
 [AHRS display policy](../ahrs/README.md#calibration-and-validity).
 
 `createOwnshipPlugin(gps)` and `createOwnshipLayer(gps)` receive the workspace's
-shared GPS service explicitly. Ownship owns its map demand, centering and track
+shared GPS service explicitly. Ownship owns its map demand, explicit centering and track
 trend in `layer.ts`; `position.ts` calculates turns and projections, `geometry.ts`
 builds map features, `map.ts` owns MapLibre resources, and `controls.tsx` owns
 controls and status. Core's `gps/service.ts` owns the browser watch, leases,
 freshness, retries and background suspension; `gps/position.ts` validates and
 normalizes fixes, including marked velocity estimates. The workspace registers
 Ownship in the `ownship` rendering slot above route and navigation labels.
-The map renderer remains lazy loaded.
+The workspace's `map/navigation-control.ts` owns track-up orientation and position
+following. The map renderer remains lazy loaded.
 
 ## Release verification
 

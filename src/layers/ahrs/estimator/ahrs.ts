@@ -33,6 +33,7 @@ import { fuseGravity, type GravityObservation } from "./gravity-aiding.js";
 import { fuseMagnetic } from "./magnetic-fusion.js";
 import { fuseVelocityChange } from './velocity-change.js';
 import { ageUnobservedState, predictKinematics } from './kinematics.js';
+import { ImuNoise } from './imu-noise.js';
 export type { AhrsOptions, Attitude, GpsFix, ImuSample } from "./types.js";
 
 export const DEFAULTS: Required<AhrsOptions> = Object.freeze({
@@ -115,6 +116,7 @@ export class Ahrs {
   private stale = 0;
   private hz = 0;
   private load = 0;
+  private readonly imuNoise = new ImuNoise();
 
   constructor(options: AhrsOptions = {}, private readonly onObservation?: ObservationListener) {
     this.config = { ...DEFAULTS, ...options };
@@ -145,6 +147,7 @@ export class Ahrs {
   }
 
   reset(): void {
+    this.imuNoise.reset();
     const bias = this.state.bg;
     this.headingTrajectory.reset();
     this.magneticIssue = null;
@@ -473,6 +476,8 @@ export class Ahrs {
     this.last = time;
     this.load = norm(specificForce) / G;
     if (dt > this.config.maxGap && this.config.recoverAfterGap && this.initialized && this.interruption === null) {
+      this.imuNoise.reset();
+      this.imuNoise.observe(sample);
       // No extrapolation across missing measurements. Keep the last pose and
       // calibrated biases, but discard navigation/history spanning the gap.
       this.state = restartNavigation(this.state, this.state.q, this.config);
@@ -499,6 +504,7 @@ export class Ahrs {
     if (dt > this.config.maxGap)
       this.interruption ??= `Motion sample gap ${Math.round(dt * 1000)} ms`;
     if (this.interruption !== null) return this.getState(time);
+    const noise = this.imuNoise.observe(sample);
     if (!this.initialized) {
       if (Math.abs(this.load - 1) > 0.12) return this.getState(time);
       // This requires a stationary start; a single accelerometer cannot prove rest.
@@ -533,7 +539,8 @@ export class Ahrs {
     if (this.config.gravityAiding && dt > 0) {
       this.insert({ kind: 'tilt', value: { time, force: [...specificForce],
         gyro: [...sample.gyro],
-        variance: this.config.accelNoise ** 2 / dt + .3 ** 2 } });
+        steadyForce: [...noise.force], steadyGyro: [...noise.gyro],
+        variance: this.config.accelNoise ** 2 / dt + .3 ** 2 + noise.variance } });
     }
     while (this.pending.length && this.pending[0]!.time <= time) {
       const fix = this.pending.shift()!;

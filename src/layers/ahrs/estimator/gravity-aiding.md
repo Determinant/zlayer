@@ -1,6 +1,6 @@
 # Joint acceleration and gravity observations
 
-The default `kinematic-ahrs-v6` estimator consumes gyros as process inputs and
+The default `kinematic-ahrs-v7` estimator consumes gyros as process inputs and
 accelerometers as observations. Every fresh force sample is fused once, at its
 acquisition time. GPS velocity and altitude update the same kinematic state.
 There is no GPS/gravity exclusion timer, receipt-based suppression, accelerometer
@@ -80,10 +80,39 @@ H_a_persistent = H_a_transient = Rᵀ
 ```
 
 All three force axes enter the joint update. Per-reading variance is
-`accelNoise² / sampleDt + 0.3²` in (m/s²)². The process model does not also inject
-that accelerometer noise into velocity. This is what permits simultaneous force
-and GPS observations without counting the force twice. Correlated browser sensor
-noise and vibration outside this model remain limitations.
+`accelNoise² / sampleDt + 0.3² + vibrationVariance` in (m/s²)². The process model
+does not also inject that accelerometer noise into velocity. This permits
+simultaneous force and GPS observations without counting the force twice.
+
+`imu-noise.ts` maintains time-aware first-order force/rate means with a 0.25 s
+time constant. It averages each axis's squared force residual about that mean
+with a 0.5 s time constant, then uses the largest axis variance as an isotropic
+addition to measurement variance. Every delivered sample contributes; all gains
+use actual elapsed time. This is an adaptive noise allowance, not a replacement
+force measurement or a second attitude observation. Gyro propagation and force
+fusion retain raw samples at their acquisition times, with no added signal delay
+or downsampling. The configured noise floor remains in place. Coherent changes
+can temporarily increase the allowance too; they still enter the kinematic model
+and GPS updates are unaffected.
+
+Without this allowance, strong symmetric vibration can repeatedly trip the
+innovation gate. Fusing only the surviving phases can create a false mean and
+tilt/bias drift even when the original force noise averages to zero. The allowance
+reduces that phase selection and the influence of each noisy sample. These time
+constants and noise envelopes are engineering assumptions. Adaptive variance
+estimated from the same stream does not make the NIS exactly chi-square or prove
+independent sensor noise; covariance coverage still needs measured-data validation.
+
+The noise statistics are derived only from chronological IMU inputs, independently
+of GPS corrections. Each force event retains its variance and steady means in
+the replay history, so delayed fusion reuses the original values. Reset and IMU
+gaps clear the running statistics; missing intervals are never averaged into a
+reading. Raw recordings reproduce the statistics under model v7.
+
+This software cannot undo sensor clipping, aliasing before browser delivery or
+vibration rectification into a DC bias. See the primary descriptions of
+[vibration isolation and sampling limits](https://docs.px4.io/main/en/assembly/vibration_isolation)
+and [MEMS vibration rectification](https://www.analog.com/en/resources/technical-articles/vibration-rectification-in-mems-accelerometers.html).
 
 Without recent accepted GPS velocity, accelerometer-bias gain rows are zeroed
 (a Schmidt update). Its uncertainty and correlations remain in the complete
@@ -112,9 +141,12 @@ the rate average then restarts from fresh samples. A missing interval cannot
 establish quiet-flight noise by itself.
 
 After a gap or a correction beyond the normal tracking range, at least one second
-of consecutive readings with 0.85–1.15 g load
-and bias-corrected gyro magnitude below 0.05 rad/s qualifies nonlinear tilt
+of consecutive readings whose 0.25 s averaged force has 0.85–1.15 g load
+and averaged bias-corrected gyro magnitude is below 0.05 rad/s qualifies nonlinear tilt
 reacquisition. These conditions are a model qualification, not proof of rest.
+The averages prevent rapid, bounded vibration from restarting qualification on
+every sample. The actual force observation, its variance and the raw 0.1 g
+exclusion remain in force.
 A vector-alignment seed initializes an iterated update about the original prior.
 Each iteration relinearizes the same observation; covariance and diagnostics are
 committed once. Nonconvergence, innovation failures and bias limits reject the
@@ -129,7 +161,7 @@ kinematic velocity.
 
 The diagnostics and recorder report force observations, GPS observations and
 magnetic observations separately. Delayed observations replay all state and
-qualification history. Current numerical results and model assumptions
-are recorded in the
+qualification history. Numerical results and model assumptions are recorded in
+the [v7 regressions](../validation.md#v7-vibration-and-hsi-regressions) and historical
 [v6 review](../validation.md#v6-beta-verification);
 static checking alone does not establish tuning, accuracy or convergence.

@@ -1,7 +1,7 @@
-import { Worker } from 'node:worker_threads';
+import type { Worker } from 'node:worker_threads';
 import { availableParallelism } from 'node:os';
 import { normalizeAdvisories, isSourceCollection } from '../../src/layers/weather-awc/source';
-import { gridKey } from '../../src/layers/weather-awc/grids/format';
+import { gridKey, forecastPath } from '../../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../../src/layers/weather-awc/grids/model-terrain';
 import { createTaskLimiter } from '../../src/core/data/task-limiter';
 import type { AwcAdvisoryProduct, AwcGridProduct } from '@zlayer/contracts';
@@ -10,13 +10,14 @@ import { discover } from './discovery';
 import type { WeatherCache } from './cache';
 import { HttpError, MiB, advisoryResource, modelResource, resourceFor, type Resource } from './routes';
 import { digest, type Payload } from './upstream';
-import type { ConversionJob } from './worker';
+import { workerError, type ConversionJob, type ConversionRequest, type ConversionResponse } from './worker-protocol';
+import { createWeatherWorker, workerModule } from './worker-job';
 import { sourceBlocks, sourceRecordKey } from './source-records';
+import { selectNativeFrame } from '../../src/layers/weather-awc/grids/selection';
 
 export function forecastResource(manifest: NativeManifest, frame: NativeFrame): Resource {
-  const level = frame.pressureHpa ? `p${frame.pressureHpa}` : frame.altitudeFtMsl ?? 0;
   const identity = digest(Buffer.from(gridKey(manifest, frame)));
-  return resourceFor(`/api/weather/grids/${manifest.product}/${manifest.runTime}-${(frame.validTime - manifest.runTime) / 3600000}-${level}-${identity}.zwp.gz`);
+  return resourceFor(`/api/weather/grids/${forecastPath(manifest, frame, identity)}`);
 }
 export function terrainResource(manifest: NativeManifest, frame: NativeFrame): Resource {
   return resourceFor(`/api/weather/grids/${terrainPath(manifest, digest(Buffer.from(terrainKey(manifest, frame))))}`);
@@ -78,35 +79,31 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
         work.throwIfAborted(); clearTimeout(slot.idle);
         if (!slot.worker) await slot.stopped;
         work.throwIfAborted();
-        if (!slot.worker) {
-          const source = new URL('./worker.ts', import.meta.url);
-          slot.worker = new URL(import.meta.url).pathname.endsWith('.ts')
-            ? new Worker(`import('tsx/esm/api').then(({register}) => { register(); return import(${JSON.stringify(source.href)}); })`, { eval: true })
-            : new Worker(new URL('./worker.js', import.meta.url));
-        }
+        slot.worker ??= createWeatherWorker(workerModule(import.meta.url, 'worker'));
         const current = slot.worker;
         return await new Promise<ArrayBuffer>((resolve, reject) => {
           let finished = false;
           const cleanup = () => { finished = true; work.removeEventListener('abort', aborted);
-            current.off('message', message); current.off('error', fail); current.off('exit', exited); };
+            current.off('message', message); current.off('error', fail); current.off('messageerror', fail); current.off('exit', exited); };
           const fail = (error: Error) => { if (finished) return; cleanup(); void stop(slot); reject(error); };
           const aborted = () => fail(work.reason);
           const exited = () => fail(new Error('Forecast worker stopped'));
-          const message = (value: { type: string; id: number; record: SourceRecord; body: ArrayBuffer; error?: string }) => {
+          const message = (value: ConversionResponse) => {
             if (value.type === 'read') {
               const key = sourceRecordKey(value.record), prepared = sources.get(key);
               sources.delete(key);
               void (prepared ? Promise.resolve(prepared) : readRecord(value.record, work)).then(payload => {
                 if (finished) return;
                 const body = Uint8Array.from(payload).buffer;
-                current.postMessage({ type: 'read', id: value.id, body }, [body]);
+                current.postMessage({ type: 'read', id: value.id, body } satisfies ConversionRequest, [body]);
               }, error => fail(error instanceof Error ? error : new Error(String(error))));
-            } else if (value.error) fail(new Error(value.error));
-            else { cleanup(); resolve(value.body); }
+            } else if (value.type === 'error') fail(workerError(value.error));
+            else { cleanup(); resolve(value.value); }
           };
-          current.on('message', message); current.once('error', fail); current.once('exit', exited);
+          current.on('message', message); current.once('error', fail); current.once('messageerror', fail); current.once('exit', exited);
           work.addEventListener('abort', aborted, { once: true });
-          current.postMessage({ job });
+          if (work.aborted) { aborted(); return; }
+          current.postMessage({ type: 'convert', job } satisfies ConversionRequest);
         });
       } finally {
         clearTimeout(timer); timeout.abort(); sources.clear(); slot.busy = false;
@@ -133,7 +130,8 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   }
   async function forecast(manifest: NativeManifest, frame: NativeFrame, terrainOnly = false): Promise<Payload> {
     // The worker receives one validated selection, not the full catalog.
-    const body = Buffer.from(await convert({ manifest: { ...manifest, frames: [] }, frame, terrainOnly }, shutdown, reader(manifest)));
+    const selected = selectNativeFrame({ ...manifest, frames: [] }, frame);
+    const body = Buffer.from(await convert({ ...selected, terrainOnly }, shutdown, reader(manifest)));
     if (body.length > 16 * MiB) throw new Error('Prepared forecast exceeds its byte limit');
     return { body, sha256: digest(body), checkedAt: manifest.checkedAt, status: 200,
       headers: { 'content-type': 'application/octet-stream', 'x-weather-artifact': digest(Buffer.from(terrainOnly ? terrainKey(manifest, frame) : gridKey(manifest, frame))) } };

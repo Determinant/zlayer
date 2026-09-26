@@ -77,8 +77,8 @@ protected in the server's shared cache; restart restores validated publication.
 `healthz.progsCoverage` reports readiness, checks, available times, gaps and errors.
 
 Catalogs are limited to 64 KiB and 32 stops; PNGs to 1 MiB each and 8 MiB per
-catalog. Browser storage holds at most 32 images / 8 MiB for 48 hours inside the
-shared weather budget. The browser authenticates each image's length/hash before
+catalog. Browser storage holds at most 32 images / 8 MiB with a 48-hour unused
+lifetime in its own retention category. The browser authenticates each image's length/hash before
 use, reuses unchanged bytes and verifies retention before persisting a catalog.
 Validated live images can display before optional saving completes. Failed saves
 preserve the preceding offline pointer. A restored catalog is unverified, and an
@@ -175,7 +175,10 @@ copy of AWC's Leaflet markers.
 AWC coordinates can be unwrapped degrees west (−290° means 70° E). The server
 unwraps each line before smoothing, honors boundary `fpipdr` by reversing the finished
 curve when required, then normalizes/splits date-line crossings at ±180° for both
-contours and fronts.
+contours and fronts. A global line can cross the date line more than twenty times;
+its segments are partitioned into features with at most twenty line parts each,
+preserving every position, source property and source-record identity with a part
+suffix. This keeps the existing client geometry bounds without dropping a chart.
 Native MapLibre line patterns preserve
 symbol sides and alternate stationary-front colors. Forming fronts have dashed
 strokes; weakening fronts also have wider symbol spacing. Isobars are thin gray
@@ -232,7 +235,12 @@ Successful reads poll every five minutes. A failed family retries after 30 secon
 so opening during initial server preparation does not leave forecasts missing for
 a whole polling interval; another family's success remains usable.
 The optional core chart cache holds at most 64 files / 32 MiB, 8 MiB per file,
-with a 48-hour unused lifetime, inside AWC's shared 96-file / 256 MiB budget.
+with a 48-hour unused lifetime, in its own AWC retention category. Both complete
+validated chart families fit. Grid inputs, altitude changes and radar cannot
+evict these charts; browser quota can still prevent an optional save. Progs
+coverage has its own 32-file / 8 MiB category, sized for its complete validated
+catalog. The [grid budget table](../grids/README.md#time-recovery-and-budgets)
+owns the combined storage ceilings.
 Complete isobar curves exceed the former localStorage payload limit (a captured
 seven-day family is about 6 MB). LocalStorage holds only the endpoint and a small
 catalog referencing successfully saved chart files. Validated current geometry

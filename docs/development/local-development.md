@@ -173,10 +173,16 @@ aligned with the installed Playwright package. Run with the workspace owner's UI
 and GID so builds and test artifacts remain writable:
 
 ```bash
-docker run --rm --shm-size=1g --user "$(id -u):$(id -g)" \
-  -e npm_config_cache=/tmp/zlayer-npm -v "$PWD:/work" -w /work \
+docker run --rm --init --shm-size=1g --user "$(id -u):$(id -g)" \
+  -e npm_config_cache=/tmp/zlayer-npm \
+  -e XDG_CACHE_HOME=/tmp/zlayer-cache -e XDG_CONFIG_HOME=/tmp/zlayer-config \
+  -v "$PWD:/work" -w /work \
   mcr.microsoft.com/playwright:v1.63.0-noble npm run verify:full
 ```
+
+The init process reaps browser children and supports Xvfb's startup signalling.
+Writable XDG directories let Firefox initialize its caches even when the host UID
+maps to an image account without a writable home directory.
 
 The container's fixture port is isolated from host development servers. For a
 native run with an occupied fixture port, set `ZLAYER_TEST_PORT` to a free port.
@@ -223,6 +229,12 @@ waits for workspace readiness before interacting with restored Settings.
 The graphics smoke test also waits for its expected pixels after WebGL restoration:
 the context/idle notifications can precede a readable restored drawing buffer.
 Its bounded wait retains the exact color and route-pixel assertions.
+
+Storage-recovery tests must leave the running app before deleting browsing
+metadata. The installed worker serves the app shell for all navigation requests,
+including asset paths such as `/icon.svg`. Bypass that navigation only for the
+cleanup document, verify its content type, and restore interception before
+testing offline launch; otherwise a new app instance can repopulate the records.
 
 For focused work, `npm run test:browser` runs the full Chromium regressions
 independently. `npm run test:graphics` covers graphics,

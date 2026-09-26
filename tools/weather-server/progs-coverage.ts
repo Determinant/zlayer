@@ -4,7 +4,7 @@ import { parseSurfaceCatalog } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
 import { HttpError, resourceFor, type Resource } from './routes';
 import { digest, type Payload } from './upstream';
-import { workerJob } from './worker-job';
+import { workerJob, workerModule } from './worker-job';
 
 export const PUBLISHED_COVERAGE = 'awc-ndfd-png-v1';
 const catalogResource = () => resourceFor('/api/weather/progs/coverage.json');
@@ -37,7 +37,7 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
           const image = await cache.get(sourceResource(source, true), 150_000, signal);
           const file = { path: `coverage/${image.sha256}.png`, sha256: image.sha256, byteLength: image.body.length };
           frame.checkedAt = image.checkedAt; frame.file = file;
-          if (!catalog?.frames.some(previous => previous.file?.sha256 === file.sha256 && cache.has(imageResource(file)))) {
+          if (!catalog?.frames.some(previous => previous.file?.sha256 === file.sha256) || !await cache.check(imageResource(file))) {
             changed.push({ file, payload: image });
           }
         } catch (cause) { if (!(cause instanceof HttpError) || cause.status !== 404) throw cause; }
@@ -50,7 +50,7 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
         frames.some(frame => catalog!.frames.some(old => old.validTime === frame.validTime && old.chartReferenceTime > frame.chartReferenceTime)))) {
         throw new Error('NOAA returned older NDFD coverage charts');
       }
-      if (changed.length) await workerJob(new URL(import.meta.url.endsWith('.ts') ? './progs-coverage-worker.ts' : './progs-coverage-worker.js', import.meta.url),
+      if (changed.length) await workerJob(workerModule(import.meta.url, 'progs-coverage-worker'),
         changed.map(image => image.payload.body), signal);
       for (const { file, payload } of changed) {
         signal.throwIfAborted();
@@ -75,12 +75,12 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
       let value: unknown;
       try { value = JSON.parse(saved.body.toString('utf8')); } catch { /* Invalid saved catalog. */ }
       if (saved.headers['x-weather-catalog'] === PUBLISHED_COVERAGE && isProgsCoverageCatalog(value) &&
-        value.checkedAt === saved.checkedAt && value.frames.every(frame => !frame.file || cache.has(imageResource(frame.file)))) {
+        value.checkedAt === saved.checkedAt && await cache.checkAll(value.frames.flatMap(frame => frame.file ? [imageResource(frame.file)] : []))) {
         catalog = value; nextCheck = value.checkedAt + 5 * 60_000; protect();
       } else await cache.discard(resource);
     },
     refresh() { if (!signal.aborted && !task && now() >= nextCheck) task = update().finally(() => { task = undefined; }); },
-    get status() { return { ready: !!catalog && cache.has(catalogResource()), preparing: !!task, checkedAt: catalog?.checkedAt,
+    get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.frames.every(frame => !frame.file || cache.has(imageResource(frame.file))), preparing: !!task, checkedAt: catalog?.checkedAt,
       validTimes: catalog?.frames.filter(frame => frame.file).map(frame => frame.validTime),
       unavailableTimes: catalog?.frames.filter(frame => !frame.file).map(frame => frame.validTime), ...(error ? { error } : {}) }; },
     async close() { await task; },

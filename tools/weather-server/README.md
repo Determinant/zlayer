@@ -25,6 +25,22 @@ source times, preparation progress and failures. Use the
 [deployment readiness checklist](#deployment-readiness) before serving a release;
 `ok: true` alone is insufficient.
 
+Restart and unchanged-source reuse authenticate referenced prepared files,
+including both stored HTTP encodings. Readiness requires the catalog and its
+required artifacts to remain present. Progs and grids require complete families;
+NDFD's explicit unpublished stops remain valid gaps; radar requires the national
+scan and prunes unavailable terminal/history files. Detected disk damage is
+repaired by the background updater even when upstream bytes are unchanged.
+
+HTTP delivery is classified once in `routes.ts` as query, catalog or immutable
+artifact. Only queries can enter on-demand acquisition. Catalog marker checks and
+missing-resource responses use that classification, not repeated URL inspection.
+Worker replies distinguish invalid bytes, future source timestamps and retryable
+processing failures; only explicit source failures suppress an unchanged radar
+digest. MRMS and NDFD PNG validation share a bounded scanline preflight and reject
+unsupported compressed metadata before pixel decoding. Upstream admission uses
+a bounded FIFO with one spacing timer, woken by completion or cancellation.
+
 ## Source and cache contract
 
 | Request | Content | Cache age |

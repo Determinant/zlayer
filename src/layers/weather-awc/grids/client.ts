@@ -2,10 +2,12 @@ import { isAwcGridManifest, isRecord, type AwcGridProduct } from '@zlayer/contra
 import { requestJson } from '../../../core/data/fetch-json';
 import { FORECAST_CACHE_BYTES, pluginStorage } from '../storage';
 import { decodeGrid, gridKey, type DecodedGrid } from './format';
-import { discoverGrids, HRRR_DOWNLOAD_ROOT, isNativeManifest, nativeManifest, type ForecastManifest, type ForecastFrame } from './native-source';
+import { HRRR_DOWNLOAD_ROOT, isNativeManifest, type ForecastManifest, type ForecastFrame } from './native-source';
 import { hasConvertedGrid, loadConvertedGrid, releaseConversionWorker, retainedConvertedGrids } from './conversion-client';
 import { loadForecast } from './loading';
 import { weatherTiming } from './performance';
+import { forecastRetention } from './retention';
+import { selectForecast } from './selection';
 
 const frames = pluginStorage.files('grids', {
   maxEntries: 64, maxBytes: FORECAST_CACHE_BYTES, maxFileBytes: 16 * 1024 * 1024,
@@ -90,10 +92,12 @@ export class GridClient {
     // Nearby frames are decoded ahead of time. Distant saved files need only a
     // receipt check; their bytes are authenticated when selected/warmed.
     if (!this.wants(manifest, frame)) {
-      const saved = 'levels' in frame || nativeManifest(manifest) && 'records' in frame
-        ? await hasConvertedGrid(this.baseUrl, manifest, frame, signal)
-        : !nativeManifest(manifest) && !('records' in frame) && await frames.has({
-          url: new URL(frame.path, this.baseUrl).href, identity: `grid-v1/${gridKey(manifest, frame)}`, byteLength: frame.bytes, signal });
+      const selected = selectForecast(manifest, frame);
+      const saved = selected.kind !== 'archive'
+        ? await hasConvertedGrid(this.baseUrl, selected, signal)
+        : await frames.has({
+          url: new URL(selected.frame.path, this.baseUrl).href, identity: `grid-v1/${gridKey(manifest, frame)}`, byteLength: selected.frame.bytes, signal,
+          retention: await forecastRetention(this.baseUrl, manifest, frame) });
       if (saved) return true;
     }
     return this.saved(await this.load(manifest, frame, signal, online));
@@ -117,7 +121,7 @@ export class GridClient {
   }
   /** Read live metadata; the controller saves it after a matching file receipt. */
   async refresh(product: AwcGridProduct, signal: AbortSignal): Promise<ForecastManifest> {
-    const manifest = this.native ? await discoverGrids(this.baseUrl, product, signal)
+    const manifest = this.native ? await requestJson(new URL(`${product}.json`, this.baseUrl).href, isNativeManifest, 'Weather forecast', { signal })
       : await requestJson(new URL(`${product}.json`, this.baseUrl).href, isAwcGridManifest, 'Weather forecast', { signal });
     if (manifest.product !== product || manifest.publishedAt > Date.now() + 60_000) throw new Error('Forecast product or source clock mismatch');
     signal.throwIfAborted();
@@ -137,13 +141,14 @@ export class GridClient {
       savedTiming ??= weatherTiming('save-after-ready'); onReady?.(live);
     };
     const result = await (async () => {
-      if ('levels' in frame || nativeManifest(manifest) && 'records' in frame) return loadConvertedGrid(this.baseUrl, manifest, frame, signal, online, ready);
-      if (nativeManifest(manifest) || 'records' in frame) throw new Error('Mismatched forecast source');
-      const url = new URL(frame.path, this.baseUrl).href;
-      return frames.loadResult({ url, identity: `grid-v1/${gridKey(manifest, frame)}`, byteLength: frame.bytes, run: loadForecast,
+      const selected = selectForecast(manifest, frame);
+      if (selected.kind !== 'archive') return loadConvertedGrid(this.baseUrl, selected, signal, online, ready);
+      const url = new URL(selected.frame.path, this.baseUrl).href;
+      return frames.loadResult({ url, identity: `grid-v1/${gridKey(manifest, frame)}`, byteLength: selected.frame.bytes, run: loadForecast,
+        retention: await forecastRetention(this.baseUrl, manifest, frame),
         label: 'This forecast time / altitude', signal, cacheOnly: !online, retries: 1,
         onReady: ready,
-        validate: (bytes, signal) => decodeGrid(bytes, manifest, frame, signal),
+        validate: (bytes, signal) => decodeGrid(bytes, selected.manifest, selected.frame, signal),
       });
     })().finally(() => savedTiming?.());
     signal.throwIfAborted();

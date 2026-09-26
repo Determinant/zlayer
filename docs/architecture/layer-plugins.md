@@ -906,6 +906,30 @@ are additional. The optional `maxRecordBytes` separately limits each structured
 slot/record in UTF-16 bytes, before writes and before parsing restored strings.
 Owners must also bound the number of records they create.
 
+`fileBudget.groups` can assign independent, additive count/byte/unused-age ceilings
+to product categories. A request supplies `retention: { group, cohort? }`; group
+names must be configured by the plugin. Files without a recognized group, including
+older unclassified files, use the default budget. Namespace limits apply within
+each group/default pool. The plugin's total payload ceiling is the sum of its
+configured pools, not the default budget alone. Categories share the publication
+lock and inventory across namespaces/windows, but cannot evict one another.
+On browser quota pressure a category first reclaims disposable default-pool files,
+then its own eligible LRU files. Default-pool writers can only reclaim that pool.
+
+An optional opaque `cohort` identifies files that must survive together, such as
+one forecast generation at a selected altitude. During a request, core excludes
+other members of that cohort from age, capacity and quota eviction. A save that
+cannot fit without evicting a member returns `saved: false`; validated live data
+remains usable. A different cohort can replace earlier cohorts within its category.
+This is not permanent pinning or a browser-storage guarantee. Product code must
+define complete, bounded cohorts and sufficient budgets. Retention tags live in
+file/receipt headers independently of content identity; validated reuse adopts
+older files without changing their keys or downloading again. A request may also
+supply `retention.keep`, up to 256 exact `pluginFileKey` strings in its namespace.
+These protect unchanged members carried into a replacement cohort, even before
+their next validated read updates the receipt's cohort tag. Obsolete identities
+can then make room without sacrificing overlapping members of the new timeline.
+
 The plugin declares positive `maxEntries`, `maxBytes`, `maxFileBytes` and
 `maxUnusedMs` limits. A `load` supplies the source URL, complete identity (digest,
 decoder/schema version and source metadata), exact compressed byte length, label,
@@ -983,7 +1007,9 @@ performs a bounded, receipt-authenticated read before product conversion.
 
 `loadResult`/`deriveResult` additionally expose `{ value, saved }`, so preparation
 must not equate a usable live result with an offline save. `has` checks file size
-and receipt headers without decoding; content still requires validation on use.
+and receipt headers without decoding; an optional retention argument also requires
+matching category/cohort tags. Older unclassified files then pass a validated load
+before preparation counts them in the new pool. Content still requires validation on use.
 Optional storage waits are abortable and capped at ten seconds. Actual writes/
 deletes retain their publication lock until they settle, even after the caller
 stops waiting. This prevents a hung cache operation from holding decode admission
@@ -991,9 +1017,12 @@ or a late mutation from racing a new publication.
 Unknown encoded size is bounded by `maxFileBytes`; optional storage failure still
 leaves a validated live result usable. Cache-only never invokes a producer.
 
-AWC is the first consumer: it declares a shared 96-file / 256 MiB ceiling across
-forecast, model-terrain, Progs, radar/motion and compatibility caches, with a
-48-hour shared unused lifetime and shorter product-specific limits.
+AWC uses independent cloud, icing, wind, Progs, coverage and radar/motion budgets.
+Each numeric product has room for its full hourly horizon at the per-file maximum;
+one endpoint/source generation/altitude forms a protected cohort. Disposable wind
+inputs, model terrain, rendered images and unclassified compatibility files have
+their own default pool. The [AWC grid budgets](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
+own the ceilings and acquisition scope.
 Its controller displays the selection first, then saves cloud/icing forecast times
 at the chosen icing altitude, warming a bounded decoded neighborhood. Winds load the selected time and
 altitude first, prefetching adjacent hours. Numeric operations share one CPU slot;

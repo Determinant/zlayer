@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AwcGridProduct } from '@zlayer/contracts';
+import type { AwcGridProduct, AwcGridFrame, AwcGridManifest } from '@zlayer/contracts';
 import { discover, type ReadSource } from '../tools/weather-server/discovery';
 import { HttpError, InvalidForecastIndexError, modelResource } from '../tools/weather-server/routes';
 import { WeatherCache } from '../tools/weather-server/cache';
@@ -11,6 +11,9 @@ import { createProcessing } from '../tools/weather-server/processing';
 import { digest, type Payload } from '../tools/weather-server/upstream';
 import { isNativeManifest, modelPath } from '../src/layers/weather-awc/grids/native-source';
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
+import { selectForecast } from '../src/layers/weather-awc/grids/selection';
+import { preparedSource } from '../src/layers/weather-awc/grids/prepared-client';
+import { forecastResource } from '../tools/weather-server/processing';
 
 const hour = 3600000, older = Date.UTC(2026, 8, 22, 20), latest = older + hour, now = latest + hour;
 const signal = new AbortController().signal, files = nativeForecastFiles();
@@ -102,5 +105,24 @@ test('native catalogs require complete source horizons', async () => {
     assert.ok(isNativeManifest(JSON.parse(JSON.stringify(manifest))));
     assert.equal(isNativeManifest({ ...manifest, frames: manifest.frames.slice(1) }), false);
     assert.equal(isNativeManifest({ ...manifest, partial: true, frames: manifest.frames.filter(frame => frame.validTime === manifest.runTime + hour) }), false);
+  }
+});
+
+test('forecast selections reject mixed families and browser/server artifact paths stay identical', async () => {
+  const { read } = source();
+  for (const product of ['clouds', 'icing', 'winds'] as const) {
+    const manifest = await discover(read, product, signal, now), frame = manifest.frames[0]!;
+    const before = JSON.stringify(frame);
+    assert.equal(selectForecast(manifest, frame).kind, 'native');
+    const browser = await preparedSource('https://app.test/api/weather/grids/', manifest, frame);
+    assert.equal(new URL(browser.url).pathname, forecastResource(manifest, frame).key);
+    assert.equal(JSON.stringify(frame), before, 'selection tags never enter serialized source/cache identity');
+    assert.throws(() => selectForecast(manifest, { ...frame, records: {} }), /Incomplete/);
+    const archived: AwcGridFrame = { validTime: frame.validTime, altitudeFtMsl: frame.altitudeFtMsl,
+      path: 'old.gz', bytes: 1, decodedBytes: 1, sha256: 'a'.repeat(64), sources: frame.sources };
+    assert.throws(() => selectForecast(manifest, archived), /Mismatched/);
+    const archive: AwcGridManifest = { ...manifest, frames: [archived] };
+    Reflect.deleteProperty(archive, 'encoding');
+    assert.throws(() => selectForecast(archive, frame), /Mismatched/);
   }
 });

@@ -21,7 +21,7 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
     // Only the synthetic stream belongs to this test; desktop Chrome can also
     // emit an initial hardware event with null readings.
     window.addEventListener('devicemotion', event => { if (event.isTrusted) event.stopImmediatePropagation(); }, true);
-    let rolling = false, yawing = false, noisy = false, vibrating = false, drift = 0, samples = 0, gps = true, speed = 120 * 1852 / 3600;
+    let rolling = false, yawing = false, noisy = false, vibrating = false, mounted = false, drift = 0, samples = 0, gps = true, speed = 120 * 1852 / 3600;
     let queuedMotion: DeviceMotionEvent[] | null = null;
     let pausedMotion = false;
     let altitude: number | null = 3048;
@@ -33,6 +33,7 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
     window.addEventListener('test-ahrs-drift', event => { drift = (event as CustomEvent<number>).detail; });
     window.addEventListener('test-ahrs-noise', () => { noisy = true; });
     window.addEventListener('test-ahrs-vibration', event => { vibrating = (event as CustomEvent<boolean>).detail; });
+    window.addEventListener('test-ahrs-mounted-vibration', () => { mounted = true; });
     window.addEventListener('test-ahrs-speed', event => { speed = (event as CustomEvent<number>).detail; });
     window.addEventListener('test-ahrs-altitude', event => { altitude = (event as CustomEvent<number | null>).detail; });
     window.addEventListener('test-ahrs-queue-motion', () => { queuedMotion = []; });
@@ -51,10 +52,16 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
         const time = ++samples / 50, jitter = noisy ? (samples % 2 ? .5 : -.5) : 0;
         const slow = 2 * Math.PI * .2, fast = 2 * Math.PI * 8;
         const roll = (.8 * Math.sin(slow * time) + 5 / fast * Math.sin(fast * time)) * Math.PI / 180;
+        const mountRate = 2 * Math.PI * 8.3, mountRoll = .3 * Math.PI / 180 * Math.sin(mountRate * time);
         const event = new DeviceMotionEvent('devicemotion', {
-          rotationRate: { alpha: vibrating ? -.1 : jitter / 2, beta: yawing ? -15 : vibrating ? -.2 : jitter / 2 - drift,
+          rotationRate: mounted ? { alpha: -.1, beta: -.2, gamma: -(.08 + .3 * mountRate * Math.cos(mountRate * time)) }
+            : { alpha: vibrating ? -.1 : jitter / 2, beta: yawing ? -15 : vibrating ? -.2 : jitter / 2 - drift,
             gamma: rolling ? -10 : vibrating ? -(.15 + .8 * slow * Math.cos(slow * time) + 5 * Math.cos(fast * time)) : noisy ? .2 + jitter : 0 },
-          accelerationIncludingGravity: vibrating
+          accelerationIncludingGravity: mounted
+            ? { x: -9.80665 * Math.sin(mountRoll) + 5 * Math.sin(2 * Math.PI * 9.1 * time),
+              y: 9.80665 * Math.cos(mountRoll) - 2.5 * Math.sin(2 * Math.PI * 7.3 * time),
+              z: -5 * Math.sin(2 * Math.PI * 11.7 * time) }
+            : vibrating
             ? { x: -9.80665 * Math.sin(roll) + 1.6 * Math.sin(2 * Math.PI * 6 * time),
               y: 9.80665 * Math.cos(roll) - .6 * Math.cos(2 * Math.PI * 10 * time), z: -.8 * Math.sin(fast * time) }
             : { x: jitter * .8, y: 9.80665 + jitter * .8, z: jitter * .8 }, interval: 20,
@@ -78,6 +85,32 @@ async function backgroundAhrs(page: Page) {
   await page.getByRole('alertdialog', { name: 'Stow AHRS?', exact: true })
     .getByRole('button', { name: 'Background', exact: true }).click();
 }
+
+test('mounted vibration calibrates and keeps live attitude and estimated HSI usable', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.clock.install();
+  await openAhrs(page);
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('test-ahrs-mounted-vibration'));
+    window.dispatchEvent(new Event('test-ahrs-sensors'));
+  });
+  await page.clock.runFor(12_000);
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+  await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
+  await expect(page.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(page.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
+  for (let i = 0; i < 6; i++) {
+    await page.clock.runFor(10_000);
+    const label = await page.getByRole('img', { name: /^Attitude indicator/ }).getAttribute('aria-label');
+    const angles = label!.match(/Roll (-?[\d.]+)°, pitch (-?[\d.]+)°/)!;
+    expect(Math.abs(Number(angles[1]))).toBeLessThan(3);
+    expect(Math.abs(Number(angles[2]))).toBeLessThan(3);
+    await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
+    await expect(page.getByTestId('hsi-invalid')).toHaveCount(0);
+  }
+  await page.getByRole('region', { name: 'AHRS toolbox', exact: true }).screenshot({ path: testInfo.outputPath('mounted-vibration.png') });
+});
 
 test('AHRS keeps GPS and heading when Ownship is disabled, and can restart while Ownship stays disabled', async ({ page }) => {
   await page.clock.install();
@@ -616,7 +649,8 @@ test('level-flight vibration calibrates without GPS and the crossed HSI keeps mo
   await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^HDG \d{3}° [MT]$/);
   await expect(hsi.getByTestId('hsi-course')).toBeVisible();
   await expect(hsi.getByTestId('hsi-track')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-invalid')).toHaveText('Heading');
+  await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
   await page.evaluate(() => {
     window.dispatchEvent(new Event('test-ahrs-gps-lost'));
     window.dispatchEvent(new Event('test-ahrs-yaw'));
@@ -806,7 +840,7 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await expect(page.getByTestId('hsi-course')).toBeVisible();
   await expect(page.getByTestId('hsi-deviation')).toBeAttached();
   await expect(page.getByTestId('hsi-track')).toBeVisible();
-  await expect(page.getByRole('img', { name: /^HSI\. Heading\. Estimated heading / })).toBeVisible();
+  await expect(page.getByRole('img', { name: /^HSI\. Estimated heading / })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 568 });
   await diagnostics.screenshot({ path: testInfo.outputPath('tilt-aiding-mobile.png') });
   expect(await diagnostics.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
@@ -822,7 +856,8 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await page.clock.runFor(12_000);
   await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
   await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
-  await expect(page.getByTestId('hsi-invalid')).toHaveText('Heading');
+  await expect(page.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(page.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
   await expect(page.getByTestId('hsi-course')).toBeVisible();
   await expect(page.getByTestId('hsi-deviation')).toBeAttached();
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
@@ -1279,7 +1314,8 @@ test('HSI seeds geographic heading from GPS and carries it with gyro motion betw
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 120 * 1852 / 3600 })));
   await page.clock.runFor(1100);
   await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText(/^HDG /);
-  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Heading');
+  await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
   await expect(hsi.getByTestId('hsi-course')).toBeVisible();
   const movingCompass = await hsi.getByTestId('hsi-compass').getAttribute('transform');
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-yaw')));
@@ -1292,7 +1328,8 @@ test('HSI seeds geographic heading from GPS and carries it with gyro motion betw
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-restored')));
   await page.clock.runFor(1100);
   await expect(hsi.getByTestId('hsi-course')).toBeVisible();
-  await expect(hsi.getByTestId('hsi-invalid')).toContainText('Heading');
+  await expect(hsi.getByTestId('hsi-invalid')).toHaveCount(0);
+  await expect(hsi.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
   await expect(hsi.getByTestId('hsi-relative-heading')).toHaveCount(0);
 });
 

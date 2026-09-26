@@ -2,9 +2,10 @@ import { isRadarCatalog, RADAR_MAX_AGE, RADAR_MAX_BYTES, RADAR_HISTORY_MS, RADAR
 import type { WeatherCache } from './cache';
 import { resourceFor, type Resource } from './routes';
 import { digest } from './upstream';
-import { workerJob } from './worker-job';
+import { workerJob, workerModule } from './worker-job';
+import { WeatherSourceError } from './source-error';
 
-export const PUBLISHED_RADAR = 'noaa-radar-contours-v1';
+export const PUBLISHED_RADAR = 'noaa-radar-contours-v2';
 export const RADAR_SITES = 'TADW TATL TBNA TBOS TBWI TCLT TCMH TCVG TDAL TDAY TDCA TDEN TDFW TDTW TEWR TFLL THOU TIAD TIAH TICH TIDS TJFK TLAS TLVE TMCI TMCO TMDW TMEM TMIA TMKE TMSP TMSY TOKC TORD TDJT TPHL TPHX TPIT TRDU TSDF TSJU TSLC TSTL TTPA TTUL'.split(' ');
 const ROOT = 'https://noaa-mrms-pds.s3.amazonaws.com/';
 const PREFIX = 'CONUS/MergedReflectivityQCComposite_00.50/';
@@ -52,7 +53,7 @@ async function prepare(raw: Buffer, site: string, source: string, sourceHash: st
   earliest: number, latest: number): Promise<{ body: Buffer; scan: RadarScan }> {
   const bytes = Uint8Array.from(raw).buffer;
   const result = await workerJob<{ body: ArrayBuffer; scan: RadarScan }>(
-    new URL(import.meta.url.endsWith('.ts') ? './radar-worker.ts' : './radar-worker.js', import.meta.url),
+    workerModule(import.meta.url, 'radar-worker'),
     { raw: bytes, site, source, sourceHash, window: { earliest, latest } }, signal, [bytes]);
   return { body: Buffer.from(result.body), scan: result.scan };
 }
@@ -112,7 +113,7 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
     }
     const raw = await cache.get(inputResource(url), undefined, work);
     const old = [latest.get(site), ...(catalog?.history ?? [])].find(f => f?.site === site && f.source === url && f.sourceHash === raw.sha256);
-    if (old && cache.has(resource(old))) {
+    if (old && await cache.check(resource(old))) {
       if (now() - old.observedAt >= maxAge) throw new Error('Radar scan is too old');
       return old;
     }
@@ -123,8 +124,8 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
     catch (cause) {
       // Invalid bytes are deterministic; worker crashes/timeouts remain retryable.
       // Future timestamps are reconsidered after a new source check.
-      if (!historicalUrl && cause instanceof Error && cause.name === 'InvalidWeatherSource') {
-        rejected.set(site, { hash: raw.sha256, until: cause.message.includes('future') ? now() + 60_000 : Infinity, error: cause });
+      if (!historicalUrl && cause instanceof WeatherSourceError) {
+        rejected.set(site, { hash: raw.sha256, until: cause.code === 'future-source' ? now() + 60_000 : Infinity, error: cause });
       }
       throw cause;
     }
@@ -211,7 +212,8 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       try {
         const value: unknown = JSON.parse(saved.body.toString());
         if (saved.headers['x-weather-catalog'] !== PUBLISHED_RADAR || !isRadarCatalog(value) || value.checkedAt !== saved.checkedAt) throw new Error('Invalid saved radar');
-        for (const file of value.files) if (cache.has(resource(file))) latest.set(file.site, file);
+        for (const file of value.files) if (await cache.check(resource(file))) latest.set(file.site, file);
+        for (const file of value.history ?? []) await cache.check(resource(file));
         for (const site of value.unavailable) unavailable.add(site);
         if (!latest.has('CONUS')) throw new Error('Incomplete saved radar');
         catalog = value; protect(); nextNational = value.checkedAt + 60_000;
@@ -232,7 +234,7 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       }
       if (!terminalTask && now() >= nextTerminals) terminalTask = updateTerminals().finally(() => { terminalTask = undefined; });
     },
-    get status() { return { ready: !!catalog && cache.has(radarResource()), preparing: !!nationalTask || !!terminalTask || !!historyTask,
+    get status() { return { ready: !!catalog && cache.has(radarResource()) && catalog.files.some(file => file.site === 'CONUS' && cache.has(resource(file))), preparing: !!nationalTask || !!terminalTask || !!historyTask,
       checkedAt: catalog?.checkedAt, scans: catalog?.files.length ?? 0, historyScans: catalog?.history?.length ?? 0,
       unavailable: catalog?.unavailable, ...(error ? { error } : {}) }; },
     async close() { await Promise.allSettled([nationalTask, terminalTask, historyTask]); await publication.catch(() => {}); },

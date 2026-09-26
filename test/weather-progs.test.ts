@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isSurfaceSnapshot, isSurfaceCatalog, SURFACE_MAX_BYTES, SURFACE_PROCESSING, surfacePositions, type SurfaceCatalog, type SurfaceProduct, type SurfaceSnapshot } from '@zlayer/contracts';
+import { isSurfaceSnapshot, isSurfaceCatalog, isSurfaceArtifact, SURFACE_MAX_BYTES, SURFACE_PROCESSING, surfacePositions, type SurfaceCatalog, type SurfaceProduct, type SurfaceSnapshot } from '@zlayer/contracts';
 import { parseSurfaceCatalog, parseSurfaceChart, SURFACE_CATALOG } from '../src/layers/weather-awc/progs/source';
 import { surfaceFrame, surfaceStatus } from '../src/layers/weather-awc/progs/time';
 import { surfaceLineCurve } from '../src/layers/weather-awc/progs/curves';
@@ -93,6 +93,32 @@ test('captured AWC charts retain all smoothed fronts/isobars and the full horizo
   assert.ok(values.get('zlayer-plugin:weather-awc:progs-forecast')!.length < 64 * 1024);
   fetcher.mock.mockImplementation(async () => { throw new Error('Offline'); });
   assert.deepEqual((await new ProgsClient(client.baseUrl).restore('forecast', signal)).snapshot, expected);
+});
+
+test('a captured global isobar retains all date-line segments within the existing feature bounds', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20260925_12_F072-isobar-excerpt.geojson', import.meta.url), 'utf8');
+  const frame = parseSurfaceChart(text, { file: '20260925_12_F072_wpc.geojson', forecastHour: 72,
+    referenceTime: Date.parse('2026-09-25T12:00:00Z'), validTime: Date.parse('2026-09-28T12:00:00Z'),
+    source: 'https://aviationweather.gov/data/products/wpc/20260925/20260925_12_F072_wpc.geojson',
+  }, Date.parse('2026-09-25T23:00:00Z'), hash(text));
+  assert.equal(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'forecast', frame }), true);
+  assert.equal(frame.features.length, 2);
+  assert.equal(new Set(frame.features.map(f => f.id)).size, 2);
+  assert.equal(frame.sourceDocument, text);
+  const lines = frame.features.flatMap(f => {
+    assert.equal(f.kind, 'ISOBAR');
+    assert.deepEqual(f.sourceProperties, { type: 1 });
+    assert.equal(f.geometry.type, 'MultiLineString');
+    if (f.geometry.type !== 'MultiLineString') throw new Error('Expected split isobar');
+    assert.ok(f.geometry.coordinates.length <= 20);
+    return f.geometry.coordinates;
+  });
+  assert.equal(lines.length, 23, 'all captured date-line segments remain');
+  assert.equal(surfacePositions(frame), 3597, 'partitioning does not discard curve positions');
+  for (let i = 1; i < lines.length; i++) {
+    assert.equal(lines[i - 1]!.at(-1)![0], -lines[i]![0]![0]);
+    assert.equal(lines[i - 1]!.at(-1)![1], lines[i]![0]![1]);
+  }
 });
 
 test('surface curves reproduce the captured AWC spline, preserve control points and remain bounded', async () => {
@@ -285,6 +311,20 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   assert.notEqual(rebuilt.sourceHash, legacy.sourceHash, 'processing changes invalidate the browser renderer identity');
   assert.ok(isSurfaceCatalog(rebuilt));
   assert.ok(await migrated.cache.read(resourceFor(`/api/weather/progs/${rebuilt.frames[0]!.path}`)));
+  const artifact = resourceFor(`/api/weather/progs/${rebuilt.frames[0]!.path}`);
+  const opened = (await migrated.cache.open(artifact))!;
+  await opened.handle.close();
+  await writeFile(opened.entry.file, 'broken');
+  now += 6 * 60_000;
+  migrated.progs.refresh(); await migrated.progs.close();
+  const repairedCatalog = JSON.parse((await migrated.cache.read(resource))!.body.toString());
+  const repairedArtifact = resourceFor(`/api/weather/progs/${repairedCatalog.frames[0].path}`);
+  assert.ok(await migrated.cache.check(repairedArtifact), 'unchanged chart source repairs unreadable prepared output');
+  await migrated.cache.discard(repairedArtifact);
+  assert.equal(migrated.progs.status.analysis!.ready, false, 'a catalog alone is not a ready chart family');
+  await migrated.close();
+  const incomplete = await createWeatherServer(options); t.after(() => incomplete.close());
+  assert.equal(incomplete.progs.status.analysis!.ready, false);
 });
 
 test('grid retention changes cannot evict the published surface snapshots', async t => {

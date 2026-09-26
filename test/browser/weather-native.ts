@@ -6,6 +6,7 @@ import { windFrames } from '../../src/layers/weather-awc/grids/wind-levels';
 import { nativeSourceUrl, nativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { pluginFileKey } from '../../src/core/storage/plugin-file-cache';
 import { compressGrid } from '../../src/layers/weather-awc/grids/packed';
+import { pluginStorage } from '../../src/layers/weather-awc/storage';
 const client = new GridClient(new URL('/api/weather/grids/', location.href).href, true);
 async function loadFrame(product: AwcGridProduct, online: boolean, select: (manifest: ForecastManifest) => ForecastFrame | undefined) {
   const signal = new AbortController().signal;
@@ -19,6 +20,24 @@ async function loadFrame(product: AwcGridProduct, online: boolean, select: (mani
   return { values: manifest.fields.map(field => gridValue(data, field, cell)), frames: manifest.frames.length };
 }
 const api = {
+  async timeline(product: AwcGridProduct, altitude: number, online: boolean) {
+    const signal = new AbortController().signal;
+    const manifest = online ? await client.refresh(product, signal) : client.restore(product).manifest;
+    if (!manifest) throw new Error('No saved forecast metadata');
+    const frames = product === 'winds' ? windFrames(manifest, altitude)
+      : manifest.frames.filter(f => product === 'clouds' || f.altitudeFtMsl === altitude);
+    const saved: boolean[] = [];
+    for (const frame of frames) saved.push(client.saved(await client.load(manifest, frame, signal, online)));
+    if (online && saved.every(Boolean)) client.remember(manifest);
+    return saved;
+  },
+  async fillDisposableInputs() {
+    const files = pluginStorage.files('pressure-levels', { maxEntries: 64, maxBytes: 256 * 1024 * 1024,
+      maxFileBytes: 16 * 1024 * 1024, maxUnusedMs: 48 * 3600000 });
+    for (let i = 0; i < 100; i++) await files.derive({ url: new URL(`/test/input-${i}`, location.href).href,
+      identity: 'test-input', label: 'Disposable input', signal: new AbortController().signal,
+      create: async () => new Uint8Array([1, 2]).buffer, validate: async () => true });
+  },
   async legacyCloud() {
     const manifest = client.restore('clouds').manifest!;
     if (!nativeManifest(manifest)) throw new Error('Expected native fixture');

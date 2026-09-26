@@ -127,6 +127,53 @@ heading recovery and exact delayed replay. Recordings identify the equations as
 require their original estimator for exact replay; the current replayer rejects
 incompatible models.
 
+## v7 vibration and HSI regressions
+
+The 2026-09-25 working-tree change adds scatter-dependent force observation
+variance, averaged qualification of gravity reacquisition, and an angular-excursion
+calibration check. The synthetic mount case in `test/helpers/ahrs-motion.ts` has
+±0.3° roll oscillation at 8.3 Hz, zero-mean force amplitudes of 5, 5 and 2.5 m/s²
+at 11.7, 9.1 and 7.3 Hz, and small gyro offsets. These frequencies are below Nyquist
+at both tested rates. They are chosen stress inputs, not measured canopy vibration.
+
+Starting from a quiet level reference, 60 seconds of these samples and steady
+1 Hz GPS produced the following peak absolute roll/pitch readings:
+
+| Sample rate | v6 before this change | v7 | Regression limit |
+| --- | --- | --- | --- |
+| 30 Hz | 21.34° | 1.47° | <2° |
+| 60 Hz | 17.19° | 1.77° | <2° |
+
+The calibration regression also qualifies this vibration at 30/60/120 Hz without
+absorbing it into trim or mean bias. Counterexamples retain rejection for sustained
+rotation, changing half-second means, large angular wandering, extreme raw scatter
+and inconsistent gravity. Missing-time and changed-pose checks remain intact.
+Tests cover delayed-GPS replay with identical final quaternion/covariance and
+post-gap gravity recovery while this vibration continues. Superimposing the same
+mount motion on an analytic 25° banked turn at 30/60 Hz keeps peak roll/pitch error
+below 3°, checking that the vibration weighting still follows a sustained bank.
+Existing maneuver and heading accuracy bounds were retained.
+
+The HSI now distinguishes a usable GPS/gyro display estimate from verified heading.
+Fresh GPS, live calibrated motion and acceptable tilt permit an amber **Estimated
+heading** label without a failure cross. Unknown north remains infinite in the
+estimator; GPS loss, low speed, motion faults and degraded tilt retain their warnings.
+No-route guidance is a text caution rather than a failed compass.
+
+For this change, `npm run check` and all 275 AHRS unit tests passed, followed by
+the two added bank-with-vibration cases (277 distinct unit cases in total).
+All 41 Chromium cases in `test/e2e/ahrs.spec.ts` passed against the production
+fixture build. The new browser case starts vibration before calibration, then
+checks another simulated minute of displayed attitude within 3° and an uncrossed,
+amber-labeled estimated HSI. This focused run is not full repository CI or device
+release verification.
+
+These synthetic and browser regressions do not establish canopy-mount performance.
+Recordings from before engine start/calibration through engine-running vibration,
+with an independent attitude reference, remain needed to assess real drift,
+sampling aliasing, rectification, clipping and uncertainty coverage. v7 recordings
+require the matching estimator; v6 history above remains historical evidence.
+
 ## Reproduce and extend the evidence
 
 ```sh

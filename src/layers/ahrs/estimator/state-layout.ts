@@ -1,5 +1,5 @@
 /** Version the equations separately from the recording container format. */
-export const ESTIMATOR_MODEL = 'kinematic-ahrs-v6';
+export const ESTIMATOR_MODEL = 'kinematic-ahrs-v7';
 export const N = 30;
 export const ACCELERATION = 15;
 export const MAGNETIC_FIELD = 18;

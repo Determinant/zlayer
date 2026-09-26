@@ -7,7 +7,7 @@ import { rasterGrid } from './raster';
 import { fullGridViewport } from './viewport';
 import { weatherTiming } from './performance';
 
-// Optional display artifacts share AWC's aggregate budget. They never establish
+// Optional display artifacts use AWC's disposable pool. They never establish
 // numeric/offline readiness, source freshness or point-inspection values.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const images = pluginStorage.files('forecast-images', {

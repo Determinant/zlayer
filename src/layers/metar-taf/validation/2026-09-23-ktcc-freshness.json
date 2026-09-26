@@ -1,0 +1,78 @@
+{
+  "date": "2026-09-23",
+  "scope": "Live HTTP source comparison for the reported KTCC stale METAR; application tests/build/compiler checks were not run.",
+  "reportedLatestRaw": "KTCC 232153Z AUTO 35007KT 10SM SCT047 SCT055 21/19 A3013 RMK AO2 LTG DSNT NE SLP154 T02110189",
+  "initialSourceObservation": {
+    "checkedAt": "2026-09-23T22:08:51Z",
+    "nws": {
+      "endpoint": "https://api.weather.gov/stations/KTCC/observations",
+      "windowHours": 2,
+      "limit": 100,
+      "newestCodedObservation": "2026-09-23T20:53:00Z",
+      "newestRawlessSensorObservation": "2026-09-23T21:50:00Z",
+      "accessControlAllowOrigin": "*"
+    },
+    "surfaceGis": {
+      "endpoint": "https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/60/query",
+      "newestCodedObservation": "2026-09-23T20:53:00Z",
+      "accessControlAllowOrigin": "https://zlayer.tedyin.com"
+    },
+    "awc": {
+      "endpoint": "https://aviationweather.gov/api/data/metar?ids=KTCC&format=json&hours=2",
+      "newestCodedObservation": "2026-09-23T21:53:00Z",
+      "accessControlAllowOrigin": null
+    }
+  },
+  "aviationGis": {
+    "url": "https://mapservices.weather.noaa.gov/vector/rest/services/aviation/awc_aviation_weather/MapServer/42/query?f=geojson&where=station_id+%3D+%27KTCC%27&outFields=station_id%2Cobservation_time%2Craw_text%2Clongitude%2Clatitude&outSR=4326&returnZ=false&returnM=false",
+    "headers": {
+      "Date": "Wed, 23 Sep 2026 22:10:15 GMT",
+      "Access-Control-Allow-Origin": "https://zlayer.tedyin.com"
+    },
+    "responseSha256": "9dcc5761fc357ec27f0e9f19d55bed1e142312b858217bb45b5ebcb26cbfdc47",
+    "response": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {
+            "type": "MultiPoint",
+            "coordinates": [
+              [
+                -103.60139999999996,
+                35.18050000000005
+              ]
+            ]
+          },
+          "properties": {
+            "station_id": "KTCC",
+            "observation_time": 1790200380000,
+            "raw_text": "METAR KTCC 232153Z AUTO 35007KT 10SM SCT047 SCT055 21/19 A3013 RMK AO2 LTG DSNT NE SLP154 T02110189",
+            "longitude": -103.6014,
+            "latitude": 35.1805
+          }
+        }
+      ]
+    }
+  },
+  "awcGeojson": {
+    "url": "https://aviationweather.gov/api/data/metar?ids=KTCC&format=geojson",
+    "headers": {
+      "Date": "Wed, 23 Sep 2026 22:09:53 GMT",
+      "Access-Control-Allow-Origin": null
+    },
+    "responseSha256": "9a8b6e31e11290bcf313cda481665c6c70750b3e6b158edc783ecb32b52b15ab",
+    "rawOb": "METAR KTCC 232153Z AUTO 35007KT 10SM SCT047 SCT055 21/19 A3013 RMK AO2 LTG DSNT NE SLP154 T02110189",
+    "obsTime": "2026-09-23T21:53:00.000Z"
+  },
+  "otherSources": {
+    "nwsMtrLatest": "Both TCC and KTCC location queries returned HTTP 500; type=MTR&location=TCC product listing returned an empty @graph.",
+    "tgftp": "Station text contained the 21:53Z report, without Access-Control-Allow-Origin.",
+    "iem": "NM_ASOS/TCC current observation contained the 21:53Z report with Access-Control-Allow-Origin: *; not added to the application."
+  },
+  "implementation": "Selected-airport checks compare NWS observation history and aviation GIS in parallel; newest complete coded report wins. Surface map/nearby batches remain unchanged.",
+  "limits": [
+    "This observation does not establish which feed will be newest for other stations or times.",
+    "HTTP CORS headers were inspected; the updated application path was not exercised in a browser at user request."
+  ]
+}

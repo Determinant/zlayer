@@ -48,6 +48,9 @@ const initial = (): AhrsSnapshot => ({ phase: 'idle', attitude: null, hsiHeading
   altitude: null, altitudeAccuracy: null, gpsTime: null, position: null, trueHeading: false });
 
 function calibrationMessage(issue: FlightAlignmentIssue): string {
+  if (issue.kind === 'angular-scatter') {
+    return `Angular movement is ${(issue.value / RAD).toFixed(2)}° RMS (limit ${(issue.limit / RAD).toFixed(2)}°). Waiting for a steadier level pose.`;
+  }
   if (issue.kind === 'force-magnitude') {
     return `Accelerometer magnitude differs from gravity by ${(issue.value / G).toFixed(2)} g (limit ${(issue.limit / G).toFixed(2)} g). Waiting for steady gravity readings.`;
   }

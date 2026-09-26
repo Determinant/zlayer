@@ -38,8 +38,18 @@ validates WMO station/product identity, product description, bzip2 framing,
 threshold table and packet 16 radial data. Missing/range-folded codes and missing
 azimuth sectors stay missing. Unsupported formats fail visibly.
 
-D3 marching squares interpolates contour crossings at 5, 15, 25, 35, 45, 55, 65 and
-75 dBZ. National positions use the source cell centers. Terminal contours use
+A qualified marching-squares implementation retains D3's interpolation at 5, 15,
+25, 35, 45, 55, 65 and 75 dBZ. It indexes exterior bounds for hole assignment and
+omits zero-area rings. National contours then remove straight-line redundancy and
+simplify within **0.1 native cell** (0.001°, at most about 112 m). Each replacement
+is checked against all thresholds, islands and holes: it cannot cross another
+edge or sweep over another contour vertex. Rings are never dropped or merged.
+The tolerance changes interpolated edges slightly; it does not resample the
+mosaic, discard small echoes or infer new reflectivity. This reduction happens
+once on the server. Publication marker `noaa-radar-contours-v2` prevents reuse of
+older prepared geometry after an upgrade.
+
+National positions use the source cell centers. Terminal contours use
 source radial bearings and 150 m range gates, projected onto a sphere of mean
 Earth radius 6,371.0088 km. No intensity is inferred from a colored image. Coordinates
 round to five decimal places. Native detail remains bounded by the source grid
@@ -56,8 +66,19 @@ unchanged scans. The controller owns demand;
 map movement changes the selected prepared files without upstream requests.
 National and terminal geometry use separate sources. Eight interleaved threshold
 layers per source preserve stronger-echo priority across both sources; changing
-terminal coverage does not re-index the national composite. File reads/validation
-use two core admission slots, and validated files reach the renderer before
+terminal coverage does not re-index the national composite. The renderer submits
+each polygon as a separate feature, retaining its complete rings/holes, threshold
+and prepared vertices. This lets MapLibre's tile index reject off-tile polygons
+early instead of repeatedly clipping a national-size MultiPolygon. Fill sources
+use an 8px tile buffer for edge antialiasing instead of the general 128px default;
+their existing 0.2px simplification tolerance is unchanged. Neither change reduces
+the prepared contour detail or changes the stored file format.
+
+Switching to another scan still reads and validates its saved JSON, transfers its
+geometry to the map worker and prepares visible tiles. Persistent file caching
+avoids a download, not those render costs. Decoded memory retains only the selected
+scans; there is no retained history of indexed map sources or GPU buffers.
+File reads/validation use two core admission slots, and validated files reach the renderer before
 optional cache publication finishes.
 Within weather, radar draws above all advisory and grid layers, directly below
 Progs, preserving fronts, pressure centers, isobars and chart labels above echoes.
@@ -142,7 +163,7 @@ budget includes both encodings. History gets at most 1/64 of the server budget,
 capped at 64 MiB, with the latest snapshot retained even if it exceeds that allowance.
 Current/building files and six minutes of preceding catalogs are protected. Restart
 restores the latest decoded scans without upstream reads. The browser uses core's
-whole-file cache (24 files/16 MiB, one hour unused, within AWC's shared budget),
+whole-file cache (24 files/16 MiB, one hour unused, in its own retention category),
 authenticates each digest, and loads one selected national snapshot. One native
 GeoJSON source and five layers draw all tracks without per-cell DOM markers.
 
@@ -177,7 +198,11 @@ expired references atomically; restart restores retained history without convert
 unchanged scans again. Disposable files may remain for up to 24 hours server-side;
 the two-hour history window and 15-minute observation age are independent limits.
 Browser browsing storage caps radar at 24 files/64 MiB, 16 MiB per file and one
-hour unused, inside AWC's shared 96-file/256-MiB ceiling. A small endpoint-scoped
+hour unused, in its own retention category. Forecast altitude changes and
+disposable grid inputs cannot evict radar files. Browser quota can still prevent
+saves; radar's own older scans remain subject to LRU/age cleanup. The
+[AWC budget table](../grids/README.md#time-recovery-and-budgets) owns the combined
+ceilings. A small endpoint-scoped
 catalog lives in the plugin storage slot. Optional saves never delay publication of usable live
 data to the map. Denied radar or storm-motion catalog writes do not turn a valid
 live refresh into an acquisition error. Regional chart downloads do not guarantee radar availability offline.
@@ -202,6 +227,11 @@ new file requests, source-free browser requests, style recovery, saved catalog/f
 restoration after a full app reload with the origin disconnected, forecast
 hiding/expiration and six slim tabs at phone sizes.
 [Fixture provenance](../../../../test/fixtures/radar/README.md) records the captures.
+The [September 25 rendering measurement](validation/2026-09-25-rendering.md)
+records the native geometry size, before/after timings and remaining costs; it is
+desktop evidence, not a physical-device qualification.
+The [server contour reduction measurement](validation/2026-09-25-contours.md)
+records the subsequent bounded simplification and its processing/rendering costs.
 
 `test/weather-radar-motion.test.ts` adds captured STI decoding, empty/new-cell
 handling, identity rejection, historical alignment, unchanged publication and

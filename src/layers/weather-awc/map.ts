@@ -1,4 +1,5 @@
-import type { Map, GeoJSONSource, ErrorEvent, ExpressionSpecification } from 'maplibre-gl';
+import type { Map, ExpressionSpecification } from 'maplibre-gl';
+import { createSourceSubmission } from './source-submission';
 import { WEATHER_LAYER_ANCHOR, type MapLayerModule } from '../../core/map/layer';
 import type { WeatherController } from './controller';
 import { mountGridMap } from './grids/map';
@@ -18,7 +19,8 @@ const lineWidth = 2;
 
 export function createWeatherMap(controller: WeatherController): MapLayerModule<void> {
   let map: Map | undefined;
-  let previous = '', revision = 0, retry = -1, failed = false;
+  let previous = '', retry = -1;
+  let submission: ReturnType<typeof createSourceSubmission> | undefined;
   let attempted: ReturnType<WeatherController['getSnapshot']>['products'] | undefined;
   let grids: ReturnType<typeof mountGridMap> | undefined;
   let winds: ReturnType<typeof mountWindMap> | undefined;
@@ -30,11 +32,8 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     for (const id of ADVISORY_LAYERS) if (map?.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
   };
   const fail = (error: unknown) => {
-    revision++; failed = true; visible(false);
+    visible(false);
     controller.setAdvisoryDisplay({ loading: false, ids: [], error: `Advisory rendering failed: ${error instanceof Error ? error.message : String(error)}` });
-  };
-  const onError = (event: ErrorEvent & { sourceId?: string }) => {
-    if (map && previous && event.sourceId === SOURCE) fail(event.error);
   };
   const resetSource = () => {
     // Preserve each insertion point: wind barbs sit between advisory layers,
@@ -61,22 +60,24 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     const identity = advisories.map(a => a.id).join('|');
     const state = controller.getSnapshot();
     const refreshed = attempted && (['gairmet', 'sigmet', 'cwa'] as const).some(product => attempted![product].snapshot !== state.products[product].snapshot);
-    const recover = failed && (retry !== state.advisoryRetry || refreshed);
+    const source = submission!;
+    const recover = source.failed && (retry !== state.advisoryRetry || refreshed);
     if (identity === previous && !recover) return;
     previous = identity; retry = state.advisoryRetry; attempted = state.products;
-    const version = ++revision, current = map;
+    const reset = source.failed;
+    source.invalidate();
     visible(false);
     if (!identity) { controller.setAdvisoryDisplay({ loading: false, ids: [] }); return; }
+    const version = source.begin();
     controller.setAdvisoryDisplay({ loading: true, ids: [] });
     void (async () => {
-      if (failed) { failed = false; resetSource(); }
+      if (reset) resetSource();
       const features = advisories.map(a => ({ type: 'Feature' as const, id: a.id,
         geometry: a.geometry, properties: { id: a.id, hazard: a.hazard, product: a.product } }));
-      await (current.getSource(SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features });
-      if (map !== current || version !== revision) return;
+      if (!await source.submit(version, { type: 'FeatureCollection', features })) return;
       visible(true);
       controller.setAdvisoryDisplay({ loading: false, ids: advisories.map(a => a.id) });
-    })().catch(error => { if (map === current && version === revision) fail(error); });
+    })().catch(error => source.reject(version, error));
   };
   return { id: 'weather-awc', slot: 'weather',
     subscribeInputs: controller.subscribe,
@@ -93,7 +94,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
       map.addLayer({ id: ADVISORY_LAYERS[2]!, type: 'line', source: SOURCE,
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': colors, 'line-width': lineWidth, 'line-opacity': 1 } }, WEATHER_LAYER_ANCHOR);
-      map.on('error', onError);
+      submission = createSourceSubmission(map, SOURCE, fail);
       controller.attach();
       grids = mountGridMap(map, controller, ADVISORY_LAYERS[0]!);
       // Both overlays mount lazily. Resolve the first Progs layer when radar
@@ -112,8 +113,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     },
     update,
     unmount() {
-      revision++;
-      map?.off('error', onError);
+      submission?.destroy(); submission = undefined;
       grids?.destroy(); grids = undefined;
       winds?.destroy(); winds = undefined;
       radar?.destroy(); radar = undefined;
@@ -125,7 +125,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
         for (const id of [...ADVISORY_LAYERS].reverse()) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);
       }
-      map = undefined; previous = ''; attempted = undefined; failed = false; retry = -1;
+      map = undefined; previous = ''; attempted = undefined; retry = -1;
       controller.setAdvisoryDisplay({ loading: false, ids: [] });
     },
   };

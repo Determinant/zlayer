@@ -8,7 +8,90 @@ import { predictKinematics } from '../src/layers/ahrs/estimator/kinematics';
 import { ACCELERATION, N } from '../src/layers/ahrs/estimator/state-layout';
 import { G, RAD } from '../src/layers/ahrs/estimator/math';
 import type { GpsFix } from '../src/layers/ahrs/estimator/types';
-import { turn, vibratingLevelFlight } from './helpers/ahrs-motion';
+import { mountedVibration, turn, vibratingLevelFlight } from './helpers/ahrs-motion';
+
+for (const hz of [30, 60]) test(`mounted vibration does not produce false tilt or gyro bias at ${hz} Hz`, () => {
+  const filter = new Ahrs();
+  filter.setGyroBias([0, 0, 0], .2 * RAD);
+  filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+  let maximumError = 0;
+  for (let i = 1; i <= 60 * hz; i++) {
+    const time = i / hz;
+    filter.update(mountedVibration(time));
+    if (i % hz === 0) filter.updateGps({ time, speed: 50, track: 75, accuracy: 5, altitude: null, altitudeAccuracy: null });
+    const state = filter.getState(time);
+    maximumError = Math.max(maximumError, Math.abs(state.roll), Math.abs(state.pitch));
+    assert.notEqual(state.status, 'interrupted');
+  }
+  const state = filter.getState(60);
+  assert.ok(maximumError < 2, `maximum tilt ${maximumError}°`);
+  assert.ok(state.tiltFusion.accepted > 60 * hz * .95, 'vibration must not starve gravity corrections');
+  assert.ok(Math.abs(state.bias[0] / RAD - .08) < .05 && Math.abs(state.bias[1] / RAD + .1) < .05);
+  assert.ok(state.tiltStd > 1 && state.tiltStd < 10);
+  assert.equal(state.attitudeStd[2], Infinity, 'quiet GPS track does not verify heading');
+  assert.ok(covarianceIsPsd(filter.getCovariance(), N));
+});
+
+for (const hz of [30, 60]) test(`vibration weighting preserves a real banked turn at ${hz} Hz`, () => {
+  const filter = new Ahrs();
+  filter.setGyroBias([.08 * RAD, -.1 * RAD, .2 * RAD], .2 * RAD);
+  filter.update(turn(0, 120).sample);
+  filter.alignHeading(120);
+  let maximumError = 0;
+  for (let i = 1; i <= 60 * hz; i++) {
+    const time = i / hz, truth = turn(time, 120), vibration = mountedVibration(time);
+    const angle = .3 * RAD * Math.sin(2 * Math.PI * 8.3 * time), c = Math.cos(angle), s = Math.sin(angle);
+    // An independent roll of the mount rotates the aircraft's body-frame
+    // force/rate into device axes; add the mount rate and linear vibration.
+    const [gx, gy, gz] = truth.sample.gyro, [fx, fy, fz] = truth.sample.specificForce;
+    filter.update({ time, gyro: [gx + vibration.gyro[0], c * gy + s * gz + vibration.gyro[1],
+      -s * gy + c * gz + vibration.gyro[2]],
+    specificForce: [fx + 5 * Math.sin(2 * Math.PI * 11.7 * time),
+      c * fy + s * fz + 5 * Math.sin(2 * Math.PI * 9.1 * time),
+      -s * fy + c * fz + 2.5 * Math.sin(2 * Math.PI * 7.3 * time)] });
+    if (i % hz === 0) filter.updateGps(truth.fix);
+    const state = filter.getState(time);
+    maximumError = Math.max(maximumError, Math.abs(state.roll - (truth.roll + angle) / RAD), Math.abs(state.pitch));
+    assert.notEqual(state.status, 'interrupted');
+  }
+  assert.ok(maximumError < 3, `maximum tilt error ${maximumError}°`);
+  assert.ok(covarianceIsPsd(filter.getCovariance(), N));
+});
+
+test('vibration weighting replays delayed GPS at acquisition time without changing the result', () => {
+  const run = (delay: number) => {
+    const filter = new Ahrs(), fixes: GpsFix[] = [];
+    filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+    filter.alignHeading(75);
+    for (let i = 1; i <= 11 * 30; i++) {
+      const time = i / 30;
+      filter.update(mountedVibration(time));
+      if (i % 30 === 0 && time <= 10) fixes.push({ time, speed: 50, track: 75, accuracy: 5, altitude: null, altitudeAccuracy: null });
+      while (fixes.length && fixes[0]!.time + delay <= time + 1e-9) filter.updateGps(fixes.shift()!);
+    }
+    return filter;
+  };
+  const chronological = run(0), delayed = run(.4);
+  assert.deepEqual(delayed.getState(11).quaternion, chronological.getState(11).quaternion);
+  assert.deepEqual(delayed.getCovariance(), chronological.getCovariance());
+});
+
+test('returning bounded vibration can qualify gravity recovery after a motion gap', () => {
+  const filter = new Ahrs({ recoverAfterGap: true });
+  filter.setGyroBias([.08 * RAD, -.1 * RAD, .2 * RAD], .2 * RAD);
+  filter.update({ time: 0, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+  for (let i = 1; i <= 5 * 60; i++) filter.update(mountedVibration(i / 60));
+  const before = filter.getState(5), resumed = filter.update(mountedVibration(7));
+  assert.deepEqual(resumed.quaternion, before.quaternion, 'the missing interval must not be filtered into motion');
+  assert.ok(resumed.tiltStd > before.tiltStd);
+  for (let i = 1; i <= 10 * 60; i++) filter.update(mountedVibration(7 + i / 60));
+  const after = filter.getState(17);
+  assert.notEqual(after.status, 'interrupted');
+  assert.ok(after.tiltStd < 10, `tilt uncertainty ${after.tiltStd}`);
+  assert.ok(Math.abs(after.roll) < 5 && Math.abs(after.pitch) < 5, `tilt ${after.roll}, ${after.pitch}`);
+  assert.equal(after.attitudeStd[2], Infinity);
+  assert.ok(covarianceIsPsd(filter.getCovariance(), N));
+});
 
 for (const hz of [30, 60]) test(`three minutes of angular and linear vibration retain unaided tilt at ${hz} Hz`, () => {
   const filter = new Ahrs();

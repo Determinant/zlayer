@@ -52,6 +52,11 @@ filter heading, heading standard deviation at most 20°, and a displayed heading
 within 5° of the filter heading. Confidence governs warnings independently of
 availability. GPS loss, low speed and heading recovery retain the geographic
 reference; stopping or starting a new calibration clears it.
+An unverified GPS/IMU display can still be usable with fresh flight-speed GPS,
+calibrated current motion and acceptable tilt uncertainty. It carries an amber
+**Estimated heading** label instead of a permanent failure cross. This display
+qualification neither aligns the filter nor assigns finite north uncertainty;
+see the [HSI policy](../README.md#heading-and-guidance-behavior) for loss/recovery.
 
 ## Tracking and recovery decisions
 

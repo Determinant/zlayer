@@ -4,6 +4,7 @@ import type { WeatherCache } from './cache';
 import { resourceFor, type Resource } from './routes';
 import { digest } from './upstream';
 import { decodeStormTracks } from './radar-motion-decode';
+import { WeatherSourceError } from './source-error';
 
 export const PUBLISHED_MOTION = 'noaa-storm-tracks-v1';
 const catalogResource = () => resourceFor('/api/weather/radar/motion/latest.json');
@@ -31,7 +32,7 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
     let files = (catalog?.files ?? []).filter(f => f.availableAt <= checkedAt && checkedAt - f.availableAt <= RADAR_HISTORY_MS && cache.has(fileResource(f)));
     if (current.length) {
       const identity = current.map(s => `${s.site}/${s.sourceHash}`).join('|');
-      let file = prepared?.identity === identity && cache.has(fileResource(prepared.file)) ? prepared.file : undefined;
+      let file = prepared?.identity === identity && await cache.check(fileResource(prepared.file)) ? prepared.file : undefined;
       if (!file) {
         const snapshot = { schemaVersion: 1 as const, scans: current };
         const body = Buffer.from(JSON.stringify(snapshot)), sha256 = digest(body);
@@ -39,7 +40,7 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
         file = { availableAt: checkedAt, path: `motion/${sha256}.json`, sha256, byteLength: body.length };
         const resource = fileResource(file);
         building.add(resource.key); protect();
-        if (!cache.has(resource)) await cache.put(resource, { body, sha256, checkedAt, status: 200, headers: { 'content-type': 'application/json', 'x-weather-artifact': PUBLISHED_MOTION } });
+        if (!await cache.check(resource)) await cache.put(resource, { body, sha256, checkedAt, status: 200, headers: { 'content-type': 'application/json', 'x-weather-artifact': PUBLISHED_MOTION } });
         prepared = { identity, file };
       }
       if (files.at(-1)?.sha256 !== file.sha256) {
@@ -85,7 +86,7 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
           let scan = old?.sourceHash === raw.sha256 ? old : undefined;
           if (!scan) {
             try { scan = decodeStormTracks(raw.body, site, raw.sha256); }
-            catch (cause) { rejected.set(site, raw.sha256); throw cause; }
+            catch (cause) { if (cause instanceof WeatherSourceError) rejected.set(site, raw.sha256); throw cause; }
           }
           if (scan.observedAt > raw.checkedAt + 60_000 || now() - scan.observedAt >= RADAR_MAX_AGE || (old?.observedAt ?? 0) > scan.observedAt) {
             throw new Error('Storm tracking scan is old, future dated or moved backwards');
@@ -112,6 +113,13 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
       try {
         const value: unknown = JSON.parse(saved.body.toString());
         if (saved.headers['x-weather-catalog'] !== PUBLISHED_MOTION || !isRadarMotionCatalog(value) || value.checkedAt !== saved.checkedAt || value.checkedAt > now() + 60_000) throw new Error('Invalid saved storm motion');
+        const files: RadarMotionFile[] = [];
+        for (const file of value.files) if (await cache.check(fileResource(file))) files.push(file);
+        if (files.length !== value.files.length) {
+          value.files = files;
+          const body = Buffer.from(JSON.stringify(value));
+          await cache.put(catalogResource(), { ...saved, body, sha256: digest(body) });
+        }
         catalog = value; protect();
         const latest = value.files.at(-1), data = latest && await cache.read(fileResource(latest));
         if (data && latest) {
@@ -127,7 +135,7 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
       clock = now(); protect();
       if (!task && now() >= next) task = update().finally(() => { task = undefined; });
     },
-    get status() { return { ready: !!catalog && cache.has(catalogResource()), preparing: !!task, checkedAt: catalog?.checkedAt,
+    get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.files.every(file => cache.has(fileResource(file))), preparing: !!task, checkedAt: catalog?.checkedAt,
       stations: scans.size, unavailable: catalog?.unavailable.length ?? 0, ...(error ? { error } : {}) }; },
     async close() { await task; },
   };

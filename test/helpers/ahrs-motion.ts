@@ -17,6 +17,18 @@ export function vibratingLevelFlight(time: number): ImuSample {
       -gravity * Math.cos(roll) + .6 * Math.cos(2 * Math.PI * 10 * time)] };
 }
 
+/** Known level pose with ±0.3° angular vibration and zero-mean force vibration.
+ * Frequencies stay below Nyquist at 30 Hz and deliberately avoid integer cycles
+ * in short windows. This is a synthetic stress case, not an aircraft recording.
+ */
+export function mountedVibration(time: number, amplitude = 5): ImuSample {
+  const w = 2 * Math.PI * 8.3, roll = .3 * radians * Math.sin(w * time);
+  return { time, gyro: [(.08 + .3 * w * Math.cos(w * time)) * radians, -.1 * radians, .2 * radians],
+    specificForce: [amplitude * Math.sin(2 * Math.PI * 11.7 * time),
+      -gravity * Math.sin(roll) + amplitude * Math.sin(2 * Math.PI * 9.1 * time),
+      -gravity * Math.cos(roll) + amplitude / 2 * Math.sin(2 * Math.PI * 7.3 * time)] };
+}
+
 export function turn(time: number, heading = 0) {
   const t = Math.max(0, time - 3), ramp = Math.min(t, 8), speed = 50;
   const rate = gravity * Math.tan(25 * radians) / speed;

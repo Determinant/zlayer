@@ -22,6 +22,7 @@ export class ProgsCoverageClient {
   }
   private request(file: ProgsCoverageFile, signal: AbortSignal) {
     return { url: new URL(file.path, this.baseUrl).href, identity: file.sha256, byteLength: file.byteLength,
+      retention: { group: 'progs-coverage' },
       signal, label: 'NDFD weather coverage', cacheOnly: !navigator.onLine,
       validate: async (bytes: ArrayBuffer) => {
         await authenticatePreparedFile(bytes, file.sha256);

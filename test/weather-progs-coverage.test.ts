@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isProgsCoverageCatalog, progsCoverageImageSize, progsCoverageSource, PROGS_COVERAGE_SOURCE, type ProgsCoverageCatalog } from '@zlayer/contracts';
@@ -120,6 +120,21 @@ test('server publishes validated coverage independently, preserves prior data on
   restarted.coverage.refresh(); await restarted.coverage.close();
   assert.equal(reads, beforeRestart);
   assert.equal((await restarted.cache.read(resourceFor('/api/weather/progs/coverage.json')))!.checkedAt, corrected.checkedAt);
+  const artifact = resourceFor(`/api/weather/progs/${corrected.frames[0]!.file!.path}`);
+  const opened = (await restarted.cache.open(artifact))!;
+  await opened.handle.close();
+  await writeFile(opened.entry.file, 'broken');
+  now += 6 * 60_000;
+  restarted.coverage.refresh(); await restarted.coverage.close();
+  assert.equal(restarted.coverage.status.ready, true);
+  assert.ok(await restarted.cache.check(artifact), 'unchanged source bytes rebuild damaged output');
+  const repaired = (await restarted.cache.open(artifact))!;
+  await repaired.handle.close();
+  await restarted.close();
+  const bytes = await readFile(repaired.entry.file); bytes[repaired.offset] = bytes[repaired.offset]! ^ 1;
+  await writeFile(repaired.entry.file, bytes);
+  const damaged = await createWeatherServer(options); t.after(() => damaged.close());
+  assert.equal(damaged.coverage.status.ready, false, 'restart authenticates referenced image bodies');
 });
 
 test('client authenticates saved images, avoids unchanged transfers, and reopens offline without claiming an evicted image', async t => {
