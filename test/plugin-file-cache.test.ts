@@ -398,6 +398,100 @@ test('legacy files count toward the shared budget without reading bodies and mig
   assert.equal(legacy.stored.size, 1, 'failed migration retains the readable legacy source');
 });
 
+const groupedBudget = { ...fileBudget, groups: { icing: { ...fileBudget, maxEntries: 3 }, clouds: fileBudget } };
+const groupedRequest = (name: string, group = 'icing', cohort = 'run-1-alt-8000') => ({ ...request(name), retention: { group, cohort } });
+
+test('category budgets span namespaces without evicting other categories or the same forecast cohort', async t => {
+  cacheFixture(t);
+  t.mock.timers.enable({ apis: ['Date'], now: 10000 });
+  t.mock.method(globalThis, 'fetch', async () => new Response('ok'));
+  const owner = createPluginStorage('groups', undefined, { fileBudget: groupedBudget });
+  const first = owner.files('first', budgetPolicy), second = owner.files('second', budgetPolicy);
+  await first.load(groupedRequest('cloud', 'clouds'));
+  await first.load(groupedRequest('old-alt', 'icing', 'run-1-alt-5000'));
+  await first.load(groupedRequest('a')); await second.load(groupedRequest('b'));
+  t.mock.timers.setTime(12000);
+  // The old altitude makes room; unused age cannot remove another hour in this cohort.
+  await first.load(groupedRequest('c'));
+  assert.deepEqual(await paths(first.cacheName), ['/a', '/c', '/cloud']);
+  assert.deepEqual(await paths(second.cacheName), ['/b']);
+  assert.deepEqual(await second.loadResult(groupedRequest('overflow')), { value: 'ok', saved: false });
+  assert.deepEqual(await paths(second.cacheName), ['/b']);
+  for (let i = 0; i < 5; i++) await second.load(request(`disposable-${i}`));
+  for (const [files, name] of [[first, 'a'], [second, 'b'], [first, 'c']] as const) {
+    assert.equal(await files.load({ ...groupedRequest(name), cacheOnly: true }), 'ok');
+  }
+  assert.equal(await first.load({ ...groupedRequest('cloud', 'clouds'), cacheOnly: true }), 'ok');
+});
+
+test('quota recovery reclaims disposable inputs without deleting a protected hour or another category', async t => {
+  const owner = createPluginStorage('group-quota', undefined, { fileBudget: groupedBudget });
+  const files = owner.files('forecasts', budgetPolicy), { cache } = cacheFixture(t, files.cacheName);
+  t.mock.method(globalThis, 'fetch', async () => new Response('ok'));
+  await files.load(groupedRequest('a')); await files.load(groupedRequest('cloud', 'clouds'));
+  await files.load(request('input'));
+  const put = cache.put;
+  const writes = t.mock.method(cache, 'put', async (...args: Parameters<typeof put>) => {
+    if ((await paths(files.cacheName)).length >= 3) throw new DOMException('Full', 'QuotaExceededError');
+    return put(...args);
+  });
+  assert.deepEqual(await files.loadResult(groupedRequest('b')), { value: 'ok', saved: true });
+  assert.deepEqual(await paths(files.cacheName), ['/a', '/b', '/cloud']);
+  assert.deepEqual(await files.loadResult(groupedRequest('c')), { value: 'ok', saved: false });
+  assert.deepEqual(await files.loadResult(request('image')), { value: 'ok', saved: false });
+  assert.deepEqual(await paths(files.cacheName), ['/a', '/b', '/cloud']);
+  writes.mock.restore();
+});
+
+test('concurrent windows fill a cohort within its own ceiling and a new altitude replaces only that category', async t => {
+  cacheFixture(t);
+  t.mock.method(globalThis, 'fetch', async () => { await turn(); return new Response('ok'); });
+  const files = () => createPluginStorage('group-windows', undefined, { fileBudget: groupedBudget }).files('frames', budgetPolicy);
+  const first = files(), second = files();
+  await first.load(groupedRequest('cloud', 'clouds'));
+  const saved = await Promise.all(Array.from({ length: 5 }, (_, i) => (i % 2 ? first : second).loadResult(groupedRequest(`old-${i}`))));
+  assert.equal(saved.filter(result => result.saved).length, 3);
+  for (let i = 0; i < 3; i++) await second.load(groupedRequest(`new-${i}`, 'icing', 'run-1-alt-12000'));
+  assert.deepEqual(await paths(first.cacheName), ['/cloud', '/new-0', '/new-1', '/new-2']);
+});
+
+test('existing cache keys acquire category retention on reuse without redownloading or rewriting the payload', async t => {
+  const owner = createPluginStorage('group-adoption', undefined, { fileBudget: groupedBudget });
+  const files = owner.files('frames', budgetPolicy), { cache } = cacheFixture(t, files.cacheName);
+  const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('ok'));
+  await files.load(request('a'));
+  const put = t.mock.method(cache, 'put');
+  assert.equal(await files.has(groupedRequest('a')), false, 'unclassified bytes must be validated before category adoption');
+  assert.deepEqual(await files.loadResult({ ...groupedRequest('a'), cacheOnly: true }), { value: 'ok', saved: true });
+  assert.equal(await files.has(groupedRequest('a')), true);
+  assert.equal(fetch.mock.callCount(), 1); assert.equal(put.mock.callCount(), 0);
+  for (let i = 0; i < 4; i++) await files.load(request(`disposable-${i}`));
+  assert.equal(await files.load({ ...groupedRequest('a'), cacheOnly: true }), 'ok');
+});
+
+test('a category byte limit refuses a new save without sacrificing the same cohort, including without access receipts', async t => {
+  const owner = createPluginStorage('group-bytes', undefined, { fileBudget: { ...fileBudget,
+    groups: { icing: { maxEntries: 10, maxBytes: 4, maxUnusedMs: 1000 } } } });
+  const files = owner.files('frames', budgetPolicy); cacheFixture(t);
+  t.mock.method(globalThis, 'fetch', async () => new Response('ok'));
+  await files.load(groupedRequest('a')); await files.load(groupedRequest('b'));
+  await caches.delete(`${files.cacheName}:access`);
+  assert.deepEqual(await files.loadResult(groupedRequest('c')), { value: 'ok', saved: false });
+  assert.deepEqual(await paths(files.cacheName), ['/a', '/b']);
+  assert.throws(() => files.load(groupedRequest('invalid', 'constructor')), /Invalid plugin file retention/);
+});
+
+test('a replacement cohort preserves overlapping file identities and evicts the obsolete file even when it is newest', async t => {
+  const owner = createPluginStorage('group-correction', undefined, { fileBudget: groupedBudget });
+  const files = owner.files('frames', budgetPolicy); cacheFixture(t);
+  t.mock.method(globalThis, 'fetch', async () => new Response('ok'));
+  await files.load(groupedRequest('a')); await files.load(groupedRequest('b')); await files.load(groupedRequest('old-c'));
+  const replacement = groupedRequest('new-c', 'icing', 'corrected-run-1-alt-8000');
+  const keep = ['a', 'b', 'new-c'].map(name => pluginFileKey(request(name)));
+  assert.deepEqual(await files.loadResult({ ...replacement, retention: { ...replacement.retention, keep } }), { value: 'ok', saved: true });
+  assert.deepEqual(await paths(files.cacheName), ['/a', '/b', '/new-c']);
+});
+
 test('shared expensive-work admission preserves coalescing and cancels queued work before cache/network reads', async t => {
   cacheFixture(t);
   const run = createTaskLimiter(1), started = gate(), release = gate();

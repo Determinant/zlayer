@@ -1,6 +1,6 @@
 # GPS aiding before north alignment
 
-`kinematic-ahrs-v6` uses GPS during heading acquisition and recovery. Altitude
+`kinematic-ahrs-v7` retains v6's GPS use during heading acquisition and recovery. Altitude
 observes down-position; directly supplied vertical velocity observes down-velocity.
 Neither requires yaw. Horizontal GPS supports the magnitude of a velocity change
 in the local frame. It does not supply aircraft heading or assert zero rotation.

@@ -92,9 +92,24 @@ export interface FlightAlignmentStatus {
 }
 
 export interface FlightAlignmentIssue {
-  kind: "force-magnitude" | "force-noise" | "force-change" | "gyro-noise" | "gyro-change" | "gyro-rate";
+  kind: "force-magnitude" | "force-noise" | "force-change" | "gyro-noise" | "gyro-change" | "gyro-rate" | "angular-scatter";
   value: number;
   limit: number;
+}
+
+/** RMS angular excursion about the window's mean rate. Integrate every observed
+ * interval, including its within-interval variation; rapid zero-mean rates can
+ * have small displacement without representing a steadily rotating mount.
+ */
+function angularScatter(samples: readonly ImuSample[], weights: readonly number[], gyro: Vec3, seconds: number): number {
+  let angle: Vec3 = [0, 0, 0], sum: Vec3 = [0, 0, 0], squared = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const dt = weights[i]!, rate = sub(samples[i]!.gyro, gyro);
+    sum = add(sum, add(scale(angle, dt), scale(rate, dt * dt / 2)));
+    squared += dt * (dot(angle, angle) + dt * dot(angle, rate) + dt * dt / 3 * dot(rate, rate));
+    angle = add(angle, scale(rate, dt));
+  }
+  return Math.sqrt(Math.max(0, squared / seconds - norm(scale(sum, 1 / seconds)) ** 2));
 }
 
 /** Complete half-second means, weighted by observed time, ending at the newest
@@ -298,8 +313,11 @@ export class FlightAlignment {
       { kind: "gyro-rate", value: norm(gyro), limit: 1 * RAD },
       // A mounted device in level flight need not be motionless. Allow vibration
       // and gentle rocking around the confirmed reference pose.
-      { kind: "force-noise", value: forceRms, limit: 2 },
-      { kind: "gyro-noise", value: gyroRms, limit: 10 * RAD },
+      // Bound raw input as well as displacement. High instantaneous rates alone
+      // cannot distinguish small mount vibration from a changing level pose.
+      { kind: "force-noise", value: forceRms, limit: G },
+      { kind: "gyro-noise", value: gyroRms, limit: 50 * RAD },
+      { kind: "angular-scatter", value: angularScatter(this.imu, weights, gyro, elapsed), limit: 1 * RAD },
       { kind: "force-change", value: forceChange, limit: 0.75 },
       { kind: "gyro-change", value: gyroChange, limit: 1 * RAD },
     ];

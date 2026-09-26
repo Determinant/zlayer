@@ -1,5 +1,4 @@
 import { AWC_GRID_FIELDS, isRecord, type AwcGridFrame, type AwcGridManifest, type AwcGridProduct, type AwcGridField } from '@zlayer/contracts';
-import { requestJson } from '../../../core/data/fetch-json';
 
 export const CONVERTER_VERSION = 'grib-browser-v1';
 export type SourceRecord = { path: string; start: number; end?: number; indexHash: string };
@@ -8,8 +7,8 @@ export type NativeFrame = { validTime: number; altitudeFtMsl: number | null; pre
 export type NativeManifest = Omit<AwcGridManifest, 'frames'> & { encoding: 'grib2'; frames: NativeFrame[] };
 export type ForecastManifest = AwcGridManifest | NativeManifest;
 export type SourceFrame = AwcGridFrame | NativeFrame;
-export type WindFrame = { validTime: number; windAltitude: number; altitudeFtMsl: number | null; pressureHpa?: number;
-  sources: string[]; levels: SourceFrame[] };
+export type WindFrame<L extends SourceFrame = SourceFrame> = { validTime: number; windAltitude: number; altitudeFtMsl: number | null; pressureHpa?: number;
+  sources: string[]; levels: L[] };
 export type ForecastFrame = SourceFrame | WindFrame;
 export const nativeManifest = (manifest: ForecastManifest): manifest is NativeManifest => 'encoding' in manifest && manifest.encoding === 'grib2';
 export const SOURCE_ROOT = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/';
@@ -22,12 +21,20 @@ export function nativeSourceUrl(baseUrl: string, path: string): string {
   return new URL(path, baseUrl).href;
 }
 export const HRRR_FIELDS = {
-  cloudCover: ['TCDC', 'entire atmosphere', 6, 1, 10], cloudBase: ['HGT', 'cloud base', 3, 5, 2],
-  cloudTop: ['HGT', 'cloud top', 3, 5, 3], freezingLowest: ['HGT', '0C isotherm', 3, 5, 4],
-  freezingHighest: ['HGT', 'highest tropospheric freezing level', 3, 5, 204], terrain: ['HGT', 'surface', 3, 5, 1],
+  cloudCover: { parameterName: 'TCDC', surfaceName: 'entire atmosphere', category: 6, parameter: 1, surface: 10 },
+  cloudBase: { parameterName: 'HGT', surfaceName: 'cloud base', category: 3, parameter: 5, surface: 2 },
+  cloudTop: { parameterName: 'HGT', surfaceName: 'cloud top', category: 3, parameter: 5, surface: 3 },
+  freezingLowest: { parameterName: 'HGT', surfaceName: '0C isotherm', category: 3, parameter: 5, surface: 4 },
+  freezingHighest: { parameterName: 'HGT', surfaceName: 'highest tropospheric freezing level', category: 3, parameter: 5, surface: 204 },
+  terrain: { parameterName: 'HGT', surfaceName: 'surface', category: 3, parameter: 5, surface: 1 },
 } as const;
 export const IFI_PARAMETERS = { icingProbability: 233, icingSeverity: 37, sldPotential: 217 } as const;
-export const WIND_FIELDS = { windHeight: ['HGT', 3, 5], windEast: ['UGRD', 2, 2], windNorth: ['VGRD', 2, 3], temperature: ['TMP', 0, 0] } as const;
+export const WIND_FIELDS = {
+  windHeight: { parameterName: 'HGT', category: 3, parameter: 5 },
+  windEast: { parameterName: 'UGRD', category: 2, parameter: 2 },
+  windNorth: { parameterName: 'VGRD', category: 2, parameter: 3 },
+  temperature: { parameterName: 'TMP', category: 0, parameter: 0 },
+} as const;
 export const WIND_PRESSURES = Array.from({ length: 37 }, (_, i) => 1000 - i * 25);
 export function modelPath(product: AwcGridProduct, runTime: number, lead: number): string {
   const date = new Date(runTime).toISOString(), day = date.slice(0, 10).replaceAll('-', ''), hour = date.slice(11, 13);
@@ -56,11 +63,6 @@ export function parseGribIndex(text: string, runTime: number): IndexRow[] {
     return { ...row, ...(next ? { end: next.start - 1 } : {}) };
   });
 }
-/** The gateway discovers and validates the source catalog once for all viewers. */
-export async function discoverGrids(baseUrl: string, product: AwcGridProduct, signal: AbortSignal): Promise<NativeManifest> {
-  return requestJson(new URL(`${product}.json`, baseUrl).href, isNativeManifest, 'Weather forecast', { signal });
-}
-
 export function isNativeManifest(value: unknown): value is NativeManifest {
   if (!isRecord(value) || value.encoding !== 'grib2' || value.schemaVersion !== 1 ||
     !['clouds', 'icing', 'winds'].includes(String(value.product)) || !Number.isSafeInteger(value.runTime) || Number(value.runTime) <= 0 || Number(value.runTime) % 3600000 ||

@@ -12,6 +12,17 @@ budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs
 The [weather server](../../../tools/weather-server/README.md) owns source acquisition
 and shared prepared data.
 
+`controller.ts` owns shared preferences, selection and display receipts.
+`product-refresh.ts` owns advisory/Progs restoration and product refresh demand;
+`clock.ts` owns expiry and app-resume events. Grid interaction pauses live in
+`grids/preparation-demand.ts`. A child grid publication reconfigures its peers
+only when it changes the selected stop or advances Now into another hour.
+
+GeoJSON renderers use `source-submission.ts` for source acceptance, error
+invalidation and stale completions. Each renderer still builds its own geometry,
+layers and recovery resources. A failed source is recreated before retrying;
+neither a late completion nor an error event may claim that old geometry is shown.
+
 ## Display and selection
 
 The left-edge toolbox has six core content tabs in two rows: **Advis.**,

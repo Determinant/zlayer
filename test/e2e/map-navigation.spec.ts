@@ -6,6 +6,10 @@ const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getIt
   center: [number, number]; zoom: number; bearing: number;
 });
 const bearing = (page: Page) => camera(page).then(view => (view.bearing + 360) % 360);
+async function expectCenter(page: Page, longitude: number, latitude = 37) {
+  await expect.poll(async () => (await camera(page)).center[0]).toBeCloseTo(longitude, 6);
+  await expect.poll(async () => (await camera(page)).center[1]).toBeCloseTo(latitude, 6);
+}
 
 async function expectRouteFits(page: Page, coordinates: [number, number][], expectedBearing: number) {
   const canvas = (await page.locator('.maplibregl-canvas').boundingBox())!;
@@ -68,8 +72,9 @@ test('zoom and orientation align to the left of Layers on desktop and touch scre
   }
 });
 
-test('track up follows live GPS without recentering, holds through loss of track, and switches back to north', async ({ page }) => {
+test('track up centers each fresh fix, preserves zoom, and stops following in north up', async ({ page }) => {
   const toggle = page.getByRole('button', { name: 'Track up', exact: true });
+  await page.clock.install();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await sendFix(page);
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
@@ -90,28 +95,34 @@ test('track up follows live GPS without recentering, holds through loss of track
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   const panned = await camera(page);
   for (const heading of [350, 10]) {
-    await sendFix(page, { heading, longitude: -121.9 });
+    await sendFix(page, { heading, longitude: -121.9, latitude: 37.1 });
     await expect.poll(() => bearing(page)).toBeCloseTo(heading);
-    for (const [index, coordinate] of (await camera(page)).center.entries()) {
-      expect(coordinate).toBeCloseTo(panned.center[index]!, 8);
-    }
+    await expectCenter(page, -121.9, 37.1);
     expect((await camera(page)).zoom).toBe(panned.zoom);
   }
+  // Position following must also work when the ground track has not changed.
+  await sendFix(page, { heading: 10, longitude: -121.8, latitude: 37.2 });
+  await expectCenter(page, -121.8, 37.2);
+  expect((await camera(page)).zoom).toBe(panned.zoom);
 
-  await sendFix(page, { heading: null, speed: 0, longitude: -121.9 });
+  // A stationary position is usable even though it has no ground track.
+  await sendFix(page, { heading: null, speed: 0, longitude: -121.7 });
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
+  await expectCenter(page, -121.7);
   expect(await bearing(page)).toBeCloseTo(10);
+  const held = await camera(page);
   await sendFix(page, { heading: 80, accuracy: 500 });
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
-  expect(await bearing(page)).toBeCloseTo(10);
-  await page.clock.install();
+  expect(await camera(page)).toEqual(held);
   await sendFix(page, { heading: 120 });
   await expect.poll(() => bearing(page)).toBeCloseTo(120);
   await page.clock.fastForward(10_001);
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
   expect(await bearing(page)).toBeCloseTo(120);
-  await sendFix(page, { heading: 180 });
+  await expectCenter(page, -122);
+  await sendFix(page, { heading: 180, longitude: -121.6 });
   await expect.poll(() => bearing(page)).toBeCloseTo(180);
+  await expectCenter(page, -121.6);
   await expect(toggle).not.toHaveClass(/is-waiting/);
   expect(await countWatches(page)).toBe(1);
 
@@ -119,14 +130,63 @@ test('track up follows live GPS without recentering, holds through loss of track
   await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(() => bearing(page)).toBeCloseTo(0);
-  await sendFix(page, { heading: 270 });
+  await sendFix(page, { heading: 270, longitude: -121.5 });
   expect(await bearing(page)).toBeCloseTo(0);
+  await expectCenter(page, -121.6);
+  await toggle.click();
+  await expectCenter(page, -121.5);
+  await expect.poll(() => bearing(page)).toBeCloseTo(270);
+});
+
+test('GPS loss cancels a follow animation and holds the camera until a fresh fix', async ({ page }) => {
+  const toggle = page.getByRole('button', { name: 'Track up', exact: true });
+  await page.clock.install();
+  await sendFix(page);
+  await expect.poll(async () => (await camera(page)).zoom).toBe(9);
+  await toggle.click();
+  await expect.poll(() => bearing(page)).toBeCloseTo(90);
+  const held = await camera(page);
+  // Deliver an acquisition error before the new follow animation can render.
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { longitude: -121.9, heading: 120 } }));
+    window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 2 }));
+  });
+  await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
+  await page.clock.runFor(500);
+  expect(await camera(page)).toEqual(held);
+  await sendFix(page, { longitude: -121.8, heading: 180 });
+  await expectCenter(page, -121.8);
+  await expect.poll(() => bearing(page)).toBeCloseTo(180);
+
+  const canvas = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  const drag = async () => {
+    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width / 2 + 100, canvas.y + canvas.height / 2 + 50, { steps: 10 });
+  };
+  await drag();
+  await sendFix(page, { longitude: -121.7, heading: 180 });
+  await page.mouse.up();
+  await expectCenter(page, -121.7);
+
+  // A queued fix must be discarded if GPS is lost before the gesture ends.
+  await drag();
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { longitude: -121.6, heading: 120 } }));
+    window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 2 }));
+  });
+  await page.mouse.up();
+  await page.clock.runFor(1000);
+  expect((await camera(page)).center[0]).not.toBeCloseTo(-121.6);
+  expect(await bearing(page)).toBeCloseTo(180);
 });
 
 test('orientation persists and can be toggled while GPS is unavailable or off', async ({ page }) => {
   const toggle = page.getByRole('button', { name: 'Track up', exact: true });
+  const initial = await camera(page);
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
+  expect(await camera(page)).toEqual(initial);
   await sendFix(page, { heading: 45 });
   await expect.poll(() => bearing(page)).toBeCloseTo(45);
   await page.reload();
@@ -134,12 +194,17 @@ test('orientation persists and can be toggled while GPS is unavailable or off', 
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
   expect(await bearing(page)).toBeCloseTo(45);
   await expect.poll(() => countWatches(page)).toBe(1);
-  await sendFix(page, { heading: 60 });
+  const restored = await camera(page);
+  await sendFix(page, { heading: 60, longitude: -121.9 });
   await expect.poll(() => bearing(page)).toBeCloseTo(60);
+  await expectCenter(page, -121.9);
+  expect((await camera(page)).zoom).toBe(restored.zoom);
+  const beforeOff = await camera(page);
   await page.getByRole('button', { name: 'Show GPS status', exact: true }).click();
   await page.getByRole('switch', { name: 'GPS aircraft', exact: true }).click();
   await expect.poll(() => countWatches(page)).toBe(0);
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
+  expect(await camera(page)).toEqual(beforeOff);
   await toggle.click();
   await expect.poll(() => bearing(page)).toBeCloseTo(0);
   await page.reload();

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FlightAlignment } from '../src/layers/ahrs/estimator/flight-alignment';
 import { G, RAD, type Vec3 } from '../src/layers/ahrs/estimator/math';
-import { vibratingLevelFlight } from './helpers/ahrs-motion';
+import { mountedVibration, vibratingLevelFlight } from './helpers/ahrs-motion';
 
 const createGate = () => new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true });
 
@@ -193,8 +193,8 @@ for (const mode of ['rotation', 'oscillation', 'acceleration', 'bad gravity', 'g
       const time = i / 60, wave = Math.sin(2 * Math.PI * .5 * time), sign = i % 2 ? -1 : 1;
       gate.observeImu({ time,
         gyro: [mode === 'rotation' ? 2 * RAD : mode === 'oscillation' ? 4 * RAD * wave
-          : mode === 'gyro noise' ? 20 * RAD * sign : 0, 0, 0],
-        specificForce: [mode === 'acceleration' ? 2 * wave : mode === 'accelerometer noise' ? 4 * sign : 0,
+          : mode === 'gyro noise' ? 100 * RAD * sign : 0, 0, 0],
+        specificForce: [mode === 'acceleration' ? 2 * wave : mode === 'accelerometer noise' ? 20 * sign : 0,
           0, mode === 'bad gravity' ? -G / 2 : -G] });
     }
     const state = gate.snapshot(10);
@@ -220,4 +220,41 @@ test('a recent movement and irregular sampling cannot disappear between averagin
     assert.equal(gate.snapshot(origin + 10).reason, 'imu-unstable');
     assert.equal(gate.snapshot(origin + 10).issue?.kind, 'gyro-change');
   }
+});
+
+for (const hz of [30, 60, 120]) test(`mounted vibration calibrates without absorbing its oscillation into trim or bias at ${hz} Hz`, () => {
+  const gate = createGate();
+  for (let i = 0; i <= 10 * hz; i++) gate.observeImu(mountedVibration(i / hz));
+  const result = gate.snapshot(10);
+  assert.equal(result.reason, 'ready', JSON.stringify(result.issue));
+  const solution = result.solution!;
+  [.08, -.1, .2].forEach((value, axis) => assert.ok(Math.abs(solution.gyroBias[axis]! / RAD - value) < .01));
+  assert.ok(Math.hypot(solution.specificForce[0], solution.specificForce[1]) < .01);
+  assert.ok(Math.abs(solution.specificForce[2] + G) < .01);
+  assert.ok(solution.gyroBiasStd >= .2 * RAD, 'vibration must not create false bias certainty');
+});
+
+test('mounted calibration handles phase offsets and uneven cadence without relying on complete vibration cycles', () => {
+  for (const hz of [30, 60, 120]) {
+    const gate = createGate();
+    let time = 0;
+    for (let i = 0; time < 10.3; i++) {
+      time = i / hz + .1 / hz * Math.sin(.7 * i);
+      gate.observeImu({ ...mountedVibration(time + .047), time: 300.123 + time });
+    }
+    const result = gate.snapshot(300.123 + time);
+    assert.equal(result.reason, 'ready', `hz=${hz}: ${JSON.stringify(result.issue)}`);
+    const solution = result.solution!;
+    assert.ok(Math.abs(solution.gyroBias[0] / RAD - .08) < .15);
+    assert.ok(Math.hypot(solution.specificForce[0], solution.specificForce[1]) < .1);
+  }
+});
+
+test('small average rate cannot hide a mount wandering through a large angle', () => {
+  const gate = createGate();
+  for (let i = 0; i <= 600; i++) gate.observeImu({ time: i / 60,
+    gyro: [0, 0, (i < 300 ? .9 : -.9) * RAD], specificForce: [0, 0, -G] });
+  const result = gate.snapshot(10);
+  assert.equal(result.reason, 'imu-unstable');
+  assert.equal(result.issue?.kind, 'angular-scatter');
 });

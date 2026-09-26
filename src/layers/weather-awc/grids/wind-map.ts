@@ -1,4 +1,5 @@
-import type { Map, GeoJSONSource, ErrorEvent } from 'maplibre-gl';
+import type { Map } from 'maplibre-gl';
+import { createSourceSubmission } from '../source-submission';
 import type { WeatherController } from '../controller';
 import { gridKey, gridMatchesTime, type DecodedGrid } from './format';
 import { barbGeometry, windSymbols } from './wind';
@@ -25,29 +26,24 @@ function barbImage(speed: number): ImageData {
 }
 
 export function mountWindMap(map: Map, controller: WeatherController, before: string) {
-  let key = '', cameraDirty = true, revision = 0, destroyed = false;
+  let key = '', cameraDirty = true, destroyed = false;
   let previous: DecodedGrid | undefined;
   let zoomLevel: number | undefined;
   let retry = controller.getSnapshot().forecastRetry;
   const images = new Set<string>(), identities = new WeakMap<DecodedGrid, string>();
   const clear = () => {
-    revision++; key = ''; previous = undefined;
+    submission.invalidate(); key = ''; previous = undefined;
     if (map.getLayer(LAYER)) map.removeLayer(LAYER);
     if (map.getSource(SOURCE)) map.removeSource(SOURCE);
     for (const id of images) if (map.hasImage(id)) map.removeImage(id);
     images.clear(); controller.setWindDisplay(undefined); controller.setWindRenderError(undefined);
   };
-  const fail = (error: unknown) => {
-    revision++; previous = undefined;
+  const submission = createSourceSubmission(map, SOURCE, error => {
+    previous = undefined;
     if (map.getLayer(LAYER)) map.setLayoutProperty(LAYER, 'visibility', 'none');
     controller.setWindDisplay(undefined);
     controller.setWindRenderError(error instanceof Error ? error.message : 'Wind rendering failed');
-  };
-  const sourceError = (event: ErrorEvent & { sourceId?: string }) => {
-    // MapLibre reports worker/tile failures as events; setData can still resolve.
-    // Invalidate that pending completion before it can claim a ready display.
-    if (!destroyed && key && event.sourceId === SOURCE) fail(event.error);
-  };
+  });
   const update = () => {
     if (destroyed) return;
     const state = controller.getSnapshot(), p = state.preferences;
@@ -63,7 +59,8 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
       if (previous && previous !== data) { previous = data; controller.setWindDisplay(data); }
       return;
     }
-    const version = ++revision; key = identity; cameraDirty = false;
+    if (submission.failed) clear();
+    const version = submission.begin(); key = identity; cameraDirty = false;
     // Keep symbols through camera movement only for the same forecast. New
     // time/run/level data stays hidden until MapLibre accepts its replacement.
     if (previous && gridKey(previous.manifest, previous.frame) !== identity) {
@@ -98,11 +95,11 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
         } }, before);
       }
       const shown = data;
-      await (map.getSource(SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features: symbols.map(s => ({
+      const accepted = await submission.submit(version, { type: 'FeatureCollection', features: symbols.map(s => ({
         type: 'Feature', id: s.cell, geometry: { type: 'Point', coordinates: [s.longitude, s.latitude] },
         properties: { barb: imageId(s.barb), direction: s.direction },
       })) });
-      if (destroyed || revision !== version) return;
+      if (!accepted) return;
       const current = controller.getSnapshot();
       if (!current.preferences.awcEnabled || !current.preferences.awcWindBarbs ||
         !('windAltitude' in shown.frame) || current.preferences.awcWindAltitude !== shown.frame.windAltitude || !gridMatchesTime(shown, current.selectedTime ?? current.now) ||
@@ -112,7 +109,7 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
       map.setLayoutProperty(LAYER, 'visibility', 'visible');
       previous = shown; controller.setWindDisplay(shown);
     })().catch(error => {
-      if (!destroyed && revision === version) fail(error);
+      submission.reject(version, error);
     });
   };
   const move = () => { cameraDirty = true; update(); };
@@ -120,6 +117,6 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
     const level = Math.floor(map.getZoom() + Math.log2(512 / 80));
     if (level !== zoomLevel) { zoomLevel = level; move(); }
   };
-  map.on('moveend', move); map.on('resize', move); map.on('zoom', zoom); map.on('error', sourceError);
-  return { update, destroy() { destroyed = true; map.off('moveend', move); map.off('resize', move); map.off('zoom', zoom); map.off('error', sourceError); clear(); } };
+  map.on('moveend', move); map.on('resize', move); map.on('zoom', zoom);
+  return { update, destroy() { destroyed = true; submission.destroy(); map.off('moveend', move); map.off('resize', move); map.off('zoom', zoom); clear(); } };
 }

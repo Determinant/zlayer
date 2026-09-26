@@ -31,6 +31,12 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     state.warning !== 'Motion' &&
     state.attitude!.headingStatus === 'tracking' && state.attitude!.attitudeStd[2] <= 20 &&
     state.attitude!.status !== 'degraded' && Math.abs((heading - state.attitude!.yaw + 540) % 360 - 180) <= 5;
+  // A healthy GPS/gyro display reference is usable but is still an estimate of
+  // heading, not independent north alignment. Keep that limitation visible
+  // without marking the entire working compass/CDI as failed.
+  const estimatedHeadingUsable = heading !== null && state.hsiHeading?.source === 'gps' &&
+    inertialLive && state.warning === '' && state.attitude!.status !== 'degraded' && state.gpsUsable;
+  const headingUsable = headingValid || estimatedHeadingUsable;
   const track = state.gpsLive && (state.speed ?? 0) >= 1 && Number.isFinite(state.track) ? state.track : null;
   // Availability and confidence are independent. Keep the last reference even
   // when motion or alignment fails; only an explicit session reset clears it.
@@ -61,11 +67,11 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
     : 'Magnetic variation unavailable';
   const warning = !state.gpsLive || !state.position ? 'No GPS' : !state.gpsUsable ? 'Low Speed'
     : !inertialLive || state.warning === 'Motion' ? (state.phase === 'ready' || state.phase === 'error' ? 'Motion' : 'Calibration')
-    : !headingValid ? 'Heading'
+    : !headingUsable ? 'Heading'
     : !legs.length && !omittedLegs ? 'No route' : !guidance ? 'No usable leg' : '';
   // A geographic course cannot be oriented against unaligned relative yaw.
   const available = guidance !== null && heading !== null;
-  const crossed = warning !== '' && (!available || !headingValid || warning === 'Motion');
+  const crossed = warning !== '' && (!headingUsable || warning === 'No GPS' || warning === 'Motion' || warning === 'Calibration');
   const card = (relative ? reference : bearing(reference)) ?? 0;
   const trueCard = reference ?? 0;
   const courseRotation = guidance ? guidance.course - trueCard : 0;
@@ -122,9 +128,9 @@ export const Hsi = memo(function Hsi({ state, route, magneticModel }: {
       </span>
     </div>}
     <div className={`ahrs-hsi-variation${magnetic ? '' : ' is-unavailable'}`}>
-      {warning && available && !crossed && <span className="ahrs-hsi-caution" data-testid="hsi-caution">{warning}</span>}
+      {warning && !crossed && <span className="ahrs-hsi-caution" data-testid="hsi-caution">{warning}</span>}
       {magnetic && heading !== null && <span className="ahrs-hsi-heading-value">TRUE HDG {degrees(heading)} T</span>}
-      {heading !== null && !headingValid && <span>Estimated heading</span>}
+      {heading !== null && !headingValid && <span className="ahrs-hsi-caution" data-testid="hsi-heading-estimate">Estimated heading</span>}
       <span>{variationNote}{trueReference && ' · using TRUE'}</span>
     </div>
     <dl className="ahrs-hsi-readings">

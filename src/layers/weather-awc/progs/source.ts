@@ -51,6 +51,16 @@ function lineGeometry(coordinates: [number, number][]): Extract<SurfaceFeature, 
   }
   return lines.length === 1 ? { type: 'LineString', coordinates } : { type: 'MultiLineString', coordinates: lines };
 }
+function appendLine(features: SurfaceFeature[], feature: Extract<SurfaceFeature, { kind: 'ISOBAR' | SurfaceBoundary }>) {
+  const geometry = feature.geometry;
+  if (geometry.type !== 'MultiLineString' || geometry.coordinates.length <= 20) { features.push(feature); return; }
+  // Global isobars can cross the date line more than twenty times. Preserve
+  // every segment in bounded features accepted by existing clients.
+  for (let start = 0; start < geometry.coordinates.length; start += 20) {
+    features.push({ ...feature, id: `${feature.id}:${start / 20}`,
+      geometry: { type: 'MultiLineString', coordinates: geometry.coordinates.slice(start, start + 20) } });
+  }
+}
 const FRONT_CODES: Record<number, SurfaceBoundary> = {
   20: 'STNRY', 25: 'STNRY', 28: 'STNRY', 220: 'WARM', 225: 'WARM', 228: 'WARM',
   420: 'COLD', 425: 'COLD', 428: 'COLD', 620: 'OCFNT', 625: 'OCFNT', 628: 'OCFNT',
@@ -80,13 +90,13 @@ export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: 
       if (g.type !== 'LineString' || !Array.isArray(g.coordinates) || g.coordinates.length < 2 || g.coordinates.length > 5000) throw new Error('Invalid NOAA chart line');
       const controls = g.coordinates.map(position);
       const coordinates = surfaceLineCurve(controls);
-      if (p.type === 1) features.push({ ...common, kind: 'ISOBAR', geometry: lineGeometry(coordinates) });
+      if (p.type === 1) appendLine(features, { ...common, kind: 'ISOBAR', geometry: lineGeometry(coordinates) });
       else {
         const kind = typeof p.fcode === 'number' ? FRONT_CODES[p.fcode] : undefined;
         if (!kind || ![1, 2].includes(p.fpipdr as number) || typeof p.front !== 'string') throw new Error(`Unsupported NOAA front: ${p.fcode}`);
         if (p.fpipdr === 2) coordinates.reverse();
         const phase: SurfacePhase = Number(p.fcode) % 10 === 5 ? 'forming' : Number(p.fcode) % 10 === 8 ? 'weakening' : 'normal';
-        features.push({ ...common, kind, phase, geometry: lineGeometry(coordinates) });
+        appendLine(features, { ...common, kind, phase, geometry: lineGeometry(coordinates) });
       }
     } else if (p.type === 15 || p.type === 21) {
       if (g.type !== 'Point') throw new Error('Invalid NOAA chart point');

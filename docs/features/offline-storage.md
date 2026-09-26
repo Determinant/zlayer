@@ -335,9 +335,17 @@ restart or failed refresh; Now still expires interval polygons offline. These
 snapshots are not part of regional chart acquisition and do not promise a complete
 offline forecast. [Numeric cloud/freezing/icing guidance](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
 additionally retains three endpoint-scoped source manifests. AWC's converted
-cloud/icing/wind frames, native pressure inputs, model terrain, prepared images and
-compatibility caches share one
-**96-file / 256 MiB** payload budget through core's [plugin file cache](../architecture/layer-plugins.md#plugin-file-caches).
+cloud/icing/wind frames use independent category budgets through core's
+[plugin file cache](../architecture/layer-plugins.md#plugin-file-caches). Each fits
+a complete hourly horizon, protecting the same source generation and selected
+altitude from evicting its own hours. Progs, coverage, radar and motion have their
+own budgets; pressure inputs, model terrain, rendered images and unclassified
+compatibility files share a disposable pool. The [AWC grid budget table](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
+owns the individual and combined ceilings. Category saves can reclaim disposable
+files on quota pressure, then older selections within their own category; they
+cannot evict another category or an hour in the requested numeric cohort.
+Insufficient browser quota leaves offline saving incomplete rather than causing
+repeated self-eviction. These controls do not prevent browser eviction.
 Structured advisory/catalog slots are separately size/count bounded; see the
 [AWC persistence guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence).
 The selected frame displays first; remaining cloud times and icing times at the

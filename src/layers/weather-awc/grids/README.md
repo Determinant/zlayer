@@ -11,6 +11,14 @@ Positive SLD can add a red hatch to probability/severity. Opacity defaults to 70
 The [plugin guide](../README.md#display-and-selection) owns toolbox and inspection
 behavior; the [winds guide](winds.md) owns vertical interpolation and barbs.
 
+`native-source.ts` owns pure source descriptors, index parsing and catalog guards;
+`client.ts` owns catalog requests. Before loading, `selection.ts` pairs a frame
+with its native/archive family and validates required native records. Conversion
+jobs use those discriminated selections, including distinct native/archive wind
+inputs. `identity.ts` owns stable serialized identities and the prepared artifact
+path shared by the browser and server. Selection tags never enter stored frames,
+so existing source-addressed cache identities remain unchanged.
+
 Inspect values from the numeric bundle, never from colors. Every covered point is
 inspectable, including unshaded cells; wrapped longitudes use the canonical domain.
 Cloud inspection shows all five diagnostics, icing all three at its selected
@@ -233,11 +241,15 @@ both streams. Evictions notify controllers to release obsolete references.
 
 | Resource | Bound |
 | --- | --- |
-| All AWC files, including dormant/compatibility namespaces | 96 files / 256 MiB; 48-hour unused expiry |
-| Converted frames and archived frames | Each namespace at most 64 files; shared aggregate above |
-| Native pressure inputs | 64 files; same aggregate |
-| Model terrain | 4 files / 32 MiB, at most 8 MiB each; same aggregate |
-| Full-domain images | 24 files / 32 MiB, at most 8 MiB each; same aggregate |
+| Cloud/freezing forecast category | 19 files / 304 MiB across converted and archived namespaces |
+| Icing forecast category | 18 files / 288 MiB across converted and archived namespaces |
+| Wind/temperature forecast category | 19 files / 304 MiB across converted and archived namespaces |
+| Progs charts / Progs coverage | Separate 64-file / 32 MiB and 32-file / 8 MiB categories; full validated catalogs fit |
+| Radar / storm motion | Separate 24-file / 64 MiB and 24-file / 16 MiB categories; one-hour unused expiry |
+| Disposable inputs, images and unclassified compatibility files | Shared 96-file / 256 MiB default pool; 48-hour unused expiry |
+| Native pressure inputs | 64 files / 256 MiB within the disposable pool |
+| Model terrain | 4 files / 32 MiB, at most 8 MiB each; disposable pool |
+| Full-domain images | 24 files / 32 MiB, at most 8 MiB each; disposable pool |
 | Other compressed forecasts | 16 MiB per file |
 | Numeric bundle | 48 MiB decoded; at most 4096 pixels per dimension |
 | Shared decoded neighborhood | 96 MiB per page, additional to displayed/replacement references and worker scratch |
@@ -245,8 +257,37 @@ both streams. Evictions notify controllers to release obsolete references.
 | Acquisition | Two scalar jobs and one independent wind job; at most three 16 MiB inputs |
 | Numeric worker calls | One at a time through core's task limiter |
 
-Core owns transfers, storage, LRU/age cleanup and publication locks. Quota may evict
-older times and altitudes; opportunistic saves do not pin complete timelines.
+Numeric category budgets fit their entire F00–F18 (or IFI F001–F018) horizon,
+even at the 16 MiB per-file limit. These are independent ceilings, not allocations:
+all AWC pools together permit at most 296 files / 1,272 MiB of payload, with cache
+keys/receipts and browser overhead additional. Typical occupancy depends on
+compressed data and enabled products; the browser may provide less quota.
+
+Core retention groups isolate categories. Icing altitude changes can evict older
+icing selections; wind altitude changes can evict older wind selections. Neither
+can displace cloud, Progs or radar data, and disposable pressure inputs/images
+cannot displace finished forecasts. Numeric requests protect the complete hourly
+cohort for the same endpoint, source generation and altitude from their own
+age/capacity/quota cleanup. Source identities across the entire timeline define
+that cohort, so same-run corrections replace old bytes while native source-check
+timestamps alone do not. Exact current file identities also protect unchanged
+hours carried into a corrected catalog; cleanup removes obsolete identities first.
+Another altitude or run in the same category can evict
+the previous selection, including selections in other windows.
+
+On browser quota pressure category saves first reclaim disposable files, then
+older cohorts in their own category. If those are insufficient, the save fails
+without deleting another hour in the requested cohort or another category.
+The live result remains usable and offline progress stays incomplete. Existing
+cache identities remain readable and acquire their category on validated use.
+Protected cohorts are not permanent offline packs: browser eviction, explicit
+reset and a replacement selection can still remove them. Unprotected entries
+retain their usual LRU/unused-age cleanup. Radar continues to load selected scans;
+these policies do not start a full national/terminal-history download.
+
+Core owns transfers, storage, eligible LRU/age cleanup and publication locks.
+The protections above apply to app-managed eviction; saved timelines remain
+subject to browser storage loss.
 Without Web Locks, reads work but optional saves are skipped. Corrupt saved files
 repair online; offline reads use only retained files. All weather storage participates
 in full local reset, independently of regional chart completeness. See

@@ -6,6 +6,15 @@ Catalog: <https://aviationweather.gov/api/data/progchart>
 
 Files: `https://aviationweather.gov/data/products/wpc/20260924/<filename>`. The catalog deliberately includes a 00Z-cycle F060 chart among 12Z forecasts. Tests preserve this identity and all feature properties.
 
+`20260925_12_F072-isobar-excerpt.geojson` is a reserialized excerpt captured on
+September 25 from
+`https://aviationweather.gov/data/products/wpc/20260925/20260925_12_F072_wpc.geojson`.
+It retains metadata record 0 and isobar record 178 from the original document
+(SHA-256 `9a9b59c8e9dbdc600e333f9300886e77ae002013fbf7615e3fe5c7d464e440aa`).
+Its 22 date-line crossings exercise partitioning into bounded features without
+dropping any of the 23 line parts or 3,597 prepared positions. The excerpt's SHA-256
+is `410bf6da5ac6807df65ecd36ad070a252c60469b0d111301358ad4455db67f7a`.
+
 `awc-cardinal-reference.json` records output from AWC's own surface-rendering spline
 on four synthetic control points, captured September 24, 2026. It retains the
 public renderer asset URL/hash, coordinates and unrounded results (with duplicate

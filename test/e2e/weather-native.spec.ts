@@ -46,6 +46,23 @@ test('old converted floats migrate to compact bands with every source blocked', 
   expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
 });
 
+test('complete wind and icing selections survive other weather and disposable input eviction offline', async ({ page, request }) => {
+  test.setTimeout(180_000);
+  await page.clock.setFixedTime(WEATHER_NOW);
+  await page.goto('/test/browser/weather-native.html');
+  expect(await page.evaluate(() => window.nativeWeather.timeline('winds', 5000, true))).toEqual(Array(19).fill(true));
+  expect(await page.evaluate(() => window.nativeWeather.timeline('icing', 8000, true))).toEqual(Array(18).fill(true));
+  expect(await page.evaluate(() => window.nativeWeather.timeline('winds', 5500, true))).toEqual(Array(19).fill(true));
+  const clouds = await page.evaluate(() => window.nativeWeather.load('clouds', true));
+  await page.evaluate(() => window.nativeWeather.fillDisposableInputs());
+  const acquired = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  await page.reload(); await page.route(FORECAST_REQUESTS, route => route.abort());
+  expect(await page.evaluate(() => window.nativeWeather.timeline('winds', 5500, false))).toEqual(Array(19).fill(true));
+  expect(await page.evaluate(() => window.nativeWeather.timeline('icing', 8000, false))).toEqual(Array(18).fill(true));
+  expect(await page.evaluate(() => window.nativeWeather.load('clouds', false))).toEqual(clouds);
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(acquired);
+});
+
 test('wind altitudes share prepared sources, preserve MSL/flight-level identity and reopen offline', async ({ page, request }) => {
   test.setTimeout(120_000);
   await page.clock.setFixedTime(WEATHER_NOW);

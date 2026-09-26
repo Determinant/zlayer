@@ -3,7 +3,7 @@ import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { WeatherCache } from './cache.ts';
-import { HttpError, MiB, resourceFor } from './routes.ts';
+import { HttpError, MiB, resourceFor, routeFor, type PreparedFamily } from './routes.ts';
 import { createUpstream } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
@@ -12,6 +12,9 @@ import { createProgsWarming, PUBLISHED_PROGS } from './progs';
 import { createRadarWarming, PUBLISHED_RADAR } from './radar';
 import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
 const compress = promisify(gzip);
+const catalogMarkers: Record<PreparedFamily, string> = {
+  forecast: PUBLISHED_CATALOG, progs: PUBLISHED_PROGS, coverage: PUBLISHED_COVERAGE, radar: PUBLISHED_RADAR, motion: PUBLISHED_MOTION,
+};
 
 function acceptsGzip(value: string | undefined): boolean {
   return !!value?.split(',').some(part => {
@@ -61,22 +64,14 @@ export async function createWeatherServer(options: { directory: string; maxBytes
         response.setHeader('Content-Type', 'application/json');
         response.end(JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status, radar: radar.status, radarMotion: motion.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
-      const resource = resourceFor(request.url ?? '', request.headers.range);
-      const forecast = new URL(resource.url).pathname.startsWith('/api/weather/grids/');
-      const surface = new URL(resource.url).pathname.startsWith('/api/weather/progs/');
-      const coveragePath = new URL(resource.url).pathname.startsWith('/api/weather/progs/coverage');
-      const radarPath = new URL(resource.url).pathname.startsWith('/api/weather/radar/');
-      const radarFile = radarPath && !resource.url.endsWith('/latest.json');
-      const motionPath = new URL(resource.url).pathname.startsWith('/api/weather/radar/motion/');
-      const surfaceFile = surface && /\/[a-f0-9]{64}\.(?:json|png)$/.test(resource.url);
-      if (forecast || surface || radarPath) {
+      const route = routeFor(request.url ?? '', request.headers.range), { resource } = route;
+      if (route.type !== 'query') {
         const saved = await cache.open(resource, acceptsGzip(request.headers['accept-encoding']), request.method !== 'HEAD');
-        if (!saved) throw new HttpError(radarFile || surfaceFile || !resource.url.endsWith('.json') ? 404 : 503,
+        if (!saved) throw new HttpError(route.type === 'artifact' ? 404 : 503,
           'Prepared weather is not retained; refresh the catalog', 30);
         const { entry, handle, offset, length, gzip } = saved;
         try {
-          const catalog = !radarFile && !surfaceFile && resource.url.endsWith('.json');
-          if (catalog && entry.headers['x-weather-catalog'] !== (motionPath ? PUBLISHED_MOTION : radarPath ? PUBLISHED_RADAR : coveragePath ? PUBLISHED_COVERAGE : surface ? PUBLISHED_PROGS : PUBLISHED_CATALOG)) {
+          if (route.type === 'catalog' && entry.headers['x-weather-catalog'] !== catalogMarkers[route.family]) {
             throw new HttpError(503, 'Prepared weather has not been published', 30);
           }
           if (response.destroyed) return;

@@ -1,5 +1,5 @@
 import { GRID_BELOW_GROUND, GRID_MISSING, GRID_OUTSIDE, type AwcGridField } from '@zlayer/contracts';
-import { decodeGrib, type GribIdentity, type LambertGrid } from '../../src/layers/weather-awc/grids/grib';
+import { decodeGrib, lambertGeometrySignature, type GribIdentity, type LambertGrid } from '../../src/layers/weather-awc/grids/grib';
 import { samplingMap, projectField, rotateWinds } from '../../src/layers/weather-awc/grids/conversion';
 import type { NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { packGridBands } from '../../src/layers/weather-awc/grids/packed';
@@ -13,13 +13,10 @@ export function createConverter() {
   const received = new Set<string>();
   let mappingKey = '';
   function mapping(source: LambertGrid, target: NativeManifest['grid']) {
-    const key = geometrySignature(source.signature) + JSON.stringify(target);
+    const key = lambertGeometrySignature(source.signature) + JSON.stringify(target);
     if (key !== mappingKey) { indices = samplingMap(source, target); mappingKey = key; }
     return indices!;
   }
-  // Component orientation is not spatial geometry. Scalar/terrain fields can
-  // legally carry a different flag from the U/V pair on the same Lambert grid.
-  const geometrySignature = (value: string) => value.slice(0, 92) + (parseInt(value.slice(92, 94), 16) & ~8).toString(16).padStart(2, '0') + value.slice(94);
   return {
     reset() {
       values = new Float32Array(0); terrain = undefined; signature = ''; windGrid = undefined;
@@ -53,7 +50,7 @@ export function createConverter() {
       const done = weatherTiming('grib-project');
       try {
       const decoded = decodeGrib(raw, identity);
-      if (signature && geometrySignature(signature) !== geometrySignature(decoded.grid.signature)) throw new Error('NOAA field grids do not match');
+      if (signature && lambertGeometrySignature(signature) !== lambertGeometrySignature(decoded.grid.signature)) throw new Error('NOAA field grids do not match');
       signature = decoded.grid.signature;
       indices = mapping(decoded.grid, manifest.grid);
       const band = manifest.fields.indexOf(field);

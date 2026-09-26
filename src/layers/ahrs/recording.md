@@ -84,10 +84,12 @@ event creation time is not guaranteed to be the hardware sampling instant.
 - `header`: format `zlayer-ahrs`, version `1`, unique recording ID, browser and
   built app script URL, units/frames, effective estimator options, mount, optional heading,
   current trim, visibility and initial snapshot/covariance. `context.estimatorModel`
-  is `kinematic-ahrs-v6`; this versions the equations separately from JSONL format 1.
-  v6 adds rotation-dependent acceleration process noise and protects the heading
-  trajectory from a periodic reset during a turn. Its covariance remains 30×30;
-  matching dimensions alone do not establish replay compatibility with v5.
+  is `kinematic-ahrs-v7`; this versions the equations separately from JSONL format 1.
+  v7 adds IMU scatter-dependent acceleration observation variance and averaged
+  motion qualification for gravity reacquisition. v6 introduced rotation-dependent
+  acceleration process noise and protected the heading trajectory from a periodic
+  reset during a turn. Covariance remains 30×30; matching dimensions alone do not
+  establish replay compatibility with v6 or earlier models.
   Earlier estimator models require their original revision for replay.
 - `calibrate`: selected mount and optional one-time true heading.
 - `alignment`: complete calibration solution, including trim, force and gyro

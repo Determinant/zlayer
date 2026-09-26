@@ -1,4 +1,5 @@
-import type { Map, GeoJSONSource, ErrorEvent } from 'maplibre-gl';
+import type { Map } from 'maplibre-gl';
+import { createSourceSubmission } from '../source-submission';
 import type { FeatureCollection, Feature } from 'geojson';
 import type { RadarMotionCatalog, RadarMotionSnapshot } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';
@@ -12,7 +13,7 @@ const bearing = (a: number[], b: number[]) => {
   return Math.atan2(Math.sin(d) * Math.cos(next), Math.cos(lat) * Math.sin(next) - Math.sin(lat) * Math.cos(next) * Math.cos(d)) / r;
 };
 export function mountRadarMotionMap(map: Map, controller: WeatherController, before: () => string) {
-  let active: AbortController | undefined, identity = '', retry = -1, destroyed = false, failed = false;
+  let active: AbortController | undefined, identity = '', retry = -1, destroyed = false;
   let attempted: RadarMotionCatalog | undefined, cached: { hash: string; value: RadarMotionSnapshot } | undefined;
   const selectionKey = (hash: string, time: number, now: number) => `${hash}/${time}/${cached?.hash === hash
     ? motionScans(cached.value.scans, time, now).map(s => s.site).join(',') : ''}`;
@@ -22,10 +23,9 @@ export function mountRadarMotionMap(map: Map, controller: WeatherController, bef
   };
   const hide = () => { for (const layer of MOTION_LAYERS) if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', 'none'); };
   const empty = { loading: false, cells: 0, stations: 0 };
-  const fail = (error: unknown) => {
-    failed = true; hide(); controller.setRadarMotionDisplay({ ...empty, error: `Storm motion: ${error instanceof Error ? error.message : String(error)}` });
-  };
-  const onError = (event: ErrorEvent & { sourceId?: string }) => { if (!destroyed && identity && event.sourceId === SOURCE) fail(event.error); };
+  const submission = createSourceSubmission(map, SOURCE, error => {
+    hide(); controller.setRadarMotionDisplay({ ...empty, error: `Storm motion: ${error instanceof Error ? error.message : String(error)}` });
+  });
   const ensure = () => {
     if (map.getSource(SOURCE)) return;
     if (!map.hasImage(ARROW)) {
@@ -56,13 +56,14 @@ export function mountRadarMotionMap(map: Map, controller: WeatherController, bef
       ? currentRadar(state.radar.snapshot, state.selectedTime, state.now).find(f => f.site === 'CONUS') : undefined;
     const file = composite && motionFile(state.radarMotion.snapshot, state.selectedTime, state.now);
     const next = file ? selectionKey(file.sha256, composite!.observedAt, state.now) : '';
-    if (identity === next && retry === state.radarRetry && (!failed || attempted === state.radarMotion.snapshot)) return;
+    if (identity === next && retry === state.radarRetry && (!submission.failed || attempted === state.radarMotion.snapshot)) return;
     identity = next; retry = state.radarRetry; attempted = state.radarMotion.snapshot;
     active?.abort(); const task = active = new AbortController();
     hide();
-    if (failed) remove();
-    failed = false;
+    if (submission.failed) remove();
+    submission.invalidate();
     if (!file || !composite) { cached = undefined; controller.setRadarMotionDisplay(empty); return; }
+    const version = submission.begin();
     controller.setRadarMotionDisplay({ ...empty, loading: true });
     void (async () => {
       const value = cached?.hash === file.sha256 ? cached.value : await new Promise<RadarMotionSnapshot>((resolve, reject) => {
@@ -80,16 +81,15 @@ export function mountRadarMotionMap(map: Map, controller: WeatherController, bef
             bearing: i ? bearing(track.coordinates[i - 1]!, point) : 0, label: i ? `+${i * track.intervalMinutes}m` : `${scan.site} ${track.id}` } });
       }
       ensure();
-      await (map.getSource(SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features } satisfies FeatureCollection);
-      if (task.signal.aborted || destroyed || failed) return;
+      const accepted = await submission.submit(version, { type: 'FeatureCollection', features } satisfies FeatureCollection);
+      if (task.signal.aborted || !accepted) return;
       for (const layer of MOTION_LAYERS) map.setLayoutProperty(layer, 'visibility', 'visible');
       controller.setRadarMotionDisplay({ loading: false, cells: scans.reduce((n, s) => n + s.tracks.length, 0), stations: scans.length,
         ...(scans.length ? { oldest: Math.min(...scans.map(s => s.observedAt)), newest: Math.max(...scans.map(s => s.observedAt)) } : {}) });
-    })().catch(error => { if (!task.signal.aborted && !destroyed) fail(error); });
+    })().catch(error => { if (!task.signal.aborted) submission.reject(version, error); });
   };
-  map.on('error', onError);
   return { update, destroy() {
-    destroyed = true; active?.abort(); cached = undefined; map.off('error', onError); remove();
+    destroyed = true; active?.abort(); cached = undefined; submission.destroy(); remove();
     if (map.hasImage(ARROW)) map.removeImage(ARROW);
     controller.setRadarMotionDisplay(empty);
   } };

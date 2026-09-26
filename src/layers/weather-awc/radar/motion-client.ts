@@ -25,6 +25,7 @@ export class RadarMotionClient {
   }
   load(file: RadarMotionFile, signal: AbortSignal, onReady?: (value: RadarMotionSnapshot) => void): Promise<RadarMotionSnapshot> {
     return files.load({ url: new URL(file.path, this.baseUrl).href, identity: file.sha256, byteLength: file.byteLength,
+      retention: { group: 'radar-motion' },
       signal, label: 'Storm motion', cacheOnly: !navigator.onLine, ...(onReady ? { onReady } : {}),
       validate: async bytes => {
         const value = await preparedJson(bytes, file.sha256);

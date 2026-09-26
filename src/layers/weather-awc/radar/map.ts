@@ -1,15 +1,26 @@
-import type { Map, GeoJSONSource, ErrorEvent } from 'maplibre-gl';
+import type { Map } from 'maplibre-gl';
+import { createSourceSubmission } from '../source-submission';
 import { RADAR_LEVELS, type RadarCatalog, type RadarContours, type RadarFile } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';
 import { currentRadar } from './time';
 import { RADAR_COLORS } from './palette';
+import { radarFeatures } from './geometry';
 
 const SOURCE = 'weather-awc-radar', LAYER = 'weather-awc-radar-fill';
-type Group = { source: string; key: string; shown: string[]; loading: boolean; error?: string | undefined; failed: boolean };
+type Group = { source: string; key: string; shown: string[]; loading: boolean; error?: string | undefined;
+  submission: ReturnType<typeof createSourceSubmission> };
 export function mountRadarMap(map: Map, controller: WeatherController, before: () => string) {
   let active: AbortController | undefined, identity = '', destroyed = false, retry = -1;
   let attemptedCatalog: RadarCatalog | undefined;
-  const groups: Group[] = [SOURCE, `${SOURCE}-terminals`].map(source => ({ source, key: '', shown: [], loading: false, failed: false }));
+  const groups: Group[] = [SOURCE, `${SOURCE}-terminals`].map(source => {
+    const group: Group = { source, key: '', shown: [], loading: false,
+      submission: createSourceSubmission(map, source, error => {
+        group.loading = false; group.shown = [];
+        group.error = `Radar rendering failed: ${error instanceof Error ? error.message : String(error)}`;
+        publish();
+      }) };
+    return group;
+  });
   const national = groups[0]!;
   const memory = new globalThis.Map<string, RadarContours>();
   // Interleave both sources by threshold, preserving global stronger-echo priority.
@@ -34,19 +45,14 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
   const ensure = (group: Group) => {
     if (map.getSource(group.source)) return;
     map.addSource(group.source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] },
-      attribution: 'NOAA / NSSL MRMS · NWS / FAA TDWR', tolerance: .2 });
+      // Fills need only a small overlap for antialiasing, not the default 128px
+      // margin for wide strokes/symbols, which duplicates substantial geometry.
+      attribution: 'NOAA / NSSL MRMS · NWS / FAA TDWR', tolerance: .2, buffer: 8 });
     for (const [index, layer] of layers.entries()) if (layer.group === group) {
       const anchor = layers.slice(index + 1).find(next => map.getLayer(next.id))?.id ?? before();
       map.addLayer({ id: layer.id, source: group.source, type: 'fill', filter: ['==', ['get', 'dbz'], layer.dbz],
         layout: { visibility: 'none' }, paint: { 'fill-color': layer.color, 'fill-opacity': .75, 'fill-antialias': true } }, anchor);
     }
-  };
-  const onError = (event: ErrorEvent & { sourceId?: string }) => {
-    const group = groups.find(group => group.source === event.sourceId);
-    if (destroyed || !group || !group.key) return;
-    group.failed = true; group.loading = false; group.shown = [];
-    group.error = `Radar rendering failed: ${event.error?.message ?? 'Map source unavailable'}`;
-    publish();
   };
   const load = (file: RadarFile, signal: AbortSignal): Promise<RadarContours> => {
     const cached = memory.get(file.sha256);
@@ -81,9 +87,10 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
       if (key === group.key && !group.error && !group.loading) continue;
       group.key = key; group.shown = []; group.loading = !!files.length;
       group.error = undefined;
-      if (group.failed || !files.length) remove(group);
-      group.failed = false;
+      if (group.submission.failed || !files.length) remove(group);
+      group.submission.invalidate();
       if (!files.length) continue;
+      const version = group.submission.begin();
       void (async () => {
         const results = await Promise.allSettled(files.map(async file => {
           const value = await load(file, task.signal);
@@ -94,22 +101,22 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
         results.forEach((result, index) => { if (result.status === 'fulfilled') ready.push(result.value); else failed.push(files[index]!.site); });
         ensure(group);
         // No intermediate empty setData: one indexing pass for the chosen scans.
-        await (map.getSource(group.source) as GeoJSONSource).setData({ type: 'FeatureCollection', features: ready.flatMap(item => item.value.features) });
-        if (task.signal.aborted || destroyed || group.failed) return;
+        const accepted = await group.submission.submit(version, { type: 'FeatureCollection', features: radarFeatures(ready.map(item => item.value)) });
+        if (task.signal.aborted || !accepted) return;
         group.loading = false; group.shown = ready.map(item => item.file.site);
         group.error = failed.length ? `Radar unavailable: ${failed.join(', ')}` : undefined;
         publish();
       })().catch(error => {
         if (task.signal.aborted || destroyed) return;
-        group.loading = false; group.shown = []; group.failed = true; group.error = String(error); publish();
+        group.submission.reject(version, error);
       });
     }
     publish();
   };
-  map.on('moveend', update); map.on('error', onError);
+  map.on('moveend', update);
   return { update, destroy() {
-    destroyed = true; active?.abort(); memory.clear(); map.off('moveend', update); map.off('error', onError);
-    for (const group of groups) remove(group);
+    destroyed = true; active?.abort(); memory.clear(); map.off('moveend', update);
+    for (const group of groups) { group.submission.destroy(); remove(group); }
     controller.setRadarDisplay({ loading: false, sites: [] });
   } };
 }

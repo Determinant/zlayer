@@ -3,7 +3,7 @@ import { parseSurfaceCatalog, SURFACE_CATALOG } from '../../src/layers/weather-a
 import type { WeatherCache } from './cache';
 import { resourceFor, type Resource } from './routes';
 import { digest } from './upstream';
-import { workerJob } from './worker-job';
+import { workerJob, workerModule } from './worker-job';
 import type { SurfaceJob, SurfaceResult } from './progs-worker';
 
 export const PUBLISHED_PROGS = `wpc-surface-v3-${SURFACE_PROCESSING}`;
@@ -37,12 +37,12 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
       for (const chart of charts) {
         const input = await cache.get(sourceResource(chart.source, 512 * 1024), 150_000, signal);
         const previous = state.catalog?.frames.find(frame => frame.source === chart.source && frame.sourceHash === input.sha256 &&
-          frame.referenceTime === chart.referenceTime && frame.validTime === chart.validTime && cache.has(chartResource(frame)));
-        if (previous) frames.push({ ...previous, checkedAt: input.checkedAt });
+          frame.referenceTime === chart.referenceTime && frame.validTime === chart.validTime);
+        if (previous && await cache.check(chartResource(previous))) frames.push({ ...previous, checkedAt: input.checkedAt });
         else jobs.push({ text: input.body.toString('utf8'), chart, checkedAt: input.checkedAt, sourceHash: input.sha256 });
       }
       if (jobs.length) {
-        const results = await workerJob<SurfaceResult[]>(new URL(import.meta.url.endsWith('.ts') ? './progs-worker.ts' : './progs-worker.js', import.meta.url),
+        const results = await workerJob<SurfaceResult[]>(workerModule(import.meta.url, 'progs-worker'),
           { product, jobs }, signal);
         for (const [index, result] of results.entries()) {
           signal.throwIfAborted();
@@ -88,7 +88,7 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
         let value: unknown;
         try { value = JSON.parse(payload.body.toString()); } catch { /* Invalid saved data. */ }
         if (payload.headers['x-weather-catalog'] === PUBLISHED_PROGS && isSurfaceCatalog(value) &&
-          value.product === product && value.checkedAt === payload.checkedAt && value.frames.every(f => cache.has(chartResource(f)))) {
+          value.product === product && value.checkedAt === payload.checkedAt && await cache.checkAll(value.frames.map(chartResource))) {
           const state = states.get(product)!;
           state.catalog = value; state.nextCheck = value.checkedAt + 5 * 60_000;
           protect();
@@ -102,7 +102,7 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
     },
     get status() {
       return Object.fromEntries([...states].map(([product, state]) => [product, {
-        ready: !!state.catalog && cache.has(progsResource(product)), preparing: !!state.task,
+        ready: !!state.catalog && cache.has(progsResource(product)) && state.catalog.frames.every(f => cache.has(chartResource(f))), preparing: !!state.task,
         validTimes: state.catalog?.frames.map(f => f.validTime), checkedAt: state.catalog?.checkedAt,
         ...(state.error ? { error: state.error } : {}),
       }]));

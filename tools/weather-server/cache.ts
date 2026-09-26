@@ -169,6 +169,11 @@ export class WeatherCache {
     return true;
   }
 
+  async checkAll(resources: Iterable<Resource>): Promise<boolean> {
+    for (const resource of resources) if (!await this.check(resource)) return false;
+    return true;
+  }
+
   async get(resource: Resource, maxAgeMs = resource.ttl, signal?: AbortSignal): Promise<Payload & { hit: boolean }> {
     signal?.throwIfAborted();
     const cached = await this.read(resource, maxAgeMs);

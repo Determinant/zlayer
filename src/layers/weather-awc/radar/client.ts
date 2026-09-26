@@ -26,6 +26,7 @@ export class RadarClient {
   }
   async load(file: RadarFile, signal: AbortSignal, onReady?: (value: RadarContours) => void): Promise<RadarContours> {
     return files.load({ url: new URL(file.path, this.baseUrl).href, identity: file.sha256, byteLength: file.byteLength,
+      retention: { group: 'radar' },
       signal, label: 'Radar contours', cacheOnly: !navigator.onLine, run: readContours, ...(onReady ? { onReady } : {}),
       validate: async bytes => {
         const value = await preparedJson(bytes, file.sha256);

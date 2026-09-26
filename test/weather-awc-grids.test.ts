@@ -65,6 +65,13 @@ function rememberLoadedFrames(t: TestContext, client: GridClient, saveMetadata =
     if (!args[2].aborted && client.wants(args[0], args[1])) values.set(gridKey(args[0], args[1]), data);
     return data;
   });
+  // These controller simulations replace storage too. Do not let real cache
+  // inventory/crypto I/O determine when their explicitly completed jobs start.
+  t.mock.method(client, 'prepare', async (...args: Parameters<GridClient['prepare']>) => {
+    const memory = client.peek(args[0], args[1]);
+    if (memory && (client.saved(memory) || !args[3])) return client.saved(memory);
+    return client.saved(await client.load(...args));
+  });
 }
 
 test('grid manifests reject unsafe paths, duplicates, mismatched heights, fields, horizons and excessive allocations', () => {
@@ -803,7 +810,11 @@ for (const restored of [false, true]) test(`a cold-server failure recovers to th
     return { manifest, frame, values: new Float32Array(144), byteLength: 592 };
   });
   rememberLoadedFrames(t, client);
-  const controller = createGridController(client, () => {}, ['icing']); t.after(() => controller.detach());
+  let prepared!: () => void;
+  const complete = new Promise<void>(resolve => { prepared = resolve; });
+  const controller = createGridController(client, state => {
+    if (state.preparation?.ready === 3) prepared();
+  }, ['icing']); t.after(() => controller.detach());
   controller.configure({ enabled: true, mode: 'icingProbability', altitude: 8000, time: WEATHER_NOW, online: true, visible: true });
   controller.attach(); t.mock.timers.tick(0); await flush();
   assert.equal(controller.getSnapshot().loading, false);
@@ -815,6 +826,7 @@ for (const restored of [false, true]) test(`a cold-server failure recovers to th
   assert.equal(controller.getSnapshot().data?.frame.validTime, WEATHER_NOW);
   assert.deepEqual(gridTimes(controller.getSnapshot(), 'icingProbability', 8000),
     manifest.frames.filter(frame => frame.altitudeFtMsl === 8000).map(frame => frame.validTime));
+  await complete;
   assert.deepEqual(controller.getSnapshot().preparation, { ready: 3, total: 3, failed: 0 });
   t.mock.timers.tick(299_999); await flush(); assert.equal(checks, 2);
   t.mock.timers.tick(1); await flush(); assert.equal(checks, 3);

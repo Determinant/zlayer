@@ -20,8 +20,25 @@ export class InvalidForecastSourceError extends HttpError {
 export class InvalidForecastIndexError extends InvalidForecastSourceError {}
 const awc = 'https://aviationweather.gov/api/data/';
 const nomads = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/';
-/** Fixed origins and narrow paths: only application reports, advisories and prepared grids are public. */
-export function resourceFor(path: string, range?: string): Resource {
+export type PreparedFamily = 'forecast' | 'progs' | 'coverage' | 'radar' | 'motion';
+export type WeatherRoute = { type: 'query'; resource: Resource } |
+  { type: 'catalog' | 'artifact'; family: PreparedFamily; resource: Resource };
+const preparedRoutes: { pattern: RegExp; type: 'catalog' | 'artifact'; family: PreparedFamily; maxBytes: number }[] = [
+  { pattern: /^\/api\/weather\/grids\/(clouds|icing|winds)\.json$/, type: 'catalog', family: 'forecast', maxBytes: 4 * MiB },
+  { pattern: /^\/api\/weather\/progs\/(analysis|forecast)\.json$/, type: 'catalog', family: 'progs', maxBytes: SURFACE_CATALOG_MAX_BYTES },
+  { pattern: /^\/api\/weather\/progs\/coverage\.json$/, type: 'catalog', family: 'coverage', maxBytes: PROGS_COVERAGE_CATALOG_MAX_BYTES },
+  { pattern: /^\/api\/weather\/radar\/latest\.json$/, type: 'catalog', family: 'radar', maxBytes: 16 * MiB },
+  { pattern: /^\/api\/weather\/radar\/motion\/latest\.json$/, type: 'catalog', family: 'motion', maxBytes: 32 * 1024 },
+  { pattern: /^\/api\/weather\/progs\/(analysis|forecast)\/[a-f0-9]{64}\.json$/, type: 'artifact', family: 'progs', maxBytes: SURFACE_MAX_BYTES },
+  { pattern: /^\/api\/weather\/progs\/coverage\/[a-f0-9]{64}\.png$/, type: 'artifact', family: 'coverage', maxBytes: PROGS_COVERAGE_MAX_BYTES },
+  { pattern: /^\/api\/weather\/radar\/(CONUS|T[A-Z]{3})\/\d{13}-[a-f0-9]{64}\.json$/, type: 'artifact', family: 'radar', maxBytes: 16 * MiB },
+  { pattern: /^\/api\/weather\/radar\/motion\/[a-f0-9]{64}\.json$/, type: 'artifact', family: 'motion', maxBytes: RADAR_MOTION_MAX_BYTES },
+  { pattern: /^\/api\/weather\/grids\/(?:(?:clouds|icing)\/\d{13}-\d{1,2}-\d{1,5}|winds\/\d{13}-\d{1,2}-p\d{3,4})-[a-f0-9]{64}\.zwp\.gz$/, type: 'artifact', family: 'forecast', maxBytes: 16 * MiB },
+  { pattern: /^\/api\/weather\/grids\/winds\/\d{13}-terrain-[a-f0-9]{64}\.zwt\.gz$/, type: 'artifact', family: 'forecast', maxBytes: 16 * MiB },
+];
+
+/** Public delivery semantics are classified once, alongside path validation. */
+export function routeFor(path: string, range?: string): WeatherRoute {
   if (path.length > 4096 || !path.startsWith('/') || path.startsWith('//') || /[#\\\x00-\x20]/.test(path)) {
     throw new HttpError(400, 'Invalid request path');
   }
@@ -29,29 +46,13 @@ export function resourceFor(path: string, range?: string): Resource {
   if (path.split('?')[0] !== url.pathname || /%/.test(url.pathname)) throw new HttpError(400, 'Invalid request path');
   const query = url.searchParams;
   if ([...query.keys()].some(key => query.getAll(key).length !== 1)) throw new HttpError(400, 'Duplicate query parameter');
-  if (/^\/api\/weather\/progs\/coverage(?:\.json|\/[a-f0-9]{64}\.png)$/.test(url.pathname)) {
-    if (query.size || range) throw new HttpError(400, 'Prepared coverage takes no query or range');
-    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000,
-      maxBytes: url.pathname.endsWith('.json') ? PROGS_COVERAGE_CATALOG_MAX_BYTES : PROGS_COVERAGE_MAX_BYTES };
-  }
-  if (/^\/api\/weather\/radar\/motion\/(?:latest|[a-f0-9]{64})\.json$/.test(url.pathname)) {
-    if (query.size || range) throw new HttpError(400, 'Prepared storm motion takes no query or range');
-    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000,
-      maxBytes: url.pathname.endsWith('/latest.json') ? 32 * 1024 : RADAR_MOTION_MAX_BYTES };
-  }
-  if (/^\/api\/weather\/radar\/(?:latest\.json|(?:CONUS|T[A-Z]{3})\/\d{13}-[a-f0-9]{64}\.json)$/.test(url.pathname)) {
-    if (query.size || range) throw new HttpError(400, 'Prepared radar takes no query or range');
-    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared', ttl: 86400_000, maxBytes: 16 * MiB };
-  }
-  if (/^\/api\/weather\/(advisories\/(gairmet|sigmet|cwa)|grids\/(clouds|icing|winds)|progs\/(analysis|forecast))\.json$/.test(url.pathname) ||
-    /^\/api\/weather\/progs\/(analysis|forecast)\/[a-f0-9]{64}\.json$/.test(url.pathname) ||
-    /^\/api\/weather\/grids\/(?:(?:clouds|icing)\/\d{13}-\d{1,2}-\d{1,5}|winds\/\d{13}-\d{1,2}-p\d{3,4})-[a-f0-9]{64}\.zwp\.gz$/.test(url.pathname) ||
-    /^\/api\/weather\/grids\/winds\/\d{13}-terrain-[a-f0-9]{64}\.zwt\.gz$/.test(url.pathname)) {
+  const prepared = preparedRoutes.find(route => route.pattern.test(url.pathname));
+  const advisory = /^\/api\/weather\/advisories\/(gairmet|sigmet|cwa)\.json$/.test(url.pathname);
+  if (prepared || advisory) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
-    return { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
-      ttl: url.pathname.includes('/advisories/') ? 60_000 : 86_400_000,
-      maxBytes: url.pathname.includes('/progs/') ? /\/(analysis|forecast)\.json$/.test(url.pathname) ? SURFACE_CATALOG_MAX_BYTES : SURFACE_MAX_BYTES
-        : url.pathname.endsWith('.json') ? 4 * MiB : 16 * MiB };
+    const resource: Resource = { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
+      ttl: advisory ? 60_000 : 86400_000, maxBytes: prepared?.maxBytes ?? 4 * MiB };
+    return prepared ? { type: prepared.type, family: prepared.family, resource } : { type: 'query', resource };
   }
   const product = url.pathname === '/api/weather/metars.geojson' ? 'metar' : url.pathname === '/api/weather/tafs.json' ? 'taf' : undefined;
   if (product) {
@@ -81,10 +82,13 @@ export function resourceFor(path: string, range?: string): Resource {
     }
     query.sort();
     const upstream = `${awc}${product}?${query}`;
-    return { key: upstream, upstream: 'awc', url: upstream, kind: 'json', ttl: product === 'metar' ? 30_000 : 60_000, maxBytes: 4 * MiB };
+    return { type: 'query', resource: { key: upstream, upstream: 'awc', url: upstream, kind: 'json', ttl: product === 'metar' ? 30_000 : 60_000, maxBytes: 4 * MiB } };
   }
   throw new HttpError(404, 'Unknown weather resource');
 }
+
+/** Cache producers and retainers need the resource identity, not HTTP delivery. */
+export function resourceFor(path: string, range?: string): Resource { return routeFor(path, range).resource; }
 
 /** Internal upstream resources have no public raw-data route. */
 export function advisoryResource(product: 'gairmet' | 'sigmet' | 'cwa'): Resource {

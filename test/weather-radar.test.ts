@@ -16,6 +16,7 @@ import { weatherTimeScale } from '../src/layers/weather-awc/time-scale';
 import { radarFixture, seedRadar } from './fixtures/radar';
 import { RadarClient } from '../src/layers/weather-awc/radar/client';
 import { RadarMotionClient } from '../src/layers/weather-awc/radar/motion-client';
+import { radarFeatures } from '../src/layers/weather-awc/radar/geometry';
 
 const mrmsSource = 'https://noaa-mrms-pds.s3.amazonaws.com/CONUS/MergedReflectivityQCComposite_00.50/20260924/MRMS_MergedReflectivityQCComposite_00.50_20260924-202439.grib2.gz';
 const key = new URL(mrmsSource).pathname.slice(1);
@@ -61,6 +62,12 @@ test('TDWR reads physical gates and missing codes, preserves partial sweeps, and
   assert.deepEqual(field.project(0, 1.5), [-97.51, 35.276]);
   const contours = prepareRadar(raw, 'TOKC', tdwrUrl('TOKC'), digest(raw));
   assert.ok(isRadarContours(contours)); assert.ok(contours.features[0]!.geometry.coordinates.length > 1000);
+  const features = radarFeatures([contours]);
+  assert.ok(features.some(feature => feature.geometry.coordinates.length > 1), 'captured echoes include holes');
+  for (const level of contours.features) {
+    assert.deepEqual(features.filter(feature => feature.properties.dbz === level.properties.dbz).map(feature => feature.geometry.coordinates),
+      level.geometry.coordinates, 'rendering retains every source vertex, ring, hole and threshold without simplification');
+  }
   const partial = decodeTdwr(await capture('20260924-202301-tatl.level3'), 'TATL');
   assert.equal(partial.height, 361, '358 measured radials, an explicit missing sector, and two seam rows');
   assert.throws(() => decodeTdwr(raw, 'TATL'));

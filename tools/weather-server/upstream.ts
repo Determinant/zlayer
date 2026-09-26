@@ -1,36 +1,9 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import { createHash } from 'node:crypto';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
+import { UpstreamQueue } from './upstream-queue';
 
 export type Payload = { body: Buffer; status: number; headers: Record<string, string>; checkedAt: number; sha256: string };
 export const digest = (body: Uint8Array) => createHash('sha256').update(body).digest('hex');
-
-/** Bound waiting work as well as sockets. AWC starts at most 60 requests/minute. */
-class UpstreamQueue {
-  active = 0;
-  waiting = 0;
-  nextStart = 0;
-  blockedUntil = 0;
-  limit: number;
-  spacing: number;
-  constructor(limit: number, spacing: number) { this.limit = limit; this.spacing = spacing; }
-  async run<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
-    if (this.waiting >= 32) throw new HttpError(503, 'Upstream queue is full', 5);
-    this.waiting++;
-    try {
-      for (;;) {
-        signal.throwIfAborted();
-        if (Date.now() < this.blockedUntil) throw new HttpError(503, 'Upstream is backing off', Math.ceil((this.blockedUntil - Date.now()) / 1000));
-        const wait = this.nextStart - Date.now();
-        if (this.active < this.limit && wait <= 0) break;
-        await delay(Math.max(5, Math.min(100, wait)), undefined, { signal });
-      }
-      this.nextStart = Date.now() + this.spacing;
-      this.active++;
-      try { return await work(); } finally { this.active--; }
-    } finally { this.waiting--; }
-  }
-}
 
 export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number }) {
   const queues = { awc: new UpstreamQueue(2, options.spacing ?? 1000), nomads: new UpstreamQueue(4, options.spacing ?? 600),
@@ -49,8 +22,7 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         if (response.status === 429 || response.status === 503) {
           const retry = response.headers.get('retry-after'), numeric = Number(retry);
           const seconds = retry && Number.isFinite(numeric) ? numeric : retry ? (Date.parse(retry) - Date.now()) / 1000 : 30;
-          queue.blockedUntil = Date.now() + Math.min(300, Math.max(5, Number.isFinite(seconds) ? seconds : 30)) * 1000;
-          throw new HttpError(503, 'Upstream is backing off', Math.ceil((queue.blockedUntil - Date.now()) / 1000));
+          throw queue.backoff(Date.now() + Math.min(300, Math.max(5, Number.isFinite(seconds) ? seconds : 30)) * 1000);
         }
         const emptyReport = response.status === 204 && resource.kind === 'json' && resource.upstream === 'awc' &&
           ['/api/data/metar', '/api/data/taf'].includes(new URL(resource.url).pathname);

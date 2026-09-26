@@ -1,0 +1,156 @@
+[
+  {
+    "browser": "chromium",
+    "station": "KSFO",
+    "checkedAt": "2026-09-23T21:24:51.515Z",
+    "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+    "observationTime": "2026-09-23T20:56:00+00:00",
+    "conditions": {
+      "flightCategory": "VFR",
+      "metarStationId": "KSFO",
+      "metarObservedAt": "2026-09-23T20:56:00.000Z",
+      "metarCeilingStatus": "none",
+      "metarVisibilitySm": 10,
+      "metarWindDirection": 40,
+      "metarWindSpeedKt": 4,
+      "metarWindGustKt": null,
+      "rawMetar": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+      "weatherSource": "NWS"
+    },
+    "missing": false,
+    "taf": "TAF\nKSFO 231727Z 2318/2424 VRB05KT P6SM SCT200\n     FM232000 29015KT P6SM FEW200\n     FM240600 29010KT P6SM FEW010\n     FM241100 28005KT P6SM BKN010\n     FM241800 32009KT P6SM FEW010 BKN250\n     FM242100 29015KT P6SM SCT250=",
+    "categories": [
+      "VFR",
+      "VFR",
+      "VFR",
+      "MVFR",
+      "VFR",
+      "VFR"
+    ]
+  },
+  {
+    "browser": "chromium",
+    "station": "PAFA",
+    "checkedAt": "2026-09-23T21:24:52.140Z",
+    "raw": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+    "observationTime": "2026-09-23T20:53:00+00:00",
+    "conditions": {
+      "flightCategory": "VFR",
+      "metarStationId": "PAFA",
+      "metarObservedAt": "2026-09-23T20:53:00.000Z",
+      "metarCeilingFt": 5000,
+      "metarCeilingStatus": "measured",
+      "metarVisibilitySm": 10,
+      "metarWindDirection": 0,
+      "metarWindSpeedKt": 0,
+      "metarWindGustKt": null,
+      "rawMetar": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+      "weatherSource": "NWS"
+    },
+    "missing": false,
+    "taf": "TAF\nPAFA 231720Z 2318/2424 02003KT P6SM BKN050\n     FM240600 21004KT P6SM SCT040 SCT150=",
+    "categories": [
+      "VFR",
+      "VFR"
+    ]
+  },
+  {
+    "browser": "chromium",
+    "requests": [
+      "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A24%3A48.721Z&end=2026-09-23T21%3A24%3A48.721Z&limit=100",
+      "https://api.weather.gov/stations/KSFO/tafs",
+      "https://api.weather.gov/stations/KSFO/tafs/2026-09-23/1700",
+      "https://api.weather.gov/products/types/TAF/locations/SFO/latest",
+      "https://api.weather.gov/products?type=TAF&office=KMTR&start=2026-09-23T17%3A27%3A00.000Z&end=2026-09-23T17%3A27%3A59.999Z&limit=50",
+      "https://api.weather.gov/products/f2498548-0f6f-4c12-ac0f-038f47d96719",
+      "https://api.weather.gov/products/0c4aa083-015d-4816-83aa-d7c632a88850",
+      "https://api.weather.gov/products/7a3fb1aa-f76f-4f0f-b475-13361cb6fac9",
+      "https://api.weather.gov/products/3f7039ce-0b35-4279-9dea-7233bf345ce3",
+      "https://api.weather.gov/products/d64cca9a-dbad-49d0-8e78-aa6698c8cf2b",
+      "https://api.weather.gov/products/9acaf081-cc29-4c8b-9dea-76cbd50dd091",
+      "https://api.weather.gov/products/377db0dc-d668-46d7-a975-319db19693ad",
+      "https://api.weather.gov/products/266cafb5-548e-46f6-98e7-f9eb486832ab",
+      "https://api.weather.gov/stations/PAFA/observations?start=2026-09-23T19%3A24%3A51.516Z&end=2026-09-23T21%3A24%3A51.516Z&limit=100",
+      "https://api.weather.gov/stations/PAFA/tafs",
+      "https://api.weather.gov/stations/PAFA/tafs/2026-09-23/1700",
+      "https://api.weather.gov/products?type=TAF&office=PAFG&start=2026-09-23T17%3A20%3A00.000Z&end=2026-09-23T17%3A20%3A59.999Z&limit=50",
+      "https://api.weather.gov/products/08deaba7-e7cb-4df4-a419-c12675ff4884"
+    ]
+  },
+  {
+    "browser": "firefox",
+    "station": "KSFO",
+    "checkedAt": "2026-09-23T21:24:53.750Z",
+    "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+    "observationTime": "2026-09-23T20:56:00+00:00",
+    "conditions": {
+      "flightCategory": "VFR",
+      "metarStationId": "KSFO",
+      "metarObservedAt": "2026-09-23T20:56:00.000Z",
+      "metarCeilingStatus": "none",
+      "metarVisibilitySm": 10,
+      "metarWindDirection": 40,
+      "metarWindSpeedKt": 4,
+      "metarWindGustKt": null,
+      "rawMetar": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+      "weatherSource": "NWS"
+    },
+    "missing": false,
+    "taf": "TAF AMD\nKSFO 232033Z 2321/2424 06005KT P6SM FEW006\n     FM232300 29015KT P6SM SKC\n     FM240600 29010KT P6SM FEW010\n     FM241100 28005KT P6SM BKN010\n     FM241800 32009KT P6SM FEW010 BKN250\n     FM242100 29015KT P6SM SCT250=",
+    "categories": [
+      "VFR",
+      "VFR",
+      "VFR",
+      "MVFR",
+      "VFR",
+      "VFR"
+    ]
+  },
+  {
+    "browser": "firefox",
+    "requests": [
+      "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A24%3A53.152Z&end=2026-09-23T21%3A24%3A53.152Z&limit=100",
+      "https://api.weather.gov/stations/KSFO/tafs",
+      "https://api.weather.gov/stations/KSFO/tafs/2026-09-23/2000",
+      "https://api.weather.gov/products/types/TAF/locations/SFO/latest"
+    ]
+  },
+  {
+    "browser": "webkit",
+    "station": "KSFO",
+    "checkedAt": "2026-09-23T21:24:54.979Z",
+    "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+    "observationTime": "2026-09-23T20:56:00+00:00",
+    "conditions": {
+      "flightCategory": "VFR",
+      "metarStationId": "KSFO",
+      "metarObservedAt": "2026-09-23T20:56:00.000Z",
+      "metarCeilingStatus": "none",
+      "metarVisibilitySm": 10,
+      "metarWindDirection": 40,
+      "metarWindSpeedKt": 4,
+      "metarWindGustKt": null,
+      "rawMetar": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+      "weatherSource": "NWS"
+    },
+    "missing": false,
+    "taf": "TAF AMD\nKSFO 232033Z 2321/2424 06005KT P6SM FEW006\n     FM232300 29015KT P6SM SKC\n     FM240600 29010KT P6SM FEW010\n     FM241100 28005KT P6SM BKN010\n     FM241800 32009KT P6SM FEW010 BKN250\n     FM242100 29015KT P6SM SCT250=",
+    "categories": [
+      "VFR",
+      "VFR",
+      "VFR",
+      "MVFR",
+      "VFR",
+      "VFR"
+    ]
+  },
+  {
+    "browser": "webkit",
+    "requests": [
+      "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A24%3A54.394Z&end=2026-09-23T21%3A24%3A54.394Z&limit=100",
+      "https://api.weather.gov/stations/KSFO/tafs",
+      "https://api.weather.gov/stations/KSFO/tafs/2026-09-23/2000",
+      "https://api.weather.gov/products/types/TAF/locations/SFO/latest"
+    ]
+  }
+]

@@ -1,0 +1,231 @@
+{
+  "checkedAt": "2026-09-23T21:41:07.899Z",
+  "origin": "http://localhost:5197",
+  "results": [
+    {
+      "browser": "chromium",
+      "bulkCount": 7,
+      "bulk": [
+        {
+          "id": "KSFO",
+          "time": "2026-09-23T20:56:00.000Z",
+          "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+          "source": "NOAA"
+        },
+        {
+          "id": "KSBA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KSBA 232053Z 22007KT 180V250 10SM CLR 26/18 A2983 RMK AO2 SLP102 T02560183 58013 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "KLAX",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KLAX 232053Z 26011KT 10SM CLR 25/19 A2984 RMK AO2 SLP102 T02500189 58011 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PAFA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PHNL",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PHNL 232053Z 07015G26KT 10SM FEW024 SCT038 31/20 A2997 RMK AO2 PK WND 08026/2047 SLP147 T03060200 50003 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "EGLL",
+          "time": "2026-09-23T21:20:00.000Z",
+          "raw": "EGLL 232120Z AUTO 33004KT 300V020 9999 NCD 16/08 Q1026",
+          "source": "NOAA"
+        },
+        {
+          "id": "CYVR",
+          "time": "2026-09-23T21:00:00.000Z",
+          "raw": "CYVR 232100Z 14010KT 30SM FEW023 SCT048TCU SCT052TCU SCT071 SCT120 18/11 A3011 RMK SC2TCU1TCU1AC1AC1 TCU TR AC TR AC TR SLP199",
+          "source": "NOAA"
+        }
+      ],
+      "latest": {
+        "id": "KSFO",
+        "obsTime": "2026-09-23T20:56:00+00:00",
+        "site": "San Francisco, San Francisco International Airport",
+        "source": "NWS",
+        "sourceVersion": 1,
+        "sourceUrl": "https://api.weather.gov/stations/KSFO/observations/2026-09-23T20:56:00+00:00",
+        "rawOb": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+        "clouds": [
+          {
+            "cover": "FEW",
+            "base": 6
+          },
+          {
+            "cover": "FEW",
+            "base": 200
+          }
+        ],
+        "visib": "10",
+        "wdir": 40,
+        "wspd": 4,
+        "wgst": null
+      },
+      "requests": [
+        "https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/60/query?f=geojson&outSR=4326&returnGeometry=true&outFields=objectid%2Cstationname%2Clocationname%2Ctimeobs%2Crawdata%2Ctblname&where=tblname+%3D+%27METAR%27+AND+stationname+IN+%28%27KSFO%27%2C%27KSBA%27%2C%27KLAX%27%2C%27PAFA%27%2C%27PHNL%27%2C%27EGLL%27%2C%27CYVR%27%29&orderByFields=objectid+ASC&resultRecordCount=2000&resultOffset=0",
+        "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A41%3A08.461Z&end=2026-09-23T21%3A41%3A08.461Z&limit=100"
+      ]
+    },
+    {
+      "browser": "firefox",
+      "bulkCount": 7,
+      "bulk": [
+        {
+          "id": "KSFO",
+          "time": "2026-09-23T20:56:00.000Z",
+          "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+          "source": "NOAA"
+        },
+        {
+          "id": "KSBA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KSBA 232053Z 22007KT 180V250 10SM CLR 26/18 A2983 RMK AO2 SLP102 T02560183 58013 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "KLAX",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KLAX 232053Z 26011KT 10SM CLR 25/19 A2984 RMK AO2 SLP102 T02500189 58011 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PAFA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PHNL",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PHNL 232053Z 07015G26KT 10SM FEW024 SCT038 31/20 A2997 RMK AO2 PK WND 08026/2047 SLP147 T03060200 50003 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "EGLL",
+          "time": "2026-09-23T21:20:00.000Z",
+          "raw": "EGLL 232120Z AUTO 33004KT 300V020 9999 NCD 16/08 Q1026",
+          "source": "NOAA"
+        },
+        {
+          "id": "CYVR",
+          "time": "2026-09-23T21:00:00.000Z",
+          "raw": "CYVR 232100Z 14010KT 30SM FEW023 SCT048TCU SCT052TCU SCT071 SCT120 18/11 A3011 RMK SC2TCU1TCU1AC1AC1 TCU TR AC TR AC TR SLP199",
+          "source": "NOAA"
+        }
+      ],
+      "latest": {
+        "id": "KSFO",
+        "obsTime": "2026-09-23T20:56:00+00:00",
+        "site": "San Francisco, San Francisco International Airport",
+        "source": "NWS",
+        "sourceVersion": 1,
+        "sourceUrl": "https://api.weather.gov/stations/KSFO/observations/2026-09-23T20:56:00+00:00",
+        "rawOb": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+        "clouds": [
+          {
+            "cover": "FEW",
+            "base": 6
+          },
+          {
+            "cover": "FEW",
+            "base": 200
+          }
+        ],
+        "visib": "10",
+        "wdir": 40,
+        "wspd": 4,
+        "wgst": null
+      },
+      "requests": [
+        "https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/60/query?f=geojson&outSR=4326&returnGeometry=true&outFields=objectid%2Cstationname%2Clocationname%2Ctimeobs%2Crawdata%2Ctblname&where=tblname+%3D+%27METAR%27+AND+stationname+IN+%28%27KSFO%27%2C%27KSBA%27%2C%27KLAX%27%2C%27PAFA%27%2C%27PHNL%27%2C%27EGLL%27%2C%27CYVR%27%29&orderByFields=objectid+ASC&resultRecordCount=2000&resultOffset=0",
+        "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A41%3A10.270Z&end=2026-09-23T21%3A41%3A10.270Z&limit=100"
+      ]
+    },
+    {
+      "browser": "webkit",
+      "bulkCount": 7,
+      "bulk": [
+        {
+          "id": "KSFO",
+          "time": "2026-09-23T20:56:00.000Z",
+          "raw": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+          "source": "NOAA"
+        },
+        {
+          "id": "KSBA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KSBA 232053Z 22007KT 180V250 10SM CLR 26/18 A2983 RMK AO2 SLP102 T02560183 58013 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "KLAX",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "KLAX 232053Z 26011KT 10SM CLR 25/19 A2984 RMK AO2 SLP102 T02500189 58011 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PAFA",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PAFA 232053Z 00000KT 10SM OVC050 04/M01 A2993 RMK AO2 SLP143 T00441006 50004 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "PHNL",
+          "time": "2026-09-23T20:53:00.000Z",
+          "raw": "PHNL 232053Z 07015G26KT 10SM FEW024 SCT038 31/20 A2997 RMK AO2 PK WND 08026/2047 SLP147 T03060200 50003 $",
+          "source": "NOAA"
+        },
+        {
+          "id": "EGLL",
+          "time": "2026-09-23T21:20:00.000Z",
+          "raw": "EGLL 232120Z AUTO 33004KT 300V020 9999 NCD 16/08 Q1026",
+          "source": "NOAA"
+        },
+        {
+          "id": "CYVR",
+          "time": "2026-09-23T21:00:00.000Z",
+          "raw": "CYVR 232100Z 14010KT 30SM FEW023 SCT048TCU SCT052TCU SCT071 SCT120 18/11 A3011 RMK SC2TCU1TCU1AC1AC1 TCU TR AC TR AC TR SLP199",
+          "source": "NOAA"
+        }
+      ],
+      "latest": {
+        "id": "KSFO",
+        "obsTime": "2026-09-23T20:56:00+00:00",
+        "site": "San Francisco, San Francisco International Airport",
+        "source": "NWS",
+        "sourceVersion": 1,
+        "sourceUrl": "https://api.weather.gov/stations/KSFO/observations/2026-09-23T20:56:00+00:00",
+        "rawOb": "KSFO 232056Z 04004KT 10SM FEW006 FEW200 21/15 A2990 RMK AO2 SLP125 T02110150 58021",
+        "clouds": [
+          {
+            "cover": "FEW",
+            "base": 6
+          },
+          {
+            "cover": "FEW",
+            "base": 200
+          }
+        ],
+        "visib": "10",
+        "wdir": 40,
+        "wspd": 4,
+        "wgst": null
+      },
+      "requests": [
+        "https://mapservices.weather.noaa.gov/vector/rest/services/obs/surface_obs/MapServer/60/query?f=geojson&outSR=4326&returnGeometry=true&outFields=objectid%2Cstationname%2Clocationname%2Ctimeobs%2Crawdata%2Ctblname&where=tblname+%3D+%27METAR%27+AND+stationname+IN+%28%27KSFO%27%2C%27KSBA%27%2C%27KLAX%27%2C%27PAFA%27%2C%27PHNL%27%2C%27EGLL%27%2C%27CYVR%27%29&orderByFields=objectid+ASC&resultRecordCount=2000&resultOffset=0",
+        "https://api.weather.gov/stations/KSFO/observations?start=2026-09-23T19%3A41%3A11.822Z&end=2026-09-23T21%3A41%3A11.822Z&limit=100"
+      ]
+    }
+  ]
+}
