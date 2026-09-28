@@ -1,4 +1,13 @@
 import type { GeoPointFeature, PointGeometry } from '@zlayer/contracts';
+import { radialPositionFromFeature, radialPositionFeature } from './radial-position.js';
+
+/** Import supported coordinate text into the existing compact seconds identity. */
+export function normalizeRouteCoordinate(token: string): string | undefined {
+  const match = /^(\d{4}|\d{6})([NS])\/?(\d{5}|\d{7})([EW])$/.exec(token);
+  if (!match || match[1]!.length + 1 !== match[3]!.length) return undefined;
+  const compact = `${match[1]!.padEnd(6, '0')}${match[2]}${match[3]!.padEnd(7, '0')}${match[4]}`;
+  return parseRouteCoordinate(compact) ? compact : undefined;
+}
 
 /** Compact degrees/minutes/seconds keeps coordinates intact through route delimiters. */
 export function routeCoordinateFeature(coordinates: PointGeometry['coordinates']): GeoPointFeature {
@@ -33,7 +42,8 @@ export function parseRouteCoordinate(token: string): GeoPointFeature | undefined
 
 /** Recover GPS geometry from its identifier after map tiling or selection persistence. */
 export function restoreRouteCoordinate(feature: GeoPointFeature): GeoPointFeature {
-  const coordinate = feature.properties.kind === 'coordinate'
+  const radial = radialPositionFromFeature(feature);
+  const coordinate = radial ? radialPositionFeature(radial) : feature.properties.kind === 'coordinate'
     ? parseRouteCoordinate(feature.properties.ident ?? '') : undefined;
   if (!coordinate || coordinate.geometry.coordinates.every((value, index) => value === feature.geometry.coordinates[index])) {
     return feature;

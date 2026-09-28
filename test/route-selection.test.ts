@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createRouteResolver, routeDraftFromText, sameFeature } from '@zlayer/domain';
 import { routePointForFeature, routePointKeys } from '../src/layers/routes/selection';
 import { moveRouteEntry, removeRouteEntry } from '../src/layers/routes/draft';
+import { createRouteRemovalResolver } from './helpers/route-removal';
 
 test('selection follows an occurrence through reorder and then reflects remaining route membership', () => {
   const resolve = createRouteResolver([]);
@@ -31,4 +32,18 @@ test('published expansion points are selectable without direct editing targets',
   delete waypoint.edit;
   assert.equal(routePointForFeature(plan, waypoint.feature), waypoint);
   assert.equal(routePointForFeature(plan, waypoint.feature, routePointKeys(plan).get(waypoint)), waypoint);
+});
+
+test('repeated-child selection uses point identity and restores former expansion-index selections', () => {
+  const draft = routeDraftFromText('KSBA LOOP1 KSMX'), resolve = createRouteRemovalResolver(), plan = resolve(draft);
+  const repeated = plan.waypoints.filter(point => point.ident === 'TAILS'), target = repeated[1]!;
+  const key = routePointKeys(plan).get(target)!;
+  assert.equal(routePointForFeature(plan, target.feature, key), target);
+  const old = `expanded:${JSON.stringify([target.source.entryId, 2])}`;
+  assert.equal(routePointForFeature(plan, target.feature, old), target);
+  const updated = resolve(draft);
+  // An unrelated inserted child must not change either repeated point's identity.
+  updated.waypoints.splice(2, 0, { ...updated.waypoints.find(point => point.ident === 'ENTRY')!,
+    ident: 'OTHER', feature: { ...target.feature, id: 'fix:OTHER', properties: { ident: 'OTHER' } } });
+  assert.equal(routePointForFeature(updated, target.feature, key), updated.waypoints.filter(point => point.ident === 'TAILS')[1]);
 });

@@ -113,14 +113,7 @@ bounded canvases; integrity checks stream in bounded chunks and reuse matching P
 receipts. These limit application allocations, but do not measure browser storage,
 PDF.js or GPU memory on devices. See [offline storage](../features/offline-storage.md#storage-contract).
 
-## Recorded local verification
-
-The 2026-09-20 local check used Node 24.20.0 and Playwright 1.63's Linux
-container. Imports, types, unit tests and build passed. The full command exited
-at Chromium after two fixture failures; both passed after test-only corrections,
-and the subsequent graphics matrices passed with existing native-touch skips.
-It was not rerun end to end. These combined results establish neither a current
-working-tree pass nor a hosted release; each release needs its own recorded checks.
+## Build and storage checks
 
 Report bundle sizes for each build. The boundary topology is separately hashed,
 module-preloaded and included in the offline shell; splitting it preserves its
@@ -135,6 +128,8 @@ Saved regions and open views protect their shared files from the app's 14-day te
 cache cleanup. Site-data deletion can still erase them. Bulk offline basemap coverage
 and automatic cycle migration remain outside the current contract; see
 [offline storage](../features/offline-storage.md).
+
+## Weather rollout
 
 For both weather plugins, the versioned [nginx snippet](weather-api.nginx.conf)
 forwards `/api/weather/` through the private connection to the service. METAR/TAF retain their AWC queries and

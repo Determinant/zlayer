@@ -41,6 +41,38 @@ test('coordinate routes resolve and remain editable without any navigation colle
   assert.equal(pinned.waypoints.length, 0, 'missing explicit pins never fall back to coordinates');
 });
 
+test('coordinate imports normalize supported compact and slash forms before route splitting', () => {
+  const resolve = createRouteResolver([]);
+  for (const [input, canonical] of [
+    ['374529N1223030W', '374529N1223030W'],
+    ['374529n/1223030w', '374529N1223030W'],
+    ['3745N12231W', '374500N1223100W'],
+    ['1234s/00959e', '123400S0095900E'],
+    ['9000N/18000E', '900000N1800000E'],
+    ['0000S00000W', '000000S0000000W'],
+  ] as const) {
+    const draft = routeDraftFromText(`DCT ${input}`);
+    assert.equal(routeDraftText(draft), canonical);
+    assert.deepEqual(resolve(draft).waypoints[0]!.feature, parseRouteCoordinate(canonical));
+    assert.deepEqual(resolve(draft).issues, []);
+  }
+  assert.deepEqual(routeTokensFromText('KSFO/374529N/1223030W..DCT,3745N12231W>KSJC-UNKNOWN'),
+    ['KSFO', '374529N1223030W', '374500N1223100W', 'KSJC', 'UNKNOWN']);
+  assert.deepEqual(routeTokensFromText('3745N/12231W/1234S/00959E'), ['374500N1223100W', '123400S0095900E']);
+  assert.deepEqual(routeTokensFromText('KSFO/KSJC 123/456'), ['KSFO', 'KSJC', '123', '456']);
+});
+
+test('invalid and incomplete coordinate pairs remain visible and cannot connect a route', () => {
+  const resolve = createRouteResolver([]);
+  for (const token of ['9100N/12200W', '900001N/1220000W', '3700N18100W',
+    '3760N12200W', '370060N/1220000W', '370000N/1226000W', '3700N/12200',
+    '3700N/', '3700N/1220000W', '370000N/12200W']) {
+    const plan = resolve(`371500N1223000W ${token} 380000N1230000W`);
+    assert.deepEqual(plan.unresolved, [token]);
+    assert.equal(plan.legs.length, 0);
+  }
+});
+
 test('saved GPS selections recover their encoded coordinates without changing navigation features', () => {
   const feature = parseRouteCoordinate('350000N1190535W')!;
   for (const coordinates of [[-119.091796875, 34.99850370014629], [feature.geometry.coordinates[0] + 360, 35]]) {

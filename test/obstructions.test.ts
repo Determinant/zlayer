@@ -353,16 +353,21 @@ test('a changed source gets its own filtered snapshot and never reuses an older 
     if (url === manifestUrl) return Response.json(current.manifest);
     downloads++; return new Response(new Uint8Array(current.bytes));
   });
-  await loadObstructions(manifestUrl);
+  const previous = await loadObstructions(manifestUrl);
+  current.manifest.source.lastModified = '2026-09-27';
+  const unchanged = await loadObstructions(manifestUrl, previous);
+  assert.equal(unchanged.index, previous.index, 'unchanged validated bytes reuse the in-memory index');
+  assert.equal(unchanged.sourceDate, '2026-09-27');
+  assert.equal(downloads, 1);
   current = fixture([feature('06-000002')]);
-  const updated = await loadObstructions(manifestUrl);
+  const updated = await loadObstructions(manifestUrl, unchanged);
   assert.equal(updated.index.query([-1, -1, 1, 1], [], 10).features[0]!.id, '06-000002');
   assert.equal(downloads, 2);
   assert.equal(stored.size, 1, 'the reference cache retains only the manifest');
   assert.equal(namespace(INDEX_CACHE).stored.size, 2, 'two independent source snapshots use the plugin namespace');
   // The same digest with contradictory manifest counts must not reuse a prior snapshot.
   current.manifest.dataset.count++;
-  await assert.rejects(loadObstructions(manifestUrl), /count/);
+  await assert.rejects(loadObstructions(manifestUrl, updated), /count/);
 });
 
 test('obstruction network headers cannot bypass hashing, and invalid receipts are reverified', async t => {

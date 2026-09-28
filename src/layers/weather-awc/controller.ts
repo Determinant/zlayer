@@ -83,7 +83,7 @@ export function forecastPreparation(state: WeatherState) {
   }), { ready: 0, total: 0, failed: 0, limited: false });
 }
 export function createWeatherController(clients: WeatherClients) {
-  const { advisories: client, grids: gridClient, radar: radarClient, motion: motionClient, coverage: coverageClient } = clients;
+  const { grids: gridClient, radar: radarClient, motion: motionClient, coverage: coverageClient } = clients;
   const altitudeControls = createLayerEvents<'icing' | 'winds'>();
   const gridController = gridClient && createGridController(gridClient, grid => acceptGrid({ grid }));
   const windController = gridClient && createGridController(gridClient, wind => acceptGrid({ wind }), ['winds']);
@@ -91,11 +91,11 @@ export function createWeatherController(clients: WeatherClients) {
   const store = createLayerStore<WeatherState>({ preferences: weatherAwcPreferences.select({}), now: Date.now(),
     selectedTime: null, selectedIds: [], forecastRetry: 0, advisoryRetry: 0, advisoryDisplay: { loading: false, ids: [] },
     grid: gridController?.getSnapshot() ?? emptyGrid(), wind: windController?.getSnapshot() ?? emptyGrid(),
-    radar: radarClient?.restore() ?? { loading: false }, radarRetry: 0, radarDisplay: { loading: false, sites: [] },
-    radarMotion: motionClient?.restore() ?? { loading: false }, radarMotionDisplay: { loading: false, cells: 0, stations: 0 },
-    coverage: coverageClient?.restore() ?? { loading: false }, coverageDisplay: { loading: false },
+    radar: { loading: false }, radarRetry: 0, radarDisplay: { loading: false, sites: [] },
+    radarMotion: { loading: false }, radarMotionDisplay: { loading: false, cells: 0, stations: 0 },
+    coverage: { loading: false }, coverageDisplay: { loading: false },
     progsRetry: 0, progs: { analysis: { loading: false }, forecast: { loading: false } },
-    products: { gairmet: client.restore('gairmet'), sigmet: client.restore('sigmet'), cwa: client.restore('cwa') } });
+    products: { gairmet: { loading: false }, sigmet: { loading: false }, cwa: { loading: false } } });
   const selectors = createWeatherSelectors();
   let input: WeatherAwcInput | undefined;
   let clock: ReturnType<typeof mountWeatherClock> | undefined;
@@ -107,9 +107,9 @@ export function createWeatherController(clients: WeatherClients) {
     const winds = p.awcWindBarbs || p.awcGridMode === 'temperature', scalar = p.awcGridMode !== 'none' && p.awcGridMode !== 'temperature';
     const shared = { time: s.selectedTime ?? s.now, concurrency: winds && scalar ? 1 : 2, pausePreparation: interaction.paused,
       online: typeof navigator === 'undefined' || navigator.onLine, visible: typeof document === 'undefined' || document.visibilityState !== 'hidden' };
-    gridController?.configure({ ...shared, enabled: p.awcEnabled, mode: scalar ? p.awcGridMode : 'none', altitude: p.awcGridAltitude });
+    gridController?.configure({ ...shared, enabled: p.awcEnabled, prepareTimeline: p.awcPrepareTimeline, mode: scalar ? p.awcGridMode : 'none', altitude: p.awcGridAltitude });
     windController?.configure({ ...shared, enabled: p.awcEnabled && winds, mode: 'temperature', altitude: p.awcWindAltitude,
-      prepareTimeline: p.awcGridMode === 'temperature' });
+      prepareTimeline: p.awcPrepareTimeline && p.awcGridMode === 'temperature' });
   };
   const reconcileAndPublish = (patch: Partial<WeatherState>) => {
     const next = reconcileWeatherTime({ ...store.getSnapshot(), ...patch }, Date.now(), selectors.forecastTimes);

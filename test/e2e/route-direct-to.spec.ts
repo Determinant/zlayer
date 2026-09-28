@@ -44,8 +44,8 @@ test(`approach Direct to at ${width}px (${mode})`, async ({ page, request }, tes
       await expect(page.getByRole('button', { name: 'Remove approach from KSNS', exact: true })).toBeVisible();
       await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-ui:selected-feature')!).value.id))
         .toBe(`approach-fix:${JSON.stringify(['FREZZ', ...target])}`);
-      await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-ui:selected-route-entry')!).value))
-        .toBe('expanded:["destination",2]');
+      await expect.poll(() => page.evaluate(() => JSON.parse(JSON.parse(localStorage.getItem('zlayer-ui:selected-route-entry')!).value.slice('expanded:'.length))))
+        .toEqual(['destination', expect.stringContaining('FREZZ')]);
       await page.reload();
       await expect(page.getByRole('button', { name: 'Remove approach from KSNS', exact: true })).toBeVisible();
     } else await expect(async () => {

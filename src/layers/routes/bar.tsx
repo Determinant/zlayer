@@ -3,7 +3,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { PersistentDetails } from '../../core/ui/persistent-details';
 
 import { routeEntryPins, type RouteApproach, type RouteTerminal, type RouteEntry, type RoutePlan } from '@zlayer/domain';
-import type { CatalogResponse, NavigationData } from '@zlayer/contracts';
+import type { CatalogResponse, GeoPointFeature, NavigationData } from '@zlayer/contracts';
 
 import { RouteEditor } from './editor';
 import { RouteNavLog } from './navlog';
@@ -21,6 +21,7 @@ type RouteBarProps = {
   catalog: CatalogResponse;
   navigationData?: NavigationData | undefined;
   onUseRoute: (draft: RouteDraft) => void;
+  onEditDraft: (edit: (draft: RouteDraft) => RouteDraft) => void;
   onRecommendationPreview?: (preview: RouteMapPreview | undefined) => void;
   onApproachPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
   onAppendInput: (input: string) => void;
@@ -30,6 +31,7 @@ type RouteBarProps = {
   onMoveEntry: (fromEntryId: string, toEntryId: string) => void;
   onClear: () => void;
   onFit: () => void;
+  onIdentify?: ((feature: GeoPointFeature, pointId?: string) => void) | undefined;
   onDirectTo?: DirectToAction | undefined;
   onApproachChange?: ((entry: RouteEntry, approach: RouteApproach | undefined) => void) | undefined;
   onArrivalChange?: ((entry: RouteEntry, arrival: RouteTerminal | undefined) => void) | undefined;
@@ -43,6 +45,7 @@ export function RouteBar({
   catalog,
   navigationData,
   onUseRoute,
+  onEditDraft,
   onRecommendationPreview,
   onApproachPreview,
   onAppendInput,
@@ -52,6 +55,7 @@ export function RouteBar({
   onMoveEntry,
   onClear,
   onFit,
+  onIdentify,
   onDirectTo,
   onApproachChange,
   onDepartureChange,
@@ -73,6 +77,7 @@ export function RouteBar({
         navlogId={navlogId}
         onToggleNavlog={toggleNavlog}
         onUseRoute={onUseRoute}
+        onEditDraft={onEditDraft}
         onAppendInput={onAppendInput}
         onInsertInput={onInsertInput}
         onReplaceInput={onReplaceInput}
@@ -80,6 +85,7 @@ export function RouteBar({
         onMoveEntry={onMoveEntry}
         onClear={onClear}
         onFit={onFit}
+        onIdentify={onIdentify}
         onDirectTo={onDirectTo}
         approachResource={catalog.procedures}
         approachRouteResource={catalog.terminalProcedures}

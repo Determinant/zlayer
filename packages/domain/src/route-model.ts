@@ -26,6 +26,8 @@ export type RouteEntry = {
   readonly approach?: RouteApproach;
   readonly departure?: RouteDeparture;
   readonly arrival?: RouteArrival;
+  readonly radialPosition?: import('./radial-position.js').RadialPosition;
+  readonly identifications?: readonly import('./route-identification.js').RoutePointIdentification[];
 };
 /** A SID belongs to its airport occurrence. Imported filing text can lack a branch. */
 type TerminalSelectionFields = {
@@ -64,6 +66,11 @@ export type RouteWaypoint = {
   ident: string;
   layer: NavigationLayerId;
   feature: GeoPointFeature;
+  identification?: import('./route-identification.js').RoutePointForm;
+  /** Ordinal among identical positions/phases within this entry, not all expanded children. */
+  identificationOccurrence?: number;
+  radialPosition?: import('./radial-position.js').RadialPosition;
+  radialReferenceCurrent?: boolean;
   /** Original connected arrival, retained when VTF or a coincident entry removes its connector. */
   approachArrival?: ApproachArrival;
   approachRole?: string;
@@ -120,6 +127,7 @@ export type RoutePlan = {
   approachDepictions?: ApproachDepiction[];
   /** Source-preserving terminal geometry, including schematic spans and open gaps. */
   terminalPaths?: { kind: 'departure' | 'arrival' | 'approach'; owner: RouteOwner;
+    points: import('./approach-path.js').ApproachPreview['points'];
     spans: import('./approach-path.js').ApproachSpan[]; issues: import('./approach-path.js').ApproachPathIssue[];
     policy: import('./approach-path.js').ApproachPreview['policy'] }[];
 };

@@ -1,4 +1,4 @@
-import type { RoutePlan } from '@zlayer/domain';
+import { greatCircleCoordinates, routeLegCoordinates, type RoutePlan } from '@zlayer/domain';
 
 export type Point = [number, number];
 export type Segment = [Point, Point];
@@ -19,8 +19,8 @@ export function unproject([x, y]: Point): Point {
 /** Cover the displayed planning path, including curves and connections across gaps. */
 export function routeSegments(plans: readonly RoutePlan[]): Segment[] {
   return plans.flatMap(plan => [
-    ...plan.legs.map(leg => leg.geometry ?? [leg.from.feature.geometry.coordinates, leg.to.feature.geometry.coordinates]),
-    ...(plan.planningConnections ?? []).map(({ from, to, start }) => [start ?? from.feature.geometry.coordinates, to.feature.geometry.coordinates]),
+    ...plan.legs.map(routeLegCoordinates),
+    ...(plan.planningConnections ?? []).map(({ from, to, start }) => greatCircleCoordinates(start ?? from.feature.geometry.coordinates, to.feature.geometry.coordinates)),
     ...(plan.approachDepictions ?? []).map(depiction => depiction.coordinates),
     ...(plan.approachExtensions ?? []),
   ].flatMap(coordinates => {

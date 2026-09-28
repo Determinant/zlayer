@@ -45,7 +45,7 @@ function fixture(t: test.TestContext) {
   let cleanup = () => {};
   t.after(() => cleanup());
   for (const [name, value] of Object.entries({ Worker: TestWorker, window: new EventTarget(), location: new URL('https://charts.test/'),
-    document: { createElement: () => ({ getContext: () => context }) },
+    document: Object.assign(new EventTarget(), { visibilityState: 'visible', createElement: () => ({ getContext: () => context }) }),
     Path2D: class { moveTo = noop; lineTo = noop; quadraticCurveTo = noop; closePath = noop; },
   })) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -176,4 +176,41 @@ test('resize, disable and remount release pending work and invalidate coverage',
   assert.ok(f.workers[1]!.terminated);
   f.layer.mount(f.map); await f.advance(); await f.finish(4);
   assert.equal(f.workers.length, 3); assert.equal(f.status().state, 'ready');
+});
+
+
+test('reconnect revalidates the manifest without clearing the usable map and retains it on failure', async t => {
+  const f = fixture(t); await f.advance(); await f.finish(0);
+  const original = f.data();
+  window.dispatchEvent(new Event('online')); await f.advance();
+  assert.equal(f.jobs[1]!.request.revalidate, true);
+  assert.equal(f.data(), original);
+  f.jobs[1]!.fail(); await settled();
+  assert.equal(f.data(), original);
+  window.dispatchEvent(new Event('online')); await f.advance();
+  await f.finish(2, { collection: original, sourceDate: '2026-09-27' });
+  assert.equal(f.status().sourceDate, '2026-09-27');
+  f.move(10); await f.advance();
+  assert.equal(f.jobs[3]!.request.revalidate, false, 'ordinary pans reuse the validated index');
+});
+
+
+test('hidden obstruction views wait for resume and age-based revalidation does not poll', async t => {
+  const f = fixture(t);
+  let now = 1000;
+  t.mock.method(Date, 'now', () => now);
+  await f.advance(); await f.finish(0);
+  const visibility = document as unknown as { visibilityState: string };
+  visibility.visibilityState = 'hidden'; document.dispatchEvent(new Event('visibilitychange'));
+  f.move(10); await f.advance(600_000);
+  assert.equal(f.jobs.length, 1);
+  now += 6 * 60_000;
+  visibility.visibilityState = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
+  await f.advance();
+  assert.equal(f.jobs[1]!.request.revalidate, true);
+  await f.finish(1);
+  visibility.visibilityState = 'hidden'; document.dispatchEvent(new Event('visibilitychange'));
+  visibility.visibilityState = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
+  await f.advance(600_000);
+  assert.equal(f.jobs.length, 2, 'quick resume and an idle map do not poll the manifest');
 });

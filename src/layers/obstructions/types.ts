@@ -20,7 +20,7 @@ export type ObstructionMapProperties = {
   heightAglFt: number; minZoom: number;
 };
 export type ObstructionCollection = FeatureCollection<Point, ObstructionMapProperties>;
-export type ObstructionRequest = { manifestUrl: string; bounds: Bounds; segments: Segment[]; zoom: number };
+export type ObstructionRequest = { manifestUrl: string; revalidate?: boolean; bounds: Bounds; segments: Segment[]; zoom: number };
 export type ObstructionResult = { collection: ObstructionCollection; sourceDate?: string };
 export type ObstructionWorker = { query: (request: ObstructionRequest) => Promise<ObstructionResult> };
 export type ObstructionStatus = { state: 'idle' | 'zoom' | 'loading' | 'ready' | 'error';

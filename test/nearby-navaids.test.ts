@@ -18,7 +18,7 @@ test('nearby references show a prominent MB and separate TB, including when magn
   assert.match(html, /class="navaid-magnetic"[^>]*>MB 345°<\/strong>/);
   assert.match(html, /class="navaid-true"[^>]*>TB 360°<\/small>/);
   assert.match(html, /60\.0/);
-  assert.match(html, /115\.8 · VOR\/DME/);
+  assert.match(html, /115\.8 VOR\/DME/);
   assert.match(html, /Ground distance/);
   const fallback = render({ ...station, properties: { kind: 'navaid', ident: 'TEST', type: 'VOR/DME' } });
   assert.doesNotMatch(fallback, /MB 360°/);

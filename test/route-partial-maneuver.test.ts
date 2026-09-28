@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isTerminalProceduresData, type FeatureCollectionResponse } from '@zlayer/contracts';
-import { createRouteResolver, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
+import { createRouteResolver, geographicMidpoint, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
 import approaches from '../packages/domain/test/fixtures/approach-maneuvers.json';
-import { project, routeSegments } from '../src/layers/terrain/geometry';
+import { corridorDistance, project, routeSegments } from '../src/layers/terrain/geometry';
 
 test('a planning connection continues the known maneuver and terrain covers both portions', () => {
   const data: unknown = { type: 'ZLayerTerminalProcedures', metadata: {
@@ -24,8 +24,9 @@ test('a planning connection continues the known maneuver and terrain covers both
   assert.ok(plan.issues.some(i => i.code === 'approach-discontinuity'));
   assert.equal(plan.legs.some(l => l.to.ident === 'UNSUN'), false);
   const segments = routeSegments([plan]);
-  assert.ok(segments.some(([a, b]) => JSON.stringify([a, b]) === JSON.stringify([
-    project(connection.start!), project(connection.to.feature.geometry.coordinates)])));
+  assert.ok(segments.some(([a]) => JSON.stringify(a) === JSON.stringify(project(connection.start!))));
+  assert.ok(segments.some(([, b]) => JSON.stringify(b) === JSON.stringify(project(connection.to.feature.geometry.coordinates))));
+  assert.ok(corridorDistance(project(geographicMidpoint(connection.start!, connection.to.feature.geometry.coordinates)), segments) < .05);
   for (const [index, point] of prefix.coordinates.slice(1).entries()) {
     assert.ok(segments.some(([a, b]) => JSON.stringify([a, b]) === JSON.stringify([project(prefix.coordinates[index]!), project(point)])));
   }

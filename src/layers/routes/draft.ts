@@ -1,5 +1,5 @@
 import type { GeoPointFeature, NavigationData, PreferredRouteRecord } from '@zlayer/contracts';
-import { createRouteEntry, routeEntriesFromText, routeDraftFromText, routeTokenForFeature, resolvePreferredRouteEntries,
+import { createRouteEntry, routeIdentificationKey, type RouteWaypoint, radialPositionFromFeature, parseRadialDefinition, routeEntriesFromText, routeDraftFromText, routeTokenForFeature, resolvePreferredRouteEntries,
   airportRouteIdent, type RouteAirportPair, type RouteApproach, type RouteTerminal, type RouteDraft, type RouteEntry } from '@zlayer/domain';
 
 export { routeDraftFromText, routeDraftText } from '@zlayer/domain';
@@ -48,7 +48,8 @@ export function replaceRouteFeature(draft: RouteDraft, entryId: string, feature:
   const entry = entryForFeature(feature, entryId);
   if (index < 0 || !entry) return draft;
   const previous = draft.entries[index]!;
-  return previous.text === entry.text && previous.pinnedFeatureId === entry.pinnedFeatureId
+  return previous.text === entry.text && previous.pinnedFeatureId === entry.pinnedFeatureId &&
+    JSON.stringify(previous.radialPosition) === JSON.stringify(entry.radialPosition)
     ? draft : spliceEntries(draft, index, 1, [entry]);
 }
 export function removeRouteEntry(draft: RouteDraft, entryId: string): RouteDraft {
@@ -93,6 +94,8 @@ export function sameRouteDraft(left: RouteDraft, right: RouteDraft): boolean {
   return left.entries.length === right.entries.length && left.entries.every((entry, index) => {
     const other = right.entries[index]!;
     return entry.id === other.id && entry.text === other.text && entry.pinnedFeatureId === other.pinnedFeatureId &&
+      JSON.stringify(entry.radialPosition) === JSON.stringify(other.radialPosition) &&
+      JSON.stringify(entry.identifications) === JSON.stringify(other.identifications) &&
       sameRouteApproach(entry.approach, other.approach) && sameRouteTerminal(entry.departure, other.departure) &&
       sameRouteTerminal(entry.arrival, other.arrival);
   });
@@ -111,7 +114,18 @@ function spliceEntries(draft: RouteDraft, index: number, count: number, addition
   entries.splice(index, count, ...additions);
   return { entries };
 }
-function entryForFeature(feature: GeoPointFeature, id?: string): RouteEntry | undefined {
+export function entryForFeature(feature: GeoPointFeature, id?: string): RouteEntry | undefined {
   const text = routeTokenForFeature(feature);
+  const radialPosition = radialPositionFromFeature(feature);
+  if (parseRadialDefinition(text) && feature.properties.kind === 'coordinate') return radialPosition
+    ? { ...createRouteEntry(text, undefined, id), radialPosition } : undefined;
   return text ? createRouteEntry(text, feature.id, id) : undefined;
+}
+
+/** Decomposing a published item retains each child's chosen description. */
+export function entryForRoutePoint(point: RouteWaypoint): RouteEntry {
+  const entry = entryForFeature(point.feature) ?? createRouteEntry(point.ident);
+  if (!point.identification) return entry;
+  const { identificationOccurrence: _occurrence, approachPhase: _phase, ...ordinary } = point;
+  return { ...entry, identifications: [{ key: routeIdentificationKey(ordinary), form: point.identification }] };
 }

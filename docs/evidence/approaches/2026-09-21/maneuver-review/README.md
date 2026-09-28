@@ -27,12 +27,9 @@ declination, procedure turns, repeated fixes and holds. A national probe found
 no nontrivial fixed CF/TF/DF turn opposite its coded side; this is not a
 plate-by-plate certification.
 
-Recorded validation passed 1,316 unit tests (1,161 application, 17 contracts,
-138 domain), import/type checks, the production build and all 53 focused browser
-cases. Twelve maneuver cases were rerun for close screenshots at 320/1280 px.
-Publisher-to-client and local publication checks passed against `faa-regs`
-commit `7357768`. These results describe that build, not the current working tree
-or a hosted deployment.
+The local publisher/client comparison used `faa-regs` commit `7357768`.
+Source hashes and diagnostic changes remain in the linked national comparison;
+the screenshots do not establish device performance or hosted availability.
 
 Checks, run from the repository root against the local FAA 2026-09-03 edition:
 
@@ -47,7 +44,4 @@ node --import=tsx tools/audit-terminal-coverage.mjs ../faa-regs/dist/charts/2026
 node --import=tsx tools/audit-iap-coverage.mjs ../faa-regs/dist/charts/2026-09-03 /tmp/zlayer-iap-audit.json '*'
 ```
 
-The application/contracts suites passed together; the domain suite was rerun
-after updating its obsolete discard-prefix assertion, and all 138 cases passed.
-The final type check and build then passed. No publisher rebuild is required for
-these drawing changes; delivering them requires the normal zlayer client release.
+These drawing changes require a client release, without a publisher rebuild.

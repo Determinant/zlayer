@@ -28,7 +28,9 @@ async function indexObstructions(blob: Blob, manifest: ObstructionManifest): Pro
   return index;
 }
 
-export async function loadObstructions(manifestUrl: string): Promise<{ index: ObstructionIndex; sourceDate?: string }> {
+export type LoadedObstructions = { index: ObstructionIndex; identity: string; sourceDate?: string };
+
+export async function loadObstructions(manifestUrl: string, previous?: LoadedObstructions): Promise<LoadedObstructions> {
   const manifest = await fetchJson(manifestUrl, isObstructionManifest, 'FAA obstructions', { revalidate: true });
   const url = new URL(manifest.dataset.path, manifestUrl).href;
   const snapshotUrl = new URL(url);
@@ -36,6 +38,9 @@ export async function loadObstructions(manifestUrl: string): Promise<{ index: Ob
     manifest.dataset.bytes, manifest.dataset.uncompressedBytes, manifest.dataset.count].join('-'));
   const snapshotKey = snapshotUrl.href;
   const sourceIdentity = [manifest.dataset.sha256, manifest.dataset.bytes, manifest.dataset.uncompressedBytes, manifest.dataset.count].join(':');
+  const identity = `${url}:${OBSTRUCTION_INDEX_VERSION}:${sourceIdentity}`;
+  const sourceDate = manifest.source.lastModified;
+  if (previous?.identity === identity) return { index: previous.index, identity, ...(sourceDate ? { sourceDate } : {}) };
   const signal = new AbortController().signal;
   let fresh: { bytes: ArrayBuffer; index: ObstructionIndex } | undefined;
   const snapshot = (index: ObstructionIndex) => {
@@ -64,5 +69,5 @@ export async function loadObstructions(manifestUrl: string): Promise<{ index: Ob
       return fresh?.bytes === bytes ? fresh.index : ObstructionIndex.restore(bytes, manifest.dataset.count);
     },
   });
-  return { index, ...(manifest.source.lastModified ? { sourceDate: manifest.source.lastModified } : {}) };
+  return { index, identity, ...(sourceDate ? { sourceDate } : {}) };
 }

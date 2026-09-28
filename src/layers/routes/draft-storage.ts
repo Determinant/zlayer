@@ -1,7 +1,8 @@
 import { isRecord } from '@zlayer/contracts';
-import { routeDraftFromText, routeTokensFromText, type RouteApproach, type RouteDraft, type RouteEntry, type RouteTerminal } from '@zlayer/domain';
+import { normalizeRouteCoordinate, parseRadialDefinition, radialDefinitionText, routeDraftFromText, routeTokensFromText, type RouteApproach, type RouteDraft, type RouteEntry, type RouteTerminal } from '@zlayer/domain';
 import { pluginStorage } from './storage';
 import { EMPTY_ROUTE_DRAFT } from './draft';
+import { identificationFields } from './identification-storage';
 
 export const routeDraftRecord = pluginStorage.record('draft', {
   version: 2, fallback: EMPTY_ROUTE_DRAFT, legacyKey: 'zlayer-route-draft-v1',
@@ -28,11 +29,15 @@ export function parseRouteEntries(value: unknown): RouteDraft | undefined {
     if (!isRecord(entry) || typeof entry.id !== 'string' || !entry.id || ids.has(entry.id) ||
       typeof entry.text !== 'string') return undefined;
     const tokens = routeTokensFromText(entry.text);
-    if (tokens.length !== 1 || tokens[0] !== entry.text) return undefined;
+    const radial = parseRadialDefinition(entry.text);
+    const text = normalizeRouteCoordinate(entry.text) ?? (radial ? radialDefinitionText(radial) : entry.text);
+    if (tokens.length !== 1 || tokens[0] !== text) return undefined;
+    const identification = identificationFields(entry);
+    if (!identification) return undefined;
     ids.add(entry.id);
     const approach = approachSelection(entry.approach);
     const departure = terminalSelection(entry.departure, 'departure'), arrival = terminalSelection(entry.arrival, 'arrival');
-    entries.push({ id: entry.id, text: entry.text,
+    entries.push({ id: entry.id, text, ...identification,
       ...(typeof entry.pinnedFeatureId === 'string' && entry.pinnedFeatureId ? { pinnedFeatureId: entry.pinnedFeatureId } : {}),
       ...(approach ? { approach } : {}), ...(departure?.kind === 'departure' ? { departure } : {}),
       ...(arrival?.kind === 'arrival' ? { arrival } : {}) });

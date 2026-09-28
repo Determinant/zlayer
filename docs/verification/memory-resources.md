@@ -60,51 +60,28 @@ accumulates streamed/Blob response data before committing it. Merely wrapping a
 download in a stream, or passing a disk-backed File to `Cache.put`, therefore
 does not establish bounded memory use.
 
-Download constraints now enforced by the application:
+The [stored-file contract](../features/offline-storage.md#stored-files) owns the
+8 MiB memory fallback, disk-backed downloads, verified receipts, cross-window
+reader locks and abandoned-file cleanup. The [core transfer contract](../architecture/layer-plugins.md#file-downloads)
+owns 64 KiB awaited writes and the per-context queue: up to four small files,
+with bodies above 4 MiB or still unknown in size reserving the whole queue.
+PDFs additionally serialize transfers per page; completed chart Blobs have a
+16 MiB retention cap. See the [resource table](#resource-limits-by-path).
 
-- Files larger than **8 MiB**, and downloads whose size is unknown, use an
-  origin-private file when writable local file storage is available. Network
-  chunks are consumed sequentially; each disk write is at most **64 KiB** and
-  finishes before more data is read. Writes use exact-sized buffers: Linux WebKit
-  wrote a view's entire backing buffer in the regression, expanding a 180 MiB
-  input to 720 MiB. Closed-file size validation caught this, and exact copies
-  corrected it. Fetch chooses its own input chunk size.
-- Large payloads never pass through whole-response `blob()`/`arrayBuffer()` or
-  `Cache.put`. Cache Storage publishes a small receipt only after the file is
-  closed and its size, hash, and (for PDFs) signature pass validation. Offline
-  reads check that the referenced file exists and has the recorded size, then
-  give range readers the File directly. Receipts use separate cache namespaces,
-  so an older open page cannot mistake them for empty/corrupt PDFs and delete
-  them. Existing complete legacy copies remain readable.
-  Publication is coordinated across windows; identical verified downloads reuse
-  the file already committed by another window.
-  Removal drops the receipt immediately. Shared file locks keep files and their
-  slices readable until existing readers release them or their context closes;
-  deferred cleanup then reclaims the backing file. Full reset stops readers first
-  and removes the entire directory.
-- Without writable file storage, retained fallback payloads stop at **8 MiB**.
-  Known oversized files fail before consuming the body; unknown lengths stop
-  at the cap. There is no unbounded fallback after denial or quota failure.
-  Large new downloads require `createWritable`, which Apple introduced in
-  [Safari 26](https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes).
-  Earlier Safari versions can still read saved files and download small files;
-  large new downloads present a storage/browser error instead of buffering them.
-- Core's file-transfer queue is shared by products within each execution context.
-  One PDF transfer/verification/publication runs per page, including downloads
-  continuing after their viewer closes. A body above **4 MiB** or still of unknown
-  size occupies that context's entire transfer budget; up to four smaller files
-  may overlap. A request with only a maximum uses one slot until response headers
-  determine its body reservation. Known large files and explicitly exclusive
-  transfers reserve the whole budget from the start. Separate pages/workers have separate budgets.
-  Completed chart Blobs have a **16 MiB** aggregate retention cap as well as the
-  existing entry limit. Eviction preserves durable files.
-- Ordinary failures cancel the body, abort the writer, and remove uncommitted
-  files. Later disk downloads reclaim abandoned files older than a day when no
-  receipt or active reader/writer protects them. Cleanup checks receipts under
-  the publication lock and enumerates legacy keys without opening their bodies.
-  Legacy URLs conservatively protect older file generations. Deletion also avoids
-  opening whole legacy bodies. Background cleanup never creates cache namespaces,
-  so it cannot repopulate storage after reset.
+Two implementation details are essential to those bounds:
+
+- Write exact-sized buffers. In the Linux WebKit regression, writing a view
+  wrote its entire backing buffer, expanding a 180 MiB input to 720 MiB.
+  Closed-file length validation detected the error; exact copies corrected it.
+  Fetch still chooses its own incoming chunk size.
+- Publish a small Cache Storage receipt after validation, never the large body.
+  Existing readers retain backing files through removal; cleanup must neither
+  open whole legacy bodies nor recreate cache namespaces after a reset.
+
+Large new downloads require writable local file storage (`createWritable`,
+introduced in [Safari 26](https://developer.apple.com/documentation/safari-release-notes/safari-26-release-notes)).
+Without it, existing files remain readable and new small downloads use the bounded
+fallback; oversized downloads fail instead of accumulating an unbounded body.
 
 These are local allocation/retention bounds, not a total Safari process budget.
 The fallback can overlap its Blob copy and Cache Storage buffers. Different pages,
@@ -128,12 +105,6 @@ and repeated books.
 npx playwright test test/e2e/download-memory.spec.ts test/e2e/plate-download.spec.ts
 npx playwright test test/e2e/download-memory.spec.ts test/e2e/plate-download.spec.ts --browser=webkit
 ```
-
-The September 21 download revision passed imports, types, unit tests, build and
-focused Linux WebKit/Firefox download checks. Its full verification run was
-stopped at the user's request during Chromium; later browser/graphics stages
-did not complete. The subsequent terrain coverage-gap correction received static
-review only. These results do not validate that correction or a later build.
 
 The large-file tests use fresh **persistent** browser profiles: WebKit's ephemeral
 contexts deny OPFS. The chart test disables the real test origin; protocol-level
@@ -174,10 +145,8 @@ The byte figures exclude spatial-grid JavaScript objects, gzip storage, parser
 temporaries and map/GPU memory. The 96.4% reduction describes the display columns,
 not total application memory.
 
-Obstruction RPCs also permit only one query in flight. New view/route changes
-replace the pending demand; after the active query completes, the worker receives
-the latest view. Stale results are still rejected by revision. Disabling or
-unmounting the layer terminates its worker and resets pending demand.
+The [obstruction query contract](../../src/layers/obstructions/README.md#buffered-viewport-queries)
+bounds in-flight work and releases the worker on disable/unmount.
 
 ### Bound route-history decompression too
 
@@ -388,66 +357,27 @@ presentation; they do not measure the physical-device frame-time target.
 
 ### Map inputs
 
-- Fix indices retain low/high airway counts and release temporary membership Sets
-  after indexing. Duplicate components count once; low/high names remain disjoint.
-  A WeakMap retains the current settings' sorted ranking. Priority exclusions run
-  before density placement, freeing cells for promoted fixes.
-- Navigation compares effective priority identities/settings. Reordering priorities
-  updates their source without rebuilding background density; refreshed feature
-  objects still update coordinates and properties.
-- Weather station queries respond to camera, style, resize and airport-source
-  changes, including late tiles. Status-only updates and visibility changes avoid
-  redundant GeoJSON writes. Cached input identities do not retain another joined
-  collection.
-- Route previews, replacement and preview cancellation submit immediately to
-  MapLibre; no queued frame may restore an old preview. Equivalent previews,
-  labels and unchanged alternatives skip writes, while changes in editability
-  invalidate the primary. Snapping and committed drops remain synchronous.
-- Chart family definitions compile once per immutable catalog in a WeakMap.
-  Visibility still accounts for antimeridian/world copies and preserves ordering.
+Plugin guides own input reuse and publication rules:
+[navigation ranking and priorities](../../src/layers/navigation/fix-display.md#input-reuse),
+[METAR station queries and source updates](../../src/layers/metar-taf/README.md#demand-refresh-and-recovery),
+[route preview submission](../../src/layers/routes/README.md#edit-lifecycles), and
+[chart-family compilation](../../src/layers/charts/README.md#startup-and-recovery).
+The [recorded comparisons](#recorded-rendering-comparisons) below retain payload,
+allocation and timing evidence, including the preview burst-latency tradeoff.
 
 ### Buffered obstruction queries
 
-Obstructions prefetch half a viewport on each side in Mercator space, clipped to
-one world's longitude span and map latitude limits. A refill starts when less
-than a quarter-viewport margin remains. An 80 ms throttle is not restarted by each
-movement event, so continuous pans refill before `moveend`. Integer zoom changes
-refresh coverage; fractional height cutoffs remain unchanged.
-
-Only one query runs at a time; pending demand collapses to the latest view. Results
-must cover that view at the current zoom tier and route generation. Route changes
-immediately remove old corridor contributions while retaining height-eligible
-points. A warm buffer survives an obsolete refill failure. Status counts exclude
-prefetched points and use current viewport/height/corridor eligibility. Disable or
-unmount releases the worker. Each request covers at most four viewport areas before
-clipping; local density determines feature count. Navigation still retains complete
-reference data and an eligible render collection; it does not stream by viewport.
+The [obstruction guide](../../src/layers/obstructions/README.md#buffered-viewport-queries)
+owns padding, refill timing, stale-result rejection and visible counts. Its bounded
+pan buffer is distinct from Navigation's retained national reference data.
 
 ### Terrain recovery and parsed indices
 
-The vector cache normally holds 128 tiles, retaining current screen coverage even
-if it exceeds that budget, then shrinking as coverage leaves. Eviction uses recent
-visibility; cache access preserves insertion order and label placement. Warm pans
-publish changed cached coverage immediately without rewriting unchanged sources;
-new worker results use a 100 ms coalescing window.
-
-A cached raster without its vector data cannot report ready. After raster demand
-updates, at most four recovery requests share the worker's four-job limit and
-ordinary source-selection path. They close unused bitmaps, cancel offscreen work,
-reject stale route/source generations and wait for explicit retry after failure.
-Viewport-only shading does not request route-vector recovery. Stable foreground
-anchors preserve route-label/ownship order through source replacement and remounts.
-Terrain-source errors request a completion frame even without `sourcedata`.
-
-Effective terrain identity uses the first eligible source per shard, including
-saved-region precedence, archive URLs, hashes and lengths. Catalog timestamps,
-unrelated metadata, saved-file health, ordering and fully shadowed sources do not
-reset terrain. A changed effective source replaces the generation and rejects late
-results. Parsed indices share an eight-entry cache, including pending parses, with
-up to 1,024 archive descriptors each, tile-key lookup and eviction by recent use.
-Canceling one caller does not cancel others; failures are evicted for retry. Persistent-storage checks run
-before cache lookup, and cache identity includes the expected shard location.
-Missing files or invalid receipts must remain detectable with a warm parsed index.
+The [terrain guide](../../src/layers/terrain/README.md#cache-recovery-and-source-identity)
+owns vector-cache retention, raster/vector recovery and parsed-index identity.
+Warm caches must still expose missing files or invalid receipts. The resource
+table above and the recorded comparisons below retain cross-plugin limits and
+measurement scope.
 
 ## Recorded rendering comparisons
 
@@ -498,13 +428,10 @@ npx playwright test fix-display.spec.ts weather-map.spec.ts route-map.spec.ts ob
 npx playwright test fix-display.spec.ts weather-map.spec.ts obstructions.spec.ts terrain.spec.ts terrain-locality.spec.ts --browser=webkit
 ```
 
-The September 20 targeted runs passed imports/types/build and focused Chromium,
-WebKit and graphics cases. They did not establish a full WebKit pass: baseline
-failures included weather/airport-summary interception, Chromium-only route-editor
-CDP calls, a route remove button blocked by pointer-event layout, three obstruction
-fetches where one was expected, and cold offline navigation failing before terrain
-code. These are historical follow-ups whose resolution is not established here.
-The September 21 download check limits are recorded above.
+For browser regressions, distinguish unsupported native input injection and
+offline emulation from application failures. Cover report interception, reachable
+route controls, obstruction cache reuse and cold offline navigation before
+attributing a failure to terrain or memory. Current runs determine current status.
 
 On-device allocation profiling and retesting remain necessary. Record iPhone/iOS
 version and whether failures occur during cold load, panning, layer changes, PDF

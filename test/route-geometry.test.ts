@@ -4,7 +4,10 @@ import { LngLatBounds, type Map as MapLibreMap } from 'maplibre-gl';
 import { featureFilter } from '@maplibre/maplibre-gl-style-spec';
 import type { LayerSpecification } from 'maplibre-gl';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
-import { createRouteResolver, routeCoordinateFeature, routeDraftFromText, routeDraftText } from '@zlayer/domain';
+import { createRouteResolver, distanceNm, greatCircleCoordinates, routeLegCoordinates, routeCoordinateFeature, routeDraftFromText, routeDraftText } from '@zlayer/domain';
+import { fitRoute } from '../src/layers/routes/map-camera';
+import { navLogRows } from '../src/layers/routes/navlog-rows';
+import { unproject } from '../src/layers/terrain/geometry';
 import { insertRouteFeature } from '../src/layers/routes/draft';
 import { createRouteRemovalResolver } from './helpers/route-removal';
 import { unwrapRouteCoordinates } from '../src/layers/routes/geometry';
@@ -132,10 +135,62 @@ test('dateline routes render and fit the short crossing, forward and reverse', (
     assert.equal(sources.get(ROUTE_SOURCE_ID)!.features.filter(feature => feature.geometry.type === 'LineString').length, 1,
       'the original remains available until preview tiles are ready and for immediate cancellation');
     const preview = sources.get(ROUTE_DRAG_SOURCE_ID)!.features[0]!.geometry.coordinates;
-    assert.equal(preview.length, 3);
+    assert.ok(preview.length > 3);
+    assert.ok(preview.some(([longitude, latitude]) => Math.abs(longitude - 179) % 360 === 0 && latitude === 52));
     assert.ok(preview.slice(1).every((point, i) => Math.abs(point[0] - preview[i]![0]) < 10));
   }
   assert.deepEqual(coordinates[0], [-176.64248222, 51.88358277], 'unwrapping must not mutate cached features');
+});
+
+test('long direct legs share a bounded great-circle path across rendering, fitting and terrain without changing NavLog course semantics', () => {
+  const plan = createRouteResolver([])('600000N0600000W 600000N0600000E');
+  const leg = plan.legs[0]!, path = routeLegCoordinates(leg);
+  assert.equal(routeLegCoordinates(leg), path, 'unchanged legs reuse prepared geometry');
+  assert.ok(Math.max(...path.map(point => point[1])) > 73);
+  assert.ok(path.length < 550);
+  const distance = path.slice(1).reduce((sum, point, index) => sum + distanceNm(path[index]!, point), 0);
+  assert.ok(Math.abs(distance - leg.distanceNm) < 1e-7);
+  assert.notEqual(navLogRows(plan, null).rows[1]!.course, 'Varies', 'a great-circle direct leg retains its initial course');
+  const data = new Map<string, FeatureCollection>();
+  const map = { setGlobalStateProperty() {}, getSource: (id: string) => ({ setData: (value: FeatureCollection) => data.set(id, value) }) };
+  syncRoute(map as unknown as MapLibreMap, plan);
+  assert.deepEqual(data.get(ROUTE_SOURCE_ID)!.features.find(feature => feature.geometry.type === 'LineString')!.geometry,
+    { type: 'LineString', coordinates: path });
+  const terrain = routeSegments([plan]).flat();
+  assert.ok(Math.max(...terrain.map(point => unproject(point)[1])) > 73);
+  let fitted: LngLatBounds | undefined;
+  fitRoute({ getCenter: () => ({ lng: 0 }), getContainer: () => ({ clientWidth: 1280, clientHeight: 900 }),
+    fitBounds: (bounds: LngLatBounds) => { fitted = bounds; } } as unknown as MapLibreMap, plan, undefined, () => 0);
+  assert.ok(fitted!.getNorth() > 73);
+  for (const end of [[180, 0], [179.999999, 0], [-179.9, 80]] as [number, number][]) {
+    const points = greatCircleCoordinates([0, 0], end);
+    assert.ok(points.length <= 542);
+    assert.ok(points.flat().every(Number.isFinite));
+    assert.deepEqual(points.at(-1), end);
+  }
+});
+
+test('route fitting contains curved gap connections and their supplied maneuver endpoints', () => {
+  for (const start of [undefined, [0, 85] as [number, number]]) {
+    const plan = createRouteResolver([])('600000N0800000W UNKNOWN 600000N0800000E');
+    assert.equal(plan.legs.length, 0);
+    assert.equal(plan.planningConnections!.length, 1);
+    if (start) plan.planningConnections![0]!.start = start;
+    const data = new Map<string, FeatureCollection>();
+    let fitted: LngLatBounds | undefined;
+    const map = { setGlobalStateProperty() {},
+      getSource: (id: string) => ({ setData: (value: FeatureCollection) => data.set(id, value) }),
+      getCenter: () => ({ lng: 0 }), getContainer: () => ({ clientWidth: 1280, clientHeight: 900 }),
+      fitBounds: (bounds: LngLatBounds) => { fitted = bounds; } } as unknown as MapLibreMap;
+    syncRoute(map, plan);
+    fitRoute(map, plan, undefined, () => 0);
+    const connection = data.get(ROUTE_SOURCE_ID)!.features.find(feature => feature.properties?.routeKind === 'planning-connection')!;
+    assert.ok(connection.geometry.type === 'LineString');
+    assert.ok(fitted!.getNorth() > 84, 'the fitted view includes the curve beyond its route waypoints');
+    for (const coordinate of connection.geometry.coordinates) {
+      assert.ok(fitted!.contains([coordinate[0]!, coordinate[1]!]));
+    }
+  }
 });
 
 test('recommendation previews preserve normal primary styling, use visible gray alternatives, and cannot edit the flight plan', () => {

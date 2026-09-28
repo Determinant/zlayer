@@ -1,3 +1,5 @@
+import { compositionAirways, compositionFixes, compositionPreferred, compositionTerminal } from '../fixtures/route-composition';
+import { identificationFixes, identificationStations } from '../fixtures/route-identification';
 import codedTerminal from '../fixtures/coded-terminal-procedures.json';
 // Local, network-free route editor fixture. Not included in production builds.
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +11,7 @@ import { ROUTE_LINE_ANCHOR } from '../../src/core/map/layer';
 import type { RoutePlan } from '@zlayer/domain';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { createRoot } from 'react-dom/client';
-import { isTerminalProceduresData, type CatalogResponse, type FeatureCollectionResponse, type NavigationData, type TerminalProceduresData } from '@zlayer/contracts';
+import { isTerminalProceduresData, type CatalogResponse, type GeoPointFeature, type FeatureCollectionResponse, type NavigationData, type TerminalProceduresData } from '@zlayer/contracts';
 import approachRoutes from '../fixtures/route-approach-legs.json';
 import moffettRoutes from '../fixtures/route-approach-nuq.json';
 import northBayRoutes from '../fixtures/route-approach-north-bay.json';
@@ -18,7 +20,11 @@ import { refinementTerminal, refinementPublishedCatalog } from '../fixtures/rout
 import { jsonIdentity } from '../../src/core/data/json-identity';
 import departures from '../fixtures/route-departures.json';
 import { departureNavigation } from '../fixtures/route-departure-navigation';
-import { attachRouteDepartures, createRouteResolver } from '@zlayer/domain';
+import { attachRouteDepartures, captureRadialPositions, createRouteResolver } from '@zlayer/domain';
+import { EdgePanels } from '../../src/core/ui/edge-panels';
+import { FeatureDetailsPanel } from '../../src/workspace/feature-details-panel';
+import { createMetarClient } from '../../src/layers/metar-taf/metar/client';
+import { nearbyVorStations } from '@zlayer/domain';
 import { RouteBar } from '../../src/layers/routes/bar';
 import type { RouteMapPreview } from '../../src/layers/routes/map-preview';
 import { createGpsService } from '../../src/core/gps/service';
@@ -30,6 +36,7 @@ import '../../src/styles.css';
 import '@fontsource/b612/400.css';
 import '@fontsource/b612/700.css';
 
+const composition = new URLSearchParams(location.search).has('composition');
 const moffett = new URLSearchParams(location.search).has('nuq');
 const sid = new URLSearchParams(location.search).has('sid');
 const northBay = new URLSearchParams(location.search).get('north-bay');
@@ -49,7 +56,7 @@ if (coded) {
     geometry: { type: 'Point', coordinates: [-117.868, 33.676] } });
   navigation.meta.returned++;
 }
-const rawTerminal = coded ? codedTerminal : sid ? departures : refinedTerminal ?? (arizona ? arizonaTerminal(new URLSearchParams(location.search).has('missing-intercept'))
+const rawTerminal = composition ? compositionTerminal : coded ? codedTerminal : sid ? departures : refinedTerminal ?? (arizona ? arizonaTerminal(new URLSearchParams(location.search).has('missing-intercept'))
   : northBay ? northBayRoutes : moffett ? moffettRoutes : approachRoutes);
 if (!isTerminalProceduresData(rawTerminal)) throw new Error('Invalid approach fixture');
 const terminal: TerminalProceduresData = rawTerminal;
@@ -74,7 +81,13 @@ if (new URLSearchParams(location.search).has('entities')) {
         geometry: { type: 'Point', coordinates: [-122.2 + index * .05, 37.5] }, properties: { ident, type } })) };
   }
 }
-const resolve = createRouteResolver(Object.values(references), undefined, terminal);
+if (composition) references.fixes = compositionFixes;
+if (new URLSearchParams(location.search).has('identification')) {
+  references.navaids = identificationStations;
+  if (!references.fixes) references.fixes = identificationFixes;
+}
+const resolve = createRouteResolver(Object.values(references), composition ? compositionAirways : undefined, terminal,
+  composition ? compositionPreferred : undefined);
 const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-16T00:00:00Z',
   // Give saved-route previews the same references as the fixture's active editor.
   navigation: Object.values(references).map(collection => ({
@@ -99,10 +112,17 @@ function Fixture() {
   const showMap = new URLSearchParams(location.search).has('map');
   const [draft, setDraft] = useRouteDraft();
   const [preview, setPreview] = useState<RouteMapPreview>();
+  const [selected, setSelected] = useState<{ feature: GeoPointFeature; pointId?: string | undefined }>();
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [identificationOpen, setIdentificationOpen] = useState(false);
+  const [metarClient] = useState(createMetarClient);
+  const identify = (feature: GeoPointFeature, pointId?: string) => {
+    setSelected({ feature, pointId }); setIdentificationOpen(true); setActivePanel('details');
+  };
   const [plate, setPlate] = useState('');
   const [revision, refresh] = useState(0);
   const resolved = useMemo(() => resolve(draft), [draft, revision]);
-  const normalized = useMemo(() => attachRouteDepartures(draft, resolved, terminal), [draft, resolved]);
+  const normalized = useMemo(() => captureRadialPositions(attachRouteDepartures(draft, resolved, terminal), resolved), [draft, resolved]);
   useEffect(() => { if (draft !== normalized) setDraft(current => current === draft ? normalized : current); }, [draft, normalized, setDraft]);
   const plan = useMemo(() => draft === normalized ? resolved : resolve(normalized), [draft, normalized, resolved]);
   const [gps] = useState(createGpsService);
@@ -121,25 +141,37 @@ function Fixture() {
   return <main className="app-shell">
     <header style={{ padding: 12 }}>Route regression checks</header>
     <RouteBar plan={plan} status="ready" catalog={catalog} navigationData={references}
-      onDirectTo={directTo}
+      onDirectTo={directTo} onIdentify={identify}
       onApproachChange={(entry, approach) => setDraft(current => setRouteApproach(current, entry, approach))}
       onDepartureChange={(entry, departure) => setDraft(current => setRouteDeparture(current, entry, departure))}
       onArrivalChange={(entry, arrival) => setDraft(current => setRouteArrival(current, entry, arrival))}
       onRecommendationPreview={setPreview}
       onApproachPreview={setPreview}
       onOpenPlate={selection => setPlate(selection.procedure.name)}
-      onUseRoute={setDraft} onClear={() => setDraft(routeDraftFromText(''))} onFit={() => {}}
+      onUseRoute={setDraft} onEditDraft={setDraft} onClear={() => setDraft(routeDraftFromText(''))} onFit={() => {}}
       onAppendInput={input => setDraft(current => appendRouteText(current, input))}
       onInsertInput={(index, input) => setDraft(current => insertRouteTextBefore(current, index, input))}
       onReplaceInput={(entryId, input) => setDraft(current => replaceRouteText(current, entryId, input))}
       onRemoveEntry={index => setDraft(current => removeRouteEntry(current, index))}
       onMoveEntry={(from, to) => setDraft(current => moveRouteEntry(current, from, to))} />
-    {!showMap && <section style={{ padding: '120px 16px 16px' }}>
-      <p>Open the warning to read the error. Clear the route and paste KSFO DCT KSJC: one direct leg should appear.</p>
-      <output>{plan.legs.length} legs; {plan.issues.length} issues</output>
-      {plate && <p role="status">Opened plate: {plate}</p>}
-    </section>}
-    {showMap && <section className="workspace"><div className="map-stage"><RouteFixtureMap plan={plan} preview={preview} /></div></section>}
+    <section className="workspace"><div className="map-stage">
+      {showMap && <RouteFixtureMap plan={plan} preview={preview} />}
+      {!showMap && <section style={{ padding: '120px 16px 16px' }}>
+        <p>Open the warning to read the error. Clear the route and paste KSFO DCT KSJC: one direct leg should appear.</p>
+        <output>{plan.legs.length} legs; {plan.issues.length} issues</output>
+        {plate && <p role="status">Opened plate: {plate}</p>}
+      </section>}
+      <EdgePanels side="right" active={activePanel} onActiveChange={setActivePanel} className="side-panels">
+        {selected && <FeatureDetailsPanel feature={selected.feature} metarClient={metarClient} procedureResource={undefined}
+          revision={catalog.revision} features={{ routes: true, weather: false, terrain: false, plates: false }}
+          route={{ plan, update: setDraft, pointId: selected.pointId, navigationData: references, catalog,
+            onIdentificationPreview: setPreview, onIdentify: identify }}
+          identification={identificationOpen ? { stations: nearbyVorStations(selected.feature.geometry.coordinates,
+            references.navaids?.features ?? []), loading: false } : undefined}
+          onIdentificationChange={setIdentificationOpen} onOpenProcedure={() => {}}
+          onClose={() => { setSelected(undefined); setIdentificationOpen(false); }} />}
+      </EdgePanels>
+    </div></section>
   </main>;
 }
 function RouteFixtureMap({ plan, preview }: { plan: RoutePlan; preview: RouteMapPreview | undefined }) {

@@ -25,7 +25,7 @@ test('procedure tokens retain filing text and explain the transition and preview
 const props: ComponentProps<typeof RouteBar> = {
   plan: emptyRoutePlan('KSFO BAD KSJC'), status: 'ready',
   catalog: { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-16T00:00:00Z', charts: [], navigation: [], weather: [] },
-  onUseRoute: noop, onAppendInput: noop, onInsertInput: noop, onReplaceInput: noop, onRemoveEntry: noop,
+  onUseRoute: noop, onEditDraft: noop, onAppendInput: noop, onInsertInput: noop, onReplaceInput: noop, onRemoveEntry: noop,
   onMoveEntry: noop, onClear: noop, onFit: noop,
 };
 

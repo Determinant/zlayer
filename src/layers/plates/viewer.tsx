@@ -5,16 +5,11 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import type { ProcedureSelection } from './data';
-import { ProcedureFooter, ProcedureHeaderAction, ProcedurePageLoading, type PlateCacheState } from './viewer-dialog';
-import { pdfCanvasSize } from './render-scale';
+import { ProcedureFooter, ProcedureHeaderAction, ProcedurePageLoading } from './viewer-dialog';
+import { useProcedureDocument, useProcedureRender, type PaintedPage } from './use-pdf-viewer';
 import { clampPlateZoom, usePinchZoom } from './use-pinch-zoom';
-import type { ProcedureDownloadProgress } from './document-cache';
-import { openProcedurePdf } from './pdf-document';
-import { withAbort } from '../../core/data/abort';
-import { procedurePageIndex } from './page-target';
 import { retainActiveFiles } from '../../offline/active-catalogs';
 import { usePluginState } from '../../core/ui/use-persistent-state';
 import { plateViewKey } from './persistence';
@@ -24,13 +19,6 @@ import type { PlateMapImage } from './map-image';
 type ProcedureViewerProps = {
   selection: ProcedureSelection;
   onShowOnMap?: (image: PlateMapImage) => void;
-};
-
-type ViewerState = {
-  document?: PDFDocumentProxy;
-  signal?: AbortSignal;
-  fail?: (error: unknown) => void;
-  error?: string;
 };
 
 export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureViewerProps) {
@@ -85,21 +73,18 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     setZoom(value);
     scheduleSave('zoom');
   }, [scheduleSave]);
-  const [viewer, setViewer] = useState<ViewerState>({});
-  const [selectedPageIndex, setSelectedPageIndex] = useState(selection.document.pageIndex);
-  const [rendering, setRendering] = useState(false);
   const [preparingMap, setPreparingMap] = useState(false);
   const [mapError, setMapError] = useState<string>();
   const mapPreparation = useRef<AbortController | undefined>(undefined);
-  const [cacheState, setCacheState] = useState<PlateCacheState>('saving');
-  const [downloadProgress, setDownloadProgress] = useState<ProcedureDownloadProgress>();
-  const [painted, setPainted] = useState<{ document: PDFDocumentProxy; pageIndex: number;
-    zoom: number; rotation: number; width: number; height: number }>();
+  const [painted, setPainted] = useState<PaintedPage>();
   const [pixelRatio, setPixelRatio] = useState(displayPixelRatio);
-  const renderCompletion = useRef<Promise<void>>(Promise.resolve());
   const [availableSize, setAvailableSize] = useState({ width: 0, height: 0 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { document: source } = selection;
+  const { viewer, cacheState, downloadProgress, selectedPageIndex } = useProcedureDocument(source, savedPage, setPageIndex, error => {
+    mapPreparation.current?.abort(error);
+    setPreparingMap(false);
+  });
   const ready = Boolean(viewer.document && painted?.document === viewer.document && painted.pageIndex === pageIndex);
   const pinching = usePinchZoom(stageRef, canvasRef, zoom, changeZoom, ready && painted?.rotation === rotation);
 
@@ -173,107 +158,9 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     return () => observer.disconnect();
   }, [source.source]);
 
-  useEffect(() => {
-    setViewer({});
-    setCacheState('saving');
-    setDownloadProgress(undefined);
-    let current = true;
-    const controller = new AbortController();
-    let stopObservingPdf = () => {};
-    const fail = (error: unknown) => {
-      if (!current || controller.signal.aborted) return;
-      stopObservingPdf();
-      controller.abort(error);
-      mapPreparation.current?.abort(error);
-      setPreparingMap(false);
-      setRendering(false);
-      setDownloadProgress(undefined);
-      setCacheState(state => state === 'saving' ? 'unavailable' : state);
-      setViewer({ error: error instanceof Error ? error.message : 'Unable to read PDF' });
-    };
-    openProcedurePdf(source, controller.signal, progress => { if (current) setDownloadProgress(progress); })
-      .then(async ({ document, cached, signal }) => {
-        if (!current) return;
-        const onFailure = () => fail(signal.reason);
-        signal.addEventListener('abort', onFailure, { once: true });
-        stopObservingPdf = () => signal.removeEventListener('abort', onFailure);
-        signal.throwIfAborted();
-        setDownloadProgress(undefined);
-        setCacheState(cached ? 'cached' : 'unavailable');
-        const targetIndex = await withAbort(procedurePageIndex(document, source), signal);
-        const index = savedPage === null ? targetIndex : Math.min(savedPage, document.numPages - 1);
-        if (current) {
-          setSelectedPageIndex(targetIndex);
-          setPageIndex(index);
-          setViewer({ document, signal, fail });
-        }
-      })
-      .catch(fail);
-    return () => {
-      current = false;
-      stopObservingPdf();
-      controller.abort();
-    };
-  }, [source]);
 
-  const renderWidth = availableSize.width;
-  const hasRenderArea = renderWidth > 0 && availableSize.height > 0;
-  useEffect(() => {
-    const pdf = viewer.document;
-    const signal = viewer.signal;
-    const canvas = canvasRef.current;
-    if (!pdf || !signal || !canvas || pinching || preparingMap || !hasRenderArea) return;
-
-    let current = true;
-    let renderTask: ReturnType<Awaited<ReturnType<typeof pdf.getPage>>['render']> | undefined;
-    setRendering(true);
-    const previous = renderCompletion.current;
-    renderCompletion.current = (async () => {
-      // Wait for cancelled work to release its buffer before allocating another.
-      await previous;
-      if (!current) return;
-      const page = await withAbort(pdf.getPage(pageIndex + 1), signal);
-      if (!current) { page.cleanup(); return; }
-      const buffer = window.document.createElement('canvas');
-      try {
-        const pageRotation = (page.rotate + rotation) % 360;
-        const unscaled = page.getViewport({ scale: 1, rotation: pageRotation });
-        // 100% fills the reading width; taller pages scroll vertically from the top.
-        const fitScale = renderWidth / unscaled.width;
-        const viewport = page.getViewport({ scale: fitScale * zoom, rotation: pageRotation });
-        const size = pdfCanvasSize(viewport.width, viewport.height, pixelRatio);
-        buffer.width = size.width;
-        buffer.height = size.height;
-        const context = buffer.getContext('2d', { alpha: false });
-        if (!context) throw new Error('Canvas rendering is unavailable');
-        renderTask = page.render({ canvas: buffer, canvasContext: context, viewport,
-          transform: [buffer.width / viewport.width, 0, 0, buffer.height / viewport.height, 0, 0] });
-        await withAbort(renderTask.promise, signal);
-        if (!current) return;
-        // Keep the previous bitmap visible until its replacement is complete.
-        // Resizing and copying in one turn avoids a blank flash while zooming.
-        const display = canvas.getContext('2d', { alpha: false });
-        if (!display) throw new Error('Canvas rendering is unavailable');
-        canvas.width = buffer.width;
-        canvas.height = buffer.height;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        display.drawImage(buffer, 0, 0);
-        setPainted({ document: pdf, pageIndex, zoom, rotation, width: viewport.width, height: viewport.height });
-        setRendering(false);
-      } finally {
-        buffer.width = buffer.height = 0;
-        page.cleanup();
-      }
-    })().catch((error: unknown) => {
-      if (!current || isRenderCancellation(error) && !signal.aborted) return;
-      viewer.fail?.(signal.aborted ? signal.reason : error);
-    });
-    return () => {
-      current = false;
-      renderTask?.cancel();
-    };
-  }, [renderWidth, hasRenderArea, pageIndex, viewer.document, viewer.signal, viewer.fail, zoom, rotation, pixelRatio, pinching, preparingMap]);
+  const { rendering, renderCompletion } = useProcedureRender({ viewer, canvasRef, availableSize,
+    pageIndex, zoom, rotation, pixelRatio, pinching, preparingMap, setPainted });
 
   const showOnMap = async () => {
     const pdf = viewer.document;
@@ -365,8 +252,4 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
 
 function displayPixelRatio(): number {
   return (window.devicePixelRatio || 1) * Math.max(1, window.visualViewport?.scale || 1);
-}
-
-function isRenderCancellation(error: unknown): boolean {
-  return error instanceof Error && error.name === 'RenderingCancelledException';
 }

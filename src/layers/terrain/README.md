@@ -17,7 +17,9 @@ including holds and VTF extensions. Dotted planning connections bridge successiv
 known waypoints across VTF, missing tokens and procedure gaps. They extend terrain
 coverage without contributing to route distance or erasing source diagnostics.
 When a known maneuver ends at a gap, the connection continues from its open end
-so terrain follows the maneuver as well as the remaining connection.
+so terrain follows the maneuver as well as the remaining connection. Direct legs
+and planning connections share the map’s bounded great-circle paths, so long
+legs do not leave corridor coverage following a straight Mercator chord.
 
 ## Contents
 
@@ -25,8 +27,9 @@ so terrain follows the maneuver as well as the remaining connection.
 - [Viewport coverage](#viewport-coverage)
 - [Selected altitude and clearance](#selected-altitude-and-clearance)
 - [Elevation and precision](#elevation-and-precision)
+- [Cache recovery and source identity](#cache-recovery-and-source-identity)
 - [Verification](#verification)
-- [Performance review (2026-09-17)](#performance-review-2026-09-17)
+- [Preparation performance](#preparation-performance)
 
 ## Route display
 
@@ -350,6 +353,38 @@ built and uploaded it. Feeds without the terrain product remain usable; Settings
 explicitly states that their downloads exclude terrain. PNG fallback HTTP caching
 remains opportunistic. See [offline storage](../../../docs/features/offline-storage.md) for rollout details.
 
+Corridor union lifetime is owned by `corridor-job.ts`: at most one pending union
+and one completed outline, with late-result rejection, coalesced edits and explicit
+failure recovery. `layer.ts` retains worker ownership, tile/source generations and
+map publication. DEM source replacement does not invalidate unchanged corridor
+geometry; disabling cancels pending publication, and unmount releases the outline.
+
+## Cache recovery and source identity
+
+The vector cache normally holds 128 tiles, retaining current screen coverage even
+if it exceeds that budget, then shrinking as coverage leaves. Eviction uses recent
+visibility; cache access preserves insertion order and label placement. Warm pans
+publish changed cached coverage immediately without rewriting unchanged sources;
+new worker results use a 100 ms coalescing window.
+
+A cached raster without its vector data cannot report ready. After raster demand
+updates, at most four recovery requests share the worker's four-job limit and
+ordinary source-selection path. They close unused bitmaps, cancel offscreen work,
+reject stale route/source generations and wait for explicit retry after failure.
+Viewport-only shading does not request route-vector recovery. Stable foreground
+anchors preserve route-label/ownship order through source replacement and remounts.
+Terrain-source errors request a completion frame even without `sourcedata`.
+
+Effective terrain identity uses the first eligible source per shard, including
+saved-region precedence, archive URLs, hashes and lengths. Catalog timestamps,
+unrelated metadata, saved-file health, ordering and fully shadowed sources do not
+reset terrain. A changed effective source replaces the generation and rejects late
+results. Parsed indices share an eight-entry cache, including pending parses, with
+up to 1,024 archive descriptors each, tile-key lookup and eviction by recent use.
+Canceling one caller does not cancel others; failures are evicted for retry. Persistent-storage checks run
+before cache lookup, and cache identity includes the expected shard location.
+Missing files or invalid receipts must remain detectable with a warm parsed index.
+
 ## Verification
 
 The [planning-connection evidence](../../../docs/evidence/approaches/2026-09-21/planning-connections/README.md)
@@ -400,60 +435,34 @@ uses the CDP CPU-throttling setting; WebKit runs the same touch/lifecycle checks
 without that setting.
 The synthetic terrain fixture is excluded from ordinary production builds.
 
-## Performance review (2026-09-17)
+## Preparation performance
 
-The expensive work is first-time decoding and geometry generation in the terrain
-worker. Ordinary map draws use cached textures/vectors, and altitude changes only
-update a 512-stop color palette and label expression once per animation frame.
-Contour generation scans the simplified grid and its contour crossings; corridor
-masking scales with the number of nearby legs, not every leg in the route.
+First-time decoding and geometry generation run in the terrain worker. Ordinary
+map draws reuse cached textures/vectors; altitude changes update a 512-stop
+palette and label expression once per animation frame. Contour work scales with
+the simplified grid and crossings; corridor masking uses nearby legs.
+Route fills encode band/opacity bytes, with vector contours as the sole outline
+implementation. Route and Viewport share numeric copying and cancellation yields.
 
-A local Node benchmark measured the same max-pooling, interpolation, indexed fill,
-isoline and sampled-high functions for one complete 512px display tile. It used
-four warm-up iterations and ten measured iterations, with one diagonal route leg:
+Run `node --import=tsx tools/benchmark-terrain.ts` from the repository root.
+It compares Route and Viewport on smooth/dense synthetic ridges at zooms 9, 11
+and 13, with one diagonal route leg, five warmups and 20 measured iterations.
+Each result covers preparation of one 512px display tile: max pooling,
+interpolation, indexed fill, isolines and sampled highs as applicable to the mode.
+It excludes network, PNG decoding, canvas transfer, MapLibre tiling, GPU drawing
+and label placement. Viewport scales with sample count; Route also traces
+contours and calculates corridor distances.
 
-| Synthetic terrain | Zoom 9 median | Zoom 11 median | Zoom 13 median |
-| --- | --- | --- | --- |
-| Smooth ridges | 16.0 ms | 11.0 ms | 7.7 ms |
-| Dense ridges | 40.7 ms | 40.3 ms | 15.2 ms |
+In the September 20, 2026 Node 24 review, Viewport medians were 1.6–3.0 ms per
+tile across those fixtures; Route medians were 11.8–22.6 ms for smooth ridges and
+25.3–89.0 ms for dense ridges. These scoped CPU measurements explain the benefit
+of omitting contours in Viewport mode, not end-to-end loading time or device FPS.
+Dense contours, overlapping route legs and large viewports remain heavier cases.
 
-These are local CPU timings, excluding network, PNG decoding, canvas transfers,
-MapLibre vector tiling, GPU drawing and label placement. They are not iOS device
-measurements. Dense contours, many overlapping route legs and large viewports
-remain the heavier cases. The 32 MiB cap covers decoded DEMs only; MapLibre's raster
-textures, cached vector tile results, temporary grids and canvases add
-memory. Physical iPad/iPhone profiling is still needed to establish frame-rate,
-total memory and battery costs.
-
-The 2026-09-20 review removed the unused CPU color/stroke/label painter. The route
-fill now only encodes band and opacity bytes; vector contours remain the sole
-outline implementation. Eight before/after fill comparisons across zooms 8, 9,
-11 and 13, both contour intervals, nodata and fades were byte-identical. Geometry,
-sampled highs and clearance semantics are unchanged. The worker shares numeric
-pixel copying and cancellation yields between Route and Viewport.
-
-Run `node --import=tsx tools/benchmark-terrain.ts` for a reproducible comparison
-of both modes using smooth and dense synthetic ridges, five warmups and 20 measured
-runs at zooms 9, 11 and 13. It measures preparation of one 512px display tile;
-network, decoding, canvas transfer and GPU work are excluded. Viewport work stays
-proportional to its sample count, while Route additionally traces contour crossings
-and calculates corridor distances. Cache tests check reuse during warm pans and
-after more than 150 distinct tiles, and that unrelated catalog metadata causes
-no terrain downloads or renders. Vector storage normally holds 128 tiles; only
-the current visible set may exceed that budget on a very large viewport.
-
-On the review machine (Node 24), Viewport medians were 1.6–3.0 ms per tile across
-these fixtures; Route medians were 11.8–22.6 ms for smooth ridges and 25.3–89.0 ms
-for dense ridges. These synthetic CPU costs explain the benefit of omitting
-contours in Viewport mode; they do not establish end-to-end loading time or device FPS.
-
-The follow-up review corrected uneven-saddle contour connectivity and added the
-render-job allocation limit and immediate worker/canvas cleanup described above.
-The graphics compatibility follow-up isolated intermittent bitmap corruption
-before GPU drawing, using a reproducer without MapLibre. Terrain numeric canvases
-now request readback-friendly storage at creation. The geographic shading check
-passed 20 repeated high-density WebKit runs after that change. See
-[graphics compatibility](../../../docs/verification/graphics-compatibility.md) for the cause, transfer stress
-test, rendering audit and browser matrix. The reporter confirmed that the fix
-resolved the display issue on the affected iPad mini. The exact browser-internal
-cause and device performance have not been independently measured on iPadOS.
+The 32 MiB decoded-DEM cap excludes vector results, map textures and temporary
+canvases/grids. See [cache recovery](#cache-recovery-and-source-identity) for warm
+pan/revisit behavior and [graphics compatibility](../../../docs/verification/graphics-compatibility.md#terrain-incident-and-cause)
+for the worker-transfer failure and readback-friendly canvas requirement.
+Contour regressions must preserve uneven-saddle connectivity, nodata, both contour
+intervals, fades and sampled-high/clearance meaning. Physical-device profiling is
+still required for total memory, frame-rate and battery costs.

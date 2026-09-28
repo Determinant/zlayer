@@ -1,0 +1,18 @@
+.route-composition {
+  border: 1px solid #2b4658; border-radius: 12px; background: #091725; color: #dcecf5;
+  box-shadow: 0 12px 36px #0007; text-transform: none; letter-spacing: normal;
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.5; pointer-events: auto;
+}
+.route-composition > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-shrink: 0; padding: 12px 16px; border-bottom: 1px solid #253b4e;
+}
+.route-composition h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+.route-composition h3 { margin: 0 0 8px; font-size: 15px; }
+.route-composition-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; }
+.route-composition-body section + section { margin-top: 20px; }
+.route-composition-body p { margin: 8px 0; }
+.route-composition-body ol, .route-composition-body ul { margin: 8px 0 0; padding-left: 24px; }
+.route-composition-body li { margin: 4px 0; overflow-wrap: anywhere; }
+.route-composition-body small { color: #a8bfce; }
+.route-composition-path { overflow-wrap: anywhere; }

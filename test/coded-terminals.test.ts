@@ -1,3 +1,5 @@
+import { navLogRows } from '../src/layers/routes/navlog-rows';
+import { routeEntryComposition } from '../src/layers/routes/composition';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isTerminalProceduresData, type FeatureCollectionResponse, type TerminalProceduresData } from '@zlayer/contracts';
@@ -8,6 +10,7 @@ import { setRouteDeparture, setRouteArrival, sameRouteDraft, moveRouteEntry } fr
 import { routeExportText } from '../src/layers/routes/export';
 import { removeRoutePoint } from '../src/layers/routes/removal';
 import { directToRoutePoint } from '../src/layers/routes/direct-to';
+import { identifyRoutePoint, pointReplacementProblem } from '../src/layers/routes/identification';
 
 assert.ok(isTerminalProceduresData(raw));
 const data: TerminalProceduresData = raw;
@@ -52,6 +55,22 @@ test('STAR entry and runway selection preserves vectors as an open schematic end
   assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['KLEVR', 'KSNA']]);
   assert.ok(plan.issues.some(i => /no fixed endpoint/.test(i.message)));
   assert.equal(routeExportText(plan), 'KSJC ELLBC OHSEA3 KSNA');
+});
+
+test('coded procedure points can change description without changing constraints, arcs or gaps', () => {
+  let draft = routeDraftFromText('KSJC KSNA');
+  draft = setRouteDeparture(draft, draft.entries[0]!, select('departure', 'RW30L', 'VLREE'));
+  draft = setRouteArrival(draft, draft.entries[1]!, select('arrival', 'RW20R', 'ELLBC'));
+  for (const ident of ['STCLR', 'KLEVR']) {
+    const plan = resolve(draft), point = plan.waypoints.find(value => value.ident === ident)!;
+    assert.ok(pointReplacementProblem(plan, point));
+    const updated = resolve(identifyRoutePoint(draft, plan, point, { kind: 'coordinate' }));
+    assert.equal(updated.waypoints.find(value => value.ident === ident)!.identification?.kind, 'coordinate');
+    assert.deepEqual(updated.approachDepictions, plan.approachDepictions);
+    assert.deepEqual(updated.issues, plan.issues);
+    assert.equal(updated.distanceNm, plan.distanceNm);
+    assert.equal(routeExportText(updated), routeExportText(plan));
+  }
 });
 
 test('an intermediate airport reached before a SID stays in the connected sequence', () => {
@@ -136,5 +155,38 @@ test('legacy saved selections migrate once and mismatched source/kind cannot cha
     { ...coded, branchId: undefined }, { ...coded, codedBranches: undefined }]) {
     assert.equal(restore(invalid).arrival, undefined);
     assert.equal(restore(invalid).text, 'KSNA');
+  }
+});
+
+test('coded composition retains selected branches, ordered points and span semantics', () => {
+  for (const [kind, runway, transition, ident] of [
+    ['departure', 'RW30L', 'VLREE', 'SPTNS1'], ['arrival', 'RW20R', 'ELLBC', 'OHSEA3'],
+  ] as const) {
+    const draft = routeDraftFromText('KSJC KSNA'), index = kind === 'departure' ? 0 : 1;
+    const attached = (kind === 'departure' ? setRouteDeparture : setRouteArrival)(draft, draft.entries[index]!, select(kind, runway, transition));
+    const plan = resolve(attached), detail = routeEntryComposition(plan, draft.entries[index]!.id)!.procedures[0]!;
+    assert.equal(detail.ident, ident);
+    assert.equal(detail.source, 'cifp');
+    if (detail.source !== 'cifp') throw new Error('Expected coded composition');
+    assert.match(detail.branch, /Runway/);
+    assert.ok(detail.path.points.length > 1);
+    assert.ok(detail.path.spans.some(span => span.kind === 'schematic'));
+    if (kind === 'arrival') assert.ok(detail.path.spans.some(span => span.kind === 'gap'));
+    for (const span of detail.path.spans) {
+      if (span.from !== undefined) assert.ok(detail.path.points[span.from]);
+      if (span.to !== undefined) assert.ok(detail.path.points[span.to]);
+    }
+  }
+});
+
+test('NavLog omits a departure bundle marker but retains a reached intermediate airport', () => {
+  for (const input of ['KSJC KSNA', 'KSNA KSJC KSNA']) {
+    const draft = routeDraftFromText(input), index = input.startsWith('KSJC') ? 0 : 1;
+    const plan = resolve(setRouteDeparture(draft, draft.entries[index]!, select('departure', 'RW30L', 'VLREE')));
+    const rows = navLogRows(plan, null).rows;
+    assert.equal(rows.some(row => row.waypoint.ident === 'KSJC'), index === 1);
+    const threshold = rows.find(row => row.waypoint.ident === 'RW30L')!;
+    assert.equal(threshold.gap, index === 1 ? 'Unmeasured segment' : '');
+    assert.equal(rows.at(-1)!.totalNm, plan.distanceNm);
   }
 });

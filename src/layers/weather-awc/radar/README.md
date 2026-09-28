@@ -101,8 +101,12 @@ status and retry recreates failed resources; “Shown” follows source acceptan
 Future selections clear radar; **Now** follows current observations, expiring each
 scan at 15 minutes old. “Now” also updates on
 source publication and app resume, so a suspended phone cannot retain an expired
-image under a current heading. Source failures, old catalogs, rendering/file errors
-and individual observation times remain visible. Refresh retries both acquisition
+image under a current heading. National source failures, old catalogs, rendering/file errors
+and individual observation times remain visible. Nationwide terminal feed failures
+appear with their station IDs under **Radar sources & scan times**, described as
+feeds that are not updating. The catalog does not distinguish stale observations
+from acquisition or decoding failures, so the message does not claim a specific
+cause or permanent outage. Automatic source checks continue. Refresh retries both acquisition
 and drawing; a successful catalog refresh retries failed files automatically.
 
 ## History and timeline

@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { GeoPointFeature } from '@zlayer/contracts';
-import { emptyRoutePlan, nearbyVorStations } from '@zlayer/domain';
+import { createRouteResolver, emptyRoutePlan, nearbyVorStations, radialReference, routeDraftFromText } from '@zlayer/domain';
+import { identifyRoutePoint } from '../../src/layers/routes/identification';
 import { MapLayerHost } from '../../src/core/map/layer';
 import { createNavaidIdentificationLayer } from '../../src/layers/navigation/identification-layer';
 import { createMetarClient } from '../../src/layers/metar-taf/metar/client';
@@ -18,6 +19,8 @@ const parameters = new URLSearchParams(location.search);
 const hasAlignment = !parameters.has('missing-alignment');
 const clustered = parameters.has('clustered');
 const duplicateNames = parameters.has('duplicate-names');
+const routeReference = parameters.has('route-reference');
+const resolve = createRouteResolver([]);
 const point: GeoPointFeature = { type: 'Feature', properties: { kind: 'coordinate', ident: '350000N1190000W' },
   geometry: { type: 'Point', coordinates: [-119, 35] } };
 const stations = nearbyVorStations(point.geometry.coordinates, (clustered ? [
@@ -27,6 +30,7 @@ const stations = nearbyVorStations(point.geometry.coordinates, (clustered ? [
 ] : [
   ['CMA', -119.4, 34.6, 15], ['RZS', -119.8, 35.3, 15], ['GVO', -118.5, 35.4, 15],
   ['TEST', -118.8, 35.1, 15], ['NEAR', -119, 35.01, 15], ['FAR', -119, 36.4, 15],
+  ['LAST', -119, 36.6, 15], ['OUTSIDE', -119, 37, 15],
 ]).map(([ident, longitude, latitude, variation], index): GeoPointFeature => ({
   type: 'Feature', ...(duplicateNames ? {} : { id: String(ident) }),
   properties: { kind: 'navaid', ident: duplicateNames ? 'DUP' : String(ident), type: 'VOR/DME', state: 'CA',
@@ -41,7 +45,16 @@ function Fixture() {
   const [references, setReferences] = useState(stations);
   const [selected, setSelected] = useState<GeoPointFeature | undefined>(point);
   const [error, setError] = useState('');
-  const plan = useMemo(emptyRoutePlan, []);
+  const [draft, update] = useState(() => {
+    const draft = routeDraftFromText(point.properties.ident!);
+    if (!routeReference) return draft;
+    const plan = resolve(draft), station = stations.find(value => value.feature.properties.ident === 'TEST')!;
+    return identifyRoutePoint(draft, plan, plan.waypoints[0]!, { kind: 'radial',
+      reference: radialReference(station.feature)!, radial: station.radial!, distanceNm: station.distanceNm });
+  });
+  const plan = useMemo(() => routeReference ? resolve(draft) : emptyRoutePlan(), [draft]);
+  const form = plan.waypoints[0]?.identification;
+  const radial = form?.kind === 'radial' ? form : undefined;
   useEffect(() => {
     const map = new MapLibreMap({ container: container.current!, center: [-118.7, 35], zoom: 7,
       fadeDuration: 0, attributionControl: false, style: { version: 8,
@@ -53,11 +66,11 @@ function Fixture() {
     Object.assign(window, { identificationAudit: { map } });
     return () => { host.unmount(); map.remove(); };
   }, [layer]);
-  useEffect(() => layer.update(open && selected ? { point: selected, stations: references } : undefined), [layer, open, selected, references]);
+  useEffect(() => layer.update(open && selected ? { point: selected, stations: references, radial } : undefined), [layer, open, selected, references, radial]);
   return <main style={{ position: 'absolute', inset: 0, '--touch-target': '44px' } as React.CSSProperties}>
     <div ref={container} style={{ position: 'absolute', inset: 0 }} />
     {selected && <FeatureDetailsPanel feature={selected} metarClient={metarClient} procedureResource={undefined}
-      revision="test" route={{ plan, update() {} }} onOpenProcedure={() => {}}
+      revision="test" route={{ plan, update }} onOpenProcedure={() => {}}
       onClose={() => { setOpen(false); setSelected(undefined); }}
       identification={open ? { stations: references, loading: false } : undefined} onIdentificationChange={setOpen} />}
     {duplicateNames && <button style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 50 }}

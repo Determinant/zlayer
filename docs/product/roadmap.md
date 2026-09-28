@@ -12,7 +12,8 @@ adding more data sources. Current capabilities and planned work are listed separ
 - Searchable FAA navigation with progressive fix decluttering and runway details.
 - Persisted route entries and exact feature pins; direct/Victor/Tango routing,
   compact TEC routes, SID/STAR previews, anchored approaches with published entries or
-  vectors to final, compact coordinate waypoints, map/touch/keyboard
+  vectors to final, coordinate waypoints with compact/slash-separated seconds and
+  whole-minute input normalized to compact seconds, map/touch/keyboard
   editing, text copying in three formats and sharing where the browser supports it.
 - Local Route Stash with named structured snapshots, load/edit/remove/reorder,
   retained pins and approach attachments, and coordinated writes across windows.
@@ -71,20 +72,23 @@ an installed-device cold restart; incomplete data is never labeled complete; exp
 is visible rather than mistaken for freshness. See [offline storage](../features/offline-storage.md)
 for today's guarantees and [product budgets](brief.md) for performance targets.
 
+## Radial/distance route positions
+
+Implemented locally: [station-relative input and name/GPS/radial point descriptions](../../src/layers/routes/radial-distance-plan.md),
+including multiple station choices, exact saved positions, explicit nearby named
+replacement and display-only alternatives for published children. Copy, share and
+ForeFlight handoff use destination formatting with coordinate fallback and visible
+precision limits. Remaining qualification: live external-application import
+comparison and physical-device checks; the owning design notes retain the scope
+and regression requirements.
+
 ## Approach geometry and coverage
 
-The [ordered interpreter and reference export](../../src/layers/routes/approach-geometry.md) are
-implemented and locally rebuilt. The [recorded coverage](../../src/layers/routes/approach-coverage.md)
-has no gaps or geometry warnings in 1,676 selectable California entries or 403
-Arizona entries. The 149 California and 35 Arizona unmatched instrument charts
-remain availability gaps.
-
-The [national coverage summary](../../src/layers/routes/approach-coverage.md#recorded-faa-2609-results)
-distinguishes geographic scope, unmatched charts, unoffered feeder starts and
-expected radar endings. U.S. coverage is 9,079/10,980 chart records (82.69%), with
-1,854 unmatched charts and 132 unresolved entries across 47 matched charts after
-the recorded radar/source-review exceptions. Passing available entries does not
-establish nationwide chart coverage.
+The [ordered interpreter and reference export](../../src/layers/routes/approach-geometry.md)
+are implemented. The [coverage guide](../../src/layers/routes/approach-coverage.md#recorded-faa-2609-results)
+owns dated state/national counts, unmatched charts, unoffered feeder starts and
+radar/source-review exceptions. Passing selectable entries does not establish
+nationwide chart coverage or correctness of every depicted maneuver.
 
 Remaining work: publish the coordinated client/feed revision, reconcile unmatched
 chart identities and unsupported families with authoritative source data, and

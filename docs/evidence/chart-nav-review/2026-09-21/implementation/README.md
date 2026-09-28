@@ -10,29 +10,15 @@ The [original negative probes](../results.json) retain the pre-fix reproductions
 they are historical evidence, not outstanding defects. Source and geometry limits
 remain in the terminal guide and [approach coverage](../../../../../src/layers/routes/approach-coverage.md).
 
-## Results
+## Regression scope
 
-| Check | Result |
-| --- | --- |
-| Client unit suite | 1,306 passed: 1,157 application, 17 contracts, 132 domain |
-| Added terminal indexing regression | 1 passed; construction does not walk legs, previews stay airport-scoped, saved pins retain exact membership |
-| Publisher unit suite | 186 passed |
-| Final publisher procedure/cache tests | 13 passed |
-| Client and publisher TypeScript; client import boundaries | Passed |
-| Client production build | Passed |
-| Publisher-to-client fixtures | Passed, including required-family loss, same-count mutation, legacy substitution and association identity/accounting rejection |
-| Route, coded terminal and offline browser suite | 163 cases passed across the broad run and focused rerun |
-| Actual national publication consumed by client | All required resource guards, navigation wire identities, terminal/association identity and supplement coverage passed |
-| Repeated procedure build | Reports already current; no PDF reindexing |
-| Whitespace checks in both repositories | Passed |
-
-The broad browser run initially passed 158/163 cases. Two KSBD fixtures still
-depended on the removed browser exception table, two helicopter cases expected
-the previous unavailable-path wording, and one saved-route test expected the
-old selection shape. The fixtures now carry a real published association,
-assert the current unavailable-path message, and assert the migrated selection.
-All five reran successfully. Cold offline edition switching and saved-selection
-migration also passed. Desktop and phone screenshots were inspected.
+Terminal indexing checks construction without walking every leg, airport-scoped
+previews and exact saved-pin membership. Publisher/client fixtures reject
+required-family loss, same-count mutation, legacy substitution and mismatched
+association identity/accounting. Browser fixtures use published associations,
+explicit unavailable-path messages and migrated selections, including cold
+offline edition switching. These cases protect the contracts in the owning guide;
+run current verification to determine their status.
 
 ## National data
 
@@ -128,4 +114,4 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/run/current-system/sw/bin/google-chrome-sta
 
 Detailed chart audit JSON/CSV and browser traces/screenshots were generated under
 `/tmp`; the compact summaries and source identities above are retained here.
-Raster charts were not rebuilt. Nothing was committed or deployed.
+Raster charts were not rebuilt; this evidence covers local artifacts only.

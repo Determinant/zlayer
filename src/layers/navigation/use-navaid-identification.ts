@@ -4,7 +4,7 @@ import { nearbyVorStations } from '@zlayer/domain';
 import { useOnline } from '../../core/use-online';
 import { useInventoryVersion } from '../../offline/use-inventory-version';
 import { fetchNavigation, navigationRequestKey } from './api';
-import { fillMissingNavaidAlignment } from './identification-data';
+import { fillMissingNavaidAlignment } from './data';
 
 /** Read the selected feature's edition, independent of route and map visibility. */
 export function useNavaidIdentification(point: GeoPointFeature | undefined, catalog: CatalogResponse | undefined) {

@@ -97,7 +97,8 @@ test('enabled Progs coverage acquisition and rendering failures remain visible a
   const controller = createWeatherController({ advisories: {
     restore: product => ({ loading: false, snapshot: advisorySnapshot(product) }), refresh: async product => advisorySnapshot(product),
   } });
-  const state = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true }) };
+  controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true }), change() {} });
+  const state = { ...controller.getSnapshot() };
   assert.equal(weatherStartupWork(state, true)?.state, 'loading');
   state.coverage = { loading: false, error: 'Coverage source failed' };
   assert.equal(weatherStartupWork(state, true)?.state, 'limited');

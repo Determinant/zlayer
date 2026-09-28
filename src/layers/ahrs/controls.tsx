@@ -1,3 +1,5 @@
+import { selectLayerStore } from '../../core/layers/input';
+import { ahrsControlStatus } from './control-status';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
@@ -5,7 +7,7 @@ import { usePersistentRecord } from '../../core/ui/use-persistent-state';
 import { ahrsMount, ahrsFullscreen } from './preferences';
 import type { Mount } from './estimator/device-frame';
 import type { FlightAlignmentReason } from './estimator/flight-alignment';
-import type { AhrsLayer, AhrsSnapshot } from './layer';
+import type { AhrsLayer } from './layer';
 import { AhrsInstruments } from './instruments';
 import { InstrumentTest } from './instrument-test';
 import { useMagneticModel } from '../../core/geo/use-magnetic-model';
@@ -28,19 +30,6 @@ const reasons: Record<FlightAlignmentReason, string> = {
   ready: 'Applying calibration…',
 };
 
-function attitudeStatus(state: AhrsSnapshot): string {
-  if (state.attitude?.tiltAiding) {
-    return `${state.message ? `${state.message} ` : ''}Calibrated · gravity aiding active${state.gpsLive ? '' : ' · GPS unavailable'}`;
-  }
-  if (state.warning === 'No GPS' || state.warning === 'Low Speed') {
-    return `${state.gpsMessage} ${state.message || 'Attitude remains visible; drift may grow.'}`;
-  }
-  if (state.crossed) return state.message || 'Hold straight and level, then recalibrate.';
-  if (state.attitude?.gpsAiding) return 'Calibrated · GPS attitude aiding active';
-  if (state.attitude?.magneticFusion.active) return 'Calibrated · relative magnetic aiding active';
-  return state.trueHeading ? 'Calibrated · waiting for GPS attitude aiding'
-    : state.hsiHeading ? 'Calibrated · estimated heading' : 'Calibrated · relative attitude';
-}
 
 export function AhrsTool({ layer, route, revision, visible = true }: {
   layer: AhrsLayer; route?: Pick<RoutePlan, 'legs'>; revision?: string; visible?: boolean;
@@ -64,9 +53,9 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
   const active = visible && pageVisible;
   const magneticModel = useMagneticModel(revision, active, fetchMagneticModel);
   useEffect(() => layer.setVisible(active), [layer, active]);
-  const source = useMemo(() => ({ getSnapshot: layer.getSnapshot,
+  const source = useMemo(() => selectLayerStore({ getSnapshot: layer.getSnapshot,
     subscribe: (listener: () => void) => active ? layer.subscribe(listener) : () => {},
-  }), [layer, active]);
+  }, ahrsControlStatus), [layer, active]);
   const state = useLayerSnapshot(source);
   const [mount, setMount] = usePersistentRecord(ahrsMount);
   const [heading, setHeading] = useState('');
@@ -150,7 +139,7 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
             <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary" onClick={layer.retryGps}>Retry GPS</button>}
           <button type="button" className="ui-button ui-button--quiet ui-button--compact ahrs-secondary" onClick={() => { setTesting(false); layer.stop(); }}>Cancel calibration</button>
         </div> : <div className="ahrs-actions">
-          <p role="status">{attitudeStatus(state)}</p>
+          <p role="status">{state.attitudeMessage}</p>
           <div><button className="ui-button ui-button--compact" type="button" onClick={() => setConfirming(true)}>Recalibrate</button>
             {!state.gpsLive && <button className="ui-button ui-button--compact" type="button" onClick={layer.retryGps}>Retry GPS</button>}
             <button className="ui-button ui-button--compact" type="button" onClick={() => { setTesting(false); layer.stop(); }}>Stop</button></div>

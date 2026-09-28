@@ -1,14 +1,10 @@
 import type { GeoPointFeature } from '@zlayer/contracts';
-import { distanceNm, sameFeature, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
+import { distanceNm, routeIdentificationKey, sameFeature, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
 
 /** Keep each occurrence distinct, including repeated children of one published item. */
 export function routePointKeys(plan: RoutePlan): Map<RouteWaypoint, string> {
-  const occurrences = new Map<string, number>();
-  return new Map(plan.waypoints.map(point => {
-    const occurrence = occurrences.get(point.source.entryId) ?? 0;
-    occurrences.set(point.source.entryId, occurrence + 1);
-    return [point, point.edit?.entryId ?? `expanded:${JSON.stringify([point.source.entryId, occurrence])}`];
-  }));
+  return new Map(plan.waypoints.map(point => [point, point.edit?.entryId ??
+    `expanded:${JSON.stringify([point.source.entryId, routeIdentificationKey(point)])}`]));
 }
 
 /** Prefer the selected occurrence; the shared details panel always reflects
@@ -19,7 +15,19 @@ export function routePointForFeature(plan: RoutePlan, feature: GeoPointFeature,
   if (legacy) return legacy;
   const restored = restoreApproachSelection(plan, feature);
   const matches = [...routePointKeys(plan)].filter(([point]) => sameFeature(point.feature, restored));
-  return (matches.find(([, key]) => key === pointKey) ?? matches[0])?.[0];
+  const current = matches.find(([, key]) => key === pointKey)?.[0];
+  if (current) return current;
+  // Restore the former expansion-index selection format without persisting it anew.
+  if (pointKey?.startsWith('expanded:')) {
+    try {
+      const [entry, index]: unknown[] = JSON.parse(pointKey.slice('expanded:'.length));
+      if (typeof entry === 'string' && typeof index === 'number' && Number.isSafeInteger(index) && index >= 0) {
+        const candidate = plan.waypoints.filter(point => point.source.entryId === entry)[index];
+        if (candidate && matches.some(([point]) => point === candidate)) return candidate;
+      }
+    } catch { /* Invalid/obsolete saved selection falls back to current membership. */ }
+  }
+  return matches[0]?.[0];
 }
 
 /** Rebind saved approach selections when a navigation entity replaces a coded

@@ -249,6 +249,7 @@ export function App() {
       </header>
 
       {loaded.routes && <RouteBar {...route.barProps} catalog={context.routing}
+        onIdentify={loaded.navigation ? featureSelection.identifyFeature : undefined}
         onOpenPlate={loaded.plates ? openPlate : undefined} />}
 
       <section className="workspace">
@@ -333,7 +334,7 @@ export function App() {
                 onIdentificationChange={featureSelection.setIdentificationOpen}
                 savedSupplement={featureSelection.savedSupplement}
                 revision={featureSelection.catalog?.revision ?? selected.properties.dataRevision ?? context.browsing.revision}
-                route={{ ...route.featureRoute, pointId: featureSelection.routePointId }}
+                route={{ ...route.featureRoute, pointId: featureSelection.routePointId, onIdentify: featureSelection.identifyFeature }}
                 onClose={() => selectFeature(undefined)}
                 onOpenProcedure={openPlate}
               />

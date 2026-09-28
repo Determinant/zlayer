@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
 import type { RouteDraft, RoutePlan } from '@zlayer/domain';
 import type { CatalogResponse } from '@zlayer/contracts';
-import { foreFlightRouteUrl, routeExportText, ROUTE_EXPORT_FORMATS, type RouteExportFormat } from './export';
+import { foreFlightRouteUrl, routeExportText, routeExportNotes, ROUTE_EXPORT_FORMATS, type RouteExportFormat } from './export';
 import { RouteStashDialog, type RouteStashView } from './stash-dialog';
 
 type ExportAction = 'copy' | 'share';
@@ -147,7 +147,7 @@ export function RouteMenu({ plan, catalog, onOpen, onClear, onLoadRoute, navlogO
         event.currentTarget.focus();
         void (action === 'copy' ? copy(format.id) : share(format.id, event.currentTarget));
       }}>
-      <strong>{format.label}</strong><small>{format.description}</small>
+      <strong>{format.label}</strong><small>{[format.description, ...routeExportNotes(plan, format.id)].join(' ')}</small>
     </button>)}
   </div>;
 

@@ -1,4 +1,7 @@
-# Active reviews
+# Review archive and consolidation map
+
+No standalone active review is currently retained here. The table below locates
+material consolidated into owning guides; dated run records live in [evidence](../evidence/README.md).
 
 Keep dated reviews here while their investigation or unresolved findings still need
 a standalone evidence record. Move lasting behavior and engineering requirements

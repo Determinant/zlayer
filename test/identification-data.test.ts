@@ -5,7 +5,7 @@ import type { GeoPointFeature } from '@zlayer/contracts';
 import { nearbyVorStations } from '@zlayer/domain';
 import { fetchNavigationLayer } from '../src/workspace/catalog/catalog';
 import { fetchNavigation } from '../src/layers/navigation/api';
-import { fillMissingNavaidAlignment } from '../src/layers/navigation/identification-data';
+import { fillMissingNavaidAlignment } from '../src/layers/navigation/data';
 import { formatNavaidRadial, formatNavaidTrueBearing } from '../src/layers/navigation/nearby-navaids-format';
 import { captureReference } from '../src/core/data/reference-snapshot';
 import { cacheFixture } from './helpers/cache';

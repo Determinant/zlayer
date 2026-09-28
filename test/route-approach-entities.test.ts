@@ -5,6 +5,8 @@ import { isTerminalProceduresData, type FeatureCollectionResponse, type GeoPoint
 import { createRouteResolver, routeDraftFromText, type RouteApproach, type RoutePlan } from '@zlayer/domain';
 import { directToRoutePoint } from '../src/layers/routes/direct-to';
 import { setRouteApproach } from '../src/layers/routes/draft';
+import { identifyRoutePoint } from '../src/layers/routes/identification';
+import { parseRouteEntries } from '../src/layers/routes/draft-storage';
 import { restoreApproachSelection, routePointForFeature, routePointKeys } from '../src/layers/routes/selection';
 
 const terminal: unknown = JSON.parse(readFileSync(new URL('./fixtures/route-approach-legs.json', import.meta.url), 'utf8'));
@@ -64,6 +66,20 @@ test('a matching navaid keeps its type, frequency and missed-approach hold', () 
   assert.equal(point.layer, 'navaids');
   assert.deepEqual(point.approachHold, hold.approachHold);
   assert.equal(point.approachPhase, hold.approachPhase);
+});
+
+test('Direct To preserves an approach child description after removing its approach phase', () => {
+  const resolve = createRouteResolver([airports, collection('fixes', [navigationFix])], undefined, terminal);
+  const original = resolve(draft), target = original.waypoints.filter(point => point.ident === 'AXMUL')[1]!;
+  const identified = identifyRoutePoint(draft, original, target, { kind: 'coordinate' });
+  const plan = resolve(identified), point = plan.waypoints.filter(point => point.ident === 'AXMUL')[1]!;
+  const next = directToRoutePoint(identified, plan, point, [-122, 37]);
+  assert.notEqual(next, identified);
+  const restored = parseRouteEntries(next.entries)!;
+  const ordinary = resolve(restored).waypoints[1]!;
+  assert.equal(ordinary.feature, navigationFix);
+  assert.equal(ordinary.approachPhase, undefined);
+  assert.deepEqual(ordinary.identification, { kind: 'coordinate' });
 });
 
 test('different positions, airport aliases, VOTs and ambiguous matches retain the coded approach point', () => {

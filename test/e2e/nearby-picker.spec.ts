@@ -305,3 +305,30 @@ test('nearby dialog supports Tab and returns focus on Escape', async ({ page }) 
   await expect(chooser).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Map trigger' })).toBeFocused();
 });
+
+for (const width of [320, 1280]) test(`incomplete airway removal explains the blocked point-only action at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto('/test/browser/route-map.html?details&missingFix=MID&route=KSBA%20ENTRY%20V1%20EXIT%20KSMX');
+  await page.waitForFunction(() => {
+    const map = (window as unknown as { routeMapAudit?: { map: MapLibreMap } }).routeMapAudit?.map;
+    return map?.getLayer('route-waypoints') && map.queryRenderedFeatures({ layers: ['route-waypoints'] })
+      .some(feature => feature.properties.ident === 'TAILS');
+  });
+  const point = await page.evaluate(() => {
+    const p = (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map.project([-119, 36]);
+    return { x: p.x, y: p.y };
+  });
+  await page.mouse.click(point.x, point.y);
+  const card = page.locator('.feature-card');
+  await card.getByRole('button', { name: 'Remove TAILS from route', exact: true }).click();
+  await expect(card.getByRole('menuitem', { name: /Remove only TAILS/ })).toBeDisabled();
+  await expect(card.getByRole('note')).toContainText('MID is unavailable');
+  const entire = card.getByRole('menuitem', { name: 'Remove entire V1 route item', exact: true });
+  await expect(entire).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(entire).toBeFocused();
+  await expect(page.getByLabel('Edits')).toHaveText('0');
+  await entire.click();
+  await expect(page.getByLabel('Route', { exact: true })).toHaveText('KSBA ENTRY EXIT KSMX');
+  await expect(page.getByLabel('Edits')).toHaveText('1');
+});

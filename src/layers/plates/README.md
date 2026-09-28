@@ -63,7 +63,9 @@ Results remain tied to the selected airport and exact catalog resources; changin
 editions hides the previous results immediately, before replacement requests finish.
 
 A row opens a slide-in dialog immediately; a loading skeleton remains visible while
-the PDF.js renderer and document load:
+the PDF.js renderer and document load. `use-pdf-viewer.ts` owns the document
+lease, target-page resolution and serialized page rendering; `viewer.tsx` owns
+reader gestures, saved view state and map placement actions:
 
 - File acquisition uses core's [shared transfer framework](../../../docs/architecture/layer-plugins.md#file-downloads),
   including exclusive scheduling, bounded disk writes and failed-file cleanup.

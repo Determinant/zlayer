@@ -40,7 +40,7 @@ export function nearbyVorStations(point: PointGeometry['coordinates'], navaids: 
     return Number(aPenalty > 0) - Number(bPenalty > 0) || aPenalty - bPenalty ||
       Number(b.mon) - Number(a.mon) || a.distanceNm - b.distanceNm ||
       String(a.feature.id ?? a.feature.properties.ident).localeCompare(String(b.feature.id ?? b.feature.properties.ident));
-  }).slice(0, 6);
+  });
 }
 
 const distancePenalty = (distance: number) => Math.max(5 - distance, distance - 60, 0);

@@ -4,7 +4,7 @@ import { createRouteEntry, routeCoordinateFeature, routeTokenForFeature,
 import type { GpsSnapshot } from '../../core/gps/service';
 import { GPS_STALE_MS } from '../../core/gps/position';
 import { routeItemsForPoint } from './removal';
-import { sameRouteDraft } from './draft';
+import { entryForFeature, entryForRoutePoint, sameRouteDraft } from './draft';
 
 export type DirectToAction = (feature: GeoPointFeature, point?: RouteWaypoint) => void;
 
@@ -24,7 +24,7 @@ export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Ro
     const { points, airport, problem } = approachRemainder(plan, point);
     if (problem || !airport) return draft;
     const { approach: _approach, arrival: _arrival, ...entry } = draft.entries[point.source.tokenIndex]!;
-    return { entries: [entryForPoint(routeCoordinateFeature(position)), ...points.map(point => entryForPoint(point.feature)),
+    return { entries: [entryForPoint(routeCoordinateFeature(position)), ...points.map(entryForRoutePoint),
       { ...entry, ...(airport.feature.id ? { pinnedFeatureId: airport.feature.id } : {}) },
       ...draft.entries.slice(point.source.tokenIndex + 1)] };
   }
@@ -33,10 +33,10 @@ export function directToRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Ro
   if (expansionProblem(plan, point, remaining, expand)) return draft;
   const entries = draft.entries.slice(point.source.tokenIndex).flatMap(entry => {
     if (expand.has(entry.id)) return remaining.filter(candidate => candidate.source.entryId === entry.id)
-      .map(candidate => entryForPoint(candidate.feature));
+      .map(entryForRoutePoint);
     // Pin the target so resolving from the new GPS origin cannot select a
     // different navigation feature with the same identifier.
-    if (entry.id === point.edit?.entryId && point.feature.id) return [{ ...entry, pinnedFeatureId: point.feature.id }];
+    if (entry.id === point.edit?.entryId && point.feature.id && point.feature.properties.kind !== 'coordinate') return [{ ...entry, pinnedFeatureId: point.feature.id }];
     return [entry];
   });
   return { entries: [entryForPoint(routeCoordinateFeature(position)), ...entries] };
@@ -121,5 +121,5 @@ export function directToFeature(feature: GeoPointFeature, position: PointGeometr
 }
 
 function entryForPoint(feature: GeoPointFeature) {
-  return createRouteEntry(routeTokenForFeature(feature), feature.id);
+  return entryForFeature(feature) ?? createRouteEntry(routeTokenForFeature(feature));
 }

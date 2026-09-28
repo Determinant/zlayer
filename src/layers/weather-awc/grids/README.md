@@ -282,7 +282,10 @@ The live result remains usable and offline progress stays incomplete. Existing
 cache identities remain readable and acquire their category on validated use.
 Protected cohorts are not permanent offline packs: browser eviction, explicit
 reset and a replacement selection can still remove them. Unprotected entries
-retain their usual LRU/unused-age cleanup. Radar continues to load selected scans;
+use LRU cleanup under count/byte pressure and expire after 48 unused hours for
+numeric forecasts, Progs and disposable files; radar/motion use one hour.
+Cleanup runs during cache use, with access receipts separate from compressed bodies.
+Radar continues to load selected scans;
 these policies do not start a full national/terminal-history download.
 
 Core owns transfers, storage, eligible LRU/age cleanup and publication locks.
@@ -303,6 +306,17 @@ Source check, browser check, model run and forecast valid time remain separate.
 Runs older than three hours, source checks older than 90 minutes, browser checks
 older than ten minutes, failed checks and restored-only data are visibly outdated.
 Future metadata is rejected; reading a saved artifact never advances freshness.
+
+### Forecast download scope
+
+**Forecast downloads** in the cloud, icing and wind controls is one shared saved
+preference. **Full timeline** remains the default for shaded forecasts.
+**Selected and adjacent hours** limits background acquisition to the selected hour
+and its immediate neighbors, reducing transfer and preparation work on mobile.
+Switching scope cancels distant pending saves without discarding completed files
+or reloading the selected forecast. Wind barbs alone retain their adjacent-hour
+scope in either setting. Only successfully saved hours are available offline;
+this setting does not change forecast coverage, resolution or source timestamps.
 
 ### Raster ownership
 
