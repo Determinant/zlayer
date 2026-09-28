@@ -12,6 +12,7 @@ Vite's local forwarding rules live in `tools/dev-proxy.ts`.
 - [Data and proxies](#data-and-proxies)
 - [Compatibility traps](#compatibility-traps)
 - [Verification](#verification)
+- [Maintaining test coverage](#maintaining-test-coverage)
 
 ## Run and configure
 
@@ -305,3 +306,36 @@ Vite's `/api/weather/` proxy. Backend development is an explicit opt-in describe
 under [data and proxies](#data-and-proxies).
 The [grid guide](../../src/layers/weather-awc/grids/README.md) owns numeric meanings,
 worker budgets, source identity and offline behavior.
+
+## Maintaining test coverage
+
+Choose the boundary that owns the behavior:
+
+| Suite | Primary responsibility |
+| --- | --- |
+| `packages/contracts/test/` | Accepted and rejected external data shapes, including legacy compatibility |
+| `packages/domain/test/` | Pure calculations, geometry, routing and formatting |
+| `test/*.test.ts` | App/service behavior, deterministic timing, source identity, cancellation and lifecycle races |
+| `test/e2e/*.spec.ts` | Built-app integration, real workers/renderers, persistence, focus, layout and pointer/touch events |
+| Graphics projects | The selected browser specs across engines and pixel densities; selection lives in [the graphics config](../../playwright.graphics.config.ts) |
+
+Before removing a test, identify the surviving test and compare its inputs,
+failure trigger, assertions and execution environment. Move any unique assertion
+into the survivor when it belongs to the same scenario. Keep independent failure
+paths separate; a larger happy-path test does not replace cancellation, retry,
+offline or stale-completion coverage. File age and test count are not evidence of
+redundancy. Graphics specs already run in the complete Chromium suite; full
+verification adds only the other graphics projects.
+
+For example, regional clipping pixels belong in `graphics.spec.ts`; offline app
+restoration remains in `offline.spec.ts`. Route-copy formats use the real clipboard
+in `route-menu.spec.ts` and touch/focus-loss checks in `route-menu-touch.spec.ts`.
+Changing a user-agent string alone does not exercise native touch or another
+browser engine. Preserve platform cases that assert a platform-specific branch.
+
+Test names must describe what the assertions prove. Require expected samples
+before iterating over pixels or features, observe listener removal directly when
+testing cleanup, and wait for the relevant rendered/accepted state. Use controlled
+time for deadlines and fresh events for event-driven filters; polling alone does
+not advance those filters. Keep historical validation counts dated rather than
+updating them to imply that an unrun suite passes after cleanup.

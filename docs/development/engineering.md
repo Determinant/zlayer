@@ -68,6 +68,31 @@ for registration, optional integrations and persistence. Ordinary plugin UI uses
 core's [shared controls and lifecycles](../features/shared-ui.md#shared-controls);
 feature layout, compact reports and specialized visualizations stay with the plugin.
 
+## Rendering performance
+
+Treat map interaction as a real-time workload. At 60 Hz a frame has about 16.7 ms;
+blocking preparation competes with input, camera updates and drawing for that time.
+Use measured frame-time distributions, especially slow frames, rather than average
+FPS alone. This is an engineering target, not a claim that every device meets it.
+
+- Reuse unchanged sources, geometry and imagery. Keep expensive acquisition and
+  preparation outside the interaction path, with bounded admission and cancellation.
+- Distinguish storage warmth, decoded-data warmth and GPU readiness. A cached file
+  can still require expensive preparation; another cache needs measured benefit
+  and explicit ownership, byte limits and disposal.
+- Bound transient work as well as retained caches. Loading concurrency and useful
+  cache capacity are different controls; overlapping allocations matter on phones.
+- Stop drawing when idle. Preserve immediate route/selection feedback and current
+  data identity when coalescing background work.
+- Preserve visual sharpness, geographic alignment, alpha and edition ownership.
+  Do not reduce density, coverage or detail merely to improve a benchmark number.
+
+Use the [chart pipeline benchmark](../../src/layers/charts/benchmark.md) for
+repeatable cold/warm, interaction and saved-boundary measurements. Pair performance
+results with graphics correctness tests; record workload, browser, density, source
+revision and limitations. Broader layer workloads and physical-device profiling
+remain separate. Comparisons with other products require comparable measurements.
+
 ## Recovery and source identity
 
 - Expose asynchronous results only for the complete current resource identity,

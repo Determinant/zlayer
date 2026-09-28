@@ -10,7 +10,9 @@ import { noaaAdvisoryUrl } from '../src/layers/weather-awc/advisory-endpoints';
 import { pluginStorage as weatherStorage } from '../src/layers/weather-awc/storage';
 import { GridClient } from '../src/layers/weather-awc/grids/client';
 import { gridFixture } from './fixtures/awc-grids';
-import { createWeatherController, forecastPreparation } from '../src/layers/weather-awc/controller';
+import { radarFixture } from './fixtures/radar';
+import { createWeatherController, forecastPreparation, type WeatherState } from '../src/layers/weather-awc/controller';
+import { createWeatherSelectors, forecastChanges } from '../src/layers/weather-awc/selection';
 import { weatherAwcPreferences } from '../src/layers/weather-awc/preferences';
 import { requestJson, weatherCheckedAt } from '../src/core/data/fetch-json';
 import { createWeatherMap, ADVISORY_LAYERS } from '../src/layers/weather-awc/map';
@@ -34,6 +36,45 @@ function environment(t: TestContext) {
   }
   return { values, window, document, navigator };
 }
+
+test('selection caches reuse status-only updates and invalidate catalogs, filters, levels and expiry', t => {
+  environment(t).navigator.onLine = false;
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
+    refresh: async () => { throw new Error('Not attached'); } } });
+  const selectors = createWeatherSelectors();
+  const initial: WeatherState = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover' }) };
+  const changes = selectors.forecastChanges(initial), times = selectors.forecastTimes(initial), advisories = selectors.visibleAdvisories(initial);
+  const progress = { ...initial, grid: { ...initial.grid, loading: true, preparation: { ready: 1, total: 19, failed: 0 } },
+    advisoryDisplay: { loading: true, ids: [] } };
+  assert.equal(selectors.forecastChanges(progress), changes);
+  assert.equal(selectors.forecastTimes(progress), times);
+  assert.equal(selectors.visibleAdvisories(progress), advisories);
+  assert.equal(selectors.forecastChanges({ ...progress, now: WEATHER_NOW + 1000 }), changes, 'non-radar forecast stops do not depend on clock ticks');
+  const changed = [
+    { ...initial, products: { ...initial.products, gairmet: { loading: false, snapshot: advisorySnapshot('gairmet', WEATHER_NOW + 3 * HOUR) } } },
+    { ...initial, preferences: { ...initial.preferences, awcGairmet: false, awcFreezing: false } },
+    { ...initial, grid: { ...initial.grid, products: { ...initial.grid.products, clouds: { loading: false, manifest: gridFixture('clouds').manifest } } } },
+    { ...initial, preferences: { ...initial.preferences, awcGridMode: 'icingProbability' as const, awcGridAltitude: 12000 },
+      grid: { ...initial.grid, products: { ...initial.grid.products, icing: { loading: false, manifest: gridFixture('icing').manifest } } } },
+    { ...initial, preferences: { ...initial.preferences, awcWindBarbs: true },
+      wind: { ...initial.wind, products: { ...initial.wind.products, winds: { loading: false, manifest: gridFixture('winds').manifest } } } },
+  ];
+  for (const state of changed) {
+    assert.deepEqual(selectors.forecastChanges(state), forecastChanges(state));
+    assert.deepEqual(selectors.forecastTimes(state), forecastChanges(state).map(change => change.time));
+  }
+  const radar = { ...initial, preferences: { ...initial.preferences, awcRadar: true },
+    radar: { loading: false, snapshot: radarFixture(WEATHER_NOW, true).catalog } };
+  const radarChanges = selectors.forecastChanges(radar);
+  assert.ok(radarChanges.some(change => change.products.includes('radar')));
+  assert.ok(!selectors.forecastChanges({ ...radar, now: WEATHER_NOW + 2 * HOUR }).some(change => change.products.includes('radar')),
+    'history stops expire without a catalog replacement');
+  assert.deepEqual(selectors.forecastChanges(radar), radarChanges, 'history availability follows clock rollback');
+  const later = { ...initial, now: WEATHER_NOW + 20 * HOUR };
+  assert.deepEqual(selectors.visibleAdvisories(later), [], 'cached bulletins expire at the requested time');
+  assert.deepEqual(selectors.visibleAdvisories(initial), advisories, 'clock rollback re-evaluates applicability');
+});
 
 test('enabling winds preserves in-flight cloud saves and returning from temperature keeps their completed progress', async t => {
   const locks = navigator.locks;
@@ -695,6 +736,11 @@ test('advisory source failures clear shown counts and recover unchanged IDs with
   writes[1]!.resolve(); await flush();
   assert.equal(controller.getSnapshot().advisoryDisplay.error, undefined);
   assert.deepEqual(controller.getSnapshot().advisoryDisplay.ids, controller.visibleAdvisories().map(advisory => advisory.id));
+  const selections = t.mock.method(controller, 'visibleAdvisories');
+  controller.setCoverageDisplay({ loading: true });
+  controller.setRadarMotionDisplay({ loading: false, cells: 1, stations: 1 });
+  assert.equal(selections.mock.callCount(), 0, 'other render receipts do not reselect advisories');
+  assert.equal(writes.length, 2);
   fail(); controller.retryAdvisories(); writes[2]!.reject(new Error('Source rejected')); await flush();
   assert.match(controller.getSnapshot().advisoryDisplay.error!, /Source rejected/);
   controller.retryAdvisories(); host.unmount(); writes[3]!.resolve(); await flush();
@@ -715,4 +761,34 @@ test('G-AIRMET severity is preserved and displayed without reinterpreting SIGMET
   const sigmet = advisorySnapshot('sigmet').advisories[0]!;
   sigmet.sourceProperties.severity = 5;
   assert.ok(!advisoryHazard(sigmet).includes('Severe'));
+});
+
+test('weather clock sleeps when switched off or hidden and resumes current time immediately', async t => {
+  t.after(() => controller.detach());
+  const env = environment(t);
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }),
+    refresh: async product => advisorySnapshot(product) } });
+  const input = { ...weatherAwcPreferences.select({ awcEnabled: false, awcGairmet: false,
+    awcSigmet: false, awcConvective: false, awcCwa: false }), change() {} };
+  controller.configure(input); controller.attach();
+  let publications = 0;
+  controller.subscribe(() => publications++);
+  t.mock.timers.tick(60000); await flush();
+  assert.equal(publications, 0, 'weather off schedules no recurring work');
+  controller.configure({ ...input, awcEnabled: true });
+  const enabledTime = controller.getSnapshot().now;
+  for (let i = 0; i < 15; i++) {
+    t.mock.timers.tick(1000); controller.configure({ ...input, awcEnabled: true });
+  }
+  await flush();
+  assert.ok(controller.getSnapshot().now > enabledTime, 'unchanged configuration cannot postpone the resumed clock');
+  env.document.visibilityState = 'hidden'; env.document.dispatchEvent(new Event('visibilitychange'));
+  await flush(); publications = 0;
+  t.mock.timers.tick(60000); await flush();
+  assert.equal(publications, 0, 'hidden weather schedules no recurring clock work');
+  env.document.visibilityState = 'visible'; env.document.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(controller.getSnapshot().now, Date.now());
+  const resumed = publications;
+  t.mock.timers.tick(15000); await flush(); assert.ok(publications > resumed);
 });

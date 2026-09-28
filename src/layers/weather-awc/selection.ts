@@ -1,8 +1,9 @@
-import { awcGridProduct, type WeatherAdvisory } from '@zlayer/contracts';
+import { AWC_ADVISORY_PRODUCTS, awcGridProduct, type WeatherAdvisory } from '@zlayer/contracts';
 import type { WeatherState, WeatherTimeProduct } from './controller';
 import type { WeatherAwcPreferences } from './preferences';
 import { gridTimes } from './grids/controller';
 import { radarTimes } from './radar/time';
+import { advisoryFrame } from './time';
 
 export function advisoryEnabled(advisory: WeatherAdvisory, preferences: WeatherAwcPreferences): boolean {
   const { product, hazard } = advisory;
@@ -42,14 +43,40 @@ export function forecastChanges(state: WeatherState) {
 }
 export const forecastTimes = (state: WeatherState): readonly number[] => forecastChanges(state).map(change => change.time);
 
-export function reconcileWeatherTime(state: WeatherState, now: number): WeatherState {
+/** Retain one result per controller, keyed only by immutable selection inputs. */
+function memoizeSelection<T>(inputs: (state: WeatherState) => readonly unknown[], select: (state: WeatherState) => T) {
+  let previous: readonly unknown[] | undefined, value: T;
+  return (state: WeatherState): T => {
+    const next = inputs(state);
+    if (!previous || next.some((input, i) => input !== previous![i])) {
+      value = select(state); previous = next;
+    }
+    return value;
+  };
+}
+
+export function createWeatherSelectors() {
+  const snapshots = (state: WeatherState) => AWC_ADVISORY_PRODUCTS.map(product => state.products[product].snapshot);
+  const visibleAdvisories = memoizeSelection(state => [state.preferences, state.selectedTime ?? state.now, ...snapshots(state)], state =>
+    !state.preferences.awcEnabled ? [] : AWC_ADVISORY_PRODUCTS.flatMap(product =>
+      advisoryFrame(state.products[product].snapshot, state.selectedTime ?? state.now).advisories)
+      .filter(advisory => advisoryEnabled(advisory, state.preferences)));
+  const changes = memoizeSelection(state => [state.preferences, ...snapshots(state),
+    state.grid.products.clouds.manifest, state.grid.products.icing.manifest, state.wind.products.winds.manifest,
+    state.progs.forecast.snapshot, state.coverage.snapshot, state.radar.snapshot, state.preferences.awcRadar ? state.now : 0,
+  ], forecastChanges);
+  const times = memoizeSelection(state => [changes(state)], state => changes(state).map(change => change.time));
+  return { visibleAdvisories, forecastChanges: changes, forecastTimes: times };
+}
+
+export function reconcileWeatherTime(state: WeatherState, now: number, times = forecastTimes): WeatherState {
   // Mobile timers can remain suspended after a source request completes.
   // Source publications and explicit Now actions use the actual wall clock.
   const next = { ...state, now };
   // A field/altitude change preserves the absolute selection even without
   // matching coverage. Inactive catalogs validate that selection, but must
   // not populate Next/Prev with steps that change nothing on the map.
-  if (next.selectedTime !== null && !forecastTimes(next).includes(next.selectedTime) &&
+  if (next.selectedTime !== null && !times(next).includes(next.selectedTime) &&
     ![...Object.values(next.grid.products), ...Object.values(next.wind.products)].some(product => product.manifest?.frames.some(frame => frame.validTime === next.selectedTime)) &&
     !next.progs.forecast.snapshot?.frames.some(frame => frame.validTime === next.selectedTime) &&
     !next.coverage.snapshot?.frames.some(frame => frame.validTime === next.selectedTime) &&

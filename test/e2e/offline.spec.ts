@@ -477,17 +477,6 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
   } finally { await request.post('/__test/reset'); }
 });
 
-test('state boundary clipping renders matching editions and leaves a missing regional chart transparent', async ({ page }) => {
-  await page.goto('/');
-  const pixels = (missing: boolean) => page.evaluate(async missing => {
-    const modulePath = '/regional-test.js';
-    await import(modulePath);
-    return (globalThis as unknown as { regionalTestPixels: (value: boolean) => Promise<unknown> }).regionalTestPixels(missing);
-  }, missing);
-  expect(await pixels(false)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 255, 0, 255], incomplete: 0 });
-  expect(await pixels(true)).toEqual({ truckee: [0, 0, 255, 255], reno: [0, 0, 0, 0], incomplete: 1 });
-});
-
 test('a lost regional airport export preserves healthy search and recovers on reconnect without changing edition', async ({ page, request, context }) => {
   const save = async (region: string, revision: string) => {
     await selectCycle(page, revision);

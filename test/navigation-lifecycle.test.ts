@@ -216,3 +216,29 @@ test('unloading navigation drops hook-owned collections before reactivation', as
   await tick();
   assert.equal(render().data.airports?.features.length, 1, 'reload can reuse the shared immutable cache');
 });
+
+test('weather refresh enriches ranked airport matches without rescoring navigation', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const hooks = setup(t), current = catalog('https://charts.test/weather-search/airports');
+  current.navigation.push({ ...current.navigation[0]!, id: 'fixes', url: 'https://charts.test/weather-search/fixes' });
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    const value = document('KSFO');
+    if (String(url).endsWith('airports')) Object.assign(value.features[0]!.properties, { kind: 'landing-facility', icaoId: 'KSFO' });
+    return Response.json(value);
+  });
+  let metars = { type: 'FeatureCollection' as const, features: [{ type: 'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [-122, 37] as [number, number] },
+    properties: { id: 'KSFO', obsTime: '2026-09-27T18:00:00Z', fltcat: 'VFR' },
+  }] };
+  const render = () => hooks.render(() => useNavigationSearch(current, 'KSFO', metars));
+  render(); t.mock.timers.tick(120); await tick();
+  const first = render().results, fix = first.find(result => result.layer === 'fixes')!;
+  let reads = 0;
+  Object.defineProperty(fix.feature.properties, 'name', { configurable: true, enumerable: true, get() { reads++; return 'KSFO'; } });
+  metars = { ...metars, features: metars.features.map(report => ({ ...report, properties: { ...report.properties, fltcat: 'IFR' } })) };
+  const next = render().results;
+  assert.equal(reads, 0, 'weather cannot trigger another national search');
+  assert.equal(next.find(result => result.layer === 'fixes'), fix);
+  assert.equal(next.find(result => result.layer === 'airports')?.feature.properties.flightCategory, 'IFR');
+  assert.deepEqual(next.map(result => result.layer), first.map(result => result.layer));
+});

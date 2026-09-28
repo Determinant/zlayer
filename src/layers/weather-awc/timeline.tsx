@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type PointerEvent } from 'react';
+import { useLayoutEffect, useMemo, useRef, type PointerEvent } from 'react';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { formatDate, formatTimestamp, formatTimestampPair } from '../../core/format/time';
 import { forecastPreparation, forecastStreams, type WeatherController } from './controller';
@@ -15,19 +15,23 @@ export function WeatherTimeline({ controller }: { controller: WeatherController 
   const drag = useRef<{ id: number; x: number; left: number; moved: boolean; select: boolean } | undefined>(undefined);
   const selected = state.selectedTime ?? state.now;
   const changes = controller.forecastChanges();
-  const productsAt = new Map(changes.map(change => [change.time, change.products]));
-  const history = changes.filter(change => change.products.includes('radar') && change.time < state.now).map(change => change.time);
-  const stops = forecastStops(changes.map(change => change.time), state.now, state.selectedTime, history);
-  const start = Math.floor(Math.min(selected, ...stops.map(time => time ?? state.now)) / HOUR) * HOUR;
-  const end = Math.max(start + HOUR, Math.ceil(Math.max(selected, ...stops.map(time => time ?? state.now)) / HOUR) * HOUR);
-  const { position, offset, timeAt, width } = weatherTimeScale(start, end, state.now, history.length > 0);
-  const previous = stops.filter(time => (time ?? state.now) < selected).pop();
-  const next = stops.find(time => (time ?? state.now) > selected);
-  const hours = Array.from({ length: Math.round((end - start) / HOUR) + 1 }, (_, i) => start + i * HOUR);
-  const days = [start, ...hours.filter(time => time > start && time < end && time % (24 * HOUR) === 0)];
+  const { productsAt, history, stops, start, end, position, offset, timeAt, width, previous, next, hours, days, minutes, products } = useMemo(() => {
+    const productsAt = new Map(changes.map(change => [change.time, change.products]));
+    const history = changes.filter(change => change.products.includes('radar') && change.time < state.now).map(change => change.time);
+    const stops = forecastStops(changes.map(change => change.time), state.now, state.selectedTime, history);
+    const start = Math.floor(Math.min(selected, ...stops.map(time => time ?? state.now)) / HOUR) * HOUR;
+    const end = Math.max(start + HOUR, Math.ceil(Math.max(selected, ...stops.map(time => time ?? state.now)) / HOUR) * HOUR);
+    const { position, offset, timeAt, width } = weatherTimeScale(start, end, state.now, history.length > 0);
+    const previous = stops.filter(time => (time ?? state.now) < selected).pop();
+    const next = stops.find(time => (time ?? state.now) > selected);
+    const hours = Array.from({ length: Math.round((end - start) / HOUR) + 1 }, (_, i) => start + i * HOUR);
+    const days = [start, ...hours.filter(time => time > start && time < end && time % (24 * HOUR) === 0)];
+    const minutes = history.length ? Array.from({ length: Math.ceil((Math.min(end, state.now) - start) / RADAR_HISTORY_STEP) }, (_, i) => start + i * RADAR_HISTORY_STEP)
+      .filter(time => time % HOUR !== 0) : [];
+    const products = [...new Set(stops.flatMap(time => time === null ? [] : productsAt.get(time) ?? []))];
+    return { productsAt, history, stops, start, end, position, offset, timeAt, width, previous, next, hours, days, minutes, products };
+  }, [changes, state.now, state.selectedTime]);
   const selectedLabel = state.selectedTime === null ? 'Now' : selected % HOUR ? formatTimestamp(selected).split(' · ')[1] : undefined;
-  const minutes = history.length ? Array.from({ length: Math.ceil((Math.min(end, state.now) - start) / RADAR_HISTORY_STEP) }, (_, i) => start + i * RADAR_HISTORY_STEP)
-    .filter(time => time % HOUR !== 0) : [];
   const reveal = (time: number) => {
     const view = rail.current, canvas = scale.current;
     if (!view || !canvas) return;
@@ -74,7 +78,6 @@ export function WeatherTimeline({ controller }: { controller: WeatherController 
       select(nearest(timeAt((event.clientX - box.x - 8) / (box.width - 16))));
     }
   };
-  const products = [...new Set(stops.flatMap(time => time === null ? [] : productsAt.get(time) ?? []))];
   const forecasts = forecastStreams(state);
   const loading = forecasts.some(forecast => forecast.loading || forecast.rendering);
   const preparation = forecastPreparation(state);

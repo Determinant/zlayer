@@ -15,6 +15,7 @@ import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_L
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
 import { mapErrorMessage } from './errors';
+import { createViewReporter } from './view-reporter';
 import { MapNavigationControl } from './navigation-control';
 import { resourceErrorCode } from '../../core/data/errors';
 
@@ -118,26 +119,21 @@ export class MapRuntime {
       previousViewport = viewport;
       onViewportChange(viewport);
     };
-    let previousView: MapView | undefined;
-    const reportView = () => {
-      const view: MapView = {
-        center: [this.#map.getCenter().lng, this.#map.getCenter().lat],
-        zoom: this.#map.getZoom(),
-        bearing: this.#map.getBearing(),
-        pitch: this.#map.getPitch(),
-      };
-      if (previousView?.center.every((value, index) => value === view.center[index]) && previousView.zoom === view.zoom
-        && previousView.bearing === view.bearing && previousView.pitch === view.pitch) return;
-      previousView = view;
-      onViewChange?.(view);
-    };
-    this.#saveView = reportView;
-    window.addEventListener('pagehide', reportView);
-    document.addEventListener('visibilitychange', reportView);
-    this.#map.on('moveend', () => { reportViewport(); reportView(); });
+    const viewReporter = createViewReporter(() => ({
+      center: [this.#map.getCenter().lng, this.#map.getCenter().lat],
+      zoom: this.#map.getZoom(), bearing: this.#map.getBearing(), pitch: this.#map.getPitch(),
+    }), view => onViewChange?.(view));
+    this.#saveView = viewReporter.flush;
+    window.addEventListener('pagehide', this.#saveView);
+    document.addEventListener('visibilitychange', this.#saveView);
+    this.#map.on('moveend', event => {
+      if (this.#lifetime.signal.aborted) return;
+      reportViewport();
+      viewReporter.report((event as typeof event & { gpsCamera?: boolean }).gpsCamera === true);
+    });
     this.#map.on('resize', reportViewport);
     reportViewport();
-    reportView();
+    viewReporter.flush();
   }
 
   /** Reconcile on the existing map; unrelated adapters keep their live resources. */

@@ -161,8 +161,8 @@ export function isAirportRunway(value: unknown): boolean {
     [value.surface, value.condition, value.lighting].every(isOptionalString) &&
     (value.ends === undefined || (Array.isArray(value.ends) && value.ends.every(end =>
       isRecord(end) && isNonEmptyString(end.id) &&
-      (end.trueHeadingDeg === undefined || (typeof end.trueHeadingDeg === 'number' &&
-        Number.isFinite(end.trueHeadingDeg) && end.trueHeadingDeg >= 0 && end.trueHeadingDeg <= 360)) &&
+      [end.trueHeadingDeg, end.magneticHeadingDeg].every(heading => heading === undefined ||
+        (typeof heading === 'number' && Number.isFinite(heading) && heading >= 0 && heading <= 360)) &&
       (end.trafficPattern === undefined || end.trafficPattern === 'left' || end.trafficPattern === 'right')
     )));
 }

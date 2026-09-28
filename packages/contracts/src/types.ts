@@ -257,6 +257,8 @@ export type PointGeometry = {
 export type AirportRunwayEnd = {
   id: string;
   trueHeadingDeg?: number;
+  /** Published FAA CIFP runway bearing, relative to magnetic north. */
+  magneticHeadingDeg?: number;
   trafficPattern?: 'left' | 'right';
 };
 

@@ -27,6 +27,10 @@ reconnection or a new controlling worker starts a fresh attempt.
 
 ## Contracts and verification
 
+The [rendering pipeline benchmark](benchmark.md) measures built-app cold/warm
+loads, camera movement, package reuse and saved-edition composition. It includes
+pixel/locality guards and records measurement limits separately from timings.
+
 - Preserve the [whole-file I/O invariant](../../../docs/architecture/overview.md#chart-io-invariant).
   Rendering a tile must not become an independent origin fetch for a tile or SQLite page.
 - Use the [chart-feed contract](../../../docs/data/chart-feed.md) for archive identity,

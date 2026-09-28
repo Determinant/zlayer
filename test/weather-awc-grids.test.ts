@@ -215,6 +215,16 @@ test('viewport rendering clips coverage and samples the same numeric cells at pi
     const lat: number = Math.atan(Math.sinh(north - (y! + .5) / view.height * (north - south))) * 180 / Math.PI;
     assert.equal(view.rows[y!]! + view.columns[x!]!, gridCell(manifest, lon, lat));
   }
+  for (const wrap of [-720, -360, 360, 720]) {
+    const wrapped = { ...map,
+      getBounds: () => ({ getWest: () => w - 1 + wrap, getEast: () => e + 1 + wrap, getSouth: () => s - 1, getNorth: () => n + 1 }),
+      project: ([lon, lat]: [number, number]) => {
+        assert.ok(lon >= w + wrap && lon <= e + wrap, 'pixel size uses the visible world copy');
+        return map.project([lon - wrap, lat]);
+      },
+    } as unknown as MapLibreMap;
+    assert.deepEqual(gridViewport(wrapped, manifest), view, 'wrapped SLD detail samples identical cells and screen dimensions');
+  }
   const outside = { ...map, getBounds: () => ({ getWest: () => 0, getEast: () => 10, getSouth: () => 10, getNorth: () => 20 }) } as unknown as MapLibreMap;
   assert.equal(gridViewport(outside, manifest), undefined);
 });
@@ -277,6 +287,8 @@ test('camera movement retains the applicable image; new times clear it until rea
   renderer.update(); renderer.update(); await finish();
   assert.equal(projections, initialProjections, 'status and point updates reuse the sampled viewport');
   assert.equal(writes, 2, 'retrying another forecast does not redraw a healthy layer'); assert.equal(opacityWrites, 0);
+  state.preferences.awcSldOverlay = !state.preferences.awcSldOverlay; renderer.update(); await finish();
+  assert.equal(writes, 2, 'SLD preferences do not redraw cloud imagery');
   state.preferences.awcGridOpacity = 0.5; renderer.update(); renderer.update(); await finish();
   assert.equal(writes, 2, 'opacity changes do not recolor the forecast'); assert.equal(opacityWrites, 1);
   events.get('movestart')!();

@@ -33,13 +33,13 @@ test('only the top three ranked stations connect to the target, with local datel
 test('ID overlay survives remount and clears all map content on close or unavailable results', () => {
   const sources = new Map<string, FeatureCollection>();
   const layers = new Map<string, LayerSpecification>();
-  const listeners = new Set<() => void>();
+  const listeners = new Map<string, () => void>();
   const map = {
     getCenter() { return { lng: -180, lat: 0 }; },
     project([x, y]: [number, number]) { return { x, y: -y }; },
     unproject([x, y]: [number, number]) { return { toArray: () => [x, -y] }; },
-    on(_event: string, listener: () => void) { listeners.add(listener); },
-    off(_event: string, listener: () => void) { listeners.delete(listener); },
+    on(event: string, listener: () => void) { listeners.set(event, listener); },
+    off(event: string) { listeners.delete(event); },
     addSource(id: string, source: { data: FeatureCollection }) { sources.set(id, source.data); },
     getSource(id: string) { return sources.has(id) ? { setData(data: FeatureCollection) { sources.set(id, data); } } : undefined; },
     removeSource(id: string) { sources.delete(id); },
@@ -57,8 +57,8 @@ test('ID overlay survives remount and clears all map content on close or unavail
     assert.equal(lines?.type, 'line');
     assert.deepEqual(lines?.type === 'line' && lines.paint?.['line-dasharray'], [4, 2]);
     assert.equal(layer.interactiveLayerIds?.length ?? 0, 0);
-    assert.equal(listeners.size, 1);
-    for (const listener of listeners) listener();
+    assert.equal(listeners.size, 2);
+    listeners.get('move')!();
     layer.unmount();
     assert.equal(layers.size + sources.size + listeners.size, 0);
   }
@@ -82,4 +82,81 @@ test('connection labels show only MB and distance, including north rounding and 
       'MB 360° · 12.3 NM', 'MB - · 24.1 NM', 'MB - · 30.0 NM',
     ]);
   assert.ok(data.features.every(feature => feature.properties?.trueReference === undefined));
+});
+
+test('identification skips unchanged camera geometry and coalesces pending submissions to the latest view', async () => {
+  let move!: () => void, bearing = 0;
+  const writes: FeatureCollection[] = [], finish: (() => void)[] = [];
+  const sources = new Set<string>(), layers = new Set<string>();
+  const map = {
+    getCenter: () => ({ lng: -180, lat: 0 }),
+    project: ([x, y]: number[]) => ({ x: x! * Math.cos(bearing) - y! * Math.sin(bearing), y: x! * Math.sin(bearing) + y! * Math.cos(bearing) }),
+    unproject: ([x, y]: number[]) => ({ toArray: () => [x! * Math.cos(bearing) + y! * Math.sin(bearing), -x! * Math.sin(bearing) + y! * Math.cos(bearing)] }),
+    on: (event: string, listener: () => void) => { if (event === 'move') move = listener; }, off() {},
+    addSource: (id: string) => { sources.add(id); },
+    getSource: () => ({ setData(data: FeatureCollection) { writes.push(data); return new Promise<void>(resolve => finish.push(resolve)); } }),
+    removeSource: (id: string) => { sources.delete(id); },
+    addLayer: (layer: { id: string }) => { layers.add(layer.id); }, getLayer: (id: string) => layers.has(id),
+    removeLayer: (id: string) => { layers.delete(id); },
+  } as unknown as MapLibreMap;
+  const layer = createNavaidIdentificationLayer();
+  layer.update({ point, stations }); layer.mount(map);
+  for (let i = 0; i < 120; i++) move();
+  assert.equal(writes.length, 0, 'unchanged projection submits nothing');
+  bearing = 0.1; move();
+  for (let i = 0; i < 120; i++) { bearing += 0.001; move(); }
+  assert.equal(writes.length, 1, 'only one source update is in flight');
+  finish.shift()!(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(writes.length, 2);
+  assert.deepEqual(writes[1], identificationGeoJson({ point, stations }, map), 'the successor uses the final camera');
+  layer.unmount(); finish.shift()!(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(writes.length, 2, 'late completion cannot revive an unmounted overlay');
+});
+
+for (const stage of ['initial load', 'submission']) test(`identification retries unchanged geometry after a source error during ${stage}`, async t => {
+  const listeners = new Map<string, (event?: { sourceId: string; error: Error }) => void>();
+  const writes: FeatureCollection[] = [], finish: (() => void)[] = [];
+  const sources = new Set<string>(), layers = new Set<string>();
+  const map = {
+    getCenter: () => ({ lng: -180, lat: 0 }),
+    project: ([x, y]: number[]) => ({ x, y }),
+    unproject: ([x, y]: number[]) => ({ toArray: () => [x, y] }),
+    on: (event: string, listener: (event?: { sourceId: string; error: Error }) => void) => { listeners.set(event, listener); },
+    off: (event: string) => { listeners.delete(event); },
+    addSource: (id: string) => { sources.add(id); },
+    getSource: () => ({ setData(data: FeatureCollection) {
+      writes.push(data); return new Promise<void>(resolve => finish.push(resolve));
+    } }),
+    removeSource: (id: string) => { sources.delete(id); },
+    addLayer: (layer: { id: string }) => { layers.add(layer.id); }, getLayer: (id: string) => layers.has(id),
+    removeLayer: (id: string) => { layers.delete(id); },
+  } as unknown as MapLibreMap;
+  const layer = createNavaidIdentificationLayer(), selection = { point, stations };
+  t.after(() => layer.unmount());
+  if (stage === 'initial load') layer.update(selection);
+  layer.mount(map);
+  if (stage === 'submission') layer.update(selection);
+  const before = writes.length;
+  const fail = (sourceId: string) => listeners.get('error')!({ sourceId, error: new Error('Worker failed') });
+  const settle = async () => { finish.shift()?.(); await new Promise(resolve => setImmediate(resolve)); };
+  fail('unrelated-source'); layer.update(selection);
+  assert.equal(writes.length, before, 'unrelated errors cannot invalidate this source');
+  fail('navaid-identification');
+  await settle(); // MapLibre resolves setData even when the worker reports an error.
+  assert.equal(writes.length, before, 'failure alone must not start a retry loop');
+  layer.update(selection);
+  assert.equal(writes.length, before + 1, 'the same input retries failed geometry');
+  assert.deepEqual(writes.at(-1), identificationGeoJson(selection, map));
+  await settle();
+  layer.update(selection);
+  assert.equal(writes.length, before + 1, 'successful retry restores visual reuse');
+  fail('navaid-identification');
+  listeners.get('move')!();
+  assert.equal(writes.length, before + 2, 'camera updates also retry unchanged geometry');
+  fail('navaid-identification');
+  listeners.get('move')!(); listeners.get('move')!();
+  assert.equal(writes.length, before + 2, 'failure cannot release a still-pending submission');
+  layer.unmount(); await settle();
+  assert.equal(listeners.size + sources.size + layers.size, 0);
+  assert.equal(writes.length, before + 2, 'late completion cannot revive the unmounted overlay');
 });

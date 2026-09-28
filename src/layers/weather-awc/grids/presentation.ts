@@ -28,6 +28,10 @@ export function preparationLabel(preparation: NonNullable<GridState['preparation
   return `${preparation.limited ? 'Offline save incomplete' : preparation.ready === preparation.total ? 'Forecasts saved' : 'Saving forecasts'} · ${preparation.ready}/${preparation.total}`;
 }
 
+/** Other fields ignore the saved SLD preference, including in image identities. */
+export const gridSldOverlay = (field: AwcGridField | 'none', enabled: boolean): boolean =>
+  enabled && (field === 'icingProbability' || field === 'icingSeverity');
+
 export const GRID_LABELS: Record<AwcGridField, string> = {
   cloudCover: 'Cloud coverage', cloudBase: 'Cloud bases', cloudTop: 'Cloud tops',
   freezingLowest: 'Lowest freezing height', freezingHighest: 'Highest freezing height',

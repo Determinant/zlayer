@@ -72,6 +72,7 @@ test('map symbols, weather colors and route pixels survive rotation, resize and 
   const check = async () => {
     await expect(page.locator('body')).toHaveAttribute('data-idle', 'true');
     const pixels = await page.evaluate(() => window.graphicsFixture.mapPixels());
+    expect(pixels.map(pixel => pixel.name)).toEqual(expect.arrayContaining([...Object.keys(expected), 'route']));
     for (const pixel of pixels) {
       if (expected[pixel.name]) expectColor(pixel.color, expected[pixel.name]!, pixel.name);
       if (pixel.name === 'route') {

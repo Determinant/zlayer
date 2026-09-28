@@ -1,9 +1,11 @@
+import type { HeadingListener, HeadingSample } from '../../core/map/heading';
 import { ESTIMATOR_MODEL } from './estimator/state-layout.js';
+import { createLayerEvents } from '../../core/layers/events';
 import { createLayerStore } from '../../core/layers/store';
 import type { GpsService } from '../../core/gps/service';
 import { Ahrs, DEFAULTS, validateImuSample } from './estimator/ahrs';
 import { FlightAlignment, MIN_FLIGHT_GPS_SPEED, type FlightAlignmentIssue, type FlightAlignmentReason } from './estimator/flight-alignment';
-import { G, RAD, rotate, type Quaternion } from './estimator/math';
+import { G, RAD, norm, rotate, rotationBetween, type Quaternion } from './estimator/math';
 import type { Mount } from './estimator/device-frame';
 import type { Attitude, ImuSample, MagneticSample } from './estimator/types';
 import { createMotionSensor, type MotionFactory, type MotionPort, type MotionReading } from './motion';
@@ -71,7 +73,18 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
   const alignment = new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true, pauseOnGap: true });
   const headingReference = new HeadingReference();
   const estimatorOptions = { ...DEFAULTS, recoverAfterGap: true };
-  const createFilter = () => new Ahrs(estimatorOptions, observation => recorder.record('innovation', environment.now(), observation));
+  let mode: 'heading' | 'instruments' | null = null;
+  // Instrument recordings/replay start from a confirmed alignment. Automatic
+  // map sessions neither own the recorder nor inject unaligned replay inputs.
+  const recordSensor = (type: string, data: unknown) => {
+    if (mode === 'instruments') recorder.record(type, environment.now(), data);
+  };
+  const createFilter = () => new Ahrs(estimatorOptions, observation => recordSensor('innovation', observation));
+  const headingEvents = createLayerEvents<HeadingSample | null>();
+  const headingLeases = new Set<() => void>();
+  let lastHeadingTime = -Infinity;
+  let headingAvailable = false, automaticTrimPending = false;
+  const filterActive = () => hasAlignment || mode === 'heading';
   let filter = createFilter(), trim: Quaternion = [1, 0, 0, 0];
   let motion: MotionPort | undefined;
   let releaseGps: (() => void) | undefined, unsubscribe: (() => void) | undefined;
@@ -106,6 +119,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     return { fix, time, live, usable, reason };
   };
   const readSnapshot = (): AhrsSnapshot => {
+    if (mode === 'heading') return initial();
     const now = environment.now(), location = gpsState();
     const attitude = hasAlignment ? filter.getState(now) : null;
     const calibration = alignment.snapshot(now);
@@ -141,57 +155,77 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       speed: location.live ? location.fix!.speed : null,
       trueHeading: attitude !== null && attitude.headingStatus === 'tracking' };
   };
-  const publish = () => { if (visible) store.publish(readSnapshot()); };
+  const publishHeading = (clear = false) => {
+    if (!headingLeases.size) return;
+    const now = environment.now();
+    const usable = !clear && filterActive() && gpsState().usable && !motionIssue && now - lastImu <= .5;
+    if (usable && now - lastHeadingTime < .25) return;
+    let sample: HeadingSample | null = null;
+    if (usable) {
+      const attitude = filter.getState(now), heading = headingReference.read(now);
+      if (heading && !['waiting', 'interrupted', 'stale'].includes(attitude.status)
+        && attitude.tiltStd <= 20 && Math.abs(Math.cos(attitude.pitch * RAD)) >= .1) {
+        sample = { degrees: heading.degrees, time: lastImu, frame: generation };
+      }
+    }
+    if (sample ? sample.time - lastHeadingTime < .25 : !headingAvailable) return;
+    headingAvailable = sample !== null;
+    lastHeadingTime = sample?.time ?? -Infinity;
+    headingEvents.emit(sample);
+  };
+  const publish = () => { if (visible && mode !== 'heading') store.publish(readSnapshot()); };
   const updateDisplayTimer = () => {
     clearInterval(timer); timer = undefined;
-    if (visible && motion) timer = setInterval(publish, 50);
+    if (visible && motion && mode === 'instruments') timer = setInterval(publish, 50);
   };
   const observeGps = () => {
     const { fix, time, live, usable } = gpsState();
-    recorder.record('gps', environment.now(), { ...gps.getSnapshot(), time,
-      forwarded: !!fix && time > lastFix && time <= environment.now() + .1 && hasAlignment && live });
+    recordSensor('gps', { ...gps.getSnapshot(), time,
+      forwarded: !!fix && time > lastFix && time <= environment.now() + .1 && filterActive() && live });
     if (fix && time > lastFix && time <= environment.now() + 0.1) {
       lastFix = time;
       const sample = { time, accuracy: fix.accuracy, speed: fix.speed, track: fix.track, estimated: fix.estimated };
       if (phase === 'calibrating') alignment.observeGps(sample);
-      if (hasAlignment && live) filter.updateGps({ ...sample, altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
-      const attitude = hasAlignment ? filter.getState(environment.now()) : null;
+      if (filterActive() && live) filter.updateGps({ ...sample, altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
+      const attitude = filterActive() ? filter.getState(environment.now()) : null;
       if (attitude) headingReference.observeAttitude(attitude, environment.now());
-      if (usable && (hasAlignment || heading === undefined)) {
+      if (usable && (filterActive() || heading === undefined)) {
         headingReference.observeGps(time, fix.track!, environment.now(), attitude);
       }
     }
+    publishHeading();
     publish();
   };
   const reportMotionIssue = (issue: string) => {
     motionIssue = true;
+    publishHeading(true);
     message = issue;
-    recorder.record('issue', environment.now(), { message, recoverable: true });
+    recordSensor('issue', { message, recoverable: true });
     publish();
   };
   const magnetic = (value: MagneticSample) => {
     magneticMessage = '';
-    const forwarded = hasAlignment && phase === 'ready';
+    const forwarded = filterActive() && (phase === 'ready' || mode === 'heading');
     const sample: MagneticSample = value.source === 'webkit-compass' ? { ...value, axis: rotate(trim, value.axis) }
       : { ...value, vector: rotate(trim, value.vector) };
-    recorder.record('magnetic', environment.now(), { sample, forwarded });
+    recordSensor('magnetic', { sample, forwarded });
     if (forwarded) filter.updateMagnetic(sample);
   };
   const magneticIssue = (reason: string) => {
     magneticMessage = reason;
-    recorder.record('magnetic-issue', environment.now(), { reason });
+    recordSensor('magnetic-issue', { reason });
     filter.magneticUnavailable(reason);
   };
   const sample = (value: ImuSample, raw?: MotionReading) => {
     try { validateImuSample(value); }
     catch {
-      recorder.record('imu', environment.now(), { sample: value, raw, phase, applied: false });
+      recordSensor('imu', { sample: value, raw, phase, applied: false });
       reportMotionIssue('Skipped an invalid motion reading. Waiting for fresh readings.');
       return;
     }
     if (value.time <= lastImu) return;
     lastImu = value.time;
-    recorder.record('imu', environment.now(), { sample: value, raw, phase,
+    recordSensor('imu', { sample: value, raw, phase,
       applied: phase === 'calibrating' || phase === 'ready' });
     try {
       message = '';
@@ -219,16 +253,26 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
           lastFix = -Infinity;
           observeGps();
         }
-      } else if (phase === 'ready') {
+      } else if (phase === 'ready' || mode === 'heading') {
+        if (automaticTrimPending) {
+          // Do not advance an uninitialized filter's clock through unsettled
+          // readings. Recovery from gaps requires an initialized attitude.
+          if (Math.abs(norm(value.specificForce) / G - 1) > .12) return;
+          // Choose a local horizontal heading frame for any fixed device mount.
+          // This is a gravity bootstrap, not an aircraft level/bias calibration.
+          trim = rotationBetween(value.specificForce, [0, 0, -G]);
+          automaticTrimPending = false;
+        }
         const corrected = { time: value.time, gyro: rotate(trim, value.gyro), specificForce: rotate(trim, value.specificForce) };
         const attitude = filter.update(corrected);
         headingReference.observeImu(corrected, attitude, environment.now());
       }
-      if (recorder.accepting() && value.time >= nextRecordedState) {
-        recorder.record('state', environment.now(), readSnapshot());
+      publishHeading();
+      if (mode === 'instruments' && recorder.accepting() && value.time >= nextRecordedState) {
+        recordSensor('state', readSnapshot());
         nextRecordedState = value.time + .1;
         if (hasAlignment && value.time >= nextRecordedCovariance) {
-          recorder.record('covariance', environment.now(), Array.from(filter.getCovariance()));
+          recordSensor('covariance', Array.from(filter.getCovariance()));
           nextRecordedCovariance = value.time + 1;
         }
       }
@@ -237,33 +281,92 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     }
   };
   const release = () => {
-    // Invalidate callbacks on failure as well as explicit stop/recalibration.
-    generation++;
-    motion?.stop(); motion = undefined;
+    // Clear ownership before callbacks: releasing GPS or notifying a consumer
+    // can synchronously dispose this session or start its replacement.
+    const session = ++generation;
+    const sensor = motion, unobserve = unsubscribe, location = releaseGps;
+    motion = undefined; unsubscribe = releaseGps = undefined;
     clearInterval(timer); timer = undefined;
-    unsubscribe?.(); unsubscribe = undefined;
-    releaseGps?.(); releaseGps = undefined;
+    sensor?.stop(); unobserve?.(); location?.();
+    publishHeading(true);
+    return session;
   };
   const failMotion = (issue: string) => {
-    release();
+    const session = release();
+    if (session !== generation) return;
     phase = 'error'; message = issue;
-    recorder.record('issue', environment.now(), { message });
+    recordSensor('issue', { message });
     publish();
   };
-  const stop = () => {
-    recorder.record('stop', environment.now(), {});
-    void recorder.stop();
-    release();
+  const resetSession = () => {
+    const session = release();
+    if (session !== generation) return session;
+    mode = null;
     phase = 'idle'; hasAlignment = false; message = ''; motionIssue = false;
-    // The layer stays mounted when stopped. Release replay covariances and the
-    // independent heading trajectory instead of retaining the last session.
+    // Sensor demand and recording demand have independent owners. Resetting
+    // automatic heading must not end a recording prepared for calibration.
     filter.reset();
     headingReference.reset();
     alignment.reset();
     store.publish(initial());
+    return session;
+  };
+  const stopRecording = () => {
+    recorder.record('stop', environment.now(), {});
+    void recorder.stop();
+  };
+  // One sensor/filter/GPS session serves instrument and heading consumers. A
+  // heading lease never asserts a calibrated instrument level reference.
+  const startSensors = async (session: number) => {
+    if (session !== generation) return;
+    try {
+      const sensor = environment.motion(mount,
+        (value, raw) => { if (session === generation) sample(value, raw); },
+        issue => { if (session === generation) reportMotionIssue(issue); }, {
+          sample: value => { if (session === generation) magnetic(value); },
+          issue: reason => { if (session === generation) magneticIssue(reason); },
+        });
+      if (session !== generation) { sensor.stop(); return; }
+      motion = sensor;
+      await sensor.start(); // Permission request stays in the initiating gesture.
+      if (session !== generation) { sensor.stop(); return; }
+      if (mode === 'instruments') phase = 'calibrating';
+      const releaseLocation = gps.acquire();
+      if (session !== generation) { releaseLocation(); return; }
+      releaseGps = releaseLocation;
+      unsubscribe = gps.subscribe(() => { if (session === generation) observeGps(); });
+      observeGps();
+      updateDisplayTimer();
+    } catch (error) {
+      if (session !== generation) return;
+      failMotion(error instanceof Error ? error.message : 'Motion sensors are unavailable.');
+    }
+  };
+  const startHeading = () => {
+    const session = resetSession();
+    if (session !== generation || !headingLeases.size) return;
+    mode = 'heading';
+    // Automatic gravity initialization has no confirmed level pose or measured
+    // gyro bias. Preserve that uncertainty; GPS seeds only a display reference.
+    filter = new Ahrs({ ...estimatorOptions, initialTiltStd: 15 });
+    trim = [1, 0, 0, 0]; heading = undefined; automaticTrimPending = true;
+    lastImu = lastFix = -Infinity;
+    magneticMessage = '';
+    void startSensors(session);
   };
   return {
     definition: { id: 'ahrs', title: 'AHRS' },
+    acquireHeading(listener: HeadingListener) {
+      const unsubscribe = headingEvents.events.subscribe(listener);
+      const release = () => {
+        if (!headingLeases.delete(release)) return;
+        unsubscribe();
+        if (!headingLeases.size && mode === 'heading') resetSession();
+      };
+      headingLeases.add(release);
+      if (mode === null || (mode === 'heading' && !motion)) startHeading();
+      return release;
+    },
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
     /** Fresh display read between status publications; never advances the estimator. */
@@ -292,43 +395,33 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       if (trueHeading !== undefined && (!Number.isFinite(trueHeading) || trueHeading < 0 || trueHeading >= 360)) return;
       mount = nextMount;
       recorder.record('calibrate', environment.now(), { mount, trueHeading: trueHeading ?? null });
-      release();
-      const session = generation;
+      const session = release();
+      if (session !== generation) return;
+      mode = 'instruments'; automaticTrimPending = false;
       phase = 'requesting'; message = ''; hasAlignment = false; motionIssue = false;
-      filter.reset();
+      filter = createFilter();
       headingReference.reset(trueHeading, environment.now());
       magneticMessage = '';
       lastImu = lastFix = -Infinity;
       heading = trueHeading;
       alignment.reset();
       publish();
-      try {
-        const sensor = environment.motion(mount,
-          (value, raw) => { if (session === generation) sample(value, raw); },
-          issue => { if (session === generation) reportMotionIssue(issue); }, {
-            sample: value => { if (session === generation) magnetic(value); },
-            issue: reason => { if (session === generation) magneticIssue(reason); },
-          });
-        if (session !== generation) { sensor.stop(); return; }
-        motion = sensor;
-        // Start permission request before any await, in the pilot's click handler.
-        await sensor.start();
-        if (session !== generation) { sensor.stop(); return; }
-        phase = 'calibrating';
-        const releaseLocation = gps.acquire();
-        // Acquiring may synchronously notify another consumer that stops us.
-        if (session !== generation) { releaseLocation(); return; }
-        releaseGps = releaseLocation;
-        unsubscribe = gps.subscribe(() => { if (session === generation) observeGps(); });
-        observeGps();
-        updateDisplayTimer();
-      } catch (error) {
-        if (session !== generation) return;
-        failMotion(error instanceof Error ? error.message : 'Motion sensors are unavailable.');
-      }
+      await startSensors(session);
     },
     retryGps: () => gps.retry(),
-    stop,
+    stop() {
+      // Instrument teardown must not restart an already automatic map session.
+      stopRecording();
+      if (mode === 'heading') return;
+      if (headingLeases.size) startHeading();
+      else resetSession();
+    },
+    dispose() {
+      stopRecording();
+      publishHeading(true);
+      for (const release of headingLeases) release();
+      resetSession();
+    },
   };
 }
 export type AhrsLayer = ReturnType<typeof createAhrsLayer>;

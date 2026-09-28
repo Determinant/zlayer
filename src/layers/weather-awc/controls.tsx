@@ -1,5 +1,5 @@
 import type { AwcAdvisoryProduct } from '@zlayer/contracts';
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { formatTimestamp, formatTimestampRange, formatAge } from '../../core/format/time';
 import { useEdgePanel } from '../../core/ui/edge-panels';
@@ -7,7 +7,7 @@ import { DetailPanel } from '../../core/ui/detail-panel';
 import { ToolPanel } from '../../core/ui/tool-panel';
 import { TabList, tabPanelProps } from '../../core/ui/tabs';
 import type { AdvisoryState } from './client';
-import type { WeatherController } from './controller';
+import type { WeatherController, WeatherState } from './controller';
 import type { WeatherAwcPreferences } from './preferences';
 import { advisoryTitle, advisoryHazard } from './source';
 import { advisoryFrame } from './time';
@@ -66,13 +66,12 @@ function sourceStatus(record: AdvisoryState, now: number) {
   return { age, stale, label };
 }
 
-function ProductStatus({ controller, product }: { controller: WeatherController; product: AwcAdvisoryProduct }) {
-  const state = useLayerSnapshot(controller), record = state.products[product];
+function ProductStatus({ state, product, shown }: { state: WeatherState; product: AwcAdvisoryProduct; shown: number }) {
+  const record = state.products[product];
   const selected = state.selectedTime ?? state.now;
   const frame = advisoryFrame(record.snapshot, selected);
   const { age, stale, label: status } = sourceStatus(record, state.now);
   const label = product === 'gairmet' ? 'G-AIRMET' : product === 'sigmet' ? 'SIGMET' : 'CWA';
-  const shown = controller.visibleAdvisories().filter(a => a.product === product && state.advisoryDisplay.ids.includes(a.id)).length;
   return <div className="awc-product-status" data-product={product}>
     <strong>{label}</strong><span>{status}
       {age !== undefined && ` · ${formatAge(age)} ago`}</span>
@@ -83,6 +82,40 @@ function ProductStatus({ controller, product }: { controller: WeatherController;
           : selected > state.now ? 'No issued advisories cover this time' : stale ? 'No active advisories in saved data' : 'No active advisories'}</small>
     {record.error && <small className="awc-error">{record.error}</small>}
   </div>;
+}
+
+function AdvisoryControls({ controller }: { controller: WeatherController }) {
+  const state = useLayerSnapshot(controller), p = state.preferences;
+  const gairmetTime = advisoryFrame(state.products.gairmet.snapshot, state.selectedTime ?? state.now).time;
+  const advisories = controller.visibleAdvisories();
+  const counts = useMemo(() => {
+    const displayed = new Set(state.advisoryDisplay.ids), counts = { gairmet: 0, sigmet: 0, cwa: 0 };
+    for (const advisory of advisories) if (displayed.has(advisory.id)) counts[advisory.product]++;
+    return counts;
+  }, [advisories, state.advisoryDisplay.ids]);
+  const degraded = Object.entries(state.products).some(([product, record]) => {
+    const enabled = product === 'gairmet' ? p.awcGairmet || p.awcFreezing : product === 'sigmet' ? p.awcSigmet || p.awcConvective : p.awcCwa;
+    return enabled && sourceStatus(record, state.now).stale;
+  });
+  return <>
+    {(p.awcGairmet || p.awcFreezing) && <small className="awc-frame-time">
+      G-AIRMET: {gairmetTime === undefined ? 'No forecast for this time' : formatTimestamp(gairmetTime)}</small>}
+    <WeatherFilters controller={controller} />
+    {state.advisoryDisplay.error && <div className="awc-error" role="status">
+      <span>{state.advisoryDisplay.error}</span>{' '}
+      <button type="button" className="ui-button ui-button--slim" onClick={() => controller.retryAdvisories()}>Retry advisories</button>
+    </div>}
+    <small>Right-click or long-press an advisory, then choose Inspect weather.</small>
+    <details className="awc-source-status"><summary>{degraded ? 'Cached / unavailable · ' : ''}Products &amp; source status</summary>
+      {(p.awcGairmet || p.awcFreezing) && <ProductStatus state={state} product="gairmet" shown={counts.gairmet} />}
+      {(p.awcSigmet || p.awcConvective) && <ProductStatus state={state} product="sigmet" shown={counts.sigmet} />}
+      {p.awcCwa && <ProductStatus state={state} product="cwa" shown={counts.cwa} />}
+      <p>Forecast snapshots show their own valid time.</p>
+      <div className="awc-legend">{ADVISORY_LEGEND.map(({ color, label }) =>
+        <span key={label}><i style={{ backgroundColor: color }} aria-hidden="true" />{label}</span>)}</div>
+      <a href="https://aviationweather.gov/gfa/" target="_blank" rel="noreferrer">NOAA / Aviation Weather Center</a>
+    </details>
+  </>;
 }
 
 const WEATHER_TABS = [{ value: 'advisories', label: 'Advis.', accessibleLabel: 'Advisories' }, { value: 'progs', label: 'Progs' }, { value: 'radar', label: 'Radar' },
@@ -97,7 +130,6 @@ export function WeatherToolbox({ controller }: { controller: WeatherController }
 
 function WeatherToolboxContent({ controller, panel }: { controller: WeatherController; panel: ReturnType<typeof useEdgePanel> }) {
   const state = useLayerSnapshot(controller), p = state.preferences;
-  const gairmetTime = advisoryFrame(state.products.gairmet.snapshot, state.selectedTime ?? state.now).time;
   const tabsId = useId();
   const [category, setCategory] = useState<WeatherCategory>('advisories');
   const content = useRef<HTMLElement>(null);
@@ -117,10 +149,6 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
     target?.focus();
     setFocusAltitude(false);
   }, [panel.open, focusAltitude, category]);
-  const degraded = Object.entries(state.products).some(([product, record]) => {
-    const enabled = product === 'gairmet' ? p.awcGairmet || p.awcFreezing : product === 'sigmet' ? p.awcSigmet || p.awcConvective : p.awcCwa;
-    return enabled && sourceStatus(record, state.now).stale;
-  });
   return <section ref={content} className="awc-toolbox" aria-label="AWC Weather toolbox">
       <div className="awc-toolbox-heading"><h3>AWC Weather</h3><span>{category === 'progs' ? 'N. America' : 'CONUS'}</span>
         <button className="ui-switch" type="button" role="switch" aria-label="Show AWC weather"
@@ -134,23 +162,7 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
           tabs={WEATHER_TABS.map(tab => ({ ...tab, active: active[tab.value], description: active[tab.value] ? 'Map overlay enabled' : 'Map overlay off' }))}
           value={category} onChange={setCategory} />
         <div className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, 'advisories', category)}>
-          {(p.awcGairmet || p.awcFreezing) && <small className="awc-frame-time">
-            G-AIRMET: {gairmetTime === undefined ? 'No forecast for this time' : formatTimestamp(gairmetTime)}</small>}
-          <WeatherFilters controller={controller} />
-          {state.advisoryDisplay.error && <div className="awc-error" role="status">
-            <span>{state.advisoryDisplay.error}</span>{' '}
-            <button type="button" className="ui-button ui-button--slim" onClick={() => controller.retryAdvisories()}>Retry advisories</button>
-          </div>}
-          <small>Right-click or long-press an advisory, then choose Inspect weather.</small>
-          <details className="awc-source-status"><summary>{degraded ? 'Cached / unavailable · ' : ''}Products &amp; source status</summary>
-            {(p.awcGairmet || p.awcFreezing) && <ProductStatus controller={controller} product="gairmet" />}
-            {(p.awcSigmet || p.awcConvective) && <ProductStatus controller={controller} product="sigmet" />}
-            {p.awcCwa && <ProductStatus controller={controller} product="cwa" />}
-            <p>Forecast snapshots show their own valid time.</p>
-            <div className="awc-legend">{ADVISORY_LEGEND.map(({ color, label }) =>
-              <span key={label}><i style={{ backgroundColor: color }} aria-hidden="true" />{label}</span>)}</div>
-            <a href="https://aviationweather.gov/gfa/" target="_blank" rel="noreferrer">NOAA / Aviation Weather Center</a>
-          </details>
+          {category === 'advisories' && <AdvisoryControls controller={controller} />}
         </div>
         <div className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, 'progs', category)}>
           {category === 'progs' && <ProgsControls controller={controller} />}
@@ -173,8 +185,10 @@ export function WeatherDetails({ controller, revision }: { controller: WeatherCo
   useLayoutEffect(() => {
     if (state.selectedIds.length || state.gridPoint) panel.setOpen(true);
   }, [state.selectedIds, state.gridPoint, panel.setOpen]);
-  const advisories = Object.values(state.products).flatMap(p => p.snapshot?.advisories ?? []).filter(a => state.selectedIds.includes(a.id));
-  const surface = controller.surfaceSelection().frame?.features.filter(f => state.selectedIds.includes(f.id)) ?? [];
+  if (!state.selectedIds.length && !state.gridPoint) return null;
+  const ids = new Set(state.selectedIds);
+  const advisories = ids.size ? Object.values(state.products).flatMap(p => p.snapshot?.advisories ?? []).filter(a => ids.has(a.id)) : [];
+  const surface = ids.size ? controller.surfaceSelection().frame?.features.filter(f => ids.has(f.id)) ?? [] : [];
   if (!advisories.length && !surface.length && !state.gridPoint) return null;
   return <DetailPanel panel={panel} title={state.gridPoint || surface.length ? "Weather Details" : "Advisories"} label="Weather advisory details"
     onClose={controller.clearSelection} closeLabel="Close weather details" contentLabel="Weather advisory details"

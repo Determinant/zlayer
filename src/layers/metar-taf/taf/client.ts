@@ -63,7 +63,7 @@ export class TafClient {
           const id = normalizeIdentifier(report.icaoId);
           if (!id || !/^[A-Z0-9]{4}$/.test(id) || stationDistance(point, report) > NEARBY_STATION_RADIUS_NM) continue;
           const current = reports.get(id);
-          if (!current || newestFirst(report, current) < 0) reports.set(id, report);
+          if (!current || newestFirst(report, current, (this.options.now ?? Date.now)()) < 0) reports.set(id, report);
         }
       }
       signal.throwIfAborted();
@@ -95,7 +95,7 @@ export class TafClient {
     url.searchParams.set('format', 'json');
     try {
       const { reports, checkedAt } = await this.#request(url, signal);
-      const received = reports.filter(report => normalizeIdentifier(report.icaoId) === id).sort(newestFirst)[0];
+      const received = reports.filter(report => normalizeIdentifier(report.icaoId) === id).sort((a, b) => newestFirst(a, b, (this.options.now ?? Date.now)()))[0];
       this.#accept(id, received, checkedAt);
       this.#save();
     } catch (error) {
@@ -121,10 +121,11 @@ export class TafClient {
 
   #accept(id: string, received: TafReport | undefined, checkedAt: number): void {
     const saved = this.get(id), previous = saved?.report;
+    const now = (this.options.now ?? Date.now)();
     // A shared cache hit must not replace a newer successful source check.
-    if (saved?.checkedAt !== undefined && saved.checkedAt <= (this.options.now ?? Date.now)() && saved.checkedAt > checkedAt &&
-      (!received || previous && newestFirst(previous, received) <= 0)) return;
-    const report = previous && (!received || newestFirst(previous, received) < 0) ? previous : received;
+    if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
+      (!received || previous && newestFirst(previous, received, now) <= 0)) return;
+    const report = previous && (!received || newestFirst(previous, received, now) < 0) ? previous : received;
     this.#stations.delete(id);
     this.#stations.set(id, {
       ...(report ? { report } : {}), checkedAt, missing: !received || report !== received,
@@ -144,8 +145,12 @@ export class TafClient {
   }
 }
 
-function newestFirst(a: TafReport, b: TafReport): number {
-  return Date.parse(b.issueTime) - Date.parse(a.issueTime) ||
+function newestFirst(a: TafReport, b: TafReport, now: number): number {
+  const aTime = Date.parse(a.issueTime), bTime = Date.parse(b.issueTime);
+  // A future issue cannot outrank usable weather, in batches or saved reports.
+  // Future validity is normal for a forecast; only issuance determines this rank.
+  if ((aTime > now) !== (bTime > now)) return aTime > now ? 1 : -1;
+  return bTime - aTime ||
     (Date.parse(b.dbPopTime ?? b.issueTime) - Date.parse(a.dbPopTime ?? a.issueTime));
 }
 

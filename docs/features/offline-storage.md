@@ -81,6 +81,18 @@ Point selection, chart clipping and viewport badges use the same Mercator geomet
 including holes, islands and both sides of the date line. Legacy unnamed selections
 continue to use their saved rectangular coverage.
 
+Partitioning first checks whether any candidate region boundary could enter the
+viewport/tile rectangle. It checks every ring, including holes and islands, with
+conservative edge bounds. If no boundary can touch the rectangle, one point test
+determines uniform ownership: assign all remaining coverage to that saved region,
+or skip it entirely. Higher-priority regions' claims and holes remain intact. Possible
+crossings, edge touches and degenerate rectangles use the exact polygon
+intersection/difference path. Testing only rectangle corners would be incorrect
+for enclosed holes, islands or concave borders. This fast path shares the existing
+32-entry partition cache and projected masks; it adds no retained spatial index,
+worker or simplified geometry. See the [chart benchmark](../../src/layers/charts/benchmark.md)
+for performance measurements and pixel/ownership checks.
+
 The planner selects every intersecting spatial/zoom archive, across all chart
 families, directly from the existing manifest. Rectangles and archive grids include
 some neighboring coverage. No MBTiles rebuild, republish, or second file layout is

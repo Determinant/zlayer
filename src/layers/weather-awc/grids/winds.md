@@ -148,9 +148,12 @@ meteorological direction. No per-point DOM, continuously animated canvas, or ful
 CONUS symbol collection is created.
 
 MapLibre transforms existing symbols during camera movement. Placement updates
-at lattice zoom thresholds, move completion and resize; weather status and opacity
-updates do not rebuild the wind source. Camera updates reuse numeric data and
-never acquire or decode forecasts. Wind resources, images and subscriptions are
+at lattice zoom thresholds, move completion and resize. Camera invalidation and
+sampling share the same native-resolution ceiling, so zooming beyond it does not
+trigger intermediate subdivisions. Each sampling pass reuses its two wind-band
+readers; weather status and opacity updates do not rebuild the wind source.
+Camera updates reuse numeric data and never acquire or decode forecasts.
+Wind resources, images and subscriptions are
 removed on disable/unmount and recreated through the normal map lifecycle.
 
 ## Time, preparation and cache

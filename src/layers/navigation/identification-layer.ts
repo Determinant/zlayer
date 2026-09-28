@@ -1,5 +1,5 @@
 import type { FeatureCollection, LineString, Point } from 'geojson';
-import { MercatorCoordinate, type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
+import { MercatorCoordinate, type ErrorEvent, type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { NEARBY_VOR_MAP_LIMIT, type NearbyVor } from '@zlayer/domain';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
@@ -67,17 +67,53 @@ function referenceOffset(stations: readonly NearbyVor[], index: number): [number
   return [0, lane === 1 ? 1.3 : -0.7 - lane * 1.5];
 }
 
+// Ignore sub-millimeter projection roundoff during otherwise unchanged pans.
+const geometryIdentity = (data: FeatureCollection) => JSON.stringify(data,
+  (_key, value: unknown) => typeof value === 'number' ? Math.round(value * 1e9) / 1e9 : value);
+
 /** An ephemeral reference overlay; it does not participate in map selection. */
 export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentification> {
   let map: MapLibreMap | undefined;
   let input: NavaidIdentification;
-  const refresh = () => (map?.getSource(SOURCE) as GeoJSONSource | undefined)?.setData(identificationGeoJson(input, map));
+  let submitted = '', pending = false, dirty = false, generation = 0;
+  const sourceFailed = (event: ErrorEvent & { sourceId?: string }) => {
+    if (event.sourceId !== SOURCE) return;
+    // MapLibre can emit an error and still resolve setData. Retry on the next
+    // input/camera update without releasing an outstanding submission early.
+    submitted = ''; dirty = false;
+  };
+  const refresh = () => {
+    if (!map) return;
+    dirty = true;
+    if (pending) return;
+    dirty = false;
+    const data = identificationGeoJson(input, map), identity = geometryIdentity(data);
+    if (identity === submitted) return;
+    const source = map.getSource(SOURCE) as GeoJSONSource | undefined;
+    if (!source) return;
+    submitted = identity; pending = true;
+    const version = generation;
+    // Keep at most one worker submission active; its successor uses the latest camera.
+    let result: ReturnType<GeoJSONSource['setData']>;
+    try { result = source.setData(data); }
+    catch { submitted = ''; pending = false; return; }
+    void Promise.resolve(result)
+      .catch(() => { if (version === generation) { submitted = ''; dirty = false; } })
+      .finally(() => {
+        if (version !== generation) return;
+        pending = false;
+        if (dirty) refresh();
+      });
+  };
   const move = () => { if (input?.stations.length) refresh(); };
   return {
     id: SOURCE, slot: 'annotation', overlayLayerIds: LAYERS, foregroundLayerIds: ['navaid-id-points', 'navaid-id-labels', 'navaid-id-references'],
     mount(target) {
       map = target;
-      map.addSource(SOURCE, { type: 'geojson', data: identificationGeoJson(input, map) });
+      const data = identificationGeoJson(input, map);
+      submitted = geometryIdentity(data);
+      map.on('error', sourceFailed);
+      map.addSource(SOURCE, { type: 'geojson', data });
       map.addLayer({ id: 'navaid-id-halo', type: 'line', source: SOURCE, filter: ['==', '$type', 'LineString'],
         ...REFERENCE_LINE_HALO });
       map.addLayer({ id: 'navaid-id-lines', type: 'line', source: SOURCE, filter: ['==', '$type', 'LineString'],
@@ -101,11 +137,14 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
       map.on('move', move);
     },
     update(next) {
+      if (input === next && submitted) return;
       input = next;
       refresh();
     },
     unmount() {
+      generation++; pending = false; dirty = false; submitted = '';
       if (map) {
+        map.off('error', sourceFailed);
         map.off('move', move);
         removeLayerResources(map, LAYERS, [SOURCE]);
       }

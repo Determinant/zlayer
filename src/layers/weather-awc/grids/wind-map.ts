@@ -2,7 +2,7 @@ import type { Map } from 'maplibre-gl';
 import { createSourceSubmission } from '../source-submission';
 import type { WeatherController } from '../controller';
 import { gridKey, gridMatchesTime, type DecodedGrid } from './format';
-import { barbGeometry, windSymbols } from './wind';
+import { barbGeometry, windSymbols, windLatticeLevel } from './wind';
 
 const SOURCE = 'weather-awc-winds', LAYER = 'weather-awc-wind-barbs';
 const imageId = (speed: number) => `weather-awc-barb-${speed}`;
@@ -61,6 +61,7 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
     }
     if (submission.failed) clear();
     const version = submission.begin(); key = identity; cameraDirty = false;
+    zoomLevel = windLatticeLevel(data, map.getZoom());
     // Keep symbols through camera movement only for the same forecast. New
     // time/run/level data stays hidden until MapLibre accepts its replacement.
     if (previous && gridKey(previous.manifest, previous.frame) !== identity) {
@@ -114,7 +115,9 @@ export function mountWindMap(map: Map, controller: WeatherController, before: st
   };
   const move = () => { cameraDirty = true; update(); };
   const zoom = () => {
-    const level = Math.floor(map.getZoom() + Math.log2(512 / 80));
+    const state = controller.getSnapshot(), data = state.wind.data;
+    if (!state.preferences.awcEnabled || !state.preferences.awcWindBarbs || !data) return;
+    const level = windLatticeLevel(data, map.getZoom());
     if (level !== zoomLevel) { zoomLevel = level; move(); }
   };
   map.on('moveend', move); map.on('resize', move); map.on('zoom', zoom);

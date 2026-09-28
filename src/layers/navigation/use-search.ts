@@ -57,11 +57,20 @@ export function useNavigationSearch(
 
   const current = state?.catalog === catalog && state?.query === normalizedQuery ? state : undefined;
   // Score after React batches ready feeds; retain their catalog order for tied matches.
-  const results = useMemo(() => searchNavigation(current?.layers.flatMap(({ result }) => {
-    const collection = result?.collection;
-    return collection ? [metars && collection.meta.layer === 'airports'
-      ? mergeMetarsIntoAirports(collection, metars) : collection] : [];
-  }) ?? [], normalizedQuery), [current, metars, normalizedQuery]);
+  const matches = useMemo(() => searchNavigation(current?.layers.flatMap(({ result }) =>
+    result?.collection ? [result.collection] : []) ?? [], normalizedQuery), [current, normalizedQuery]);
+  // Weather does not affect ranking. Enrich only the bounded airport results.
+  const results = useMemo(() => {
+    if (!metars) return matches;
+    const airports = matches.filter(result => result.layer === 'airports');
+    if (!airports.length) return matches;
+    const enriched = mergeMetarsIntoAirports({ type: 'FeatureCollection',
+      features: airports.map(result => result.feature),
+      meta: { revision: '', layer: 'airports', returned: airports.length, truncated: false },
+    }, metars).features;
+    let index = 0;
+    return matches.map(result => result.layer === 'airports' ? { ...result, feature: enriched[index++]! } : result);
+  }, [matches, metars]);
   return {
     results,
     loading: Boolean(catalog && normalizedQuery.length >= 2 && (!current || current.layers.some(layer => layer.pending))),

@@ -6,7 +6,7 @@ Open the left-side **GPS** tab to toggle **GPS aircraft** and allow device locat
 The compact core switch matches Terrain and AWC Weather, without a separate On/Off
 label, and stays available when GPS is off. GPS starts enabled when
 there is no saved preference; an explicit Off choice persists. Enabling the layer
-centers the map on the first fix. In north-up, reloading with GPS already enabled
+centers the map on the first fresh fix with accuracy of 100 meters or better. In north-up, reloading with GPS already enabled
 preserves the saved camera through that first fix. Later north-up updates preserve
 panning and zooming; **Center aircraft** returns to the current position.
 Enabling GPS while its renderer loads still centers on the first fix. Turning it
@@ -23,6 +23,35 @@ centering and any active GPS follow animation are cancelled; following resumes o
 a usable fix. A fresh, accurate position without a ground track still centers the
 aircraft while holding the bearing. Missing track shows **Waiting for GPS track**.
 North-up works without GPS and does not continuously follow position.
+
+Track-up rotation uses an event-driven circular damper and a 1° angular deadband.
+Small GPS fluctuations do not rotate the map, even during position following.
+Larger turns settle faster than small corrections. First acquisition and recovery
+seed the bearing directly; north-up remains exactly north. Aircraft track, status
+and projection use the original GPS measurements.
+
+Ownship optionally discovers AHRS's leased heading capability. With reported GPS
+speed at least 10 m/s (about 20 kt), accuracy within 50 m, and usable motion, AHRS
+can carry rotation between fixes without instrument calibration. It shares the
+existing AHRS sensor/filter session; it does not create a second IMU pipeline.
+GPS ground track remains the long-term reference: a fixed heading/track offset
+(such as crosswind or device mounting) is not applied to the map. Delayed GPS
+corrections use up to three seconds of acquisition-time heading history. Sensor
+assistance cannot push the bearing farther beyond 15° from the latest track and
+stops propagating after
+three seconds without GPS. A GPS correction already outside that band continues
+settling smoothly; a stationary sensor cannot snap it to the limit. Gaps, sensor-frame changes and implausible heading
+steps discard relative-motion continuity. These are display limits, not measured
+navigation-integrity bounds.
+
+Heading assistance is acquired only for usable track-up demand and released in
+north-up, on GPS loss/poor quality, or camera teardown. AHRS removal, unavailable
+hardware, denied sensor permission or a failed optional acquisition leave damped
+GPS following available. Revoked provider callbacks cannot revive assistance.
+Browsers may require a tap to permit motion: switch to north-up and back to
+track-up with a usable fix to retry. Restoring track-up cannot bypass that browser
+requirement. Keep the device secured; moving it independently of the aircraft
+also moves its sensed heading. See [AHRS heading demand](../ahrs/README.md#automatic-heading-demand).
 
 GPS following waits for a pan, zoom, or route-fit animation to finish. A manual
 pan or **Fit route** keeps its center until the next usable GPS fix; a fix received
@@ -103,15 +132,54 @@ or GPS instrument readings; see the
 [AHRS display policy](../ahrs/README.md#calibration-and-validity).
 
 `createOwnshipPlugin(gps)` and `createOwnshipLayer(gps)` receive the workspace's
-shared GPS service explicitly. Ownship owns its map demand, explicit centering and track
+shared GPS service explicitly. Ownship owns its map demand, centering requests and track
 trend in `layer.ts`; `position.ts` calculates turns and projections, `geometry.ts`
 builds map features, `map.ts` owns MapLibre resources, and `controls.tsx` owns
 controls and status. Core's `gps/service.ts` owns the browser watch, leases,
 freshness, retries and background suspension; `gps/position.ts` validates and
 normalizes fixes, including marked velocity estimates. The workspace registers
 Ownship in the `ownship` rendering slot above route and navigation labels.
-The workspace's `map/navigation-control.ts` owns track-up orientation and position
-following. The map renderer remains lazy loaded.
+The workspace's `map/gps-camera.ts` is the sole owner of GPS camera movement,
+including initial and explicit centering, track-up following, accuracy gating,
+gesture deferral and cancellation. `map/navigation-control.ts` owns the orientation
+button. Initial/explicit centering raises zoom to at least 9; ordinary following
+preserves zoom. All GPS animations stop when their fix becomes unusable, without
+cancelling user camera movements. Deferred fixes are discarded on loss of validity.
+The map renderer remains lazy loaded. Heading updates reach the camera directly;
+they do not publish Ownship geometry or React status snapshots.
+
+### Rendering and battery work
+
+Disabled Ownship releases both its GPS lease and subscription, clears its local
+motion history, and stays idle even when another consumer uses GPS. Enabling joins
+the latest shared fix immediately. Remounting the renderer restores its source
+without replaying initial centering on the same map; replacing the map starts a
+new centering policy. Restored cameras and explicit enable actions during lazy
+loading keep their existing precedence.
+
+Freshness and visual identity are separate. Timestamp, altitude and velocity
+provenance updates remain available to consumers without rebuilding unchanged map
+geometry. The renderer uploads only changes to position, accuracy, live/stale
+appearance or track/vector geometry. Multiple live callbacks before a frame build
+only the latest geometry once. Disabling or losing validity cancels pending live
+work and removes live geometry immediately; unmount cancels the pending frame.
+A source error invalidates visual reuse so the next fresh fix can retry even
+without movement. There is no recurring animation-frame loop or idle rendering timer.
+
+Camera following retains only the latest pending fix during a movement and skips
+bearing changes within the angular deadband and center shifts smaller than half a CSS pixel. The aircraft
+feature retains the exact measured position; explicit centering bypasses this
+visual jitter threshold. Orientation labels change only when their displayed
+state changes; the status panel also selects its displayed text and controls so
+unchanged fixes do not rerender React. Automatic track-follow camera saves are
+coalesced on a fixed two-second deadline; manual camera changes and explicit
+centering save immediately, and hiding/teardown samples and flushes the live camera. See [camera persistence](../../../docs/architecture/workspace-persistence.md).
+
+Unit regressions count geometry uploads, queued frames, camera commands and
+persistence writes, and cover synchronous teardown/re-enable. Browser regressions
+exercise the real renderer and initial-centering cancellation. These bounded-work
+checks do not measure battery life; installed-device energy and frame-time profiling
+remain necessary before claiming a measured battery improvement.
 
 ## Release verification
 

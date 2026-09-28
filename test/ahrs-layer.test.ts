@@ -8,7 +8,7 @@ import { AhrsDiagnostics } from '../src/layers/ahrs/diagnostics';
 import { Ahrs } from '../src/layers/ahrs/estimator/ahrs';
 import { FlightAlignment } from '../src/layers/ahrs/estimator/flight-alignment';
 import { G, RAD, conjugate, fromEuler, rotate, type Vec3 } from '../src/layers/ahrs/estimator/math';
-import type { ImuSample } from '../src/layers/ahrs/estimator/types';
+import type { ImuSample, MagneticSample } from '../src/layers/ahrs/estimator/types';
 import type { MotionFactory } from '../src/layers/ahrs/motion';
 import { turn } from './helpers/ahrs-motion';
 
@@ -24,7 +24,9 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
   let leases = 0, stops = 0;
   const callbacks: ((sample: ImuSample) => void)[] = [];
   const issues: ((message: string) => void)[] = [];
-  const motion: MotionFactory = (_mount, sample, issue) => {
+  let magnetic: ((sample: MagneticSample) => void) | undefined;
+  const motion: MotionFactory = (_mount, sample, issue, compass) => {
+    magnetic = compass?.sample;
     callbacks.push(sample);
     issues.push(issue);
     return { start, stop: () => { stops++; } };
@@ -56,6 +58,7 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
     notify();
   };
   return { layer, fix, feed, imu, callbacks, issues, notify,
+    magnetic: (sample: MagneticSample) => magnetic?.(sample),
     queueGpsNotification: () => {
       const pending = [...listeners];
       return () => pending.forEach(listener => listener());
@@ -670,4 +673,152 @@ test('permission denial releases resources, while an invalid reading keeps calib
   assert.equal(s.leases(), 1);
   s.feed(11);
   assert.equal(s.layer.getSnapshot().phase, 'ready');
+});
+
+test('heading leases automatically use GPS/IMU without calibrating instruments or publishing display frames', async t => {
+  const s = setup(t);
+  const samples: ({ degrees: number; time: number; frame: number } | null)[] = [];
+  let publications = 0;
+  const unsubscribe = s.layer.subscribe(() => { publications++; });
+  const release = s.layer.acquireHeading(sample => samples.push(sample));
+  await Promise.resolve();
+  assert.equal(s.callbacks.length, 1);
+  assert.equal(s.leases(), 1);
+  const initialPublications = publications;
+  s.feed(2);
+  assert.ok(samples.some(sample => sample !== null));
+  assert.equal(s.layer.readDisplaySnapshot().phase, 'idle');
+  assert.equal(s.layer.readDisplaySnapshot().attitude, null, 'automatic heading does not claim calibrated instruments');
+  assert.equal(publications, initialPublications, 'heading-only use starts no display publication timer');
+  assert.ok(samples.filter(Boolean).length <= 9, 'map heading publication is bounded to 4 Hz');
+  const before = samples.filter(sample => sample !== null).at(-1)!.degrees;
+  s.feed(1, { gyro: [0, 0, 4 * RAD], trackRate: 4 });
+  assert.ok(samples.filter(sample => sample !== null).at(-1)!.degrees > before + 2, 'gyro rotation carries heading between GPS fixes');
+  s.fix({ speed: 2 }); assert.equal(samples.at(-1), null);
+  s.feed(1); assert.ok(samples.at(-1));
+  s.loseGps(); assert.equal(samples.at(-1), null);
+  release(); release(); unsubscribe();
+  assert.equal(s.leases(), 0);
+  assert.equal(s.stops(), 1);
+});
+
+test('heading and instrument consumers share one sensor session and release independently', async t => {
+  const s = setup(t);
+  await s.layer.calibrate(); s.feed(11);
+  const release = s.layer.acquireHeading(() => {});
+  const second = s.layer.acquireHeading(() => {});
+  assert.equal(s.callbacks.length, 1);
+  assert.equal(s.leases(), 1);
+  release();
+  assert.equal(s.leases(), 1);
+  s.layer.stop(); await Promise.resolve();
+  assert.equal(s.callbacks.length, 2, 'stopping instruments transitions remaining map demand to automatic heading');
+  assert.equal(s.leases(), 1);
+  assert.equal(s.layer.readDisplaySnapshot().phase, 'idle');
+  second(); assert.equal(s.leases(), 0);
+});
+
+test('heading permission completion cannot revive a released or disposed session', async t => {
+  let resolve!: () => void;
+  const s = setup(t, () => new Promise<void>(done => { resolve = done; }));
+  const release = s.layer.acquireHeading(() => {});
+  release(); resolve(); await Promise.resolve();
+  assert.equal(s.leases(), 0);
+  const releaseNext = s.layer.acquireHeading(() => {});
+  s.layer.dispose(); resolve(); await Promise.resolve(); releaseNext();
+  assert.equal(s.leases(), 0);
+  assert.equal(s.layer.readDisplaySnapshot().phase, 'idle');
+});
+
+for (const force of [[0, 0, -G], [G, 0, 0], [0, G, 0]] as Vec3[]) {
+  test(`automatic heading supports a fixed mount with force ${force} without a level confirmation`, async t => {
+    const s = setup(t);
+    const values: number[] = [];
+    const release = s.layer.acquireHeading(sample => { if (sample) values.push(sample.degrees); });
+    await Promise.resolve();
+    s.feed(1, { force });
+    assert.ok(values.length >= 3);
+    const gyro = force.map(component => -component / G * 4 * RAD) as unknown as Vec3;
+    s.feed(1, { force, gyro, trackRate: 4 });
+    assert.ok(values.at(-1)! > values[0]! + 2);
+    release();
+  });
+}
+
+test('synchronous cancellation of a calibration request cannot resurrect motion acquisition', async t => {
+  const s = setup(t);
+  const unsubscribe = s.layer.subscribe(() => {
+    if (s.layer.getSnapshot().phase === 'requesting') s.layer.stop();
+  });
+  await s.layer.calibrate(); unsubscribe();
+  assert.equal(s.callbacks.length, 0);
+  assert.equal(s.leases(), 0);
+});
+
+for (const magnetic of [false, true]) {
+  test(`automatic heading uses the shared magnetic drift aid (magnetic ${magnetic})`, async t => {
+    const s = setup(t);
+    let heading = 75;
+    const release = s.layer.acquireHeading(sample => { if (sample) heading = sample.degrees; });
+    await Promise.resolve();
+    for (let i = 1; i <= 1200; i++) {
+      t.mock.timers.tick(50);
+      if (i % 20 === 0) s.fix();
+      s.imu([0, 0, .5 * RAD]);
+      if (magnetic && i % 2 === 0) s.magnetic({ time: i / 20, source: 'magnetometer', vector: [20, 0, 40] });
+    }
+    if (magnetic) assert.ok(Math.abs(heading - 75) < 1, `magnetic evidence limits heading drift: ${heading}`);
+    else assert.ok(heading > 77, 'GPS-only corrections retain the expected gyro-drift lag');
+    release();
+  });
+}
+
+test('a failing optional heading consumer cannot stop calibrated AHRS or another consumer', async t => {
+  const s = setup(t);
+  t.mock.method(console, 'error', () => {});
+  await s.layer.calibrate(); s.feed(11);
+  const broken = s.layer.acquireHeading(() => { throw new Error('consumer render failed'); });
+  let deliveries = 0;
+  const healthy = s.layer.acquireHeading(value => { if (value) deliveries++; });
+  s.feed(1);
+  assert.equal(s.layer.readDisplaySnapshot().phase, 'ready');
+  assert.equal(s.leases(), 1);
+  assert.ok(deliveries > 0);
+  broken(); healthy();
+});
+
+test('automatic heading waits for gravity initialization across unsettled samples and a pause', async t => {
+  const s = setup(t);
+  let deliveries = 0;
+  const release = s.layer.acquireHeading(value => { if (value) deliveries++; });
+  await Promise.resolve();
+  s.feed(.5, { force: [0, 0, -2 * G] });
+  t.mock.timers.tick(1000);
+  s.feed(2);
+  assert.ok(deliveries > 0, 'a pre-initialization pause must not latch an estimator interruption');
+  release();
+});
+
+test('disposal during automatic heading startup cannot revive motion or GPS', async t => {
+  const s = setup(t);
+  const unsubscribe = s.layer.subscribe(() => { unsubscribe(); s.layer.dispose(); });
+  const release = s.layer.acquireHeading(() => {});
+  unsubscribe();
+  await Promise.resolve();
+  assert.equal(s.callbacks.length, 0);
+  assert.equal(s.leases(), 0);
+  release();
+});
+
+test('heading demand arriving during instrument startup does not replace calibration', async t => {
+  const s = setup(t);
+  let release: (() => void) | undefined;
+  const unsubscribe = s.layer.subscribe(() => {
+    if (s.layer.getSnapshot().phase === 'requesting') release = s.layer.acquireHeading(() => {});
+  });
+  await s.layer.calibrate(); unsubscribe();
+  s.feed(11);
+  assert.equal(s.layer.readDisplaySnapshot().phase, 'ready');
+  assert.equal(s.callbacks.length, 1);
+  release?.();
 });

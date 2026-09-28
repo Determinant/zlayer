@@ -8,13 +8,15 @@ import { radarFeatures } from './geometry';
 
 const SOURCE = 'weather-awc-radar', LAYER = 'weather-awc-radar-fill';
 type Group = { source: string; key: string; shown: string[]; loading: boolean; error?: string | undefined;
+  active?: AbortController | undefined;
   submission: ReturnType<typeof createSourceSubmission> };
 export function mountRadarMap(map: Map, controller: WeatherController, before: () => string) {
-  let active: AbortController | undefined, identity = '', destroyed = false, retry = -1;
+  let identity = '', destroyed = false, retry = -1;
   let attemptedCatalog: RadarCatalog | undefined;
   const groups: Group[] = [SOURCE, `${SOURCE}-terminals`].map(source => {
     const group: Group = { source, key: '', shown: [], loading: false,
       submission: createSourceSubmission(map, source, error => {
+        group.active?.abort();
         group.loading = false; group.shown = [];
         group.error = `Radar rendering failed: ${error instanceof Error ? error.message : String(error)}`;
         publish();
@@ -78,18 +80,20 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
     const next = selected.map(file => file.sha256).join('/');
     if (next === identity && retry === state.radarRetry && (!state.radarDisplay.error || attemptedCatalog === state.radar.snapshot)) return;
     attemptedCatalog = state.radar.snapshot; retry = state.radarRetry; identity = next;
-    active?.abort(); const task = active = new AbortController();
     const keep = new Set(selected.map(file => file.sha256));
     for (const key of memory.keys()) if (!keep.has(key)) memory.delete(key);
     for (const group of groups) {
       const files = selected.filter(file => (file.site === 'CONUS') === (group === national));
       const key = files.map(file => file.sha256).join('/');
-      if (key === group.key && !group.error && !group.loading) continue;
+      // A terminal change must preserve even a pending national submission.
+      if (key === group.key && !group.error) continue;
+      group.active?.abort(); group.active = undefined;
       group.key = key; group.shown = []; group.loading = !!files.length;
       group.error = undefined;
       if (group.submission.failed || !files.length) remove(group);
       group.submission.invalidate();
       if (!files.length) continue;
+      const task = group.active = new AbortController();
       const version = group.submission.begin();
       void (async () => {
         const results = await Promise.allSettled(files.map(async file => {
@@ -115,8 +119,8 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
   };
   map.on('moveend', update);
   return { update, destroy() {
-    destroyed = true; active?.abort(); memory.clear(); map.off('moveend', update);
-    for (const group of groups) { group.submission.destroy(); remove(group); }
+    destroyed = true; memory.clear(); map.off('moveend', update);
+    for (const group of groups) { group.active?.abort(); group.submission.destroy(); remove(group); }
     controller.setRadarDisplay({ loading: false, sites: [] });
   } };
 }

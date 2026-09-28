@@ -453,16 +453,22 @@ Airport navigation properties may contain `runways[]`, each with an `id`, option
 adds optional `ends[]`:
 
 ```ts
-{ id: string; trueHeadingDeg?: number; trafficPattern?: 'left' | 'right' }
+{ id: string; trueHeadingDeg?: number; magneticHeadingDeg?: number; trafficPattern?: 'left' | 'right' }
 ```
 
-`TRUE_ALIGNMENT` supplies the true heading (0–360 degrees). The right-hand traffic
+`TRUE_ALIGNMENT` supplies the true heading (0–360 degrees). Matching-cycle FAA CIFP
+primary PG records supply `magneticHeadingDeg` (0–360 degrees), joined by airport
+ICAO identifier (or its published FAA identifier when ICAO is absent) and exact
+runway-end identifier. CIFP's `RW` prefix is removed; published suffixes and named
+ends remain intact. Blank, non-magnetic, invalid or conflicting
+CIFP bearings remain absent. This covers airports such as KSLI whose NASR true
+alignment is blank. The right-hand traffic
 flag maps `Y` to `right` and `N` to `left`; blank values remain absent. Unspecified runway patterns display as “Left” under the
 [AIM 4-3-3 default](https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap4_section_3.html),
 with a tooltip distinguishing the fallback from explicit data. Published right
 patterns take precedence; the default does not apply to helipad ends (`H…`). The client accepts earlier feeds
-without runway ends and shows their runway identifiers and dimensions. It does not
-infer true headings from runway numbers or pattern directions from L/R suffixes.
+without runway ends and expands their identifiers for the same display and wind
+calculation. It does not infer traffic-pattern directions from L/R suffixes.
 
 Map selection restores full airport properties from navigation reference data, since
 MapLibre can serialize nested GeoJSON properties. Search and map clicks therefore
@@ -472,23 +478,61 @@ Navigation owns runway metadata and the Runways section at the end of airport In
 METAR contributes per-end components and notation notes using the existing
 visible-airport observation cache. The reported wind remains in the Info table and
 is not repeated in the Runways section.
-The compact table groups each runway end’s heading, traffic pattern, and wind; G
-marks gust components and L/R indicates wind from the left/right. Opening airport
-Info starts no separate weather fetch. Observation time and cache status remain
+The compact table groups each runway end’s heading, traffic pattern, and wind.
+The muted heading sits on the same line as the runway identifier: published
+magnetic (°M), published true (°T), then a runway-number estimate (for example
+`≈040°M`). Estimated headings have an explanatory tooltip. Wind
+components use text-sized SVG arrows on one line: down for headwind, up for
+tailwind, and left/right for crosswind moving from right/left respectively; zero
+crosswind uses a double-ended horizontal arrow. G marks gust components.
+Tooltips and accessible labels preserve their meaning without a visible symbol legend. Tailwind values
+retain their amber emphasis. Opening airport Info starts no separate weather fetch.
+Observation time and cache status remain
 visible above the airport details. Shared domain code calculates components from the
-METAR wind FROM direction and the runway true heading:
+wind FROM direction and runway heading in the same north reference:
 
 - Headwind = speed × cos(wind direction − runway heading); negative means tailwind.
 - Crosswind = speed × sin(wind direction − runway heading); positive means FROM right.
 - Gust components use the reported gust speed at the same reported mean direction.
 
-Both directions use true north. Components display rounded knots, with “<1” for
+Published magnetic runway headings are preferred. METAR wind is reported true;
+the card converts it to magnetic using the same cycle WMM model, observation date,
+and field-validity checks as the decoded METAR wind display. Model loading follows
+the Info panel lifecycle. Older feeds and unavailable magnetic models retain the
+true-heading/true-wind calculation when a true runway heading exists. If neither
+published heading is available, the client estimates magnetic heading as runway
+number × 10 (01–36, including single-digit labels and L/R/C/W/G/S/U or numeric
+suffixes). These are coarse estimates, not guaranteed angular error bounds; parallel
+runway numbering and magnetic drift can differ from actual alignment. Estimates
+stay in the view/calculation and never overwrite the published fields. The display
+marks the heading with `≈`, adds a short estimate note, and labels component
+tooltips/accessibility text as approximate. Helipads, compass names and malformed
+numbers do not receive estimates. A magnetic heading or estimate without a usable
+model shows “Magnetic reference unavailable”; an end without any usable heading
+shows “Runway heading unavailable”. The algorithm never pairs true
+wind with a magnetic runway heading. Components display rounded knots, with “<1” for
 small nonzero components. Calm, variable (`VRB`), missing winds, and missing headings
 have explicit states. Directional variation groups are shown separately; components
 use the reported mean, not the extrema. The display estimates wind components and
 does not determine the active runway, closures, or aircraft limits.
 
-Sources: [FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/)
+A green **Best Wind** badge uses 11px text in the wider RWY column, after the
+identifier and heading, vertically centered with the other row values.
+Narrow panels scroll the table
+horizontally to preserve readable single-line rows. Among non-helipad ends, including
+legacy number-only ends, with a usable matching-reference heading/wind pair, it marks the greatest positive, unrounded sustained headwind component
+from the selected airport's own METAR. Parallel or equally aligned ends share the
+marker. Estimated headings participate using the same ranking and retain their
+approximate labels; the badge tooltip also identifies estimated winners. Calm,
+variable, unavailable winds, missing headings, and ends with only
+crosswind or tailwind receive no marker. Gusts do not change the ranking; direction
+variation uses the reported mean as above. Disabling METAR removes the marker with
+the other wind contributions. This is a wind comparison, not an active-runway or
+runway-suitability recommendation.
+
+Sources: [FAA runway designations](https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap2_section_3.html),
+[FAA CIFP](https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/),
+[FAA NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/)
 and [AWC METAR wind definitions](https://aviationweather.gov/help/data/#metar).
 The richer fields require rebuilding and publishing the FAA `nav/` export along
 with the client update; earlier published data remains compatible.

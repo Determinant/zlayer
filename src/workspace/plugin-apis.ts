@@ -1,3 +1,4 @@
+import type { AhrsApi } from '../layers/ahrs/public';
 import type { RoutesApi } from '../layers/routes/public';
 import type { NavigationApi } from '../layers/navigation/public';
 import type { PlatesApi } from '../layers/plates/public';
@@ -17,7 +18,7 @@ export type WorkspacePluginApis = {
   terrain: TerrainApi;
   obstructions: ObstructionApi;
   'weather-awc': WeatherAwcApi;
-  ahrs: object;
+  ahrs: AhrsApi;
   ownship: object;
   charts: object;
 };

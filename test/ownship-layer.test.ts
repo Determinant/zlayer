@@ -66,18 +66,6 @@ test('detaching during initial GPS publication releases the pending lease', t =>
   assert.equal(layer.getSnapshot().state, 'off');
 });
 
-test('expiration uses the fix timestamp, stops the projection, and recovers with a fresh fix', t => {
-  const { layer, fix } = setup(t);
-  layer.setEnabled(true); layer.attach(); fix(0, -2000);
-  t.mock.timers.tick(GPS_STALE_MS - 2001);
-  assert.equal(layer.getSnapshot().state, 'tracking');
-  t.mock.timers.tick(1);
-  assert.equal(layer.getSnapshot().state, 'stale');
-  assert.ok(layer.getSnapshot().fix);
-  fix();
-  assert.equal(layer.getSnapshot().state, 'tracking');
-});
-
 test('permission denial stops the watch and retry starts cleanly; transient errors can recover', t => {
   const { layer, fix, error, active } = setup(t);
   layer.setEnabled(true); layer.attach(); error(1);
@@ -128,11 +116,15 @@ test('insecure contexts, missing APIs, and initial timeout show actionable state
   assert.equal(layer.getSnapshot().state, 'unavailable');
 });
 
-test('a silent watch is replaced at fix expiry and stale fixes remain visible until recovery', t => {
+test('a silent watch expires from the fix timestamp, retains the stale position and recovers without recentering', t => {
   const { layer, fix, active, callbacks } = setup(t);
-  layer.setEnabled(true); layer.attach(); fix();
+  layer.setEnabled(true); layer.attach(); fix(0, -2000);
   const previous = layer.getSnapshot().fix;
-  t.mock.timers.tick(GPS_STALE_MS);
+  assert.ok(previous);
+  t.mock.timers.tick(GPS_STALE_MS - 2001);
+  assert.equal(layer.getSnapshot().state, 'tracking');
+  assert.deepEqual([...active], [0]);
+  t.mock.timers.tick(1);
   assert.equal(layer.getSnapshot().state, 'stale');
   assert.equal(layer.getSnapshot().fix, previous);
   assert.deepEqual([...active], [1]);
@@ -272,38 +264,72 @@ test('high frequency fixes estimate motion without flicker and stop estimating o
   assert.equal(layer.getSnapshot().fix!.speed, null);
 });
 
-test('tools share one GPS watch without enabling or centering the map aircraft', t => {
-  const { layer, gps, fix, active, callbacks } = setup(t);
+test('Ownship stays passive when disabled and joins or leaves the shared GPS watch independently', t => {
+  const { layer, gps, fix, active, callbacks, visibility } = setup(t);
   layer.attach();
   const releaseAhrs = gps.acquire(), releaseOther = gps.acquire();
+  t.after(releaseAhrs); t.after(releaseOther);
   assert.equal(active.size, 1);
-  fix();
-  assert.equal(layer.getSnapshot().enabled, false);
-  assert.equal(layer.getSnapshot().centerRequest, 0);
+  const off = layer.getSnapshot();
+  for (let i = 0; i < 20; i++) { t.mock.timers.tick(100); fix(); }
+  assert.equal(layer.getSnapshot(), off);
+  assert.equal(off.enabled, false);
+  assert.equal(off.centerRequest, 0);
   layer.setEnabled(true);
   assert.equal(callbacks.length, 1, 'enabling the map reuses the running watch');
+  assert.equal(layer.getSnapshot().fix, gps.getSnapshot().fix);
+  assert.equal(layer.getSnapshot().centerRequest, 1, 'joining centers immediately on the current fix');
   t.mock.timers.tick(1000); fix();
   assert.equal(layer.getSnapshot().centerRequest, 1);
-  layer.setEnabled(false); layer.detach();
+  layer.setEnabled(false);
+  const disabled = layer.getSnapshot();
+  for (let i = 0; i < 20; i++) { t.mock.timers.tick(100); fix(); }
+  assert.equal(layer.getSnapshot(), disabled);
+  assert.equal(disabled.fix, null);
+  layer.detach();
   assert.equal(active.size, 1, 'tool leases survive map toggle and detachment');
   releaseAhrs(); releaseAhrs();
   assert.equal(active.size, 1, 'releasing a lease is idempotent');
-  releaseOther();
-  assert.equal(active.size, 0);
-  assert.equal(layer.getSnapshot().state, 'off');
-});
-
-test('a GPS lease observes background pauses without a map attachment', t => {
-  const { layer, gps, fix, active, visibility } = setup(t);
-  const release = gps.acquire();
-  fix();
   visibility.hidden = true; visibility.dispatchEvent(new Event('visibilitychange'));
   assert.equal(active.size, 0);
   assert.equal(gps.getSnapshot().state, 'paused');
   assert.equal(layer.getSnapshot().state, 'off', 'a detached Ownship does not consume the shared fixes');
   visibility.hidden = false; visibility.dispatchEvent(new Event('visibilitychange'));
   assert.equal(active.size, 1);
-  release();
+  releaseOther();
   visibility.dispatchEvent(new Event('visibilitychange'));
   assert.equal(active.size, 0);
+});
+
+test('initial centering waits for accuracy, restored cameras stay put, and explicit enable restores intent', t => {
+  const { layer, fix } = setup(t);
+  layer.setEnabled(true); layer.attach();
+  fix(0, 0, { accuracy: 1500 }); layer.center();
+  assert.equal(layer.getSnapshot().centerRequest, 0);
+  t.mock.timers.tick(1000); fix();
+  assert.equal(layer.getSnapshot().centerRequest, 1);
+  layer.detach(); layer.attach({ centerOnFix: false });
+  t.mock.timers.tick(1000); fix();
+  assert.equal(layer.getSnapshot().centerRequest, 1);
+  layer.setEnabled(false); layer.setEnabled(true);
+  t.mock.timers.tick(1000); fix();
+  assert.equal(layer.getSnapshot().centerRequest, 2);
+});
+
+test('disable and re-enable during synchronous acquisition retains exactly one live subscription', t => {
+  const { layer, fix, active, callbacks } = setup(t);
+  let toggled = false;
+  t.after(layer.subscribe(() => {
+    if (!toggled && layer.getSnapshot().state === 'acquiring') {
+      toggled = true;
+      layer.setEnabled(false); layer.setEnabled(true);
+    }
+  }));
+  layer.setEnabled(true); layer.attach(); fix();
+  assert.equal(layer.getSnapshot().state, 'tracking');
+  assert.equal(active.size, 1);
+  assert.equal(callbacks.length, 1);
+  t.mock.timers.tick(1000); fix(0, 0, { longitude: -121 });
+  assert.deepEqual(layer.getSnapshot().fix!.coordinates, [-121, 37]);
+  layer.detach(); assert.equal(active.size, 0);
 });

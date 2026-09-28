@@ -1,11 +1,10 @@
-import { type RadarFile, type RadarContours, AWC_ADVISORY_PRODUCTS, awcGridProduct, type AwcAdvisoryProduct, type AwcGridField, type AwcGridProduct, type WeatherAdvisory } from '@zlayer/contracts';
+import { type RadarFile, type RadarContours, awcGridProduct, type AwcAdvisoryProduct, type AwcGridField, type AwcGridProduct } from '@zlayer/contracts';
 import { createLayerStore } from '../../core/layers/store';
 import { createLayerEvents } from '../../core/layers/events';
 import type { MapContextAction } from '../../core/map/selection';
 import type { AdvisoryState } from './client';
 import { createGridController, type GridState } from './grids/controller';
 import type { DecodedGrid } from './grids/format';
-import { advisoryFrame } from './time';
 import { weatherAwcPreferences, type WeatherAwcPreferences } from './preferences';
 import { surfaceFrame, type SurfaceStates } from './progs/time';
 import type { RadarState } from './radar/client';
@@ -16,7 +15,7 @@ import type { ProgsCoverageFile } from '@zlayer/contracts';
 import { createProductRefresh, type WeatherClients } from './product-refresh';
 import { mountWeatherClock } from './clock';
 import { createPreparationDemand } from './grids/preparation-demand';
-import { forecastChanges, forecastTimes, reconcileWeatherTime, advisoryEnabled } from './selection';
+import { createWeatherSelectors, reconcileWeatherTime } from './selection';
 import type { RadarMotionState } from './radar/motion-client';
 import type { RadarMotionFile, RadarMotionSnapshot } from '@zlayer/contracts';
 
@@ -97,6 +96,7 @@ export function createWeatherController(clients: WeatherClients) {
     coverage: coverageClient?.restore() ?? { loading: false }, coverageDisplay: { loading: false },
     progsRetry: 0, progs: { analysis: { loading: false }, forecast: { loading: false } },
     products: { gairmet: client.restore('gairmet'), sigmet: client.restore('sigmet'), cwa: client.restore('cwa') } });
+  const selectors = createWeatherSelectors();
   let input: WeatherAwcInput | undefined;
   let clock: ReturnType<typeof mountWeatherClock> | undefined;
   let picker: ((point: { x: number; y: number }) => string[]) | undefined;
@@ -112,7 +112,7 @@ export function createWeatherController(clients: WeatherClients) {
       prepareTimeline: p.awcGridMode === 'temperature' });
   };
   const reconcileAndPublish = (patch: Partial<WeatherState>) => {
-    const next = reconcileWeatherTime({ ...store.getSnapshot(), ...patch }, Date.now());
+    const next = reconcileWeatherTime({ ...store.getSnapshot(), ...patch }, Date.now(), selectors.forecastTimes);
     store.publish(next);
   };
   const acceptGrid = (patch: Pick<Partial<WeatherState>, 'grid' | 'wind'>) => {
@@ -129,12 +129,7 @@ export function createWeatherController(clients: WeatherClients) {
     reconcileAndPublish(patch); clock?.schedule(); syncGrid();
   });
   const demand = () => { products.demand(); syncGrid(); };
-  const visibleAdvisories = (): WeatherAdvisory[] => {
-    const s = store.getSnapshot(), p = s.preferences;
-    if (!p.awcEnabled) return [];
-    return AWC_ADVISORY_PRODUCTS.flatMap(product => advisoryFrame(s.products[product].snapshot, s.selectedTime ?? s.now).advisories)
-      .filter(a => advisoryEnabled(a, p));
-  };
+  const visibleAdvisories = () => selectors.visibleAdvisories(store.getSnapshot());
   const detach = () => {
     interaction.reset();
     clock?.stop(); clock = undefined;
@@ -145,8 +140,8 @@ export function createWeatherController(clients: WeatherClients) {
   };
   return {
     ...store, visibleAdvisories,
-    forecastTimes: () => forecastTimes(store.getSnapshot()),
-    forecastChanges: () => forecastChanges(store.getSnapshot()),
+    forecastTimes: () => selectors.forecastTimes(store.getSnapshot()),
+    forecastChanges: () => selectors.forecastChanges(store.getSnapshot()),
     setAdvisoryDisplay(advisoryDisplay: WeatherState['advisoryDisplay']) {
       if (JSON.stringify(store.getSnapshot().advisoryDisplay) !== JSON.stringify(advisoryDisplay)) publishDisplay({ advisoryDisplay });
     },
@@ -214,6 +209,7 @@ export function createWeatherController(clients: WeatherClients) {
         // Preference changes update the inspected weather without dismissing it.
         // Keep selection identities stable so stowed details do not reopen.
         reconcileAndPublish(preferences.awcEnabled ? { preferences } : { preferences, selectedIds: [], gridPoint: undefined });
+        clock?.schedule();
       }
       demand();
     },
@@ -227,7 +223,7 @@ export function createWeatherController(clients: WeatherClients) {
     },
     selectTime(time: number | null) {
       if (time !== store.getSnapshot().selectedTime) interaction.pause();
-      if (time === null || forecastTimes(store.getSnapshot()).includes(time)) reconcileAndPublish({ selectedTime: time, selectedIds: [], gridPoint: undefined });
+      if (time === null || selectors.forecastTimes(store.getSnapshot()).includes(time)) reconcileAndPublish({ selectedTime: time, selectedIds: [], gridPoint: undefined });
       syncGrid();
     },
     clearSelection() { reconcileAndPublish({ selectedIds: [], gridPoint: undefined }); },

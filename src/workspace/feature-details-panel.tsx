@@ -3,10 +3,11 @@ import { featureIdent, type NearbyVor } from '@zlayer/domain';
 import type { CatalogReadSource, SavedSupplement } from './read-context';
 import { PANEL_LAYOUT } from './panel-layout';
 import { FeatureDetailCard } from '../layers/navigation/detail-card';
+import { AirportRunways } from '../layers/navigation/airport-runways';
 import { NearbyNavaids } from '../layers/navigation/nearby-navaids';
 import { AirportPlates, type ProcedureSelection } from '../layers/plates';
 import { hasAirportPlates } from '../layers/plates/data';
-import { AirportWeather, RunwayWind, RunwayWindNotes, type MetarClient } from '../layers/metar-taf';
+import { AirportWeather, AirportRunwayWeather, type MetarClient } from '../layers/metar-taf';
 import { FeatureRouteActions, type FeatureRoute } from '../layers/routes/feature-actions';
 import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
 import type { ReportStatusListener } from '../layers/metar-taf/station-weather';
@@ -44,10 +45,9 @@ export function FeatureDetailsPanel({ feature, catalog, metarClient, onWeatherSt
     </>}
     elevation={active => features.terrain ? <WaypointElevation feature={feature} catalog={catalog} active={active} /> : null}
     info={active => features.weather ? <AirportWeather feature={feature} client={metarClient} active={active} revision={revision} onStatus={onWeatherStatus} /> : null}
-    runwayWeather={features.weather ? {
-      notes: <RunwayWindNotes properties={feature.properties} />,
-      wind: heading => <RunwayWind heading={heading} properties={feature.properties} />,
-    } : undefined}
+    runways={features.weather ? active => <AirportRunwayWeather feature={feature} revision={revision} active={active}>
+      {weather => <AirportRunways feature={feature} weather={weather} />}
+    </AirportRunwayWeather> : undefined}
     plates={features.plates && hasAirportPlates(feature) ? () => editionUnavailable
       ? <p className="procedure-state is-error">This feature’s source edition is unavailable. Select it again after its navigation data reloads.</p>
       : <AirportPlates feature={feature} resource={procedureResource} revision={revision}

@@ -1,7 +1,7 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
 import type { OwnshipLayer } from './layer';
-import { ownshipGeometry } from './geometry';
+import { ownshipGeometry, sameOwnshipGeometry } from './geometry';
 
 export const OWNSHIP_SOURCE = 'ownship';
 export const OWNSHIP_LAYERS = ['ownship-accuracy', 'ownship-trace-halo', 'ownship-trace', 'ownship-position', 'ownship-aircraft'];
@@ -10,35 +10,40 @@ const BLUE = '#32b5ff';
 
 export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView = false): MapLayerModule<{ enabled: boolean }> {
   let map: MapLibreMap | undefined;
+  let source: GeoJSONSource | undefined;
   let unsubscribe: (() => void) | undefined;
-  let lastCenter = product.getSnapshot().centerRequest;
-  let firstFix = true;
+  let rendered: ReturnType<OwnshipLayer['getSnapshot']> | undefined;
+  let frame: number | undefined;
+  const sourceFailed = () => { rendered = undefined; };
   const render = () => {
+    frame = undefined;
     if (!map) return;
     const snapshot = product.getSnapshot();
-    (map.getSource(OWNSHIP_SOURCE) as GeoJSONSource | undefined)?.setData(ownshipGeometry(snapshot));
-    // A restored workspace keeps its camera through the first automatic GPS fix.
-    // Subsequent explicit centering requests and enabling GPS still work normally.
-    if (preserveInitialView && snapshot.enabled && snapshot.state === 'tracking' && snapshot.fix) {
-      preserveInitialView = false;
-      firstFix = false;
-      lastCenter = snapshot.centerRequest;
+    if (rendered && sameOwnshipGeometry(rendered, snapshot)) return;
+    if (!source) return;
+    void source.setData(ownshipGeometry(snapshot));
+    rendered = snapshot;
+  };
+  const schedule = () => {
+    const snapshot = product.getSnapshot();
+    // Loss of validity clears the live vector immediately. Fresh callbacks in
+    // the same frame share one geometry build; there is no idle render loop.
+    if (!snapshot.enabled || snapshot.state !== 'tracking') {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      render();
+    } else if ((!rendered || !sameOwnshipGeometry(rendered, snapshot)) && frame === undefined) {
+      frame = requestAnimationFrame(render);
     }
-    if (snapshot.enabled && snapshot.state === 'tracking' && snapshot.fix && (firstFix || snapshot.centerRequest !== lastCenter)) {
-      // Select the nearest world copy when the map has crossed the dateline.
-      const [lng, lat] = snapshot.fix.coordinates;
-      const longitude = lng + 360 * Math.round((map.getCenter().lng - lng) / 360);
-      map.easeTo({ center: [longitude, lat], zoom: Math.max(map.getZoom(), 9), duration: 500 });
-      firstFix = false;
-    }
-    lastCenter = snapshot.centerRequest;
   };
   return {
     id: 'ownship', slot: 'ownship', foregroundLayerIds: OWNSHIP_LAYERS,
     mount(target) {
       map = target;
       map.addImage(ICON, aircraftImage(), { pixelRatio: 2 });
-      map.addSource(OWNSHIP_SOURCE, { type: 'geojson', data: ownshipGeometry(product.getSnapshot()) });
+      rendered = product.getSnapshot();
+      map.addSource(OWNSHIP_SOURCE, { type: 'geojson', data: ownshipGeometry(rendered) });
+      source = map.getSource(OWNSHIP_SOURCE) as GeoJSONSource;
+      source.on('error', sourceFailed);
       map.addLayer({ id: 'ownship-accuracy', type: 'fill', source: OWNSHIP_SOURCE,
         filter: ['==', ['get', 'kind'], 'accuracy'],
         paint: { 'fill-color': ['case', ['get', 'live'], BLUE, '#8997a8'], 'fill-opacity': 0.1,
@@ -56,9 +61,10 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
         filter: ['all', ['==', ['get', 'kind'], 'aircraft'], ['!=', ['get', 'track'], null]],
         layout: { 'icon-image': ICON, 'icon-rotate': ['get', 'track'], 'icon-rotation-alignment': 'map',
           'icon-pitch-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-      unsubscribe = product.subscribe(render);
-      product.attach();
-      render();
+      unsubscribe = product.subscribe(schedule);
+      product.attach({ centerOnFix: !preserveInitialView });
+      preserveInitialView = true;
+      schedule();
     },
     update({ enabled }) {
       if (!enabled) preserveInitialView = false;
@@ -67,6 +73,11 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
     unmount() {
       unsubscribe?.();
       unsubscribe = undefined;
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = undefined;
+      rendered = undefined;
+      source?.off('error', sourceFailed);
+      source = undefined;
       product.detach();
       if (map) {
         removeLayerResources(map, OWNSHIP_LAYERS, [OWNSHIP_SOURCE]);

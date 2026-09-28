@@ -77,6 +77,8 @@ for (const rate of [-1, 1]) {
     await page.clock.resume();
     await expect.poll(async () => (await stats(page)).turnRate).toBeCloseTo(rate, 8);
     await expect.poll(async () => (await stats(page)).rendered).toContain('ownship-trace');
+    await expect.poll(async () => ((await stats(page)).geometry as GeoJSON.FeatureCollection)
+      .features.find(feature => feature.properties?.kind === 'aircraft')?.properties?.track).toBe(90);
     const geometry = (await stats(page)).geometry as GeoJSON.FeatureCollection;
     const aircraft = geometry.features.find(feature => feature.properties?.kind === 'aircraft')!;
     const trace = geometry.features.find(feature => feature.properties?.kind === 'projection')!.geometry as GeoJSON.LineString;
@@ -159,4 +161,28 @@ test('GPS starts enabled and its toolbox toggle persists through denial, offline
   await expect.poll(() => countWatches(page)).toBe(1);
   await sendFix(page);
   await expect(page.getByLabel('GPS aircraft status')).toContainText('120 kt');
+});
+
+test('unchanged fresh positions leave the real GeoJSON worker idle', async ({ page }) => {
+  await page.clock.install();
+  await mockGps(page);
+  await page.goto('/test/browser/ownship.html');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.getByRole('switch', { name: 'GPS aircraft' }).click();
+  await sendFix(page, { speed: 0, heading: null });
+  await page.clock.runFor(600);
+  await expect.poll(async () => (await stats(page)).rendered).toContain('ownship-position');
+  const baseline = (await stats(page)).sourceUpdates;
+  for (let i = 0; i < 20; i++) {
+    await page.clock.runFor(100);
+    await sendFix(page, { speed: 0, heading: null });
+  }
+  await page.clock.runFor(100);
+  expect((await stats(page)).sourceUpdates).toBe(baseline);
+  await sendFix(page, { speed: 0, heading: null, longitude: -122.001 });
+  await page.clock.runFor(100);
+  expect((await stats(page)).sourceUpdates).toBe(baseline + 1);
+  await page.clock.runFor(10_001);
+  expect((await stats(page)).sourceUpdates).toBe(baseline + 2);
+  await expect(page.getByLabel('GPS aircraft status')).toContainText('GPS fix stale');
 });

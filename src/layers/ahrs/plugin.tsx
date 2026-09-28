@@ -1,3 +1,4 @@
+import type { AhrsApi } from './public';
 import type { RoutesApi } from '../routes/public';
 import type { PluginExports } from '../../core/layers/bridge';
 import { createLayerStore } from '../../core/layers/store';
@@ -19,7 +20,7 @@ export function createAhrsPlugin(gps: AhrsGpsSource) {
     return state ? <AhrsPanel layer={layer} {...state} /> : null;
   }
   return {
-    publicApi: () => ({}),
+    publicApi: scope => ({ acquireHeading: scope.command(listener => scope.add(layer.acquireHeading(listener))) }),
     connect(bridge, scope) {
       scope.add(() => route.publish(empty));
       bridge.watch('routes', (api, connection) => {
@@ -29,6 +30,6 @@ export function createAhrsPlugin(gps: AhrsGpsSource) {
     },
     ...layer, input, storage: pluginStorage,
     panels: [{ id: 'ahrs', title: 'AHRS toolbox', Component: Panel }],
-    dispose: layer.stop,
-  } satisfies LayerPlugin & PluginExports<object, { routes: RoutesApi }> & { input: typeof input };
+    dispose: layer.dispose,
+  } satisfies LayerPlugin & PluginExports<AhrsApi, { routes: RoutesApi }> & { input: typeof input };
 }

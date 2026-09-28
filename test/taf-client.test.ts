@@ -202,3 +202,25 @@ test('a failed direct request cannot discard a newer forecast received by a near
   assert.equal(client.get('KSFO')?.checkedAt, now);
   assert.match(client.get('KSFO')!.error!, /503/);
 });
+
+for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} TAF prefers usable issuance over future saved and response reports`, async () => {
+  let time = now;
+  const current = report({ lat: 37, lon: -122, validTimeFrom: now / 1000 + 3600 });
+  const future = { ...current, issueTime: '2026-10-17T18:00:00Z', rawTAF: 'TAF KSFO FUTURE' };
+  const amended = { ...current, dbPopTime: '2026-09-17T18:05:00Z', rawTAF: 'TAF AMD KSFO CURRENT' };
+  let records = [future, current, amended];
+  const client = new TafClient(endpoint, { now: () => time,
+    storage: { getItem: () => JSON.stringify([future]), setItem() {} },
+    fetch: async () => Response.json(records),
+  });
+  const refresh = () => nearby ? client.refreshNearby([-122, 37], signal()) : client.refresh('KSFO', signal());
+  for (let i = 0; i < 2; i++) {
+    await refresh();
+    assert.equal(client.get('KSFO')?.report?.rawTAF, amended.rawTAF);
+    assert.equal(client.get('KSFO')?.missing, false);
+    records.reverse(); time += TAF_REFRESH_MS;
+  }
+  records = [future]; await refresh();
+  assert.equal(client.get('KSFO')?.report?.rawTAF, amended.rawTAF, 'future issuance cannot replace usable cached weather');
+  assert.equal(client.get('KSFO')?.missing, true);
+});

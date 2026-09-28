@@ -308,16 +308,21 @@ Future metadata is rejected; reading a saved artifact never advances freshness.
 
 `presentation.ts` owns map/legend colors and transparent sentinel behavior. Full-domain
 images serve ordinary fields through camera changes; only screen-space SLD hatching
-needs a viewport redraw. Sampling reuses repeated rows/columns, yields about every
+needs a viewport redraw. Detail viewports sample canonical grid longitudes and
+measure pixels in the visible world copy, preserving SLD spacing across longitude
+wraps. Sampling reuses repeated rows/columns, yields about every
 six milliseconds and checks cancellation. Opacity/status changes do not resample.
 `ImageSource.updateImage` submits each committed image once; there is no animated
 canvas source. Disabling/detaching releases rasters, canvas, map source and references.
 
 Core caches gzip RGBA images under endpoint, complete forecast identity, field,
 SLD setting and `rgba-v1` render version. Bump that version for changed palettes,
-sampling, transparency or hatching. Exact expected pixel length and integrity are
-validated; corrupt images rebuild from numeric data. Image hits avoid recoloring
-but never establish numeric readiness, saved forecast counts or freshness. One
+sampling, transparency or hatching. Fields without SLD hatching normalize that
+setting off in both memory and persistent image identities, avoiding duplicate
+images for cloud, freezing, temperature and SLD-potential fields. Exact expected
+pixel length and integrity are validated; corrupt images rebuild from numeric data.
+Image hits avoid recoloring but never establish numeric readiness, saved forecast
+counts or freshness. One
 image operation runs at a time, exposing usable pixels before optional saving.
 
 These are allocation limits, not measured tablet peaks. Worker scratch, candidate

@@ -264,10 +264,12 @@ test('accepts legacy runway summaries and validates runway-end headings and patt
     runways: [{ ...feature.properties.runways[0], ends }],
   } });
   assert.equal(isGeoPointFeature(withEnds([
-    { id: '10R', trueHeadingDeg: 120, trafficPattern: 'right' }, { id: '28L' },
+    { id: '10R', trueHeadingDeg: 120, magneticHeadingDeg: 108, trafficPattern: 'right' }, { id: '28L' },
   ])), true);
   for (const heading of [-1, 361, NaN, '120', null]) {
-    assert.equal(isGeoPointFeature(withEnds([{ id: '10R', trueHeadingDeg: heading }])), false);
+    for (const key of ['trueHeadingDeg', 'magneticHeadingDeg']) {
+      assert.equal(isGeoPointFeature(withEnds([{ id: '10R', [key]: heading }])), false);
+    }
   }
   assert.equal(isGeoPointFeature(withEnds([{ id: '10R', trafficPattern: 'unknown' }])), false);
   assert.equal(isGeoPointFeature(withEnds([{ id: '' }])), false);

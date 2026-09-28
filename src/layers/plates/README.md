@@ -77,7 +77,9 @@ the PDF.js renderer and document load:
 - A newly opened plate fills the available reading width at 100% zoom and starts
   at the top; taller pages scroll vertically. The width fit follows panel resizing,
   fullscreen and rotation. A stable scrollbar gutter keeps vertical overflow from
-  repeatedly changing the fitted width. Saved zoom and scroll position take precedence when
+  repeatedly changing the fitted width. Height-only layout changes reuse the rendered
+  bitmap while the reading area remains visible; width, page, rotation, zoom and
+  pixel-density changes still render at the required resolution. Saved zoom and scroll position take precedence when
   reopening a plate.
 - Reading controls inherit core's B612 button type and line height, with 14px
   values and 11px secondary labels using the shared muted color. They stay on one

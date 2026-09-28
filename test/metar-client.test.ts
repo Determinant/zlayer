@@ -200,6 +200,7 @@ test('bounds concurrency and cancels obsolete requests without starting queued b
     },
   });
   const pending = client.refresh(Array.from({ length: 301 }, (_, i) => `K${i}`), controller.signal);
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls, 2);
   controller.abort();
   await assert.rejects(pending, { name: 'AbortError' });
@@ -269,4 +270,70 @@ test('airport summary distinguishes observation age, successful checks, and stal
   assert.equal(metarReportSummary({ report: report('KSFO') }, now).cached, true);
   assert.ok(metarReportSummary({ ...entry, error: '504' }, now).details.includes('Refresh unavailable'));
   assert.equal(metarReportSummary({ ...entry, missing: true }, now).label, 'Cached report');
+});
+
+test('unchanged reports preserve render identity and skip persistence; corrections still publish', async () => {
+  let now = Date.parse('2026-09-15T17:10:00Z'), writes = 0;
+  let correction = false;
+  const client = new MetarClient(endpoint, { now: () => now,
+    storage: { getItem: () => null, setItem() { writes++; } },
+    fetch: async input => response(...ids(input).map(id => ({ ...report(id), properties: {
+      ...report(id).properties, fltcat: correction ? 'IFR' : 'VFR',
+    } }))),
+  });
+  const stations = Array.from({ length: 250 }, (_, i) => `K${i}`);
+  await client.refresh(stations, signal());
+  assert.equal(writes, 1, 'all batches share one durable write');
+  const first = client.snapshot();
+  now += METAR_REFRESH_MS;
+  await client.refresh([...stations].reverse(), signal());
+  assert.equal(writes, 1);
+  assert.equal(client.snapshot().metars, first.metars, 'check order does not change render content identity');
+  assert.equal(client.get('K0')?.checkedAt, now);
+  assert.equal(client.get('K0')?.missing, false);
+  now += METAR_REFRESH_MS; correction = true;
+  await client.refresh(['K0'], signal());
+  assert.equal(writes, 2);
+  assert.notEqual(client.snapshot().metars, first.metars);
+  assert.equal(client.get('K0')?.report?.properties.fltcat, 'IFR', 'same-time corrections are not discarded');
+});
+
+test('overlapping station consumers share work and cancel only after the last release', async () => {
+  const held: { ids: string[]; signal: AbortSignal; resolve: (response: Response) => void }[] = [];
+  const client = new MetarClient(endpoint, { fetch: (input, options) => new Promise((resolve, reject) => {
+    const signal = options!.signal!;
+    held.push({ ids: ids(input), signal, resolve });
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  }) });
+  const map = new AbortController(), card = new AbortController();
+  const mapRead = client.refresh(['KSFO', 'KOAK'], map.signal);
+  const cardRead = client.refresh(['KSFO', 'KSJC'], card.signal);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(held.map(item => item.ids), [['KSFO', 'KOAK'], ['KSJC']]);
+  map.abort(); await assert.rejects(mapRead, { name: 'AbortError' });
+  assert.equal(held[0]!.signal.aborted, false, 'the card retains the shared map batch');
+  for (const item of held) item.resolve(response(...item.ids.map(id => report(id))));
+  await cardRead;
+  assert.ok(client.get('KSFO')?.report);
+  const controller = new AbortController();
+  const last = client.refresh(['KNEW'], controller.signal);
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort();
+  assert.equal(held.at(-1)!.signal.aborted, true, 'last cancellation aborts immediately');
+  await assert.rejects(last, { name: 'AbortError' });
+  assert.equal(client.get('KNEW'), undefined);
+});
+
+test('empty and failed checks notify freshness without rewriting saved observations', async () => {
+  let now = Date.parse('2026-09-15T17:10:00Z'), writes = 0, updates = 0;
+  let status = 204;
+  const saved = JSON.stringify({ type: 'FeatureCollection', features: [report('KSFO')] });
+  const client = new MetarClient(endpoint, { now: () => now,
+    storage: { getItem: () => saved, setItem() { writes++; } }, fetch: async () => new Response(null, { status }) });
+  client.subscribe(() => updates++);
+  await client.refresh(['KSFO'], signal());
+  now += METAR_REFRESH_MS; status = 400;
+  await client.refresh(['KSFO'], signal());
+  assert.equal(writes, 0); assert.equal(updates, 2);
+  assert.ok(client.get('KSFO')?.error);
 });

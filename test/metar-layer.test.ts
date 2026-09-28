@@ -37,11 +37,18 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   } as unknown as MapLibreMap;
   const emit = (type: string, event?: unknown) => { for (const callback of listeners.get(type) ?? []) callback(event); };
   const calls: string[][] = [];
-  let fail = false;
+  let fail = false, hold = false;
+  let heldSignal: AbortSignal | undefined;
   const client = new MetarClient(new URL('https://example.test/weather'), {
-    fetch: async url => {
+    fetch: async (url, options) => {
       const ids = new URL(String(url)).searchParams.get('ids')!.split(',');
       calls.push(ids);
+      if (hold) {
+        const signal = heldSignal = options!.signal!;
+        await new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+      }
       if (fail) return new Response(null, { status: 400 });
       return Response.json({ type: 'FeatureCollection', features: ids.map(id => ({
         type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
@@ -81,45 +88,73 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   assert.equal(calls.length, 2);
   assert.notEqual(featureWithMetar(airports.features[0]!, product.getSnapshot()).properties.metarObservedAt, before);
   assert.ok(writes.every(id => id === 'metar-airports'), 'refresh does not rebuild navigation');
+  const settled = product.getSnapshot();
+  emit('styledata'); emit('sourcedata', { sourceId: 'nav-airports' }); emit('render');
+  assert.equal(product.getSnapshot(), settled, 'unchanged station scope does not republish weather state');
+  const movingSnapshots: number[] = [];
+  const stopObserving = product.subscribe(() => movingSnapshots.push(product.getSnapshot().weatherAirportCount));
+  for (let i = 0; i < 3; i++) {
+    moving = true; emit('movestart'); emit('render');
+    assert.equal(product.getSnapshot().weatherAirportCount, settled.weatherAirportCount);
+    assert.equal(product.getSnapshot().state.observedAt, settled.state.observedAt);
+    await advance(1_000);
+    assert.equal(calls.length, 2, 'GPS movement pauses acquisition');
+    moving = false; emit('moveend'); emit('render');
+  }
+  assert.ok(movingSnapshots.every(count => count === settled.weatherAirportCount), 'no transient empty legend during follow animations');
+  stopObserving();
+  // Resume an unchanged scope after its cached station check becomes due.
+  moving = true; emit('movestart');
+  await advance(60_000);
+  assert.equal(calls.length, 2, 'stationary refresh remains paused throughout movement');
+  moving = false; emit('moveend'); emit('render');
+  await advance(250);
+  assert.equal(calls.length, 3, 'unchanged stations resume after movement');
   moving = true; emit('movestart'); visible = ['KJFK'];
   const beforeMove = queries;
   emit('sourcedata', { sourceId: 'nav-airports' }); emit('render');
   assert.equal(queries, beforeMove, 'movement never starts requests for intermediate views');
-  assert.deepEqual(product.getSnapshot().visibleStationIds, []);
+  assert.deepEqual(product.getSnapshot().visibleStationIds, ['KSFO'], 'presentation retains the last settled scope');
   moving = false; emit('moveend'); emit('render');
   await advance(250);
   assert.deepEqual(calls.at(-1), ['KJFK']);
   assert.ok(product.getSnapshot().stations.has('KSFO'));
+  moving = true; emit('movestart'); visible = [];
+  assert.equal(product.getSnapshot().weatherAirportCount, 1);
+  moving = false; emit('moveend'); emit('render');
+  assert.deepEqual(product.getSnapshot().visibleStationIds, []);
+  assert.equal(product.getSnapshot().weatherAirportCount, 0, 'settling over an empty view clears the legend');
+  visible = ['KJFK']; emit('moveend'); emit('render');
   product.map.update({ airports, enabled: false, airportsVisible: true });
   emit('render');
   const disabledQueries = queries;
   for (let i = 0; i < 120; i++) emit('render');
   assert.equal(queries, disabledQueries, 'disabled weather does not query on unrelated renders');
   await advance(120_000);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   product.map.update({ airports, enabled: true, airportsVisible: true });
   document.visibilityState = 'hidden'; document.dispatchEvent(new Event('visibilitychange'));
   await advance(120_000);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   document.visibilityState = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
   await advance(250);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   navigator.onLine = false; window.dispatchEvent(new Event('offline'));
   await advance(120_000);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   product.map.unmount();
   assert.equal(sources.has('metar-airports'), false);
   assert.ok([...listeners.values()].every(callbacks => callbacks.size === 0));
   navigator.onLine = true; window.dispatchEvent(new Event('online'));
   await advance(120_000);
-  assert.equal(calls.length, 4, 'unmounted layer cannot resume work');
+  assert.equal(calls.length, 5, 'unmounted layer cannot resume work');
   product.map.mount(map);
   assert.equal(sources.get('metar-airports')!.features.length, 0, 'detached airport data is released independently of the weather cache');
   product.map.unmount();
   product.map.update({ airports, enabled: true, airportsVisible: true });
   product.map.mount(map);
   await advance(250);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   assert.ok(product.getSnapshot().stations.has('KSFO'), 'remount retains off-screen cache');
   writes.length = 0;
   fail = true;
@@ -138,5 +173,29 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   product.map.update({ airports: refreshedAirports, enabled: true, airportsVisible: true });
   assert.deepEqual(writes, ['metar-airports'], 'new navigation geometry invalidates the join');
   assert.deepEqual(sources.get('metar-airports')!.features[0]!.geometry.coordinates, [-120, 35]);
+  fail = false; hold = true;
+  await advance(60_000);
+  assert.ok(heldSignal && !heldSignal.aborted, 'a stationary refresh is in flight');
+  const beforeCancellation = product.getSnapshot();
+  moving = true; emit('movestart');
+  assert.ok(heldSignal.aborted, 'movement cancels the in-flight request');
+  await flush();
+  assert.equal(product.getSnapshot().weatherAirportCount, beforeCancellation.weatherAirportCount);
+  assert.equal(product.getSnapshot().state.observedAt, beforeCancellation.state.observedAt);
+  product.map.update({ airports: refreshedAirports, enabled: true, airportsVisible: false });
+  assert.equal(product.getSnapshot().weatherAirportCount, 0, 'hiding Airports during movement clears the legend immediately');
+  product.map.update({ airports: refreshedAirports, enabled: true, airportsVisible: true });
+  navigator.onLine = false; window.dispatchEvent(new Event('offline'));
+  navigator.onLine = true; window.dispatchEvent(new Event('online'));
+  document.dispatchEvent(new Event('visibilitychange'));
+  const pausedCalls = calls.length;
+  await advance(60_000);
+  assert.equal(calls.length, pausedCalls, 'input and environment changes cannot resume requests while moving');
+  hold = false;
+  moving = false; emit('moveend'); emit('render');
+  await advance(250);
+  assert.equal(calls.length, pausedCalls + 1, 'cancelled acquisition resumes after settling');
+  assert.equal(product.getSnapshot().weatherAirportCount, 1);
+  assert.equal(product.getSnapshot().state.status, 'current');
   product.map.unmount();
 });

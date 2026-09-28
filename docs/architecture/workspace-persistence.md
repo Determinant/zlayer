@@ -47,8 +47,11 @@ describes isolation and the compatibility reads from former global keys.
   unavailable coordination leaves saved routes untouched. Open stash dialogs
   refresh on storage events, and edits reject a changed or removed save. The dialog's
   unfinished name/text and open state are session-only. See [route persistence](../../src/layers/routes/README.md#persistence-and-compatibility).
-- Camera writes happen at movement completion, page hiding and teardown, without
-  rerendering the workspace. Reader scroll/zoom writes are debounced and flushed
+- Manual camera writes, including explicit GPS centering, happen at movement
+  completion. Automatic GPS following coalesces writes on a fixed two-second deadline, so continuous flight cannot
+  postpone persistence indefinitely. Page hiding and teardown cancel the deadline
+  and flush the live camera, including unfinished movements, without rerendering
+  the workspace. Reader scroll/zoom writes are debounced and flushed
   on page hiding/unmount, sampling the live scroll position even if the final
   scroll event is still queued. These gesture paths avoid localStorage on every frame.
 - Left toolboxes start stowed when no valid saved selection exists. Saved open or

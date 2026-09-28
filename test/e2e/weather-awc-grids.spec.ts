@@ -349,6 +349,36 @@ test('forecast pixels remain visible through zoom, pan and resize without fetchi
   expect((await (await request.get('/__test/awc-counts')).json()).grids).toBe(requests);
 });
 
+test('SLD detail keeps screen-sized sampling in wrapped map worlds without reloading forecasts', async ({ page, request }) => {
+  await page.clock.install({ time: WEATHER_NOW });
+  await page.goto('/test/browser/weather-grids.html');
+  await page.waitForFunction(() => !!window.weatherGridFixture?.controller.getSnapshot().gridDisplay);
+  await page.evaluate(() => window.weatherGridFixture.controller.change({ awcGridMode: 'icingProbability', awcGridAltitude: 8000, awcSldOverlay: true }));
+  await page.waitForFunction(() => {
+    const state = window.weatherGridFixture.controller.getSnapshot();
+    return state.gridDisplay?.mode === 'icingProbability' && state.grid.preparation?.ready === state.grid.preparation?.total;
+  });
+  const detail = () => page.evaluate(() => {
+    const source = window.weatherGridFixture.map.getSource('weather-awc-grid') as ImageSource;
+    return { width: source.image?.width ?? 0, height: source.image?.height ?? 0, coordinates: source.coordinates };
+  });
+  await expect.poll(async () => (await detail()).width).toBeGreaterThan(100);
+  const original = await detail();
+  const requests = (await (await request.get('/__test/awc-counts')).json()).grids;
+  for (const longitude of [260, -460, -100]) {
+    await page.evaluate(longitude => window.weatherGridFixture.map.jumpTo({ center: [longitude, 38] }), longitude);
+    await expect.poll(async () => (await detail()).width).toBeGreaterThan(100);
+    const wrapped = await detail();
+    expect(Math.abs(wrapped.width - original.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(wrapped.height - original.height)).toBeLessThanOrEqual(1);
+    for (let corner = 0; corner < 4; corner++) for (let axis = 0; axis < 2; axis++) {
+      expect(wrapped.coordinates[corner]![axis]!).toBeCloseTo(original.coordinates[corner]![axis]!, 8);
+    }
+  }
+  expect(await page.evaluate(() => window.weatherGridFixture.errors)).toEqual([]);
+  expect((await (await request.get('/__test/awc-counts')).json()).grids).toBe(requests);
+});
+
 test('time changes clear the preceding forecast while a newer request replaces a delayed one', async ({ page, request }) => {
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/test/browser/weather-grids.html');
@@ -465,7 +495,8 @@ test('cloud/freezing values share numeric inspection, real forecast stops and co
   await expect(altitude).toHaveAttribute('aria-valuetext', '8,000 feet MSL');
   await altitude.scrollIntoViewIfNeeded();
   const track = (await altitude.boundingBox())!;
-  await page.mouse.click(track.x + 8 + (track.width - 16) * 0.2, track.y + track.height / 2);
+  // Progress can disappear above the slider; resolve its current position at click time.
+  await altitude.click({ position: { x: 8 + (track.width - 16) * 0.2, y: track.height / 2 } });
   await expect(altitude).toHaveAttribute('aria-valuetext', '500 feet MSL');
   details = await inspect(page);
   await expect(details.getByText('Below model terrain', { exact: true })).toHaveCount(3);

@@ -1,3 +1,28 @@
+import type { AirportRunway, AirportRunwayEnd } from '@zlayer/contracts';
+
+export type RunwayHeading = { degrees: number; reference: 'magnetic' | 'true'; estimated: boolean };
+
+/** Legacy summaries still identify ends even without per-end metadata. */
+export function runwayEnds(runway: AirportRunway): AirportRunwayEnd[] {
+  return runway.ends?.length ? runway.ends : runway.id.split('/').map(id => ({ id }));
+}
+
+/** Published magnetic, published true, then an explicitly approximate runway-number bearing. */
+export function runwayHeading(end: AirportRunwayEnd, magneticAvailable = true): RunwayHeading | undefined {
+  if (magneticAvailable && validHeading(end.magneticHeadingDeg)) {
+    return { degrees: end.magneticHeadingDeg, reference: 'magnetic', estimated: false };
+  }
+  if (validHeading(end.trueHeadingDeg)) {
+    return { degrees: end.trueHeadingDeg, reference: 'true', estimated: false };
+  }
+  if (!magneticAvailable) return undefined;
+  // Accept numeric runway designators and FAA end suffixes, not helipad/compass names.
+  const match = /^(\d{2}|\d)(?:[LRCWGSU]|\d)?$/.exec(end.id);
+  const number = match ? Number(match[1]) : 0;
+  return number >= 1 && number <= 36
+    ? { degrees: number * 10, reference: 'magnetic', estimated: true } : undefined;
+}
+
 export type RunwayWind = {
   direction: string | number | null | undefined;
   speedKt: number | null | undefined;
@@ -17,9 +42,9 @@ export type RunwayWindComponents =
       gust?: { headwindKt: number; crosswindKt: number };
     };
 
-/** Both runway heading and METAR wind direction must be relative to true north. */
+/** Runway heading and wind FROM direction must use the same north reference (true or magnetic). */
 export function runwayWindComponents(
-  trueHeadingDeg: number | undefined,
+  headingDeg: number | undefined,
   wind: RunwayWind,
 ): RunwayWindComponents {
   const speed = wind.speedKt;
@@ -32,8 +57,8 @@ export function runwayWindComponents(
   const direction = typeof wind.direction === 'string' && /^\d{1,3}$/.test(wind.direction.trim())
     ? Number(wind.direction) : wind.direction;
   if (!validHeading(direction)) return { kind: 'unavailable', reason: 'direction' };
-  if (!validHeading(trueHeadingDeg)) return { kind: 'unavailable', reason: 'heading' };
-  const angle = (direction - trueHeadingDeg) * Math.PI / 180;
+  if (!validHeading(headingDeg)) return { kind: 'unavailable', reason: 'heading' };
+  const angle = (direction - headingDeg) * Math.PI / 180;
   const components = (knots: number) => ({
     headwindKt: cleanZero(knots * Math.cos(angle)),
     crosswindKt: cleanZero(knots * Math.sin(angle)),

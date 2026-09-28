@@ -48,18 +48,30 @@ remains plugin-owned. The METAR and TAF report views remain separate, as do thei
 request formats, retry policies and cache keys through core-managed slots (`zlayer-plugin:metar:metars` and
 `zlayer-plugin:metar:tafs`). The former `zlayers.metars.v1` and `zlayers.tafs.v1`
 slots are read when the new slot is absent; new cache writes stay in the plugin scope.
-Selections and refresh timers remain independent. The METAR map identity and saved
+Selections and refresh timers remain independent. Display-age timers pause while
+the document is hidden and reconcile immediately on resume. A current local report
+with no manually selected alternative avoids scanning the nearby-report cache. The METAR map identity and saved
 visibility setting remain `metar`; the directory name describes the module's scope.
 
 Map METAR demand comes from rendered airport circles. Loading national airport references
-for search does **not** fetch METAR for every airport. Panning clears demand until
-movement settles. Airport visibility, the METAR toggle, document visibility, and
+for search does **not** fetch METAR for every airport. Camera movement pauses
+requests until movement settles, while retaining the last settled station scope,
+weather count and observation time for presentation. This keeps the flight-category
+legend visible through GPS follow/track-up animations and manual pans. Once settled,
+the rendered circles determine the new scope, including clearing it for an empty
+view; requests resume even if the stations are unchanged.
+Airport visibility, the METAR toggle, document visibility, and
 network availability control whether map requests run. Map METARs use gateway AWC
 queries containing up to 100 station IDs, with two batches in flight, a 20-second
 timeout and one retry for transient failures. For example, 250 demanded airports
 need three requests, not 250 station lookups. Nearby METAR discovery uses a bounded
 geographic query, split at the dateline. Cached station checks avoid repeat requests
-when revisiting a view.
+when revisiting a view. Overlapping map/card station demand joins pending batches;
+one consumer cancelling does not abort another, and the last consumer cancels
+its work. The client admits at most two station batches across all consumers.
+Freshness publishes per batch, but changed observations persist together when a
+refresh settles. Unchanged observations retain their content identity and do not
+rewrite storage or rebuild the map source; same-time corrections still replace them.
 
 While the weather plugin is loaded, an open airport Info card adds independent
 METAR and TAF demand through
@@ -80,7 +92,12 @@ restores up to 5,000 stations across page loads. Observation time and successful
 time remain separate. Empty or failed refreshes retain the previous observation and
 expose its cached status in airport details. A valid observation replaces a
 future-dated cached report even if its timestamp is earlier; response batches use
-the same preference. Both weather clients treat negative cache age after a clock
+the same preference. TAF also prefers a non-future issue timestamp over a future-dated saved or batched
+report, while preserving issue/amendment ordering among usable reports. Forecast
+validity may legitimately begin in the future. Card labels and activity status
+share each report type’s freshness calculation: checks older than 90 seconds for
+METAR or five minutes for TAF, and future check timestamps, are cached/unverified.
+Both weather clients treat negative cache age after a clock
 rollback as eligible for refresh. Requests use `cache: 'no-store'` so the
 service worker cannot turn a failed refresh into a successful cached response. The
 product owns that fallback and its labeling.
@@ -124,13 +141,32 @@ are ignored on restore. Coded saved reports retain original labels until refresh
 
 ### Report presentation and nearby weather
 
+Raw METAR text uses the selected report's flight-category color, sharing TAF's
+palette: green VFR, blue MVFR, red IFR and magenta LIFR. Unknown categories retain
+neutral text; cached and nearby reports use their own observation's category.
+The two rows above the raw text show Wind / Visibility, then Ceiling / Altimeter;
+there is no separate flight-category field. Missing values retain their grid slots.
+Altimeter settings come from the coded report body before `RMK`, preserving the
+reported unit: `A2992` displays as `29.92 inHg`, and `Q1013` as `1013 hPa`.
+Missing or malformed pressure groups display “Unavailable”; sea-level pressure in
+remarks is not substituted. See the [AWC METAR guide](https://aviationweather.gov/help/data/#metars)
+and [Met Office decoding guide](https://docs.mavis.metoffice.gov.uk/guidance/metar-decode/).
+
 Decoded METAR wind shows magnetic/true FROM bearings separated by a slash, followed
 by speed and gusts, for example `327°M/340°T 6 kt`. The shared WMM2025 model uses
 the selected report station's coordinates, observation time and zero ellipsoid
 height, including for nearby and cached reports. Missing or out-of-validity model
 data, or weak/polar fields, leave the magnetic value as `—` while retaining true
 direction. Calm, variable and unavailable directions retain their existing labels;
-the raw report and true-bearing runway-component calculations remain unchanged.
+the raw report stays unchanged. Runway components prefer published magnetic runway
+headings paired with wind converted by this same model. True runway/true wind pairs
+remain a fallback for older feeds or unavailable models. With neither published
+heading, numbered runway ends use an approximate magnetic heading (number × 10),
+including older summaries with no `ends[]`. Estimates are labeled `≈` in the runway
+row and approximate in wind tooltips/accessibility labels, and participate in
+Best Wind ranking. Magnetic headings and estimates without a usable model show
+an explicit unavailable state. Named ends and helipads are not estimated. Both displays share the
+observation-date declination hook, and runway model demand follows airport Info visibility.
 Model loading follows the open report card and selected feed revision, using the
 shared reference cache and retrying on reopening or reconnection.
 

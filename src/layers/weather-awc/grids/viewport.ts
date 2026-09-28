@@ -9,12 +9,14 @@ export type GridViewport = { bounds: [number, number, number, number]; width: nu
 export function gridViewport(map: Map, manifest: Pick<AwcGridManifest, 'grid'>): GridViewport | undefined {
   const view = map.getBounds(), grid = manifest.grid;
   const [west, south, east, north] = grid.bounds;
-  const w = Math.max(west, view.getWest()), e = Math.min(east, view.getEast());
+  // Sample canonical cells, but measure pixels in the visible world copy.
+  const wrap = 360 * Math.round(((view.getWest() + view.getEast()) / 2 - (west + east) / 2) / 360);
+  const w = Math.max(west, view.getWest() - wrap), e = Math.min(east, view.getEast() - wrap);
   const s = Math.max(south, view.getSouth()), n = Math.min(north, view.getNorth());
   if (w >= e || s >= n) return undefined;
   const ratio = Math.min(2, globalThis.devicePixelRatio || 1), middle = (s + n) / 2;
-  const a = map.project([w, middle]), b = map.project([e, middle]);
-  const c = map.project([(w + e) / 2, s]), d = map.project([(w + e) / 2, n]);
+  const a = map.project([w + wrap, middle]), b = map.project([e + wrap, middle]);
+  const c = map.project([(w + e) / 2 + wrap, s]), d = map.project([(w + e) / 2 + wrap, n]);
   const width = Math.max(1, Math.min(2048, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) * ratio)));
   const height = Math.max(1, Math.min(2048, Math.ceil(Math.hypot(d.x - c.x, d.y - c.y) * ratio)));
   const columns = new Int32Array(width), rows = new Int32Array(height);

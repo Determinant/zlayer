@@ -216,11 +216,13 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     };
   }, [source]);
 
+  const renderWidth = availableSize.width;
+  const hasRenderArea = renderWidth > 0 && availableSize.height > 0;
   useEffect(() => {
     const pdf = viewer.document;
     const signal = viewer.signal;
     const canvas = canvasRef.current;
-    if (!pdf || !signal || !canvas || pinching || preparingMap || availableSize.height <= 0 || availableSize.width <= 0) return;
+    if (!pdf || !signal || !canvas || pinching || preparingMap || !hasRenderArea) return;
 
     let current = true;
     let renderTask: ReturnType<Awaited<ReturnType<typeof pdf.getPage>>['render']> | undefined;
@@ -237,7 +239,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
         const pageRotation = (page.rotate + rotation) % 360;
         const unscaled = page.getViewport({ scale: 1, rotation: pageRotation });
         // 100% fills the reading width; taller pages scroll vertically from the top.
-        const fitScale = availableSize.width / unscaled.width;
+        const fitScale = renderWidth / unscaled.width;
         const viewport = page.getViewport({ scale: fitScale * zoom, rotation: pageRotation });
         const size = pdfCanvasSize(viewport.width, viewport.height, pixelRatio);
         buffer.width = size.width;
@@ -271,7 +273,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
       current = false;
       renderTask?.cancel();
     };
-  }, [availableSize, pageIndex, viewer.document, viewer.signal, viewer.fail, zoom, rotation, pixelRatio, pinching, preparingMap]);
+  }, [renderWidth, hasRenderArea, pageIndex, viewer.document, viewer.signal, viewer.fail, zoom, rotation, pixelRatio, pinching, preparingMap]);
 
   const showOnMap = async () => {
     const pdf = viewer.document;

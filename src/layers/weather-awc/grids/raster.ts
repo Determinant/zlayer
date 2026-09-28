@@ -1,6 +1,6 @@
-import { AWC_GRID_FIELDS, type AwcGridField } from '@zlayer/contracts';
+import type { AwcGridField } from '@zlayer/contracts';
 import { gridReader, type DecodedGrid } from './format';
-import { gridPackedColorizer } from './presentation';
+import { gridPackedColorizer, gridSldOverlay } from './presentation';
 import type { GridViewport } from './viewport';
 
 /** One candidate image; each visible model cell is colored once, then expanded. */
@@ -11,7 +11,7 @@ export async function rasterGrid(data: DecodedGrid, field: AwcGridField, sld: bo
   const { width, height, pixelRatio, columns, rows } = viewport;
   const pixels = new Uint32Array(width * height), color = gridPackedColorizer(field);
   const read = gridReader(data, field);
-  const hatch = sld && (AWC_GRID_FIELDS.icing as readonly string[]).includes(field) && field !== 'sldPotential';
+  const hatch = gridSldOverlay(field, sld);
   const readSld = hatch ? gridReader(data, 'sldPotential') : undefined;
   // Adjacent pixels sampling one model column share their base/SLD colors.
   const stops = [0];
