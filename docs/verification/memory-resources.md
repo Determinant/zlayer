@@ -359,6 +359,11 @@ those figures are not Safari process footprints.
 
 ## Rendering and cache behavior
 
+The opt-in [chart pipeline benchmark](../../src/layers/charts/benchmark.md) measures
+cold/warm loads, pan/zoom/revisit and saved-edition boundaries in the built workspace.
+It records package payload retention and Chromium heap samples separately; neither
+is a total browser/GPU memory budget. Use it alongside physical-device profiling.
+
 ### Large map, limited viewport
 
 The map keeps its geographic extent and camera independently of plugin lifetime.

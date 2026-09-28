@@ -1,4 +1,4 @@
-import { gridCell, gridValue, isGridSentinel, type DecodedGrid } from './format';
+import { gridCell, gridReader, isGridSentinel, type DecodedGrid } from './format';
 
 export function windSample(east: number, north: number) {
   if (!Number.isFinite(east) || !Number.isFinite(north) || isGridSentinel(east) || isGridSentinel(north)) return undefined;
@@ -13,13 +13,17 @@ export type WindSymbol = { longitude: number; latitude: number; direction: numbe
 const worldY = (lat: number) => (1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2;
 const latitude = (y: number) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI;
 
+/** Sampling and camera invalidation share the native-resolution ceiling. */
+export function windLatticeLevel(data: DecodedGrid, zoom: number): number {
+  const nativeStep = (data.manifest.grid.bounds[2] - data.manifest.grid.bounds[0]) / 360 / data.manifest.grid.width;
+  return Math.min(Math.floor(zoom + Math.log2(512 / 80)), Math.floor(-Math.log2(nativeStep)));
+}
+
 /** Nested, world-anchored lattice. Cost follows viewport area, not model size. */
 export function windSymbols(data: DecodedGrid, view: WindView): WindSymbol[] {
-  // 80–160 CSS px between candidates. Stop subdivision at the converted grid's
-  // resolution; enlarging model cells cannot manufacture finer forecast detail.
-  const nativeStep = (data.manifest.grid.bounds[2] - data.manifest.grid.bounds[0]) / 360 / data.manifest.grid.width;
-  const level = Math.min(Math.floor(Math.log2(512 * 2 ** view.zoom / 80)), Math.floor(-Math.log2(nativeStep)));
-  const step = 2 ** -level, [west, south, east, north] = view.bounds;
+  // 80–160 CSS px between candidates, capped at the model's resolution.
+  const step = 2 ** -windLatticeLevel(data, view.zoom), [west, south, east, north] = view.bounds;
+  const eastward = gridReader(data, 'windEast'), northward = gridReader(data, 'windNorth');
   const fromX = Math.ceil((west + 180) / 360 / step), toX = Math.floor((east + 180) / 360 / step);
   const fromY = Math.ceil(worldY(Math.min(85, north)) / step), toY = Math.floor(worldY(Math.max(-85, south)) / step);
   const limit = Math.ceil((view.width + 160) * (view.height + 160) / (64 * 64));
@@ -34,7 +38,7 @@ export function windSymbols(data: DecodedGrid, view: WindView): WindSymbol[] {
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < -64 || point.y < -64 || point.x > view.width + 64 || point.y > view.height + 64) continue;
     const cell = gridCell(data.manifest, longitude, lat);
     if (cell === undefined || cells.has(cell)) continue;
-    const sample = windSample(gridValue(data, 'windEast', cell), gridValue(data, 'windNorth', cell));
+    const sample = windSample(eastward(cell), northward(cell));
     if (!sample) continue;
     const sx = Math.floor(point.x / 64), sy = Math.floor(point.y / 64);
     let collision = false;

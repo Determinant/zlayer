@@ -54,26 +54,6 @@ test('route menu copies and reverses current edits, supports keyboard dismissal 
   await expect(page.getByRole('menuitem', { name: 'Reverse Route', exact: true })).toBeDisabled();
 });
 
-test('clipboard failure offers selected route text for manual copying', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('Denied')) } });
-  });
-  await page.goto('/test/browser/routes.html');
-  await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).click();
-  await page.getByRole('menuitem', { name: /^ForeFlight/ }).click();
-  const fallback = page.getByRole('textbox', { name: 'Route text to copy', exact: true });
-  await expect(fallback).toHaveValue('KSFO UNKNOWN KSJC');
-  await expect(fallback).toBeFocused();
-  expect(await fallback.evaluate((element: HTMLTextAreaElement) => element.value.slice(element.selectionStart, element.selectionEnd)))
-    .toBe('KSFO UNKNOWN KSJC');
-  await fallback.press('ArrowLeft');
-  await expect(fallback).toBeFocused();
-  await fallback.press('Escape');
-  await expect(fallback).toHaveCount(0);
-  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
-});
-
 test('desktop copy expands a keyboard-accessible format menu and copies the selected coordinate syntax', async ({ page }, testInfo) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/test/browser/routes.html');
@@ -113,7 +93,7 @@ test('desktop copy expands a keyboard-accessible format menu and copies the sele
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('manual copying uses the chosen format and a narrow desktop menu stays on screen', async ({ page }) => {
+test('clipboard failure selects the chosen format, preserves caret navigation and fits a narrow desktop', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('Denied')) } });
   });
@@ -131,32 +111,12 @@ test('manual copying uses the chosen format and a narrow desktop menu stays on s
   const box = (await page.locator('.route-menu-popover').boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(320);
+  await fallback.press('ArrowLeft');
+  await expect(fallback).toBeFocused();
+  await fallback.press('Escape');
+  await expect(fallback).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();
 });
-
-for (const platform of ['Android', 'iPhone', 'iPad']) {
-  test(`${platform} copies every format without changing the draft`, async ({ page }) => {
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.addInitScript(platform => {
-      Object.defineProperty(navigator, 'userAgent', { value: platform === 'iPad' ? 'Mozilla/5.0 Macintosh' : platform });
-      Object.defineProperty(navigator, 'platform', { value: platform === 'iPad' ? 'MacIntel' : platform });
-      Object.defineProperty(navigator, 'maxTouchPoints', { value: 5 });
-    }, platform);
-    await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto('/test/browser/routes.html');
-    await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('374529N1223030W');
-    await page.getByRole('button', { name: 'Route actions', exact: true }).click();
-    const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
-    await expect(copy).toHaveAttribute('aria-haspopup', 'menu');
-    await copy.click();
-    const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
-    for (const [name, token] of coordinateFormats) {
-      await formats.getByRole('menuitem', { name }).click();
-      await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
-      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`KSFO UNKNOWN KSJC ${token}`);
-    }
-    await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
-  });
-}
 
 for (const platform of ['Desktop', 'Android', 'iPhone', 'iPad']) {
   test(`${platform} shares the selected format and keeps the saved precision`, async ({ page }, testInfo) => {

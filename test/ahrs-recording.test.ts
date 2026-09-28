@@ -283,3 +283,42 @@ for (const estimatorModel of [undefined, 'kinematic-ahrs-v5']) test(`replay expl
   await assert.rejects(() => replayAhrs([{ sequence: 0, time: 0, type: 'header',
     data: { format: 'zlayer-ahrs', version: 1, context: { estimatorModel } } }]), /Unsupported estimator model/);
 });
+
+test('map heading leases preserve a prepared recording and calibrated replay', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: 1_800_000_000_000 });
+  const s = fixture(t), origin = Date.now(), now = () => (Date.now() - origin) / 1000;
+  let sample!: (value: ImuSample) => void, notify = () => {};
+  const layer = createAhrsLayer({
+    getSnapshot: () => ({ state: 'tracking', fix: { timestamp: Date.now(), time: now(), accuracy: 5,
+      speed: 55, track: 90, estimated: false, coordinates: [-122, 37], altitude: null, altitudeAccuracy: null } }),
+    subscribe(listener) { notify = listener; return () => {}; }, acquire: () => () => {}, retry() {},
+  }, { now, timeOrigin: origin, recorder: s.recorder,
+    motion: (_mount, callback) => { sample = callback; return { start: async () => {}, stop() {} }; } });
+  t.after(layer.dispose);
+  const feed = (seconds: number) => {
+    for (let i = 0; i < seconds * 50; i++) {
+      t.mock.timers.tick(20);
+      sample({ time: now(), gyro: [0, 0, 0], specificForce: [0, 0, -9.80665] });
+      if (i % 50 === 0) notify();
+    }
+  };
+  await layer.startRecording();
+  const first = layer.acquireHeading(() => {});
+  await Promise.resolve(); feed(1);
+  assert.equal(s.recorder.accepting(), true, 'map startup cannot stop a recording');
+  first();
+  assert.equal(s.recorder.accepting(), true, 'map teardown cannot stop a recording');
+  const release = layer.acquireHeading(() => {});
+  await Promise.resolve(); feed(1);
+  await layer.calibrate(); feed(12);
+  assert.equal(s.recorder.accepting(), true);
+  layer.stop(); await s.recorder.stop(); release();
+  assert.equal(s.recorder.accepting(), false, 'explicit instrument Stop owns recording termination');
+  const lines = await s.events();
+  assert.ok(!lines.some(line => ['imu', 'gps', 'magnetic'].includes(line.type) && line.time < 2),
+    'automatic map observations cannot enter calibrated instrument replay');
+  const replay = await replayAhrs(lines.map(line => parseRecordingLine(JSON.stringify(line))));
+  assert.equal(replay.segments, 1);
+  assert.equal(replay.maxAttitudeDifference, 0);
+  assert.equal(replay.maxCovarianceDifference, 0);
+});

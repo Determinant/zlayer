@@ -10,7 +10,7 @@ import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureIdent, featureKey, featureSubtitle } from '@zlayer/domain';
 import { featureDetailRows } from './feature-details';
 import { AirportFrequencyValue } from './airport-frequency-value';
-import { AirportRunways, type RunwayWeather } from './airport-runways';
+import { AirportRunways } from './airport-runways';
 
 const DETAIL_TABS = [{ value: 'info', label: 'Info' }, { value: 'plates', label: 'Plates' }] as const;
 
@@ -19,10 +19,10 @@ export type FeatureDetailCardProps = {
   feature: GeoPointFeature; revision: string; placement: PanelTab; onClose(): void;
   actions: ReactNode; identification: ReactNode | undefined; onIdentificationChange(open: boolean): void;
   info: DetailBody; elevation: DetailBody; plates: DetailBody | undefined;
-  runwayWeather?: RunwayWeather | undefined;
+  runways?: DetailBody | undefined;
 };
 export function FeatureDetailCard({ feature, revision, placement, onClose, actions,
-  identification, onIdentificationChange, info, elevation, plates, runwayWeather }: FeatureDetailCardProps) {
+  identification, onIdentificationChange, info, elevation, plates, runways }: FeatureDetailCardProps) {
   // Stowing preserves the selection, ID overlay, and mounted tab content.
   const panel = useEdgePanel('details');
   const tabsId = useId();
@@ -73,7 +73,7 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
             ))}
           </dl>}
           {info(panel.open)}
-          {hasRunways && <AirportRunways feature={feature} weather={runwayWeather} />}
+          {hasRunways && (runways ? runways(panel.open) : <AirportRunways feature={feature} />)}
         </div>}
       </div>
       {hasPlates && <div {...tabPanelProps(tabsId, 'plates', activeTab)}>

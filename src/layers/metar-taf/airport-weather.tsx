@@ -2,6 +2,8 @@ import { Fragment } from 'react';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { featureKey, isAirportFeature } from '@zlayer/domain';
 import { METAR_REFRESH_MS, type MetarClient } from './metar/client';
+import { metarReportSummary } from './metar/summary';
+import { tafReportSummary } from './taf/summary';
 import { MetarReportView } from './metar/report';
 import { getTafClient, TAF_REFRESH_MS } from './taf/client';
 import { TafReportView } from './taf/report';
@@ -17,8 +19,8 @@ export function AirportWeather({ feature, client, active = true, revision, onSta
   const tafClient = typeof window === 'undefined' ? undefined : getTafClient();
   return <Fragment key={featureKey(feature)}>
     <StationWeather feature={feature} client={client} active={active} revision={revision} name="METAR" intervalMs={METAR_REFRESH_MS} onStatus={onStatus}
-      refreshStation={(id, signal) => client.refresh([id], signal)} View={MetarReportView} />
+      refreshStation={(id, signal) => client.refresh([id], signal)} summarize={metarReportSummary} View={MetarReportView} />
     <StationWeather feature={feature} client={tafClient} active={active} name="TAF" intervalMs={TAF_REFRESH_MS} onStatus={onStatus}
-      refreshStation={(id, signal) => tafClient?.refresh(id, signal)} View={TafReportView} />
+      refreshStation={(id, signal) => tafClient?.refresh(id, signal)} summarize={tafReportSummary} View={TafReportView} />
   </Fragment>;
 }

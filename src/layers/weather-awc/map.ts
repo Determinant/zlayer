@@ -1,7 +1,7 @@
 import type { Map, ExpressionSpecification } from 'maplibre-gl';
 import { createSourceSubmission } from './source-submission';
 import { WEATHER_LAYER_ANCHOR, type MapLayerModule } from '../../core/map/layer';
-import type { WeatherController } from './controller';
+import { shadedGrid, type WeatherState, type WeatherController } from './controller';
 import { mountGridMap } from './grids/map';
 import { mountWindMap } from './grids/wind-map';
 import { ADVISORY_COLORS } from './palette';
@@ -19,6 +19,7 @@ const lineWidth = 2;
 
 export function createWeatherMap(controller: WeatherController): MapLayerModule<void> {
   let map: Map | undefined;
+  let inputs: WeatherState | undefined;
   let previous = '', retry = -1;
   let submission: ReturnType<typeof createSourceSubmission> | undefined;
   let attempted: ReturnType<WeatherController['getSnapshot']>['products'] | undefined;
@@ -50,15 +51,27 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
   };
   const update = () => {
     if (!map) return;
-    grids?.update();
-    winds?.update();
-    coverage?.update();
-    progs?.update();
-    radar?.update();
-    motion?.update();
+    const state = controller.getSnapshot(), last = inputs;
+    // Save before child publications: source acceptance can synchronously notify
+    // this adapter again. Receipts must not rerun unrelated selection work.
+    inputs = state;
+    const selectionChanged = !last || last.preferences !== state.preferences ||
+      last.selectedTime !== state.selectedTime || last.now !== state.now;
+    const grid = shadedGrid(state), oldGrid = last && shadedGrid(last);
+    if (selectionChanged || grid.data !== oldGrid?.data || grid.nearby !== oldGrid?.nearby ||
+      grid.loading !== oldGrid?.loading || last?.forecastRetry !== state.forecastRetry) grids?.update();
+    if (selectionChanged || last?.wind.data !== state.wind.data || last?.forecastRetry !== state.forecastRetry) winds?.update();
+    if (selectionChanged || last?.coverage !== state.coverage || last?.progsRetry !== state.progsRetry) coverage?.update();
+    if (selectionChanged || last?.progs.analysis.snapshot !== state.progs.analysis.snapshot ||
+      last?.progs.forecast.snapshot !== state.progs.forecast.snapshot || last?.progsRetry !== state.progsRetry) progs?.update();
+    if (selectionChanged || last?.radar.snapshot !== state.radar.snapshot || last?.radarRetry !== state.radarRetry) radar?.update();
+    if (selectionChanged || last?.radar.snapshot !== state.radar.snapshot || last?.radarMotion.snapshot !== state.radarMotion.snapshot ||
+      last?.radarRetry !== state.radarRetry || last?.radarDisplay.sites !== state.radarDisplay.sites) motion?.update();
+    const snapshotsChanged = !last || (['gairmet', 'sigmet', 'cwa'] as const).some(product =>
+      last.products[product].snapshot !== state.products[product].snapshot);
+    if (!selectionChanged && !snapshotsChanged && last?.advisoryRetry === state.advisoryRetry) return;
     const advisories = controller.visibleAdvisories();
     const identity = advisories.map(a => a.id).join('|');
-    const state = controller.getSnapshot();
     const refreshed = attempted && (['gairmet', 'sigmet', 'cwa'] as const).some(product => attempted![product].snapshot !== state.products[product].snapshot);
     const source = submission!;
     const recover = source.failed && (retry !== state.advisoryRetry || refreshed);
@@ -125,7 +138,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
         for (const id of [...ADVISORY_LAYERS].reverse()) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);
       }
-      map = undefined; previous = ''; attempted = undefined; retry = -1;
+      map = undefined; inputs = undefined; previous = ''; attempted = undefined; retry = -1;
       controller.setAdvisoryDisplay({ loading: false, ids: [] });
     },
   };

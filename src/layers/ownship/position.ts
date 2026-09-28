@@ -22,7 +22,7 @@ export function destination(from: [number, number], track: number, meters: numbe
 
 type MovingGpsFix = GpsFix & { track: number; speed: number };
 
-function usableMotion(fix: GpsFix): fix is MovingGpsFix {
+export function usableMotion(fix: GpsFix): fix is MovingGpsFix {
   return fix.accuracy <= GPS_MOTION_ACCURACY_METERS && fix.track !== null && Number.isFinite(fix.track) &&
     fix.track >= 0 && fix.track < 360 && validSpeed(fix.speed) && fix.speed >= 1;
 }

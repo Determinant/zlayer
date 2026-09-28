@@ -66,7 +66,11 @@ unchanged scans. The controller owns demand;
 map movement changes the selected prepared files without upstream requests.
 National and terminal geometry use separate sources. Eight interleaved threshold
 layers per source preserve stronger-echo priority across both sources; changing
-terminal coverage does not re-index the national composite. The renderer submits
+terminal coverage does not re-index the national composite. Each source owns its
+acquisition/submission task: a viewport change preserves unchanged national work
+even while acquisition or indexing is pending. Cancellation, failures and retries
+apply to the affected group; changing observation or disabling radar cancels its
+obsolete work. The renderer submits
 each polygon as a separate feature, retaining its complete rings/holes, threshold
 and prepared vertices. This lets MapLibre's tile index reject off-tile polygons
 early instead of repeatedly clipping a national-size MultiPolygon. Fill sources
@@ -221,7 +225,9 @@ live refresh into an acquisition error. Regional chart downloads do not guarante
 checked GDAL values/geometry and Python bzip2/struct radial samples. It covers
 partial sweeps, source identity, expiration/clock rollback, prepared-only HTTP,
 unchanged scan reuse, history backfill, byte/window retention, mixed timeline
-coordinates, failure isolation and disk restoration. Browser regressions
+coordinates, failure isolation and disk restoration. `test/weather-radar-map.test.ts`
+checks independent pending acquisitions/submissions, group-specific cancellation,
+source recreation and stale-completion rejection. Browser regressions
 exercise combined and historical rendering, wrapped terminal coverage without
 new file requests, source-free browser requests, style recovery, saved catalog/file
 restoration after a full app reload with the origin disconnected, forecast

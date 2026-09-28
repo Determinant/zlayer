@@ -64,14 +64,16 @@ The [HSI behavior](#heading-and-guidance-behavior) and
 The workspace supplies [core's shared GPS service](../../../docs/architecture/layer-plugins.md#shared-gps-service)
 directly. AHRS has no Ownship plugin dependency: you can enable it, calibrate and
 receive GPS with Ownship disabled. `acquire()` holds a shared location lease; it neither
-enables the map aircraft nor moves the camera. Stopping or disabling AHRS releases
-only its own lease. Ownship can continue using the same browser watch, and disabling
+enables the map aircraft nor moves the camera. Stopping the instruments releases their demand; disabling AHRS releases
+all of its demand. Ownship can continue using the same browser watch, and disabling
 Ownship cannot stop an active AHRS session's GPS.
-Sensors start from the confirmation button and stop on **Stop**, cancellation,
-unrecoverable failure, or unmount. Stowing AHRS through its tab, Escape, or another
+Instrument sessions start from the confirmation button and stop on **Stop**,
+cancellation, unrecoverable failure, or unmount. Optional track-up heading demand
+has an independent lease, described below. Stowing AHRS through its tab, Escape, or another
 toolbox offers **Stop**, **Background**, and **Cancel**. **Stop** is the prominent,
-initially focused default: it ends motion sensing and recording, releases the AHRS
-GPS lease, and clears calibration before stowing. Reopening requires calibration.
+initially focused default: it ends the instruments and recording and clears
+calibration before stowing. Sensors and the AHRS GPS lease are released unless
+track-up still needs automatic heading. Reopening requires calibration.
 **Background** stows while preserving the running calibration/attitude;
 **Cancel** (including Escape) leaves the toolbox and session open. Sensor processing
 continues until the user chooses. The Stop button spans the first row; Background
@@ -101,7 +103,8 @@ web apps support it from iOS/iPadOS 18.4 ([WebKit release notes](https://webkit.
 Actual device auto-lock behavior still requires phone/tablet verification.
 
 Stopping, canceling calibration, or an unrecoverable fault clears the GPS instruments,
-HSI guidance and GPS-live badge along with the AHRS location lease. A separate
+HSI guidance and GPS-live badge. Its location lease is released unless automatic
+map heading still needs it. A separate
 map GPS consumer can continue tracking, but cannot leave old GPS values displayed
 as live in AHRS. A fault retains the last available HSI heading under its warning;
 stopping or starting a new calibration clears that reference and releases the old
@@ -116,6 +119,56 @@ AHRS consumes that time directly, preserving delivery delay and its stricter
 three-second freshness/quality gates. It does not derive GPS time from a fixed
 epoch offset or own a separate watch/retry loop. This permits fresh GPS to recover
 after device sleep or wall-clock corrections without reloading or recalibrating.
+
+### Automatic heading demand
+
+The optional `public.ts` API exposes `acquireHeading(listener)`, a revocable lease
+on the same sensor/filter/GPS session used by the instruments. Ownship discovers
+it through the plugin bridge, without an activation prerequisite. No sensor starts
+merely because another plugin discovers the API. The camera leases it for usable
+track-up; disabling the provider revokes every lease.
+
+A heading-only session starts automatically, without the pilot's level-flight
+confirmation, ten-second bias calibration, or a supplied north reference. Its
+first near-gravity force sample chooses a local horizontal frame for the fixed
+device mount. The existing estimator processes every delivered IMU sample,
+accelerometer observations, qualified magnetic evidence and GPS updates. The
+initialization waits through unsettled readings and pauses until a near-gravity
+sample is available. The initial tilt prior is 15°, reflecting the unconfirmed
+pose; gyro bias retains its unmeasured prior. Gravity initialization cannot prove steady flight or distinguish
+all sustained acceleration from tilt. It supplies an estimated display reference,
+not a calibrated attitude indicator. Instrument state stays idle and the 20 Hz
+instrument publication timer stays stopped.
+
+Fresh, accurate, non-estimated GPS at or above 10 m/s seeds the geographic heading.
+The existing heading reference carries gyro rotation and smooths reference
+corrections. Output requires GPS within three seconds and 50 m accuracy, motion
+within 0.5 seconds, finite usable attitude, tilt standard deviation at most 20°,
+and a usable heading projection. Consumers receive at most four samples per
+second with monotonic sample times and a session-frame identity; loss of validity
+clears assistance. Instrument calibration is still required to display pitch/bank;
+automatic map heading never silently marks instruments calibrated.
+
+An active instrument session serves heading consumers without another sensor or
+filter. Starting calibration replaces the automatic session; map following falls
+back to GPS while calibration collects evidence. Stopping the instruments returns
+to automatic heading if a map lease remains. Releasing the last heading lease
+stops an automatic session but leaves an instrument session running. Neither
+stowing nor heading-only demand starts display animation or a wake lock.
+Heading consumers receive failure-isolated notifications: a camera/consumer
+exception cannot stop the instrument estimator or another heading consumer.
+Heading acquisition during instrument startup joins that session and cannot
+replace an in-progress calibration. Cancellation and provider revocation invalidate
+startup before delayed permission or GPS acquisition can revive it.
+
+Automatic heading demand does not start or stop instrument recording. A recording
+prepared before calibration survives map mode changes; automatic map observations
+are excluded from calibrated instrument replay. Explicit instrument Stop and
+plugin disposal still end recording. See [recording ownership](recording.md).
+
+Motion permission still follows browser gesture requirements; denial does not
+interrupt Ownship GPS. Automatic heading has no additional sensor implementation
+or saved calibration. Device and flight validation remain outstanding.
 
 ### Toolbox and full screen
 

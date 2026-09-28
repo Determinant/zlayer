@@ -2,6 +2,7 @@ import type { Map, ImageSource } from 'maplibre-gl';
 import type { AwcGridField } from '@zlayer/contracts';
 import { shadedGrid, type WeatherController } from '../controller';
 import { gridCell, gridKey, gridMatchesTime, type DecodedGrid } from './format';
+import { gridSldOverlay } from './presentation';
 import { rasterGrid } from './raster';
 import { fullGridViewport, gridViewport, type GridViewport } from './viewport';
 import { loadRaster } from './raster-cache';
@@ -61,7 +62,8 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
   };
   const warm = () => {
     if (destroyed || active || warming || moving) return;
-    const state = controller.getSnapshot(), { awcGridMode: mode, awcSldOverlay: sld } = state.preferences;
+    const state = controller.getSnapshot(), { awcGridMode: mode } = state.preferences;
+    const sld = gridSldOverlay(mode, state.preferences.awcSldOverlay);
     if (!state.preferences.awcEnabled || mode === 'none') return;
     const candidates = (shadedGrid(state).nearby ?? []).filter(data => rasterIdentity(data, mode, sld) !== displayed).slice(0, 2);
     const wanted = new Set(candidates.map(data => rasterIdentity(data, mode, sld)));
@@ -88,7 +90,8 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
   });
   const update = () => {
     if (destroyed) return;
-    const state = controller.getSnapshot(), { awcGridMode: mode, awcSldOverlay: sld } = state.preferences;
+    const state = controller.getSnapshot(), { awcGridMode: mode } = state.preferences;
+    const sld = gridSldOverlay(mode, state.preferences.awcSldOverlay);
     const grid = shadedGrid(state), enabled = state.preferences.awcEnabled && mode !== 'none';
     const time = state.selectedTime ?? state.now;
     // Selection publishes before acquisition is reconciled. Reject the old
@@ -98,7 +101,7 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
       ('windAltitude' in grid.data.frame ? grid.data.frame.windAltitude === state.preferences.awcWindAltitude
         : grid.data.frame.altitudeFtMsl === null || grid.data.frame.altitudeFtMsl === state.preferences.awcGridAltitude) ? grid.data : undefined;
     const pending = enabled && (grid.loading || !!grid.data && !data);
-    const detail = sld && (mode === 'icingProbability' || mode === 'icingSeverity');
+    const detail = sld;
     if (enabled && data && detail) {
       const nextGeometry = JSON.stringify(data.manifest.grid), ratio = globalThis.devicePixelRatio || 1;
       if (cameraChanged || geometry !== nextGeometry || pixelRatio !== ratio) {
@@ -142,7 +145,7 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
     const view = detail ? viewport : undefined;
     const commit = (raster: Raster) => {
       const current = controller.getSnapshot(), requested = shadedGrid(current).data;
-      if (!current.preferences.awcEnabled || current.preferences.awcGridMode !== mode || current.preferences.awcSldOverlay !== sld ||
+      if (!current.preferences.awcEnabled || current.preferences.awcGridMode !== mode || gridSldOverlay(mode, current.preferences.awcSldOverlay) !== sld ||
         !gridMatchesTime(data, current.selectedTime ?? current.now) || !requested || rasterIdentity(requested, mode, sld) !== identity) task.abort();
       task.signal.throwIfAborted(); paint(raster); displayed = identity;
       controller.setGridDisplay({ data, mode, sld });

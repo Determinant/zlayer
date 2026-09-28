@@ -53,7 +53,7 @@ export function createWorkspaceLayers() {
     { ...weatherAwc, communication: registry.registration('weather-awc', weatherAwc) },
     { ...routes, communication: registry.registration('routes', routes) },
     { ...ruler, communication: registry.registration('ruler', ruler) },
-    { ...ownship, communication: registry.registration('ownship', { publicApi: () => ({}) }) },
+    { ...ownship, communication: registry.registration('ownship', ownship) },
     { ...ahrs, communication: registry.registration('ahrs', ahrs) },
   ] as const);
   return { charts, terrain, obstructions, navigation, metar, weatherAwc, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };

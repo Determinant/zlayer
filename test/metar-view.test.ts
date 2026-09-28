@@ -4,7 +4,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { MetarFeature } from '@zlayer/contracts';
 import { MetarReportView } from '../src/layers/metar-taf/metar/report';
-import { formatMetarWind } from '../src/layers/metar-taf/metar/format';
+import { formatMetarAltimeter, formatMetarWind } from '../src/layers/metar-taf/metar/format';
+import { metarDetailRows } from '../src/layers/metar-taf/metar/details';
 
 const now = Date.parse('2026-09-17T18:00:00Z');
 
@@ -60,6 +61,35 @@ test('the METAR card leaves unknown ceilings explicit without losing a known cat
       entry: { report, checkedAt: now }, loading: false, online: true, now,
     }));
     assert.ok(html.includes('<dt>Ceiling</dt><dd>Unknown</dd>'), html);
-    assert.ok(html.includes(`<dt>Flight category</dt><dd>${category}</dd>`), html);
+    assert.ok(!html.includes('<dt>Flight category</dt>'), html);
+    assert.ok(html.includes(`data-flight-category="${category === 'N/A' ? 'unknown' : category}"`), html);
   }
+});
+
+test('METAR altimeter preserves reported units and never substitutes remarks or malformed groups', () => {
+  for (const [raw, expected] of [
+    ['METAR KSFO 171800Z 28010KT 10SM CLR 20/10 A2992 RMK AO2 SLP132', '29.92 inHg'],
+    ['METAR KSFO 171800Z A3000=', '30.00 inHg'],
+    ['METAR EGLL 171800Z 24010KT CAVOK 18/12 Q0995=', '995 hPa'],
+    ['METAR EGLL 171800Z Q1013 NOSIG', '1013 hPa'],
+    ['METAR KSFO 171800Z RMK A2992 SLP132', undefined],
+    ['METAR KSFO 171800Z A//// RMK AO2', undefined],
+    ['METAR KSFO 171800Z A29921', undefined],
+    ['METAR KSFO 171800Z Q0000', undefined],
+    [undefined, undefined],
+  ] as const) assert.equal(formatMetarAltimeter(raw), expected, raw);
+});
+
+test('METAR detail grid keeps wind/visibility then ceiling/altimeter above raw text', () => {
+  const properties = { metarStationId: 'KSFO', flightCategory: 'VFR' as const,
+    metarWindDirection: 280, metarWindSpeedKt: 10, metarVisibilitySm: 10,
+    metarCeilingStatus: 'none' as const, rawMetar: 'METAR KSFO 171800Z 28010KT 10SM CLR 20/10 A2992' };
+  assert.deepEqual(metarDetailRows(properties).map(({ label, value }) => [label, value]), [
+    ['Wind', '—/280°T 10 kt'], ['Visibility', '10 SM'], ['Ceiling', 'None reported'],
+    ['Altimeter', '29.92 inHg'], ['Raw', properties.rawMetar],
+  ]);
+  assert.deepEqual(metarDetailRows({ metarStationId: 'KSFO' }).map(({ label, value }) => [label, value]), [
+    ['Wind', 'Unavailable'], ['Visibility', 'Unavailable'], ['Ceiling', 'Unknown'], ['Altimeter', 'Unavailable'],
+  ]);
+  assert.deepEqual(metarDetailRows({}), []);
 });

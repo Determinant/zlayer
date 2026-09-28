@@ -32,7 +32,7 @@ export function AhrsPanel({ layer, route, revision }: { layer: AhrsLayer; route:
       onKeyDown={event => event.stopPropagation()}
       onCancel={event => { event.preventDefault(); event.stopPropagation(); setStow(null); }}>
       <h2 id={`${id}-title`}>Stow AHRS?</h2>
-      <p id={`${id}-description`}>Stop motion sensing and recording to save power; you'll need to calibrate again. Background keeps AHRS running while stowed.</p>
+      <p id={`${id}-description`}>Stop the instruments and recording; you'll need to calibrate again. Track-up may still use heading assistance. Background keeps the calibrated instruments running while stowed.</p>
       <div className="confirmation-actions ahrs-stow-actions">
         <button type="button" className="ui-button ui-button--primary ahrs-stow-stop" autoFocus onClick={() => confirm('stop')}>Stop</button>
         <button className="ui-button" type="button" onClick={() => confirm('background')}>Background</button>

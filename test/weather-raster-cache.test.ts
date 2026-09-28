@@ -28,3 +28,15 @@ test('saved images preserve pixels, avoid recoloring on reopen, repair corruptio
   await loadRaster(data, 'icingProbability', false, signal);
   assert.equal(draws(), 5); assert.equal(stored.size, 4);
 });
+
+
+test('fields without SLD hatching share one saved image across SLD preferences', async t => {
+  const { stored } = cacheFixture(t, 'zlayers-plugin-files-v1:weather-awc:forecast-images');
+  const fixture = gridFixture('clouds'), frame = fixture.manifest.frames[1]!, signal = new AbortController().signal;
+  const data = await decodeGrid(Uint8Array.from(Buffer.from(fixture.files[frame.path]!, 'base64')).buffer, fixture.manifest, frame, signal);
+  const without = await loadRaster(data, 'cloudCover', false, signal);
+  const before = weatherPerformance().filter(sample => sample.stage === 'raster-color').length;
+  assert.deepEqual(await loadRaster(data, 'cloudCover', true, signal), without);
+  assert.equal(weatherPerformance().filter(sample => sample.stage === 'raster-color').length, before);
+  assert.equal(stored.size, 1);
+});

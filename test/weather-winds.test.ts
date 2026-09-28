@@ -226,6 +226,8 @@ test('wind steps clear old symbols and inspection until the matching source fini
   } as unknown as WeatherController;
   const pending: { resolve: () => void; reject: (error: Error) => void }[] = [];
   let layer: { visibility: string } | undefined, source: object | undefined;
+  const events = new Map<string, () => void>();
+  let zoom = 7;
   let denyLayer = true;
   const visibility = () => layer?.visibility;
   const map = {
@@ -234,11 +236,11 @@ test('wind steps clear old symbols and inspection until the matching source fini
     addSource() { source = { setData: () => new Promise<void>((resolve, reject) => pending.push({ resolve, reject })) }; },
     removeLayer() { layer = undefined; }, removeSource() { source = undefined; },
     setLayoutProperty(_id: string, _key: string, value: string) { layer!.visibility = value; },
-    getCanvas: () => ({ clientWidth: 800, clientHeight: 600 }), getZoom: () => 7,
+    getCanvas: () => ({ clientWidth: 800, clientHeight: 600 }), getZoom: () => zoom,
     getCenter: () => ({ lng: -100, lat: 38 }),
     unproject: ([x, y]: number[]) => ({ lng: -105 + x! / 80, lat: 42 - y! / 80 }),
     project: ([lng, lat]: number[]) => ({ x: (lng! + 105) * 80, y: (42 - lat!) * 80 }),
-    on() {}, off() {},
+    on(event: string, listener: () => void) { events.set(event, listener); }, off(event: string) { events.delete(event); },
   } as unknown as MapLibreMap;
   const renderer = mountWindMap(map, controller, 'weather'); t.after(() => renderer.destroy());
   const flush = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -251,6 +253,9 @@ test('wind steps clear old symbols and inspection until the matching source fini
   renderer.update(); assert.equal(visibility(), 'none'); await finish(0);
   assert.equal(state.windRenderError, undefined);
   assert.equal(displayedTime(), WEATHER_NOW);
+  zoom = 8; events.get('zoom')!();
+  zoom = 7; events.get('zoom')!();
+  assert.equal(pending.length, 1, 'zoom thresholds beyond native grid resolution do not resubmit barbs');
   state.selectedTime = WEATHER_NOW + 60000; renderer.update();
   assert.equal(visibility(), 'visible', 'an advisory tick still uses the same hourly forecast');
   assert.equal(pending.length, 1);

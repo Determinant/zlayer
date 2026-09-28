@@ -24,6 +24,18 @@ belong to [Routes](../routes/README.md).
 | [detail-card.tsx](detail-card.tsx), [airport-runways.tsx](airport-runways.tsx), [airport-frequencies.ts](airport-frequencies.ts) | Feature details and airport metadata |
 | [fix-display.ts](fix-display.ts), [symbols.ts](symbols.ts), [identification-layer.ts](identification-layer.ts) | Fix classification, symbology and navaid-identification rendering |
 
+## Interaction efficiency
+
+Search ranks navigation independently of weather and enriches only the returned
+airport matches. Observation updates cannot rescore national navigation data.
+Navaid identification skips unchanged projected geometry and allows one source
+submission at a time; subsequent movement uses the latest camera after acceptance.
+Source errors invalidate visual reuse, including when MapLibre resolves the failed
+submission; the next input or camera update can retry unchanged geometry.
+Unmounting removes the error listener and invalidates pending completions.
+Geographic connections and projected label placement retain their existing meaning
+through camera movement.
+
 ## Behavior, contracts and verification
 
 - Selected features use core's `DetailPanel`, shared with weather advisories, for

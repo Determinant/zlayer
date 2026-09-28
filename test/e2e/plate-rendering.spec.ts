@@ -122,3 +122,38 @@ test('trackpad pinch updates PDF zoom without also zooming the browser or showin
   await ready(page);
   expect(errors).toEqual([]);
 });
+
+test('height-only reader resizing preserves the rendered PDF bitmap', async ({ page }) => {
+  await selectPlate(page); await ready(page);
+  const stage = page.locator('.procedure-page-stage');
+  await stage.evaluate(element => {
+    const canvas = element.querySelector('canvas')!;
+    const context = canvas.getContext('2d')!;
+    const tracked = canvas as HTMLCanvasElement & { reviewDraws: number };
+    tracked.reviewDraws = 0;
+    context.drawImage = new Proxy(context.drawImage, { apply(draw, receiver, args) {
+      tracked.reviewDraws++; return Reflect.apply(draw, receiver, args);
+    } });
+  });
+  const before = await stage.locator('canvas').evaluate((canvas: HTMLCanvasElement) => [canvas.width, canvas.height]);
+  const area = await stage.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight }));
+  await stage.evaluate(async element => {
+    const height = element.clientHeight;
+    (element as HTMLElement).style.flex = 'none';
+    (element as HTMLElement).style.height = `${height - 40}px`;
+    await new Promise<void>(resolve => new ResizeObserver((_entries, observer) => { observer.disconnect(); resolve(); }).observe(element));
+    for (let i = 0; i < 4; i++) await new Promise(requestAnimationFrame);
+  });
+  await ready(page);
+  const resized = await stage.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight }));
+  expect(resized.width).toBe(area.width);
+  expect(resized.height).toBeGreaterThan(0);
+  expect(resized.height).toBeLessThan(area.height);
+  expect(await stage.locator('canvas').evaluate((canvas: HTMLCanvasElement & { reviewDraws: number }) =>
+    ({ dimensions: [canvas.width, canvas.height], draws: canvas.reviewDraws }))).toEqual({ dimensions: before, draws: 0 });
+  // A zoom change must still reach the instrumented canvas.
+  await page.getByRole('dialog').getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect.poll(() => stage.locator('canvas').evaluate((canvas: HTMLCanvasElement & { reviewDraws: number }) =>
+    canvas.reviewDraws)).toBeGreaterThan(0);
+  await ready(page);
+});

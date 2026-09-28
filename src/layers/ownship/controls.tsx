@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { selectLayerStore } from '../../core/layers/input';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import type { OwnshipLayer, OwnshipSnapshot } from './layer';
 import { GPS_MOTION_ACCURACY_METERS } from '../../core/gps/position';
@@ -27,7 +29,11 @@ export function ownshipSummary({ state, fix }: OwnshipSnapshot): string {
 export function OwnshipStatus({ layer, enabled, onToggle }: {
   layer: OwnshipLayer; enabled: boolean; onToggle: () => void;
 }) {
-  const snapshot = useLayerSnapshot(layer);
+  const status = useMemo(() => selectLayerStore(layer, snapshot => ({
+    state: snapshot.state, summary: ownshipSummary(snapshot),
+    canCenter: !!snapshot.fix && snapshot.fix.accuracy <= GPS_MOTION_ACCURACY_METERS,
+  })), [layer]);
+  const snapshot = useLayerSnapshot(status);
   const live = enabled && snapshot.state === 'tracking';
   const retry = enabled && ['denied', 'unavailable', 'stale'].includes(snapshot.state);
   return <div className={`ownship-status ${!enabled ? 'is-off' : live ? 'is-live' : ''}`} aria-label="GPS aircraft status">
@@ -38,8 +44,9 @@ export function OwnshipStatus({ layer, enabled, onToggle }: {
         <span className="switch" aria-hidden="true"><i /></span>
       </button>
     </div>
-    {enabled && <span className="ownship-summary" role="status">{ownshipSummary(snapshot)}</span>}
-    {live && <button className="ui-button ui-button--compact" type="button" onClick={layer.center}>Center aircraft</button>}
+    {enabled && <span className="ownship-summary" role="status">{snapshot.summary}</span>}
+    {live && <button className="ui-button ui-button--compact" type="button"
+      disabled={!snapshot.canCenter} onClick={layer.center}>Center aircraft</button>}
     {retry && <button className="ui-button ui-button--compact" type="button" onClick={layer.retry}>Retry GPS</button>}
   </div>;
 }

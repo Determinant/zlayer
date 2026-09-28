@@ -23,7 +23,9 @@ process.env.VITE_ZLAYERS_AWC_GRID_URL = process.env.ZLAYER_TEST_NATIVE_WEATHER =
 process.env.VITE_ZLAYERS_BASEMAP_TILE_URL = `http://127.0.0.1:${port}/basemap.png`;
 process.env.VITE_ZLAYERS_BASEMAP_STYLE_URL = '';
 process.env.VITE_ZLAYERS_TERRAIN_TILE_URL = `http://127.0.0.1:${port}/terrain/{z}/{x}/{y}.png`;
-await build({ build: { outDir: directory, rolldownOptions: {
+const benchmark = process.env.ZLAYER_RENDER_BENCHMARK === '1';
+const benchmarkPlugins = benchmark ? [(await import('../../tools/rendering-benchmark-plugin.ts')).renderingBenchmark()] : [];
+await build({ plugins: benchmarkPlugins, build: { outDir: directory, rolldownOptions: {
   preserveEntrySignatures: 'exports-only',
   input: { regionalTest: resolve('test/e2e/regional-renderer.ts'), lifecycleTest: resolve('test/e2e/lifecycle.html'),
     terrainStorageTest: resolve('test/browser/terrain-storage.ts'),
@@ -45,6 +47,8 @@ await build({ build: { outDir: directory, rolldownOptions: {
     : chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js' },
 } }, logLevel: 'error' });
 const fixtures = await fixtureFiles();
+const benchmarkFixture = benchmark ? await (await import('../../tools/rendering-benchmark-fixtures.mjs')).renderingBenchmarkFixtures(fixtures) : undefined;
+const benchmarkRequests = new Map();
 for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geographic', 'terrain-geographic'],
   ['terrain-geographic-fine', 'terrain-geographic-fine'], ['terrain-surface', 'terrain-surface']]) {
   for (const file of await readdir(new URL(`../fixtures/${directory}/`, import.meta.url))) {
@@ -93,7 +97,7 @@ async function resetWeather() {
   if (awcFixtures && !awcFixtures.failure) await weather.warmAdvisories();
   nativeFileRequests = 0;
 }
-await resetWeather();
+if (!benchmark) await resetWeather();
 let appRelease;
 let failAppInstall = false;
 let mismatchedAppHtml = false;
@@ -106,6 +110,15 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
   '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff' };
 const server = createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
+  if (benchmark && path === '/__test/rendering-benchmark') {
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ fixture: benchmarkFixture, archives: Object.fromEntries(benchmarkRequests) })); return;
+  }
+  if (benchmark && path.endsWith('.mbtiles')) benchmarkRequests.set(path, (benchmarkRequests.get(path) ?? 0) + 1);
+  if (benchmark && request.method === 'POST' && path === '/__test/rendering-benchmark-connect') {
+    disconnected = false; response.end('ok'); return;
+  }
+  if (benchmark && path.startsWith('/api/weather/')) { response.writeHead(503).end(); return; }
   if (disconnected && !path.startsWith('/__test/')) { request.socket.destroy(); return; }
   if (path === '/__test/awc-counts') { response.end(JSON.stringify({ requests: awcRequests, grids: gridRequests, gridFiles: gridFileRequests, nativeFiles: nativeFileRequests, progs: progsRequests })); return; }
   if (path.startsWith('/api/weather/radar/')) { weather.server.emit('request', request, response); return; }
@@ -318,5 +331,5 @@ server.listen(port, '127.0.0.1');
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
   server.close();
   server.closeAllConnections();
-  void weather.close().then(() => rm(directory, { recursive: true, force: true })).finally(() => process.exit());
+  void Promise.resolve(weather?.close()).then(() => rm(directory, { recursive: true, force: true })).finally(() => process.exit());
 });

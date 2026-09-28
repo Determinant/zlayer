@@ -6,7 +6,7 @@ export function mountWeatherClock(read: () => WeatherState, publish: () => void)
   let stopped = false;
   const schedule = () => {
     clearTimeout(timer);
-    if (stopped) return;
+    if (stopped || !read().preferences.awcEnabled || document.visibilityState === 'hidden') return;
     const now = Date.now();
     const boundaries = Object.values(read().products).flatMap(product =>
       product.snapshot?.advisories.flatMap(a => [a.validFrom, ...(a.validTo === null ? [] : [a.validTo])]) ?? []);

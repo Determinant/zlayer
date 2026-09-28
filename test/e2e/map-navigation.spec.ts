@@ -32,6 +32,9 @@ async function expectRouteFits(page: Page, coordinates: [number, number][], expe
 }
 
 test.beforeEach(async ({ page }) => {
+  // Install before startup so GPS acquisition deadlines and their cancellation
+  // use the same clock throughout each test.
+  await page.clock.install();
   await mockGps(page);
   await page.addInitScript(() => {
     if (!localStorage.getItem('zlayers-map-preferences-v1')) localStorage.setItem('zlayers-map-preferences-v1',
@@ -74,7 +77,6 @@ test('zoom and orientation align to the left of Layers on desktop and touch scre
 
 test('track up centers each fresh fix, preserves zoom, and stops following in north up', async ({ page }) => {
   const toggle = page.getByRole('button', { name: 'Track up', exact: true });
-  await page.clock.install();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await sendFix(page);
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
@@ -95,8 +97,13 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   const panned = await camera(page);
   for (const heading of [350, 10]) {
-    await sendFix(page, { heading, longitude: -121.9, latitude: 37.1 });
-    await expect.poll(() => bearing(page)).toBeCloseTo(heading);
+    // Damping advances on fresh fixes, not while a polling assertion waits.
+    // Keep this GPS-only scenario below the optional sensor-assistance gate.
+    for (let sample = 0; sample < 4; sample++) {
+      await page.clock.runFor(1000);
+      await sendFix(page, { heading, longitude: -121.9, latitude: 37.1, speed: 5 });
+    }
+    await expect.poll(async () => Math.abs(((await bearing(page)) - heading + 540) % 360 - 180)).toBeLessThan(1);
     await expectCenter(page, -121.9, 37.1);
     expect((await camera(page)).zoom).toBe(panned.zoom);
   }
@@ -105,11 +112,12 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   await expectCenter(page, -121.8, 37.2);
   expect((await camera(page)).zoom).toBe(panned.zoom);
 
+  const movingBearing = await bearing(page);
   // A stationary position is usable even though it has no ground track.
   await sendFix(page, { heading: null, speed: 0, longitude: -121.7 });
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
   await expectCenter(page, -121.7);
-  expect(await bearing(page)).toBeCloseTo(10);
+  expect(await bearing(page)).toBeCloseTo(movingBearing);
   const held = await camera(page);
   await sendFix(page, { heading: 80, accuracy: 500 });
   await expect(toggle).toHaveAttribute('aria-description', /Waiting for GPS track/);
@@ -140,7 +148,6 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
 
 test('GPS loss cancels a follow animation and holds the camera until a fresh fix', async ({ page }) => {
   const toggle = page.getByRole('button', { name: 'Track up', exact: true });
-  await page.clock.install();
   await sendFix(page);
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   await toggle.click();
@@ -246,3 +253,68 @@ for (const { name, viewport, route, coordinates } of [
     await expectRouteFits(page, coordinates, 0);
   });
 }
+
+test('track-up ignores small GPS track noise while following position', async ({ page }) => {
+  await sendFix(page);
+  await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  await expect.poll(() => bearing(page)).toBeCloseTo(90);
+  for (let i = 1; i <= 6; i++) {
+    await page.clock.runFor(1000);
+    await sendFix(page, { heading: 90 + (i % 2 ? .8 : -.8), longitude: -122 + i * .01 });
+  }
+  await expectCenter(page, -121.94);
+  expect(await bearing(page)).toBe(90);
+});
+
+test('optional AHRS carries track-up turns without instrument calibration and stops with north-up', async ({ page }) => {
+  await page.evaluate(() => {
+    class Motion extends Event {
+      static async requestPermission() {
+        document.body.dataset.motionRequests = String(Number(document.body.dataset.motionRequests ?? 0) + 1);
+        return 'granted';
+      }
+    }
+    Object.defineProperty(window, 'DeviceMotionEvent', { configurable: true, value: Motion });
+    // The synthetic stream owns this test; ignore desktop hardware's null sample.
+    window.addEventListener('devicemotion', event => { if (event.isTrusted) event.stopImmediatePropagation(); }, true);
+    let elapsed = 0;
+    window.setInterval(() => {
+      elapsed += .05;
+      const event = new Event('devicemotion');
+      Object.defineProperties(event, {
+        timeStamp: { value: performance.now() }, interval: { value: 50 },
+        rotationRate: { value: { alpha: 0, beta: elapsed > 1 ? -4 : 0, gamma: 0 } },
+        accelerationIncludingGravity: { value: { x: 0, y: 9.80665, z: 0 } },
+      });
+      window.dispatchEvent(event);
+    }, 50);
+    window.setInterval(() => window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { heading: 90 } })), 1000);
+  });
+  await sendFix(page);
+  const toggle = page.getByRole('button', { name: 'Track up', exact: true });
+  await toggle.click();
+  await expect(page.locator('body')).toHaveAttribute('data-motion-requests', '1');
+  await page.clock.runFor(4500);
+  await expect.poll(() => bearing(page)).toBeGreaterThan(92);
+  expect(await countWatches(page)).toBe(1);
+  const setAhrsEnabled = async (enabled: boolean) => {
+    await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
+    const ahrs = page.locator('.plugin-row[data-plugin="ahrs"]').getByRole('switch');
+    await ahrs.click();
+    await expect(ahrs).toHaveAttribute('aria-checked', String(enabled));
+    await expect(page.locator('.plugin-row[data-plugin="ownship"]').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    await page.getByLabel('Close settings').click();
+  };
+  await setAhrsEnabled(false);
+  await page.clock.runFor(6500);
+  expect(await countWatches(page)).toBe(1);
+  expect(await bearing(page)).toBeLessThan(91);
+  await setAhrsEnabled(true);
+  await expect(page.locator('body')).toHaveAttribute('data-motion-requests', '2');
+  await page.clock.runFor(4500);
+  await expect.poll(() => bearing(page)).toBeGreaterThan(92);
+  await toggle.click();
+  await page.clock.runFor(3500);
+  expect(await bearing(page)).toBeCloseTo(0);
+});

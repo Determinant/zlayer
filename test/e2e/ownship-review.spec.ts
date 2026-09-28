@@ -206,3 +206,24 @@ for (const [width, height] of [[320, 568], [568, 320]] as const) {
     }
   });
 }
+
+test('initial GPS centering waits for accuracy and stops immediately on GPS loss', async ({ page }) => {
+  await page.clock.install();
+  await openFixture(page);
+  const initial = (await stats(page)).center;
+  await sendFix(page, { longitude: -119, latitude: 34, accuracy: 1500 });
+  await page.clock.runFor(600);
+  expect((await stats(page)).center).toEqual(initial);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { longitude: -119, latitude: 34 } }));
+    window.dispatchEvent(new CustomEvent('test-gps-error', { detail: 2 }));
+  });
+  await page.clock.runFor(600);
+  expect((await stats(page)).center).toEqual(initial);
+  expect((await stats(page)).moving).toBe(false);
+  await sendFix(page, { longitude: -119, latitude: 34 });
+  await page.getByRole('button', { name: 'Center aircraft', exact: true }).click();
+  await page.clock.runFor(600);
+  expect((await stats(page)).center[0]).toBeCloseTo(-119);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});

@@ -2,15 +2,14 @@ import type { TafReport } from '@zlayer/contracts';
 import { tafReportLines } from '@zlayer/domain';
 import { formatTimestamp, formatTimestampRange } from '../../../core/format/time';
 import type { ReportViewProps } from '../station-weather';
-import { TAF_REFRESH_MS } from './client';
+import { tafReportSummary } from './summary';
 import { formatTafLocalTime } from './local-time';
 
 export function TafReportView({ entry, loading, online, now, source, emptyMessage }: ReportViewProps<TafReport>) {
   const report = entry?.report;
-  const expired = Boolean(report && report.validTimeTo * 1000 <= now);
-  const cancelled = Boolean(report && /\bCNL\b/i.test(report.rawTAF));
-  const nil = Boolean(report && /\bNIL\b/i.test(report.rawTAF));
-  const cached = Boolean(report && (!online || entry?.error || entry?.missing || entry?.checkedAt === undefined || now - entry.checkedAt > TAF_REFRESH_MS));
+  const summary = tafReportSummary(entry, now);
+  const { expired, cancelled, nil } = summary;
+  const cached = summary.cached || !online;
   const label = cancelled ? 'Forecast cancelled' : nil ? 'No forecast issued' : expired ? 'Expired forecast'
     : report ? cached ? 'Cached forecast' : 'Updated'
     : loading && online ? 'Loading TAF…' : emptyMessage ?? (!online ? 'No saved TAF · Offline'

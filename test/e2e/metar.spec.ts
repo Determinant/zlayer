@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { countWatches, mockGps, sendFix } from './ownship-fixture';
 
 const now = Date.parse('2026-09-17T18:00:00Z');
 const report = (id: string, lon: number, lat: number, time = now) => ({
@@ -18,10 +19,48 @@ async function selectAirport(page: Page, id: string) {
   await page.locator('.search-results button').filter({ hasText: id }).click();
 }
 
-test('raw METAR, exact decoded values and category recover from the reverted NWS cache and survive reload', async ({ page, context }) => {
+test('flight-category legend stays mounted through GPS position and track updates', async ({ page, context }) => {
+  await page.clock.install({ time: now });
+  await mockGps(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({ version: 2, chartBase: '', ownshipEnabled: true }));
+    localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-119.84, 34.43], zoom: 11, bearing: 0, pitch: 0 }));
+  });
+  await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({
+    json: collection([report('KSBA', -119.84, 34.43)]),
+  }));
+  await page.goto('/');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await expect.poll(() => countWatches(page)).toBe(1);
+  const legend = page.getByLabel('METAR flight categories', { exact: true });
+  await expect(legend).toBeVisible();
+  const original = (await legend.elementHandle())!;
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
+  // Below the AHRS heading-aid gate, this exercises GPS-only camera following.
+  await sendFix(page, { longitude: -119.84, latitude: 34.43, heading: 0, speed: 5 });
+  await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  const camera = () => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!) as {
+    center: [number, number]; bearing: number;
+  });
+  for (const [longitude, heading] of [[-119.839, 15], [-119.838, 30], [-119.837, 45]] as const) {
+    // Damping advances on fresh samples, not while an assertion polls. Keep
+    // acquisition times deterministic and allow the automatic camera save to flush.
+    for (let sample = 0; sample < 3; sample++) {
+      await page.clock.runFor(1000);
+      await sendFix(page, { longitude, latitude: 34.43, heading, speed: 5 });
+    }
+    await page.clock.runFor(1000);
+    await expect.poll(async () => (await camera()).center[0]).toBeCloseTo(longitude, 6);
+    await expect.poll(async () => Math.abs(((await camera()).bearing - heading + 540) % 360 - 180)).toBeLessThan(1);
+    await expect(legend).toBeVisible();
+    expect(await original.evaluate(element => element.isConnected), 'GPS movement must not unmount the legend').toBe(true);
+  }
+});
+
+test('raw METAR, exact decoded values and category recover from the reverted NWS cache and survive reload', async ({ page, context }, testInfo) => {
   await page.clock.install({ time: now });
   const coded = report('KSBA', -119.84, 34.43, now - 15 * 60_000);
-  coded.properties.rawOb = 'METAR KSBA 171745Z 28010KT 3SM BKN010 RMK AO2';
+  coded.properties.rawOb = 'METAR KSBA 171745Z 28010KT 3SM BKN010 A2992 RMK AO2';
   coded.properties.visib = 3;
   Object.assign(coded.properties, { clouds: [{ cover: 'BKN', base: 10 }] });
   await context.addInitScript(sensor => {
@@ -42,9 +81,27 @@ test('raw METAR, exact decoded values and category recover from the reverted NWS
   await expect(value('Raw')).toHaveText(coded.properties.rawOb);
   await expect(value('Ceiling')).toHaveText('1,000 ft');
   await expect(value('Visibility')).toHaveText('3 SM');
-  await expect(value('Flight category')).toHaveText('MVFR');
+  await expect(metar.locator('dt')).toHaveText(['Wind', 'Visibility', 'Ceiling', 'Altimeter', 'Raw']);
+  await expect(value('Altimeter')).toHaveText('29.92 inHg');
+  await expect(value('Raw')).toHaveAttribute('data-flight-category', 'MVFR');
   await expect(value('Wind')).toContainText('/280°T 10 kt');
   await expect(metar).toContainText('Updated');
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const positions = await metar.locator('dl > div').evaluateAll(cells => cells.map(cell => {
+      const rect = cell.getBoundingClientRect();
+      return { x: rect.x, y: rect.y };
+    }));
+    const [wind, visibility, ceiling, altimeter, raw] = positions;
+    expect(wind!.y).toBe(visibility!.y);
+    expect(ceiling!.y).toBe(altimeter!.y);
+    expect(wind!.x).toBe(ceiling!.x);
+    expect(visibility!.x).toBe(altimeter!.x);
+    expect(wind!.x).toBeLessThan(visibility!.x);
+    expect(wind!.y).toBeLessThan(ceiling!.y);
+    expect(ceiling!.y).toBeLessThan(raw!.y);
+    await metar.screenshot({ path: testInfo.outputPath(`metar-grid-${width}.png`) });
+  }
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   offline = true;
   await context.setOffline(true);
@@ -52,7 +109,8 @@ test('raw METAR, exact decoded values and category recover from the reverted NWS
   await expect(value('Raw')).toHaveText(coded.properties.rawOb);
   await expect(value('Ceiling')).toHaveText('1,000 ft');
   await expect(value('Visibility')).toHaveText('3 SM');
-  await expect(value('Flight category')).toHaveText('MVFR');
+  await expect(value('Altimeter')).toHaveText('29.92 inHg');
+  await expect(value('Raw')).toHaveAttribute('data-flight-category', 'MVFR');
   await expect(metar).toContainText('Cached report');
   expect(nwsRequests).toEqual([]);
 });

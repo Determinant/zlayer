@@ -6,6 +6,8 @@ import { normalizeIdentifier, metarStationId as reportStationId, metarObservatio
 import { METAR_LOOKBACK_HOURS, stationIdBatches } from './requests';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
+import { withAbort } from '../../../core/data/abort';
+import { createTaskLimiter } from '../../../core/data/task-limiter';
 import { weatherCheckedAt } from '../../../core/data/fetch-json';
 
 export { observationTime, reportStationId };
@@ -14,6 +16,7 @@ export const METAR_REFRESH_MS = 60_000;
 const cacheSlot = pluginStorage.slot('metars', 'zlayers.metars.v1');
 const MAX_CACHED_STATIONS = 5_000;
 const MAX_CACHED_AREAS = 200;
+type StationRequest = { controller: AbortController; users: number; done: Promise<void> };
 type NearbyCheck = { checkedAt?: number; attemptedAt?: number; error?: string };
 
 export type CachedMetar = {
@@ -40,6 +43,12 @@ type ClientOptions = {
 /** Keeps each station's latest report independently of the current viewport. */
 export class MetarClient {
   readonly #stations = new Map<string, CachedMetar>();
+  readonly #reports = new Map<string, MetarFeature>();
+  readonly #pending = new Map<string, StationRequest>();
+  readonly #run = createTaskLimiter(2);
+  #metars: MetarFeatureCollection | undefined;
+  #snapshot: MetarSnapshot | undefined;
+  #dirty = false;
   readonly #areas = new Map<string, NearbyCheck>();
   readonly #listeners = new Set<() => void>();
   readonly #endpoint: URL;
@@ -55,7 +64,7 @@ export class MetarClient {
           // Discard the retired adapter's raw-less sensor records, not coded weather.
           if (report.properties.source === 'NWS' && report.properties.sourceVersion !== 1) continue;
           const id = reportStationId(report);
-          if (id) this.#stations.set(id, { report });
+          if (id) { this.#stations.set(id, { report }); this.#reports.set(id, report); }
         }
       }
     } catch {
@@ -64,13 +73,8 @@ export class MetarClient {
   }
 
   snapshot(): MetarSnapshot {
-    return {
-      metars: {
-        type: 'FeatureCollection',
-        features: [...this.#stations.values()].flatMap(({ report }) => report ? [report] : []),
-      },
-      stations: new Map(this.#stations),
-    };
+    this.#metars ??= { type: 'FeatureCollection', features: [...this.#reports.values()] };
+    return this.#snapshot ??= { metars: this.#metars, stations: new Map(this.#stations) };
   }
 
   get(stationId: string): CachedMetar | undefined {
@@ -125,7 +129,8 @@ export class MetarClient {
         error: error instanceof Error ? error.message : 'Unable to load nearby METARs' });
     }
     while (this.#areas.size > MAX_CACHED_AREAS) this.#areas.delete(this.#areas.keys().next().value!);
-    this.#save();
+    this.#publish();
+    this.#persist();
   }
 
   async refresh(
@@ -133,41 +138,58 @@ export class MetarClient {
     signal: AbortSignal,
     onUpdate: () => void = () => {},
   ): Promise<void> {
-    const now = this.#now();
-    const batches = stationIdBatches(stationIds.filter((id) => {
-      const cached = this.#stations.get(normalizeIdentifier(id) ?? '');
-      const attemptedAt = cached?.attemptedAt;
+    signal.throwIfAborted();
+    const now = this.#now(), requests = new Set<StationRequest>();
+    const ids = stationIdBatches(stationIds).flat().filter(id => {
+      const pending = this.#pending.get(id);
+      if (pending && !pending.controller.signal.aborted) { requests.add(pending); return false; }
+      const attemptedAt = this.#stations.get(id)?.attemptedAt;
       return attemptedAt === undefined || now < attemptedAt || now - attemptedAt >= METAR_REFRESH_MS;
-    }));
-    let nextBatch = 0;
-    const worker = async () => {
-      while (nextBatch < batches.length) {
-        signal.throwIfAborted();
-        const batch = batches[nextBatch++]!;
-        try {
-          const { collection, checkedAt } = await this.#request({ ids: batch.join(',') }, signal);
-          signal.throwIfAborted();
-          const reports = new Map<string, MetarFeature>();
-          for (const report of collection.features) {
-            const id = reportStationId(report);
-            if (id) reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
-          }
-          for (const id of batch) this.#accept(id, reports.get(id), checkedAt);
-        } catch (error) {
-          signal.throwIfAborted();
-          for (const id of batch) {
-            this.#stations.set(id, {
-              ...this.#stations.get(id),
-              attemptedAt: this.#now(),
-              error: error instanceof Error ? error.message : 'Unable to load AWC METARs',
-            });
-          }
-        }
-        this.#save();
-        onUpdate();
+    });
+    for (const batch of stationIdBatches(ids)) {
+      const controller = new AbortController();
+      const request: StationRequest = { controller, users: 0, done: Promise.resolve() };
+      for (const id of batch) this.#pending.set(id, request);
+      request.done = this.#run(controller.signal, () => this.#refreshBatch(batch, controller.signal)).finally(() => {
+        for (const id of batch) if (this.#pending.get(id) === request) this.#pending.delete(id);
+      });
+      requests.add(request);
+    }
+    try {
+      await Promise.all([...requests].map(async request => {
+        request.users++;
+        let released = false;
+        const release = () => {
+          if (released) return;
+          released = true;
+          if (--request.users === 0) request.controller.abort();
+        };
+        signal.addEventListener('abort', release, { once: true });
+        try { await withAbort(request.done, signal); onUpdate(); }
+        finally { signal.removeEventListener('abort', release); release(); }
+      }));
+    } finally { this.#persist(); }
+  }
+
+  async #refreshBatch(batch: string[], signal: AbortSignal): Promise<void> {
+    try {
+      const { collection, checkedAt } = await this.#request({ ids: batch.join(',') }, signal);
+      signal.throwIfAborted();
+      const reports = new Map<string, MetarFeature>();
+      for (const report of collection.features) {
+        const id = reportStationId(report);
+        if (id) reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
       }
-    };
-    await Promise.all(Array.from({ length: Math.min(2, batches.length) }, worker));
+      for (const id of batch) this.#accept(id, reports.get(id), checkedAt);
+    } catch (error) {
+      signal.throwIfAborted();
+      for (const id of batch) this.#stations.set(id, {
+        ...this.#stations.get(id), attemptedAt: this.#now(),
+        error: error instanceof Error ? error.message : 'Unable to load AWC METARs',
+      });
+    }
+    // Freshness reaches consumers per batch; durable reports flush once per refresh.
+    this.#publish();
   }
 
   async #request(query: { ids: string } | { bbox: string }, signal: AbortSignal): Promise<{ collection: MetarFeatureCollection; checkedAt: number }> {
@@ -214,25 +236,37 @@ export class MetarClient {
     // A shared cache hit must not replace a newer successful source check.
     if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
       (!received || previous && observationTime(previous) <= now && observationTime(received) <= observationTime(previous))) return;
-    const report = preferredReport(previous, received, now);
+    const preferred = preferredReport(previous, received, now);
+    // Preserve content identity across successful checks, including same-time corrections.
+    const report = preferred === previous ? previous
+      : previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
+    if (report && report !== previous) {
+      this.#reports.set(id, report); this.#metars = undefined; this.#dirty = true;
+    }
     this.#stations.delete(id);
     this.#stations.set(id, {
       ...(report ? { report } : {}), checkedAt, attemptedAt: now,
-      missing: !received || report !== received,
+      missing: !received || preferred !== received,
     });
   }
 
-  #save(): void {
+  #publish(): void {
     while (this.#stations.size > MAX_CACHED_STATIONS) {
-      this.#stations.delete(this.#stations.keys().next().value!);
+      const id = this.#stations.keys().next().value!;
+      this.#stations.delete(id);
+      if (this.#reports.delete(id)) { this.#metars = undefined; this.#dirty = true; }
     }
-    try {
-      // Persist observations, but revalidate them on the next page load.
-      cacheSlot.write(JSON.stringify(this.snapshot().metars), this.#options.storage);
-    } catch {
-      // In-memory caching continues when browser storage is unavailable.
-    }
+    this.#snapshot = undefined;
     for (const listener of this.#listeners) listener();
+  }
+
+  #persist(): void {
+    if (!this.#dirty) return;
+    try {
+      // Persist only changed reports, never transient checks or failures.
+      cacheSlot.write(JSON.stringify(this.snapshot().metars), this.#options.storage);
+      this.#dirty = false;
+    } catch { /* In-memory caching continues when browser storage is unavailable. */ }
   }
 }
 

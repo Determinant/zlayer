@@ -45,7 +45,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     ...cache, state: { status: 'idle' }, visibleStationIds: [], weatherAirportCount: 0,
   });
   const canRefresh = () => input.enabled && input.airportsVisible &&
-    document.visibilityState !== 'hidden' && navigator.onLine;
+    !map?.isMoving() && document.visibilityState !== 'hidden' && navigator.onLine;
 
   const publish = () => {
     const entries = scope.map(id => cache.stations.get(id));
@@ -81,21 +81,25 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     refresh?.setDemand(scope, canRefresh());
     publish();
   };
-  const setScope = (ids: string[]) => {
-    if (ids.join(',') === scope.join(',')) return;
-    scope = ids;
-    demand();
-  };
   const invalidateScope = () => { scopeDirty = true; };
   const sourceChanged = (event: MapSourceDataEvent) => {
     if (event.sourceId === 'nav-airports' || event.sourceId === METAR_SOURCE_ID) invalidateScope();
   };
-  const moving = () => { invalidateScope(); setScope([]); };
+  // Pause acquisition without hiding the last settled view's legend on every
+  // GPS follow animation. Reconcile the displayed scope once movement settles.
+  const moving = () => { invalidateScope(); demand(); };
   const rendered = () => {
     if (!map || map.isMoving() || !scopeDirty) return;
     scopeDirty = false;
     // Keep scope current even with refresh disabled, including late-loading tiles.
-    setScope(input.airportsVisible ? visibleMetarStationIds(map) : []);
+    const ids = input.airportsVisible ? visibleMetarStationIds(map) : [];
+    if (ids.join(',') !== scope.join(',')) {
+      scope = ids;
+      demand();
+    } else {
+      // Resume even when the camera still shows exactly the same stations.
+      refresh?.setDemand(scope, canRefresh());
+    }
   };
 
   const layer: MapLayerModule<MetarInput> = {

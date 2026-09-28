@@ -22,7 +22,7 @@ type StationClient<Report extends WeatherReport> = {
 };
 
 /** Each mounted report owns its selection, refresh cadence and cleanup. */
-export function StationWeather<Report extends WeatherReport>({ feature, client, active = true, revision, name, intervalMs, refreshStation, View, onStatus }: {
+export function StationWeather<Report extends WeatherReport>({ feature, client, active = true, revision, name, intervalMs, refreshStation, summarize, View, onStatus }: {
   feature: GeoPointFeature;
   client: StationClient<Report> | undefined;
   active?: boolean;
@@ -30,24 +30,30 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
   name: 'METAR' | 'TAF';
   intervalMs: number;
   refreshStation: (stationId: string, signal: AbortSignal) => Promise<void> | undefined;
+  summarize: (entry: CachedReport<Report> | undefined, now: number) => { cached: boolean };
   View: ComponentType<ReportViewProps<Report>>;
   onStatus?: ReportStatusListener | undefined;
 }) {
   const id = preferredWeatherStationId(feature);
   const stationId = id && /^[A-Z0-9]{4}$/.test(id) ? id : undefined;
   const [longitude, latitude] = feature.geometry.coordinates;
-  const read = () => ({
-    own: stationId ? client?.get(stationId) : undefined,
-    nearby: client?.nearby([longitude, latitude], stationId) ?? [],
-    nearbyStatus: client?.nearbyStatus([longitude, latitude]),
-  });
-  const [data, setData] = useState(read);
   const [selectedId, setSelectedId] = useState<string>();
+  const read = () => {
+    const own = stationId ? client?.get(stationId) : undefined;
+    return { own,
+      nearby: selectedId !== undefined || !hasCurrentReport(own?.report, Date.now())
+        ? client?.nearby([longitude, latitude], stationId) ?? [] : [],
+      nearbyStatus: client?.nearbyStatus([longitude, latitude]),
+    };
+  };
+  const [data, setData] = useState(read);
   // Offline or hidden cards may never start a request. The scheduler owns loading.
   const [loading, setLoading] = useState(false);
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
   const [now, setNow] = useState(Date.now);
-  const update = () => { setData(read()); setNow(Date.now()); };
+  const update = useEffectEvent(() => {
+    if (document.visibilityState !== 'hidden') { setData(read()); setNow(Date.now()); }
+  });
   // Read the latest selection without restarting the product's refresh cadence.
   const onRefresh = useEffectEvent(async (signal: AbortSignal) => {
     if (!client) return;
@@ -69,12 +75,16 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
       onState(value) { setLoading(value); update(); },
       onError: update,
     });
+    let timer: number | undefined;
     const demand = () => {
+      window.clearInterval(timer); timer = undefined;
+      if (document.visibilityState !== 'hidden') {
+        update(); timer = window.setInterval(update, 30_000);
+      }
       setOnline(navigator.onLine);
       refresh.setDemand([stationId ?? `${longitude}:${latitude}`], navigator.onLine && document.visibilityState !== 'hidden');
     };
     demand();
-    const timer = window.setInterval(update, 30_000);
     document.addEventListener('visibilitychange', demand);
     window.addEventListener('online', demand);
     window.addEventListener('offline', demand);
@@ -94,7 +104,7 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
   const entry = nearby ? client?.get(nearby.stationId) : data.own;
   const error = !ownCurrent || nearby ? data.nearbyStatus?.error : undefined;
   const reportStatus: ReportStatus = loading ? 'loading' : !entry?.report ? 'unavailable'
-    : !online || error || entry.error || entry.missing || entry.checkedAt === undefined || !hasCurrentReport(entry.report, now) ? 'cached' : 'ready';
+    : !online || error || summarize(entry, now).cached || !hasCurrentReport(entry.report, now) ? 'cached' : 'ready';
   const reportActivity = useEffectEvent((status: ReportStatus | undefined) => onStatus?.(name, status));
   useEffect(() => {
     reportActivity(active && client ? reportStatus : undefined);

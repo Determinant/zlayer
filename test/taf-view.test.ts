@@ -21,6 +21,9 @@ test('TAF status distinguishes unavailable, offline, cached, expired and cancell
   assert.match(html({ online: false }), /No saved TAF · Offline/);
   assert.match(html({ entry: { error: '503' } }), /Refresh failed/);
   assert.match(html({ entry: { report } }), /Cached forecast/);
+  assert.match(html({ entry: { report, checkedAt: now + 1 } }), /Cached forecast/);
+  assert.match(html({ entry: { report, checkedAt: now - 300_001 } }), /Cached forecast/);
+  assert.match(html({ entry: { report: { ...report, issueTime: '2026-09-18T18:00:00Z' }, checkedAt: now } }), /Cached forecast/);
   assert.match(html({ entry: { report, checkedAt: now, error: '503' } }), /Refresh unavailable/);
   assert.match(html({ entry: { report, checkedAt: now }, now: now + 86400_000 }), /Expired forecast/);
   assert.match(html({ entry: { report: { ...report, rawTAF: 'TAF KSFO CNL' }, checkedAt: now } }), /Forecast cancelled/);

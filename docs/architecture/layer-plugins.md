@@ -144,7 +144,7 @@ capabilities for every plugin.
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
 | [obstructions/](../../src/layers/obstructions/README.md) | FAA DOF acquisition/validation, worker index, viewport/route demand, symbols and controls |
-| [ownship/](../../src/layers/ownship/README.md) | Map GPS demand, centering, track/projection, status and map presentation |
+| [ownship/](../../src/layers/ownship/README.md) | Map GPS demand, centering requests, track/projection, status and map presentation |
 | [ahrs/](../../src/layers/ahrs/README.md) | Motion estimator, calibration, instruments/HSI, recording and presentation |
 | [ruler/](../../src/layers/ruler/README.md) | Measurement state, bearings, map drawing, grips and pointer behavior |
 
@@ -394,7 +394,8 @@ plugin. The bridge creates no competing source of truth, cache or request schedu
 Data-only readers remain independent of plugin enablement: Routes can load navigation
 and procedure catalogs with their visual plugins disabled, and offline preparation
 works with all plugins disabled. Shared GPS remains a separately leased core service;
-Ownship and AHRS do not discover or depend on one another. Pure geometry, formatting
+Ownship optionally discovers AHRS heading assistance through a leased public API;
+there is no required activation edge. AHRS does not depend on Ownship. Pure geometry, formatting
 and render constants remain explicit public module imports.
 
 Cross-plugin imports are restricted to `public.ts` (type-only) and the explicit
@@ -454,8 +455,12 @@ and background suspension. Hiding the app pauses the watch while retaining deman
 returning resumes one watch if a consumer still needs it. Subscriptions receive the
 same fixes, but each feature applies its own display and quality policy. AHRS retains
 its stricter freshness/aiding gates and smooth gyro-driven HSI heading; Ownship owns
-centering, turn trends and map projection. GPS data and subscriptions alone never
-enable the map aircraft, move the camera or start motion sensors.
+centering requests, turn trends and map projection. The workspace's GPS camera
+controller applies centering and track-up movement through one accuracy, gesture
+and cancellation policy. Disabled Ownship releases its subscription as well as its
+lease; another consumer's fixes do not keep its renderer or controls updating.
+GPS data and subscriptions alone never enable the map aircraft, move the camera
+or start motion sensors.
 
 One service-owned timer covers acquisition, fix expiry and retry. Every new watch
 has a 15-second acquisition deadline even if the browser sends neither success nor

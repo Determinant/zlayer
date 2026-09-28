@@ -14,9 +14,21 @@ and shared prepared data.
 
 `controller.ts` owns shared preferences, selection and display receipts.
 `product-refresh.ts` owns advisory/Progs restoration and product refresh demand;
-`clock.ts` owns expiry and app-resume events. Grid interaction pauses live in
+`clock.ts` owns expiry and app-resume events. Periodic clock work stops when
+weather is switched off or the document is hidden; enabling or resuming reconciles
+the current time immediately and restores expiry scheduling. Grid interaction pauses live in
 `grids/preparation-demand.ts`. A child grid publication reconfigures its peers
 only when it changes the selected stop or advances Now into another hour.
+
+Map updates compare each renderer's selection, data and retry inputs before invoking
+it. Display receipts do not reselect unrelated overlays; radar acceptance still
+explicitly updates storm-motion demand. Controller-local selectors reuse advisory
+selections and timeline stops while their inputs remain unchanged. Preparation
+counters are not selection inputs, but acquisition publications still reconcile
+wall-clock time, so expiry remains correct after suspended mobile timers.
+Time, filter, catalog and altitude changes invalidate the relevant result.
+Only the selected product tab mounts its controls. Advisory shown counts use one
+accepted-ID set, and a closed, empty inspection does not scan chart features.
 
 GeoJSON renderers use `source-submission.ts` for source acceptance, error
 invalidation and stale completions. Each renderer still builds its own geometry,

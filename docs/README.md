@@ -37,6 +37,7 @@ The same engineering and feature contracts apply to human and AI contributors.
 | Debug offline data, stale state or restoration | [Offline storage](features/offline-storage.md), [workspace persistence](architecture/workspace-persistence.md) | [Committed-snapshot rationale](adr/0005-offline-snapshot-authority.md), [PWA updates](features/pwa-updates.md) |
 | Investigate rendering, memory or device failures | [Graphics compatibility](verification/graphics-compatibility.md), [memory and resources](verification/memory-resources.md) | [Responsive checks](features/shared-ui.md), [retained evidence](evidence/README.md) |
 | Verify or release a change | [Verification commands](development/local-development.md#verification) | [Deployment contract and remaining release gates](development/deployment.md) |
+| Add, consolidate or remove tests | [Maintaining test coverage](development/local-development.md#maintaining-test-coverage) | [Graphics/browser matrix](verification/graphics-compatibility.md), the owning [plugin guide](#plugin-guides) |
 
 ## Product and direction
 
@@ -75,7 +76,7 @@ guides stay in that same folder or its implementation subfolders.
 
 | Plugin | Guide and supporting docs |
 | --- | --- |
-| Charts | [Selection, rendering and MBTiles](../src/layers/charts/README.md) |
+| Charts | [Selection, rendering and MBTiles](../src/layers/charts/README.md); [rendering benchmark](../src/layers/charts/benchmark.md) |
 | Navigation | [Data, search and details](../src/layers/navigation/README.md); [fix display](../src/layers/navigation/fix-display.md) |
 | METAR/TAF | [Weather demand, freshness, nearby stations and report display](../src/layers/metar-taf/README.md) |
 | AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [surface analysis and Progs](../src/layers/weather-awc/progs/README.md); [NEXRAD/TDWR radar](../src/layers/weather-awc/radar/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |

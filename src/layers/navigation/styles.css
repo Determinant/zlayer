@@ -31,9 +31,14 @@
   text-transform: uppercase;
 }
 
+.airport-runway-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
 .airport-runway {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
   border-collapse: collapse;
   background: #0c1a2b;
   text-align: left;
@@ -74,9 +79,9 @@
 
 .airport-runway th,
 .airport-runway td {
-  padding: 6px 8px;
+  padding: 4px;
   border-bottom: 1px solid rgba(151, 199, 228, 0.12);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .airport-runway thead th {
@@ -87,16 +92,30 @@
   font-weight: 400;
 }
 
-.airport-runway thead th:first-child { width: 21%; }
-.airport-runway thead th:nth-child(2) { width: 24%; }
 .airport-runway thead th span { font-weight: 400; }
+.airport-runway thead th:first-child { width: 45%; }
 
-.runway-end-heading strong,
-.runway-end-heading small { display: block; }
+.runway-end-heading { white-space: nowrap; }
+.runway-end-identity { display: flex; align-items: center; gap: 5px; }
 
 .runway-end-heading strong {
   color: #e3edf5;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.runway-best-wind {
+  display: block;
+  width: max-content;
+  margin-left: auto;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(126, 226, 168, 0.12);
+  color: #7ee2a8;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .runway-end-heading small { font-weight: 400; }

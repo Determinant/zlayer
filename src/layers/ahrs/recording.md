@@ -11,6 +11,12 @@ replay/reference history. It is not an exact mid-flight restart checkpoint.
 Calibration and recording can proceed without ever receiving a GPS fix; the GPS
 lease does not make a fix a prerequisite for live IMU attitude.
 
+Recording belongs to the instrument session. Optional map heading leases neither
+start nor end a recording prepared for calibration. Automatic heading observations
+are not inserted into calibrated instrument replay. Sensor capture belongs to the
+instrument session; replay begins from its confirmed alignment. Explicit instrument Stop or plugin
+disposal ends the recording even if the map continues using automatic heading.
+
 ## Contents
 
 - [GPX track download](#gpx-track-download)

@@ -3,6 +3,7 @@ import { createTaskLimiter } from '../../../core/data/task-limiter';
 import { pluginStorage } from '../storage';
 import { gridKey, type DecodedGrid } from './format';
 import { compressGrid, inflateGridBytes } from './packed';
+import { gridSldOverlay } from './presentation';
 import { rasterGrid } from './raster';
 import { fullGridViewport } from './viewport';
 import { weatherTiming } from './performance';
@@ -17,6 +18,7 @@ const render = createTaskLimiter(1);
 
 export function loadRaster(data: DecodedGrid, field: AwcGridField, sld: boolean, signal: AbortSignal,
   onReady?: (pixels: Uint8ClampedArray<ArrayBuffer>) => void): Promise<Uint8ClampedArray<ArrayBuffer>> {
+  sld = gridSldOverlay(field, sld);
   const view = fullGridViewport(data.manifest);
   // Increment when palette, transparency, hatch or sampling rules change.
   const identity = JSON.stringify(['rgba-v1', data.endpoint, gridKey(data.manifest, data.frame), field, sld]);

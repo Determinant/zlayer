@@ -109,27 +109,33 @@
 
 .runway-wind-state { margin: 0; }
 
+.runway-wind-arrow {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  color: #c3d8e6;
+}
+
 .runway-wind-components {
-  display: grid;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.runway-wind-component {
+  display: inline-flex;
+  align-items: center;
   gap: 2px;
 }
 
-.runway-wind-components > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.runway-wind-components span,
-.runway-wind-components abbr,
 .runway-wind-components small {
   color: #91a9bb;
   font-size: 11px;
   font-weight: 400;
 }
 
-.runway-wind-components abbr { text-decoration: none; }
+.runway-wind-components small { font-size: 10px; }
 
 .runway-wind-components strong {
   color: #d6e7f1;
@@ -140,6 +146,7 @@
 }
 
 .runway-wind-components .is-tailwind strong,
+.runway-wind-components .is-tailwind .runway-wind-arrow,
 .runway-wind-components .is-tailwind small {
   color: #f2bc7b;
 }
@@ -179,10 +186,10 @@
   background: rgba(151, 199, 228, 0.04);
 }
 
-.taf-lines [data-flight-category='VFR'] { color: #20c66b; }
-.taf-lines [data-flight-category='MVFR'] { color: #62a9ff; }
-.taf-lines [data-flight-category='IFR'] { color: #ff7070; }
-.taf-lines [data-flight-category='LIFR'] { color: #e97bf5; }
+.airport-weather [data-flight-category='VFR'] { color: #20c66b; }
+.airport-weather [data-flight-category='MVFR'] { color: #62a9ff; }
+.airport-weather [data-flight-category='IFR'] { color: #ff7070; }
+.airport-weather [data-flight-category='LIFR'] { color: #e97bf5; }
 
 .taf-category {
   font-size: 11px;

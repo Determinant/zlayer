@@ -27,18 +27,24 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('374529N1223030W');
 });
 
-test('iPad tap opens Copy formats and copies with user activation after focus loss', async ({ page }) => {
+test('iPad taps copy every format with user activation after focus loss without changing the draft', async ({ page }) => {
   const trigger = page.getByRole('button', { name: 'Route actions', exact: true });
   await trigger.tap();
-  await page.getByRole('menuitem', { name: 'Copy Route', exact: true }).tap();
+  const copy = page.getByRole('menuitem', { name: 'Copy Route', exact: true });
+  await expect(copy).toHaveAttribute('aria-haspopup', 'menu');
+  await copy.tap();
   const formats = page.getByRole('menu', { name: 'Copy route format', exact: true });
   await expect(formats).toBeVisible();
-  const format = formats.getByRole('menuitem', { name: /^ForeFlight/ });
-  await format.tap();
-  await expect(page.locator('body')).toHaveAttribute('data-copied-route', 'KSFO UNKNOWN KSJC 374529N/1223030W');
-  await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
-  await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
-  await expect(format).toBeFocused();
+  for (const [name, token] of [
+    [/^ForeFlight/, '374529N/1223030W'], [/^SkyVector/, '374529N1223030W'], [/^ICAO/, '3745N12231W'],
+  ] as const) {
+    const format = formats.getByRole('menuitem', { name });
+    await format.tap();
+    await expect(page.locator('body')).toHaveAttribute('data-copied-route', `KSFO UNKNOWN KSJC ${token}`);
+    await expect(page.locator('.route-menu').getByRole('status')).toHaveText('Route copied');
+    await expect(page.locator('.route-token strong').last()).toHaveText('37°45′N 122°30′W');
+    await expect(format).toBeFocused();
+  }
   await page.keyboard.press('Escape');
   await expect(formats).toHaveCount(0);
   await expect(page.getByRole('menuitem', { name: 'Copy Route', exact: true })).toBeFocused();

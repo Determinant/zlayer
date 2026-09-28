@@ -18,6 +18,13 @@ export function formatObservationTime(value: string | undefined, now = Date.now(
   return formatTimestamp(value, { now });
 }
 
+/** Read only the coded report body, preserving its published pressure unit. */
+export function formatMetarAltimeter(raw: string | undefined): string | undefined {
+  const group = raw?.split(/\bRMK\b/)[0]?.match(/(?:^|\s)([AQ])(\d{4})(?=\s|=|$)/);
+  if (!group || Number(group[2]) === 0) return undefined;
+  return group[1] === 'A' ? `${(Number(group[2]) / 100).toFixed(2)} inHg` : `${Number(group[2])} hPa`;
+}
+
 export function formatMetarWind(properties: GeoPointProperties, declination?: number | null): string | undefined {
   const speed = properties.metarWindSpeedKt;
   if (typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0) return undefined;

@@ -8,6 +8,11 @@ It remains a supplemental planning tool, not an official briefing source or cert
 ## Principles
 
 - One persistent MapLibre/WebGL map; React is a thin, code-split shell.
+- Responsive, efficient map and layer rendering is a core product quality. Treat
+  interaction as a real-time rendering workload: reuse prepared data, keep camera
+  movement responsive during acquisition, bound preparation and memory, and let
+  the renderer become idle when nothing changes. Preserve chart sharpness and
+  source correctness; measure improvements on repeatable workloads and devices.
 - Each product owns its data, behavior, presentation and lifecycle.
 - Continuous terrain beneath exclusive chart bases and optional additive overlays.
 - Cached data first; background refresh never blocks unrelated interaction.

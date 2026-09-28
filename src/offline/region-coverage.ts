@@ -71,6 +71,15 @@ export function partitionRegionCoverage(bundles: readonly SavedBundle[], viewpor
       const candidates = regionCoverage(bundle.plan.regionId, bundle.bounds)
         .filter(polygon => intersects(polygonBounds(polygon), extent));
       if (!candidates.length) continue;
+      const covered = uniformRectangleCoverage(candidates, extent);
+      if (covered === false) continue;
+      if (covered === true) {
+        // The entire original rectangle belongs to this region, so whatever
+        // higher-priority regions left (including holes) belongs here too.
+        result.push({ bundle, geometry: remaining });
+        remaining = [];
+        break;
+      }
       const geometry = clipping.intersection(remaining, candidates);
       if (!geometry.length) continue;
       result.push({ bundle, geometry });
@@ -81,6 +90,24 @@ export function partitionRegionCoverage(bundles: readonly SavedBundle[], viewpor
   cache.set(key, result);
   if (cache.size > 32) cache.delete(cache.keys().next().value!);
   return result;
+}
+
+/** Without a boundary in the rectangle, its interior has uniform ownership.
+ * Test every ring, including holes and islands enclosed by the rectangle. Edge
+ * bounding boxes deliberately overestimate intersections: uncertainty, touches
+ * and crossings all fall back to the existing exact polygon clipping path.
+ * Checking only corners would miss enclosed holes, islands and concave borders. */
+export function uniformRectangleCoverage(geometry: MultiPolygon, [left, top, right, bottom]: Bounds): boolean | undefined {
+  if (left >= right || top >= bottom) return undefined;
+  for (const polygon of geometry) for (const ring of polygon) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [ax, ay] = ring[j]!, [bx, by] = ring[i]!;
+      if ((ax < left && bx < left) || (ax > right && bx > right) ||
+          (ay < top && by < top) || (ay > bottom && by > bottom)) continue;
+      return undefined;
+    }
+  }
+  return coverageContainsPoint(geometry, [left + (right - left) / 2, top + (bottom - top) / 2]);
 }
 
 function worldRectangle([west, south, east, north]: Bounds): MultiPolygon {
