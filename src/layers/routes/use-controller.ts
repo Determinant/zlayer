@@ -35,7 +35,7 @@ export function useRouteController({ catalog, enabled, gps, directToEnabled }: {
   }), [update]);
   const barProps = {
     plan: route.plan, navigationData: route.data, status: route.status,
-    onUseRoute: update, onDirectTo: directTo,
+    onUseRoute: update, onEditDraft: update, onDirectTo: directTo,
     onApproachChange: (entry, selection) => update(current => setRouteApproach(current, entry, selection)),
     onDepartureChange: (entry, selection) => update(current => setRouteDeparture(current, entry, selection)),
     onArrivalChange: (entry, selection) => update(current => setRouteArrival(current, entry, selection)),
@@ -48,6 +48,6 @@ export function useRouteController({ catalog, enabled, gps, directToEnabled }: {
     onClear: () => update(EMPTY_ROUTE_DRAFT), onFit: () => setFocusNonce(current => current + 1),
   } satisfies Omit<ComponentProps<typeof RouteBar>, 'catalog' | 'onOpenPlate'>;
   return { ...route, hasEntries: draft.entries.length > 0, preview, confirmation, barProps,
-    featureRoute: { plan: route.plan, update, onDirectTo: directTo },
+    featureRoute: { plan: route.plan, update, onDirectTo: directTo, navigationData: route.data, catalog, onIdentificationPreview: setApproach },
     mapInput: { route: route.plan, routePreview: preview, displayedRoutes, focusNonce, actions } };
 }

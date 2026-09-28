@@ -1,5 +1,5 @@
 import type { GeoPointFeature, ProcedureResourceRecord } from '@zlayer/contracts';
-import { featureIdent, type NearbyVor } from '@zlayer/domain';
+import { radialReference, featureIdent, routeIdentificationKey, type NearbyVor } from '@zlayer/domain';
 import type { CatalogReadSource, SavedSupplement } from './read-context';
 import { PANEL_LAYOUT } from './panel-layout';
 import { FeatureDetailCard } from '../layers/navigation/detail-card';
@@ -9,6 +9,9 @@ import { AirportPlates, type ProcedureSelection } from '../layers/plates';
 import { hasAirportPlates } from '../layers/plates/data';
 import { AirportWeather, AirportRunwayWeather, type MetarClient } from '../layers/metar-taf';
 import { FeatureRouteActions, type FeatureRoute } from '../layers/routes/feature-actions';
+import { identifyRoutePointWithStation } from '../layers/routes/identification';
+import { RouteIdentificationChoices } from '../layers/routes/identification-picker';
+import { routePointForFeature } from '../layers/routes/selection';
 import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
 import type { ReportStatusListener } from '../layers/metar-taf/station-weather';
 
@@ -34,9 +37,23 @@ export function FeatureDetailsPanel({ feature, catalog, metarClient, onWeatherSt
   editionUnavailable = false, identification, onIdentificationChange, route, onClose, onOpenProcedure,
   features = { routes: true, weather: true, terrain: true, plates: true } }: FeatureDetailsPanelProps) {
   const ident = featureIdent(feature);
+  const point = features.routes ? routePointForFeature(route.plan, feature, route.pointId) : undefined;
+  const entry = point && route.plan.entries.find(value => value.id === point.source.entryId);
+  const radial = point?.identification?.kind === 'radial' ? point.identification
+    : !point?.identification ? point?.radialPosition : undefined;
+  const navaids = identification && <NearbyNavaids {...identification} selection={point ? {
+    reference: radial?.reference,
+    onSelect: station => route.update(draft => identifyRoutePointWithStation(draft, route.plan, point, station)),
+  } : undefined} />;
+  const hasOriginalRadialStation = !!point?.radialPosition && identification?.stations?.some(station =>
+    JSON.stringify(radialReference(station.feature)) === JSON.stringify(point.radialPosition!.reference));
   return <FeatureDetailCard feature={feature} revision={revision} placement={PANEL_LAYOUT.details.tab} onClose={onClose}
     onIdentificationChange={onIdentificationChange}
-    identification={identification ? <NearbyNavaids {...identification} /> : undefined}
+    identification={identification ? point && entry
+      ? <RouteIdentificationChoices key={`${entry.id}:${routeIdentificationKey(point)}`} plan={route.plan} entry={entry} point={point}
+          data={route.navigationData} navaids={navaids} hasOriginalRadialStation={hasOriginalRadialStation}
+          update={route.update} onIdentify={route.onIdentify} onPreviewChange={route.onIdentificationPreview} />
+      : navaids : undefined}
     actions={<>
       {features.routes && <FeatureRouteActions feature={feature} route={route} />}
       <button className="identify-feature-button" type="button" aria-pressed={!!identification}

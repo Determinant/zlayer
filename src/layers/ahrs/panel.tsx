@@ -1,11 +1,22 @@
-import { useId, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';
 import type { AhrsLayer } from './layer';
-import { AhrsTool } from './controls';
 import { ToolPanel } from '../../core/ui/tool-panel';
 import { focusPanelTab } from '../../core/ui/edge-panels';
 import { useModalDialog } from '../../core/ui/use-modal-dialog';
 import '../../core/ui/confirmation-dialog.css';
+
+const AhrsTool = lazy(() => import('./controls').then(module => ({ default: module.AhrsTool })));
+
+function AhrsBody(props: { layer: AhrsLayer; route: RoutePlan; revision: string; visible: boolean }) {
+  const [opened, setOpened] = useState(props.visible);
+  useEffect(() => { if (props.visible) setOpened(true); }, [props.visible]);
+  // Once opened, retain the tool while stowed so Background preserves sensors
+  // and calibration. The lightweight tab shell remains mounted from startup.
+  return props.visible || opened ? <Suspense fallback={<p role="status">Loading AHRS…</p>}>
+    <AhrsTool {...props} />
+  </Suspense> : null;
+}
 
 /** Sensor/recording policy belongs to AHRS; the panel host only defers the switch. */
 export function AhrsPanel({ layer, route, revision }: { layer: AhrsLayer; route: RoutePlan; revision: string }) {
@@ -24,7 +35,7 @@ export function AhrsPanel({ layer, route, revision }: { layer: AhrsLayer; route:
   return <>
     <ToolPanel className="map-edge-ahrs" beforeStow={(next, proceed) => { setStow({ next, proceed }); return false; }}
       icon={<><circle cx="12" cy="12" r="9" /><path d="M3 12h5l2 2h4l2-2h5M12 3v3m-4 2h8" /></>}>
-      {visible => <AhrsTool layer={layer} route={route} revision={revision} visible={visible} />}
+      {visible => <AhrsBody layer={layer} route={route} revision={revision} visible={visible} />}
     </ToolPanel>
     <dialog ref={dialog} className="confirmation-dialog ahrs-stow-dialog" role="alertdialog"
       aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}

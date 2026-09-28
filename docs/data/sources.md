@@ -2,8 +2,9 @@
 
 [Documentation](../README.md) / Data
 
-Initial research: 2026-09-12. Implementation status reviewed from source 2026-09-20;
-AWC API limits and OSMF/COD access policies rechecked on 2026-09-18.
+Initial source research: 2026-09-12; AWC API limits and OSMF/COD access policies
+rechecked on 2026-09-18. The [roadmap](../product/roadmap.md) owns implementation status;
+the source matrix below summarizes adapter disposition and access constraints.
 
 This register separates a useful product idea from permission to automate it. Each
 adapter needs a named owner, documented cadence, request budget, attribution, sample
@@ -105,7 +106,7 @@ The current `NAV_BASE` export does not include localizers; displaying those faci
 also requires an ILS source in the producer. Morse is shown only alongside an existing
 published frequency and represents the expected identifier from reference data.
 
-The blue **ID** action on every feature uses up to six VOR-family records within
+The blue **ID** action on every feature lists all eligible VOR-family records within
 100 NM from that feature's navigation edition, regardless of map visibility or
 route membership. Stations 5–60 NM away rank first, with MON candidates preferred
 inside that band and distance breaking ties. Outside it, proximity to the band

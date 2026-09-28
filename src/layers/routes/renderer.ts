@@ -3,7 +3,7 @@ export { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } 
 import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
-import type { RouteLeg, RoutePlan, RouteWaypoint } from '@zlayer/domain';
+import { greatCircleCoordinates, routeLegCoordinates, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
 import type { RouteDragPreview } from './public';
 export type { RouteDragPreview } from './public';
 import { unwrapRouteCoordinates } from './geometry';
@@ -415,7 +415,7 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
   const features: RouteFeature[] = [];
   for (const leg of plan.legs) features.push(legFeature(leg, plan.revision, preview, editable));
   for (const { from, to, start } of plan.planningConnections ?? []) features.push({ type: 'Feature',
-    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates([start ?? waypointCoordinate(from, preview), waypointCoordinate(to, preview)]) },
+    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(greatCircleCoordinates(start ?? waypointCoordinate(from, preview), waypointCoordinate(to, preview))) },
     properties: { routeKind: 'planning-connection' } });
   for (const extension of plan.approachExtensions ?? []) features.push({ type: 'Feature',
     geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(extension) }, properties: { routeKind: 'approach-extension' } });
@@ -447,7 +447,7 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
         routeKind: 'waypoint',
         ident: waypoint.ident,
         // The offline map font includes Latin-1; use its apostrophe for minutes.
-        displayIdent: formatWaypointLabel(waypoint.ident).replaceAll('′', "'"),
+        displayIdent: formatWaypointLabel(routePointLabel(waypoint)).replaceAll('′', "'"),
         ...((waypoint.approachRole || waypoint.procedureConstraint) ? { approachRole: [waypoint.approachRole, waypoint.procedureConstraint].filter(Boolean).join("\n") } : {}),
         ...(waypoint.approachHold?.inboundCourse === undefined ? {} : { holdLabelOnRight: waypoint.approachHold.inboundCourse < 180 }),
         ...(waypoint.owners.some(owner => owner.kind === 'approach') ? { approachPoint: true } : {}),
@@ -473,10 +473,12 @@ function legFeature(leg: RouteLeg, revision: number, preview?: RouteDragPreview,
     coordinates.push(preview.coordinate);
   }
   coordinates.push(to);
+  const path = leg.geometry ?? (preview ? coordinates.slice(1).flatMap((coordinate, index) =>
+    greatCircleCoordinates(coordinates[index]!, coordinate).slice(index ? 1 : 0)) : routeLegCoordinates(leg));
   const id = routeLegId(leg, revision);
   return {
     type: 'Feature',
-    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(leg.geometry ?? coordinates) },
+    geometry: { type: 'LineString', coordinates: unwrapRouteCoordinates(path) },
     properties: {
       routeKind: 'leg',
       ...(id === undefined ? {} : { routeLegId: id }),
@@ -494,3 +496,4 @@ function routeLegId(leg: RouteLeg, revision: number): string | undefined {
 function dragPreviewKey(id: string, preview: RouteDragPreview): string {
   return JSON.stringify([id, preview.coordinate, preview.snapped]);
 }
+import { routePointLabel } from '@zlayer/domain';

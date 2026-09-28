@@ -19,6 +19,12 @@ or supersede a current constraint, diagnostic or release gate.
 
 ## Retention rules
 
+- Do not archive routine test counts, rerun narratives or static-review caveats
+  after their useful lessons have moved into current guides and regression cases.
+  Keep a dated run only when its unique evidence supports a design decision or
+  an investigation still in progress. Old failures need current reproduction
+  before being presented as current defects.
+
 - Keep durable behavior, constraints and unresolved work in their owning guides;
   link evidence from those guides when it substantiates a claim.
 - Keep source/implementation hashes, edition, geometry policy, scope and environment

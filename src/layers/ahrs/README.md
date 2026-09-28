@@ -89,7 +89,10 @@ smoothing. The horizon, HSI, tapes and drums share one animation clock capped at
 60 FPS, including on higher-refresh screens; idle/stopped instruments schedule
 no animation frames. The HSI reads the same current estimator snapshot as the horizon;
 it does not wait for the 20 Hz status-control publication timer. Display frames,
-status snapshots and route calculations pause while hidden. Reopening
+status snapshots and route calculations pause while hidden. Controls select only
+their displayed status fields, so changing attitude samples do not rerender
+unchanged forms and headers. The toolbox UI loads lazily on panel activation;
+the heading service remains independently available to track-up. Reopening
 immediately publishes a fresh snapshot and preserves the selected HSI leg.
 There is no entry in the right-hand layer menu.
 
@@ -698,83 +701,10 @@ keeping the calibrated means does not keep their old confidence indefinitely.
 
 ## Verification
 
-The recorded v6 verification passed its unit suite, import/type checks,
-production build and browser/graphics checks. The original turn-accuracy,
-compass-drift and layer uncertainty limits were retained. See the
-[dated test results](validation.md#v6-beta-verification)
-for measured errors, vibration/gap checks and remaining statistical evidence.
-These checks do not substitute for recorded phone/aircraft data.
-The [v7 vibration and HSI regressions](validation.md#v7-vibration-and-hsi-regressions)
-record the newer adaptive-noise, calibration and display checks separately.
-
-- `test/ahrs-calibration.test.ts`: stationary sensor noise, level-flight rocking and
-  vibration at multiple and changing sample rates with/without GPS, measured
-  rejection reasons, motion/noise bounds, retained evidence across pauses without
-  counting missing time, and recovery when readings settle.
-- `test/ahrs-layer.test.ts`: combined and unaided calibration, full-rate processing while stowed, motion rejection and GPS qualification,
-  live indication with no fix, prolonged GPS loss or low speed even above the tilt
-  uncertainty threshold, GPS recovery without resetting calibration, independent
-  heading, cancellation, errors, and cleanup.
-- `test/ahrs-estimator.test.ts`: independent analytic motion at 30/50/60 Hz, delayed GPS replay,
-  covariance health, and calibration evidence checks.
-- `test/ahrs-motion-clock.test.ts`: browser adapter event/receipt separation, epoch
-  normalization, skipped timestamps, timing messages, and attitude accuracy and
-  freshness under queued callback delivery.
-- `test/ahrs-gap-recovery.test.ts`: repeated and long gaps, retained pose/bias,
-  increased uncertainty, covariance health, rejection of GPS from the missing
-  interval, and fresh GPS rebuilding tilt/heading aiding.
-- `test/ahrs-mathematics.test.ts`: independent finite differences of navigation dynamics
-  columns and the covariance-reset Jacobian, plus navigation-marginal NEES/GPS NIS.
-- `test/ahrs-observations.test.ts`: per-source innovation diagnostics and revision
-  handling when delayed observations replay existing corrections.
-- `test/ahrs-heading-recovery.test.ts`: long straight legs followed by finite turns,
-  repeated recovery, GPS loss/delay, wrong priors with concurrent altitude aiding,
-  isolated outliers, and preserved tilt/bias covariance.
-- `test/ahrs-tilt-aiding.test.ts`: no-GPS drift with vibration, persistent
-  acceleration ambiguity, all-axis accelerometer correction, free fall, disabling
-  gravity aiding, delayed GPS resumption, and heading acquisition after a straight leg.
-- `test/ahrs-kinematic-fusion.test.ts`: coherent rotation versus alternating
-  vibration, maneuver uncertainty across gaps, bounded heading-trajectory refresh,
-  persistent acceleration, correlated-compass uncertainty and nonlinear recovery.
-- `test/ahrs-magnetic-fusion.test.ts`: both vector Jacobians, reference covariance,
-  frame invariance, no-GPS drift for each sensor source, delayed fusion, weak yaw
-  geometry, disturbances, source switching, duplicate input and permission loss.
-- `test/ahrs-hsi.test.ts`: course/deviation signs, nearest legs, waypoint passage,
-  dateline and high-latitude geometry, magnetic/true references, unchanged CDI
-  geometry, heading versus track, available guidance beneath warnings, and REL
-  with position-based route readings.
-- `test/ahrs-heading-reference.test.ts`: GPS initialization, gyro motion through
-  north, delayed fixes, smooth corrections, retained references through recovery
-  and motion pauses, manual-heading precedence, and explicit reset.
-- `test/ahrs-magnetic-model.test.ts`: all 12 NOAA reference vectors, date/height
-  limits, east/west signs, wraparound and coefficient validation.
-- `test/ahrs-magnetic-data.test.ts`: manifest discovery, versioned loading, offline
-  reuse, mixed-cycle rejection and cancellation.
-- `test/ahrs-instruments.test.ts`: drum carries, animation continuity across
-  frame rates, bounded prediction, missing readings, units and recovery.
-- `test/ahrs-vertical-speed.test.ts`: analytic climb/descent/level trends,
-  damping across frame/fix rates, noise and digit hysteresis, validity gates,
-  discontinuities, and recovery without false climb indications.
-- `test/ahrs-display-frames.test.ts`: 60 FPS cap across display refresh rates,
-  missed-frame handling and cancellation.
-- `test/ahrs-recording.test.ts`: ordered events, bounded buffering, partial sessions
-  and storage-failure recovery.
-- `test/gps-service.test.ts`: shared location ownership, visibility, independent
-  AHRS/Ownship lifetimes, and AHRS operation without an Ownship instance.
-- `test/ownship-layer.test.ts`: map demand, centering, track history and lease cleanup.
-- `test/e2e/ahrs.spec.ts`: actual toolbox, motion events, HSI route selection,
-  responsive instrument layouts, calibration with no GPS fix or low speed, live
-  attitude beneath the cross during prolonged GPS absence and high uncertainty,
-  scrolling with paused/queued sensors during and after calibration, automatic
-  recovery after backgrounding or unusable readings, and recovery as GPS aiding
-  reduces uncertainty.
-- `test/e2e/ahrs-geometry.spec.ts`: rendered bank-pointer perpendicularity,
-  circular scaling and tape clearance across bank/pitch combinations; GPS V/S
-  placement and signed-digit fit at desktop/mobile widths.
-- `test/e2e/ahrs-fullscreen.spec.ts`: phone, tablet-window, mini, 4:3 and larger
-  tablet viewport fit in portrait/landscape, visible HSI readings/route selection,
-  touch targets, retained demo/calibration/HSI state, modal focus, Escape and persistence.
-- `test/e2e/ahrs-drums.spec.ts`: rendered rolling digits and altitude/speed transitions.
-- `test/e2e/ahrs-recording.spec.ts`: live capture, recorder layout, offline downloads
-  after reload and recovery of committed chunks after interruption or write failure.
-- `test/e2e/map-edge-tools.spec.ts`: touch layouts, focus and panel bounds.
+The [validation guide](validation.md) owns estimator invariants, input/recovery
+requirements, the [regression inventory](validation.md#regression-coverage),
+reproduction commands and remaining statistical/device evidence gaps.
+It retains the [v6 results](validation.md#v6-beta-verification) and
+[v7 vibration and HSI results](validation.md#v7-vibration-and-hsi-regressions)
+with their original accuracy limits and run scope. Historical checks do not
+validate later changes or substitute for recorded phone/aircraft data.

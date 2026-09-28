@@ -28,18 +28,15 @@ uses the shared free-course join. It requires a client update, not new FAA data.
 
 ## Validation
 
-- All 1,309 client unit tests passed: 1,158 application, 17 contracts and 134 domain.
 - General regressions move the terminating fix farther along the same course
   and verify that capture stays near the maneuver. Cases cover both turn
   directions, three course orientations and three locations including the date line.
 - The real KVGT fixture verifies early radial capture, station declination,
   entering heading/right turn, source legs, unchanged holding fix and schematic
   exclusion from route distance.
-- All 51 approach and coded-terminal browser cases passed. KVGT's early capture
-  is checked during preview, after adding to the route and after reload at both
-  320 px and 1,280 px. The [desktop](kvgt-1280.png) and [phone](kvgt-320.png)
+- KVGT's early capture is checked during preview, after adding to the route and
+  after reload at both 320 px and 1,280 px. The [desktop](kvgt-1280.png) and [phone](kvgt-320.png)
   screenshots were inspected.
-- TypeScript/import checks and the production build passed.
 - The national terminal audit found no newly affected review choices. Existing
   review choices decreased from 294 to 292; the two resolved cases are KMSO
   GRZLY4/RW12 and KLMT CRATR1/RW32.
@@ -51,4 +48,4 @@ uses the shared free-course join. It requires a client update, not new FAA data.
 [National comparison](national-comparison.json) records exact source and
 implementation identities, before/after totals and changed diagnostics. The
 source fixture is [approach-course-capture.json](../../../../../packages/domain/test/fixtures/approach-course-capture.json).
-All builds and browser checks were local; this change has not been deployed.
+The evidence covers local source artifacts and fixture rendering, not hosted availability.

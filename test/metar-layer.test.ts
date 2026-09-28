@@ -35,17 +35,19 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
     on(type: string, callback: (event?: unknown) => void) { const callbacks = listeners.get(type) ?? new Set(); callbacks.add(callback); listeners.set(type, callbacks); },
     off(type: string, callback: (event?: unknown) => void) { listeners.get(type)?.delete(callback); },
   } as unknown as MapLibreMap;
-  const emit = (type: string, event?: unknown) => { for (const callback of listeners.get(type) ?? []) callback(event); };
+  const emit = (type: string, event?: unknown) => { for (const callback of listeners.get(type) ?? []) callback(event ?? {}); };
   const calls: string[][] = [];
   let fail = false, hold = false;
   let heldSignal: AbortSignal | undefined;
+  let releaseHeld: (() => void) | undefined;
   const client = new MetarClient(new URL('https://example.test/weather'), {
     fetch: async (url, options) => {
       const ids = new URL(String(url)).searchParams.get('ids')!.split(',');
       calls.push(ids);
       if (hold) {
         const signal = heldSignal = options!.signal!;
-        await new Promise<never>((_resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
+          releaseHeld = resolve;
           signal.addEventListener('abort', () => reject(signal.reason), { once: true });
         });
       }
@@ -165,8 +167,13 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   assert.deepEqual(writes, [], 'hiding airports changes visibility without resubmitting geometry');
   assert.deepEqual(product.getSnapshot().visibleStationIds, []);
   assert.equal(visibility.get('airports-weather-points'), 'none');
+  fail = false;
+  await advance(60_000);
+  await client.refresh(['KSFO'], new AbortController().signal);
+  assert.deepEqual(writes, [], 'card refreshes do not rebuild the hidden map source');
   product.map.update({ airports, enabled: true, airportsVisible: true }); emit('render');
-  assert.deepEqual(writes, []);
+  assert.deepEqual(writes, ['metar-airports'], 'showing Airports submits the latest cached reports once');
+  writes.length = 0;
   assert.deepEqual(product.getSnapshot().visibleStationIds, ['KJFK']);
   const refreshedAirports = { ...airports, features: airports.features.map(feature => ({ ...feature,
     geometry: { type: 'Point' as const, coordinates: [-120, 35] as [number, number] } })) };
@@ -176,6 +183,19 @@ test('METAR owns its source, visible demand, stationary refresh and attachment c
   fail = false; hold = true;
   await advance(60_000);
   assert.ok(heldSignal && !heldSignal.aborted, 'a stationary refresh is in flight');
+  const followingCalls = calls.length;
+  for (let i = 0; i < 10; i++) {
+    moving = true; emit('movestart', { gpsCamera: true });
+    await advance(250);
+    moving = false; emit('moveend'); emit('render');
+    await advance(750);
+    assert.equal(heldSignal.aborted, false, 'GPS follow preserves a slow request for the settled scope');
+  }
+  assert.equal(calls.length, followingCalls, 'follow does not restart the request');
+  hold = false; releaseHeld!(); await flush();
+  assert.equal(product.getSnapshot().state.status, 'current', 'the slow response is accepted after repeated follow animations');
+  hold = true; await advance(60_000);
+  assert.ok(heldSignal && !heldSignal.aborted);
   const beforeCancellation = product.getSnapshot();
   moving = true; emit('movestart');
   assert.ok(heldSignal.aborted, 'movement cancels the in-flight request');

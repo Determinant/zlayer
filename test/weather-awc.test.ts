@@ -42,6 +42,7 @@ test('selection caches reuse status-only updates and invalidate catalogs, filter
   t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
   const controller = createWeatherController({ advisories: { restore: product => ({ snapshot: advisorySnapshot(product), loading: false }),
     refresh: async () => { throw new Error('Not attached'); } } });
+  controller.configure({ ...weatherAwcPreferences.select({ awcEnabled: true }), change() {} });
   const selectors = createWeatherSelectors();
   const initial: WeatherState = { ...controller.getSnapshot(), preferences: weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover' }) };
   const changes = selectors.forecastChanges(initial), times = selectors.forecastTimes(initial), advisories = selectors.visibleAdvisories(initial);
@@ -791,4 +792,73 @@ test('weather clock sleeps when switched off or hidden and resumes current time 
   assert.equal(controller.getSnapshot().now, Date.now());
   const resumed = publications;
   t.mock.timers.tick(15000); await flush(); assert.ok(publications > resumed);
+});
+
+
+test('disabled weather does not restore catalogs; activation restores cached data once and honors reduced downloads', t => {
+  environment(t).navigator.onLine = false;
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  const restored: string[] = [];
+  const grids = new GridClient('https://example.test/grids/');
+  t.mock.method(grids, 'restore', (product: string) => { restored.push(product); return { loading: false }; });
+  const controller = createWeatherController({ grids, advisories: {
+    restore: product => { restored.push(product); return { snapshot: advisorySnapshot(product), loading: false }; },
+    refresh: async () => { throw new Error('No network'); },
+  } });
+  assert.deepEqual(restored, []);
+  const changes: object[] = [];
+  const input = { ...weatherAwcPreferences.select({}), change: (patch: object) => { changes.push(patch); } };
+  controller.configure(input);
+  assert.deepEqual(restored, []);
+  controller.configure({ ...input, awcEnabled: true, awcGridMode: 'cloudCover', awcPrepareTimeline: false });
+  assert.deepEqual(restored, ['gairmet', 'sigmet', 'cwa', 'clouds']);
+  assert.equal(controller.getSnapshot().preferences.awcPrepareTimeline, false);
+  assert.ok(controller.getSnapshot().products.gairmet.snapshot);
+  controller.configure(input);
+  controller.configure({ ...input, awcEnabled: true, awcGridMode: 'cloudCover' });
+  assert.equal(restored.length, 4, 'activation keeps previously restored metadata');
+  controller.configure({ ...input, awcEnabled: true, awcGridMode: 'temperature' });
+  assert.equal(restored.at(-1), 'winds');
+  assert.equal(weatherAwcPreferences.select({ awcPrepareTimeline: 'bad' }).awcPrepareTimeline, true);
+  controller.detach();
+});
+
+test('reduced forecast downloads save only neighboring cloud hours and expand without reloading the display', async t => {
+  let cleanup = () => {};
+  t.after(() => cleanup());
+  const locks = navigator.locks;
+  Object.assign(environment(t).navigator, { locks }); cacheFixture(t);
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  const fixture = gridFixture('clouds'), client = new GridClient('https://app.test/reduced-grids/');
+  t.mock.method(client, 'restore', () => ({ loading: false, manifest: fixture.manifest }));
+  t.mock.method(client, 'refresh', async () => fixture.manifest);
+  const requested: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init), frame = fixture.manifest.frames.find(frame => request.url.endsWith(frame.path));
+    assert.ok(frame); requested.push(frame.path);
+    return new Response(Uint8Array.from(Buffer.from(fixture.files[frame.path]!, 'base64')));
+  });
+  const controller = createWeatherController({ grids: client,
+    advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) } });
+  cleanup = () => controller.detach();
+  let preferences = weatherAwcPreferences.select({ awcEnabled: true, awcGridMode: 'cloudCover', awcPrepareTimeline: false,
+    awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false });
+  const change = (patch: Partial<typeof preferences>) => {
+    preferences = { ...preferences, ...patch }; controller.configure({ ...preferences, change });
+  };
+  const prepared = (count: number) => new Promise<void>(resolve => {
+    const ready = () => controller.getSnapshot().grid.preparation?.ready === count;
+    if (ready()) return resolve();
+    const stop = controller.subscribe(() => { if (ready()) { stop(); resolve(); } });
+  });
+  change({}); controller.attach(); await prepared(2);
+  assert.equal(requested.length, 2);
+  assert.equal(controller.getSnapshot().grid.preparation?.total, 2);
+  const shown = controller.getSnapshot().grid.data;
+  controller.change({ awcPrepareTimeline: true }); await prepared(3);
+  assert.equal(requested.length, 3);
+  assert.equal(controller.getSnapshot().grid.data, shown);
+  controller.change({ awcPrepareTimeline: false });
+  assert.equal(controller.getSnapshot().grid.preparation?.total, 2);
+  assert.equal(controller.getSnapshot().grid.data, shown);
 });

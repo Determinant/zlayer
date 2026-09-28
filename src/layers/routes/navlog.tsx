@@ -52,7 +52,7 @@ export function RouteNavLog({ id, open, onToggle, plan, status, revision }: {
               {row.gap && <tr className="route-navlog-gap"><td colSpan={4}><span aria-hidden="true">⋯</span> {row.gap}</td></tr>}
               <tr className={`route-navlog-row${row.waypoint.approachPhase === 'missed' ? ' is-missed' : ''}`}>
                 <th scope="row" title={row.waypoint.ident}>
-                  <span className={`route-navlog-waypoint ${routeWaypointClass(row.waypoint)}`}><strong>{formatWaypointLabel(row.waypoint.ident)}</strong>
+                  <span className={`route-navlog-waypoint ${routeWaypointClass(row.waypoint)}`}><strong>{formatWaypointLabel(routePointLabel(row.waypoint))}</strong>
                     {row.waypoint.procedureConstraint && <small>{row.waypoint.procedureConstraint}</small>}
                     {(row.waypoint.approachHold || row.waypoint.approachRole) && <small>
                       {row.waypoint.approachHold ? `HOLD ${row.waypoint.approachHold.turn === 'unknown' ? '?' : row.waypoint.approachHold.turn}` : row.waypoint.approachRole}
@@ -82,3 +82,4 @@ export function RouteNavLog({ id, open, onToggle, plan, status, revision }: {
     </div>
   </div>;
 }
+import { routePointLabel } from '@zlayer/domain';

@@ -1,4 +1,4 @@
-import { distanceNm, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
+import { distanceNm, routeFlightSequence, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
 import { magneticBearing, magneticField, type MagneticModel } from '../../core/geo/magnetic-model';
 
 export type NavLogRow = {
@@ -13,16 +13,12 @@ export type NavLogRow = {
 /** Use connected legs, keyed by occurrence: identifiers can repeat within one route. */
 export function navLogRows(plan: RoutePlan, model: MagneticModel | null, time = Date.now()) {
   const incoming = new Map<RouteWaypoint, RouteLeg[]>();
-  const approachSources = new Set<string>();
   for (const leg of plan.legs) {
     const legs = incoming.get(leg.to) ?? [];
     legs.push(leg);
     incoming.set(leg.to, legs);
   }
-  for (const point of plan.waypoints) if (point.approachPhase) approachSources.add(point.source.entryId);
-  // Attached airports remain editable map markers, not extra flown endpoints after the missed approach.
-  const points = plan.waypoints.filter(point => !(point.layer === 'airports' && point.edit &&
-    approachSources.has(point.source.entryId)));
+  const points = routeFlightSequence(plan);
   let totalNm = 0, previousSection = '';
   const rows: NavLogRow[] = points.map((waypoint, index) => {
     const legs = incoming.get(waypoint) ?? [];

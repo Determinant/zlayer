@@ -2,24 +2,10 @@
 
 [Documentation](../README.md) / Product
 
-Status: product direction; baseline reviewed from source 2026-09-20, weather milestone updated 2026-09-24
-Initial research date: 2026-09-12
-
-The scope and acceptance scenario below include planned capabilities. The current
-app provides VFR/IFR low charts, FAA navigation, persisted routes and recommendations,
-METARs/TAFs, AWC advisory polygons, cloud/freezing/icing grids, winds and temperatures
-aloft, WPC surface analysis/Progs and recent NEXRAD/TDWR radar with optional storm-motion
-tracks on a shared weather timeline, plates with optional georeferenced map overlays, anchored approach previews,
-regional offline snapshots, packaged route/viewport terrain, FAA obstructions and optional
-device GPS. An experimental AHRS toolbox provides attitude, GPS instruments,
-HSI guidance for straight route legs and local recordings with GPX/JSON Lines downloads; device and
-flight validation remain outstanding. The camera, open panels
-and plate reading state restore across reloads. Settings offers a full reset of local
-app data. A local Route Stash saves and manages named structured route snapshots.
-Text route copying and sharing are implemented. Production weather proxies and
-device qualification remain release work; shareable route/view URLs, satellite imagery
-and route-corridor downloads remain planned. See the [roadmap](roadmap.md) for the implemented baseline and
-remaining work, and [deployment readiness](../development/deployment.md) for release gates.
+This brief defines user needs, target experience, non-goals and performance
+budgets. Its scope and acceptance scenario include planned capabilities.
+The [roadmap](roadmap.md) owns implementation status and remaining work;
+[deployment readiness](../development/deployment.md) owns release gates.
 
 ## Contents
 

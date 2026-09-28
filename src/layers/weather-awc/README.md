@@ -177,6 +177,14 @@ Core also owns forecast file storage; the [grid guide](grids/README.md#time-reco
 specifies the shared limits. Full local reset includes all weather storage. Regional
 chart downloads do not imply weather coverage.
 
+Saved advisory/radar metadata is restored when Weather is first enabled, rather
+than while the workspace constructs disabled plugins. Grid catalogs restore once
+per requested forecast family; Progs restoration starts when Progs is enabled.
+This keeps disabled products out of startup storage/parsing work while preserving
+cached-first offline activation and each product's independent freshness clock.
+See [forecast download scope](grids/README.md#forecast-download-scope) for the
+optional selected-and-adjacent-hours setting.
+
 ## Development and production delivery
 
 Both use same-origin `/api/weather/`. `npm run dev` proxies to

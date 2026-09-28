@@ -239,3 +239,15 @@ test('one invalid TEC reports its own local airport pair without disabling other
     assert.equal(plan.legs.some(leg => leg.from.tokenIndex === invalid - 1 && leg.to.tokenIndex === invalid + 1), false);
   }
 });
+
+test('unresolved untyped TEC components name the child without changing source ownership', () => {
+  const withVector = { ...route, route: `VECTORS ${route.route}`, segments: [
+    { sequence: 1, value: 'VECTORS', type: 'VECTOR' },
+    ...route.segments.map(segment => ({ ...segment, sequence: segment.sequence + 1 })),
+  ] };
+  const plan = resolve({ ...preferred, routes: [withVector] })(input);
+  assert.deepEqual(plan.issues, [{ tokenIndex: 1, token: 'CSTQ1', code: 'waypoint-not-found',
+    message: 'CSTQ1: VECTORS is not a known waypoint' }]);
+  assert.equal(plan.tecRoutes[0]!.route, withVector);
+  assert.equal(plan.legs.some(leg => leg.from.ident === 'KSNA'), false);
+});

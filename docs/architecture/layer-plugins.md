@@ -7,7 +7,7 @@ workflow. It is not a versioned external extension API. Start with
 [Adding a product](#adding-a-product) for implementation steps; the detailed contracts
 follow. Feature behavior and algorithms live in the [plugin guides](../README.md#plugin-guides),
 and common controls follow the [shared UI guide](../features/shared-ui.md#shared-controls).
-Dated [verification history](#verification-history-and-remaining-checks) stays at the end.
+[Verification](#verification) covers lifecycle and integration regressions.
 
 A ZLayer layer is a complete workspace feature: data, behavior, presentation and
 lifecycle. A plate viewer remains a feature independently of its optional map
@@ -37,7 +37,7 @@ external distribution, compatibility and permissions remain separate decisions.
 - [Persistent state](#persistent-state)
 - [Demand and freshness](#demand-and-freshness)
 - [File downloads](#file-downloads)
-- [Verification history and remaining checks](#verification-history-and-remaining-checks)
+- [Verification](#verification)
 
 ## Working on built-in products
 
@@ -290,6 +290,15 @@ explicit. Shared providers must outlive visual demand when another consumer stil
 needs them. A new service facade requires a concrete consumer and must preserve
 these guarantees; the plugin boundary adds neither a second cache nor a universal
 data or window manager.
+
+### Deferred plugin work
+
+Workspace registration remains synchronous so saved preferences and optional public
+APIs have stable owners. Heavy presentation can load separately: the AHRS toolbox
+is a lazy UI boundary, while its heading service remains available independently.
+AWC Weather defers saved catalog restoration until activation (grid families until
+requested), avoiding storage reads for disabled products. These boundaries retain
+the existing plugin API and do not add an asynchronous registration framework.
 
 ## Inter-plugin communication
 
@@ -1022,22 +1031,13 @@ or a late mutation from racing a new publication.
 Unknown encoded size is bounded by `maxFileBytes`; optional storage failure still
 leaves a validated live result usable. Cache-only never invokes a producer.
 
-AWC uses independent cloud, icing, wind, Progs, coverage and radar/motion budgets.
-Each numeric product has room for its full hourly horizon at the per-file maximum;
-one endpoint/source generation/altitude forms a protected cohort. Disposable wind
-inputs, model terrain, rendered images and unclassified compatibility files have
-their own default pool. The [AWC grid budgets](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
-own the ceilings and acquisition scope.
-Its controller displays the selection first, then saves cloud/icing forecast times
-at the chosen icing altitude, warming a bounded decoded neighborhood. Winds load the selected time and
-altitude first, prefetching adjacent hours. Numeric operations share one CPU slot;
-a wind job's input waits leave scalar acquisition and decoding available.
-Replacements clear the previous forecast while loading. The [AWC grid guide](../../src/layers/weather-awc/grids/README.md)
-owns preparation and retry behavior.
-Core shares acquisition/conversion and retains the compressed artifacts; the plugin
-owns preparation order, cancellation and progress. Manifest refresh, weather validity, original source timestamps and
-stale/unavailable presentation remain with AWC. The same split applies to future
-immutable forecast, radar or satellite files with qualified source contracts.
+AWC demonstrates the ownership split: core shares acquisition/conversion and
+retains compressed artifacts; the plugin owns preparation order, cancellation,
+progress, manifest refresh, validity and source-time presentation. The
+[grid guide](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
+owns its category/cohort choices, ceilings, decoded neighborhoods and retry policy.
+The same split applies to future immutable forecast, radar or satellite files
+with qualified source contracts.
 
 Use the existing APIs where the resource has different requirements:
 
@@ -1050,72 +1050,16 @@ Use the existing APIs where the resource has different requirements:
 | Progs surface charts | Load immutable, server-prepared chart files through `files.loadResult`, keyed by endpoint and artifact digest. Small freshness catalogs reference successfully saved charts; unchanged checks reuse geometry. Asynchronous restoration cannot replace live data. The [Progs guide](../../src/layers/weather-awc/progs/README.md) owns limits and legacy-snapshot compatibility. |
 | Navigation and route reference JSON | Already use validated `fetchJson`, immutable identities and saved-snapshot authority. Keep explicit offline packs outside an opportunistic LRU. |
 
-## Verification history and remaining checks
+## Verification
 
-The September 21, 2026 migration was checked against baseline `f618e83` with
-Node 24.20 and the Playwright 1.63 Linux container, including headed Firefox under
-Xvfb. The baseline passed `npm run verify`. Migration results combined the full run
-with focused reruns after fixture corrections and a Firefox launch recovery:
-
-| Check | Recorded result before later activation fixes |
-| --- | --- |
-| Imports, TypeScript, production build | Passed |
-| Unit tests | 1,340 passed |
-| Chromium | 568 passed; 3 failures also reproduced on the baseline |
-| WebKit and Retina WebKit graphics | 82 passed; 2 existing platform skips |
-| Headed Firefox graphics | 41 passed; 1 existing platform skip |
-
-The full command exited nonzero, initially with 565 Chromium passes and six
-failures. Three fixture assertions were corrected: waypoint-menu initial focus,
-AHRS GPS-tick timing after resume, and a 0.001px tolerance for translated touch
-controls. Firefox recovery supplied a writable container home and reran its
-interrupted case. Graphics skips concern Chromium-only native-touch injection.
-This is combined evidence, not a successful end-to-end `verify:full` invocation.
-
-Three baseline failures remain recorded:
-
-- Offline verification leaves Resume disabled after pause/reopen while a stalled
-  cache read holds the per-file lock. It failed three repetitions on both revisions.
-- The two KIWA missing-intercept cases (320/1280px) find an `approach-missed` segment
-  where the fixture expects none. Both revisions fail; connected-intercept cases
-  pass on the baseline. Geometry and the affected fixture were unchanged by the
-  migration. These remain separate from the activation fixes below.
-
-The subsequent live Load/Unload follow-up passed `npm run verify` with 1,344 unit
-cases and 61 focused Chromium cases. Coverage included all ten plugins,
-dependencies, initially unloaded startup, saved route/camera/plate state, delayed
-imports, GPS/worker cleanup, keyboard tabs and three viewport sizes. It did not
-rerun the complete cross-browser matrix or resolve the three baseline failures.
-
-Four later corrections preserve plate camera intent, remove weather enrichment
-when unloaded, reconcile attachments/imports independently, and keep selection
-usable when route rendering fails or unloads. Their regression cases were updated,
-but those fixes received **static review only**: tests, builds and type checks were
-not run. All passing counts above predate these fixes and do not validate them.
-
-For the next verification, run the [full gate](../development/local-development.md#verification).
+Run the [full gate](../development/local-development.md#verification).
 Include input filtering, partial failure, cleanup/remount, duplicate identities,
 fixed tab slots, stow/close/focus/Back behavior, storage migration and denied writes,
 late imports, preserved camera intent and optional runway weather. The real
 renderer/worker boundary and installed-device behavior require their own checks.
 
-### Inter-plugin bridge verification, September 22, 2026
-
-The bridge follow-up ran the full gate in the Playwright 1.63 / Node 24.20 Linux
-container. Chromium recorded 585 passes and five failures. Four failures also
-reproduced on an untouched checkout of `7f2b8f1`: the stalled offline verification,
-both KIWA missing-intercept cases, and the AHRS test that expects the vertical
-`hsi-deviation` SVG path to satisfy Playwright's visibility assertion. The fifth,
-AHRS uncertainty diagnostics, found an empty unaided trend path in the full run;
-it then passed three focused repetitions on both revisions. That intermittent
-failure remains unresolved; the reruns do not make the full gate green.
-WebKit/Retina graphics passed 82 cases with two platform skips; headed Firefox
-passed 41 with one platform skip. `verify:full` exited nonzero for Chromium only.
-
-After the synchronous command teardown fix, import/type checks, all 1,401 unit
-tests and the production build passed again. Focused coverage includes optional
-discovery, late connection, repeated disable/re-enable, listener cleanup,
-reentrancy, stale commands/results, renderer failure, shared route references and
-the real app clearing/restoring terrain demand when Routes is disabled/enabled.
-These counts describe the tested working tree, which also contained concurrent
-workspace changes; they are historical evidence, not a promise about later edits.
+Exercise optional discovery, late connection, repeated disable/re-enable,
+listener cleanup, synchronous command teardown, reentrancy and stale results.
+Disabling a provider must clear its consumers' demand without disabling their
+independent features; re-enabling must restore connections and saved state without
+replaying camera commands. Renderer failures must leave selection usable.

@@ -20,6 +20,9 @@ import { TERMINAL_FIX_TOLERANCE_NM } from './terminal-fixes.js';
 import type { RouteDraft, RouteFeaturePins, RoutePlan, RouteResolver, RouteWaypoint } from './route-model.js';
 import { normalizeRouteToken, routeTokenForFeature } from './route-text.js';
 import { parseRouteCoordinate } from './route-coordinate.js';
+import { parseRadialDefinition, positionOnRadial, radialReferenceCandidates, referenceForDefinition, radialPositionFeature,
+  type MagneticReferenceResolver } from './radial-position.js';
+import { routeIdentificationKey } from './route-identification.js';
 import { featureIdentifiers } from './features.js';
 import {
   createAirwayChainResolver,
@@ -49,6 +52,7 @@ export function createRouteResolver(
   airwayData?: AirwayDataResponse,
   terminalData?: TerminalProceduresData,
   preferredData?: PreferredRoutesData,
+  magneticReference?: MagneticReferenceResolver,
 ): RouteResolver {
   const indexes = buildIndexes(collections);
   const resolveApproachFix = (fix: ApproachFix): Candidate | undefined => {
@@ -88,7 +92,7 @@ export function createRouteResolver(
       return candidate?.layer === 'airports' ? [candidate.feature.properties.icaoId, candidate.feature.properties.faaId, atom.text] : [];
     });
     const expansion = expandAirwayRoute(atoms, resolveAirwayChain, (token, index) =>
-      !!atoms[index]!.pinnedFeatureId || !!parseRouteCoordinate(token) || (indexes.byIdentifier.has(token) &&
+      !!atoms[index]!.pinnedFeatureId || !!parseRouteCoordinate(token) || !!parseRadialDefinition(token) || (indexes.byIdentifier.has(token) &&
         (index === 0 || index === atoms.length - 1 || !airwayIdentifiers.has(token))));
     const terminal = expandProcedures(atoms, expansion.points, atom => {
       const pinned = resolvePin(atom.pinnedFeatureId, atom.terminalFix);
@@ -112,7 +116,13 @@ export function createRouteResolver(
       const eligible = candidates?.filter(candidate => point.requirements.every(required => matchesRequirement(candidate, required)));
       const coordinate = !pin && point.atom?.entry && point.requirements.length === 0
         ? parseRouteCoordinate(point.ident) : undefined;
-      const candidate = coordinate ? { layer: 'fixes' as const, feature: coordinate }
+      const radial = !pin && point.atom?.entry && point.requirements.length === 0 ? parseRadialDefinition(point.ident) : undefined;
+      const stationMatches = radial ? radialReferenceCandidates(radial, indexes.byIdentifier.get(radial.station)?.map(value => value.feature) ?? []) : [];
+      const references = stationMatches.flatMap(feature => { const ref = referenceForDefinition(feature, radial!, magneticReference); return ref ? [ref] : []; });
+      const position = radial ? point.atom?.entry?.radialPosition ?? (stationMatches.length === 1 && references.length === 1
+        ? positionOnRadial(references[0]!, radial.radial, radial.distanceNm) : undefined) : undefined;
+      const candidate = position ? { layer: 'fixes' as const, feature: radialPositionFeature(position) }
+        : coordinate ? { layer: 'fixes' as const, feature: coordinate }
         : selectCandidate(eligible, point.ident, previous?.feature);
       if (!candidate) {
         const requirement = point.requirements.find(required => required.owner.kind === 'procedure') ??
@@ -127,9 +137,10 @@ export function createRouteResolver(
           }
         } else {
           plan.issues.push(sourceIssue(point.source, 'waypoint-not-found',
-            pin ? `${point.source.token}: the selected waypoint is unavailable or incompatible with this route`
+            radial ? `${point.source.token}: ${stationMatches.length > 1 ? 'choose a reference point; the identifier is ambiguous' : 'reference point or required magnetic alignment is unavailable'}`
+              : pin ? `${point.source.token}: the selected waypoint is unavailable or incompatible with this route`
               : point.requirements.length ? `${point.source.token}: the required published waypoint is unavailable`
-              : `${point.source.token} is not a known waypoint`));
+              : `${point.source.token === point.ident ? point.ident : `${point.source.token}: ${point.ident}`} is not a known waypoint`));
         }
         previous = undefined;
         continue;
@@ -137,7 +148,8 @@ export function createRouteResolver(
       const entry = point.atom?.entry;
       const waypoint: RouteWaypoint = { source: point.source, owners: point.owners,
         ...(entry ? { tokenIndex: point.source.tokenIndex, edit: { kind: 'waypoint', entryId: entry.id } as const } : {}),
-        ident: routeTokenForFeature(candidate.feature), layer: candidate.layer, feature: candidate.feature };
+        ident: routeTokenForFeature(candidate.feature), layer: candidate.layer, feature: candidate.feature,
+        ...(position ? { radialPosition: position } : {}) };
       plan.waypoints.push(waypoint);
       if (previous && point.incoming.connected) {
         const from = previous.feature.geometry.coordinates, to = waypoint.feature.geometry.coordinates;
@@ -151,6 +163,22 @@ export function createRouteResolver(
       previous = waypoint;
     }
     composeTerminals(plan, terminalData, resolveApproachFix);
+    const occurrences = new Map<string, number>();
+    for (const waypoint of plan.waypoints) {
+      const identity = JSON.stringify([waypoint.source.entryId, routeIdentificationKey(waypoint)]);
+      const occurrence = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, occurrence + 1);
+      if (occurrence) waypoint.identificationOccurrence = occurrence;
+      const form = plan.entries[waypoint.source.tokenIndex]?.identifications?.find(value => value.key === routeIdentificationKey(waypoint))?.form;
+      if (form) waypoint.identification = form;
+      const reference = form?.kind === 'radial' ? form.reference : waypoint.radialPosition?.reference;
+      if (reference) {
+        const definition = { station: reference.ident, radial: 0, distanceNm: 1, bearing: reference.bearing ?? 'radial' as const };
+        const matches = radialReferenceCandidates(definition, indexes.byIdentifier.get(reference.ident)?.map(value => value.feature) ?? []);
+        waypoint.radialReferenceCurrent = matches.length === 1 &&
+          JSON.stringify(referenceForDefinition(matches[0]!, definition, magneticReference)) === JSON.stringify(reference);
+      }
+    }
     const order = new Map(plan.waypoints.map((point, index) => [point, index]));
     plan.legs.sort((a, b) => order.get(a.from)! - order.get(b.from)!);
     plan.issues.sort((a, b) => a.tokenIndex - b.tokenIndex);

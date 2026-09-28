@@ -6,6 +6,7 @@ import { terminalConstraint } from './procedure-constraints.js';
 import { terminalFixFeature, sameTerminalFix, TERMINAL_FIX_TOLERANCE_NM } from './terminal-fixes.js';
 import { distanceNm, geographicMidpoint } from './route.js';
 import type { RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
+import { routeFlightSequence } from './route-sequence.js';
 import type { RouteOwner } from './route-source.js';
 
 type Kind = 'departure' | 'arrival' | 'approach';
@@ -76,7 +77,7 @@ export function composeTerminals(plan: RoutePlan, data?: TerminalProceduresData,
       }
       if (preview.extension) (plan.approachExtensions ??= []).push(preview.extension);
       if (preview.depictions.length) (plan.approachDepictions ??= []).push(...preview.depictions);
-      (plan.terminalPaths ??= []).push({ kind, owner, spans: preview.spans, issues: preview.issues, policy: preview.policy });
+      (plan.terminalPaths ??= []).push({ kind, owner, points: preview.points, spans: preview.spans, issues: preview.issues, policy: preview.policy });
     }
     return attachment;
   };
@@ -158,13 +159,7 @@ export function composeTerminals(plan: RoutePlan, data?: TerminalProceduresData,
   });
   plan.legs = [...connections, ...procedureLegs];
   for (const leg of plan.legs) cover(leg.from, leg.to);
-  // Procedure points replace bundle markers in the flown sequence. Preserve an
-  // airport reached by an incoming leg before a departure (an intermediate stop).
-  const reached = new Set(plan.legs.map(leg => leg.to));
-  const sequence = plan.waypoints.filter(point => {
-    const selected = airports.get(point);
-    return !selected?.approach?.children.length && (!selected?.departure?.children.length || reached.has(point));
-  });
+  const sequence = routeFlightSequence(plan);
   plan.planningConnections = sequence.slice(1).flatMap((to, index) => {
     const from = sequence[index]!;
     return covered.get(from)?.has(to) || distanceNm(openEnds.get(from) ?? from.feature.geometry.coordinates, to.feature.geometry.coordinates) < 1e-7

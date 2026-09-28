@@ -8,6 +8,7 @@ export function RadarControls({ controller }: { controller: WeatherController })
   const files = currentRadar(record.snapshot, state.selectedTime, state.now), national = files.find(f => f.site === 'CONUS');
   const times = radarTimes(record.snapshot, state.now), historical = state.selectedTime !== null && state.selectedTime <= state.now;
   const motion = state.radarMotion, motionDisplay = state.radarMotionDisplay, motionEnabled = state.preferences.awcRadarMotion;
+  const unavailableTerminals = record.snapshot?.unavailable.filter(site => site !== 'CONUS') ?? [];
   return <div className="awc-radar-controls">
     <button type="button" role="switch" aria-checked={enabled}
       className="ui-button ui-button--quiet ui-button--slim awc-radar-toggle" onClick={() => controller.change({ awcRadar: !enabled })}>
@@ -42,11 +43,16 @@ export function RadarControls({ controller }: { controller: WeatherController })
       </div>
       {(record.error || state.radarDisplay.error) && <div className="awc-error" role="status">{record.error || state.radarDisplay.error}</div>}
       {record.snapshot && state.now - record.snapshot.checkedAt > 3 * 60_000 && <div className="awc-error">Saved radar · Source check is out of date.</div>}
-      {!!record.snapshot?.unavailable.length && <small className="awc-error">{record.snapshot.unavailable.length} sources could not refresh. Available scans retain their observation times.</small>}
+      {record.snapshot?.unavailable.includes('CONUS') && <small className="awc-error">National radar composite could not update. Check the displayed observation time.</small>}
       <button type="button" className="ui-button ui-button--quiet ui-button--slim" onClick={() => controller.retryRadar()}>Refresh radar</button>
       <div className="awc-radar-legend" aria-label="Radar reflectivity in dBZ">{RADAR_COLORS.map((color, i) => <span key={color}><i style={{ backgroundColor: color }} />{5 + i * 10}</span>)}<small>dBZ</small></div>
       <small>Terminal detail appears as you zoom in. Stronger echoes draw above weaker echoes.</small>
       <details className="awc-source-status"><summary>Radar sources &amp; scan times</summary>
+        {unavailableTerminals.length > 0 && <div className="awc-product-status">
+          <strong>{unavailableTerminals.length} terminal radar {unavailableTerminals.length === 1 ? 'feed is' : 'feeds are'} not updating nationwide</strong>
+          <small>Observations may be old or temporarily unavailable. Sources are checked automatically; available scans keep their original observation times.</small>
+          <small>Affected stations: {unavailableTerminals.join(', ')}</small>
+        </div>}
         <div className="awc-product-status"><strong>NOAA MRMS / TDWR</strong>
           <small>The national composite includes returns aloft; terminal scans show the lowest tilt. Scans must be less than 15 minutes before the displayed time.</small>
           <small>Up to two hours of history, sampled about every five minutes. National history fills in from NOAA; terminal history builds as scans arrive.</small>

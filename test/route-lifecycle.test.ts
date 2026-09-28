@@ -20,14 +20,17 @@ const document = (ident: string) => ({ type: 'FeatureCollection', metadata: { ef
 function setup(t: test.TestContext) {
   const hooks = new Hooks();
   Object.assign(globalThis, { testHooks: hooks });
+  const previousDocument = globalThis.document;
+  const visibility = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  globalThis.document = visibility as unknown as Document;
   const original = globalThis.window;
   const timers: unknown[] = [];
   globalThis.window = Object.assign(new EventTarget(), {
     setTimeout: (...args: unknown[]) => { timers.push(args); return 1; }, clearTimeout() {},
   }) as unknown as Window & typeof globalThis;
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
-  t.after(() => { hooks.unmount(); globalThis.window = original; Reflect.deleteProperty(navigator, 'onLine'); });
-  return { hooks, timers };
+  t.after(() => { hooks.unmount(); globalThis.document = previousDocument; globalThis.window = original; Reflect.deleteProperty(navigator, 'onLine'); });
+  return { hooks, timers, visibility };
 }
 
 test('GPS routes survive absent, loading and failed navigation data, then resolve missing named points on recovery', async t => {
@@ -154,4 +157,48 @@ test('unloading routes releases its loaded resources while preserving the saved 
   assert.equal(render().data.airports, undefined, 'unloaded hook state releases navigation and procedure resources');
   await tick(); assert.equal(render().plan.waypoints.length, 1);
   assert.equal(draft.entries.length, 1);
+});
+
+
+test('route retries back off, pause while hidden, recover on resume and stop after success or unload', async t => {
+  const { hooks, timers, visibility } = setup(t);
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+  const pending = new Map<number, () => void>();
+  let timerId = 0;
+  window.setTimeout = ((callback: () => void, delay: number) => {
+    timers.push(delay); pending.set(++timerId, callback); return timerId;
+  }) as typeof window.setTimeout;
+  window.clearTimeout = ((id: number | undefined) => { if (id) pending.delete(id); }) as typeof window.clearTimeout;
+  let requests = 0, healthyRequests = 0, available = false;
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    if (String(url).endsWith('/airports')) { healthyRequests++; return Response.json(document('TEST')); }
+    requests++;
+    return available ? Response.json(document('FIX')) : new Response(null, { status: 404 });
+  });
+  let current: CatalogResponse | undefined = catalog('https://charts.test/route-backoff/airports');
+  current.navigation.push({ ...current.navigation[0]!, id: 'fixes', url: 'https://charts.test/route-backoff/fixes' });
+  const render = () => hooks.render(() => useRoutePlan(current, routeDraftFromText('TEST')));
+  render(); await tick();
+  for (let i = 0; i < 6; i++) {
+    assert.equal(pending.size, 1);
+    const [id, callback] = [...pending][0]!; pending.delete(id); callback(); await tick();
+  }
+  assert.deepEqual(timers, [3000, 6000, 12000, 24000, 48000, 60000, 60000]);
+  assert.equal(healthyRequests, 1, 'healthy immutable products are reused across retries');
+  visibility.visibilityState = 'hidden'; visibility.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(pending.size, 0);
+  assert.equal(render().status, 'partial');
+  const paused = requests;
+  await tick(); assert.equal(requests, paused);
+  visibility.visibilityState = 'visible'; visibility.dispatchEvent(new Event('visibilitychange')); await tick();
+  assert.equal(requests, paused + 1); assert.equal(timers.at(-1), 3000);
+  available = true;
+  visibility.visibilityState = 'hidden'; visibility.dispatchEvent(new Event('visibilitychange'));
+  visibility.visibilityState = 'visible'; visibility.dispatchEvent(new Event('visibilitychange')); await tick();
+  assert.equal(render().status, 'ready'); assert.equal(pending.size, 0);
+  visibility.dispatchEvent(new Event('visibilitychange')); await tick();
+  assert.equal(requests, paused + 2, 'healthy data does not reload on visibility events');
+  current = undefined; render();
+  visibility.dispatchEvent(new Event('visibilitychange')); await tick();
+  assert.equal(pending.size, 0); assert.equal(requests, paused + 2);
 });

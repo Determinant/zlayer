@@ -16,12 +16,10 @@ It remains a supplemental planning tool, not an official briefing source or cert
 - Each product owns its data, behavior, presentation and lifecycle.
 - Continuous terrain beneath exclusive chart bases and optional additive overlays.
 - Cached data first; background refresh never blocks unrelated interaction.
-- Weather uses a static app and one small TypeScript server for AWC, NOMADS and
-  HRRR from Google’s NOAA mirror. The server normalizes advisories and prepares
-  native forecast fields once in a bounded shared cache. Background updates prepare
-  original source levels; retained grids serve every client without repeated work.
-  The PWA interpolates wind altitude, validates, renders, inspects and saves them offline. Bounded background workers
-  publish only complete prepared generations; HTTP reads saved files. They live in the same service; no database is required.
+- Share weather acquisition and native-field preparation through one bounded,
+  database-free service; publish complete generations. Keep user state, selected
+  wind-altitude interpolation, rendering and offline use in the PWA. The
+  [architecture](../architecture/overview.md#data-layout) defines the delivery boundary.
 - Immutable, cycle-aware data with visible source, time, freshness and expiration.
 - Network/storage caching by whole MBTiles or PDF file, never by rendered chart tile.
 - On-demand caching for browsing; explicitly verified regions for offline completeness.
@@ -43,7 +41,3 @@ packages and independently versioned terrain/obstruction products.
 The [roadmap](roadmap.md) owns the implemented baseline and remaining work.
 [Local development](../development/local-development.md#run-and-configure) describes
 launch defaults and restoration; [deployment](../development/deployment.md) tracks release gates.
-The [approach geometry design](../../src/layers/routes/approach-geometry.md) is implemented
-locally; [coverage and rollout evidence](../../src/layers/routes/approach-coverage.md) records
-publication limits, unmatched charts and remaining national diagnostics.
-The [color-system plan](color-system-plan.md) remains a proposed palette and interface migration.

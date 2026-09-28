@@ -26,6 +26,7 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
   read: () => WeatherState, publish: (patch: Partial<WeatherState>) => void) {
   let schedulers: Partial<Record<ProductGroup, OnDemandRefresh>> = {};
   let progsRestore: AbortController | undefined;
+  let restored = false;
   const productState = (product: AwcAdvisoryProduct, patch: AdvisoryState) =>
     publish({ products: { ...read().products, [product]: patch } });
   const progsState = (product: SurfaceProduct, patch: SurfaceState) =>
@@ -38,13 +39,6 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
   return {
     attach() {
       detach();
-      if (progsClient) {
-        const restore = progsRestore = new AbortController();
-        for (const product of SURFACE_PRODUCTS) void progsClient.restore(product, restore.signal).then(saved => {
-          const current = read().progs[product];
-          if (!restore.signal.aborted && saved.snapshot && !current.snapshot) progsState(product, { ...current, snapshot: saved.snapshot });
-        }).catch(() => { /* Optional restoration; live acquisition remains independent. */ });
-      }
       schedulers.advisories = new OnDemandRefresh({ intervalMs: ADVISORY_REFRESH_MS, debounceMs: 0,
         onState(loading) {
           if (!loading) for (const product of AWC_ADVISORY_PRODUCTS) {
@@ -103,6 +97,21 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
     },
     demand() {
       const p = read().preferences;
+      if (p.awcEnabled && !restored) {
+        restored = true;
+        publish({ products: { gairmet: client.restore('gairmet'), sigmet: client.restore('sigmet'), cwa: client.restore('cwa') },
+          radar: radarClient?.restore() ?? { loading: false },
+          radarMotion: motionClient?.restore() ?? { loading: false },
+          coverage: coverageClient?.restore() ?? { loading: false } });
+      }
+      if (p.awcEnabled && p.awcProgs && progsClient && !progsRestore) {
+        const restore = progsRestore = new AbortController();
+        for (const product of SURFACE_PRODUCTS) void progsClient.restore(product, restore.signal).then(saved => {
+          const current = read().progs[product];
+          if (!restore.signal.aborted && saved.snapshot && !current.snapshot) progsState(product, { ...current, snapshot: saved.snapshot });
+        }).catch(() => { /* Optional restoration; live acquisition remains independent. */ });
+      }
+
       const active = p.awcEnabled && (typeof navigator === 'undefined' || navigator.onLine) &&
         (typeof document === 'undefined' || document.visibilityState !== 'hidden');
       const ids: AwcAdvisoryProduct[] = [];

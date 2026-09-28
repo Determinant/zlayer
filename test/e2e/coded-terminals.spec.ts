@@ -51,6 +51,17 @@ for (const touch of [false, true]) test.describe(touch ? 'touch' : 'mouse', () =
     await page.screenshot({ path: info.outputPath('coded-star-preview.png') });
     await star.getByRole('button', { name: 'Add to route' }).click();
     await expect(page.getByRole('button', { name: 'Change STAR for KSNA: OHSEA3', exact: true })).toBeVisible();
+    for (const [index, airport, fix, branch] of [[0, 'KSJC', 'STCLR', 'Runway 30L'], [1, 'KSNA', 'KLEVR', 'Runway 20R']] as const) {
+      await page.locator('.route-token').nth(index).click();
+      await page.getByRole('menuitem', { name: 'Show composition', exact: true }).click();
+      const composition = page.getByRole('dialog', { name: `${airport} composition` });
+      await expect(composition).toContainText(fix);
+      await expect(composition).toContainText(branch);
+      await expect(composition).toContainText('schematic');
+      await expect(composition).not.toContainText('has not been selected');
+      if (index === 1) await expect(composition).toContainText('route discontinuity');
+      await composition.getByRole('button', { name: 'Close route composition' }).click();
+    }
     await page.reload();
     await expect(page.locator('.route-token strong')).toHaveText(['KSJC', 'KSNA']);
     await expect(page.getByRole('button', { name: 'Change SID for KSJC: SPTNS1', exact: true })).toBeVisible();

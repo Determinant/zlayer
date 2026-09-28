@@ -54,12 +54,14 @@ with no manually selected alternative avoids scanning the nearby-report cache. T
 visibility setting remain `metar`; the directory name describes the module's scope.
 
 Map METAR demand comes from rendered airport circles. Loading national airport references
-for search does **not** fetch METAR for every airport. Camera movement pauses
+for search does **not** fetch METAR for every airport. Manual camera movement pauses
 requests until movement settles, while retaining the last settled station scope,
 weather count and observation time for presentation. This keeps the flight-category
 legend visible through GPS follow/track-up animations and manual pans. Once settled,
 the rendered circles determine the new scope, including clearing it for an empty
-view; requests resume even if the stations are unchanged.
+view; requests resume even if the stations are unchanged. Automatic GPS follow
+keeps the last settled scope active so repeated animations cannot abort slow
+requests indefinitely; the next settled view still replaces obsolete station demand.
 Airport visibility, the METAR toggle, document visibility, and
 network availability control whether map requests run. Map METARs use gateway AWC
 queries containing up to 100 station IDs, with two batches in flight, a 20-second
@@ -107,7 +109,14 @@ latest-known observations, not a weather-history archive.
 METAR owns a separate `metar-airports` GeoJSON source above static navigation.
 Refreshing weather does not resubmit the national navigation source. Cached circles
 can remain gray when categories are disabled; hiding Airports hides both sets of
-circles. Shared airport identity ties circles, search, routes, and details together.
+circles. While Airports is hidden, card updates refresh the shared cache without
+rebuilding the hidden map source; showing Airports submits the latest data once.
+Shared airport identity ties circles, search, routes, and details together.
+
+Weather station queries respond to camera, style, resize and airport-source
+changes, including late tiles. Status-only updates and visibility changes avoid
+redundant GeoJSON writes. Cached input identities do not retain another joined
+collection.
 
 Airport runway metadata belongs to navigation. The METAR product contributes wind
 components to the runway panel, using the selected airport's own observation from

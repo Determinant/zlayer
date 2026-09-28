@@ -1,3 +1,6 @@
+import { selectLayerStore } from '../src/core/layers/input';
+import { createLayerStore } from '../src/core/layers/store';
+import { ahrsControlStatus } from '../src/layers/ahrs/control-status';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
@@ -821,4 +824,25 @@ test('heading demand arriving during instrument startup does not replace calibra
   assert.equal(s.layer.readDisplaySnapshot().phase, 'ready');
   assert.equal(s.callbacks.length, 1);
   release?.();
+});
+
+
+test('AHRS controls ignore changing attitude values but publish status and calibration transitions', t => {
+  const { layer } = setup(t);
+  const store = createLayerStore(layer.getSnapshot());
+  const controls = selectLayerStore(store, ahrsControlStatus);
+  let changes = 0;
+  const stop = controls.subscribe(() => changes++);
+  const initial = controls.getSnapshot();
+  for (let i = 0; i < 20; i++) store.publish({ ...store.getSnapshot(),
+    attitude: { ...new Ahrs().getState(i), roll: i, pitch: i / 2 } });
+  assert.equal(changes, 0);
+  assert.equal(controls.getSnapshot(), initial);
+  store.publish({ ...store.getSnapshot(), phase: 'calibrating', progress: .5 });
+  assert.equal(changes, 1);
+  store.publish({ ...store.getSnapshot(), gpsLive: true, gpsUsable: true });
+  assert.equal(changes, 2);
+  store.publish({ ...store.getSnapshot(), message: 'Motion paused' });
+  assert.equal(changes, 3);
+  stop();
 });

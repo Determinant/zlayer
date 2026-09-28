@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { FeatureCollection } from 'geojson';
 import type { Map as MapLibreMap, LayerSpecification } from 'maplibre-gl';
 import type { GeoPointFeature } from '@zlayer/contracts';
-import { nearbyVorStations } from '@zlayer/domain';
+import { nearbyVorStations, radialReference } from '@zlayer/domain';
 import { createNavaidIdentificationLayer, identificationGeoJson } from '../src/layers/navigation/identification-layer';
 
 const point: GeoPointFeature = { type: 'Feature', properties: { kind: 'fix', ident: 'POINT' },
@@ -20,7 +20,7 @@ test('only the top three ranked stations connect to the target, with local datel
   assert.equal(data.features.filter(feature => feature.properties?.target).length, 1);
   lines.forEach((line, index) => {
     if (line.geometry.type !== 'LineString') throw new Error('Expected line');
-    const [from, to] = line.geometry.coordinates;
+    const from = line.geometry.coordinates[0], to = line.geometry.coordinates.at(-1);
     assert.deepEqual(to, point.geometry.coordinates);
     assert.ok(Math.abs(from![0]! - to![0]!) < 1);
     assert.ok(Math.abs((from![0]! - stations[index]!.feature.geometry.coordinates[0]) % 360) < 1e-9);
@@ -28,6 +28,32 @@ test('only the top three ranked stations connect to the target, with local datel
   assert.deepEqual(data.features.filter(feature => feature.properties?.ident).map(feature => feature.properties?.ident),
     stations.slice(0, 3).map(station => station.feature.properties.ident));
   assert.deepEqual(identificationGeoJson({ point, stations: [] }).features, []);
+});
+
+test('the selected radial is included beyond the top three, without duplicates, and keeps its saved station geometry', () => {
+  const aligned = stations.map(station => ({ ...station, feature: { ...station.feature,
+    properties: { ...station.feature.properties, stationDeclinationDeg: 12 } } }));
+  const chosen = aligned[3]!;
+  const radial = { reference: radialReference(chosen.feature)!, radial: 270, distanceNm: 48 };
+  for (const nearby of [aligned, [chosen, ...aligned.slice(0, 3)], [], aligned.map(station => ({ ...station,
+    feature: { ...station.feature, geometry: { type: 'Point' as const, coordinates: [0, 0] as [number, number] } } }))]) {
+    const data = identificationGeoJson({ point, stations: nearby, radial });
+    const lines = data.features.filter(feature => feature.geometry.type === 'LineString');
+    assert.equal(lines.length, nearby.length ? nearby[0] === chosen ? 3 : 4 : 1);
+    const selected = lines.filter(feature => feature.properties?.selected);
+    assert.equal(selected.length, 1);
+    assert.ok(selected[0]!.geometry.type === 'LineString');
+    assert.deepEqual(selected[0]!.geometry.coordinates[0], chosen.feature.geometry.coordinates);
+    assert.deepEqual(selected[0]!.geometry.coordinates.at(-1), point.geometry.coordinates);
+    assert.equal(selected[0]!.properties?.reference, 'MB 270° · 48.0 NM');
+    assert.equal(data.features.filter(feature => feature.properties?.selected).length, 4, 'line, reading, station and target are highlighted');
+  }
+  assert.ok(identificationGeoJson({ point, stations: aligned }).features.every(feature => !feature.properties?.selected),
+    'returning to name/GPS removes the selected highlight');
+  const external = identificationGeoJson({ point, stations: [], radial: { ...radial,
+    reference: { ...radial.reference, id: 'fix:OTHER', ident: 'OTHER' } } });
+  assert.deepEqual(external.features.find(feature => feature.properties?.ident === 'OTHER')?.geometry,
+    { type: 'Point', coordinates: chosen.feature.geometry.coordinates }, 'rendering does not require a recommended VOR identity');
 });
 
 test('ID overlay survives remount and clears all map content on close or unavailable results', () => {

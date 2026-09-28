@@ -16,12 +16,59 @@ async function restoreGpsPoint(page: Page) {
   });
 }
 
+test('the existing ID panel can change a route point description without losing its readings', async ({ page }) => {
+  await restoreGpsPoint(page);
+  await page.goto('/');
+  const identify = page.getByRole('button', { name: /Identify .* with nearby navaids/ });
+  await page.locator('.route-token').first().click();
+  await page.getByRole('menuitem', { name: 'Identify point…', exact: true }).click();
+  await expect(identify).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('dialog', { name: 'Identify route point' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Copy point', exact: true })).toHaveCount(0);
+  const readings = page.getByRole('region', { name: 'Nearby VOR/DME', exact: true });
+  await expect(readings).toContainText('MB 345°');
+  const choices = page.locator('.route-identification-choices');
+  await choices.getByRole('button', { name: 'Use CMA radial and distance', exact: true }).click();
+  await expect(page.locator('.route-token strong')).toContainText('CMA/');
+  await expect(readings).toContainText('MB 345°');
+  await expect(readings.getByRole('button', { name: 'Use CMA radial and distance', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!));
+  expect(stored.entries[0].text).toBe('350000N1190535W');
+  expect(stored.entries[0].identifications[0].form.reference.ident).toBe('CMA');
+  await identify.click();
+  await expect(choices).toHaveCount(0);
+});
+
+test('an existing radial outside the top three has yellow map trim and follows ID changes', async ({ page }, testInfo) => {
+  await page.goto('/test/browser/identification.html?route-reference');
+  const identify = page.getByRole('button', { name: /Identify .* with nearby navaids/ });
+  await identify.click();
+  const selected = page.getByRole('button', { name: 'Use TEST radial and distance', exact: true });
+  await expect(selected).toHaveAttribute('aria-pressed', 'true');
+  await expect(selected).toHaveCSS('border-top-color', 'rgb(255, 209, 122)');
+  const rendered = () => page.evaluate(() => {
+    const map = (window as unknown as { identificationAudit: { map: MapLibreMap } }).identificationAudit.map;
+    if (!map.getLayer('navaid-id-labels')) return [];
+    return [...new Set(map.queryRenderedFeatures({ layers: ['navaid-id-labels'] })
+      .filter(feature => feature.properties.selected).map(feature => feature.properties.ident))];
+  });
+  await expect.poll(rendered).toEqual(['TEST']);
+  await page.screenshot({ path: testInfo.outputPath('selected-reference.png') });
+  await page.getByRole('button', { name: 'Use CMA radial and distance', exact: true }).click();
+  await expect.poll(rendered).toEqual(['CMA']);
+  await page.getByRole('button', { name: 'GPS coordinate', exact: true }).click();
+  await expect.poll(rendered).toEqual([]);
+  await identify.click();
+  await expect(page.locator('.nearby-navaids')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toBeEmpty();
+});
+
 test('distinct ID-less stations with the same name keep their rows when reordered', async ({ page }) => {
   await page.goto('/test/browser/identification.html?duplicate-names');
   await page.getByRole('button', { name: /Identify .* with nearby navaids/ }).click();
   const rows = page.locator('.nearby-navaids tbody tr');
-  await expect(rows).toHaveCount(6);
-  expect(await rows.locator('th strong').allTextContents()).toEqual(Array(6).fill('DUP'));
+  await expect(rows).toHaveCount(7);
+  expect(await rows.locator('th strong').allTextContents()).toEqual(Array(7).fill('DUP'));
   const original = await rows.evaluateAll(elements => elements.map(element => {
     const frequency = element.querySelector('th small')!.textContent!;
     (element as HTMLElement).dataset.originalFrequency = frequency;
@@ -43,10 +90,21 @@ for (const [width, height] of [[1280, 900], [320, 568]] as const) {
     await expect(page.locator('.nearby-navaids')).toHaveCount(0);
     await identify.click();
     const references = page.getByRole('region', { name: 'Nearby VOR/DME', exact: true });
-    await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 · VOR/DMEMB 345°TB 360°47.3');
+    await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 VOR/DMEMB 345°TB 360°47.3');
     await references.scrollIntoViewIfNeeded();
     await expect(references).toBeVisible();
     expect(await references.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const dimensions = await references.locator('.navaid-select').evaluateAll(buttons => buttons.map(button => {
+      const detail = button.querySelector<HTMLElement>('.navaid-station-detail')!;
+      return { height: button.getBoundingClientRect().height, detailHeight: detail.getBoundingClientRect().height,
+        lineHeight: parseFloat(getComputedStyle(detail).lineHeight) };
+    }));
+    expect(dimensions.length).toBeGreaterThan(0);
+    for (const button of dimensions) {
+      expect(button.height).toBeGreaterThanOrEqual(44);
+      expect(button.height).toBeLessThanOrEqual(46);
+      expect(button.detailHeight).toBeLessThanOrEqual(button.lineHeight + .5);
+    }
     await page.screenshot({ path: testInfo.outputPath('gps-nearby-vor.png') });
     await page.waitForFunction(() => !!navigator.serviceWorker.controller);
     await context.setOffline(true);
@@ -77,15 +135,16 @@ test('an older cached export keeps TB visible while magnetic alignment is missin
   const identify = page.getByRole('button', { name: /Identify .* with nearby navaids/ });
   await identify.click();
   const references = page.getByRole('region', { name: 'Nearby VOR/DME', exact: true });
-  await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 · VOR/DMEMB —TB 360°47.3');
+  await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 VOR/DMEMB —TB 360°47.3');
   await expect(references).toContainText('magnetic bearing unavailable');
+  await expect(references.getByRole('button', { name: 'Use CMA radial and distance', exact: true })).toBeDisabled();
   await expect(references).toContainText('TB 360°');
   await expect(references).not.toContainText('MB 360°');
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await context.setOffline(true);
   await page.reload();
   await expect(identify).toHaveAttribute('aria-pressed', 'true');
-  await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 · VOR/DMEMB —TB 360°47.3');
+  await expect(references.getByRole('row', { name: /CMA/ })).toHaveText('CMAMON115.8 VOR/DMEMB —TB 360°47.3');
   await expect(references).toContainText('TB 360°');
   await expect(references).not.toContainText('MB 360°');
 });
@@ -202,12 +261,16 @@ test('ID works for airports without a route and resets when tabs or selection ch
   await expect(page.locator('.nearby-navaids')).toHaveCount(0);
 });
 
-for (const [scenario, query, count] of [['present', '', 6], ['missing', '?missing-alignment', 6],
+for (const [scenario, query, count] of [['present', '', 7], ['missing', '?missing-alignment', 7],
   ['present on short, clustered lines', '?clustered', 3]] as const) test(`the top three stations render MB and distance with magnetic alignment ${scenario}`, async ({ page }, testInfo) => {
   await page.goto(`/test/browser/identification.html${query}`);
   const identify = page.getByRole('button', { name: /Identify .* with nearby navaids/ });
   await identify.click();
   await expect(page.locator('.nearby-navaids tbody tr')).toHaveCount(count);
+  if (count === 7) {
+    await expect(page.locator('.nearby-navaids tbody tr').last()).toContainText('LAST');
+    await expect(page.locator('.nearby-navaids')).not.toContainText('OUTSIDE');
+  }
   const mapped = await page.locator('.nearby-navaids .is-mapped th strong').allTextContents();
   expect(mapped).toHaveLength(3);
   expect(mapped).not.toContain('TEST'); // A nearer non-MON station follows useful MON candidates.
@@ -288,11 +351,14 @@ test('ID labels follow the visible world copy when the map is wrapped, rotated a
         const label = data.features.find(feature => feature.geometry.type === 'Point' &&
           feature.properties?.reference === line.properties?.reference);
         if (label?.geometry.type !== 'Point') return false;
-        const a = visible(line.geometry.coordinates[0]!), b = visible(line.geometry.coordinates[1]!);
+        const path = line.geometry.coordinates;
+        const middle = Math.floor((path.length - 1) / 2), odd = path.length % 2 === 1;
+        const a = visible(path[odd ? middle - 1 : middle]!), b = visible(path[middle + 1]!);
+        const center = odd ? visible(path[middle]!) : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const position = visible(label.geometry.coordinates);
         const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
         const upright = angle > 90 ? angle - 180 : angle < -90 ? angle + 180 : angle;
-        return Math.hypot(position.x - (a.x + b.x) / 2, position.y - (a.y + b.y) / 2) < 1 &&
+        return Math.hypot(position.x - center.x, position.y - center.y) < 1 &&
           Math.abs(Number(label.properties?.rotation) - upright) < 0.1;
       });
     })).toBe(true);

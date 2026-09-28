@@ -5,8 +5,8 @@
 This guide owns shared typography, controls, tabs, dialogs, scrolling and responsive
 layout, followed by the interaction and layout checks that verify them.
 
-Recorded layout review: 2026-09-18, local production build with Chromium touch emulation.
-These are representative **CSS viewports**, not physical-device certification.
+Use these representative **CSS viewports** for layout checks; they do not
+establish physical-device behavior.
 Display scaling and browser chrome can change the available viewport.
 
 | Layout | Viewport |
@@ -162,8 +162,8 @@ fix controls, regional downloads, About, recommendations and both terrain modes:
   full chart/cycle choices must remain available in their controls. Scrollable
   editors and panels must keep their content reachable.
 
-These methods retain the September 17 targeted review, which predated AHRS and
-reset controls; they do not establish full WCAG conformance or current test status.
+Apply these checks to all controls, including AHRS and reset flows. They do not
+establish full WCAG conformance by themselves.
 Physical iOS/Android rasterization, native selects and OS accessibility text
 settings still require device checks.
 
@@ -220,6 +220,11 @@ Dialogs with custom actions or live status use `core/ui/use-modal-dialog.ts` for
 opening, initial focus and close-on-cleanup. Callers retain their native dialog
 markup, cancellation policy, actions and any explicit focus handoff. Fullscreen
 readers and instruments continue to use `PanelSurface` for inline/modal transitions.
+
+Route identification uses these same buttons for station selection and `ui-input`
+for the route-point selector. Navigation owns the bearing table layout; core owns
+its action focus, pressed/disabled states and touch minimum. Supporting text uses
+`--text-muted`, and bearing/distance columns use tabular numerals.
 
 AHRS, Ownship, Terrain, Ruler actions, navigation fix settings, weather station
 selectors, route forms/pickers/recommendations, plate viewer actions, confirmations,

@@ -12,13 +12,8 @@ approaches connect through their procedure endpoints, and intermediate airport
 stops reached before a SID remain in the sequence. Unknown positions are never
 invented; only known endpoints can be connected.
 
-Validation:
+Regression scope:
 
-- `npm test`: 1,311 passing tests (1,160 application, 17 contracts, 134 domain).
-- `npm run check`, `npm run build`, and `git diff --check` passed.
-- 43 browser cases passed across `route-approach.spec.ts`,
-  `coded-terminals.spec.ts` and `terrain.spec.ts`. The two new VTF cases were rerun
-  after correcting the test to account for the picker's isolated procedure view.
 - Phone and desktop checks verify exact incoming VTF and onward gap endpoints
   after attachment and reload. The terrain worker renders shading along a route
   containing only gap connections, verified by a canvas pixel sample.

@@ -100,35 +100,25 @@ real-feed bandwidth, national-layer cost, physical-device memory or a performanc
 advantage over another app. Use the [graphics suite](../../../docs/verification/graphics-compatibility.md)
 and physical-device checks before accepting rendering changes.
 
-## Initial validation, September 27, 2026
+## Harness limitations, September 27, 2026
 
-The first checks used a dirty working tree based on `8b35081`, Node 24.20 and
-Playwright 1.63's Linux container. A separate verification job was active on the
-host: these runs validate the harness and reuse/correctness guards, **not an
-isolated timing baseline**. No renderer algorithm was changed in that initial work.
+Initial harness checks used a working tree based on `8b35081`, Node 24.20 and
+Playwright 1.63's Linux container while another verification job was active.
+They are not an isolated timing baseline. Chromium desktop and phone exercised
+all phases, including browser-offline reload and edition/pixel guards.
+Two other paths need renewed verification before claiming full engine coverage:
 
-- Chromium desktop completed three rounds (21 phases), including browser-offline
-  reloads and framebuffer checks. The repeated camera path opened no additional
-  packages in those rounds; required warm phases made no origin archive requests.
-  A separate 3× phone run completed all seven phases on the final runner, including
-  browser-offline reload and the explicit edition-readiness check.
-- WebKit at 2× completed all seven phases with the explicitly selected origin-outage
-  diagnostic. Default browser-offline reload instead failed twice with WebKit's
-  internal navigation error after the first six phases passed. The origin-outage
-  result does not close that browser-offline failure.
-- Headed Firefox completed the first four phases in two attempts. The regional
-  download then remained at **Starting… / Preparing download…** for the 60-second
-  timeout, including after explicitly waiting for the older edition label.
-  Saved-boundary and offline phases were not reached; that setup/storage failure
-  remains unresolved, and neither run is a full Firefox pass.
-- Import/type checks, the normal production build and 29 focused chart-reader,
-  package-index and regional-ownership unit cases passed. Normal built JavaScript
-  was checked for absence of the benchmark hooks. This was not a new full
-  `verify:full` run or physical-device validation.
+- WebKit at 2× completed the explicit origin-outage diagnostic, while default
+  browser-offline reload produced an internal navigation error. Origin outage
+  does not validate `navigator.onLine === false` behavior.
+- Headed Firefox reached camera reuse, then regional preparation remained at
+  **Starting… / Preparing download…** until the 60-second timeout despite waiting
+  for the older edition label. Boundary/offline phases were not reached.
 
-Those initial scenarios exposed repeated synchronous partition work in addition
-to file reads and nested bitmap composition, motivating the comparison below.
-Inclusive composition time alone cannot establish a drawing bottleneck.
+These are recorded harness limitations, not a claim that a current run still
+fails. The scenarios also exposed repeated synchronous partition work, motivating
+the comparison below; inclusive composition time alone cannot identify a drawing
+bottleneck.
 
 ## Uniform rectangle optimization, September 27, 2026
 
@@ -168,10 +158,7 @@ identical. The new unit comparison checks 98 region/viewport/precedence combinat
 against full polygon clipping, plus explicit holes, islands, concavity, touching
 edges and a remaining polygon with an earlier region cut out.
 
-`npm run verify` passed on the optimized working tree: import/type checks, 1,674
-unit cases across the root and two workspaces, and the production build. All 12
-targeted chart graphics cases passed in Chromium, headed Firefox, WebKit and 2×
-WebKit, covering zoom, orientation, alpha, regional ownership and missing-edition
-transparency. These targeted runs do not close the earlier full-workspace Firefox
-download or WebKit offline-emulation findings, replace `verify:full`, or establish
-physical-device performance.
+Cross-engine graphics coverage checks zoom, orientation, alpha, regional ownership
+and missing-edition transparency. Those focused cases do not exercise the full
+workspace download/offline paths identified above. Repeat the harness and full
+verification for a new revision; device performance needs separate measurement.

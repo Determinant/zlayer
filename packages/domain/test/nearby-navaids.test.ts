@@ -50,8 +50,8 @@ test('useful distances precede fallbacks, with MON candidates first inside the 5
     station('RZS', [0, 1.3], { state: 'CA' }), station('outside', [0, 1.02]),
     station('seventh', [0, 1.5]), station('SAME'),
   ]);
-  assert.deepEqual(result.map(item => item.feature.properties.ident), ['CMA', 'near', 'far', 'outside', 'GVO', 'RZS']);
-  assert.deepEqual(result.map(item => item.mon), [true, false, false, false, true, true]);
+  assert.deepEqual(result.map(item => item.feature.properties.ident), ['CMA', 'near', 'far', 'outside', 'GVO', 'RZS', 'seventh']);
+  assert.deepEqual(result.map(item => item.mon), [true, false, false, false, true, true, false]);
 });
 
 test('MON identity comes from the dated FAA list and matches station state and country', () => {

@@ -16,7 +16,6 @@ check the resulting pixels; [run the checks](#run-the-checks) before changing th
 - [Preparation performance (2026-09-17)](#preparation-performance-2026-09-17)
 - [Rendering audit](#rendering-audit)
 - [Run the checks](#run-the-checks)
-- [Local validation](#local-validation)
 - [Device verification boundary](#device-verification-boundary)
 
 ## Map resizing and iPhone crash investigation
@@ -36,22 +35,13 @@ difference alone does not establish memory pressure:
 an iPad's larger viewport can have more total backing pixels. The resize cleanup
 removes redundant work, but is not a confirmed repair of the reported failure.
 
-An initial mitigation capped rendering at 2× density and limited offscreen tile
-caches to two viewports and 64 tiles per source. A fresh WebKit visit
-at 3× device density confirmed a 780×984 backing canvas for a 390×492 CSS viewport
-(previously 1170×1476), with no observed page errors or process crash. Initial
-validation passed import/type checks, a production build, 961 unit tests, 9
-density/resize cases, 24 navigation/responsive cases and 97 existing graphics
-cases. Neither those checks nor the pre-change failure of the new density-limit
-assertion reproduced the phone's crash.
-
-Those global density/cache limits have been removed from the implementation:
-they were not derived from an iPhone allocation profile, reduce vector/label
-sharpness and increase tile work when revisiting evicted areas. The explicit
-pixel ratio also froze density at map creation, preventing later resizes from
-using an updated display density. Chart tile resolution and the separate PDF
-canvas budget are unaffected. The partial revert passed import/type checks,
-a production build and all six 1×/2×/3× resize cases in Chromium and WebKit.
+A trial 2× density cap and tile-cache limits (two viewports, 64 tiles per source)
+were removed: they lacked an iPhone allocation profile, reduced vector/label
+sharpness and increased work when revisiting evicted tiles. An explicit pixel
+ratio also froze density at map creation instead of following display changes.
+The trial did not reproduce the phone crash. Keep MapLibre's defaults until
+device measurements justify changing them; chart resolution and PDF canvas
+budgets have separate owners.
 
 ### Obstruction decompression memory spike
 
@@ -88,12 +78,8 @@ complete record recovery across multiple compressed chunks. Existing validation
 still checks gzip integrity, hash/size/count mismatches, cache receipts and
 corrupt downloads. Layer visibility, symbol detail and map density are unchanged.
 
-Validation passed import/type checks, a production build, all 12 obstruction
-unit tests and 13 of 14 obstruction browser cases in Chromium/WebKit. The remaining
-WebKit assertion expects no repeat gzip download after toggling/remounting; it
-observed three downloads instead of one on both the original `4d19d2f` source and
-the patched source. Rendering assertions in that case passed. That cache-reuse
-failure remains separate from the bounded-decompression change.
+Cache reuse across toggles/remounts requires its own regression: bounded
+decompression alone does not prove that a verified source avoids another download.
 
 ## Terrain incident and cause
 
@@ -283,31 +269,11 @@ unsupported `isMobile` emulation option. CPU throttling is Chromium-only.
 
 For future rendering changes, include asymmetric fixtures and pixel assertions
 that fail when tiles are flipped, shifted, missing or assigned the wrong color.
+Cover cancellation during snapshot creation and canvas cleanup after drawing or
+snapshot failure. Keep native geolocation integration separate from deterministic
+graphics fixtures. List current cases with `npm run test:graphics -- --list`.
 Keep CSS coordinates separate from backing pixels, test at more than one device
 pixel ratio, and cover zoom/resize/context recovery when the changed path uses them.
-
-## Local validation
-
-Historical evidence from the September 17–18, 2026 review follows. Counts describe
-those runs; [deployment readiness](../development/deployment.md) lists the remaining
-release checks. List today's selected cases with
-`npm run test:graphics -- --list`.
-
-- Import boundaries, TypeScript, production build and all 469 unit tests passed.
-- The initial 24-case graphics/terrain/lifecycle review was exercised in Chromium,
-  Firefox, WebKit and WebKit at 2× density. The initial WebKit chart-alpha failures
-  passed after the correction, including focused reruns on the final helper.
-- The geographic terrain regression passed 20 consecutive WebKit runs at 2×.
-- Review added a regression for cancellation during snapshot creation and canvas
-  cleanup after drawing/snapshot failure. All 20 affected browser cases passed
-  again across Chromium, Firefox and WebKit at 1×/2× after the cleanup refactor.
-- The transfer stress regression passed in all four browser projects. The
-  benchmark additionally checked 640 corrected tiles per engine with no corruption.
-- Native Chromium geolocation integration passed after its test was moved out of
-  the deterministic graphics suite.
-- The reporter confirmed the terrain fix on the originally affected iPad mini.
-  Device performance measurements and the broader physical-device matrix remain
-  outstanding. The macOS CI job is configured but has not run locally.
 
 ## Device verification boundary
 

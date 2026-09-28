@@ -1,5 +1,5 @@
-import { createRouteEntry, type RouteDraft, type RouteEntry, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
-import { sameRouteDraft } from './draft';
+import { type RouteDraft, type RouteEntry, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
+import { entryForRoutePoint, sameRouteDraft } from './draft';
 
 /** Published items which supply this point, or depend on it as an endpoint. */
 export function routeItemsForPoint(plan: RoutePlan, point: RouteWaypoint): RouteEntry[] {
@@ -17,6 +17,14 @@ export function routeItemsForPoint(plan: RoutePlan, point: RouteWaypoint): Route
   }).map(index => plan.entries[index]!);
 }
 
+/** Flattening a published item must not erase its unresolved children or gaps. */
+export function routePointRemovalProblem(plan: RoutePlan, point: RouteWaypoint): string | undefined {
+  const affected = new Set(routeItemsForPoint(plan, point).map(entry => entry.id));
+  if (!point.edit) affected.add(point.source.entryId);
+  const issue = plan.issues.find(issue => affected.has(plan.entries[issue.tokenIndex]?.id ?? ''));
+  return issue ? `Cannot remove only ${point.ident} while its published route is incomplete: ${issue.message}` : undefined;
+}
+
 /** Replace only affected published items with their displayed waypoints. Other
  * entries, exact feature pins and unresolved input remain intact. */
 export function removeRoutePoint(draft: RouteDraft, plan: RoutePlan, point: RouteWaypoint): RouteDraft {
@@ -24,12 +32,13 @@ export function removeRoutePoint(draft: RouteDraft, plan: RoutePlan, point: Rout
   if (point.owners.some(owner => owner.kind === 'approach')) return draft;
   if (!point.edit && (plan.entries[point.source.tokenIndex]?.departure || plan.entries[point.source.tokenIndex]?.arrival)) return draft;
   if (!plan.waypoints.includes(point) || !sameRouteDraft(draft, plan)) return draft;
+  if (routePointRemovalProblem(plan, point)) return draft;
   const expand = new Set(routeItemsForPoint(plan, point).map(entry => entry.id));
   if (!point.edit) expand.add(point.source.entryId);
   return { entries: draft.entries.flatMap(entry => {
     if (point.edit?.entryId === entry.id) return [];
     if (!expand.has(entry.id)) return [entry];
     return plan.waypoints.filter(candidate => candidate.source.entryId === entry.id && candidate !== point)
-      .map(candidate => createRouteEntry(candidate.ident, candidate.feature.id));
+      .map(entryForRoutePoint);
   }) };
 }

@@ -1,18 +1,23 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useBackDismiss } from '../../core/ui/pwa-back';
-import type { GeoPointFeature } from '@zlayer/contracts';
+import type { CatalogResponse, GeoPointFeature, NavigationData } from '@zlayer/contracts';
+import type { RouteMapPreview } from './map-preview';
 import { featureIdent, type RouteDraft, type RouteEntry, type RoutePlan } from '@zlayer/domain';
 import { appendRouteFeature, removeRouteEntry, setRouteApproach, setRouteDeparture, setRouteArrival } from './draft';
 import { routePointForFeature } from './selection';
-import { removeRoutePoint, routeItemsForPoint } from './removal';
+import { removeRoutePoint, routeItemsForPoint, routePointRemovalProblem } from './removal';
 import type { DirectToAction } from './direct-to';
 import { DirectToIcon } from './direct-to-icon';
 
 export type FeatureRoute = {
   plan: RoutePlan;
   pointId?: string | undefined;
+  onIdentify?: ((feature: GeoPointFeature, pointId?: string) => void) | undefined;
   update: (edit: (draft: RouteDraft) => RouteDraft) => void;
   onDirectTo?: DirectToAction | undefined;
+  navigationData?: NavigationData | undefined;
+  catalog?: CatalogResponse | undefined;
+  onIdentificationPreview?: ((preview: RouteMapPreview | undefined) => void) | undefined;
 };
 
 /** All feature types share the same membership lookup and draft operations. */
@@ -40,7 +45,7 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
       title={`Remove STAR from ${arrivalEntry.text}`} onClick={() => update(draft => setRouteArrival(draft, arrivalEntry, undefined))}>
       <RouteActionIcon add={false} />
     </button> : point && <RouteRemoveButton key={`${plan.revision}:${pointId ?? ''}`} ident={ident}
-      items={routeItemsForPoint(plan, point)}
+      items={routeItemsForPoint(plan, point)} problem={routePointRemovalProblem(plan, point)}
       onRemove={item => update(draft => item ? removeRouteEntry(draft, item.id) : removeRoutePoint(draft, plan, point))} />}
     {!approach && <button className="append-route-button" type="button" aria-label={addLabel} title={addLabel}
       onClick={() => update(draft => appendRouteFeature(draft, feature))}>
@@ -52,10 +57,11 @@ export function FeatureRouteActions({ feature, route }: { feature: GeoPointFeatu
   </>;
 }
 
-function RouteRemoveButton({ ident, onRemove, items }: {
+function RouteRemoveButton({ ident, onRemove, items, problem }: {
   ident: string;
   onRemove: (item?: RouteEntry) => void;
   items: RouteEntry[];
+  problem: string | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -65,7 +71,7 @@ function RouteRemoveButton({ ident, onRemove, items }: {
   const label = `Remove ${ident} from route`;
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    menu.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
     const dismiss = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -81,7 +87,7 @@ function RouteRemoveButton({ ident, onRemove, items }: {
     if (!items.length || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     if (!open) { setOpen(true); return; }
-    const buttons = [...menu.current!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    const buttons = [...menu.current!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')];
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
       : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
@@ -95,10 +101,11 @@ function RouteRemoveButton({ ident, onRemove, items }: {
       <RouteActionIcon />
     </button>
     {open && <div id={id} className="feature-route-remove-menu" ref={menu} role="menu" aria-label={`Remove ${ident}`}>
-      <button type="button" role="menuitem" onClick={() => { close(); onRemove(); }}>
+      <button type="button" role="menuitem" disabled={!!problem} onClick={() => { close(); onRemove(); }}>
         <strong>Remove only {ident}</strong>
         <small>Keep other displayed points as direct waypoints.</small>
       </button>
+      {problem && <p role="note">{problem}</p>}
       {items.map(item => <button key={item.id} type="button" role="menuitem"
         onClick={() => { close(); onRemove(item); }}>Remove entire {item.text} route item</button>)}
     </div>}

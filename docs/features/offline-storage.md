@@ -341,46 +341,26 @@ Regional saves include published elevation terrain; they do **not** bulk-downloa
 the background basemap or promise current weather.
 
 [AWC Weather](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
-retains only its latest successfully fetched advisory family snapshots in scoped
-plugin storage. They keep original source times and become cached/unverified on
-restart or failed refresh; Now still expires interval polygons offline. These
-snapshots are not part of regional chart acquisition and do not promise a complete
-offline forecast. [Numeric cloud/freezing/icing guidance](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
-additionally retains three endpoint-scoped source manifests. AWC's converted
-cloud/icing/wind frames use independent category budgets through core's
-[plugin file cache](../architecture/layer-plugins.md#plugin-file-caches). Each fits
-a complete hourly horizon, protecting the same source generation and selected
-altitude from evicting its own hours. Progs, coverage, radar and motion have their
-own budgets; pressure inputs, model terrain, rendered images and unclassified
-compatibility files share a disposable pool. The [AWC grid budget table](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
-owns the individual and combined ceilings. Category saves can reclaim disposable
-files on quota pressure, then older selections within their own category; they
-cannot evict another category or an hour in the requested numeric cohort.
-Insufficient browser quota leaves offline saving incomplete rather than causing
-repeated self-eviction. These controls do not prevent browser eviction.
-Structured advisory/catalog slots are separately size/count bounded; see the
-[AWC persistence guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence).
-The selected frame displays first; remaining cloud times and icing times at the
-chosen altitude save in the background. Cloud bundles include all cloud/freezing
-fields; winds warm adjacent hours at the chosen MSL altitude or flight level,
-retaining the derived slice for offline reuse. The saved catalog
-pointer advances only after a matching replacement file saves successfully;
-failed or cancelled saves preserve the previous offline catalog. All products share one
-admitted numeric operation and a 96 MiB decoded neighborhood. A wind input wait
-does not occupy scalar acquisition or decoding. Progress counts
-saved files with a restorable catalog; storage failures keep live/nearby data usable and report an incomplete
-offline save instead of downloading and discarding the entire horizon. Preparation
-stops while hidden, disabled or offline. Offline access remains available for
-individually retained frames.
-Least recently used files are evicted under count/byte pressure, and other files
-unused for 48 hours are cleaned up during cache use. Access metadata is separate
-from compressed bodies; decoded history is limited to the active neighborhood. Cache hits reuse
-the converted artifact without repeating GRIB decoding/projection; core coordinates
-concurrent conversion and verifies persisted artifact checksums. Legacy preconverted
-feeds retain their separate migration path, including offline. Only retained time/altitude files
-work offline; automatic preparation is opportunistic, not a verified offline pack,
-all-altitude forecast cube or regional-weather download. Full local
-reset removes file/access namespaces and legacy caches along with plugin slots.
+keeps original source times and cached/unverified labels; Now still expires
+interval advisories offline. Weather storage is separate from regional chart
+downloads and does not establish current weather or a verified offline forecast.
+
+For forecasts, only successfully retained time/altitude files with a restorable
+catalog work offline. Optional save failures leave validated live data usable and report an
+incomplete save; failed or cancelled replacements preserve the prior offline
+catalog. Preparation is opportunistic, subject to browser eviction and quota,
+and does not download every altitude or create a regional weather pack.
+The [Forecast downloads setting](../../src/layers/weather-awc/grids/README.md#forecast-download-scope)
+controls full-timeline versus selected/adjacent-hour preparation.
+
+The owning guides specify [advisory and catalog persistence](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence),
+[numeric preparation, recovery and category budgets](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets),
+[Progs](../../src/layers/weather-awc/progs/README.md), and
+[radar/history](../../src/layers/weather-awc/radar/README.md).
+Core's [plugin file cache](../architecture/layer-plugins.md#plugin-file-caches)
+owns shared acquisition, integrity, retention and publication mechanics.
+Full local reset removes weather slots, file/access namespaces and legacy caches.
+
 Basemap resources are retained as viewed; missing ones do not disable saved chart
 overlays. Weather keeps its observation times and stale/unavailable labels. Downloads
 show their FAA cycle; saved means retained, not current or suitable for navigation.
@@ -543,7 +523,9 @@ for clients finishing an update.
    Check that uncached areas warn without breaking search, route editing or saved charts.
 3. Interrupt a different download, reload, then retry online. Previously verified files
    must not transfer again. Check pause/resume, failed HTTP responses, quota refusal,
-   and another-window lock contention. Deleting a saved file must remove “Saved” after
+   and another-window lock contention. Include pause/reopen while a stalled cache
+   read holds a per-file lock, then verify Resume recovers when the read settles.
+   Deleting a saved file must remove “Saved” after
    **Check saved files** and resume must replace only missing data.
 4. Save overlapping regions and remove one: the remaining selection must still work.
    Refresh a Chart Supplement within the same FAA cycle without downloading its new

@@ -37,7 +37,24 @@ Unresolved route gaps are not connected, endpoints are rounded, and dateline
 crossings wrap correctly. During route updates, points already eligible by height
 stay visible while the old corridor-only points and fade values are removed.
 This also prevents the old corridor from reappearing if the user zooms out before
-the replacement query finishes. Camera changes query only the visible bounds.
+the replacement query finishes. Camera changes reuse a padded viewport buffer and refill it as described below.
+
+## Buffered viewport queries
+
+Obstructions prefetch half a viewport on each side in Mercator space, clipped to
+one world's longitude span and map latitude limits. A refill starts when less
+than a quarter-viewport margin remains. An 80 ms throttle is not restarted by each
+movement event, so continuous pans refill before `moveend`. Integer zoom changes
+refresh coverage; fractional height cutoffs remain unchanged.
+
+Only one query runs at a time; pending demand collapses to the latest view. Results
+must cover that view at the current zoom tier and route generation. Route changes
+immediately remove old corridor contributions while retaining height-eligible
+points. A warm buffer survives an obsolete refill failure. Status counts exclude
+prefetched points and use current viewport/height/corridor eligibility. Disable or
+unmount releases the worker. Each request covers at most four viewport areas before
+clipping; local density determines feature count. Navigation still retains complete
+reference data and an eligible render collection; it does not stream by viewport.
 
 ## Symbols
 
@@ -68,7 +85,7 @@ date displayed in Layers comes from `source.lastModified`, not the build time.
 Loading starts when enabled at zoom 7 or above, or with resolved route legs at any zoom.
 A dedicated worker checks SHA-256, compressed and decoded sizes, feature count,
 coordinates, heights, codes, and identifiers. It streams the large national JSON
-into compact numeric arrays and a spatial index. Only eligible viewport features
+into compact numeric arrays and a spatial index. Only eligible features in the padded viewport buffer
 are sent to MapLibre; the national file never enters React or a map source.
 
 After validating the complete source, the worker persists only the filtered numeric
@@ -91,7 +108,13 @@ mapping or the height floor changes. Snapshot reads/writes are limited to core's
 8 MiB memory ceiling; larger future indices remain usable without persistence.
 
 Each worker attachment still revalidates the rolling manifest, with its validated
-saved copy as the offline fallback. View and route changes reuse the loaded index.
+saved copy as the offline fallback. Reconnection revalidates the manifest too;
+resuming a visible page does so when the last check is at least five minutes old
+(or the clock moved backward), without a polling timer. An unchanged dataset
+identity reuses its in-memory index. A replacement becomes current only after
+validation succeeds; a failed refresh retains usable buffered points and the
+previous source date. View and route changes reuse the loaded index. Hidden pages
+do not start new viewport queries.
 Disabling the layer or unmounting releases the worker; subsequent attachment
 restores the filtered cache. Failed loads remain retryable and are reported in
 Layers. This opportunistic cache follows normal cache cleanup/reset and remains

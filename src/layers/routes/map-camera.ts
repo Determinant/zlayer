@@ -1,12 +1,14 @@
 import { LngLatBounds, type Map as MapLibreMap } from 'maplibre-gl';
-import type { RoutePlan } from '@zlayer/domain';
+import { greatCircleCoordinates, routeLegCoordinates, type RoutePlan } from '@zlayer/domain';
 import type { RouteMapPreview } from './map-preview';
 import { unwrapRouteCoordinates } from './geometry';
 export function fitRoute(map: MapLibreMap, route: RoutePlan, preview: RouteMapPreview | undefined, targetBearing: () => number): void {
     const plans = preview?.routes.map(route => route.plan) ?? [route];
     const coordinates = plans.flatMap(plan => unwrapRouteCoordinates(
       [...plan.waypoints.map(waypoint => waypoint.feature.geometry.coordinates),
-        ...plan.legs.flatMap(leg => leg.geometry ?? []), ...(plan.approachExtensions ?? []).flat(),
+        ...plan.legs.flatMap(routeLegCoordinates), ...(plan.approachExtensions ?? []).flat(),
+        ...(plan.planningConnections ?? []).flatMap(({ from, to, start }) =>
+          greatCircleCoordinates(start ?? from.feature.geometry.coordinates, to.feature.geometry.coordinates)),
         ...(plan.approachDepictions ?? []).flatMap(depiction => depiction.coordinates)], map.getCenter().lng));
     const first = coordinates[0];
     if (!first) return;

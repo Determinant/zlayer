@@ -68,6 +68,8 @@ test('editing filing text retains attachments and precision on unchanged entries
   assert.deepEqual(editSavedDraft(draft, 'KSFO').entries, [draft.entries[1]]);
   assert.deepEqual(draft.entries[1]!.approach, approach, 'editing does not mutate the saved source');
   assert.throws(() => editSavedDraft(draft, 'DCT ..'), /at least one/);
+  assert.deepEqual(editSavedDraft(draft, '374529N/1223030W KSFO'), draft,
+    'equivalent external coordinate text preserves saved entry IDs and attachments');
 });
 
 test('repeated waypoints keep distinct entry identities when inserting and removing text', () => {

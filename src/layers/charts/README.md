@@ -20,6 +20,9 @@ chart tile leaves the continuous basemap visible.
 
 ## Startup and recovery
 
+Chart family definitions compile once per immutable catalog in a WeakMap.
+Visibility still accounts for antimeridian/world copies and preserves ordering.
+
 Transient chart-cache startup failures retry automatically after 1, 3, and 10 seconds.
 Charts appear on the same page once preparation succeeds; catalog refreshes do not
 restart cache preparation. Persistent failures expose **Retry chart cache**, and

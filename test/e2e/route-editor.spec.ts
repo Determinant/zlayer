@@ -12,6 +12,39 @@ async function replaceItem(page: Page, token: Locator, touch = false) {
   return page.getByRole('textbox', { name: /^Replace route item / });
 }
 
+for (const width of [320, 1280]) {
+  test(`coordinate input accepts external formats and persists canonical points at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/test/browser/routes.html');
+    const tokens = page.locator('.route-token');
+    await expect(tokens).toHaveCount(3);
+    const originalIds = await page.locator('[data-route-entry]').evaluateAll(elements =>
+      elements.map(element => (element as HTMLElement).dataset.routeEntry));
+    const input = await replaceItem(page, tokens.nth(1), width === 320);
+    await input.fill('');
+    await input.pressSequentially('374529n/');
+    await expect(input).toHaveValue('374529N/');
+    await expect(page.locator('[data-route-entry]')).toHaveCount(3);
+    await input.pressSequentially('1223030w');
+    await expect(input).toHaveValue('374529N/1223030W');
+    await input.press('Enter');
+    await expect(page.locator('output')).toHaveText('2 legs; 0 issues');
+    expect(await page.locator('[data-route-entry]').evaluateAll(elements =>
+      elements.map(element => (element as HTMLElement).dataset.routeEntry))).toEqual(originalIds);
+
+    await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('3745N12231W 1234S/00959E ');
+    await expect(tokens).toHaveCount(5);
+    await expect(page.locator('output')).toHaveText('4 legs; 0 issues');
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!));
+    expect(saved.entries.map((entry: { text: string }) => entry.text))
+      .toEqual(['KSFO', '374529N1223030W', 'KSJC', '374500N1223100W', '123400S0095900E']);
+    await page.reload();
+    await expect(tokens).toHaveCount(5);
+    await expect(page.locator('output')).toHaveText('4 legs; 0 issues');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-plugin:routes:draft')!))).toEqual(saved);
+  });
+}
+
 for (const width of [320, 360, 390, 430, 480, 600, 601, 744, 832, 1280]) {
   test(`replace a route item in place at ${width}px, preserving the edit through a data refresh`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });

@@ -81,6 +81,19 @@ junction ranking resumes after a successful fetch. The plate viewer does not
 decode procedure legs, so opening a plate alone does not add its fixes to the map.
 Those fixes remain accessible through search, route entry, or All fixes.
 
+## Input reuse
+
+Fix indices retain low/high airway counts and release temporary membership Sets
+after indexing. Duplicate components count once; low/high names remain disjoint.
+A WeakMap retains the current settings' sorted ranking. Priority exclusions run
+before density placement, freeing cells for promoted fixes.
+
+Navigation compares effective priority identities/settings. Reordering priorities
+updates their source without rebuilding background density; refreshed feature
+objects still update coordinates and properties.
+
+## Verification
+
 Run `npm run verify` for classification, search/route preservation, and layer
 lifecycle checks. `/test/browser/fixes.html` provides a real MapLibre fixture for
 zoom thresholds, detail controls, and selected-fix visibility with the background

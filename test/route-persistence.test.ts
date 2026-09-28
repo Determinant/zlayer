@@ -5,12 +5,31 @@ import { createRouteResolver, routeDraftFromText } from '@zlayer/domain';
 import { draftSnapshot } from './helpers/route-draft';
 import { Hooks, hookModule } from './helpers/hooks';
 import { replaceRouteText, setRouteApproach } from '../src/layers/routes/draft';
+import { parseRouteEntries } from '../src/layers/routes/draft-storage';
 
 const loader = registerHooks({ resolve(specifier, context, next) {
   return specifier === 'react' ? { url: hookModule, shortCircuit: true } : next(specifier, context);
 } });
 const { useRouteDraft } = await import('../src/layers/routes/use-draft');
 loader.deregister();
+
+test('saved coordinate aliases normalize without discarding entry identity, adjacent pins or unknown text', () => {
+  const entries = [
+    { id: 'airport', text: 'KSFO', pinnedFeatureId: 'airport:KSFO' },
+    { id: 'minutes', text: '3745N12231W' },
+    { id: 'seconds', text: '374529N/1223030W' },
+    { id: 'unknown', text: '3760N12200W' },
+  ];
+  const draft = parseRouteEntries(entries)!;
+  assert.deepEqual(draft.entries, [entries[0],
+    { id: 'minutes', text: '374500N1223100W' },
+    { id: 'seconds', text: '374529N1223030W' }, entries[3]]);
+  assert.deepEqual(parseRouteEntries(JSON.parse(JSON.stringify(draft.entries))), draft);
+  assert.equal(entries[1]!.text, '3745N12231W', 'source records are not mutated');
+  for (const text of ['ksfo', 'DCT 3745N12231W', '3745N12231W ', '3745N12231W KSFO']) {
+    assert.equal(parseRouteEntries([{ id: 'bad', text }]), undefined);
+  }
+});
 
 test('legacy drafts migrate once; entry identity and pins survive reload and denied storage remains editable', t => {
   let saved: string | null = JSON.stringify({ version: 1, input: 'kpao DCT sns..kmry',

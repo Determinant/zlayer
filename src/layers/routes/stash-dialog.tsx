@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { routeDraftText, type RouteDraft, type RouteResolver } from '@zlayer/domain';
+import { routeDraftFromText, routeDraftText, type RouteDraft, type RouteResolver } from '@zlayer/domain';
 import type { CatalogResponse } from '@zlayer/contracts';
 import { useBackDismiss } from '../../core/ui/pwa-back';
 import { formatWaypointLabel } from '../../core/format/coordinates';
@@ -26,9 +26,11 @@ export function RouteStashDialog({ initial, catalog, onLoad, onClose }: {
 }) {
   const [view, setView] = useState<View>(initial);
   const [state, setState, refresh] = useRouteStash();
-  const { resolver, status } = useRouteResolver(catalog, view.mode === 'save' || state.routes.length > 0);
   const [name, setName] = useState(() => initial.mode === 'save' ? suggestedRouteName(initial.draft) : '');
   const [text, setText] = useState('');
+  const referenceDraft = useMemo(() => view.mode === 'save' ? view.draft : view.mode === 'edit'
+    ? routeDraftFromText(text) : { entries: state.routes.flatMap(route => route.draft.entries) }, [view, text, state.routes]);
+  const { resolver, status } = useRouteResolver(catalog, view.mode === 'save' || state.routes.length > 0, referenceDraft);
   const [query, setQuery] = useState('');
   const searchIndex = useMemo(() => state.routes.map(route => ({
     route, text: `${route.name} ${routeDraftText(route.draft)}`.toLowerCase(),

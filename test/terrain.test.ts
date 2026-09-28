@@ -45,7 +45,10 @@ test('terrain connects known points across unresolved tokens without inventing e
       geometry: { type: 'Point', coordinates: [index, 0] }, properties: { ident } })),
     meta: { layer: 'airports', revision: '2026-09-03', returned: 3, truncated: false } };
   const resolve = createRouteResolver([points]);
-  assert.equal(routeSegments([resolve('AAAA BBBB')]).length, 1);
+  const direct = routeSegments([resolve('AAAA BBBB')]);
+  assert.ok(direct.length > 1);
+  assert.deepEqual(direct[0]![0], project([0, 0]));
+  assert.deepEqual(direct.at(-1)![1], project([1, 0]));
   const plan = resolve('MISSING AAAA UNKNOWN ALSO BBBB CCCC MISSING');
   assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['AAAA', 'BBBB']]);
   assert.equal(plan.legs.length, 1);

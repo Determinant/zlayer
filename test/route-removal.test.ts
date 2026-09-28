@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { routeDraftFromText, routeDraftText } from '@zlayer/domain';
 import { removeRouteEntry } from '../src/layers/routes/draft';
-import { removeRoutePoint, routeItemsForPoint } from '../src/layers/routes/removal';
+import { removeRoutePoint, routeItemsForPoint, routePointRemovalProblem } from '../src/layers/routes/removal';
 import { routePointForFeature, routePointKeys } from '../src/layers/routes/selection';
 import { createRouteRemovalResolver } from './helpers/route-removal';
 
@@ -83,4 +83,27 @@ test('a stale removal callback never rewrites a changed draft', () => {
   const point = plan.waypoints.find(point => point.ident === 'TAILS')!;
   const changed = removeRouteEntry(draft, draft.entries[0]!.id);
   assert.equal(removeRoutePoint(changed, plan, point), changed);
+});
+
+for (const [input, options] of [
+  ['KSBA ENTRY V1 EXIT KSMX', { missingFix: 'MID' }],
+  ['KSBA TEST1 KSMX', { missingFix: 'MID' }],
+  ['KSBA ENTRY ARR1 KSMX', { procedureGapAfter: 'MID' }],
+] as const) test(`point-only removal preserves unresolved published information in ${input}`, () => {
+  const resolve = createRouteRemovalResolver(options), draft = routeDraftFromText(input), plan = resolve(draft);
+  const point = plan.waypoints.find(p => p.ident === 'TAILS')!;
+  assert.ok(plan.issues.length);
+  assert.match(routePointRemovalProblem(plan, point)!, /published route is incomplete/);
+  assert.equal(removeRoutePoint(draft, plan, point), draft);
+  const item = routeItemsForPoint(plan, point)[0]!;
+  assert.equal(removeRouteEntry(draft, item.id).entries.some(entry => entry.id === item.id), false);
+});
+
+test('an unrelated issue does not prevent removing an ordinary or healthy published point', () => {
+  const draft = routeDraftFromText('KSBA ENTRY V1 EXIT KSMX UNKNOWN'), plan = resolve(draft);
+  for (const ident of ['TAILS', 'KSBA']) {
+    const point = plan.waypoints.find(p => p.ident === ident)!;
+    assert.equal(routePointRemovalProblem(plan, point), undefined);
+    assert.deepEqual(resolve(removeRoutePoint(draft, plan, point)).unresolved, ['UNKNOWN']);
+  }
 });

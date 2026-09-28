@@ -25,6 +25,7 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
   let running: (Coverage & { revision: number }) | undefined, queryAgain = false;
   let coverage: Coverage | undefined;
   let previousStatus = '';
+  let revalidate = false, lastCheck = -Infinity;
   let collection = emptyObstructions();
   const view = (): Coverage => {
     const bounds = map!.getBounds();
@@ -48,7 +49,7 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
   const release = () => { client?.dispose(); client = undefined; running = undefined; queryAgain = false; };
   const query = async (): Promise<void> => {
     timer = undefined;
-    if (!map || !input.enabled) return;
+    if (!map || !input.enabled || document.visibilityState === 'hidden') return;
     const zoom = map.getZoom(), minHeightAglFt = obstructionMinHeight(zoom);
     if (minHeightAglFt === undefined && !segments.length) return;
     // During the initial national load, rapid map/route changes must not queue
@@ -57,13 +58,16 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     // Half a viewport on each side; refill when only a quarter remains. The
     // outer margin lets nearby points render while a replacement query runs.
     const job = running = { bounds: paddedObstructionBounds(view().bounds, 0.5), zoom, revision };
+    const checkSource = revalidate;
+    revalidate = false;
+    if (checkSource || !client) lastCheck = Date.now();
     status({ state: 'loading', ...context(zoom) });
     try {
       if (!client || client.retired) client = new WorkerClient<ObstructionWorker>(
         new Worker(new URL('./obstructions.worker.ts', import.meta.url), { type: 'module' }), 'Obstruction worker unavailable');
       const result = await client.call(remote => remote.query({
         manifestUrl: new URL(`${chartRoot()}/obstacles/manifest.json`, location.href).href,
-        bounds: job.bounds, segments, zoom,
+        bounds: job.bounds, segments, zoom, revalidate: checkSource,
       }));
       if (!map || job.revision !== revision) return;
       const current = view();
@@ -111,7 +115,8 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
       if (collection.features.length) publish(emptyObstructions());
       status({ state: 'zoom' }); return;
     }
-    if (covers(coverage, current, 0.25)) {
+    if (document.visibilityState === 'hidden') { clearTimeout(timer); timer = undefined; return; }
+    if (!revalidate && covers(coverage, current, 0.25)) {
       clearTimeout(timer); timer = undefined; queryAgain = false;
       if (report) ready(current);
       return;
@@ -131,12 +136,23 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     revision++; coverage = undefined; clearTimeout(timer); timer = undefined;
     refreshView(true);
   };
+  const recover = () => {
+    revalidate = true; revision++;
+    clearTimeout(timer); timer = undefined;
+    refreshView(true);
+  };
+  const visibilityChanged = () => {
+    const age = Date.now() - lastCheck;
+    if (document.visibilityState !== 'hidden' && (age < 0 || age >= 5 * 60_000)) recover();
+    else refreshView(true);
+  };
   return {
     id: 'obstructions', slot: 'navigation', foregroundLayerIds: [OBSTRUCTION_LAYER],
     mount(target) {
       map = target; installObstructions(map);
       map.on('move', moving); map.on('moveend', moved); map.on('resize', moved);
-      window.addEventListener('online', refresh); refresh();
+      window.addEventListener('online', recover);
+      document.addEventListener('visibilitychange', visibilityChanged); refresh();
     },
     update(next) {
       const nextSegments = next.enabled ? routeSegments(next.routes) : [];
@@ -160,7 +176,8 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     },
     unmount() {
       revision++; clearTimeout(timer); timer = undefined; release();
-      window.removeEventListener('online', refresh);
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', visibilityChanged);
       if (map) {
         map.off('move', moving); map.off('moveend', moved); map.off('resize', moved);
         removeLayerResources(map, [OBSTRUCTION_LAYER], [OBSTRUCTION_SOURCE]);

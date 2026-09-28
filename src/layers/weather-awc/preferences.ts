@@ -4,6 +4,7 @@ import { pluginStorage } from './storage';
 import { restoredWindAltitude } from './grids/wind-levels';
 
 export const weatherAwcPreferences = pluginPreferences(pluginStorage, saved => ({
+  awcPrepareTimeline: booleanPreference(saved.awcPrepareTimeline, true),
   awcGridMode: choice(saved.awcGridMode, AWC_GRID_MODES, 'none'),
   awcWindBarbs: booleanPreference(saved.awcWindBarbs, false),
   awcWindAltitude: restoredWindAltitude(saved),

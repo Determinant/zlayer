@@ -2,10 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / [routes](README.md)
 
-Status: implemented locally, 2026-09-20. The ordered interpreter and additive
-reference export are in place, with the FAA 2609 navigation bundle rebuilt. The
-[coverage guide](approach-coverage.md) records verification, source evidence and
-remaining coverage limits. The audit's local rebuild is not evidence of publication.
+This guide defines the implemented ordered interpreter and its additive reference
+export. The [coverage guide](approach-coverage.md) owns dated source audits,
+publication evidence and remaining limits; the [roadmap](../../../docs/product/roadmap.md#approach-geometry-and-coverage)
+tracks remaining work. A local data rebuild does not establish hosted publication.
 
 Represent a procedure as instructions with termination conditions. Preserve their
 references during export, interpret them in sequence, and give every drawn span an

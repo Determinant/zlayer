@@ -16,8 +16,10 @@ This guide owns route editing, resolution, recommendations and persistence.
 Supporting guides cover [terminal procedures](terminal-procedures.md),
 [approach geometry](approach-geometry.md) and
 [coverage, source evidence and remaining validation](approach-coverage.md).
+The [point-identification design](radial-distance-plan.md) describes name/GPS/radial
+presentation, source snapshots, export precision and remaining qualification.
 
-The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach?, departure? }` entries.
+The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach?, departure?, arrival?, radialPosition?, identifications? }` entries.
 IDs survive insertion, replacement and reorder; pins travel with their entries.
 Route text is an import/export format, and token indexes are display positions.
 
@@ -49,6 +51,8 @@ text/import → draft entries → scoped segments → constrained points → res
 | --- | --- |
 | `packages/domain/src/route-text.ts` | Shared delimiters, normalization and feature identifiers |
 | `packages/domain/src/route-coordinate.ts` | GPS waypoint formatting and coordinate token resolution |
+| `packages/domain/src/radial-position.ts`, `route-identification.ts` | Radial syntax/geometry and snapshot validation; point descriptions, station choices and bounded nearby named candidates |
+| `packages/domain/src/route-sequence.ts` | Shared flight sequence for NavLog and planning connections; excludes airport bundle markers while retaining reached intermediate stops |
 | `packages/domain/src/route-model.ts` | Draft entries, explicit edit targets and resolved plan types; no runtime dependencies |
 | `packages/domain/src/route-draft.ts` | Entry identity, text import/export and boundary adapters |
 | `packages/domain/src/route-source.ts` | Shared scopes, source ownership, point requirements and incoming connections |
@@ -62,11 +66,16 @@ text/import → draft entries → scoped segments → constrained points → res
 | `src/layers/routes/use-controller.ts` | Route state and actions shared by the route bar, map and feature details |
 | `src/layers/routes/draft-storage.ts`, `use-draft.ts` | Shared draft/stash validation, versioned draft codec and React persistence hook |
 | `src/layers/routes/use-plan.ts` | Reference loading, resource identity, partial failures and superseded requests |
+| `src/layers/routes/editor-tokens.tsx` | Entry/token presentation and accessible action buttons; gestures and picker state stay in the editor |
 | `src/layers/routes/use-resource.ts` | Recommendation/picker request identity, cancellation, manual retry and reconnect/inventory recovery |
+| `src/layers/routes/composition.ts`, `composition-panel.tsx` | Read-only per-entry published components, nested paths and resolution diagnostics |
+| `src/layers/routes/identification.ts`, `identification-picker.tsx`, `identification-storage.ts` | Source-preserving description edits, explicit nearby-point replacement, ID controls and unresolved-reference chooser and saved-field validation |
 | `src/layers/routes/procedure-picker.tsx` | Shared picker frame, dismissal, form isolation and plate-opening helpers |
 | `src/layers/routes/suggestions.ts` | Shared resolution for history, preferred/TEC and saved-route recommendations |
 | `src/layers/routes/history/` | Worker client and store, plus history query and draft conversion; offline callers use `client.ts` |
 | `src/layers/routes/editor.tsx`, `use-editor-gestures.ts` | Entry, insertion, token menus, reorder and pointer lifecycle |
+| `packages/domain/src/route-geometry.ts` | Cached, bounded great-circle paths shared by rendering, fitting and terrain corridors |
+| `src/layers/routes/use-reference-bearing.ts` | On-demand magnetic model for named-reference bearings; cancellation and recovery through route resources |
 | `src/layers/routes/renderer.ts`, `geometry.ts`, `editing.ts` | GeoJSON presentation, dateline handling and edit target identity |
 | `src/layers/routes/snapping.ts` | Stable snap selection and bounded retention through missing rendered hits |
 | `src/layers/routes/feature-actions.tsx` | Shared detail-panel add/remove controls, derived from the selected feature and current route |
@@ -89,9 +98,16 @@ consumes the resulting plan rather than interpreting route text again.
   continuously, and cancellation or a second finger never commits a move.
   Mouse and touch share the same hold-to-reorder behavior; right-click and keyboard menus also work.
 - Input is case-insensitive. Whitespace, dots, commas, slashes, hyphens and `>`
-  separate tokens; `DCT` and `DIRECT` are connectors. Unknown tokens stay visible
+  separate tokens, except internal coordinate/radial slashes and radial decimal fields;
+  `DCT` and `DIRECT` are connectors. Unknown tokens stay visible
   and interrupt resolved legs. Dotted planning connections bridge the known points
   on either side for map and terrain coverage.
+- GPS input accepts compact seconds (`374529N1223030W`), slash-separated seconds
+  (`374529N/1223030W`), and whole minutes (`3745N12231W` or `3745N/12231W`).
+  Both angles must use the same precision and valid hemisphere/range fields.
+  Import normalizes valid coordinates to compact seconds before creating entries;
+  omitted seconds are zero, not recovered precision. Typing the internal slash
+  does not commit a partial point. Invalid or incomplete pairs stay unresolved.
 - GPS labels in the route input, stash, map and fix headings show degrees and
   minutes, omitting seconds without rounding. Fix info includes a full coordinate
   with seconds. Stored identifiers, positions and
@@ -268,15 +284,10 @@ the existing entity's details and one map label/nearby-picker entry while keepin
 each approach occurrence and its role. Older coded pins and saved selections
 continue to resolve when a matching navigation entity becomes available.
 
-The [coverage guide](approach-coverage.md) retains source examples, final inventories,
-audit commands and remaining chart/entry gaps. Its latest FAA 2609 national scan
-finds 9,079 of 10,980 U.S. chart records whose offered entries have no unresolved
-diagnostics (82.69%); 1,854 chart records remain unmatched. The audit distinguishes
-chart records from distinct coded routes and includes the recorded radar/source
-review exceptions.
-This is automated screening of available entries, not full chart coverage or
-manual validation of every plate. An unresolved connection still retains subsequent
-known fixes and
+The [coverage guide](approach-coverage.md) owns dated chart/entry inventories,
+source examples, audit commands, reporting exceptions and remaining gaps.
+Its automated screening is not full chart coverage or manual validation of every
+plate. An unresolved connection still retains subsequent known fixes and
 available hold depictions, with a route warning and unknown hold entry when the
 arrival is missing. The [geometry design](approach-geometry.md)
 describes the shared interpretation and its limits.
@@ -317,7 +328,7 @@ entry and child occurrence once the route loads, and persist the current fix ID.
 ### Nearby navaid identification
 
 Every feature, including temporary GPS points, has a blue **ID** button after
-the route actions. It opens up to six nearby VOR, VOR/DME or VORTAC references within
+the route actions. It lists all eligible VOR, VOR/DME or VORTAC references within
 100 NM, using the feature's navigation edition even with navaids hidden or an empty
 route. GPS coordinates have no published edition: their references follow the
 current regional context, including catalog revalidation and saved region updates.
@@ -326,14 +337,23 @@ Saved regions still own their navigation edition.
 Stations 5–60 NM away rank first, MON candidates first within that band; other
 distances are fallbacks. The top three have thin blue dashed connections, station
 labels and a common target marker on the map. Each connection shows MB (magnetic
-bearing/radial) and distance in NM. Labels sit at the projected line midpoint so
-short connections retain both values. Nearby directions use separate label offsets;
+bearing/radial) and distance in NM. Connections follow great-circle paths. Labels sit at the path midpoint and
+follow its local projected direction so short connections retain both values. Nearby directions use separate label offsets;
 labels remain upright as the map rotates or tilts. Opaque white casing around the
 dark-blue dashes and stronger white outlines around markers and labels keep them
 legible over chart markings.
 
-Rows show identifier, MON membership, frequency, station-relative radial and
-horizontal distance. Radials subtract the published east-positive station declination
+When the route point uses a radial description, its chosen reference is always
+drawn as well, even outside the top three or when nearby data is unavailable.
+Its blue dashed connection, station/target markers and labels use yellow casing
+instead of white. Saved references use their stored station location and readings;
+switching to Name/GPS removes this highlight. The selected table button uses the
+same yellow trim. A saved true-bearing reference shows TB; magnetic bearings and
+published VOR radials show MB.
+
+Station buttons have two rows: identifier/checkmark/MON, then frequency/type.
+They retain the core 44px touch target on narrow phones. Adjacent columns show
+station-relative bearing and horizontal distance. Radials subtract the published east-positive station declination
 from the true bearing **from** the station. The list shows MB and TB (true bearing)
 separately. Older exports without alignment mark MB as unavailable while retaining
 distance and TB. Co-located stations are omitted. Distances do not include DME's
@@ -341,6 +361,49 @@ altitude component, and these geographic references do not verify radio receptio
 
 Closing ID, opening Info/Plates, selecting another feature or closing details clears
 the connections. The view is temporary and starts closed on reload.
+
+### Alternative point identification
+
+Choose **Identify point…** from a route chip to open its existing **ID** panel,
+or select a route point and press **ID**. Both paths show the same controls.
+Choose its original name or GPS coordinate above the **Nearby VOR/DME** table.
+Select a station in that table to use its radial/ground-distance identification;
+the selected row is marked. There is no second station list. Select another
+station to switch references. Display changes preserve exact position,
+entry identity, feature pins, route distance and published constraints. Editable named points acquire an exact pin when identified.
+
+This also works for resolved airway, TEC and procedure children. A multi-point
+item offers a numbered point selector. Repeated occurrences within the same
+published item have independent descriptions; Direct To and endpoint removal
+retain a child’s description when making it an ordinary point. **Nearby named points** separately lists up to twelve
+airport/navaid/fix/VFR candidates within 5 NM, with offsets and a replacement
+preview. **Use [identifier]** explicitly moves an ordinary editable point to that
+feature. Published children and constrained anchors cannot be replaced here;
+changing their description never flattens a published route or clears its gaps.
+
+Route input accepts slash radial tokens (`CME/285/54`) and compact tokens
+(`CME285054`), with decimal bearing/distance extensions in slash input. Named
+fixes and airports can also be origins, independently of nearby VOR ranking or
+its 100 NM radius. Unsuffixed VOR input uses published station alignment;
+unsuffixed non-VOR input uses magnetic bearing. Explicit `R`, `M`, or `T` after
+the bearing selects published VOR radial, modeled magnetic bearing, or true
+bearing: `HIGAL/320M/15`, `KSBA/090T/10`. Magnetic bearings require the current
+magnetic model; missing VOR alignment never substitutes that model or zero.
+Ambiguous IDs offer **Choose reference point…**. Primary identifiers take
+precedence; an absent VOR does not silently resolve through an airport’s short
+alias in unsuffixed input. Missing references/alignment remain unresolved.
+
+Resolved points save their exact coordinate, reference/source snapshot, bearing
+convention and magnetic model/time when applicable. Offline restoration or new
+data cannot silently move them. The ID panel identifies saved references that
+no longer match current data.
+
+Route copy/share uses the destination's syntax. Whole-unit definitions with a
+current unambiguous reference export directly where supported: ForeFlight accepts
+VOR radials and `M`/`T` bearings; SkyVector retains VOR radial syntax and uses
+coordinates for `M`/`T`. Other definitions use coordinates with a visible rounding
+offset. Ordinary points export their chosen description. Published routes retain
+required names in route export. See the [design and validation notes](radial-distance-plan.md).
 
 ### Selection and published route items
 
@@ -359,8 +422,20 @@ the connections. The view is temporary and starts closed on reload.
   **Remove only this point** and **Remove entire route item**. Point-only removal
   replaces the affected published items with their other displayed points as direct,
   pinned waypoints; adjacent airway chains expand together. The menu explains this
-  conversion. Unrelated input and entry identities stay intact. Whole-item removal
+  conversion. If an affected published item has unresolved points or diagnostics,
+  point-only removal is disabled with its reason; whole-item removal remains an
+  explicit choice. The edit command enforces the same guard. Unrelated input and entry identities stay intact. Whole-item removal
   uses the same edit as removing that token in the route editor.
+- The token menu's **Show composition** opens a read-only panel for TEC codes,
+  airways and resolved SID/STAR shorthand. TEC details retain the published text
+  and segment types (including vectors), with nested airway and procedure waypoint
+  paths below. Airway paths reflect the entry, exit and direction used in this route;
+  procedure gaps, partial branches and resolution issues remain explicit. Coded
+  SID/STAR selections show their chosen runway/branch and ordered fixed, schematic
+  and gap spans. A coded vector ending is not labeled as an unselected branch. Details
+  come from the current plan without another lookup or route edit. Repeated names
+  use the selected entry's identity, and replacing/removing that entry closes its
+  details. Escape, Close and installed-app Back dismiss the panel and restore token focus.
 - The token menu's **Replace route item** opens a selected inline text field.
   Enter, a delimiter, or leaving the field commits; Escape or blank input cancels.
   Changed text clears only that entry's old feature pin; unchanged text preserves
@@ -385,7 +460,8 @@ the connections. The view is temporary and starts closed on reload.
   follow it, and multiple TEC segments can share an airport. Ambiguous definitions
   are errors. Typed published waypoints must have unique stable identities.
 - TEC children retain their originating entry throughout resolution; geometry,
-  diagnostics and nested ownership need no remapping. Internal TEC/airway/procedure
+  diagnostics and nested ownership need no remapping. An unresolved internal
+  component is named alongside its parent TEC code in diagnostics. Internal TEC/airway/procedure
   geometry cannot be dragged as independent tokens. Their detail panel can remove
   an individual displayed point by expanding the affected segment. Explicit airports
   and ordinary connecting legs remain draggable.
@@ -406,6 +482,11 @@ visible without claiming eligibility or clearance. The source is the
 [FAA Preferred Routes database](https://www.fly.faa.gov/rmt/nfdc_preferred_routes_database).
 
 ### Edit lifecycles
+
+Route previews, replacement and preview cancellation submit immediately to
+MapLibre; no queued frame may restore an old preview. Equivalent previews,
+labels and unchanged alternatives skip writes, while changes in editability
+invalidate the primary. Snapping and committed drops remain synchronous.
 
 - Resolved editable waypoints and legs carry explicit edit targets. Map hit
   properties contain the target entry ID and plan revision; a stale worker result
@@ -442,7 +523,9 @@ Open in ForeFlight on iPhone/iPad, Save Route, Manage Routes, and Clear Route. O
 starts the second row before Advise; wider layouts keep it before the input.
 Clearing returns focus to the empty route editor. Clipboard failures offer selected
 text for manual copying. Exports expand airport-attached SIDs to `SID exit` and
-resolved TEC designators to their published route text, preserve unknown entries, and use ForeFlight's Maps URL scheme for the
+resolved TEC designators to their published route text. Resolved airport aliases
+are exported with their canonical airport identifiers so removing TEC context cannot
+turn an airport into a same-name NAVAID. Exports preserve unknown entries, and use ForeFlight's Maps URL scheme for the
 app handoff. **Open in ForeFlight** automatically uses ForeFlight coordinate
 syntax. The menu does not detect whether ForeFlight is installed.
 
@@ -459,7 +542,9 @@ course, leg NM, and cumulative NM. Courses show magnetic / true (for example,
 `113°M / 126°T`), retaining true course when the magnetic reference is unavailable; curved and
 composite paths show **Varies**. Distances use resolved route geometry, with gaps,
 VTF and missed-approach sections identified. Attached airport markers do not
-become extra flown legs. Incomplete routes show known distance only; holds and
+become extra flown legs. Map planning connections and NavLog share the same
+flight-sequence calculation: departure bundle markers are omitted unless an incoming
+leg actually reaches that airport as an intermediate stop. Incomplete routes show known distance only; holds and
 schematic paths are excluded. Speed, time and fuel are not modeled in this view.
 
 **Reverse Route**, immediately below Show/Hide NavLog, reverses the entire draft's
@@ -519,6 +604,14 @@ formats retain route endpoints, airway/procedure identifiers and unresolved
 entries, and expand resolved TEC shorthand. The ICAO choice is a coordinate
 format for route text, not a complete ICAO flight-plan message or validation of
 Item 15 filing grammar.
+
+Each coordinate form above can be pasted back into the route input or stash editor.
+ForeFlight and SkyVector seconds round trips preserve position; ICAO reimport keeps
+the exported whole-minute position and cannot recover the discarded seconds.
+Saved entries use the existing compact seconds identity and storage schema; loading
+supported coordinate aliases normalizes their text while retaining entry IDs,
+feature pins and attachments. Decimal-degree and degrees/decimal-minutes input
+are not currently supported.
 
 Format references: [ForeFlight coordinate entry and filing](https://support.foreflight.com/hc/en-us/articles/206074628-How-can-a-latitude-and-longitude-waypoint-be-filed),
 [SkyVector format in Little Navmap's coordinate guide](https://www.littlenavmap.org/manuals/littlenavmap/release/latest/en/COORDINATES.html),
@@ -585,7 +678,11 @@ rows stay usable alongside the retry message. It hides results immediately when
 the complete resource/query identity changes, and ignores late results after a
 view closes or changes source. Shared reference downloads keep their own lifetime;
 route-history queries receive the view's cancellation signal. The main planner
-also retains its timed retries for partial data while online.
+retries partial data only while online and the document is visible, with delays
+of 3, 6, 12, 24, 48 and then at most 60 seconds. Hiding the page clears its
+retry timer. Resuming a failed view, reconnecting or repairing saved files retries
+immediately and resets the backoff; healthy immutable products remain shared.
+Initial cached-data loading still works offline or while hidden.
 
 ## Persistence and compatibility
 
@@ -621,8 +718,9 @@ is no separately maintained pin map in application state.
 
 This is a route planner and waypoint preview, not a complete flight-plan grammar
 or clearance validator. Airway expansion currently supports V/T identifiers.
-Coordinate input supports the compact degrees/minutes/seconds format above;
-other coordinate formats, speed/level annotations and other filing constructs are not parsed.
+Coordinate input supports the compact and slash-separated seconds/whole-minute
+forms above and the documented reference-bearing/distance forms. Decimal GPS coordinates, speed/level annotations and other filing
+constructs are not parsed.
 After primary identifier matching, unpinned ordinary identifiers use the existing
 layer-priority/nearest-previous selection heuristic; published ambiguity is handled
 more conservatively.
@@ -635,8 +733,13 @@ its airport; see [procedure previews](terminal-procedures.md). Coded selections
 use the available fixed geometry and declared schematic depictions; manual
 vectors and unresolved constraints remain gaps. Legacy NASR filing previews
 join published waypoint coordinates without reconstructing the full procedure.
-Long direct legs are not densified into
-great-circle polylines, although distance uses great-circle calculations.
+Direct legs and dotted planning connections use great-circle samples no more
+than 20 NM apart, shared by the map, route fitting and terrain/obstruction
+corridors. Direct-leg paths are cached by immutable leg identity; explicit
+procedure geometry is preserved. Route fitting includes curved planning connections
+across unresolved gaps, starting at a maneuver's open end when supplied.
+Exactly antipodal endpoints have no unique course and use a deterministic plane
+for display.
 
 Regression coverage lives in the domain route/airway/TEC/procedure tests and the
 application draft, persistence, lifecycle, editor gesture, map gesture, geometry

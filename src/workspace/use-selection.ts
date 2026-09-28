@@ -87,6 +87,10 @@ export function useWorkspaceSelection({ context, navigationData, routePlan, regi
       setSelectionContext({ feature: resolved, context, ...(routePointId === undefined ? {} : { routePointId }) });
     }
   }, [context, navigationData, setIdentificationOpen, setSavedRoutePointId, setActiveSidePanel, setSavedFeature]);
+  const identifyFeature = useCallback((feature: GeoPointFeature, routePointId?: string) => {
+    selectFeature(feature, routePointId);
+    setIdentificationOpen(true);
+  }, [selectFeature, setIdentificationOpen]);
   useEffect(() => {
     if (!plates.mapImage || plates.mapImageRestored) return;
     setActiveSidePanel(null);
@@ -104,9 +108,14 @@ export function useWorkspaceSelection({ context, navigationData, routePlan, regi
   // context so a restored point adopts refreshed navigation references too.
   const readContext = selected?.properties.kind === 'coordinate' ? context : selectionContext?.context;
   const catalog = readContext && feature ? catalogForFeature(readContext, feature) : undefined;
-  const identification = useNavaidIdentification(navigationEnabled && identificationOpen ? selected : undefined, catalog);
-  const identificationMap = useMemo(() => identificationOpen && selected && identification.stations?.length
-    ? { point: selected, stations: identification.stations } : undefined, [identificationOpen, selected, identification.stations]);
+  const identifiedPoint = selected && routePointForFeature(routePlan, selected, selectionContext?.routePointId);
+  const identified = identifiedPoint?.feature ?? selected;
+  const radial = identifiedPoint?.identification?.kind === 'radial' ? identifiedPoint.identification
+    : !identifiedPoint?.identification ? identifiedPoint?.radialPosition : undefined;
+  const identification = useNavaidIdentification(navigationEnabled && identificationOpen ? identified : undefined, catalog);
+  const identificationMap = useMemo(() => navigationEnabled && identificationOpen && identified && (identification.stations?.length || radial)
+    ? { point: identified, stations: identification.stations ?? [], radial } : undefined,
+  [navigationEnabled, identificationOpen, identified, identification.stations, radial]);
   useEffect(() => {
     if (!catalog || !readContext) return;
     const releaseCatalog = retainActiveCatalog(catalog);
@@ -121,5 +130,5 @@ export function useWorkspaceSelection({ context, navigationData, routePlan, regi
   return { selected, feature, routePointId: selectionContext?.routePointId, catalog,
     savedSupplement: readContext && feature ? supplementForFeature(readContext, feature) : undefined,
     identification: identificationOpen ? identification : undefined, identificationMap, setIdentificationOpen,
-    activeSidePanel, setActiveSidePanel, nearbyFeatures, chooseNearby, closeNearby, selectFeature, openPlate };
+    activeSidePanel, setActiveSidePanel, nearbyFeatures, chooseNearby, closeNearby, selectFeature, identifyFeature, openPlate };
 }

@@ -60,6 +60,13 @@ export function GridControls({ controller, category }: { controller: WeatherCont
   const stale = forecastIsStale(record, shownManifest, state.now, offline);
   const renderError = forecast?.renderError;
   return <section className="awc-grid-controls" aria-label={category === 'clouds' ? 'Cloud forecasts' : category === 'winds' ? 'Winds and temperatures aloft' : 'Icing and freezing forecasts'}>
+    <label className="ui-field">Forecast downloads
+      <select className="ui-input ui-input--compact" aria-label="Forecast downloads" value={p.awcPrepareTimeline ? 'timeline' : 'nearby'}
+        onChange={event => controller.change({ awcPrepareTimeline: event.currentTarget.value === 'timeline' })}>
+        <option value="timeline">Full timeline</option><option value="nearby">Selected and adjacent hours</option>
+      </select>
+      <small>Selected and adjacent hours reduces background downloads. Other hours may be unavailable offline. Applies to all forecast grids; wind barbs alone use adjacent hours.</small>
+    </label>
     {category === 'winds' && <>
       <button className="ui-button ui-button--compact awc-grid-toggle" type="button" role="switch" aria-checked={p.awcWindBarbs}
         onClick={() => controller.change({ awcWindBarbs: !p.awcWindBarbs })}>

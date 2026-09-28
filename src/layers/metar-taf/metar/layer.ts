@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap, MapSourceDataEvent } from 'maplibre-gl';
+import type { Map as MapLibreMap, MapSourceDataEvent, MapLibreEvent } from 'maplibre-gl';
 import type { FeatureCollectionResponse, GeoPointFeature } from '@zlayer/contracts';
 import { isAirportFeature, latestMetarObservation, mergeMetarsIntoAirports, setFlightCategoryDisplay } from '@zlayer/domain';
 
@@ -40,12 +40,13 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   let refresh: OnDemandRefresh | undefined;
   let unsubscribe: (() => void) | undefined;
   let scopeDirty = true;
+  let following = false;
   let display: { input: MetarInput; reports: MetarSnapshot['metars']['features'] } | undefined;
   const store = createLayerStore<MetarLayerSnapshot>({
     ...cache, state: { status: 'idle' }, visibleStationIds: [], weatherAirportCount: 0,
   });
   const canRefresh = () => input.enabled && input.airportsVisible &&
-    !map?.isMoving() && document.visibilityState !== 'hidden' && navigator.onLine;
+    (!map?.isMoving() || following) && document.visibilityState !== 'hidden' && navigator.onLine;
 
   const publish = () => {
     const entries = scope.map(id => cache.stations.get(id));
@@ -70,6 +71,10 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   };
   const render = () => {
     if (!map) return;
+    if (!input.airportsVisible) {
+      syncMetarMap(map, undefined, false);
+      return;
+    }
     const reports = cache.metars.features;
     const unchanged = display && display.input.airports === input.airports && display.input.enabled === input.enabled &&
       reports.length === display.reports.length && reports.every((report, index) => report === display!.reports[index]);
@@ -85,9 +90,13 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   const sourceChanged = (event: MapSourceDataEvent) => {
     if (event.sourceId === 'nav-airports' || event.sourceId === METAR_SOURCE_ID) invalidateScope();
   };
-  // Pause acquisition without hiding the last settled view's legend on every
+  // Automatic follow retains demand for the last settled scope; manual movement
+  // pauses acquisition without hiding the last settled view's legend on every
   // GPS follow animation. Reconcile the displayed scope once movement settles.
-  const moving = () => { invalidateScope(); demand(); };
+  const moving = (event: MapLibreEvent & { gpsCamera?: boolean }) => {
+    following = event.gpsCamera === true;
+    invalidateScope(); demand();
+  };
   const rendered = () => {
     if (!map || map.isMoving() || !scopeDirty) return;
     scopeDirty = false;
@@ -106,6 +115,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     id: 'metar', slot: 'weather', overlayLayerIds: METAR_LAYER_IDS, interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels'],
     mount(target) {
       map = target;
+      following = false;
       scopeDirty = true;
       cache = client.snapshot();
       installMetarLayers(map, mapData());

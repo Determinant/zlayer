@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { isTerminalProceduresData, type ApproachRoute, type FeatureCollectionResponse, type TerminalProceduresData } from '@zlayer/contracts';
-import { approachEntryOptions, approachIdent, approachPreview, createRouteResolver, distanceNm, routeCoordinateFeature, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
+import { approachEntryOptions, approachIdent, approachPreview, createRouteResolver, distanceNm, geographicMidpoint, routeCoordinateFeature, routeDraftFromText, type RouteApproach } from '@zlayer/domain';
 import { syncRoute, ROUTE_SOURCE_ID } from '../src/layers/routes/renderer';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
@@ -186,8 +186,8 @@ test('VTF connects the preceding waypoint to the FAF for map and terrain plannin
   assert.ok(!plan.legs.some(leg => leg.from.ident === 'KSJC'));
   assert.deepEqual(plan.planningConnections?.map(c => [c.from.ident, c.to.ident]), [['KSJC', 'AXMUL']]);
   const { from, to } = plan.planningConnections![0]!;
-  const a = project(from.feature.geometry.coordinates), b = project(to.feature.geometry.coordinates);
-  assert.ok(corridorDistance([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], routeSegments([plan])) < 1e-8);
+  const midpoint = project(geographicMidpoint(from.feature.geometry.coordinates, to.feature.geometry.coordinates));
+  assert.ok(corridorDistance(midpoint, routeSegments([plan])) < .01);
   assert.equal(plan.legs.find(leg => leg.from.ident === 'VIKYU' && leg.to.ident === 'KOAK')?.edit?.afterEntryId, plan.entries[1]!.id);
   assert.equal(sameRouteApproach(selected, selection), false);
 });
@@ -408,8 +408,9 @@ test('map source carries selected geometry, missed styling, VTF extension and fi
   syncRoute({ setGlobalStateProperty() {}, getSource: (id: string) => ({ setData(data: FeatureCollection) { if (id === ROUTE_SOURCE_ID) source = data; } }) } as unknown as MapLibreMap, plan);
   assert.ok(source!.features.some(f => f.properties?.routeKind === 'approach-extension'));
   const connection = source!.features.find(f => f.properties?.routeKind === 'planning-connection')!;
-  assert.deepEqual(connection.geometry, { type: 'LineString', coordinates: plan.planningConnections!.flatMap(c =>
-    [c.from.feature.geometry.coordinates, c.to.feature.geometry.coordinates]) });
+  assert.ok(connection.geometry.type === 'LineString');
+  assert.deepEqual(connection.geometry.coordinates[0], plan.planningConnections![0]!.from.feature.geometry.coordinates);
+  assert.deepEqual(connection.geometry.coordinates.at(-1), plan.planningConnections![0]!.to.feature.geometry.coordinates);
   assert.equal(connection.properties!.editKind, undefined);
   assert.ok(source!.features.some(f => f.properties?.approachPhase === 'missed'));
   assert.ok(source!.features.some(f => f.properties?.ident === 'AXMUL' && f.properties.approachRole === 'FAF'));

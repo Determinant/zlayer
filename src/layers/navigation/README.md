@@ -19,6 +19,7 @@ belong to [Routes](../routes/README.md).
 | --- | --- |
 | [plugin.tsx](plugin.tsx) | Preferences, controls and navigation/inspection/identification map contributions |
 | [api.ts](api.ts) | Data-only navigation and airway loading, validation, resource identity and regional views |
+| [data.ts](data.ts) | Shared station-alignment supplementation for ID and route identification, restricted to the selected FAA cycle and exact station identity |
 | [use-data.ts](use-data.ts), [use-search.ts](use-search.ts) | Visible-data loading and search orchestration |
 | [map.ts](map.ts), [layer.ts](layer.ts), [renderer.ts](renderer.ts) | Map resource lifecycle and rendering |
 | [detail-card.tsx](detail-card.tsx), [airport-runways.tsx](airport-runways.tsx), [airport-frequencies.ts](airport-frequencies.ts) | Feature details and airport metadata |
@@ -47,6 +48,20 @@ through camera movement.
   or identification unmounts the previous body, while stowing retains it.
 - [Fix display](fix-display.md) owns classification, zoom/density rules, route/selection
   context and its real-map verification fixture.
+- Route points show Name/GPS choices above the ID table. Station names in the
+  existing sorted table select radial/distance identification and mark the selected
+  row. Each button has two rows: identifier/checkmark/MON, then frequency/type,
+  fitting the 44px target even on narrow phones. Station actions use core `ui-button` states and touch sizing; table values
+  use 14px type, supporting labels 12px, and MON badges at least 11px. Missing
+  magnetic alignment disables selection while keeping TB visible.
+  The selected radial reference is always drawn alongside the top-three map
+  references, with blue dashes and yellow line/marker/label trim. Saved references
+  retain their snapshot position even without current station data. The selected
+  table button and map key use matching yellow trim. Typed named references need
+  not appear in the nearby list; true bearings show TB. Reference lines follow
+  sampled great-circle paths with midpoint labels aligned to the local direction.
+  The route chip’s **Identify point…** action opens this same ID panel. Routes owns
+  the saved descriptions and explicit nearby-point replacements; see [route point identification](../routes/README.md#alternative-point-identification).
 - [Feature contracts](../../../docs/data/contracts.md#feature) and
   [runway metadata](../../../docs/data/contracts.md#airport-runway-details-and-wind-components)
   define identities, raw fields, units and cross-plugin wind calculations.

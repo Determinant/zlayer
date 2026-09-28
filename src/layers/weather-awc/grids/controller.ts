@@ -28,14 +28,10 @@ async function request<T>(task: AbortController, work: (signal: AbortSignal) => 
  * Live catalogs advance on validation; offline pointers wait for a saved file. */
 export function createGridController(client: GridClient, changed: (state: GridState) => void,
   families: readonly AwcGridProduct[] = ['clouds', 'icing']) {
-  let state: GridState = { products: { clouds: { loading: false }, icing: { loading: false }, winds: { loading: false },
-    ...Object.fromEntries(families.map(product => [product, client.restore(product)])) }, loading: false };
+  let state: GridState = { products: { clouds: { loading: false }, icing: { loading: false }, winds: { loading: false } }, loading: false };
+  const restored = new Set<AwcGridProduct>();
   const incoming = new Map<AwcGridProduct, GridProductState>();
   const savedCatalogs = new Map<AwcGridProduct, ForecastManifest>();
-  for (const product of families) {
-    const manifest = state.products[product].manifest;
-    if (manifest) savedCatalogs.set(product, manifest);
-  }
   const progress = new Map<AwcGridProduct, GridReceipts>();
   const saves = new Map<string, AbortController>();
   let input: GridInput | undefined, scheduler: OnDemandRefresh | undefined;
@@ -204,6 +200,13 @@ export function createGridController(client: GridClient, changed: (state: GridSt
   return {
     getSnapshot: () => state,
     configure(next: GridInput) {
+      const product = awcGridProduct(next.mode);
+      if (next.enabled && product && families.includes(product) && !restored.has(product)) {
+        restored.add(product);
+        const record = client.restore(product);
+        if (record.manifest) savedCatalogs.set(product, record.manifest);
+        productState(product, record);
+      }
       if (input && (Object.keys({ ...input, ...next }) as (keyof GridInput)[]).every(key => input![key] === next[key])) {
         // The parent's clock still ticks while a past hour is selected. Browser
         // eviction may be silent even though the forecast inputs did not change.

@@ -3,7 +3,7 @@ import { featureKey, normalizeNavaidType } from '@zlayer/domain';
 import { fetchNavigationLayer } from '../../workspace/catalog/catalog';
 import { fetchNavigation } from './api';
 
-/** Older saved exports predate station alignment. Supplement only that missing
+/** Shared identification data boundary. Older saved exports predate station alignment. Supplement only that missing
  * field from the same FAA cycle, using the ordinary validated/offline feed cache. */
 export async function fillMissingNavaidAlignment(features: GeoPointFeature[], revision: string,
   signal?: AbortSignal): Promise<GeoPointFeature[]> {

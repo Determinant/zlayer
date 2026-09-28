@@ -51,7 +51,7 @@ The same engineering and feature contracts apply to human and AI contributors.
 
 - [Engineering guide](development/engineering.md): simplicity, ownership and recovery rules.
 - [Local development](development/local-development.md): setup, proxies, configuration and tests.
-- [Deployment](development/deployment.md): static-host contract, release gates and dated checks.
+- [Deployment](development/deployment.md): static-host contract, release gates and rollout checks.
 - [Weather gateway](../tools/weather-server/README.md): AWC/NOMADS/HRRR acquisition, numeric preparation, source freshness and backend/gateway deployment.
 
 ## Architecture and design
@@ -105,7 +105,8 @@ guides stay in that same folder or its implementation subfolders.
 
 Plugin-specific validation lives with its plugin, including
 [approach coverage](../src/layers/routes/approach-coverage.md) and
-[AHRS validation](../src/layers/ahrs/validation.md). These guides retain both durable
+[AHRS validation](../src/layers/ahrs/validation.md), which also owns its regression
+inventory. These guides retain both durable
 requirements and explicitly dated observations.
 A historical pass does not close a current release gate or establish device/flight validation.
 
@@ -122,8 +123,8 @@ current guide and should be linked from the affected ADR without erasing the ori
 
 ## Reviews and evidence
 
-- [Reviews](reviews/README.md): investigations that still need a standalone record,
-  plus a map from consolidated reviews to their owning guides.
+- [Review consolidation map](reviews/README.md): canonical homes for earlier reviews
+  and guidance for retaining future standalone investigations.
 - [Evidence](evidence/README.md): retained audits and images, their purpose and retention rules.
 
 Resolved findings and lasting guidelines belong in the owning feature, architecture
@@ -141,6 +142,10 @@ with historical results. Scratch scans and intermediate downloads belong in igno
   `docs/architecture/`, shared formats and publisher boundaries in `docs/data/`,
   and cross-plugin/browser investigations in `docs/verification/`.
 - Keep proposals visibly planned and update the roadmap when implementation status changes.
+- Remove routine test counts, rerun logs and obsolete status summaries once their
+  useful lessons are in current guides or regression cases. Retain measured
+  comparisons only with the source, method and limitations needed to interpret
+  them; see the [evidence retention rules](evidence/README.md#retention-rules).
 - When consolidating, preserve rationale, failure cases, constraints and unresolved work;
   update inbound links and this index. Preserve unique evidence a guide still relies on.
 
