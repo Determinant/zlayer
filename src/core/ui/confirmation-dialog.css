@@ -1,10 +1,10 @@
 .confirmation-dialog {
   box-sizing: border-box; width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
-  padding: 20px; border: 1px solid #38505f; border-radius: 10px; overflow: auto;
-  color: #e5edf1; background: #101e2b; font-family: var(--font-ui); pointer-events: auto;
+  padding: 20px; border: 1px solid var(--border-38505f); border-radius: 10px; overflow: auto;
+  color: var(--text-control); background: var(--surface-101e2b); font-family: var(--font-ui); pointer-events: auto;
 }
-.confirmation-dialog::backdrop { background: #02081099; }
+.confirmation-dialog::backdrop { background: var(--shadow-020810-a600); }
 .confirmation-dialog h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
-.confirmation-dialog p { margin: 12px 0 18px; color: #afc2cd; font-size: 14px; line-height: 1.6; }
+.confirmation-dialog p { margin: 12px 0 18px; color: var(--text-afc2cd); font-size: 14px; line-height: 1.6; }
 .confirmation-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .confirmation-actions > :only-child { grid-column: 1 / -1; }

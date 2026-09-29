@@ -2,8 +2,17 @@
 
 [Documentation](../README.md) / Product
 
-Status: proposed palette and implementation plan, 2026-09-17.
+Status: original palette proposal, 2026-09-17; partially superseded by the
+[implemented light/dark system](../features/shared-ui.md#appearance-and-colors).
 Scope: the current dark interface, application-owned map overlays, and branding.
+
+The implemented system preserves existing dark shades and derives light colors
+from role-tagged seeds. Shared CSS tokens, generation/freshness checks and General
+appearance settings are implemented. The proposed shade consolidation, navigation
+identity alignment and map/weather migration below remain proposals; applying them
+would deliberately change the dark appearance. The original contrast calculations
+and outstanding rendered/device checks are retained as design rationale, not current
+verification evidence.
 
 ## Contents
 
@@ -261,6 +270,7 @@ repeat every implementation literal.
       desktop, tablet, and phone widths from `docs/features/shared-ui.md`.
 - [ ] `npm run verify` and relevant browser checks pass after implementation.
 
-Shared token generation and the coordinated migration remain unimplemented. Some
-existing runtime colors already match this palette; that does not establish shared
-token ownership or completion of the rendered contrast checks.
+Shared UI token generation and a compatibility-preserving light/dark migration are
+implemented; the coordinated visual redesign in this proposal remains unimplemented.
+Existing matching runtime colors do not establish completion of its rendered
+contrast checks or navigation/map identity changes.

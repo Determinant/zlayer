@@ -417,7 +417,8 @@ thresholds, lowlands, nodata, fade opacity and two-line label expressions.
 production-built MapLibre protocol and dedicated worker with continuous synthetic
 Terrarium tiles, source detail changes, zoom cache reuse, clearing, toggling,
 remounting, failures/reconnects, recovery across pans and zooms, offscreen geometry
-removal, fractional close zoom at 2× display density, direct altitude entry and
+removal, fractional close zoom at 2× display density with visible outline pixels,
+direct altitude entry and
 slider dragging. It also checks
 the low-zoom toolbox hint and absence of DEM downloads while zoomed out.
 GPU pixel checks verify red coloring and transparent 2,000 ft+ clearance, while
@@ -466,3 +467,8 @@ for the worker-transfer failure and readback-friendly canvas requirement.
 Contour regressions must preserve uneven-saddle connectivity, nodata, both contour
 intervals, fades and sampled-high/clearance meaning. Physical-device profiling is
 still required for total memory, frame-rate and battery costs.
+
+The remembered clearance altitude updates in memory during slider input and saves
+after 200 ms of idle, at gesture/key completion, on blur, page hiding or unmount.
+This coalesces the separate last-altitude UI record; live map altitude changes and
+the workspace's selected-altitude preference retain their existing behavior.

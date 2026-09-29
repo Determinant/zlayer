@@ -54,7 +54,12 @@ test('NavLog follows edits and gaps, stays open on map interaction, and hides co
   await expect(page.getByRole('button', { name: 'Route actions', exact: true })).toBeFocused();
   await expect(page.getByRole('button', { name: 'Show NavLog', exact: true })).toHaveCount(0);
   expect((await bar.boundingBox())!.height).toBe(before.height);
+  const hiddenRows = await page.locator('.route-navlog tbody').textContent();
+  await input.fill('KSJC'); await input.press('Enter');
+  expect(await page.locator('.route-navlog tbody').textContent(),
+    'closed rows stay frozen through route edits').toBe(hiddenRows);
   await showNavLog(page);
+  await expect(panel.getByRole('status')).toContainText('4 fixes');
   await expect(page.getByLabel('NavLog rows', { exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();

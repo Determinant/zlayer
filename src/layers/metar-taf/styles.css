@@ -7,11 +7,11 @@
   gap: 9px;
   align-items: center;
   padding: 7px 10px;
-  border: 1px solid rgba(216, 239, 250, 0.18);
+  border: 1px solid var(--border-panel-translucent);
   border-radius: 10px;
-  color: #e2edf4;
-  background: rgba(7, 16, 29, 0.84);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
+  color: var(--text-e2edf4);
+  background: var(--surface-07101d-a840);
+  box-shadow: 0 8px 30px var(--shadow-000000-a220);
   backdrop-filter: blur(12px);
 }
 
@@ -32,8 +32,8 @@
 .flight-category-legend small {
   margin-left: 2px;
   padding-left: 9px;
-  border-left: 1px solid rgba(216, 239, 250, 0.14);
-  color: #7890a3;
+  border-left: 1px solid var(--border-d8effa-a140);
+  color: var(--text-7890a3);
   font-size: 11px;
   letter-spacing: 0.05em;
   white-space: nowrap;
@@ -48,7 +48,7 @@
 
 .airport-weather > h3 {
   margin: 0 0 5px;
-  color: #b2c7d7;
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -56,8 +56,8 @@
 }
 
 .weather-source { margin: 6px 0 8px; }
-.weather-source label { display: grid; gap: 5px; color: #8fa7b9; font-size: 11px; }
-.weather-source p { margin: 5px 0 0; color: #8fa7b9; font-size: 11px; line-height: 1.5; }
+.weather-source label { display: grid; gap: 5px; color: var(--text-8fa7b9); font-size: 11px; }
+.weather-source p { margin: 5px 0 0; color: var(--text-8fa7b9); font-size: 11px; line-height: 1.5; }
 
 .airport-weather > dl { margin: 5px 0 0; }
 
@@ -72,28 +72,28 @@
 .airport-weather-report:empty { display: none; }
 
 .airport-weather time {
-  color: #d6e7f1;
+  color: var(--text-d6e7f1);
   font-size: 12px;
   white-space: nowrap;
 }
 
 .airport-weather-age {
-  color: #91a9bb;
+  color: var(--text-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .airport-weather-status {
   margin: 0;
-  color: #8fa7b9;
+  color: var(--text-8fa7b9);
   font-size: 11px;
   line-height: 1.5;
 }
 
 .airport-weather-status > span { white-space: nowrap; }
-.airport-weather-status .is-current { color: #73cdb6; }
+.airport-weather-status .is-current { color: var(--text-73cdb6); }
 
-.airport-weather-status .is-cached { color: #e3b876; }
+.airport-weather-status .is-cached { color: var(--text-e3b876); }
 
 .runway-wind-notes {
   display: grid;
@@ -102,7 +102,7 @@
 
 .runway-wind-notes small,
 .runway-wind-state {
-  color: #91a9bb;
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -113,7 +113,7 @@
   flex: 0 0 14px;
   width: 14px;
   height: 14px;
-  color: #c3d8e6;
+  color: var(--text-c3d8e6);
 }
 
 .runway-wind-components {
@@ -130,7 +130,7 @@
 }
 
 .runway-wind-components small {
-  color: #91a9bb;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
 }
@@ -138,7 +138,7 @@
 .runway-wind-components small { font-size: 10px; }
 
 .runway-wind-components strong {
-  color: #d6e7f1;
+  color: var(--text-d6e7f1);
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -148,18 +148,18 @@
 .runway-wind-components .is-tailwind strong,
 .runway-wind-components .is-tailwind .runway-wind-arrow,
 .runway-wind-components .is-tailwind small {
-  color: #f2bc7b;
+  color: var(--text-f2bc7b);
 }
 
 .airport-taf {
   padding-top: 13px;
-  border-top: 1px solid rgba(151, 199, 228, 0.14);
+  border-top: 1px solid var(--border-97c7e4-a140);
 }
 
 .taf-dates {
   display: grid;
   gap: 3px;
-  color: #8fa7b9;
+  color: var(--text-8fa7b9);
   font-size: 11px;
   line-height: 1.6;
 }
@@ -182,14 +182,14 @@
   padding: 4px 8px;
   border-left: 2px solid currentColor;
   border-radius: 0 5px 5px 0;
-  color: #a0b0bd;
-  background: rgba(151, 199, 228, 0.04);
+  color: var(--text-a0b0bd);
+  background: var(--overlay-97c7e4-a40);
 }
 
-.airport-weather [data-flight-category='VFR'] { color: #20c66b; }
-.airport-weather [data-flight-category='MVFR'] { color: #62a9ff; }
-.airport-weather [data-flight-category='IFR'] { color: #ff7070; }
-.airport-weather [data-flight-category='LIFR'] { color: #e97bf5; }
+.airport-weather [data-flight-category='VFR'] { color: var(--text-20c66b); }
+.airport-weather [data-flight-category='MVFR'] { color: var(--text-62a9ff); }
+.airport-weather [data-flight-category='IFR'] { color: var(--text-ff7070); }
+.airport-weather [data-flight-category='LIFR'] { color: var(--text-e97bf5); }
 
 .taf-category {
   font-size: 11px;
@@ -209,7 +209,7 @@
   grid-column: 2;
   justify-self: end;
   max-width: 100%;
-  color: #8fa7b9;
+  color: var(--text-8fa7b9);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.4;

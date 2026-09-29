@@ -436,7 +436,13 @@ remain intact; the restart neither improves the reported uncertainty nor
 reapplies an initial heading. Fresh GPS can establish a new navigation reference.
 Non-finite filter state or invalid covariance still requires recalibration. This
 failure takes priority over a sensor pause or unusable reading: the attitude stays
-hidden beneath **Calibration**, without promising automatic recovery.
+hidden beneath **Calibration**, without promising automatic recovery. On the next
+motion sample, a permanently failed estimator releases motion/magnetic sensing
+unless an explicit recording still needs raw input. If capture is active, sensing
+continues until the next sample after capture stops. GPS instruments and the last
+heading reference remain available under their warnings; recalibration starts a
+fresh sensor/estimator session. Timing pauses remain recoverable and do not take
+this permanent-failure path.
 The app enables automatic recovery from interrupted IMU timing: scrolling,
 temporary browser stalls and returning from the background retain calibration.
 While readings are missing, **Motion** marks the held last attitude. Fresh

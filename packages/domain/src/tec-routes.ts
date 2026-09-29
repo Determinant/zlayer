@@ -1,5 +1,5 @@
 import type { NavigationData, PreferredRouteRecord, PreferredRoutesData } from '@zlayer/contracts';
-import { preferredRouteAirports, resolvePreferredRouteEntries } from './preferred-routes.js';
+import { preferredRouteAirports, resolvePreferredRouteEntries, type PublishedRouteEntry } from './preferred-routes.js';
 import { expansionOwner, sourceIssue, type RouteAtom, type RouteSegment } from './route-source.js';
 
 export type TecRouteIssue = {
@@ -9,7 +9,12 @@ export type TecRouteIssue = {
   message: string;
 };
 
-export type ResolvedTecRoute = { tokenIndex: number; route: PreferredRouteRecord };
+export type ResolvedTecRoute = {
+  tokenIndex: number;
+  route: PreferredRouteRecord;
+  /** Immediate published children, before airway or procedure expansion. */
+  children: PublishedRouteEntry[];
+};
 /** Build scoped children directly; no string expansion or plan remapping. */
 export function createTecInterpreter(navigation: NavigationData, data?: PreferredRoutesData) {
   const byDesignator = new Map<string, PreferredRouteRecord[]>();
@@ -47,8 +52,8 @@ export function createTecInterpreter(navigation: NavigationData, data?: Preferre
       if (!entries) { fail('tec-route-unavailable', 'the published route or a required typed waypoint is unavailable or ambiguous'); continue; }
       const owner = expansionOwner('tec', atom);
       const scope = { departure: origin, destination };
-      const children = entries.slice(1, -1).map((entry): RouteAtom => ({
-        text: entry.text, source: atom.source, scope, owners: [owner], incomingOwners: [owner],
+      const children = entries.slice(1, -1).map((entry, tecChildIndex): RouteAtom => ({
+        text: entry.text, source: { ...atom.source, tecChildIndex }, scope, owners: [owner], incomingOwners: [owner],
         ...(entry.pinnedFeatureId ? { pinnedFeatureId: entry.pinnedFeatureId } : {}),
       }));
       if (pair.origin.id) origin.pinnedFeatureId = pair.origin.id;
@@ -58,6 +63,8 @@ export function createTecInterpreter(navigation: NavigationData, data?: Preferre
     }
     const nodes = atoms.map(atom => segments.get(atom) ?? atom);
     return { nodes, atoms: nodes.flatMap(node => 'children' in node ? node.children : [node]), issues,
-      routes: [...segments.values()].map(segment => ({ tokenIndex: segment.owner.source.tokenIndex, route: segment.route })) };
+      routes: [...segments.values()].map(segment => ({ tokenIndex: segment.owner.source.tokenIndex, route: segment.route,
+        children: segment.children.map(child => ({ text: child.text,
+          ...(child.pinnedFeatureId ? { pinnedFeatureId: child.pinnedFeatureId } : {}) })) })) };
   };
 }

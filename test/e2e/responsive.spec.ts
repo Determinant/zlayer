@@ -47,10 +47,11 @@ for (const [width, height] of [
     expect(settingsBox.y).toBe(searchBox.y);
     expect(settingsBox.x).toBeGreaterThanOrEqual(searchBox.x + searchBox.width);
     await expect(page.getByRole('button', { name: 'About ZLayer', exact: true })).toBeHidden();
-    await expect(page.getByLabel('FAA data cycle')).toBeHidden();
+    await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeHidden();
     await settings.click();
-    const cycle = page.getByLabel('FAA data cycle');
+    const cycle = page.getByRole('combobox', { name: 'FAA data cycle', exact: true });
     await expect(cycle.locator('option:checked')).toHaveText('Default · Latest');
+    await cycle.scrollIntoViewIfNeeded();
     await touchTarget(cycle);
     await inside(cycle, { left: 0, top: 0, right: width, bottom: height });
     await expect(page.getByRole('button', { name: 'About ZLayer', exact: true })).toBeVisible();
@@ -124,6 +125,7 @@ test('recommendations and settings respect safe areas in portrait and landscape'
   await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 744, height: 1133 });
   await session.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, bottom: 0, left: 0, right: 0 } });
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   expect(await page.locator('.region-filters input').evaluate(element => parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThanOrEqual(16);
   await session.detach();
 });

@@ -18,6 +18,7 @@ export class Hooks {
   }
 
   useRef(initial?: unknown) { return this.useMemo(() => ({ current: initial }), []); }
+  useCallback(callback: unknown, dependencies: readonly unknown[]) { return this.useMemo(() => callback, dependencies); }
 
   useMemo(create: () => unknown, dependencies: readonly unknown[]) {
     const index = this.#index++;
@@ -47,6 +48,6 @@ function sameDependencies(left: readonly unknown[] | undefined, right: readonly 
 }
 
 export const hookModule = 'data:text/javascript,' + encodeURIComponent(
-  ['useState', 'useRef', 'useMemo', 'useEffect', 'useSyncExternalStore']
+  ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore']
     .map(name => `export const ${name} = (...args) => globalThis.testHooks.${name}(...args);`).join('\n'),
 );

@@ -25,6 +25,6 @@ export function SettingsDialog({ open, onClose, children }: {
 
 export function SettingsLoading() {
   return <div className="settings-loading" aria-busy="true">
-    <LoadingPlaceholder label="Loading settings…" />
+    <LoadingPlaceholder label="Loading offline settings…" />
   </div>;
 }

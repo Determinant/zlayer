@@ -44,14 +44,15 @@ test('flight-category legend stays mounted through GPS position and track update
   });
   for (const [longitude, heading] of [[-119.839, 15], [-119.838, 30], [-119.837, 45]] as const) {
     // Damping advances on fresh samples, not while an assertion polls. Keep
-    // acquisition times deterministic and allow the automatic camera save to flush.
-    for (let sample = 0; sample < 3; sample++) {
+    // acquisition times deterministic, let the 1.5s filter settle within its 2°
+    // deadband, and allow the automatic camera save to flush.
+    for (let sample = 0; sample < 10; sample++) {
       await page.clock.runFor(1000);
       await sendFix(page, { longitude, latitude: 34.43, heading, speed: 5 });
     }
     await page.clock.runFor(1000);
     await expect.poll(async () => (await camera()).center[0]).toBeCloseTo(longitude, 6);
-    await expect.poll(async () => Math.abs(((await camera()).bearing - heading + 540) % 360 - 180)).toBeLessThan(1);
+    await expect.poll(async () => Math.abs(((await camera()).bearing - heading + 540) % 360 - 180)).toBeLessThan(2);
     await expect(legend).toBeVisible();
     expect(await original.evaluate(element => element.isConnected), 'GPS movement must not unmount the legend').toBe(true);
   }

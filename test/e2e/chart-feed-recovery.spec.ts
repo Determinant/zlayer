@@ -97,6 +97,7 @@ for (const offline of [true, false]) {
   test(`saved regions open without browsing metadata when ${offline ? 'offline' : 'the live chart feed is invalid'}`, async ({ page, context, request }) => {
     await page.goto('/');
     await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Offline', exact: true }).click();
     await page.getByLabel('Find a state or territory').fill('California');
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');

@@ -2,13 +2,13 @@
   min-height: 90px;
   margin: 0 0 14px;
   padding: 24px 10px;
-  color: #738da1;
+  color: var(--text-738da1);
   text-align: center;
   font-size: 12px;
 }
 
-.procedure-viewer > footer .procedure-return-to-approach { padding-inline: 12px; min-height: 44px; color: #8ee1d4; }
-.procedure-map-error { width: 100%; color: #efa7a0; font-size: 12px; }
+.procedure-viewer > footer .procedure-return-to-approach { padding-inline: 12px; min-height: 44px; color: var(--text-8ee1d4); }
+.procedure-map-error { width: 100%; color: var(--text-efa7a0); font-size: 12px; }
 .plate-map-control {
   position: absolute;
   z-index: 5;
@@ -20,20 +20,20 @@
   gap: 12px;
   width: min(420px, calc(100% - 72px));
   padding: 8px 8px 8px 12px;
-  border: 1px solid #365065;
+  border: 1px solid var(--border-365065);
   border-radius: 10px;
-  background: rgba(8, 19, 32, 0.95);
-  box-shadow: 0 3px 12px #0005;
+  background: var(--surface-081320-a950);
+  box-shadow: 0 3px 12px var(--shadow-000000-a333);
 }
 .plate-map-control > span { display: grid; gap: 4px; min-width: 0; }
-.plate-map-control strong { font-size: 12px; color: #d9e9f2; overflow-wrap: anywhere; }
-.plate-map-control small { font-size: 11px; color: #91aabb; overflow-wrap: anywhere; }
+.plate-map-control strong { font-size: 12px; color: var(--text-d9e9f2); overflow-wrap: anywhere; }
+.plate-map-control small { font-size: 11px; color: var(--text-91aabb); overflow-wrap: anywhere; }
 .plate-map-control button { font-size: 22px; }
 
 .plate-map-control .plate-map-retry { font-size: 12px; }
 
 .procedure-state.is-error {
-  color: #efa7a0;
+  color: var(--text-efa7a0);
 }
 
 .procedure-groups {
@@ -49,7 +49,7 @@
   align-items: center;
   justify-content: space-between;
   margin: 0 3px 5px;
-  color: #718ca0;
+  color: var(--text-718ca0);
   font-size: 11px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -68,10 +68,10 @@
   min-height: 48px;
   padding: 8px 10px;
   border: 0;
-  border-bottom: 1px solid rgba(151, 199, 228, 0.07);
-  color: #d9e9f2;
+  border-bottom: 1px solid var(--border-97c7e4-a70);
+  color: var(--text-d9e9f2);
   text-align: left;
-  background: rgba(14, 31, 48, 0.65);
+  background: var(--surface-0e1f30-a650);
   cursor: pointer;
 }
 
@@ -91,7 +91,7 @@
 .procedure-group > button:hover,
 .procedure-group > button:focus-visible {
   outline: none;
-  background: rgba(33, 70, 91, 0.76);
+  background: var(--surface-21465b-a760);
 }
 
 .procedure-group > button > span {
@@ -115,7 +115,7 @@
 }
 
 .procedure-group i {
-  color: #5baea9;
+  color: var(--text-5baea9);
   font-size: 20px;
   font-style: normal;
 }
@@ -153,10 +153,10 @@
   height: 100%;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
-  border: 1px solid rgba(151, 199, 228, 0.19);
+  border: 1px solid var(--border-97c7e4-a190);
   border-radius: 9px 0 0 9px;
-  background: #081423;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
+  background: var(--surface-081423);
+  box-shadow: 0 24px 60px var(--shadow-000000-a480);
 }
 
 .procedure-viewer > header {
@@ -165,8 +165,8 @@
   align-items: start;
   justify-content: space-between;
   padding: 15px 17px 13px;
-  border-bottom: 1px solid rgba(151, 199, 228, 0.13);
-  background: rgba(8, 19, 32, 0.98);
+  border-bottom: 1px solid var(--border-97c7e4-a130);
+  background: var(--surface-081320-a980);
   padding-top: max(15px, env(safe-area-inset-top));
   padding-right: max(17px, env(safe-area-inset-right));
   padding-left: max(17px, env(safe-area-inset-left));
@@ -185,7 +185,7 @@
 
 .procedure-viewer > header p {
   margin: 0;
-  color: #738b9d;
+  color: var(--text-738b9d);
   font-size: 11px;
 }
 
@@ -202,7 +202,7 @@
 
 .procedure-viewer-actions button { font-size: 19px; }
 
-.procedure-viewer-actions .procedure-show-on-map { color: #8ee1d4; }
+.procedure-viewer-actions .procedure-show-on-map { color: var(--text-8ee1d4); }
 
 .procedure-page-stage {
   position: relative;
@@ -211,8 +211,8 @@
   scrollbar-gutter: stable;
   padding: 16px;
   background:
-    radial-gradient(circle at 50% 0, rgba(103, 132, 150, 0.12), transparent 32%),
-    #12171d;
+    radial-gradient(circle at 50% 0, var(--overlay-678496-a120), transparent 32%),
+    var(--surface-12171d);
   overscroll-behavior: contain;
   touch-action: pan-x pan-y;
   overflow-anchor: none;
@@ -271,7 +271,7 @@
 
 .procedure-download h3 {
   margin: 0 0 10px;
-  color: #eaf6ff;
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 700;
   line-height: 1.45;
@@ -290,14 +290,14 @@
   margin-top: 24px;
   overflow: hidden;
   border-radius: 3px;
-  background: #294052;
+  background: var(--surface-294052);
 }
 
 .procedure-download-meter > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #68cdbf;
+  background: var(--text-68cdbf);
   transition: width 160ms ease-out;
 }
 
@@ -321,7 +321,7 @@
 }
 
 .procedure-download-amount strong {
-  color: #68cdbf;
+  color: var(--text-68cdbf);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -335,13 +335,13 @@
   min-height: 100%;
   place-content: center;
   gap: 5px;
-  color: #ffd8d4;
+  color: var(--text-ffd8d4);
   text-align: center;
 }
 
 .procedure-error span {
   max-width: 520px;
-  color: #d79892;
+  color: var(--text-d79892);
   font-size: 12px;
 }
 
@@ -351,8 +351,8 @@
   align-items: center;
   min-height: 54px;
   padding: 9px 12px;
-  border-top: 1px solid rgba(151, 199, 228, 0.13);
-  background: rgba(8, 19, 32, 0.98);
+  border-top: 1px solid var(--border-97c7e4-a130);
+  background: var(--surface-081320-a980);
   padding-bottom: max(9px, env(safe-area-inset-bottom));
   padding-right: max(12px, env(safe-area-inset-right));
   padding-left: max(12px, env(safe-area-inset-left));
@@ -417,11 +417,11 @@
 }
 
 .procedure-cache-state.is-cached {
-  color: #68cdbf;
+  color: var(--text-68cdbf);
 }
 
 .procedure-cache-state.is-unavailable {
-  color: #b69a77;
+  color: var(--text-b69a77);
 }
 
 @media (max-width: 680px) {
@@ -466,8 +466,8 @@
   .procedure-page-picker-content {
     display: none; position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 2;
     width: max-content; max-width: calc(100cqw - 16px); max-height: calc(100dvh - 100px);
-    overflow: auto; padding: 8px; border: 1px solid #46606e; border-radius: 8px;
-    background: #081423; box-shadow: 0 6px 24px #0008;
+    overflow: auto; padding: 8px; border: 1px solid var(--border-control); border-radius: 8px;
+    background: var(--surface-081423); box-shadow: 0 6px 24px var(--shadow-000000-a533);
   }
   .procedure-page-controls.is-open .procedure-page-picker-content { display: grid; gap: 8px; }
   .procedure-viewer .procedure-original { margin: 0; min-height: 44px; }
@@ -534,3 +534,6 @@
 .procedure-viewer.is-fullscreen .procedure-pagination > span {
   min-width: 60px;
 }
+
+/* Decorative dark gradients do not carry over to light surfaces. */
+:root[data-theme='light'] .procedure-page-stage { background: var(--surface-control); }

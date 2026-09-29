@@ -10,6 +10,8 @@ export default defineConfig({
     { name: 'chromium', use: { browserName: 'chromium', launchOptions: base.use?.launchOptions ?? {} } },
     { name: 'firefox', use: { browserName: 'firefox' } },
     { name: 'webkit', use: { browserName: 'webkit' } },
-    { name: 'webkit-retina', use: { browserName: 'webkit', deviceScaleFactor: 2, hasTouch: true } },
+    // Tagged cases supply their own full density/input matrix and already run in webkit.
+    { name: 'webkit-retina', grepInvert: /@explicit-density/,
+      use: { browserName: 'webkit', deviceScaleFactor: 2, hasTouch: true } },
   ],
 });

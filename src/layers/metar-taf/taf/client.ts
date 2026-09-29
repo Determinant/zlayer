@@ -15,6 +15,7 @@ type Options = { fetch?: typeof fetch; storage?: Pick<Storage, 'getItem' | 'setI
 export class TafClient {
   readonly #stations = new Map<string, CachedTaf>();
   readonly #areas = new Map<string, NearbyCheck>();
+  #dirty = false;
 
   constructor(readonly endpoint: URL, readonly options: Options = {}) {
     try {
@@ -125,22 +126,30 @@ export class TafClient {
     // A shared cache hit must not replace a newer successful source check.
     if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
       (!received || previous && newestFirst(previous, received, now) <= 0)) return;
-    const report = previous && (!received || newestFirst(previous, received, now) < 0) ? previous : received;
+    const preferred = previous && (!received || newestFirst(previous, received, now) < 0) ? previous : received;
+    const report = previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
+    if (report !== previous) this.#dirty = true;
     this.#stations.delete(id);
     this.#stations.set(id, {
-      ...(report ? { report } : {}), checkedAt, missing: !received || report !== received,
+      ...(report ? { report } : {}), checkedAt, missing: !received || preferred !== received,
     });
   }
 
   #trim(): void {
-    while (this.#stations.size > MAX_CACHED_STATIONS) this.#stations.delete(this.#stations.keys().next().value!);
+    while (this.#stations.size > MAX_CACHED_STATIONS) {
+      const id = this.#stations.keys().next().value!;
+      if (this.#stations.get(id)?.report) this.#dirty = true;
+      this.#stations.delete(id);
+    }
   }
 
   #save(): void {
     this.#trim();
+    if (!this.#dirty) return;
     try {
       // Revalidate restored forecasts rather than persisting a claim of freshness.
       cacheSlot.write(JSON.stringify([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : [])), this.options.storage);
+      this.#dirty = false;
     } catch { /* In-memory caching continues when storage is unavailable. */ }
   }
 }

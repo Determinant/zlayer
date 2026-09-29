@@ -13,6 +13,7 @@ download, live sensor, route resolution, or render is still valid.
 | --- | --- | --- |
 | Map camera | Center (including wrapped longitude), zoom, bearing, pitch | `shell/use-map-view.ts`; `zlayers-map-view-v1` |
 | Map orientation | North-up / track-up preference; current GPS track is reacquired | `workspace/map/navigation-control.ts`; UI `map-track-up` |
+| Appearance | Explicit Light / Dark choice; default Dark; synchronized across windows | `core/theme/preference.ts`; UI `appearance`, version 1 |
 | Layer choices | Chart base and overlay; airports, VFR waypoints, navaids and fixes; fix detail/airspace; METAR, GPS, terrain and obstructions; terrain route/viewport coverage and selected altitude | `workspace/use-map-preferences.ts` with feature-owned decoders; each plugin’s `preferences` record, version 2 |
 | Plugin activation | Disabled built-in identities; prerequisites/dependents resolved by the host | `core/layers/use-plugins.ts`; UI `plugins-unloaded` |
 | Terrain toolbox | Last clearance altitude while elevation coloring is selected | `layers/terrain/controls.tsx`; UI `terrain-last-altitude` |
@@ -23,7 +24,7 @@ download, live sensor, route resolution, or render is still valid.
 | Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates tab, navaid identification overlay | `workspace/use-selection.ts` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
 | Plate reader | Selected document/approach/edition; original target; actual reader page, zoom, rotation, scroll and fullscreen preference | `layers/plates`; UI `plate-selection`, `plate-view:*` |
 | On-map IAP | Exact document URL, optional integrity metadata, edition and original approach target, independently of the reader | `layers/plates/layer.ts`; UI `plate-on-map` |
-| Shell | Layers, Settings and its General/Plugins tab, region query/filter/storage details, About and welcome acknowledgement | `shell`; corresponding UI records, including `settings-tab` |
+| Shell | Layers, Settings and its General/Offline/Plugins/Notifications tab, region query/filter/storage details, About and welcome acknowledgement | `shell`; corresponding UI records, including `settings-tab` |
 | AHRS presentation | Toolbox selection, fullscreen, upright/flat mount preference | `layers/ahrs/controls.tsx`; UI `ahrs-fullscreen`, `ahrs-mount` |
 | Offline inventory and editions | Browsing cycle selection, saved regions and their committed data editions, document caches, recordings | Dedicated IndexedDB/Cache Storage owners; see [offline storage](../features/offline-storage.md) |
 
@@ -36,12 +37,16 @@ describes isolation and the compatibility reads from former global keys.
 
 ## Saving and restoration
 
-- UI, active-route and layer changes save synchronously in the action, through
+- Ordinary UI, active-route and layer changes save synchronously in the action, through
   `core/ui/use-persistent-state.ts`. An immediate reload does not need a React
   effect to commit them. Default/fallback values do not overwrite storage merely
   because a component mounted. A valid legacy route is migrated once to preserve
   its generated entry IDs; legacy chart choices and other validated preferences migrate into their owner’s
-  namespace on read. Unknown record versions are ignored.
+  namespace on read. Unknown record versions are ignored. High-frequency plate
+  gestures and remembered terrain altitude coalesce optional view-state writes and
+  flush on exit; their owning plugin guides define these exceptions. Dynamic
+  feature-tab and plate-view records have explicit retention bounds; selections
+  and saved drafts are outside those limits.
 - Route-stash mutations acquire a Web Lock before reading and writing the shared
   list. Success is shown only after storage accepts the write; contention or
   unavailable coordination leaves saved routes untouched. Open stash dialogs
@@ -101,7 +106,7 @@ describes isolation and the compatibility reads from former global keys.
 ## Deliberate boundaries
 
 Search text, unfinished route text fields, manual METAR/TAF station choices, context menus, gestures,
-loading/errors, feature-list scroll positions, and pending confirmations are
+loading/errors, notification dismissals, feature-list scroll positions, and pending confirmations are
 session state. AHRS calibration, test mode, entered initial heading, live attitude,
 GPS fixes and active recording do not resume after reload. Saved recordings have
 their own recovery lifecycle.
@@ -120,6 +125,7 @@ explicit removal. Tests should also exercise async failure, stale completion,
 offline restoration and camera preservation when those lifecycles apply.
 
 `test/e2e/workspace-persistence.spec.ts` and `workspace-restore.spec.ts` cover the
-composed workspace in Chromium/WebKit. `test/plate-persistence.test.ts`,
+composed workspace in the configured Chromium suite; these specs are not selected
+by the WebKit graphics matrix. `test/plate-persistence.test.ts`,
 `map-preferences.test.ts`, `map-view.test.ts`, `route-persistence.test.ts` and
 `ui-state.test.ts` and `plugin-storage.test.ts` cover validation, migration, action-time writes and cancellation.

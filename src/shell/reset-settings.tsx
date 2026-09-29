@@ -7,8 +7,8 @@ export function ResetSettings() {
   return <details className="reset-settings" onToggle={event => {
     if (!event.currentTarget.open) { setConfirmation(''); setError(undefined); }
   }}>
-    <summary>Advanced</summary>
-    <h3>Delete all local data</h3>
+    <summary><h3>Advanced</h3></summary>
+    <h4>Delete all local data</h4>
     <p>This permanently removes all saved regions, charts, plates, reference and weather data,
       AHRS recordings, your route, map view, preferences, and the offline app cache from this browser.
       All open ZLayer windows will stop. You will need a connection to use ZLayer again.</p>

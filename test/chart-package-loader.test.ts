@@ -7,7 +7,7 @@ import nodeEndpoint from 'comlink/dist/umd/node-adapter.js';
 import { openPackageReader, releasePackageDecoder } from '../src/layers/charts/package-loader.js';
 import type { PackageTile } from '../src/layers/charts/package-reader.js';
 
-test('reuses the package worker and retries failures without interrupting shared reads', { timeout: 5_000 }, async (t) => {
+test('reuses the package worker and retries failures and cancels active/queued work independently', { timeout: 5_000 }, async (t) => {
   const workers: TestWorker[] = [];
   const bytes = new Uint8Array([42]);
   const rows = (): PackageTile[] => [{ z: 0, x: 0, y: 0, data: bytes.slice().buffer }];
@@ -46,30 +46,17 @@ test('reuses the package worker and retries failures without interrupting shared
     reader.dispose();
   }
   // Complete GETs only. File coalescing is the surrounding ArchiveReaderPool's job.
-  assert.deepEqual(fetch.mock.calls.map(call => call.arguments), Array.from({ length: 4 }, () => [url]));
+  assert.deepEqual(fetch.mock.calls.map(call => call.arguments[0]), Array(4).fill(url));
+  assert.ok(fetch.mock.calls.every(call => !call.arguments[1]?.headers), 'decoding never fetches byte ranges');
   await assert.rejects(openPackageReader(url.replace('bytes=1', 'bytes=2')), /size mismatch/);
   assert.equal(workers.length, 1, 'invalid downloads never reach the decoder');
 
-  let finishShared!: (value: PackageTile[]) => void;
-  let sharedArrived!: () => void;
-  const sharedReady = new Promise<void>(resolve => { sharedArrived = resolve; });
-  let calls = 0;
-  decode = async () => {
-    if (++calls === 1) throw new Error('WASM unavailable');
-    return new Promise(resolve => { finishShared = resolve; sharedArrived(); });
-  };
-  const failed = assert.rejects(openPackageReader(url), /WASM unavailable/);
-  const shared = openPackageReader(url);
-  await failed;
-  await sharedReady;
-  assert.equal(workers[0]!.terminated, false);
+  decode = async () => { throw new Error('WASM unavailable'); };
+  await assert.rejects(openPackageReader(url), /WASM unavailable/);
+  assert.equal(workers[0]!.terminated, true);
   decode = async () => rows();
-  const retried = await openPackageReader(url);
-  assert.equal(workers.length, 2, 'a failed initialization must not poison future loads');
-  finishShared(rows());
-  (await shared).dispose();
-  assert.equal(workers[0]!.terminated, true, 'retire a failed worker only after shared reads settle');
-  retried.dispose();
+  (await openPackageReader(url)).dispose();
+  assert.equal(workers.length, 2, 'failed initialization allows a fresh retry');
 
   let arrived!: () => void;
   const pending = new Promise<void>(resolve => { arrived = resolve; });
@@ -86,6 +73,21 @@ test('reuses the package worker and retries failures without interrupting shared
   assert.ok(workers.every(worker => worker.terminated), 'unload releases the idle decoder');
   (await openPackageReader(url)).dispose();
   assert.equal(workers.length, 4, 'reload constructs a fresh decoder');
+  const active = new AbortController(), queued = new AbortController();
+  let started!: () => void;
+  const startedPromise = new Promise<void>(resolve => { started = resolve; });
+  decode = async () => { started(); return new Promise(() => {}); };
+  const cancelledActive = assert.rejects(openPackageReader(url, active.signal), { name: 'AbortError' });
+  await startedPromise;
+  const cancelledQueued = assert.rejects(openPackageReader(url, queued.signal), { name: 'AbortError' });
+  const healthy = openPackageReader(url);
+  queued.abort();
+  decode = async () => rows();
+  active.abort();
+  await Promise.all([cancelledActive, cancelledQueued]);
+  (await healthy).dispose();
+  assert.equal(workers[3]!.terminated, true, 'active cancellation terminates CPU work');
+  assert.equal(workers.length, 5, 'queued live work gets one replacement decoder');
   const controller = new AbortController();
   let resolveFetch!: (response: Response) => void;
   fetch.mock.mockImplementation(() => new Promise<Response>(resolve => { resolveFetch = resolve; }));
@@ -93,5 +95,5 @@ test('reuses the package worker and retries failures without interrupting shared
   controller.abort(); releasePackageDecoder();
   resolveFetch(new Response(bytes));
   await obsolete;
-  assert.equal(workers.length, 4, 'a stale completed fetch cannot restart a decoder after unload');
+  assert.equal(workers.length, 5, 'a stale completed fetch cannot restart a decoder after unload');
 });

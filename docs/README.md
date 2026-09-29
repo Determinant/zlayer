@@ -45,7 +45,8 @@ The same engineering and feature contracts apply to human and AI contributors.
 - [Product brief](product/brief.md): user needs, experience principles, scope,
   non-goals and performance budgets; includes planned capabilities.
 - [Roadmap](product/roadmap.md): implemented baseline, remaining work and acceptance criteria.
-- [Color-system plan](product/color-system-plan.md): proposed palette and staged migration.
+- [Appearance and colors](features/shared-ui.md#appearance-and-colors): implemented light/dark derivation and settings.
+- [Color-system plan](product/color-system-plan.md): original redesign proposal and remaining migration/audit work.
 
 ## Development
 

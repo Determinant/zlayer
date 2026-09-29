@@ -341,6 +341,12 @@ test('Test below Calibrate animates GS, ALT and HSI without sensors and stops cl
   const distance = await demo.locator('.ahrs-hsi-readings dd').nth(1).textContent();
   await expect(demo.getByTestId('hsi-invalid')).toHaveCount(0);
   await expect(demo.getByTestId('hsi-heading')).toHaveCount(1);
+  // The dial keeps its dark face in both themes, including currentColor ink.
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    await expect(demo.getByTestId('hsi-deviation')).toHaveCSS('stroke', 'rgb(240, 132, 219)');
+    await expect(demo.getByTestId('hsi-course').locator('path').nth(1)).toHaveCSS('fill', 'rgb(240, 132, 219)');
+  }
   await page.clock.runFor(4500);
   expect(await reading('speed')).toBeGreaterThan(100);
   expect(await reading('altitude')).toBeGreaterThan(10000);

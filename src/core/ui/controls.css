@@ -2,18 +2,18 @@
  * so feature layout rules work in both eager and lazy stylesheets. */
 .ui-button {
   min-width: var(--touch-target); max-width: 100%; min-height: max(44px, var(--touch-target));
-  padding: 8px 12px; border: 1px solid #46606e; border-radius: 6px;
-  color: #e5edf1; background: #1b3242; font: inherit; font-size: 14px; line-height: 1.4;
+  padding: 8px 12px; border: 1px solid var(--border-control); border-radius: 6px;
+  color: var(--text-control); background: var(--surface-control); font: inherit; font-size: 14px; line-height: 1.4;
   cursor: pointer;
 }
 .ui-button--quiet { border-color: transparent; background: transparent; }
-.ui-button:where(:hover:not(:disabled)) { background: #274556; }
-.ui-button--primary { color: #0d292e; background: #8ad7cb; border-color: #8ad7cb; font-weight: 700; }
-.ui-button--primary:where(:hover:not(:disabled)) { background: #a3e6db; }
-.ui-button--danger { color: #ffd0ca; background: #46292d; border-color: #a45656; }
-.ui-button--danger:where(:hover:not(:disabled)) { background: #60343b; }
+.ui-button:where(:hover:not(:disabled)) { background: var(--surface-hover); }
+.ui-button--primary { color: var(--text-on-accent); background: var(--surface-action); border-color: var(--border-8ad7cb); font-weight: 700; }
+.ui-button--primary:where(:hover:not(:disabled)) { background: var(--fixed-a3e6db); }
+.ui-button--danger { color: var(--text-ffd0ca); background: var(--surface-46292d); border-color: var(--border-a45656); }
+.ui-button--danger:where(:hover:not(:disabled)) { background: var(--surface-60343b); }
 .ui-button:where([aria-pressed="true"], [aria-selected="true"]) {
-  color: #d9fff5; background: #214b47; border-color: #4c8e83;
+  color: var(--text-d9fff5); background: var(--surface-selected); border-color: var(--border-4c8e83);
 }
 .ui-button--compact { min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: 12px; }
 /* Explicit opt-in for dense toolboxes, including touch screens. */
@@ -29,9 +29,9 @@
 /* For text, number, search, select and textarea; ranges, checkboxes and radio
  * inputs retain their native or feature-specific presentation. */
 .ui-input {
-  color-scheme: dark;
+  color-scheme: inherit;
   min-width: 0; width: 100%; min-height: max(44px, var(--touch-target)); padding: 10px;
-  border: 1px solid #46606e; border-radius: 6px; color: #e5edf1; background: #091725;
+  border: 1px solid var(--border-control); border-radius: 6px; color: var(--text-control); background: var(--surface-dialog);
   font: inherit; font-size: max(16px, var(--input-font-size)); line-height: 1.4;
 }
 .ui-input--compact {
@@ -42,11 +42,11 @@
 select.ui-input { contain: paint; }
 textarea.ui-input { resize: vertical; }
 .ui-button:where(:focus-visible), .ui-input:where(:focus-visible), .ui-switch:where(:focus-visible) {
-  outline: 2px solid #85e6db; outline-offset: 2px;
+  outline: 2px solid var(--focus-ring); outline-offset: 2px;
 }
 .ui-button:where(:disabled), .ui-input:where(:disabled), .ui-switch:where(:disabled) { opacity: .45; cursor: default; }
 
-.ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: rgba(255, 255, 255, 0.06); }
+.ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: var(--overlay-ffffff-a60); }
 .ui-tabs > .ui-button { flex: 1; }
 .ui-tabs--scrollable { flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; border-inline: 2px solid transparent; }
 .ui-tabs--scrollable > .ui-button { flex: 0 0 auto; white-space: nowrap; }
@@ -55,11 +55,11 @@ textarea.ui-input { resize: vertical; }
 
 .ui-progress {
   display: block; width: 100%; height: 5px; flex-shrink: 0; overflow: hidden;
-  appearance: none; border: 0; border-radius: 3px; background: #203448; accent-color: #61d6c5;
+  appearance: none; border: 0; border-radius: 3px; background: var(--surface-203448); accent-color: var(--accent-61d6c5);
 }
-.ui-progress::-webkit-progress-bar { background: #203448; }
-.ui-progress::-webkit-progress-value { background: #61d6c5; border-radius: 3px; }
-.ui-progress::-moz-progress-bar { background: #61d6c5; border-radius: 3px; }
+.ui-progress::-webkit-progress-bar { background: var(--surface-203448); }
+.ui-progress::-webkit-progress-value { background: var(--text-action); border-radius: 3px; }
+.ui-progress::-moz-progress-bar { background: var(--text-action); border-radius: 3px; }
 
 /* Standalone switch button for compact headings; the indicator stays small
  * while the shared touch minimum enlarges the hit target. */
@@ -69,7 +69,7 @@ textarea.ui-input { resize: vertical; }
   padding: 4px; border: 0; border-radius: 6px; background: transparent;
   color: inherit; font: inherit; vertical-align: middle; cursor: pointer;
 }
-.ui-switch:where(:hover:not(:disabled)) { background: rgba(255, 255, 255, 0.06); }
+.ui-switch:where(:hover:not(:disabled)) { background: var(--overlay-ffffff-a60); }
 
 /* Shared switch indicator; the native button owns its accessible state. */
 .switch {
@@ -80,7 +80,7 @@ textarea.ui-input { resize: vertical; }
   width: var(--switch-width);
   height: var(--switch-height);
   border-radius: 999px;
-  background: #213247;
+  background: var(--surface-213247);
   transition: background 150ms ease;
 }
 
@@ -91,15 +91,15 @@ textarea.ui-input { resize: vertical; }
   width: var(--switch-thumb-size);
   height: var(--switch-thumb-size);
   border-radius: 50%;
-  background: #71879a;
+  background: var(--surface-71879a);
   transition: transform 150ms ease, background 150ms ease;
 }
 
 [role='switch'][aria-checked='true'] .switch {
-  background: rgba(97, 214, 197, 0.28);
+  background: var(--overlay-61d6c5-a280);
 }
 
 [role='switch'][aria-checked='true'] .switch i {
-  background: #61d6c5;
+  background: var(--text-action);
   transform: translateX(calc(var(--switch-width) - var(--switch-thumb-size) - 6px));
 }

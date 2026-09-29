@@ -159,8 +159,10 @@ npx playwright install --with-deps chromium firefox webkit
 npm run verify:full
 ```
 
-Suites run sequentially because tests mutate the fixture server's state. A failed
-suite does not skip subsequent suites, and any failure makes the command fail.
+Suites run sequentially because tests mutate the fixture server's state. Full local
+verification builds one fresh fixture server, resets its state before each browser
+suite, and closes it afterward. A failed suite does not skip subsequent suites,
+and any failure makes the command fail.
 Browser artifacts are kept separately under `test-results/local/browser`,
 `test-results/local/graphics` and `test-results/local/firefox`. On Linux, Firefox
 runs headed, using `xvfb-run -a` if `DISPLAY` is unset; install Xvfb when running
@@ -244,6 +246,25 @@ WebKit and 2× WebKit; see [graphics setup](../verification/graphics-compatibili
 for dependencies and Linux Firefox's display requirement. Both complete suites
 remain part of full local CI. Device performance and memory benchmarks run locally;
 installed-device verification remains separate release work.
+
+To run several focused suites without paying for the production fixture build and
+native weather preparation each time, use `npm run test:browser:session --` and
+separate Playwright argument groups with `--next`. The session runner owns a fresh
+server, resets its shared fixtures before each group, runs groups sequentially,
+and closes the server on completion or interruption. It fails if the fixture port
+is already occupied; it never attaches to a pre-existing server. For example:
+
+```bash
+npm run test:browser:session -- test/e2e/responsive.spec.ts --grep 'recommendations and settings' \
+  --next --config=playwright.graphics.config.ts --project=webkit \
+  test/e2e/plate-fullscreen.spec.ts --grep 'fullscreen keeps the loaded plate'
+```
+
+On Linux without `DISPLAY`, pass `--headed` in an affected group to have the runner
+use Xvfb for that group. The standard single-suite commands still prepare their own
+fixture server. The graphics matrix runs explicit density/input scenarios once per
+engine; WebKit's 2× project skips `@explicit-density` cases already exercised by
+its regular WebKit project. Other cases continue at both densities.
 
 For a complete hosted run, select **Actions → Verify → Run workflow**, choose
 the branch and leave **full** enabled (the default), or run:

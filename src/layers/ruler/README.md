@@ -38,7 +38,10 @@ shell places the control. The shared gesture coordinator gates feature selection
 route editing and context actions while the ruler is active. Only grip buttons
 claim their drag; canvas listeners observe taps and leave native map navigation
 available. A second contact, cancellation, lost capture, window blur, or an
-outside release cancels the preview. Cleanup restores double-click zoom.
+outside release cancels the preview. Grip movement publishes the latest position
+once per display frame. Pointer release commits its final position immediately;
+cancellation, session replacement and cleanup discard pending moves so they cannot
+restore a cancelled preview. Cleanup restores double-click zoom.
 
 `test/ruler.test.ts` checks geometry, magnetic reference, state transitions and
 grip placement. `test/e2e/ruler.spec.ts` exercises real map mouse/touch input,

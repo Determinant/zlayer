@@ -55,6 +55,10 @@ runway choice; the structured saved route does. Pasted SID/STAR filing strings
 continue to use NASR topology, and the SID picker offers **Browse filing route
 previews** for that older representation. Coded selections require the picker;
 they are never inferred from similarly named NASR procedures.
+Filing shorthand binds to the airport immediately before a SID or after a STAR,
+including intermediate stops. This same rule applies to published TEC children
+and their one-level expansion in the editor. Recognized SIDs become airport
+attachments while retaining each resolved point's identification choice.
 
 ## Source coverage and limits
 

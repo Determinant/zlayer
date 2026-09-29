@@ -1,3 +1,4 @@
+@import '../theme/tokens.css';
 @import './viewport.css';
 @import './controls.css';
 @import './detail-panel.css';
@@ -5,7 +6,6 @@
 :root {
   --font-ui: "B612", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --text-muted: #91a9bb;
   font-family: var(--font-ui);
   font-size: 16px;
   font-synthesis: none;
@@ -39,7 +39,7 @@ textarea::placeholder {
 
 /* Apply the shared appearance to every scroller, including nested plugin UI. */
 :where(*) {
-  scrollbar-color: rgba(119, 151, 172, 0.4) transparent;
+  scrollbar-color: var(--border-7797ac-a400) transparent;
   scrollbar-width: thin;
 }
 
@@ -53,14 +53,14 @@ textarea::placeholder {
 
 /* Cached responses can finish before a placeholder needs to become visible. */
 .loading-placeholder { animation: content-reveal 120ms ease-out 120ms backwards; }
-.loading-label { display: block; margin-bottom: 12px; color: #91acbd; font-size: 12px; }
+.loading-label { display: block; margin-bottom: 12px; color: var(--text-91acbd); font-size: 12px; }
 .loading-placeholder-rows { display: grid; gap: 10px; }
 .loading-placeholder-row {
   display: grid; align-content: center; gap: 10px; min-height: 58px; padding: 14px;
-  border: 1px solid #243b4c; border-radius: 9px; background: #0e2231;
+  border: 1px solid var(--border-243b4c); border-radius: 9px; background: var(--surface-0e2231);
 }
 .loading-placeholder-row > span {
-  display: block; width: 68%; height: 10px; border-radius: 4px; background: #294052;
+  display: block; width: 68%; height: 10px; border-radius: 4px; background: var(--surface-294052);
   animation: loading-pulse 1.6s ease-in-out infinite;
 }
 .loading-placeholder-row > span + span { width: 42%; height: 8px; }
@@ -78,3 +78,6 @@ textarea::placeholder {
     animation-iteration-count: 1 !important;
   }
 }
+
+:root { color-scheme: dark; }
+:root[data-theme='light'] { color-scheme: light; }

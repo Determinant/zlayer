@@ -33,10 +33,10 @@
   min-height: 0;
   overflow: hidden;
   padding: 12px;
-  border: 1px solid rgba(151, 199, 228, 0.19);
+  border: 1px solid var(--border-97c7e4-a190);
   border-radius: 9px 0 0 9px;
-  background: rgba(8, 20, 35, 0.95);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48);
+  background: var(--surface-081423-a950);
+  box-shadow: 0 24px 60px var(--shadow-000000-a480);
   backdrop-filter: blur(18px);
   transform: translateX(calc(100% + var(--detail-edge-gap)));
 }
@@ -93,16 +93,16 @@
   gap: 1px;
   overflow: hidden;
   margin: 0 0 14px;
-  border: 1px solid rgba(151, 199, 228, 0.1);
+  border: 1px solid var(--border-97c7e4-a100);
   border-radius: 10px;
-  background: rgba(151, 199, 228, 0.08);
+  background: var(--overlay-97c7e4-a80);
 }
 
 .feature-card dl div {
   display: grid;
   gap: 2px;
   padding: 8px 10px;
-  background: #0c1a2b;
+  background: var(--surface-panel);
 }
 
 .feature-card dl div.is-wide {
@@ -118,7 +118,7 @@
 
 .feature-card dd {
   margin: 0;
-  color: #d6e7f1;
+  color: var(--text-d6e7f1);
   font-size: 12px;
   overflow-wrap: anywhere;
 }

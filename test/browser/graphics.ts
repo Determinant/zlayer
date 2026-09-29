@@ -1,6 +1,7 @@
 // Production renderers with deterministic, asymmetric fixtures and pixel probes.
 // This entry is included only in the browser-test build.
-import { Map, setWorkerUrl, addProtocol, removeProtocol, type GeoJSONSource } from 'maplibre-gl';
+import { setWorkerUrl, addProtocol, removeProtocol, type GeoJSONSource } from 'maplibre-gl';
+import { Map } from '../../src/core/map/map';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { CatalogResponse, FeatureCollectionResponse } from '@zlayer/contracts';
 import { createRouteResolver } from '@zlayer/domain';
@@ -169,15 +170,21 @@ function mapPixels() {
 window.graphicsFixture = { bitmapTransfers, chartPixels, rasterPixels, iconPixels, mapPixels, errors,
   camera: (bearing: number) => map.jumpTo({ bearing }),
   restoreContext: () => {
-    const extension = map.getCanvas().getContext('webgl2')!.getExtension('WEBGL_lose_context');
+    const canvas = map.getCanvas();
+    const before = [canvas.width, canvas.height];
+    const extension = canvas.getContext('webgl2')!.getExtension('WEBGL_lose_context');
     if (!extension) throw new Error('WEBGL_lose_context is unavailable');
     extension.loseContext();
+    // A queued container resize can run before the asynchronous context-lost
+    // event. Exercise that ordering explicitly instead of relying on timing.
+    map.resize();
     setTimeout(() => extension.restoreContext(), 100);
+    return { before, during: [canvas.width, canvas.height] };
   },
 };
 declare global { interface Window { graphicsFixture: {
   bitmapTransfers: typeof bitmapTransfers;
   chartPixels: typeof chartPixels; rasterPixels: typeof rasterPixels;
   iconPixels: typeof iconPixels; mapPixels: typeof mapPixels; errors: string[];
-  camera: (bearing: number) => void; restoreContext: () => void;
+  camera: (bearing: number) => void; restoreContext: () => { before: number[]; during: number[] };
 } } }

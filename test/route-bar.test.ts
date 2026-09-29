@@ -51,7 +51,7 @@ test('GPS tokens resolve while named tokens stay pending until navigation loadin
 });
 
 test('TEC stays one route token with published restrictions in expandable details', () => {
-  const plan = { ...emptyRoutePlan('KSNA CSTQ1 KBUR'), distanceNm: 80, tecRoutes: [{ tokenIndex: 1, route: {
+  const plan = { ...emptyRoutePlan('KSNA CSTQ1 KBUR'), distanceNm: 80, tecRoutes: [{ tokenIndex: 1, children: [], route: {
     id: 'preferred-route:SNA:BUR:TEC:1', originId: 'SNA', destinationId: 'BUR', routeType: 'TEC', routeNumber: 1,
     designator: 'CSTQ1', route: 'SLI V23 POPPR SMO SILEX', altitude: 'PQ40', segments: [],
   } }] };

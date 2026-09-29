@@ -38,6 +38,8 @@ adding more data sources. Current capabilities and planned work are listed separ
   eviction; staged updates activate only after verification. Latest date discovery
   and explicit browsing dates stay independent of those saved selections.
 - Protected browsing-cache expiry, temporary chart/PDF removal and safe shell cleanup.
+- [Light/dark appearance](../features/shared-ui.md#appearance-and-colors) in General
+  settings, with derived light colors and compatibility-preserving dark tokens.
 - Coordinated PWA update prompts, complete-shell installation and installed-app Back
   navigation that unwinds active workspace controls.
 - [Full local reset](../features/offline-storage.md#full-local-reset) with explicit confirmation,
@@ -53,8 +55,9 @@ adding more data sources. Current capabilities and planned work are listed separ
    WebKit offline-lifecycle coverage; and device timing/memory baselines. Keep each
    release's live host checks separate from local verification; a passing build does
    not publish it.
-2. Implement the [shared color-system plan](color-system-plan.md) and verify rendered
-   contrast, focus, status and navigation/weather meanings across supported layouts.
+2. Review the remaining [color-system proposal](color-system-plan.md) separately
+   from the implemented light/dark modes, and complete rendered contrast, focus,
+   status and navigation/weather checks across supported layouts.
 3. Add shareable route/view URLs and explicit offline-region cycle migration without
    replacing a working saved download until its new edition is verified. Regions
    from different cycles can already be saved separately. Immutable publisher metadata

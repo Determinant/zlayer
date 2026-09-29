@@ -15,6 +15,21 @@ export function routeIdentificationKey(point: RouteWaypoint): string {
     ...(point.identificationOccurrence ? [point.identificationOccurrence] : [])]);
 }
 
+/** Re-key descriptions when resolved occurrences move into one new draft entry.
+ * Count undescribed points too, so repeated visits retain their own choices. */
+export function routePointIdentifications(points: readonly RouteWaypoint[]): RoutePointIdentification[] {
+  const occurrences = new Map<string, number>();
+  return points.flatMap(point => {
+    const { identificationOccurrence: _old, ...base } = point;
+    const key = routeIdentificationKey(base);
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    return point.identification ? [{
+      key: routeIdentificationKey({ ...base, identificationOccurrence: occurrence }), form: point.identification,
+    }] : [];
+  });
+}
+
 export function routePointLabel(point: RouteWaypoint): string {
   const form = point.identification;
   if (form?.kind === 'coordinate') return featureIdent(routeCoordinateFeature(point.feature.geometry.coordinates));

@@ -2,7 +2,9 @@
 
 [Documentation](../README.md) / Features
 
-The gear button opens **Settings**. Regions are U.S. states and territories.
+The gear button opens **Settings**. Its **Offline** tab, immediately after General,
+contains offline regions and app storage controls. General retains the FAA data
+cycle selection for browsing and new downloads. Regions are U.S. states and territories.
 Every new region selection includes VFR and IFR low charts at every native zoom,
 airport/fix/NAVAID/waypoint and airway data, and all applicable plates and Chart
 Supplements. There is no charts-only or omit-books option. Complete books can be
@@ -150,7 +152,7 @@ toolbox, remain available for offline download after reload, and are removed by
 the full local-data reset. Recording metadata and each chunk commit atomically.
 See [AHRS recordings](../../src/layers/ahrs/recording.md) for format and retention limits.
 
-Saving selection intent precedes transfer. Reopening Settings checks the actual
+Saving selection intent precedes transfer. Opening the Offline tab checks the actual
 cache entries and their verification receipts; a stored percentage is not proof
 that the browser retained the bytes. Reference documents must also pass their
 ordinary loaders' schema, cycle and manifest-count guards. Selection records retain
@@ -160,6 +162,15 @@ are validated once per verification pass, and a later check revalidates them.
 If a region's storage check throws, Settings keeps that region visible with a retry
 action and continues checking the other selections. A check does not imply that
 the selected FAA cycle is current.
+
+Storage estimates and verification do not gate the entire Offline settings page.
+The page exposes their checking status while keeping download/removal controls
+disabled during verification; it does not infer completion from stored progress.
+Regional planning starts on the first Offline visit. Chart-only plans are reused
+when plate indexes arrive, and book planning yields between regions so national
+index scans do not form one long React render. New downloads stay disabled until
+their complete plan is ready. These changes avoid known UI blocking paths; device
+storage latency and the cost of checking a large saved inventory still vary.
 
 Chart reads validate their cached content before use. PDF reads check the response type,
 PDF header and actual length, and reuse the saved SHA-256 receipt when it matches
@@ -228,7 +239,8 @@ of file receipts checked, then confirms reference data and commits the selection
 It checks offline availability without downloading files or hashing their bytes again.
 A failed final check reports an actionable error instead of silently showing Paused.
 Pausing skips the remaining check. Retry skips verified files;
-an interrupted file restarts as a whole file. Closing Settings does not cancel work.
+an interrupted file restarts as a whole file. Switching Settings tabs or closing
+Settings does not cancel work.
 Temporary network failures, transfer timeouts and transient HTTP errors retry the
 affected file after 1, 2 and 4 seconds before showing Retry. Each attempt rechecks
 the saved receipt, and Pause cancels the wait. Storage, permission and integrity
@@ -331,11 +343,12 @@ usable when another feed, an uncached chart, or a weather request fails. Warning
 non-blocking. Offline still needs a successful first online installation and saved
 data; opening an entirely new area cannot manufacture coverage.
 
-When the browser reports offline, the offline banner covers expected map/chart fetch
-failures. If connectivity detection still reports online, **Dismiss warning** silences
-subsequent fetch warnings across tiles and chart archives until the app is reloaded,
-including after reconnecting. Storage, integrity and rendering failures remain visible
-and can be dismissed individually.
+When the browser reports offline, the offline notice covers expected map/chart fetch
+failures. Tap or click its body to dismiss it. While online, repeated tile/archive
+fetch failures share one notice; dismissing it silences that occurrence until it
+clears (including on disconnect). New failures after recovery can warn again.
+Dismissed active notices remain in **Settings → Notifications**, including storage,
+integrity and renderer errors. See the [notification contract](shared-ui.md#notifications).
 
 Regional saves include published elevation terrain; they do **not** bulk-download
 the background basemap or promise current weather.
@@ -462,7 +475,7 @@ Route-corridor downloads and automatic cycle migration remain separate future wo
 
 ### Full local reset
 
-Settings → **Advanced** is collapsed each time Settings opens. Type `DELETE` to enable
+Settings → **General → Advanced** is collapsed each time Settings opens. Type `DELETE` to enable
 **Delete all local data**. This removes every ZLayer cache (including old app shells),
 the offline database (including region/catalog records and AHRS recordings), weather,
 route draft, saved map view, panel state, first-visit acknowledgement and

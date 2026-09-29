@@ -10,7 +10,8 @@ import { routeDraftFromText } from '@zlayer/domain';
 
 function setup(t: test.TestContext) {
   const values = new Map<string, string>();
-  const storage = { getItem: (key: string) => values.get(key) ?? null,
+  const storage = { get length() { return values.size; }, key: (index: number) => [...values.keys()][index] ?? null,
+    removeItem: (key: string) => { values.delete(key); }, getItem: (key: string) => values.get(key) ?? null,
     setItem: (key: string, value: string) => { values.set(key, value); } };
   const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage: storage } });
@@ -130,4 +131,27 @@ test('named saves read legacy data without writing outside the mutation lock; fa
   values.set(ROUTE_STASH_KEY, '{broken');
   assert.throws(() => changeRouteStash(() => [], storage), /left untouched/);
   assert.equal(values.get(ROUTE_STASH_KEY), '{broken');
+});
+
+
+test('view retention bounds identities, preserves other records and cannot resurrect evicted legacy state', t => {
+  const { values } = setup(t);
+  const scope = createPluginStorage('bounded', name => `zlayer-ui:${name}`,
+    { uiRetention: [{ prefix: 'view:', limit: 2 }] });
+  values.set('zlayer-ui:view:old', '{"version":1,"value":true}');
+  values.set('zlayer-plugin:other:view:old', '{"version":1,"value":true}');
+  scope.ui('selection', false, isBoolean).write(true);
+  scope.ui('view:a', false, isBoolean).write(true);
+  scope.ui('view:b', false, isBoolean).write(true);
+  assert.equal(values.has('zlayer-ui:view:old'), false);
+  assert.equal(scope.ui('view:old', false, isBoolean).read(), false);
+  assert.equal(scope.ui('selection', false, isBoolean).read(), true);
+  assert.equal(values.has('zlayer-plugin:other:view:old'), true);
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 1000 });
+  scope.ui('view:a', false, isBoolean).write(false);
+  scope.ui('view:c', false, isBoolean).write(true);
+  assert.equal(values.has('zlayer-plugin:bounded:view:b'), false, 'least recently written identity is removed');
+  assert.equal(scope.ui('view:a', true, isBoolean).read(), false);
+  assert.equal(scope.ui('view:c', false, isBoolean).read(), true);
+  assert.equal([...values.keys()].filter(key => key.startsWith('zlayer-plugin:bounded:view:')).length, 2);
 });

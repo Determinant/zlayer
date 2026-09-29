@@ -18,7 +18,7 @@
   flex: 0 1 auto; min-width: 0; max-height: calc(100cqh - var(--map-panel-gap) - var(--edge-bottom-gap) - var(--edge-tool-offset, 0px));
   overflow-y: auto; overscroll-behavior: contain;
   scrollbar-gutter: auto;
-  border-radius: 0 9px 9px 0; background: #07101d;
+  border-radius: 0 9px 9px 0; background: var(--surface-07101d);
 }
 .map-edge-charts .map-edge-content, .map-edge-gps .map-edge-content { max-width: 320px; }
 .map-edge-content > .map-badge,

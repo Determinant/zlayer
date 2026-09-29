@@ -56,8 +56,30 @@ export function savedRoute(name: string, draft: RouteDraft): SavedRoute {
 
 /** Retain pins and procedure attachments on unchanged entries when editing filing text. */
 export function editSavedDraft(draft: RouteDraft, text: string): RouteDraft {
-  const tokens = routeTokensFromText(text), old = draft.entries;
+  let tokens = routeTokensFromText(text), old = draft.entries;
   if (!tokens.length) throw new Error('Enter at least one route waypoint.');
+  let prefix = 0, suffix = 0;
+  while (prefix < old.length && prefix < tokens.length && old[prefix]!.text === tokens[prefix]) prefix++;
+  if (prefix === old.length && prefix === tokens.length) return draft;
+  const counts = (values: string[]) => {
+    const result = new Map<string, number>();
+    for (const value of values) result.set(value, (result.get(value) ?? 0) + 1);
+    return result;
+  };
+  const oldCounts = counts(old.slice(prefix).map(entry => entry.text)), newCounts = counts(tokens.slice(prefix));
+  // Only anchor unambiguous suffixes. Repeated waypoints must retain the
+  // matcher's original tie-breaking so attachments do not move to another visit.
+  while (suffix < old.length - prefix && suffix < tokens.length - prefix &&
+    old[old.length - suffix - 1]!.text === tokens[tokens.length - suffix - 1] &&
+    oldCounts.get(tokens[tokens.length - suffix - 1]!) === 1 && newCounts.get(tokens[tokens.length - suffix - 1]!) === 1) suffix++;
+  const head = old.slice(0, prefix), tail = suffix ? old.slice(-suffix) : [];
+  old = old.slice(prefix, old.length - suffix);
+  tokens = tokens.slice(prefix, tokens.length - suffix);
+  // Bound both synchronous work and table memory (4 MiB). Never discard saved
+  // pins/attachments to silently accept an edit beyond this matching budget.
+  if ((old.length + 1) * (tokens.length + 1) > 1_048_576) {
+    throw new Error('Too many waypoints changed at once. Edit the route in smaller sections.');
+  }
   const matches = Array.from({ length: old.length + 1 }, () => new Uint32Array(tokens.length + 1));
   for (let i = old.length - 1; i >= 0; i--) for (let j = tokens.length - 1; j >= 0; j--) {
     matches[i]![j] = old[i]!.text === tokens[j] ? 1 + matches[i + 1]![j + 1]!
@@ -70,5 +92,5 @@ export function editSavedDraft(draft: RouteDraft, text: string): RouteDraft {
     else if (i < old.length && matches[i + 1]![j]! > matches[i]![j + 1]!) i++;
     else entries.push(createRouteEntry(tokens[j++]!));
   }
-  return { entries };
+  return { entries: head.concat(entries, tail) };
 }

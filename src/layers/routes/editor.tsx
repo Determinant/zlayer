@@ -1,5 +1,6 @@
 import { RouteEntry, RouteToken } from './editor-tokens';
 import { routeEntryComposition } from './composition';
+import { expandRouteEntry, routeEntryExpansion } from './expansion';
 import { RouteCompositionPanel } from './composition-panel';
 import { RadialStationPicker } from './identification-picker';
 import { parseRadialDefinition } from '@zlayer/domain';
@@ -111,6 +112,11 @@ export function RouteEditor({
   const menuComposition = menuEntry && routeEntryComposition(plan, menuEntry.id);
   const activeComposition = useMemo(() => compositionEntry && plan.entries.includes(compositionEntry)
     ? routeEntryComposition(plan, compositionEntry.id) : undefined, [plan, compositionEntry]);
+  const compositionExpansion = useMemo(() => compositionEntry && activeComposition
+    ? routeEntryExpansion(plan, compositionEntry.id) : undefined, [plan, compositionEntry, activeComposition]);
+  const expansionProblem = compositionExpansion ? undefined : activeComposition?.procedures.length
+    ? 'Procedures cannot be expanded into ordinary waypoints without losing their published paths and restrictions.'
+    : 'Expansion requires a complete resolved route item. Review the unresolved sections above.';
   useEffect(() => {
     if (compositionEntry && !activeComposition) setCompositionEntry(undefined);
   }, [compositionEntry, activeComposition]);
@@ -195,8 +201,10 @@ export function RouteEditor({
     setInlineEdit({ entryId, mode, originalText: current.text });
   };
   const focusToken = (entryId: string) => {
-    [...editorRef.current?.querySelectorAll<HTMLElement>('[data-route-entry]') ?? []]
-      .find(element => element.dataset.routeEntry === entryId)?.querySelector<HTMLButtonElement>('.route-token')?.focus();
+    const token = [...editorRef.current?.querySelectorAll<HTMLElement>('[data-route-entry]') ?? []]
+      .find(element => element.dataset.routeEntry === entryId)?.querySelector<HTMLButtonElement>('.route-token');
+    token?.focus();
+    return !!token;
   };
   const chooseProcedure = (kind: 'approach' | 'departure' | 'arrival', entry: DraftEntry, point: RouteWaypoint) => {
     setMenu(undefined);
@@ -416,6 +424,17 @@ export function RouteEditor({
         </div>
       )}
       {compositionEntry && activeComposition && <RouteCompositionPanel ident={compositionEntry.text} composition={activeComposition}
+        expansionProblem={expansionProblem}
+        onExpand={compositionExpansion ? () => {
+          const id = compositionEntry.id;
+          const previous = plan.entries[plan.entries.indexOf(compositionEntry) - 1];
+          scrollTargetRef.current = id;
+          onEditDraft(current => expandRouteEntry(current, plan, id));
+          setCompositionEntry(undefined);
+          requestAnimationFrame(() => {
+            if (!focusToken(id) && !(previous && focusToken(previous.id))) inputRef.current?.focus();
+          });
+        } : undefined}
         onClose={(restoreFocus = true) => {
           setCompositionEntry(undefined);
           if (restoreFocus) requestAnimationFrame(() => focusToken(compositionEntry.id));

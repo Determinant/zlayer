@@ -58,8 +58,37 @@ const california = (page: Page, revision = '2026-09-03') =>
 async function openSettings(page: Page) {
   await page.goto('/');
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await expect(california(page).getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
 }
+
+test('Offline follows General, keeps transfers running across tabs, and restores its selection', async ({ page }) => {
+  await holdBook(page);
+  await page.goto('/');
+  await page.getByLabel('Settings and offline downloads').click();
+  const tabs = page.getByRole('tablist', { name: 'Settings sections' });
+  await expect(tabs.getByRole('tab')).toHaveText(['General', 'Offline', 'Plugins', 'Notifications']);
+  await expect(page.getByRole('group', { name: 'Appearance', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Offline regions', exact: true })).toBeHidden();
+  await tabs.getByRole('tab', { name: 'Offline', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'App storage', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeHidden();
+  const row = california(page);
+  await row.getByRole('button', { name: 'Download', exact: true }).click();
+  await page.waitForFunction(() => (window as DownloadWindow).regionDownloadFixture.blocked);
+  await tabs.getByRole('tab', { name: 'General', exact: true }).click();
+  await page.evaluate(() => (window as DownloadWindow).regionDownloadFixture.release());
+  // Completion while the panel is hidden proves that switching tabs preserves the transfer.
+  await expect(row.locator('.offline-tag')).toHaveText('Saved');
+  await tabs.getByRole('tab', { name: 'Offline', exact: true }).click();
+  await expect(row.getByRole('button', { name: 'Verify / update', exact: true })).toBeEnabled();
+  await page.getByLabel('Close settings').click();
+  await page.getByLabel('Settings and offline downloads').click();
+  await expect(tabs.getByRole('tab', { name: 'Offline', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.reload();
+  await expect(tabs.getByRole('tab', { name: 'Offline', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(row.locator('.offline-tag')).toHaveText('Saved');
+});
 
 for (const [width, height] of [[320, 568], [393, 852], [1280, 900]] as const) {
   test(`download progress and saved controls stay in the selected row at ${width}×${height}`, async ({ page }, testInfo) => {
@@ -121,6 +150,7 @@ test('pause, resume and removal remain available in the original region row', as
   await expect(row.locator('.offline-tag')).toHaveText('Paused');
   await page.getByLabel('Close settings').click();
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await row.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
@@ -201,6 +231,7 @@ test('a file removal error leaves settings usable and removal can be retried', a
   await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeEnabled();
   await page.getByLabel('Close settings').click();
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(row.getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
@@ -213,7 +244,9 @@ test('my downloads includes saved editions from other cycles and restores its fi
   const current = california(page);
   await current.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(current.locator('.offline-tag')).toHaveText('Saved');
-  await page.getByLabel('FAA data cycle').selectOption('2026-08-06');
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
+  await page.getByRole('combobox', { name: 'FAA data cycle', exact: true }).selectOption('2026-08-06');
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   const older = california(page, '2026-08-06');
   await older.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(older.locator('.offline-tag')).toHaveText('Saved');

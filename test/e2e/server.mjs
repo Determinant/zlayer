@@ -327,7 +327,7 @@ const server = createServer(async (request, response) => {
     response.end(request.method === 'HEAD' ? undefined : body);
   } catch { response.writeHead(404).end(); }
 });
-server.listen(port, '127.0.0.1');
+server.listen(port, '127.0.0.1', () => { process.send?.('ready'); });
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
   server.close();
   server.closeAllConnections();

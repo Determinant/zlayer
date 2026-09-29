@@ -24,9 +24,16 @@ a usable fix. A fresh, accurate position without a ground track still centers th
 aircraft while holding the bearing. Missing track shows **Waiting for GPS track**.
 North-up works without GPS and does not continuously follow position.
 
-Track-up rotation uses an event-driven circular damper and a 1° angular deadband.
+Track-up rotation applies a circular low-pass filter to the combined GPS/sensor
+bearing, with a 1.5-second time constant followed by a 2° angular deadband.
+This map-only filter damps brief heading changes, including AHRS motion, before
+they rotate the whole map; it does not change HSI response. It uses elapsed sample
+time rather than a fixed per-callback gain and takes the short path across north.
+The GPS reference correction separately uses a three-second time constant with
+sensor assistance. Without it, corrections use 1.5 seconds for small errors and
+0.3 seconds for errors above 10°; the final map filter still applies to both.
 Small GPS fluctuations do not rotate the map, even during position following.
-Larger turns settle faster than small corrections. First acquisition and recovery
+Sustained turns still follow, with some display lag. First acquisition and recovery
 seed the bearing directly; north-up remains exactly north. Aircraft track, status
 and projection use the original GPS measurements.
 

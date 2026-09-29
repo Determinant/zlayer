@@ -1,4 +1,4 @@
-import { formatMetarAge } from './format';
+import { formatTimestamp } from '../../../core/format/time';
 
 const CATEGORIES = [
   { id: 'vfr', label: 'VFR' },
@@ -20,7 +20,7 @@ export function FlightCategoryLegend({ observedAt }: FlightCategoryLegendProps) 
           <i />{category.label}
         </span>
       ))}
-      <small>{formatMetarAge(observedAt)}</small>
+      <small>{observedAt ? `METAR · ${formatTimestamp(observedAt)}` : 'METAR'}</small>
     </div>
   );
 }

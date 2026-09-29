@@ -26,8 +26,8 @@ Route text is an import/export format, and token indexes are display positions.
 Resolution builds scoped atoms and expands them into shared points with source
 references, point requirements and explicit incoming connections. Every source
 reference retains the original entry ID and display index. A TEC owns a segment
-with its own airports and published children; SID/STAR expansion reads that scope
-without knowing whether it came from a TEC or the overall route. There is no
+with its own airports and published children; SID/STAR filing expansion uses the
+adjacent airport whether it came from a TEC or the overall route. There is no
 expanded string to reparse or final index-remapping pass.
 
 ```text
@@ -63,6 +63,7 @@ text/import → draft entries → scoped segments → constrained points → res
 | `packages/domain/src/tec-routes.ts` | Local airport-pair matching and scoped published children |
 | `packages/domain/src/preferred-routes.ts` | Published route imports and typed point constraints |
 | `src/layers/routes/draft.ts` | Atomic edits by entry ID |
+| `src/layers/routes/expansion.ts` | One-level TEC/airway expansion in place, preserving adjacent airway junctions |
 | `src/layers/routes/use-controller.ts` | Route state and actions shared by the route bar, map and feature details |
 | `src/layers/routes/draft-storage.ts`, `use-draft.ts` | Shared draft/stash validation, versioned draft codec and React persistence hook |
 | `src/layers/routes/use-plan.ts` | Reference loading, resource identity, partial failures and superseded requests |
@@ -436,6 +437,24 @@ required names in route export. See the [design and validation notes](radial-dis
   come from the current plan without another lookup or route edit. Repeated names
   use the selected entry's identity, and replacing/removing that entry closes its
   details. Escape, Close and installed-app Back dismiss the panel and restore token focus.
+- The composition panel's **Expand** replaces the selected TEC or resolved airway in
+  place by one level. A TEC becomes its immediate published entries, keeping
+  airway and procedure shorthand intact. Each airway can then be expanded separately.
+  Expanding an airway inserts its resolved, pinned waypoints in the flown direction; inferred
+  junctions remain explicit so neighboring airways stay intact. Existing endpoint
+  chips are not duplicated. Unresolved TEC children remain visible after expansion;
+  incomplete airways cannot be expanded. Other entries and their attachments retain
+  their identities, and stale actions cannot rewrite a changed draft.
+  The button remains visible but disabled with an explanation when expansion is
+  unavailable, including procedure paths that cannot be represented by ordinary
+  waypoints. Expansion closes the panel and focuses the first resulting item, or
+  its airport when a SID becomes an attachment.
+  TEC children retain their immediate child index during resolution. On expansion,
+  identification choices are assigned to that child and re-keyed for its own
+  repeated-point occurrences; a description never spreads to another visit.
+  SID attachment transfers those choices to its airport entry as well.
+  Airport aliases keep their resolved airport pin when expansion removes the
+  TEC constraint, so a same-named navaid cannot take over the endpoint.
 - The token menu's **Replace route item** opens a selected inline text field.
   Enter, a delimiter, or leaving the field commits; Escape or blank input cancels.
   Changed text clears only that entry's old feature pin; unchanged text preserves
@@ -465,6 +484,10 @@ required names in route export. See the [design and validation notes](radial-dis
   geometry cannot be dragged as independent tokens. Their detail panel can remove
   an individual displayed point by expanding the affected segment. Explicit airports
   and ordinary connecting legs remain draggable.
+- SID/STAR filing shorthand uses its immediately adjacent airport, including
+  intermediate stops. Expanding a TEC preserves that airport context without
+  flattening the procedure. Wrong-airport and missing-transition diagnostics
+  remain explicit; a later intact departure survives direct-to edits before its stop.
 - Unknown or unavailable points, missing airway segments and procedure
   discontinuities retain their diagnostics. Dotted planning connections bridge known
   points for map and terrain coverage. A missing feature pin never falls back to a
@@ -532,7 +555,9 @@ syntax. The menu does not detect whether ForeFlight is installed.
 **Show NavLog** reveals a compact drawer below the route input without resizing
 the map. The lower bezel collapses the entire drawer, leaving no tab behind;
 reopen it from the Route menu. Closing with the bezel or Escape returns focus
-to the Route button. The drawer follows route edits,
+to the Route button. Closed rows retain their last rendered content and scroll
+position through the closing animation, without recalculating on route edits;
+reopening immediately uses the latest plan. The open drawer follows route edits,
 uses the shared panel scrollbar, and keeps its column headings visible while scrolling.
 Waypoint names share the route chips' type colors: ice blue airports, soft gray fixes,
 lavender navaids, slate NDBs, and amber VFR waypoints. Procedure groups remain green.
@@ -571,7 +596,11 @@ exact coordinates, pinned waypoints, and attached
 SIDs and approaches. Empty names stay hidden. **Manage Routes** opens the **Route Stash**,
 where Load replaces the active draft. Edit changes
 a saved route's name or filing text without changing the active draft; unchanged
-entries retain their pins and procedure attachments. Remove deletes the saved route, and
+entries retain their pins and procedure attachments. Name-only/equivalent-text
+edits reuse the draft. Matching removes an unchanged prefix and an unambiguous
+suffix, then caps the remaining table at 1,048,576 cells (4 MiB). An edit beyond
+that budget asks for smaller edits and leaves the save untouched. Repeated
+waypoints retain the existing occurrence-matching rules. Remove deletes the saved route, and
 Move up / Move down persist the list order with buttons usable by touch and keyboard.
 The search field filters saved names and filing text without regard to case. Each
 space-separated term must match, so an origin and destination can find routes with

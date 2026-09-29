@@ -190,6 +190,7 @@ for (const entity of ['GPS point', 'airport'] as const) {
       await page.goto('/');
       await selectCycle(page, '2026-09-03');
       await page.getByLabel('Settings and offline downloads').click();
+      await page.getByRole('tab', { name: 'Offline', exact: true }).click();
       await page.getByLabel('Find a state or territory').fill('California');
       await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
       await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
