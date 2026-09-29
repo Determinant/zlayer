@@ -778,6 +778,12 @@ test('weather clock sleeps when switched off or hidden and resumes current time 
   t.mock.timers.tick(60000); await flush();
   assert.equal(publications, 0, 'weather off schedules no recurring work');
   controller.configure({ ...input, awcEnabled: true });
+  await flush(); publications = 0;
+  t.mock.timers.tick(60000); await flush();
+  assert.equal(publications, 0, 'the master switch alone needs no recurring clock');
+  input.awcCwa = true;
+  controller.configure({ ...input, awcEnabled: true });
+  await flush();
   const enabledTime = controller.getSnapshot().now;
   for (let i = 0; i < 15; i++) {
     t.mock.timers.tick(1000); controller.configure({ ...input, awcEnabled: true });

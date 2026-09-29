@@ -2,7 +2,11 @@ import type { ApproachFix, PreferredRouteRecord } from '@zlayer/contracts';
 import type { RouteDeparture, RouteEntry } from './route-model.js';
 
 /** The user's entry remains the source even inside nested published expansions. */
-export type RouteSource = { entryId: string; tokenIndex: number; token: string };
+export type RouteSource = {
+  entryId: string; tokenIndex: number; token: string;
+  /** Immediate child within a TEC, retained through nested expansion. */
+  tecChildIndex?: number;
+};
 export type RouteOwner = { kind: 'airway' | 'procedure' | 'tec' | 'approach'; source: RouteSource; ident: string };
 export type RouteScope = { departure?: RouteAtom; destination?: RouteAtom };
 export type RouteAtom = {

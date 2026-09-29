@@ -3,6 +3,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 async function savedRegion(page: Page) {
   await page.goto('/');
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill('California');
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
@@ -10,6 +11,7 @@ async function savedRegion(page: Page) {
 
 test('full reset requires confirmation, stops other windows, clears app storage offline, and starts fresh', async ({ page, context }) => {
   await savedRegion(page);
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   const advanced = page.locator('.reset-settings');
   await expect(advanced).not.toHaveAttribute('open', '');
   await advanced.getByText('Advanced', { exact: true }).click();
@@ -88,6 +90,7 @@ test('full reset requires confirmation, stops other windows, clears app storage 
   await expect(page.getByLabel('Settings and offline downloads')).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-route-entry]')).toHaveCount(0);
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByRole('button', { name: 'My downloads', exact: true }).click();
   await expect(page.getByText('No region downloads yet.', { exact: false })).toBeVisible();
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
@@ -102,6 +105,7 @@ test('a second window waits for the revived worker to rebuild its shell before d
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.getByLabel('Settings and offline downloads')).toBeVisible();
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.locator('.reset-settings summary').click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();
@@ -143,6 +147,7 @@ test('a second window waits for the revived worker to rebuild its shell before d
     await worker.evaluate(() => (globalThis as unknown as ShellGate).releaseShell());
   }
   await other.getByLabel('Settings and offline downloads').click();
+  await other.getByRole('tab', { name: 'Offline', exact: true }).click();
   await other.getByLabel('Find a state or territory').fill('California');
   await other.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(other.locator('.download-card .offline-tag')).toHaveText('Saved');
@@ -166,6 +171,7 @@ test('failed deletion keeps reset pending and can be retried without reopening t
       return remove.call(this, name);
     };
   });
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.locator('.reset-settings summary').click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();
@@ -198,6 +204,7 @@ test('full reset finishes when private browsing makes OPFS unavailable', async (
       transaction.onabort = () => { db.close(); reject(transaction.error); };
     };
   }));
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.locator('.reset-settings summary').click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();
@@ -224,6 +231,7 @@ test('reset still coordinates windows when service workers are unavailable', asy
   const boot = new Promise<Route>(resolve => { hold = resolve; });
   await other.route(new URL(entry!, other.url()).href, hold);
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.locator('.reset-settings summary').click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();
@@ -250,6 +258,7 @@ test('unsupported window coordination cannot leave the workspace stuck in reset 
   await page.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined }));
   await page.goto('/');
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.locator('.reset-settings summary').click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete all local data', exact: true }).click();

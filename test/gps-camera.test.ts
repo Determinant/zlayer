@@ -134,9 +134,9 @@ test('moveend reconciliation waits for a replacing camera command to install its
 test('track noise does not rotate the map even when fresh positions need centering', t => {
   const s = setup(t, true);
   s.fix(); s.finish();
-  for (let time = 2; time <= 20; time++) {
+  for (let time = 2; time <= 60; time++) {
     s.store.publish({ ...s.store.getSnapshot(), fix: { coordinates: [-122 + time * .01, 37], accuracy: 5,
-      track: 90 + (time % 2 ? .8 : -.8), time } });
+      track: 90 + (Math.floor((time - 2) / 2) % 2 ? -3 : 3), time } });
     assert.equal(s.calls.at(-1)!.options.bearing, 90);
     s.finish();
   }
@@ -155,7 +155,11 @@ test('heading demand follows camera mode and GPS quality without publishing Owns
   const unsubscribe = s.store.subscribe(() => { publications++; });
   notify({ degrees: 70, time: now, frame: 1 });
   now = .25; notify({ degrees: 73, time: now, frame: 1 }); s.finish();
-  assert.equal(s.calls.at(-1)!.options.bearing, 93);
+  assert.equal(s.calls.at(-1)!.options.bearing, 90, 'a brief sensor change does not immediately rotate the map');
+  for (let sample = 2; sample <= 10; sample++) {
+    now = sample / 4; notify({ degrees: 73, time: now, frame: 1 }); s.finish();
+  }
+  assert.ok(s.calls.at(-1)!.options.bearing! > 92 && s.calls.at(-1)!.options.bearing! < 93);
   assert.equal(publications, 0);
   s.store.publish({ ...s.store.getSnapshot(), fix: { ...s.store.getSnapshot().fix!, speed: 2 } });
   assert.equal(released, 1);

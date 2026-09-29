@@ -1,4 +1,4 @@
-.ahrs-tool { width: 342px; max-width: 100%; padding: 12px; color: #e5edf1; background: #101e2b; border: 1px solid #38505f; border-left: 0; border-radius: 0 9px 9px 0; font-family: var(--font-ui); font-size: 14px; }
+.ahrs-tool { width: 342px; max-width: 100%; padding: 12px; color: var(--text-control); background: var(--surface-101e2b); border: 1px solid var(--border-38505f); border-left: 0; border-radius: 0 9px 9px 0; font-family: var(--font-ui); font-size: 14px; }
 .ahrs-heading { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-bottom: 8px; }
 .ahrs-heading h3 { margin: 0; font-size: 12px; font-weight: 700; }
 .ahrs-heading-actions { display: flex; align-items: center; gap: 6px; }
@@ -13,7 +13,7 @@
 }
 .ahrs-window.is-fullscreen .ahrs-heading {
   margin: 0; padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
-  border-bottom: 1px solid #344957;
+  border-bottom: 1px solid var(--border-344957);
 }
 .ahrs-window.is-fullscreen .ahrs-heading h3 { font-size: 14px; }
 .ahrs-window.is-fullscreen .ahrs-header-button {
@@ -41,7 +41,7 @@
 .ahrs-window.is-fullscreen .ahrs-test-toggle { display: block; max-width: 720px; margin: 6px auto 0; }
 .ahrs-window.is-fullscreen .ahrs-footnote {
   margin: 0; padding: 4px max(8px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
-  border-top: 1px solid #344957;
+  border-top: 1px solid var(--border-344957);
 }
 @media (orientation: landscape) {
   .ahrs-window.is-fullscreen .ahrs-display:not([hidden]) { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
@@ -83,10 +83,10 @@
   .ahrs-window.is-fullscreen .ahrs-hsi-leg,
   .ahrs-window.is-fullscreen .ahrs-hsi-empty { grid-area: leg; }
 }
-.ahrs-gps { display: inline-flex; align-items: center; justify-self: end; min-width: 0; gap: 6px; color: #dca7a7; font-size: 12px; font-weight: 700; text-align: right; }
+.ahrs-gps { display: inline-flex; align-items: center; justify-self: end; min-width: 0; gap: 6px; color: var(--text-dca7a7); font-size: 12px; font-weight: 700; text-align: right; }
 .ahrs-gps i { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.ahrs-gps.is-live { color: #8ae0c5; }
-.ahrs-gps.is-test, .ahrs-tool .ahrs-test-banner { color: #ffdb80; }
+.ahrs-gps.is-live { color: var(--text-8ae0c5); }
+.ahrs-gps.is-test, .ahrs-tool .ahrs-test-banner { color: var(--text-ffdb80); }
 .ahrs-tool .ahrs-test-banner { margin-top: 0; font-size: 12px; text-align: center; }
 .ahrs-instrument { position: relative; overflow: hidden; border: 1px solid #38505f; border-radius: 4px; background: #07101d; }
 .ahrs-attitude-display { position: relative; min-width: 0; }
@@ -110,61 +110,61 @@
 .ahrs-drum text { fill: #f1f5ed; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 .ahrs-drum.is-compact { position: absolute; top: 51.6129%; left: 0; width: 100%; height: auto; transform: translateY(-50%); border: 0; border-radius: 0; background: transparent; }
 .ahrs-speed-mph { position: absolute; inset: auto 0 0; display: block; padding: 3px 0; color: #c6d7df; background: #0c1925; font-size: 11px; font-variant-numeric: tabular-nums; }
-.ahrs-setup, .ahrs-calibration, .ahrs-actions { border-top: 1px solid #344957; padding-top: 12px; }
-.ahrs-setup > strong { color: #def1ed; font-size: 14px; }
-.ahrs-tool p { margin: 7px 0 10px; color: #afc2cd; font-size: 14px; line-height: 1.6; }
+.ahrs-setup, .ahrs-calibration, .ahrs-actions { border-top: 1px solid var(--border-344957); padding-top: 12px; }
+.ahrs-setup > strong { color: var(--text-def1ed); font-size: 14px; }
+.ahrs-tool p { margin: 7px 0 10px; color: var(--text-afc2cd); font-size: 14px; line-height: 1.6; }
 .ahrs-setup label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; margin: 9px 0; }
 .ahrs-setup details { margin: 10px 0; }
-.ahrs-setup summary { padding: 5px 0; color: #a8bbc7; cursor: pointer; }
-.ahrs-tool summary:focus-visible { outline: 2px solid #85e6db; outline-offset: 2px; }
+.ahrs-setup summary { padding: 5px 0; color: var(--text-a8bbc7); cursor: pointer; }
+.ahrs-tool summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .ahrs-tool .ahrs-primary { width: 100%; }
 .ahrs-tool .ahrs-secondary { width: 100%; margin-top: 6px; }
 .ahrs-calibration > div { display: flex; justify-content: space-between; gap: 5px; }
-.ahrs-calibration > div span { color: #9edfd1; white-space: nowrap; }
-.ahrs-calibration progress { width: 100%; height: 5px; margin-top: 10px; border: 0; border-radius: 5px; overflow: hidden; accent-color: #8ad7cb; }
-.ahrs-calibration progress::-webkit-progress-bar { background: #2b414e; }
-.ahrs-calibration progress::-webkit-progress-value { background: #8ad7cb; }
+.ahrs-calibration > div span { color: var(--text-9edfd1); white-space: nowrap; }
+.ahrs-calibration progress { width: 100%; height: 5px; margin-top: 10px; border: 0; border-radius: 5px; overflow: hidden; accent-color: var(--accent-8ad7cb); }
+.ahrs-calibration progress::-webkit-progress-bar { background: var(--surface-2b414e); }
+.ahrs-calibration progress::-webkit-progress-value { background: var(--surface-action); }
 .ahrs-actions > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .ahrs-actions button { flex: 1; }
 .ahrs-footnote { margin-top: 11px; color: var(--text-muted); font-size: 11px; text-align: center; }
-.ahrs-tool .ahrs-message { color: #ffb9af; }
+.ahrs-tool .ahrs-message { color: var(--text-ffb9af); }
 .ahrs-diagnostics { margin-top: 6px; font-size: 12px; }
-.ahrs-diagnostics summary { padding: 8px 0; cursor: pointer; color: #afc2cd; }
-.ahrs-diagnostics summary strong { float: right; color: #e5edf1; font-variant-numeric: tabular-nums; }
+.ahrs-diagnostics summary { padding: 8px 0; cursor: pointer; color: var(--text-afc2cd); }
+.ahrs-diagnostics summary strong { float: right; color: var(--text-control); font-variant-numeric: tabular-nums; }
 .ahrs-tool .ahrs-diagnostics p { margin: 6px 0; font-size: 11px; line-height: 1.5; }
 .ahrs-tool .ahrs-aiding-status { font-size: 12px; }
-.ahrs-diagnostics .is-aided { color: #8ae0c5; }
-.ahrs-diagnostics .is-unaided { color: #ffdb80; }
+.ahrs-diagnostics .is-aided { color: var(--text-8ae0c5); }
+.ahrs-diagnostics .is-unaided { color: var(--text-ffdb80); }
 .ahrs-uncertainty-trend { display: block; width: 100%; height: auto; margin-top: 8px; }
 .ahrs-uncertainty-trend path { fill: none; stroke: currentColor; stroke-width: 1.75; vector-effect: non-scaling-stroke; }
 .ahrs-uncertainty-trend circle { fill: currentColor; }
-.ahrs-uncertainty-trend .ahrs-uncertainty-grid { stroke: #344957; stroke-width: 1; }
-.ahrs-uncertainty-trend text { fill: #afc2cd; font: 11px var(--font-ui); }
+.ahrs-uncertainty-trend .ahrs-uncertainty-grid { stroke: var(--fixed-344957); stroke-width: 1; }
+.ahrs-uncertainty-trend text { fill: var(--text-afc2cd); font: 11px var(--font-ui); }
 .ahrs-uncertainty-legend { display: flex; justify-content: flex-end; gap: 12px; font-size: 11px; }
 .ahrs-uncertainty-legend span::before { content: '━'; margin-right: 4px; }
 .ahrs-diagnostic-readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 10px 0; }
-.ahrs-diagnostic-readings dt { color: #afc2cd; font-size: 11px; }
+.ahrs-diagnostic-readings dt { color: var(--text-afc2cd); font-size: 11px; }
 .ahrs-diagnostic-readings dd { margin: 3px 0 0; font-variant-numeric: tabular-nums; }
-.ahrs-hsi { margin: 10px 0; padding-top: 9px; border-top: 1px solid #344957; }
+.ahrs-hsi { margin: 10px 0; padding-top: 9px; border-top: 1px solid var(--border-344957); }
 .ahrs-hsi-heading { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
-.ahrs-hsi-heading strong { font-weight: 700; color: #c6d7df; }
-.ahrs-hsi-heading span, .ahrs-hsi-course { color: #f084db; fill: #f084db; }
-.ahrs-hsi-readout { width: fit-content; min-width: 116px; margin: 8px auto 0; padding: 4px 9px; border: 1px solid #748d9c; border-radius: 3px; background: #07101d; color: #e5edf1; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.ahrs-hsi-heading strong { font-weight: 700; color: var(--text-c6d7df); }
+.ahrs-hsi-heading span, .ahrs-hsi-course { color: var(--text-f084db); fill: var(--text-f084db); }
+.ahrs-hsi-readout { width: fit-content; min-width: 116px; margin: 8px auto 0; padding: 4px 9px; border: 1px solid var(--border-748d9c); border-radius: 3px; background: var(--surface-07101d); color: var(--text-control); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 .ahrs-hsi-dial { display: block; width: 80%; height: auto; margin: 2px auto 0; overflow: hidden; }
 .ahrs-hsi-dial text { fill: #c6d7df; font-family: var(--font-ui); font-size: 11px; font-variant-numeric: tabular-nums; }
-.ahrs-hsi-dial .ahrs-hsi-course { fill: #f084db; }
-.ahrs-hsi-reference { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 5px 0 10px; color: #e5edf1; font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+.ahrs-hsi-dial .ahrs-hsi-course { color: #f084db; fill: #f084db; }
+.ahrs-hsi-reference { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 5px 0 10px; color: var(--text-control); font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
 .ahrs-hsi-reference > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ahrs-hsi-reference svg { width: 12px; height: 12px; }
-.ahrs-hsi-heading-value { color: #ffdb80; }
+.ahrs-hsi-heading-value { color: var(--text-ffdb80); }
 .ahrs-hsi-variation { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 4px 0 10px; color: var(--text-muted); font-size: 12px; text-align: center; }
-.ahrs-hsi-variation.is-unavailable { color: #ffdb80; }
-.ahrs-hsi-caution { color: #ffdb80; font-weight: 700; }
+.ahrs-hsi-variation.is-unavailable { color: var(--text-ffdb80); }
+.ahrs-hsi-caution { color: var(--text-ffdb80); font-weight: 700; }
 .ahrs-hsi-readings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 0; }
 .ahrs-hsi-readings > div { display: grid; gap: 4px; text-align: center; }
 .ahrs-hsi-readings dt { color: var(--text-muted); font-size: 11px; letter-spacing: .04em; }
-.ahrs-hsi-readings dd { margin: 0; color: #c6d7df; font-size: 14px; font-variant-numeric: tabular-nums; }
-.ahrs-hsi-readings .ahrs-hsi-course { color: #f084db; }
+.ahrs-hsi-readings dd { margin: 0; color: var(--text-c6d7df); font-size: 14px; font-variant-numeric: tabular-nums; }
+.ahrs-hsi-readings .ahrs-hsi-course { color: var(--text-f084db); }
 .ahrs-hsi-target { margin: 10px 0; font-size: 12px; text-align: center; overflow-wrap: anywhere; }
 .ahrs-hsi-dial .ahrs-hsi-warning { fill: #ffd6d3; font-weight: 700; }
 .ahrs-hsi-leg { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
@@ -173,3 +173,6 @@
   .ahrs-tool { padding: 10px; }
   .ahrs-speed-mph { font-size: 10px; }
 }
+
+/* Instrument ink belongs to its fixed dark face, independently of UI appearance. */
+.ahrs-instrument { --text-muted: #91a9bb; }

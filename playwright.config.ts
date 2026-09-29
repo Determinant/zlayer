@@ -15,5 +15,7 @@ export default defineConfig({
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {},
   },
   // The real weather processor prepares the native fixture cache once at startup.
-  webServer: { command: 'node test/e2e/server.mjs', url: baseURL, timeout: 240_000 },
+  // Only the session runner sets this flag, after its own fresh server reports ready.
+  webServer: process.env.ZLAYER_TEST_SESSION === '1' ? undefined
+    : { command: 'node test/e2e/server.mjs', url: baseURL, timeout: 240_000 },
 });

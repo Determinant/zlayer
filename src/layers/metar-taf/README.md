@@ -74,6 +74,11 @@ its work. The client admits at most two station batches across all consumers.
 Freshness publishes per batch, but changed observations persist together when a
 refresh settles. Unchanged observations retain their content identity and do not
 rewrite storage or rebuild the map source; same-time corrections still replace them.
+TAF also preserves identical report objects and writes its bounded saved cache only
+when report content or retained membership changes. Successful check times still
+advance independently and are not persisted as fresh source checks.
+The map legend shows the absolute UTC observation timestamp, so unchanged or
+offline reports cannot leave a frozen relative-age label or require another timer.
 
 While the weather plugin is loaded, an open airport Info card adds independent
 METAR and TAF demand through
@@ -81,8 +86,8 @@ METAR and TAF demand through
 Each report checks the airport's station on opening and at its own interval while
 online and visible. If the local report is absent or no longer current, a nearby
 search covers 50 NM; a manually selected alternative keeps nearby refreshes active.
-After nearby discovery, the displayed alternative receives the same station check
-as the airport's own report; other nearby METARs remain bulk-loaded.
+The airport's own station is checked directly; alternatives are refreshed through
+the nearby-area response. Selecting an alternative keeps that area demand active.
 Changing airport, closing or stowing the card, or opening Plates cancels these requests without
 stopping map demand. Stowing preserves the selected stations and resumes demand
 when the card reopens. The card and map share the METAR client and cache. Nearby

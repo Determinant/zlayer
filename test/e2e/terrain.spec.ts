@@ -5,6 +5,39 @@ import { terrainColor, TERRAIN_FILL_OPACITY } from '../../src/layers/terrain/pal
 import { terrainMeters, terrainPng } from './terrain-fixture.mjs';
 import { clearanceColor } from '../../src/layers/terrain/clearance';
 
+test('remembered altitude persistence coalesces input and flushes on release or page hide', async ({ page }) => {
+  await page.goto('/test/browser/terrain.html');
+  const legend = page.getByLabel('Route terrain elevation');
+  await legend.getByRole('tab', { name: 'Clearance', exact: true }).click();
+  const result = await legend.getByRole('slider', { name: 'Selected altitude' }).evaluate(element => {
+    const slider = element as HTMLInputElement;
+    const key = 'zlayer-plugin:terrain:terrain-last-altitude';
+    const original = Storage.prototype.setItem;
+    let writes = 0;
+    Storage.prototype.setItem = function (name, value) {
+      if (name === key) writes++;
+      original.call(this, name, value);
+    };
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    const change = (value: number) => {
+      setValue.call(slider, String(value));
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    try {
+      for (const value of [5000, 5500, 6000]) change(value);
+      const duringInput = writes;
+      slider.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      const afterRelease = writes;
+      const released = JSON.parse(localStorage.getItem(key)!).value;
+      change(6500);
+      window.dispatchEvent(new Event('pagehide'));
+      return { duringInput, afterRelease, released, afterHide: writes,
+        hidden: JSON.parse(localStorage.getItem(key)!).value };
+    } finally { Storage.prototype.setItem = original; }
+  });
+  expect(result).toEqual({ duringInput: 0, afterRelease: 1, released: 6000, afterHide: 2, hidden: 6500 });
+});
+
 test('terrain covers a route consisting entirely of planning connections across gaps', async ({ page }, testInfo) => {
   await page.goto('/test/browser/terrain.html?gaps');
   await expect(page.locator('output[data-state]')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
@@ -24,7 +57,7 @@ test('terrain covers a route consisting entirely of planning connections across 
   await page.screenshot({ path: testInfo.outputPath('planning-connections-terrain.png') });
 });
 
-test('the 8 NM fade stays transparent with reduced-precision texture sampling', async ({ browser }, testInfo) => {
+test('the 8 NM fade stays transparent with reduced-precision texture sampling', { tag: '@explicit-density' }, async ({ browser }, testInfo) => {
   const viewport = { width: 1100, height: 850 }, density = 3, zoom = 9.35;
   const context = await browser.newContext({ viewport, deviceScaleFactor: density });
   try {
@@ -157,7 +190,7 @@ test('terrain renders through the real worker and map, changes intervals, clears
   expect(errors).toEqual([]);
 });
 
-test('contour outlines render at fractional close zoom on a high-density display', async ({ browser }, testInfo) => {
+test('contour outlines render at fractional close zoom on a high-density display', { tag: '@explicit-density' }, async ({ browser }, testInfo) => {
   const context = await browser.newContext({ deviceScaleFactor: 2, viewport: { width: 1100, height: 850 } });
   try {
     const page = await context.newPage();
@@ -166,6 +199,36 @@ test('contour outlines render at fractional close zoom on a high-density display
     await expect(page.locator('body')).toHaveAttribute('data-map-idle', 'true', { timeout: 30_000 });
     await expect.poll(() => page.locator('body').getAttribute('data-contour-features').then(Number)).toBeGreaterThan(0);
     await expect(page.getByTestId('errors')).toBeEmpty();
+    // Queryable geometry alone cannot prove visible strokes. Compare the same
+    // central map pixels with only the outline layer hidden, then restore it.
+    const strokePixels = await page.evaluate(async () => {
+      const map = window.terrainMapAudit.map, canvas = map.getCanvas(), gl = canvas.getContext('webgl2')!;
+      const size = Math.min(800, canvas.width, canvas.height);
+      const sample = () => {
+        const pixels = new Uint8Array(size * size * 4);
+        gl.readPixels(Math.floor((canvas.width - size) / 2), Math.floor((canvas.height - size) / 2),
+          size, size, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        return pixels;
+      };
+      const visibility = (value: 'visible' | 'none') => new Promise<void>(resolve => {
+        map.once('idle', () => resolve());
+        map.setLayoutProperty('route-terrain-outlines', 'visibility', value);
+        map.triggerRepaint();
+      });
+      const shown = sample();
+      try {
+        await visibility('none');
+        const hidden = sample();
+        let strokes = 0;
+        for (let i = 0; i < shown.length; i += 4) {
+          // Dark brown contour strokes must visibly darken the underlying fill.
+          if (shown[i]! < 110 && shown[i + 1]! < 80 && shown[i + 2]! < 65 && shown[i + 3] === 255 &&
+            hidden[i]! - shown[i]! > 30 && hidden[i + 1]! - shown[i + 1]! > 30) strokes++;
+        }
+        return strokes;
+      } finally { await visibility('visible'); }
+    });
+    expect(strokePixels, 'fractional-zoom outlines must contribute visible dark strokes').toBeGreaterThan(50);
     await page.screenshot({ path: testInfo.outputPath('terrain-fractional-retina.png') });
   } finally { await context.close(); }
 });
@@ -233,7 +296,7 @@ test('coarse elevation cells render rounded contours at the closest map zoom', a
   await page.screenshot({ path: testInfo.outputPath('terrain-close-rounded.png') });
 });
 
-test('retina terrain shading stays aligned with the route across subtiles', async ({ browser }, testInfo) => {
+test('retina terrain shading stays aligned with the route across subtiles', { tag: '@explicit-density' }, async ({ browser }, testInfo) => {
   const viewport = { width: 1100, height: 850 }, density = 2, zoom = 11.35;
   const context = await browser.newContext({ deviceScaleFactor: density, viewport });
   try {
@@ -284,7 +347,7 @@ test('retina terrain shading stays aligned with the route across subtiles', asyn
   } finally { await context.close(); }
 });
 
-test('terrain help stays tucked away until hovered, focused or tapped', async ({ page, browser, browserName }, testInfo) => {
+test('terrain help stays tucked away until hovered, focused or clicked', async ({ page }) => {
   await page.goto('/test/browser/terrain.html?zoom=7.5');
   const info = page.getByRole('button', { name: 'About route terrain' });
   const help = page.getByRole('tooltip');
@@ -304,6 +367,9 @@ test('terrain help stays tucked away until hovered, focused or tapped', async ({
   await page.mouse.click(800, 100);
   await expect(help).toHaveCount(0);
   await expect(page.locator('.terrain-section').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+});
+
+test('phone terrain help opens and dismisses with touch', { tag: '@explicit-density' }, async ({ browser, browserName }, testInfo) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: browserName !== 'firefox' });
   try {
     const phone = await context.newPage();
@@ -446,7 +512,7 @@ test('terrain fetch failure is visible and clearing a loading route cannot resto
   await expect(page.getByLabel('Route terrain elevation')).toContainText('Add a route or select Viewport');
 });
 
-test('phone terrain stays responsive to touch and releases its worker when disabled', async ({ browser, browserName }, testInfo) => {
+test('phone terrain stays responsive to touch and releases its worker when disabled', { tag: '@explicit-density' }, async ({ browser, browserName }, testInfo) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 },
     deviceScaleFactor: 3, hasTouch: true, isMobile: browserName !== 'firefox' });
   try {

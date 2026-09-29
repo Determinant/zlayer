@@ -5,7 +5,7 @@ const metadata = { effectiveDate: '2026-09-03', source: 'Composition fixture' };
 export const compositionFixes: FeatureCollectionResponse = {
   type: 'FeatureCollection', meta: { layer: 'fixes', revision: metadata.effectiveDate, returned: 4, truncated: false },
   features: ['START', 'SUNOL', 'MID', 'EXIT'].map((ident, i) => ({ type: 'Feature', id: `fix:${ident}`,
-    geometry: { type: 'Point', coordinates: [-122.2 + i * .05, 37.5] }, properties: { ident, icaoRegion: 'K2' } })),
+    geometry: { type: 'Point', coordinates: [-122.2 + i * .05, 37.5] }, properties: { ident, type: 'FIX', icaoRegion: 'K2' } })),
 };
 export const compositionAirways: AirwayDataResponse = { type: 'ZLayerAirways', metadata, airways: [{ id: 'airway:V23', ident: 'V23',
   points: ['SUNOL', 'MID', 'EXIT'], segments: [
@@ -19,6 +19,10 @@ export const compositionPreferred: PreferredRoutesData = { type: 'ZLayerPreferre
     { sequence: 3, value: 'V23', type: 'AIRWAY' }, { sequence: 4, value: 'EXIT', type: 'FIX' },
   ],
 }] };
+compositionPreferred.routes.push({ ...compositionPreferred.routes[0]!, id: 'preferred-route:scoped', designator: 'BAYT2',
+  route: 'LOCAL1 SUNOL LOCAL2', segments: [] });
+compositionPreferred.routes.push({ ...compositionPreferred.routes[0]!, id: 'preferred-route:loop', designator: 'BAYT3',
+  route: 'SUNOL START SUNOL', segments: [] });
 export const compositionTerminal: TerminalProceduresData = { type: 'ZLayerTerminalProcedures', metadata, procedures: [{
   id: 'terminal:DP:BAY1', ident: 'BAY1', kind: 'departure', name: 'BAY ONE', computerCode: 'BAY1.SUNOL', airports: ['SFO'],
   routes: ['START', 'EXIT'].map((first, i) => ({ name: first, kind: 'body', bodySequence: i + 1,
@@ -29,3 +33,12 @@ export const compositionTerminal: TerminalProceduresData = { type: 'ZLayerTermin
     ],
   })),
 }] };
+
+compositionTerminal.procedures.push(...(['departure', 'arrival'] as const).map(kind => {
+  const ident = kind === 'departure' ? 'LOCAL1' : 'LOCAL2', airport = kind === 'departure' ? 'SFO' : 'SJC';
+  const points = kind === 'departure' ? ['START', 'MID', 'SUNOL'] : ['SUNOL', 'MID', 'EXIT'];
+  return { id: ident, ident, kind, name: ident, computerCode: kind === 'departure' ? `${ident}.SUNOL` : `SUNOL.${ident}`, airports: [airport], routes: [{
+    name: ident, kind: 'body' as const, bodySequence: 1, airports: [{ ident: airport }],
+    points: points.map((ident, i) => ({ ident, sequence: i + 1, type: 'FIX', ...(points[i + 1] ? { next: points[i + 1]! } : {}) })),
+  }] };
+}));

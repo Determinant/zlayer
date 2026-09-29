@@ -1,6 +1,7 @@
-import { useSyncExternalStore } from 'react';
+import { useId, useSyncExternalStore } from 'react';
 import { pwaUpdates, type PwaUpdateState } from '../pwa-updates';
 import './pwa-update.css';
+import type { WorkspaceNotification } from './use-notifications';
 
 function usePwaUpdate() {
   return useSyncExternalStore(pwaUpdates.subscribe, pwaUpdates.snapshot, pwaUpdates.snapshot);
@@ -12,13 +13,27 @@ function UpdateButton({ state }: { state: PwaUpdateState }) {
   </button>;
 }
 
+export function useUpdateNotification(): WorkspaceNotification | undefined {
+  const state = usePwaUpdate();
+  if (!state.availableRelease) return undefined;
+  return { id: 'app-update', title: 'Update available',
+    message: `Version ${state.availableVersion} is ready. Reload to update. Your saved routes and downloads stay on this device.${state.error ? ` ${state.error}` : ''}`,
+    action: { label: state.applying ? 'Updating…' : 'Update now', disabled: state.applying, run: () => { void pwaUpdates.apply(); } } };
+}
+
 export function PwaUpdatePrompt() {
   const state = usePwaUpdate();
+  const descriptionId = useId();
   if (!state.availableRelease || state.dismissed) return null;
   return <aside className="pwa-update" aria-label="App update">
-    <div role="status"><strong>Update available</strong>
-      <p>Version <code>{state.availableVersion}</code> is ready.</p></div>
-    <p>Reload to update. Your saved routes and downloads stay on this device.</p>
+    <div role="status"><button className="ui-button ui-button--quiet pwa-update-dismiss" type="button"
+      disabled={state.applying} onClick={pwaUpdates.dismiss} aria-label="Dismiss update notification"
+      aria-describedby={`${descriptionId}-version ${descriptionId}-instructions`}>
+      <strong>Update available</strong>
+      <span id={`${descriptionId}-version`}>Version <code>{state.availableVersion}</code> is ready.</span>
+      <span id={`${descriptionId}-instructions`}>Reload to update. Your saved routes and downloads stay on this device.</span>
+      <small className="notification-dismiss-hint" aria-hidden="true">Tap to dismiss</small>
+    </button></div>
     {state.error && <p role="alert">{state.error}</p>}
     <div className="pwa-update-actions">
       <UpdateButton state={state} />

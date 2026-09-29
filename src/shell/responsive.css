@@ -1,6 +1,6 @@
 @keyframes breathe {
   50% {
-    box-shadow: 0 0 34px rgba(97, 214, 197, 0.45);
+    box-shadow: 0 0 34px var(--shadow-61d6c5-a450);
     transform: scale(1.03);
   }
 }

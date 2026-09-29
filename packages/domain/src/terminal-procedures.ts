@@ -37,9 +37,11 @@ export function createProcedureExpander(data?: TerminalProceduresData) {
       const owner = expansionOwner('procedure', atom);
       const tokenIndex = atom.source.tokenIndex;
       const at = atoms.indexOf(atom);
-      const { departure: origin, destination } = atom.scope;
-      const departure = atoms[at - 1] === origin && !!origin && !!airportAt(origin);
-      const arrival = atoms[at + 1] === destination && !!destination && !!airportAt(destination);
+      // Filing shorthand belongs to its adjacent airport, including intermediate
+      // stops and children exposed by expanding a TEC in a longer route.
+      const origin = atoms[at - 1], destination = atoms[at + 1];
+      const departure = !!origin && !!airportAt(origin);
+      const arrival = !!destination && !!airportAt(destination);
       const airportAtom = departure ? origin : destination;
       const airport = airportAtom && airportAt(airportAtom);
       const kind = departure ? 'departure' : 'arrival';

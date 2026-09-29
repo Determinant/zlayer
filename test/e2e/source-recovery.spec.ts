@@ -77,6 +77,7 @@ test('settings opens without further code downloads and keeps state on reopening
   await expect(launcher).toBeEnabled();
   await page.route('**/assets/*.js', route => route.abort('failed'));
   await launcher.click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   const search = page.getByLabel('Find a state or territory');
   await expect(search).toBeVisible();
   await search.fill('California');

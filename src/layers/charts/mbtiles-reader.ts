@@ -5,7 +5,7 @@ type TileQuery = (sql: string, parameters: number[]) => Promise<unknown>;
 type TileRow = { data: Uint8Array | ArrayBuffer };
 type OverviewRow = TileRow & { x: number; y: number };
 type TilePart = { data: ArrayBuffer; x: number; y: number; size: number };
-export type TileRenderer = (parts: TilePart[], signal: AbortSignal) => Promise<ImageBitmap>;
+export type TileRenderer = (parts: Iterable<TilePart> | AsyncIterable<TilePart>, signal: AbortSignal) => Promise<ImageBitmap>;
 export type MbtilesReader = (
   tile: TileCoordinate,
   signal: AbortSignal,
@@ -52,23 +52,39 @@ export async function createMbtilesReader(
     const scale = 2 ** (minimumZoom - tile.z);
     const firstX = tile.x * scale;
     const firstY = tmsY * scale;
-    const rows = await query(
-      `SELECT tile_data AS data, tile_column AS x, tile_row AS y FROM tiles
-       WHERE zoom_level = ? AND tile_column BETWEEN ? AND ?
-       AND tile_row BETWEEN ? AND ?`,
-      [minimumZoom, firstX, firstX + scale - 1, firstY, firstY + scale - 1],
-    ) as OverviewRow[];
+    // Keyset pagination bounds compressed bytes in flight without OFFSET scans.
+    // Keep all published detail; draw each batch into the same small canvas.
+    const batch = async (x: number, y: number) => {
+      signal.throwIfAborted();
+      const rows = await query(
+        `SELECT tile_data AS data, tile_column AS x, tile_row AS y FROM tiles
+         WHERE zoom_level = ? AND tile_column BETWEEN ? AND ?
+         AND tile_row BETWEEN ? AND ? AND (tile_column, tile_row) > (?, ?)
+         ORDER BY tile_column, tile_row LIMIT 16`,
+        [minimumZoom, firstX, firstX + scale - 1, firstY, firstY + scale - 1, x, y],
+      ) as OverviewRow[];
+      signal.throwIfAborted();
+      return rows;
+    };
+    let rows = await batch(firstX - 1, -1);
     signal.throwIfAborted();
     if (rows.length === 0) return null;
 
     const size = TILE_SIZE / scale;
-    return renderTile(rows.map((row) => ({
-      data: exactArrayBuffer(row.data),
-      x: (row.x - firstX) * size,
-      // MBTiles rows run south to north; canvas pixels run north to south.
-      y: (firstY + scale - 1 - row.y) * size,
-      size,
-    })), signal);
+    async function* parts(): AsyncGenerator<TilePart> {
+      while (rows.length) {
+        for (const row of rows) {
+          signal.throwIfAborted();
+          yield { data: exactArrayBuffer(row.data), x: (row.x - firstX) * size,
+            // MBTiles rows run south to north; canvas pixels run north to south.
+            y: (firstY + scale - 1 - row.y) * size, size };
+        }
+        if (rows.length < 16) return;
+        const last = rows.at(-1)!;
+        rows = await batch(last.x, last.y);
+      }
+    }
+    return renderTile(parts(), signal);
   };
 }
 
@@ -89,13 +105,13 @@ function isZoom(value: unknown): value is number {
 }
 
 function renderTileParts(
-  parts: TilePart[],
+  parts: Iterable<TilePart> | AsyncIterable<TilePart>,
   signal: AbortSignal,
 ): Promise<ImageBitmap> {
   return renderRasterBitmap(TILE_SIZE, signal, async context => {
     context.imageSmoothingQuality = 'high';
     // Decode one cached source tile at a time, retaining transparent chart edges.
-    for (const part of parts) {
+    for await (const part of parts) {
       signal.throwIfAborted();
       const bitmap = await createImageBitmap(new Blob([part.data]));
       try {

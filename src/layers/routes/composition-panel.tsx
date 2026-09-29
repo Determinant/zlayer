@@ -3,10 +3,12 @@ import type { RouteComposition } from './composition';
 import { usePreviewPanel } from './use-preview-panel';
 import './composition-panel.css';
 
-export function RouteCompositionPanel({ ident, composition, onClose }: {
+export function RouteCompositionPanel({ ident, composition, onClose, onExpand, expansionProblem }: {
   ident: string; composition: RouteComposition; onClose: (restoreFocus?: boolean) => void;
+  onExpand: (() => void) | undefined; expansionProblem: string | undefined;
 }) {
   const titleId = useId();
+  const expansionId = useId();
   const panel = useRef<HTMLDivElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   usePreviewPanel(true, panel, closeButton, onClose);
@@ -54,6 +56,13 @@ export function RouteCompositionPanel({ ident, composition, onClose }: {
       {!!issues.length && <section aria-label="Composition issues"><h3>Unresolved sections</h3>
         <ul>{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>
       </section>}
+      <footer>
+        <p id={expansionId}>{expansionProblem ?? (tec
+          ? 'Replace this TEC with its published route items. Airways stay compact and can be expanded separately.'
+          : 'Replace this airway with its waypoints, keeping neighboring route items intact.')}</p>
+        <button type="button" className="ui-button" disabled={!onExpand} aria-describedby={expansionId}
+          onClick={onExpand}>Expand</button>
+      </footer>
     </div>
   </div>;
 }

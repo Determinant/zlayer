@@ -24,6 +24,11 @@ const airways: AirwayDataResponse = { type: 'ZLayerAirways', metadata: preferred
     { sequence: 2, from: 'MID', to: 'POPPR', gap: false },
   ],
 }] };
+const children = [
+  { text: 'SLI', pinnedFeatureId: 'navaids:SLI' }, { text: 'V23' },
+  { text: 'POPPR', pinnedFeatureId: 'fixes:POPPR' }, { text: 'SMO', pinnedFeatureId: 'navaids:SMO' },
+  { text: 'SILEX', pinnedFeatureId: 'fixes:SILEX' },
+];
 const input = 'KSNA CSTQ1 KBUR';
 const resolve = (data = preferred, nav = navigation, airwayData = airways) =>
   createRouteResolver(Object.values(nav), airwayData, undefined, data);
@@ -59,7 +64,7 @@ test('TEC text stays compact while its typed points and airways resolve to the p
   assert.equal(plan.waypoints.find(point => point.ident === 'SMO')?.layer, 'navaids', 'never choose the same-named airport');
   assert.equal(plan.distanceNm, expanded.distanceNm);
   assert.deepEqual(plan.legs.map(leg => leg.midpoint), expanded.legs.map(leg => leg.midpoint));
-  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 1, route }]);
+  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 1, route, children }]);
   assert.deepEqual(plan.airways.map(airway => [airway.ident, airway.tokenIndex]), [['V23', 1]]);
   assert.deepEqual(plan.waypoints.map(point => point.tokenIndex), [0, undefined, undefined, undefined, undefined, undefined, 2]);
   assert.ok(plan.waypoints.slice(1, -1).every(point => point.owners.find(owner => owner.kind === 'tec')?.source.tokenIndex === 1));
@@ -177,7 +182,7 @@ test('KSNA CSTQ9 KSMO can continue to KVNY without changing the TEC segment', ()
 test('ordinary fixes before and after TEC keep their own editable token positions', () => {
   const plan = resolve()('SLI KSNA CSTQ1 KBUR SILEX');
   assert.deepEqual(plan.issues, []);
-  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 2, route }]);
+  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 2, route, children }]);
   assert.deepEqual(plan.waypoints.filter(point => point.tokenIndex !== undefined)
     .map(point => [point.ident, point.tokenIndex]), [['SLI', 0], ['KSNA', 1], ['KBUR', 3], ['SILEX', 4]]);
   assert.deepEqual(plan.legs.filter(leg => (leg.edit ? leg.from.source.tokenIndex : undefined) !== undefined).map(leg => (leg.edit ? leg.from.source.tokenIndex : undefined)), [0, 3]);
@@ -211,7 +216,7 @@ test('errors outside TEC keep their own tokens and gaps without invalidating a v
   assert.deepEqual(plan.issues.map(issue => [issue.tokenIndex, issue.token, issue.code]),
     [[0, 'UNKNOWN', 'waypoint-not-found'], [4, 'MISSING', 'waypoint-not-found']]);
   assert.deepEqual(plan.unresolved, ['UNKNOWN', 'MISSING']);
-  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 2, route }]);
+  assert.deepEqual(plan.tecRoutes, [{ tokenIndex: 2, route, children }]);
   assert.equal(plan.legs.some(leg => leg.from.ident === 'KBUR' && leg.to.ident === 'SILEX'), false);
 });
 
@@ -233,7 +238,7 @@ test('one invalid TEC reports its own local airport pair without disabling other
     const plan = resolve()(text);
     const invalid = text.startsWith('KSNA') ? 3 : 1;
     const valid = invalid === 3 ? 1 : 3;
-    assert.deepEqual(plan.tecRoutes, [{ tokenIndex: valid, route }]);
+    assert.deepEqual(plan.tecRoutes, [{ tokenIndex: valid, route, children }]);
     assert.deepEqual(plan.issues.map(issue => [issue.tokenIndex, issue.token, issue.code]), [[invalid, 'CSTQ1', 'tec-airports']]);
     assert.equal(plan.issues[0]!.message.startsWith('CSTQ1: CSTQ1:'), false);
     assert.equal(plan.legs.some(leg => leg.from.tokenIndex === invalid - 1 && leg.to.tokenIndex === invalid + 1), false);

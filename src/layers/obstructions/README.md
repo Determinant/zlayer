@@ -29,12 +29,14 @@ opacity expressions update symbols and labels as the view zooms, including while
 updated worker results are pending.
 
 At wider zooms, a route **additionally** shows obstructions at least 500 feet AGL
-using the terrain corridor's opacity: full strength within 4 NM of resolved route
-legs, smoothly fading to zero at 8 NM. Once an obstruction qualifies by its AGL
+using the terrain corridor's opacity: full strength within 4 NM of displayed route
+geometry, smoothly fading to zero at 8 NM. Once an obstruction qualifies by its AGL
 zoom threshold, it is fully visible regardless of route distance. Below zoom 7,
 only route context is shown. Route recommendations use the same preview plans as terrain.
-Unresolved route gaps are not connected, endpoints are rounded, and dateline
-crossings wrap correctly. During route updates, points already eligible by height
+Displayed planning connections across unresolved gaps, approach depictions and
+extensions participate just as they do in Terrain; they do not resolve the gap or
+add flown distance. Endpoints are rounded, and dateline crossings wrap correctly.
+During route updates, points already eligible by height
 stay visible while the old corridor-only points and fade values are removed.
 This also prevents the old corridor from reappearing if the user zooms out before
 the replacement query finishes. Camera changes reuse a padded viewport buffer and refill it as described below.

@@ -86,7 +86,8 @@ test('map symbols, weather colors and route pixels survive rotation, resize and 
   await check();
   await page.setViewportSize({ width: 1133, height: 1000 });
   await check();
-  await page.evaluate(() => window.graphicsFixture.restoreContext());
+  const size = await page.evaluate(() => window.graphicsFixture.restoreContext());
+  expect(size.during).toEqual(size.before);
   await expect(page.locator('body')).toHaveAttribute('data-context', 'restored');
   // Context/idle notifications can precede a readable restored drawing buffer.
   // Wait for the rendered output, retaining every exact pixel assertion.
@@ -126,8 +127,13 @@ test('PDF pixels keep their orientation and colors after zooming and tablet rota
     expected.forEach((color, i) => expectColor(pixels[i]!, color, `PDF sample ${i}`));
   };
   await check();
+  await expect(page.locator('.side-panels')).toHaveCSS('--edge-panel-reveal', '1');
   await page.getByRole('button', { name: 'Enter full screen' }).click();
+  await check();
+  const widthBeforeZoom = await page.locator('.procedure-page-stage canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width);
   await page.getByRole('dialog').getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
+  await expect.poll(() => page.locator('.procedure-page-stage canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width)).toBeGreaterThan(widthBeforeZoom);
   await check();
   await page.setViewportSize({ width: 1133, height: 744 });
   await check();

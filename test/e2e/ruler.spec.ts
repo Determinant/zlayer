@@ -301,3 +301,32 @@ for (const size of [{ width: 320, height: 568 }, { width: 744, height: 1133 }, {
     await page.screenshot({ path: info.outputPath('ruler-workspace.png') });
   });
 }
+
+
+test('grip events coalesce within a frame and cancellation discards the pending endpoint', async ({ page }) => {
+  await fixture(page);
+  await page.touchscreen.tap(500, 500);
+  const point = await center(grip(page, 'end'));
+  await page.mouse.move(point.x, point.y); await page.mouse.down();
+  const result = await page.evaluate(async origin => {
+    const layer = window.rulerAudit.layer, before = layer.getSnapshot();
+    let publications = 0;
+    const release = layer.subscribe(() => publications++);
+    const move = (offset: number) => window.dispatchEvent(new PointerEvent('pointermove', {
+      pointerId: 1, pointerType: 'mouse', isPrimary: true, buttons: 1,
+      clientX: origin.x + offset, clientY: origin.y + offset, cancelable: true,
+    }));
+    for (let i = 1; i <= 20; i++) move(i);
+    const queued = publications;
+    await new Promise(requestAnimationFrame);
+    const drawn = publications, changed = layer.getSnapshot().end !== before.end;
+    move(80);
+    window.dispatchEvent(new Event('blur'));
+    await new Promise(requestAnimationFrame);
+    const restored = layer.getSnapshot().end === before.end;
+    release();
+    return { queued, drawn, changed, restored };
+  }, point);
+  await page.mouse.up();
+  expect(result).toEqual({ queued: 0, drawn: 1, changed: true, restored: true });
+});

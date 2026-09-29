@@ -12,6 +12,10 @@ import { FirstVisit } from './shell/disclaimer';
 import { PwaUpdatePrompt } from './shell/pwa-update';
 import { StartupScreen } from './shell/startup-screen';
 import './styles.css';
+import { observeTheme } from './core/theme/preference';
+
+const stopObservingTheme = observeTheme();
+if (import.meta.hot) import.meta.hot.dispose(stopObservingTheme);
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing application root');

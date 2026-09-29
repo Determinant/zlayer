@@ -75,3 +75,7 @@ with saved data, automatic updates after reopening, installation during cache
 cleanup, mismatched page/worker releases, and repeated shell recovery failures
 followed by a successful offline launch. Device-level Android and iOS testing
 remains part of release verification.
+
+The update bubble also dismisses when its body is tapped or clicked. Its update
+action remains available in **Settings → Notifications**, alongside other
+[active workspace notices](shared-ui.md#notifications), and in General → App updates.

@@ -25,10 +25,10 @@
   height: 18px;
   padding: 0 4px;
   place-items: center;
-  border: 2px solid #0a1625;
+  border: 2px solid var(--border-0a1625);
   border-radius: 999px;
-  color: #05201c;
-  background: #73dfd0;
+  color: var(--fixed-05201c);
+  background: var(--fixed-73dfd0);
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -40,14 +40,14 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(208, 235, 247, 0.2);
+  border: 1px solid var(--border-d0ebf7-a200);
   border-radius: 19px;
   background:
-    radial-gradient(circle at top left, rgba(57, 97, 128, 0.14), transparent 38%),
-    rgba(8, 20, 34, 0.91);
+    radial-gradient(circle at top left, var(--overlay-396180-a140), transparent 38%),
+    var(--surface-081422-a910);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.48),
-    inset 0 1px rgba(255, 255, 255, 0.05);
+    0 24px 70px var(--shadow-000000-a480),
+    inset 0 1px var(--shadow-ffffff-a50);
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   backdrop-filter: blur(28px) saturate(150%);
   animation: reveal-popover 150ms ease-out;
@@ -81,7 +81,7 @@
 }
 
 .eyebrow {
-  color: #61d6c5;
+  color: var(--text-action);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.13em;
@@ -100,12 +100,12 @@
 
 .layer-section {
   padding: 13px 12px 16px;
-  border-top: 1px solid rgba(151, 199, 228, 0.09);
+  border-top: 1px solid var(--border-97c7e4-a90);
 }
 
 .layer-section h3 {
   margin: 0 6px 10px;
-  color: #9db2c2;
+  color: var(--text-9db2c2);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -133,7 +133,7 @@
 .chart-overlay-options {
   margin: 12px 0 0 10px;
   padding-left: 8px;
-  border-left: 2px solid rgba(97, 214, 197, 0.22);
+  border-left: 2px solid var(--border-61d6c5-a220);
 }
 
 .segmented-list button {
@@ -144,20 +144,20 @@
   padding: 9px 10px;
   border: 1px solid transparent;
   border-radius: 9px;
-  color: #90a7b8;
+  color: var(--text-90a7b8);
   text-align: left;
   background: transparent;
   cursor: pointer;
 }
 
 .segmented-list button:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--overlay-ffffff-a35);
 }
 
 .segmented-list button.is-active {
-  border-color: rgba(97, 214, 197, 0.19);
-  color: #ecffff;
-  background: rgba(97, 214, 197, 0.09);
+  border-color: var(--border-61d6c5-a190);
+  color: var(--text-ecffff);
+  background: var(--overlay-61d6c5-a90);
 }
 
 .segmented-list button span {
@@ -190,11 +190,11 @@
 }
 
 .toggle-list button:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--overlay-ffffff-a30);
 }
 
 .toggle-list button.is-active {
-  background: rgba(109, 151, 180, 0.07);
+  background: var(--overlay-6d97b4-a70);
 }
 
 .layer-swatch {
@@ -219,39 +219,39 @@
   grid-template-rows: repeat(2, 6px);
   gap: 3px;
   place-content: center;
-  border: 1px solid rgba(182, 207, 222, 0.2);
+  border: 1px solid var(--border-b6cfde-a200);
   border-radius: 9px;
-  background: rgba(134, 170, 192, 0.07);
+  background: var(--overlay-86aac0-a70);
 }
 
 .weather-swatch i,
 .flight-category-legend i {
-  border: 1px solid rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--border-ffffff-a840);
   border-radius: 50%;
 }
 
 .weather-swatch .is-vfr,
 .flight-category-legend .is-vfr i {
-  background: #20c66b;
+  background: var(--fixed-20c66b);
 }
 
 .weather-swatch .is-mvfr,
 .flight-category-legend .is-mvfr i {
-  background: #2787ff;
+  background: var(--fixed-2787ff);
 }
 
 .weather-swatch .is-ifr,
 .flight-category-legend .is-ifr i {
-  background: #f04444;
+  background: var(--fixed-f04444);
 }
 
 .weather-swatch .is-lifr,
 .flight-category-legend .is-lifr i {
-  background: #d847e8;
+  background: var(--fixed-d847e8);
 }
 
 .flight-category-legend .is-unknown i {
-  background: #8795a1;
+  background: var(--fixed-8795a1);
 }
 
 .layer-copy {
@@ -261,7 +261,7 @@
 }
 
 .layer-copy strong {
-  color: #c9dce8;
+  color: var(--text-c9dce8);
   font-size: 13px;
   font-weight: 700;
 }
@@ -278,14 +278,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 7px;
-  color: #91a8ba;
+  color: var(--text-91a8ba);
   font-size: 12px;
 }
 
 .fix-display-options {
   margin: 0 6px 8px 16px;
   padding: 10px 0 4px 8px;
-  border-left: 2px solid rgba(97, 214, 197, 0.22);
+  border-left: 2px solid var(--border-61d6c5-a220);
 }
 
 .fix-display-controls {
@@ -299,7 +299,7 @@
 
 .fix-display-controls legend {
   margin-bottom: 10px;
-  color: #9db2c2;
+  color: var(--text-9db2c2);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -310,11 +310,11 @@
   grid-template-columns: minmax(52px, max-content) minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  color: #c9dce8;
+  color: var(--text-c9dce8);
   font-size: 12px;
 }
 
-.fix-display-controls p { margin: 0; color: #91a8ba; font-size: 11px; line-height: 1.5; }
+.fix-display-controls p { margin: 0; color: var(--text-91a8ba); font-size: 11px; line-height: 1.5; }
 
 .planned-layer small {
   color: var(--text-muted);
@@ -328,7 +328,7 @@
   gap: 3px;
   margin-top: 2px;
   padding: 15px 18px 18px;
-  border-top: 1px solid rgba(151, 199, 228, 0.09);
+  border-top: 1px solid var(--border-97c7e4-a90);
 }
 
 .panel-footer span,
@@ -341,8 +341,14 @@
 
 .panel-footer strong {
   overflow: hidden;
-  color: #b9cfdd;
+  color: var(--text-b9cfdd);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Category glyphs keep their hue with readable ink on the light panel. */
+:root[data-theme='light'] .layer-swatch { color: color-mix(in oklab, var(--swatch) 40%, var(--text-primary)); }
+
+/* Decorative dark gradients do not carry over to light surfaces. */
+:root[data-theme='light'] .layer-popover { background: var(--surface-panel); }

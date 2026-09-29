@@ -81,10 +81,12 @@ test('panel visibility, toolboxes, settings and recommendations survive refresh 
   await page.getByRole('button', { name: 'Close map layers', exact: true }).click();
   await page.getByRole('button', { name: 'Hide chart status', exact: true }).click();
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill('California');
   await page.reload();
   await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toBeVisible();
   await expect(page.getByLabel('Find a state or territory')).toHaveValue('California');
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.getByRole('button', { name: 'About ZLayer', exact: true }).click();
   await page.reload();
   await expect(page.getByRole('dialog', { name: 'About ZLayer', exact: true })).toBeVisible();

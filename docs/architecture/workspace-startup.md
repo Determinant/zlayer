@@ -18,8 +18,10 @@ Normal entry waits for:
 - MapLibre's idle signal after the initial required inputs. Loading a style alone
   does not establish rendering readiness. MapLibre documents the [idle event](https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MapEventType/#idle)
   as occurring after camera movement, tile loading, and transitions have settled.
-- At least 900 ms of startup visibility, including a final 300 ms stretch without a frame
-  gap longer than 50 ms. Initial main-thread work postpones the reveal.
+- At least 900 ms of startup visibility, preferably including a final 300 ms stretch
+  without a frame gap longer than 50 ms. Once required work is ready, this extra
+  settling wait is capped at 1.5 seconds so slow or throttled frames cannot keep
+  an otherwise usable workspace disabled. Pending required work retains its own gate.
 
 The workspace can start from a committed regional snapshot when browsing catalogs
 or feed discovery are unavailable. Saved metadata restoration finishes before a
@@ -33,7 +35,9 @@ one-way finishing phase. Completed initial steps and their progress stay fixed;
 background weather preparation, refreshes and resulting map redraws cannot restart
 them. Background rows continue reporting live progress. The responsive-frame check
 still runs before uncovering the workspace, and long frames restart that check
-without returning the splash to a loading phase.
+without returning the splash to a loading phase or extending its 1.5-second deadline.
+The deadline uses a timer independently of animation callbacks; suspended callbacks
+do not prevent release once timers run. Completion and unmount cancel both.
 
 The loading screen shows a progress bar and named steps for the workspace,
 startup work from enabled plugins using their registered names, and the first map
@@ -86,7 +90,10 @@ can settle the idle signal even when the source finished after the last frame.
 progress, disabled plugins, delayed map code/data/tiles, main-thread startup work,
 request failures, pending METAR/TAF responses, AWC preparation/redraws during
 finishing, the fifteen-second escape, restored modal ordering, WebGL failure, and
-failed lazy imports in Chromium/WebKit sessions.
+failed lazy imports in the configured Chromium suite. These startup specs are not
+part of the configured WebKit graphics matrix. `test/startup-release.test.ts`
+deterministically covers sustained slow frames, suspended animation callbacks,
+pending required work, minimum visibility and cleanup of the release deadline.
 Tests inspect phone, landscape and desktop layouts and verify that the map has
 nonzero dimensions while covered. `test/e2e/chart-startup.spec.ts` also holds chart
 archives after cache preparation to verify that startup waits for rendering.

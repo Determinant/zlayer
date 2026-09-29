@@ -69,7 +69,8 @@ test('acknowledgment restores the original Settings and About without the instal
   const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
   await expect(settings).toBeVisible();
   await expect(settings.getByRole('button', { name: 'About ZLayer', exact: true })).toBeVisible();
-  await expect(settings.getByLabel('FAA data cycle')).toBeVisible();
+  await expect(settings.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeVisible();
+  await settings.getByRole('tab', { name: 'Offline', exact: true }).click();
   await expect(settings.getByRole('heading', { name: 'App storage', exact: true })).toBeVisible();
   await expect(settings.getByLabel('Find a state or territory')).toBeVisible();
   await expect(settings.getByText('Take ZLayer with you', { exact: true })).toBeHidden();

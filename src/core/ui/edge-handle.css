@@ -1,16 +1,16 @@
 .map-edge-handle {
   position: relative; display: grid; place-items: center; flex: 0 0 var(--edge-handle-width);
   width: var(--edge-handle-width); height: 44px; padding: 0; border: 0;
-  color: #b4c3cd; background: transparent; cursor: pointer; isolation: isolate; pointer-events: auto;
+  color: var(--text-b4c3cd); background: transparent; cursor: pointer; isolation: isolate; pointer-events: auto;
 }
 .map-edge-handle::before {
   content: ''; position: absolute; z-index: -1; inset: 4px 4px 4px 0;
-  border: 1px solid #d8effa2e; border-left: 0; border-radius: 0 7px 7px 0;
-  background: #07101deb;
+  border: 1px solid var(--border-d8effa-a180); border-left: 0; border-radius: 0 7px 7px 0;
+  background: var(--surface-07101d-a922);
 }
 .map-edge-handle.is-right::before {
   inset: 4px 0 4px 4px;
-  border: 1px solid #d8effa2e; border-right: 0; border-radius: 7px 0 0 7px;
+  border: 1px solid var(--border-d8effa-a180); border-right: 0; border-radius: 7px 0 0 7px;
 }
-.map-edge-handle:hover, .map-edge-handle[aria-expanded="true"] { color: #85e6db; }
-.map-edge-handle:focus-visible { outline: 2px solid #85e6db; outline-offset: -3px; }
+.map-edge-handle:hover, .map-edge-handle[aria-expanded="true"] { color: var(--text-85e6db); }
+.map-edge-handle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }

@@ -6,13 +6,13 @@
   height: 44px;
   padding: 0;
   place-items: center;
-  border: 1px solid rgba(220, 241, 250, 0.22);
+  border: 1px solid var(--border-dcf1fa-a220);
   border-radius: 10px;
-  color: #d8eaf3;
-  background: rgba(10, 22, 37, 0.82);
+  color: var(--text-d8eaf3);
+  background: var(--surface-0a1625-a820);
   box-shadow:
-    0 10px 34px rgba(0, 0, 0, 0.34),
-    inset 0 1px rgba(255, 255, 255, 0.06);
+    0 10px 34px var(--shadow-000000-a340),
+    inset 0 1px var(--shadow-ffffff-a60);
   -webkit-backdrop-filter: blur(20px) saturate(145%);
   backdrop-filter: blur(20px) saturate(145%);
   cursor: pointer;
@@ -20,8 +20,8 @@
 }
 
 .map-tool-button:hover {
-  border-color: rgba(119, 225, 210, 0.46);
-  background: rgba(16, 34, 53, 0.92);
+  border-color: var(--border-77e1d2-a460);
+  background: var(--surface-102235-a920);
 }
 
 .map-tool-button:active {
@@ -29,21 +29,21 @@
 }
 
 .map-tool-button:focus-visible {
-  outline: 3px solid rgba(97, 214, 197, 0.25);
+  outline: 3px solid var(--accent-61d6c5-a250);
   outline-offset: 2px;
 }
 
 .map-tool-button[aria-expanded="true"],
 .map-tool-button[aria-pressed="true"] {
-  border-color: rgba(97, 214, 197, 0.54);
-  color: #7ae6d7;
-  background: rgba(16, 42, 56, 0.94);
+  border-color: var(--border-61d6c5-a540);
+  color: var(--text-7ae6d7);
+  background: var(--surface-102a38-a940);
 }
 
 .map-tool-button svg {
   width: 25px;
   height: 25px;
-  fill: rgba(97, 214, 197, 0.1);
+  fill: var(--text-61d6c5-a100);
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;

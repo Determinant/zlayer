@@ -4,14 +4,14 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: #111b27;
+  background: var(--surface-111b27);
 }
 
 .map-stage::after {
   position: absolute;
   z-index: 1;
   inset: 0;
-  box-shadow: inset 0 0 80px rgba(5, 12, 20, 0.28);
+  box-shadow: inset 0 0 80px var(--shadow-050c14-a280);
   content: "";
   pointer-events: none;
 }
@@ -39,8 +39,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  color: #7892a5;
-  background: #101925;
+  color: var(--text-7892a5);
+  background: var(--surface-101925);
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -57,16 +57,16 @@
   align-items: center;
   max-width: 320px;
   padding: 7px 10px;
-  border: 1px solid rgba(216, 239, 250, 0.18);
+  border: 1px solid var(--border-panel-translucent);
   border-radius: 9px;
-  color: #d9ecf5;
-  background: rgba(7, 16, 29, 0.84);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.24);
+  color: var(--text-d9ecf5);
+  background: var(--surface-07101d-a840);
+  box-shadow: 0 8px 30px var(--shadow-000000-a240);
   backdrop-filter: blur(12px);
 }
 
 .map-badge > span {
-  color: #61d6c5;
+  color: var(--text-action);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -86,7 +86,7 @@
   gap: 4px;
   min-width: 0;
   padding-top: 6px;
-  border-top: 1px solid rgba(216, 239, 250, 0.12);
+  border-top: 1px solid var(--border-d8effa-a120);
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
@@ -108,11 +108,11 @@
   gap: 3px;
   max-width: min(440px, calc(100% - 90px));
   padding: 10px 12px;
-  border: 1px solid rgba(255, 148, 137, 0.42);
+  border: 1px solid var(--border-ff9489-a420);
   border-radius: 11px;
-  color: #ffd6d1;
-  background: rgba(70, 20, 25, 0.9);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  color: var(--text-ffd6d1);
+  background: var(--surface-461419-a900);
+  box-shadow: 0 12px 36px var(--shadow-000000-a350);
   backdrop-filter: blur(14px);
 }
 
@@ -121,7 +121,7 @@
 }
 
 .map-runtime-error span {
-  color: #efaaa3;
+  color: var(--text-efaaa3);
   font-size: 11px;
 }
 
@@ -142,9 +142,9 @@
   overflow: hidden;
   border: 0;
   border-radius: 10px;
-  color: #d8eaf3;
-  background: rgba(10, 22, 37, 0.82);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(220, 241, 250, 0.22);
+  color: var(--text-d8eaf3);
+  background: var(--surface-0a1625-a820);
+  box-shadow: 0 10px 34px var(--shadow-000000-a340), inset 0 0 0 1px var(--shadow-dcf1fa-a220);
   -webkit-backdrop-filter: blur(20px) saturate(145%);
   backdrop-filter: blur(20px) saturate(145%);
 }
@@ -158,13 +158,13 @@
 
 .map-navigation-control button + button {
   border-top: 0;
-  border-left: 1px solid rgba(220, 241, 250, 0.18);
+  border-left: 1px solid var(--border-dcf1fa-a180);
 }
 
 .map-navigation-control .maplibregl-ctrl-icon { filter: invert(1) opacity(0.85); }
 .map-navigation-control button:disabled { opacity: 0.35; }
-.map-navigation-control button:not(:disabled):hover { background-color: rgba(119, 225, 210, 0.12); }
-.map-navigation-control button:focus-visible { outline: 2px solid #7ae6d7; outline-offset: -3px; }
+.map-navigation-control button:not(:disabled):hover { background-color: var(--overlay-77e1d2-a120); }
+.map-navigation-control button:focus-visible { outline: 2px solid var(--accent-7ae6d7); outline-offset: -3px; }
 .map-navigation-control button.map-orientation-toggle {
   display: flex;
   flex-direction: column;
@@ -178,17 +178,17 @@
 }
 .map-orientation-mode { font-size: 13px; }
 .map-orientation-up { font-size: 9px; letter-spacing: 0.08em; }
-.map-orientation-toggle[aria-pressed="true"] { color: #7ae6d7; background: rgba(97, 214, 197, 0.12); }
-.map-orientation-toggle.is-waiting { color: #e9be78; }
+.map-orientation-toggle[aria-pressed="true"] { color: var(--text-7ae6d7); background: var(--overlay-61d6c5-a120); }
+.map-orientation-toggle.is-waiting { color: var(--text-e9be78); }
 
 .maplibregl-ctrl-attrib {
   font-family: var(--font-ui);
-  color: #fff;
-  background: rgba(8, 20, 35, 0.8);
+  color: var(--text-ffffff);
+  background: var(--surface-081423-a800);
 }
 
 .maplibregl-ctrl-attrib a {
-  color: #fff;
+  color: var(--text-ffffff);
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact {
@@ -205,3 +205,5 @@
   background-repeat: no-repeat;
   background-position: center;
 }
+
+:root[data-theme='light'] .map-navigation-control .maplibregl-ctrl-icon { filter: opacity(0.85); }

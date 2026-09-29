@@ -760,8 +760,13 @@ browser storage access and JSON record I/O. This is ownership isolation for trus
 built-ins, not a sandbox for untrusted JavaScript.
 
 `storage.ui` provides the version-1 UI envelope; `storage.record` accepts a feature's
-versioned codec. Both use the existing action-time React helpers. Dynamic records,
-including per-document reader state, use the same scope. `storage.slot` provides
+versioned codec. Both support the existing action-time React helpers. Dynamic records,
+including per-document reader state, use the same scope. Optional `uiRetention`
+rules bound identities under an owner-selected prefix by last-write time; pruning
+runs on the first write and when adding an identity, not on every scroll write.
+Eviction removes matching legacy UI keys too, preventing old preferences from
+resurrecting. These rules apply only to disposable view state, never saved routes,
+selections or downloaded files. `storage.slot` provides
 scoped raw reads/writes for existing cache formats and coordinated named saves;
 it propagates failures so explicit saves can report them. Plugin code cannot use
 browser storage globals, unscoped UI helpers, or another plugin's storage module;
@@ -780,7 +785,9 @@ plugin therefore does not overwrite another plugin's settings from an older wind
 Legacy global keys are read only when the corresponding namespaced record is absent.
 Validated UI/preferences/draft records migrate on read; known route migrations commit
 generated entry IDs once. Invalid or unknown-version records remain untouched and
-never fall back to stale legacy data. Legacy slots remain available until full reset.
+never fall back to stale legacy data. Legacy slots remain available until full reset, except optional view records
+covered by an explicit retention rule; their migrated duplicates and evicted
+identities are removed.
 Named saves migrate on the next successful locked mutation, and weather caches on
 the next cache write. Keep saved records small and serializable; runtime state stays private.
 

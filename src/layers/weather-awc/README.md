@@ -15,7 +15,7 @@ and shared prepared data.
 `controller.ts` owns shared preferences, selection and display receipts.
 `product-refresh.ts` owns advisory/Progs restoration and product refresh demand;
 `clock.ts` owns expiry and app-resume events. Periodic clock work stops when
-weather is switched off or the document is hidden; enabling or resuming reconciles
+weather is switched off, every product is off, or the document is hidden; enabling or resuming reconciles
 the current time immediately and restores expiry scheduling. Grid interaction pauses live in
 `grids/preparation-demand.ts`. A child grid publication reconfigures its peers
 only when it changes the selected stop or advances Now into another hour.

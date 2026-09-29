@@ -155,8 +155,11 @@ for (const finite of [true, false]) test(`a permanent estimator failure stays hi
   hidden();
   t.mock.timers.tick(1000);
   hidden();
+  t.mock.timers.tick(50);
   s.imu(); s.fix();
   hidden();
+  assert.equal(s.stops(), 1, 'a permanently failed estimator releases unusable motion');
+  assert.equal(s.leases(), 1, 'GPS instruments retain their own useful demand');
   // Only explicit recalibration supplies a working estimator again.
   failedState.mock.restore();
   await s.layer.calibrate(); s.feed(11);
@@ -845,4 +848,22 @@ test('AHRS controls ignore changing attitude values but publish status and calib
   store.publish({ ...store.getSnapshot(), message: 'Motion paused' });
   assert.equal(changes, 3);
   stop();
+});
+
+
+test('permanent estimator failure preserves raw capture until recording stops', async t => {
+  const s = setup(t);
+  await s.layer.calibrate(); s.feed(11);
+  const getState = Ahrs.prototype.getState;
+  t.mock.method(Ahrs.prototype, 'getState', function(this: Ahrs, now: number) {
+    return { ...getState.call(this, now), status: 'interrupted' as const };
+  });
+  let capturing = true;
+  t.mock.method(s.layer.recorder, 'accepting', () => capturing);
+  t.mock.timers.tick(50); s.imu();
+  assert.equal(s.stops(), 0, 'explicit diagnostic demand keeps the sensor');
+  capturing = false;
+  t.mock.timers.tick(50); s.imu();
+  assert.equal(s.stops(), 1);
+  assert.equal(s.leases(), 1);
 });

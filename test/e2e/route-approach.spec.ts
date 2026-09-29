@@ -19,7 +19,9 @@ for (const width of [320, 1280]) test(`VTF connects the incoming route and prese
     const source = map.getSource('route-plan') as import('maplibre-gl').GeoJSONSource | undefined;
     const data = await source?.getData();
     return data?.type === 'FeatureCollection' ? data.features.filter(f => f.properties?.routeKind === 'planning-connection')
-      .map(f => f.geometry.type === 'LineString' ? f.geometry.coordinates : []) : [];
+      // Great-circle interpolation can add vertices; the connection endpoints
+      // must still preserve the incoming route and the unrelated planning gap.
+      .map(f => f.geometry.type === 'LineString' ? [f.geometry.coordinates[0], f.geometry.coordinates.at(-1)] : []) : [];
   });
   await page.goto('/test/browser/routes.html?map');
   await choose(page, page.locator('.route-token').nth(1));
@@ -528,6 +530,7 @@ test('published entries, route depiction and approach switching survive a cold o
     await page.getByLabel('Fit route on map').click();
     await expect.poll(() => magentaPixels(page)).toBeGreaterThan(30);
     await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Offline', exact: true }).click();
     await page.getByLabel('Find a state or territory').fill('California');
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
@@ -593,6 +596,7 @@ test('Verify / update makes new approaches available for first-use offline plann
   try {
     await page.goto('/');
     await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Offline', exact: true }).click();
     await page.getByLabel('Find a state or territory').fill('California');
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');

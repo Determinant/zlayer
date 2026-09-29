@@ -97,13 +97,14 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   const panned = await camera(page);
   for (const heading of [350, 10]) {
+    // Allow the 1.5s circular filter to settle within its 2° output deadband.
     // Damping advances on fresh fixes, not while a polling assertion waits.
     // Keep this GPS-only scenario below the optional sensor-assistance gate.
-    for (let sample = 0; sample < 4; sample++) {
+    for (let sample = 0; sample < 10; sample++) {
       await page.clock.runFor(1000);
       await sendFix(page, { heading, longitude: -121.9, latitude: 37.1, speed: 5 });
     }
-    await expect.poll(async () => Math.abs(((await bearing(page)) - heading + 540) % 360 - 180)).toBeLessThan(1);
+    await expect.poll(async () => Math.abs(((await bearing(page)) - heading + 540) % 360 - 180)).toBeLessThan(2);
     await expectCenter(page, -121.9, 37.1);
     expect((await camera(page)).zoom).toBe(panned.zoom);
   }
@@ -255,18 +256,25 @@ for (const { name, viewport, route, coordinates } of [
 }
 
 test('track-up ignores small GPS track noise while following position', async ({ page }) => {
-  await sendFix(page);
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  // Wall-clock UI waits must not create a >3s GPS gap and reseed the filter.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
   await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  await sendFix(page, { speed: 5 });
+  await page.clock.runFor(1000);
   await expect.poll(() => bearing(page)).toBeCloseTo(90);
   for (let i = 1; i <= 6; i++) {
     await page.clock.runFor(1000);
-    await sendFix(page, { heading: 90 + (i % 2 ? .8 : -.8), longitude: -122 + i * .01 });
+    await sendFix(page, { heading: 90 + (i % 2 ? .8 : -.8), longitude: -122 + i * .01, speed: 5 });
   }
+  // Finish the follow animation and the 2s automatic camera-save interval.
+  await page.clock.runFor(2500);
   await expectCenter(page, -121.94);
   expect(await bearing(page)).toBe(90);
 });
 
 test('optional AHRS carries track-up turns without instrument calibration and stops with north-up', async ({ page }) => {
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
   await page.evaluate(() => {
     class Motion extends Event {
       static async requestPermission() {
@@ -307,9 +315,10 @@ test('optional AHRS carries track-up turns without instrument calibration and st
     await page.getByLabel('Close settings').click();
   };
   await setAhrsEnabled(false);
-  await page.clock.runFor(6500);
+  await page.clock.runFor(10_000);
   expect(await countWatches(page)).toBe(1);
-  expect(await bearing(page)).toBeLessThan(91);
+  // GPS-only correction settles within the camera's 2° output deadband.
+  expect(Math.abs(((await bearing(page)) - 90 + 540) % 360 - 180)).toBeLessThan(2);
   await setAhrsEnabled(true);
   await expect(page.locator('body')).toHaveAttribute('data-motion-requests', '2');
   await page.clock.runFor(4500);

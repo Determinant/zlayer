@@ -42,7 +42,7 @@ test('underzooms a sparse archive with correct TMS orientation and clipping', as
   source.add(8, 40, 30, 6); // finer tile: not needed for an overview
   const overview = {} as ImageBitmap;
   const read = await createMbtilesReader(source.query, async (parts) => {
-    assert.deepEqual(parts.map((part) => ({
+    assert.deepEqual((await collect(parts)).map((part) => ({
       value: new Uint8Array(part.data)[0], x: part.x, y: part.y, size: part.size,
     })).sort((a, b) => a.value! - b.value!), [
       { value: 1, x: 0, y: 0, size: 64 },
@@ -95,7 +95,7 @@ test('overzooms all quadrants from the actual maximum with correct TMS orientati
     queries.push(parameters);
     return source.query(sql, parameters);
   }, async (parts) => {
-    assert.deepEqual(parts.map(part => ({
+    assert.deepEqual((await collect(parts)).map(part => ({
       value: new Uint8Array(part.data)[0], x: part.x, y: part.y, size: part.size,
     })), [{ value: 42, x: -expectedX * 256, y: -expectedY * 256, size: expectedScale * 256 }]);
     return overview;
@@ -216,3 +216,39 @@ test('overview rendering releases each bitmap on success, cancellation, or draw 
   assert.deepEqual(events, ['decode', 'draw', 'close', 'decode', 'draw', 'close', 'snapshot']);
   assert.ok(canvases.every(canvas => canvas.width === 0 && canvas.height === 0), 'release canvases on every exit');
 });
+
+
+test('legacy overviews stream bounded batches and stop querying after cancellation', async t => {
+  const source = archive(t);
+  for (let x = 0; x < 8; x++) for (let y = 0; y < 8; y++) source.add(6, x, y, x * 8 + y);
+  const controller = new AbortController();
+  let batches = 0, count = 0;
+  const read = await createMbtilesReader(async (sql, parameters) => {
+    const rows = await source.query(sql, parameters);
+    if (parameters.length) { batches++; assert.ok(rows.length <= 16); }
+    return rows;
+  }, async parts => {
+    for await (const part of parts) {
+      assert.equal(new Uint8Array(part.data)[0], count++);
+      if (count === 17) controller.abort();
+    }
+    return {} as ImageBitmap;
+  });
+  await assert.rejects(read({ z: 3, x: 0, y: 7 }, controller.signal), { name: 'AbortError' });
+  assert.equal(count, 17);
+  assert.equal(batches, 2, 'later pages are never fetched');
+  let completed = 0;
+  const complete = await createMbtilesReader(source.query, async parts => {
+    for await (const part of parts) assert.equal(new Uint8Array(part.data)[0], completed++);
+    return {} as ImageBitmap;
+  });
+  await complete({ z: 3, x: 0, y: 7 }, new AbortController().signal);
+  assert.equal(completed, 64, 'pagination keeps every tile exactly once');
+});
+
+
+async function collect<T>(parts: Iterable<T> | AsyncIterable<T>): Promise<T[]> {
+  const values: T[] = [];
+  for await (const part of parts) values.push(part);
+  return values;
+}

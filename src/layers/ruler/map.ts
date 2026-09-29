@@ -46,7 +46,22 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
   let obstacles: ScreenRect[] = [];
   const findObstacles = () => { obstacles = occupiedRects(); };
   const draw = () => view.draw(product.getSnapshot(), obstacles, drag);
+  let dragFrame: number | undefined, pendingPoint: ScreenPoint | undefined;
+  const discardMove = () => {
+    if (dragFrame !== undefined) cancelAnimationFrame(dragFrame);
+    dragFrame = undefined; pendingPoint = undefined;
+  };
+  const move = (next: ScreenPoint) => {
+    if (!drag) return;
+    const dx = next.x - drag.origin.x, dy = next.y - drag.origin.y;
+    if (Math.hypot(dx, dy) > 2) drag.moved = true;
+    if (!drag.moved) return;
+    // Constrain the endpoint, retaining the grip's finger offset.
+    product.move(drag.endpoint, coordinate({ x: Math.max(1, Math.min(container.clientWidth - 1, drag.anchor.x + dx)),
+      y: Math.max(1, Math.min(container.clientHeight - 1, drag.anchor.y + dy)) }));
+  };
   const endDrag = (commit: boolean) => {
+    discardMove();
     const current = drag;
     if (!current) return;
     drag = undefined;
@@ -98,25 +113,20 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
     if (tap?.id === event.pointerId && Math.hypot(next.x - tap.origin.x, next.y - tap.origin.y) > 6) tap.moved = true;
     if (!drag || drag.id !== event.pointerId) return;
     event.preventDefault();
-    const dx = next.x - drag.origin.x, dy = next.y - drag.origin.y;
-    if (Math.hypot(dx, dy) > 2) drag.moved = true;
-    if (!drag.moved) return;
-    // An offset endpoint is constrained to the visible map without changing its grip offset.
-    product.move(drag.endpoint, coordinate({ x: Math.max(1, Math.min(container.clientWidth - 1, drag.anchor.x + dx)),
-      y: Math.max(1, Math.min(container.clientHeight - 1, drag.anchor.y + dy)) }));
+    if (Math.hypot(next.x - drag.origin.x, next.y - drag.origin.y) > 2) drag.moved = true;
+    pendingPoint = next;
+    dragFrame ??= requestAnimationFrame(() => {
+      dragFrame = undefined;
+      const latest = pendingPoint; pendingPoint = undefined;
+      if (latest) move(latest);
+    });
   }, { passive: false });
   listen(window, 'pointerup', (event: PointerEvent) => {
     if (drag?.id === event.pointerId) {
       const next = point(event);
       const inside = next.x >= 0 && next.y >= 0 && next.x <= container.clientWidth && next.y <= container.clientHeight;
-      if (inside) {
-        const dx = next.x - drag.origin.x, dy = next.y - drag.origin.y;
-        if (Math.hypot(dx, dy) > 2) {
-          drag.moved = true;
-          product.move(drag.endpoint, coordinate({ x: Math.max(1, Math.min(container.clientWidth - 1, drag.anchor.x + dx)),
-            y: Math.max(1, Math.min(container.clientHeight - 1, drag.anchor.y + dy)) }));
-        }
-      }
+      discardMove();
+      if (inside) move(next);
       endDrag(inside);
     } else if (tap?.id === event.pointerId) {
       const current = tap, next = point(event);

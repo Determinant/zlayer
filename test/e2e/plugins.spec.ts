@@ -101,9 +101,10 @@ test('disabling plates retains reader state and falls back to airport informatio
   await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.side-panels')).toHaveCSS('--edge-panel-reveal', '1');
   await page.locator('.procedure-window').getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
-  const zoom = await page.locator('.procedure-zoom-controls').textContent();
   const selection = await page.evaluate(() => localStorage.getItem('zlayer-plugin:plates:plate-selection'));
   await settings(page);
   await row(page, 'plates').getByRole('switch').click();
@@ -117,7 +118,7 @@ test('disabling plates retains reader state and falls back to airport informatio
   await row(page, 'plates').getByRole('switch').click();
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
-  await expect(page.locator('.procedure-zoom-controls')).toHaveText(zoom!);
+  await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
   await expect(page.getByRole('tab', { name: 'Plates', exact: true })).toHaveAttribute('aria-selected', 'true');
 });
 
@@ -132,7 +133,7 @@ test('a workspace saved with every plugin disabled starts with core settings ava
   await settings(page);
   await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(11);
   await page.getByRole('tab', { name: 'General', exact: true }).click();
-  await expect(page.getByLabel('FAA data cycle')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
   await row(page, 'navigation').getByRole('switch').click();
   await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(10);
@@ -206,8 +207,12 @@ for (const [width, height] of [[320, 568], [568, 320], [1280, 900]]) {
     await page.goto('/');
     await page.getByLabel('Settings and offline downloads').click();
     const general = page.getByRole('tab', { name: 'General', exact: true });
+    const offline = page.getByRole('tab', { name: 'Offline', exact: true });
     const plugins = page.getByRole('tab', { name: 'Plugins', exact: true });
     await general.focus(); await general.press('ArrowRight');
+    await expect(offline).toBeFocused();
+    await expect(page.getByRole('tabpanel', { name: 'Offline', exact: true })).toBeVisible();
+    await offline.press('ArrowRight');
     await expect(plugins).toBeFocused();
     await expect(page.getByRole('tabpanel', { name: 'Plugins', exact: true })).toBeVisible();
     const action = row(page, 'ahrs').getByRole('switch');
@@ -219,7 +224,7 @@ for (const [width, height] of [[320, 568], [568, 320], [1280, 900]]) {
     await page.screenshot({ path: testInfo.outputPath('plugin-settings.png') });
     await plugins.focus(); await plugins.press('Home');
     await expect(general).toBeFocused();
-    await expect(page.getByLabel('FAA data cycle')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeVisible();
   });
 }
 

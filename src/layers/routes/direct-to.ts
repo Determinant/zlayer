@@ -80,11 +80,12 @@ function approachRemainder(plan: RoutePlan, point: RouteWaypoint) {
 function directToExpansion(plan: RoutePlan, point: RouteWaypoint): Set<string> {
   const expand = new Set(point.edit ? [] : routeItemsForPoint(plan, point).map(entry => entry.id));
   if (!point.edit) expand.add(point.source.entryId);
-  // A top-level SID can no longer use the original airport as the route origin.
-  // TEC children have their own airport scope, which remains valid when intact.
+  // Only a SID at or before the cut can lose its airport. Later departures
+  // remain attached to their intermediate stops, including exposed TEC children.
   const tec = new Set(plan.tecRoutes.map(item => item.tokenIndex));
   for (const procedure of plan.procedures) {
-    if (procedure.kind === 'departure' && !tec.has(procedure.tokenIndex)) {
+    const atTargetAirport = point.layer === 'airports' && point.edit && procedure.tokenIndex === point.source.tokenIndex + 1;
+    if (procedure.kind === 'departure' && (procedure.tokenIndex <= point.source.tokenIndex || atTargetAirport) && !tec.has(procedure.tokenIndex)) {
       expand.add(plan.entries[procedure.tokenIndex]!.id);
     }
   }

@@ -70,7 +70,7 @@
 .edge-panels.has-individual-tabs > .edge-panel-window { bottom: auto; align-items: flex-start; }
 .edge-panel-content {
   flex: 1 1 auto; min-width: 0; max-height: inherit; overflow: auto; overscroll-behavior: contain;
-  padding: 12px; border-radius: 9px; background: #07101d; color: #d9e9f2;
+  padding: 12px; border-radius: 9px; background: var(--surface-07101d); color: var(--text-d9e9f2);
 }
 @media (prefers-reduced-motion: reduce) {
   .edge-panels, .edge-panel-body, .edge-panel.is-open > .edge-panel-body { transition: none; }

@@ -36,9 +36,11 @@ test('a prepared release prompts both windows, waits for a click, and reloads on
   await input.press('Enter');
   await expect(page.locator('[data-route-entry]')).toHaveCount(2);
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill('California');
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
+  await page.getByRole('tab', { name: 'General', exact: true }).click();
   await expect(page.locator('.pwa-update-settings')).toContainText(`Current version: ${originalVersion}`);
   const other = await context.newPage();
   await other.goto('/');
@@ -57,6 +59,8 @@ test('a prepared release prompts both windows, waits for a click, and reloads on
   await page.getByLabel('Close settings').click();
   const prompt = page.getByLabel('App update', { exact: true });
   await expect(prompt).toContainText(version);
+  await expect(prompt.getByRole('button', { name: 'Dismiss update notification', exact: true }))
+    .toHaveAccessibleDescription(`Version ${version} is ready. Reload to update. Your saved routes and downloads stay on this device.`);
   await expect(other.getByLabel('App update', { exact: true })).toContainText(version);
   expect(navigations).toBe(0);
   await expect(page.locator(releaseSelector)).toHaveAttribute('content', originalRelease!);
@@ -67,15 +71,20 @@ test('a prepared release prompts both windows, waits for a click, and reloads on
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
   await page.screenshot({ path: testInfo.outputPath('update-prompt-mobile.png') });
 
-  await prompt.getByRole('button', { name: 'Later', exact: true }).click();
+  await prompt.getByRole('button', { name: 'Dismiss update notification', exact: true }).click();
   await expect(prompt).toHaveCount(0);
   await page.getByLabel('Settings and offline downloads').click();
   await expect(page.locator('.pwa-update-settings')).toContainText(version);
+  await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+  const notifications = page.getByRole('tabpanel', { name: 'Notifications', exact: true });
+  await expect(notifications).toContainText(version);
+  await expect(notifications.getByRole('button', { name: 'Update now', exact: true })).toBeEnabled();
   await context.setOffline(true);
-  await page.locator('.pwa-update-settings').getByRole('button', { name: 'Update now', exact: true }).click();
+  await notifications.getByRole('button', { name: 'Update now', exact: true }).click();
   await expect(page.locator(releaseSelector)).toHaveAttribute('content', release);
   await expect(page.locator(versionSelector)).toHaveAttribute('content', version);
   await expect(page.locator('[data-route-entry]')).toHaveCount(2);
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
   await expect(prompt).toHaveCount(0);
   expect(navigations).toBe(1);

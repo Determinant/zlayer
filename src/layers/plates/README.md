@@ -97,6 +97,10 @@ reader gestures, saved view state and map placement actions:
   turns the page in quarter turns and refits it at the selected zoom, starting at
   the top of the rotated page. The PDF's original orientation is preserved as the
   starting point. Selection, page, zoom, rotation, fullscreen and scroll position restore locally.
+  Per-plate view settings retain the 160 most recently written field records across
+  documents and editions (five fields per fully saved view). Older optional view
+  settings are pruned, including legacy duplicates; selected and mapped plates
+  are separate records and are never evicted by this view-state limit.
   See [workspace persistence](../../../docs/data/contracts.md#workspace-persistence) and
   [gesture checks](../../../docs/features/shared-ui.md#plate-modal-regression-checks).
 - The side reader is non-modal, so the map stays usable. Its core-owned
@@ -119,7 +123,8 @@ reader gestures, saved view state and map placement actions:
   the app never substitutes the browser's PDF renderer for its own viewer.
 
 ZLayer presents the authoritative page, not an interpretation of minimums or operational
-advice. Large books never load on map startup. Every airport using a book shares its
+advice. Unselected books are not eagerly loaded on map startup; a restored reader
+or on-map plate can load its exact saved book. Every airport using a book shares its
 content-addressed URL; the selected page is independent of that cache key. Pacific
 procedures and supplements pointing at the same book likewise share one stored file.
 

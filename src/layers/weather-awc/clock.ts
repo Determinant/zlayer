@@ -6,7 +6,10 @@ export function mountWeatherClock(read: () => WeatherState, publish: () => void)
   let stopped = false;
   const schedule = () => {
     clearTimeout(timer);
-    if (stopped || !read().preferences.awcEnabled || document.visibilityState === 'hidden') return;
+    const p = read().preferences;
+    const active = p.awcGairmet || p.awcFreezing || p.awcSigmet || p.awcConvective || p.awcCwa ||
+      p.awcRadar || p.awcProgs || p.awcWindBarbs || p.awcGridMode !== 'none';
+    if (stopped || !p.awcEnabled || !active || document.visibilityState === 'hidden') return;
     const now = Date.now();
     const boundaries = Object.values(read().products).flatMap(product =>
       product.snapshot?.advisories.flatMap(a => [a.validFrom, ...(a.validTo === null ? [] : [a.validTo])]) ?? []);

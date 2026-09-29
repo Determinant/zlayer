@@ -46,3 +46,18 @@ pixel/locality guards and records measurement limits separately from timings.
   including transparency and zoom behavior. Reader/pool changes also need the
   [resource limits](../../../docs/verification/memory-resources.md#resource-limits-by-path)
   and [local verification](../../../docs/development/local-development.md#verification).
+
+## Preparation limits
+
+Package downloads remain shared whole-file reads. Decode admission is serialized
+before posting to the reusable SQLite worker. Cancelling a queued package skips
+its decode; cancelling the active decode terminates that worker, and the next live
+package creates a replacement. Unloading aborts pending reads/admission as well.
+A package's signal represents the reader pool's shared demand, not one tile reader.
+
+Legacy underzoom overviews fetch at most 16 source tiles per indexed, ordered
+batch and draw them sequentially into one 256-pixel canvas. Cancellation is checked
+between queries and bitmaps; no full overview-sized tile array is retained. All
+intersecting detail and transparent cutlines are preserved. Very large legacy
+sheets can still take substantial total time; published low-zoom tiles remain
+preferable to client composition.

@@ -1,8 +1,8 @@
 import {
   AttributionControl,
-  Map as MapLibreMap,
   setWorkerUrl,
 } from 'maplibre-gl';
+import { Map as MapLibreMap } from '../../core/map/map';
 import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 import type { Bounds, GeoPointFeature } from '@zlayer/contracts';

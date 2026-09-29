@@ -9,6 +9,7 @@ async function saveRegion(page: Page, region = 'California', revision = '2026-09
   await page.goto('/');
   await selectCycle(page, revision);
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill(region);
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
@@ -53,6 +54,7 @@ test('an open airport keeps its edition and plate targets when a newer saved reg
   await page.getByRole('tab', { name: 'Info', exact: true }).click();
   await selectCycle(page, '2026-09-03');
   await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill('California');
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText(['Saved', 'Saved']);

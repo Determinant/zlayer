@@ -176,7 +176,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
   const publish = () => { if (visible && mode !== 'heading') store.publish(readSnapshot()); };
   const updateDisplayTimer = () => {
     clearInterval(timer); timer = undefined;
-    if (visible && motion && mode === 'instruments') timer = setInterval(publish, 50);
+    if (visible && releaseGps && mode === 'instruments') timer = setInterval(publish, 50);
   };
   const observeGps = () => {
     const { fix, time, live, usable } = gpsState();
@@ -266,6 +266,14 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
         const corrected = { time: value.time, gyro: rotate(trim, value.gyro), specificForce: rotate(trim, value.specificForce) };
         const attitude = filter.update(corrected);
         headingReference.observeImu(corrected, attitude, environment.now());
+        // A latched numerical fault cannot use more motion. Keep GPS instruments
+        // and the last reference available; explicit diagnostic recording may
+        // still need raw sensor input until capture stops.
+        if (attitude.status === 'interrupted' && !recorder.accepting()) {
+          const sensor = motion;
+          motion = undefined;
+          sensor?.stop();
+        }
       }
       publishHeading();
       if (mode === 'instruments' && recorder.accepting() && value.time >= nextRecordedState) {
@@ -321,10 +329,10 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     if (session !== generation) return;
     try {
       const sensor = environment.motion(mount,
-        (value, raw) => { if (session === generation) sample(value, raw); },
-        issue => { if (session === generation) reportMotionIssue(issue); }, {
-          sample: value => { if (session === generation) magnetic(value); },
-          issue: reason => { if (session === generation) magneticIssue(reason); },
+        (value, raw) => { if (session === generation && motion) sample(value, raw); },
+        issue => { if (session === generation && motion) reportMotionIssue(issue); }, {
+          sample: value => { if (session === generation && motion) magnetic(value); },
+          issue: reason => { if (session === generation && motion) magneticIssue(reason); },
         });
       if (session !== generation) { sensor.stop(); return; }
       motion = sensor;

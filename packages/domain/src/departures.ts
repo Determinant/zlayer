@@ -1,6 +1,7 @@
 import type { TerminalProcedure, TerminalProcedureRoute, TerminalProceduresData } from '@zlayer/contracts';
 import type { RouteDraft, RoutePlan } from './route-model.js';
 import type { RouteAtom } from './route-source.js';
+import { routePointIdentifications } from './route-identification.js';
 
 export type DepartureBranch = { id: string; name: string; route: TerminalProcedureRoute };
 
@@ -33,7 +34,10 @@ export function attachRouteDepartures(draft: RouteDraft, plan: RoutePlan, data?:
       procedure.kind === 'departure' && procedure.airports.includes(resolved.airport));
     if (matches?.length !== 1) continue;
     const procedure = matches[0]!;
-    entries[index - 1] = { ...airport, departure: { kind: 'departure', source: 'nasr', airportId: resolved.airport, procedureId: procedure.id,
+    const identifications = routePointIdentifications(plan.waypoints.filter(point =>
+      point.source.entryId === airport.id || point.source.entryId === token.id));
+    entries[index - 1] = { ...airport, ...(identifications.length ? { identifications } : {}),
+      departure: { kind: 'departure', source: 'nasr', airportId: resolved.airport, procedureId: procedure.id,
       ident: procedure.ident, name: procedure.name, effectiveDate: data!.metadata.effectiveDate, transition: resolved.transition } };
     entries.splice(index, 1);
     changed = true;

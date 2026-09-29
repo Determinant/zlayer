@@ -9,21 +9,21 @@
   width: max(32px, var(--touch-target));
   height: max(32px, var(--touch-target));
   padding: 0;
-  border: 1px solid #419cff70;
+  border: 1px solid var(--border-419cff-a439);
   border-radius: 8px;
-  background: #1986ff24;
-  color: #91c7ff;
+  background: var(--overlay-1986ff-a141);
+  color: var(--text-91c7ff);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
-.identify-feature-button:hover, .direct-to-button:hover { background: #1986ff40; }
-.identify-feature-button[aria-pressed="true"] { color: #fff; background: #126bd2; border-color: #78baff; }
-.identify-feature-button:focus-visible, .direct-to-button:focus-visible { outline: 2px solid #78baff; outline-offset: 3px; }
+.identify-feature-button:hover, .direct-to-button:hover { background: var(--overlay-1986ff-a251); }
+.identify-feature-button[aria-pressed="true"] { color: var(--text-ffffff); background: var(--surface-126bd2); border-color: var(--border-78baff); }
+.identify-feature-button:focus-visible, .direct-to-button:focus-visible { outline: 2px solid var(--accent-78baff); outline-offset: 3px; }
 
 .feature-card-header > p {
   margin: 4px 0 12px;
-  color: #8fa7b9;
+  color: var(--text-8fa7b9);
   font-size: 13px;
 }
 
@@ -53,30 +53,30 @@
   padding: 5px 0;
   line-height: 20px;
 }
-.airport-frequency-number { color: #dff5f2; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.airport-frequency-unit { color: #819da9; font-size: 10px; }
-.airport-frequency-context { color: #9aafbe; font-size: 10px; }
-.airport-frequency-notes summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: rgba(97, 214, 197, 0.08); }
+.airport-frequency-number { color: var(--text-dff5f2); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.airport-frequency-unit { color: var(--text-819da9); font-size: 10px; }
+.airport-frequency-context { color: var(--text-9aafbe); font-size: 10px; }
+.airport-frequency-notes summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: var(--overlay-61d6c5-a80); }
 .airport-frequency-notes summary::-webkit-details-marker { display: none; }
-.airport-frequency-notes summary:hover .airport-frequency-number { color: #61d6c5; }
-.airport-frequency-notes summary:focus-visible { outline: 2px solid #61d6c5; outline-offset: 0; border-radius: 3px; }
+.airport-frequency-notes summary:hover .airport-frequency-number { color: var(--text-action); }
+.airport-frequency-notes summary:focus-visible { outline: 2px solid var(--accent-61d6c5); outline-offset: 0; border-radius: 3px; }
 .airport-frequency-chevron {
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
   margin-top: calc((var(--frequency-row-height) - 16px) / 2);
-  color: #829daa;
+  color: var(--text-829daa);
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.airport-frequency-notes[open] .airport-frequency-chevron { transform: rotate(180deg); color: #61d6c5; }
+.airport-frequency-notes[open] .airport-frequency-chevron { transform: rotate(180deg); color: var(--text-action); }
 .airport-frequency-note-list {
   margin-inline-start: calc(-1 * (var(--frequency-label-width) + 10px));
   padding: 5px 0 9px;
-  border-top: 1px solid rgba(151, 199, 228, 0.1);
+  border-top: 1px solid var(--border-97c7e4-a100);
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.5;
@@ -91,39 +91,39 @@
   width: max(32px, var(--touch-target));
   height: max(32px, var(--touch-target));
   padding: 0;
-  border: 1px solid rgba(97, 214, 197, 0.2);
+  border: 1px solid var(--border-61d6c5-a200);
   border-radius: 8px;
-  color: #61d6c5;
-  background: rgba(97, 214, 197, 0.07);
+  color: var(--text-action);
+  background: var(--overlay-61d6c5-a70);
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease;
 }
 
 .append-route-button:hover,
 .remove-route-button:hover {
-  border-color: rgba(97, 214, 197, 0.38);
-  background: rgba(97, 214, 197, 0.12);
+  border-color: var(--border-61d6c5-a380);
+  background: var(--overlay-61d6c5-a120);
 }
 
 .append-route-button:focus-visible,
 .remove-route-button:focus-visible {
-  outline: 2px solid #61d6c5;
+  outline: 2px solid var(--accent-61d6c5);
   outline-offset: 3px;
 }
 
 .remove-route-button {
-  border-color: rgba(239, 119, 113, 0.3);
-  color: #f2a09a;
-  background: rgba(239, 119, 113, 0.09);
+  border-color: var(--border-ef7771-a300);
+  color: var(--text-f2a09a);
+  background: var(--overlay-ef7771-a90);
 }
 
 .remove-route-button:hover {
-  border-color: rgba(239, 119, 113, 0.5);
-  background: rgba(239, 119, 113, 0.16);
+  border-color: var(--border-ef7771-a500);
+  background: var(--overlay-ef7771-a160);
 }
 
 .remove-route-button:focus-visible {
-  outline-color: #f2a09a;
+  outline-color: var(--accent-f2a09a);
 }
 
 .feature-route-remove {
@@ -138,10 +138,10 @@
   right: 12px;
   max-height: calc(100% - 76px);
   overflow-y: auto;
-  border: 1px solid rgba(239, 119, 113, 0.3);
+  border: 1px solid var(--border-ef7771-a300);
   border-radius: 10px;
-  background: #0c1a2b;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  background: var(--surface-panel);
+  box-shadow: 0 12px 28px var(--shadow-000000-a500);
 }
 
 .feature-route-remove-menu button {
@@ -150,8 +150,8 @@
   min-height: max(44px, var(--touch-target));
   padding: 10px 12px;
   border: 0;
-  border-bottom: 1px solid rgba(239, 119, 113, 0.15);
-  color: #f2a09a;
+  border-bottom: 1px solid var(--border-ef7771-a150);
+  color: var(--text-f2a09a);
   text-align: left;
   background: transparent;
   cursor: pointer;
@@ -160,7 +160,7 @@
 .feature-route-remove-menu button:hover,
 .feature-route-remove-menu button:focus-visible {
   outline: none;
-  background: rgba(239, 119, 113, 0.16);
+  background: var(--overlay-ef7771-a160);
 }
 
 .feature-route-remove-menu strong,

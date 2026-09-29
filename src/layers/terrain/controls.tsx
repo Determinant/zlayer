@@ -1,10 +1,9 @@
 import { pluginStorage } from './storage';
 import type { TerrainCoverage, TerrainStatus } from './types';
 import { terrainColor, TERRAIN_COLOR_STOPS } from './palette';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { TabList, tabPanelProps } from '../../core/ui/tabs';
 import { useBackDismiss } from '../../core/ui/pwa-back';
-import { usePluginState } from '../../core/ui/use-persistent-state';
 import { CLEARANCE_COLORS, DEFAULT_TERRAIN_ALTITUDE, MAX_TERRAIN_ALTITUDE, TERRAIN_ALTITUDE_STEP } from './clearance';
 import './styles.css';
 
@@ -102,20 +101,44 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
   status: TerrainStatus; altitude: number | null; onAltitudeChange: (altitude: number | null) => void;
 } & CoverageProps) {
   const sliderId = useId();
-  const [lastAltitude, setLastAltitude] = usePluginState(pluginStorage, 'terrain-last-altitude', altitude ?? DEFAULT_TERRAIN_ALTITUDE,
+  const altitudeRecord = pluginStorage.ui('terrain-last-altitude', altitude ?? DEFAULT_TERRAIN_ALTITUDE,
     (value): value is number => typeof value === 'number' && Number.isFinite(value) &&
       value >= 0 && value <= MAX_TERRAIN_ALTITUDE && value % TERRAIN_ALTITUDE_STEP === 0);
+  const [lastAltitude, setLastAltitude] = useState(altitudeRecord.read);
+  const pending = useRef<number | undefined>(undefined);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flushAltitude = useCallback(() => {
+    clearTimeout(saveTimer.current); saveTimer.current = undefined;
+    if (pending.current === undefined) return;
+    altitudeRecord.write(pending.current); pending.current = undefined;
+  }, []);
+  const rememberAltitude = (value: number) => {
+    setLastAltitude(value); pending.current = value;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushAltitude, 200);
+  };
+  useEffect(() => {
+    const visibility = () => { if (document.hidden) flushAltitude(); };
+    window.addEventListener('pagehide', flushAltitude);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('pagehide', flushAltitude);
+      document.removeEventListener('visibilitychange', visibility);
+      flushAltitude();
+    };
+  }, [flushAltitude]);
   const [altitudeDraft, setAltitudeDraft] = useState<string | null>(null);
   const selected = altitude ?? lastAltitude;
   const sliderAltitude = Math.round(selected / TERRAIN_SLIDER_STEP) * TERRAIN_SLIDER_STEP;
   const comparison = altitude !== null;
   const colorMode = comparison ? 'clearance' : 'elevation';
   const changeAltitude = (next: number) => {
-    setLastAltitude(next);
+    rememberAltitude(next);
     onAltitudeChange(next);
   };
   const selectMode = (clearance: boolean) => {
-    if (altitude !== null) setLastAltitude(altitude);
+    if (altitude !== null) rememberAltitude(altitude);
+    flushAltitude();
     onAltitudeChange(clearance ? selected : null);
   };
   const stops = [{ feet: status.interval, color: `rgb(${terrainColor(status.interval).join(', ')})` },
@@ -163,6 +186,7 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
         </span>
       </div>
       <input id={sliderId} className="terrain-altitude-slider" type="range" min="0" max={MAX_TERRAIN_ALTITUDE}
+        onPointerUp={flushAltitude} onKeyUp={flushAltitude} onBlur={flushAltitude}
         aria-labelledby={`${sliderId}-label`}
         step={TERRAIN_SLIDER_STEP} value={sliderAltitude} aria-valuetext={`${sliderAltitude.toLocaleString('en-US')} feet MSL`}
         onChange={event => {

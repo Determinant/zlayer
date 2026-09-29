@@ -4,6 +4,7 @@ import { startupStepBlocking, type StartupStep } from '../workspace/startup';
 const MINIMUM_MS = 900;
 const QUIET_MS = 300;
 const BUSY_FRAME_MS = 50;
+const MAX_SETTLE_MS = 1500;
 const SLOW_MS = 15_000;
 
 /** Release once per launch, after initial work and a short responsive frame run. */
@@ -28,6 +29,9 @@ export function useStartup(steps: readonly StartupStep[], failed: boolean) {
     if (failed) { finish(); return; }
     if (!settled) return;
     let previous = performance.now(), quietSince = previous, frame = 0;
+    // Loaded work must remain usable on slow or throttled displays. This deadline
+    // starts only after required data and the initial map render have settled.
+    const deadline = setTimeout(finish, Math.max(MAX_SETTLE_MS, MINIMUM_MS - (previous - started.current)));
     const settle = (now: number) => {
       if (now - previous > BUSY_FRAME_MS) quietSince = now;
       previous = now;
@@ -35,7 +39,7 @@ export function useStartup(steps: readonly StartupStep[], failed: boolean) {
       else frame = requestAnimationFrame(settle);
     };
     frame = requestAnimationFrame(settle);
-    return () => cancelAnimationFrame(frame);
+    return () => { cancelAnimationFrame(frame); clearTimeout(deadline); };
   }, [complete, settled, failed, finish]);
   // Required rows describe the completed initial load. Background rows continue
   // showing their live progress during the responsive-frame check.

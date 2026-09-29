@@ -4,7 +4,7 @@ for (const density of [1, 2, 3]) {
   test.describe(`${density}× display`, () => {
     test.use({ deviceScaleFactor: density, hasTouch: true, viewport: { width: 390, height: 844 } });
 
-    test('map follows display density through rotation and container resizing', async ({ page }, testInfo) => {
+    test('map follows display density through rotation and container resizing', { tag: '@explicit-density' }, async ({ page }, testInfo) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.addInitScript(() => {

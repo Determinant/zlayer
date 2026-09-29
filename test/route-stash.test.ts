@@ -79,3 +79,27 @@ test('repeated waypoints keep distinct entry identities when inserting and remov
   assert.deepEqual([result.entries[0], result.entries[2], result.entries[3]], original.entries);
   assert.deepEqual(editSavedDraft(original, 'KSFO KSFO').entries, [original.entries[0], original.entries[2]]);
 });
+
+
+test('large saved routes preserve unchanged entries without a quadratic table', () => {
+  const entries = Array.from({ length: 10_000 }, (_, i) => ({ id: String(i), text: `FIX${i}`, pinnedFeatureId: `pin${i}` }));
+  const draft = { entries }, text = entries.map(entry => entry.text).join(' ');
+  assert.equal(editSavedDraft(draft, text), draft, 'name-only edits reuse the draft');
+  const edited = editSavedDraft(draft, text.replace('FIX5000 ', 'OTHER '));
+  assert.equal(edited.entries[4999], entries[4999]);
+  assert.equal(edited.entries[5001], entries[5001]);
+  assert.equal(edited.entries[5000]!.text, 'OTHER');
+  assert.throws(() => editSavedDraft(draft, entries.map((_, i) => `NEW${i}`).join(' ')), /smaller sections/);
+  assert.equal(draft.entries, entries, 'a rejected edit leaves the saved draft intact');
+});
+
+
+test('suffix optimization preserves occurrence matching for repeated destination tokens', () => {
+  const draft = routeDraftFromText('KSFO KSJC KSJC');
+  const result = editSavedDraft(draft, 'KSJC KSJC KSJC');
+  assert.equal(result.entries[1], draft.entries[1]);
+  assert.equal(result.entries[2], draft.entries[2]);
+  assert.notEqual(result.entries[0]!.id, draft.entries[1]!.id);
+  assert.equal(editSavedDraft(draft, 'KSJC').entries[0], draft.entries[1],
+    'removing a repeated visit keeps the first matched occurrence');
+});

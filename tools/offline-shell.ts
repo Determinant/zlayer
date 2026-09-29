@@ -14,7 +14,7 @@ export function offlineShell(): Plugin {
       const identity = readBuildIdentity();
       const worker = bundle['sw.js'];
       if (!worker || worker.type !== 'chunk') throw new Error('Missing offline service worker');
-      const publicAssets = ['manifest.webmanifest', 'icon.svg', 'logo.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
+      const publicAssets = ['manifest.webmanifest', 'icon.svg', 'logo.svg', 'logo-light.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
         'fonts/Noto Sans Bold/0-255.pbf'];
       const assets = ['/', ...publicAssets.map(path => `/${encodeURI(path)}`), ...Object.keys(bundle)
         .filter(path => path.startsWith('assets/')).sort().map(path => `/${path}`)];

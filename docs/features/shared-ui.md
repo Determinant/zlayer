@@ -25,8 +25,10 @@ Display scaling and browser chrome can change the available viewport.
 ## Contents
 
 - [Layout contract](#layout-contract)
+- [Notifications](#notifications)
 - [Startup status](#startup-status)
 - [Typography](#typography)
+- [Appearance and colors](#appearance-and-colors)
 - [Shared controls](#shared-controls)
 - [Automated regression coverage](#automated-regression-coverage)
 - [Route-validation regression checks](#route-validation-regression-checks)
@@ -101,6 +103,54 @@ Display scaling and browser chrome can change the available viewport.
   PDF fitting fills the available width at 100% zoom, allows vertical scrolling,
   limits canvas memory, and preserves explicit zoom.
 
+## Settings
+
+Settings tabs appear in this order: **General**, **Offline**, **Plugins**,
+**Notifications**. General contains appearance, FAA data cycle, app updates, About,
+and the advanced local-data reset. Offline groups regional downloads with app
+storage controls. The selected tab persists across closing and reloading; switching
+tabs leaves downloads running. The tab rail scrolls on narrow screens and supports
+arrow-key navigation.
+
+Settings uses a single B612 hierarchy: a 24px dialog title, 18px bold section
+headings, 16px bold subsection/group titles, 15px body text and actions, and 14px
+supporting text and tabs. Text-entry fields retain the shared 16px minimum.
+Appearance and FAA data cycle use the same group-title treatment; Advanced is a
+section disclosure with a subordinate reset heading. Sentence case and natural
+letter spacing apply throughout, apart from the small ZLayer brand eyebrow.
+
+General, Plugins and Notifications do not initialize regional downloads. Offline
+starts that work only on its first visit, after the dialog can paint, and retains
+its controller thereafter. Its content remains visible while storage estimates
+and saved-file checks run, with local status messages and disabled mutations.
+
+## Notifications
+
+Workspace status bubbles (offline, FAA cycle/feed issues, saved-download health,
+navigation availability, chart-cache failures, map errors and workspace connection
+failures) dismiss when their body is clicked or tapped. The body is a native button
+with keyboard activation and a muted, regular-weight 11px **Tap to dismiss** hint
+below the message. No close icon reserves a column: titles and messages use the
+full bubble width. Retry/reload buttons remain separate controls; using an action
+does not dismiss the notice.
+
+Dismiss buttons expose the notice title as their accessible name and the message
+as their description, including the available version and reload guidance for app
+updates. Keyboard and screen-reader users can read the notice before dismissing it.
+
+**Settings → Notifications** lists all active notices, including dismissed ones,
+with the same recovery actions. Dismissal only hides the bubble; it never marks a
+condition resolved or changes data availability. An unchanged notice stays hidden
+through rerenders and repeated tile failures. Changed notices and conditions that
+resolve and recur appear again. Resolved notices leave the list. Dismissals are
+session-only and reset on reload; Notifications is a current-status view, not a
+persistent event history. The Settings tab rail scrolls on narrow screens.
+
+App-update bubbles likewise dismiss through their body or **Later**. Available
+updates remain in Notifications and General's App updates section; update dismissal
+keeps its existing per-release lifecycle. Blocking startup/map failures and inline
+feature validation keep their own recovery UI.
+
 ## Startup status
 
 The splash lists requested startup work using registered plugin names, alongside
@@ -131,7 +181,7 @@ bring the splash back.
 | Raw TAF and Morse | Shared system monospace stack; preserve report spacing and letter groups |
 | Map identifiers, terrain and GPS projection labels | Bundled Noto Sans Bold glyphs; preserve sizes and halos |
 | Compact metadata and badges | 11 px minimum in application CSS; a design choice, not an accessibility-standard minimum |
-| Dense controls and data | 12–14 px with clear weight/color hierarchy; region inventory supporting text stays 12 px |
+| Dense controls and data | 12–14 px with clear weight/color hierarchy; Settings uses the hierarchy above, with 14px region supporting text |
 | Explanatory prose | 14 px, line height 1.6–1.7 |
 | Touch text-entry fields | 16 px minimum; terrain altitude input remains 18 px |
 | Long airport and procedure names | Wrap without discarding identifying suffixes; search names use the full width below the identifier/category row |
@@ -167,6 +217,52 @@ establish full WCAG conformance by themselves.
 Physical iOS/Android rasterization, native selects and OS accessibility text
 settings still require device checks.
 
+## Appearance and colors
+
+Settings → General → Appearance offers **Light** and **Dark** with native radio
+controls, B612, sentence-case 15 px labels and 44 px minimum targets. Dark is the
+default, including for existing installations and invalid/unavailable saved choices.
+The versioned host UI record `appearance` saves in the action; a denied write still
+changes the current session. Startup applies the choice before React mounts, and
+storage events synchronize open windows. Full local-data reset removes the choice.
+Changing appearance updates CSS and browser chrome without recreating the map,
+reloading data, or disturbing open panels, route edits or camera state.
+
+`core/theme/palette.ts` owns dark seeds and semantic roles; `color.ts` derives the
+light palette in OKLab, preserving hue and reducing chroma to fit sRGB. Surface
+depth reverses into pale cool tones; text and focus/accent tones become dark enough
+for light surfaces. Light panels are opaque to isolate text from chart content.
+Light elevation shadows keep their ink with reduced opacity; modal scrims and
+explicitly fixed colors retain their original values. Decorative dark gradients
+are omitted on light launch, Layers and plate-reader surfaces. The light route bar
+is flat with a divider; its editor retains only functional overflow-edge shadows,
+with matching opaque covers so the ends do not appear as decorative bands. Generated sRGB
+CSS avoids runtime color math and works in standalone shared-UI fixtures as well
+as lazy-loaded plugins. Native fields inherit the active color scheme.
+
+Dark seeds preserve the previous colors exactly. Named roles such as
+`--surface-panel`, `--text-primary`, `--text-muted`, `--border-control` and
+`--focus-ring` are preferred for new UI. Role-prefixed hex suffixes retain distinct
+legacy shades without silently consolidating the dark appearance. Do not add an
+independent light palette or hard-coded UI shades to feature stylesheets. Edit the
+seed/role, run `npm run theme:generate`, and include the generated `tokens.css`;
+`npm run check:theme` fails on stale output and runs within `npm run check`.
+
+Source charts, PDFs/paper, map geometry/halos, weather/terrain scales and their
+legend fills, and AHRS instrument faces keep their established colors.
+Brand cyan stays fixed. The icon retains its dark tile; the light wordmark's ink is
+generated from primary text and the original SVG, and is included in the offline shell.
+Supporting controls and report text adapt; flight-category text keeps its hue
+family. Navigation category glyph ink on light panels mixes its identity color
+with primary text. These are UI modes, not a recoloring of aviation source content.
+
+Palette tests enforce 4.5:1 for derived opaque light text/surface pairs and 7:1 for
+primary panel text in both modes. Browser checks cover switching, keyboard access,
+cross-window synchronization, reload, denied storage, and narrow settings layout.
+These checks do not establish contrast for every gradient, chart overlap or
+physical device. The earlier [color-system proposal](../product/color-system-plan.md)
+retains its unimplemented category/action consolidation and broader visual audit.
+
 ## Shared controls
 
 `core/ui/styles.css` is the shared UI entry: typography, native font inheritance,
@@ -175,8 +271,8 @@ it once through `src/styles.css`; standalone UI fixtures import it directly when
 they do not load the application stylesheet. The shell owns workspace layout.
 
 Use `ui-button` on native action buttons and `ui-input` on text/search/number inputs,
-selects and textareas. Native fields use a dark color scheme so WebKit's select
-surface stays readable with the shared light text. Core owns their border,
+selects and textareas. Native fields inherit the active light/dark color scheme so
+WebKit's select surface stays readable with the shared text. Core owns their border,
 background, padding, typography,
 hover, keyboard focus and disabled treatment. Keep native attributes, refs, labels
 and event handlers with the feature; these classes add no JavaScript or wrapper DOM.

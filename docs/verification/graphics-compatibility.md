@@ -27,6 +27,17 @@ regression checks the real workspace at 1×, 2× and 3× through portrait/landsc
 rotation, keyboard-sized viewports and container-only resizing, then selects an
 airport. Map density and tile-cache sizing use MapLibre's defaults.
 
+The shared map class in `core/map/map.ts` skips resize while WebGL reports a lost
+context. In MapLibre 6.9, the built-in guard becomes active only when the queued
+`webglcontextlost` event arrives. A resize between loss and event delivery can
+store the lost drawing buffer's zero dimensions as the GPU canvas limit, leaving
+the map blank after restoration. The guard checks the immediate WebGL state;
+MapLibre still owns the observer and resizes to the current container on restore.
+The graphics regression forces this ordering, checks that the canvas dimensions
+survive loss, and verifies the restored symbols, weather and route pixels. This
+is a repair for the reproduced resize/loss race, not a diagnosis of the separate
+iPhone process crash below. Revisit the guard when upgrading MapLibre.
+
 An iPhone 15 Pro reported Safari's “a problem repeatedly occurred” screen, while
 the reporter's iPad was unaffected. The reporter subsequently confirmed that the
 crash persists after an update. A fresh visit in Linux WebKit did not reproduce
@@ -243,6 +254,10 @@ npm run verify:full
 Full local CI runs all checks, unit tests, browser tests and all four graphics
 projects. On Linux, its Firefox stage runs headed and automatically uses
 `xvfb-run -a` when `DISPLAY` is unset. Install Xvfb for that environment.
+Tests that explicitly construct their own density and touch contexts run once per
+engine under `@explicit-density`; WebKit's 2× project runs the remaining cases at
+its own density. This preserves the explicit 1×/2×/3× resize and phone/tablet
+scenarios without repeating identical WebKit contexts.
 To run only the graphics suites independently on Linux:
 
 ```sh

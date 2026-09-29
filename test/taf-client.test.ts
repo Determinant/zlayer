@@ -224,3 +224,25 @@ for (const nearby of [false, true]) test(`${nearby ? 'nearby' : 'station'} TAF p
   assert.equal(client.get('KSFO')?.report?.rawTAF, amended.rawTAF, 'future issuance cannot replace usable cached weather');
   assert.equal(client.get('KSFO')?.missing, true);
 });
+
+
+test('unchanged TAF checks preserve content identity and skip persistence while amendments save', async () => {
+  let time = now, writes = 0, current = report({ lat: 37, lon: -122 });
+  const client = new TafClient(endpoint, { now: () => time,
+    storage: { getItem: () => null, setItem: () => { writes++; } },
+    fetch: async () => Response.json([current]) });
+  await client.refresh('KSFO', signal());
+  const first = client.get('KSFO')!.report;
+  time += TAF_REFRESH_MS;
+  await client.refresh('KSFO', signal());
+  await client.refreshNearby([-122, 37], signal());
+  assert.equal(writes, 1);
+  assert.equal(client.get('KSFO')!.report, first);
+  assert.equal(client.get('KSFO')!.checkedAt, time);
+  assert.equal(client.get('KSFO')!.missing, false);
+  current = { ...current, rawTAF: 'TAF AMD KSFO CORRECTION' };
+  time += TAF_REFRESH_MS;
+  await client.refresh('KSFO', signal());
+  assert.equal(writes, 2);
+  assert.equal(client.get('KSFO')!.report!.rawTAF, current.rawTAF);
+});

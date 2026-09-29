@@ -29,7 +29,8 @@ import { SettingsLauncher } from './shell/settings-launcher';
 import { useMapPreferences } from './workspace/use-map-preferences';
 import { useMapView } from './shell/use-map-view';
 import { useResourceWarning } from './shell/use-resource-warning';
-import { WorkspaceConnectionNotice } from './shell/workspace-connection-notice';
+import { NotificationBubbles } from './shell/notifications';
+import { useNotifications, type WorkspaceNotification } from './shell/use-notifications';
 import { useOnline } from './core/use-online';
 import { useCatalog } from './workspace/catalog/use-catalog';
 import { useWorkspaceReadContext } from './workspace/use-workspace-read-context';
@@ -96,7 +97,7 @@ export function App() {
     { feature: GeoPointFeature; nonce: number } | undefined
   >();
   const [query, setQuery] = useState('');
-  const { warning, report, clear, dismiss } = useResourceWarning(online);
+  const { warning, report, clear } = useResourceWarning(online);
   const reportChartError = useCallback((message: string, code?: ResourceErrorCode) => report('Chart unavailable', message, code), [report]);
   useEffect(() => {
     if (!loaded.navigation) setQuery('');
@@ -218,6 +219,26 @@ export function App() {
     awc: awcStartup,
   });
   const startup = useStartup(startupSteps, mapFailed);
+  const connectionFailures = useLayerSnapshot(workspaceLayers.registry.scopedConnections.failures);
+  const pluginTitle = (id: string) => workspaceLayers.plugins.find(plugin => plugin.definition.id === id)?.definition.title ?? id;
+  const notices: WorkspaceNotification[] = [];
+  if (connectionFailures.length) notices.push({ id: 'connections', title: 'Workspace connection unavailable', tone: 'error',
+    message: connectionFailures.map(failure => `${pluginTitle(failure.providerId)}: ${failure.message}`).join('; '),
+    action: { label: 'Retry workspace connections', run: workspaceLayers.registry.scopedConnections.retryFailed } });
+  if (regionError) notices.push({ id: 'regions', title: 'Saved downloads', message: regionError });
+  if (visibleNavigationIssues.length) notices.push({ id: 'navigation', title: 'Navigation data unavailable',
+    message: `${navigationIssueMessages(visibleNavigationIssues).join(' ')} Reconnect or repair the affected download.` });
+  if (workspaceCycleNotice) notices.push({ id: 'cycle', title: 'FAA data cycle', message: workspaceCycleNotice });
+  if (!online) notices.push({ id: 'offline', title: 'Offline', tone: 'offline',
+    message: 'Saved content remains available. Uncached areas are unavailable; weather may be stale.' });
+  if (chartSelection.base && chartCacheState === 'unavailable') notices.push({ id: 'chart-cache', title: 'Charts are disabled', tone: 'error',
+    message: 'A controlling service worker is required for whole-file MBTiles caching.',
+    action: { label: 'Retry chart cache', run: retryChartCache } });
+  if (browsingCatalog?.issues.length) notices.push({ id: 'feeds', title: 'Feed issues',
+    message: browsingCatalog.issues.map(issue => `${issue.product}: ${issue.message}`).join(' '),
+    action: { label: 'Reload feeds', run: () => window.location.reload() } });
+  if (warning) notices.push({ id: 'resource', title: warning.title, message: warning.message, tone: 'error' });
+  const notifications = useNotifications(notices);
   if (catalogError && savedRegionsReady && !context) return <CatalogError message={catalogError} />;
   if (!context) return <StartupScreen steps={startup.steps} slow={startup.slow} />;
 
@@ -244,7 +265,8 @@ export function App() {
         <div className="topbar-meta">
           <SettingsLauncher catalog={context.browsing} cycles={cycles} selection={selection}
             onCycleChange={selectCycle} cycleNotice={workspaceCycleNotice}
-            plugins={plugins.controlsList} onPluginChange={plugins.setLoaded} pluginError={plugins.error} />
+            plugins={plugins.controlsList} onPluginChange={plugins.setLoaded} pluginError={plugins.error}
+            notifications={notifications.notices} />
         </div>
       </header>
 
@@ -287,37 +309,7 @@ export function App() {
             <LayerPanels panels={plugins.panels} layout={PANEL_LAYOUT} />
           </MapEdgeTools>
 
-          <div className="workspace-notices">
-            <WorkspaceConnectionNotice connections={workspaceLayers.registry.scopedConnections} plugins={workspaceLayers.plugins} />
-            {regionError && <div className="feed-status" role="status">{regionError}</div>}
-            {visibleNavigationIssues.length > 0 && <div className="feed-status" role="status">
-              {navigationIssueMessages(visibleNavigationIssues).join(' ')} Reconnect or repair the affected download.
-            </div>}
-            {workspaceCycleNotice && <div className="feed-status" role="status">{workspaceCycleNotice}</div>}
-            {!online && <div className="offline-banner" role="status">Offline · Saved content remains available. Uncached areas are unavailable; weather may be stale.</div>}
-            {chartSelection.base && chartCacheState === 'unavailable' && (
-              <div className="map-runtime-error" role="alert">
-                <strong>Charts are disabled</strong>
-                <span>A controlling service worker is required for whole-file MBTiles caching.</span>
-                <button className="ui-button" type="button" onClick={retryChartCache}>Retry chart cache</button>
-              </div>
-            )}
-
-            {!!browsingCatalog?.issues.length && (
-              <div className="feed-status" role="status">
-                {browsingCatalog.issues.map(issue => <p key={issue.product}>{issue.product}: {issue.message}</p>)}
-                <button className="ui-button" type="button" onClick={() => window.location.reload()}>Reload feeds</button>
-              </div>
-            )}
-
-            {warning && (
-              <div className="map-runtime-error" role="alert">
-                <strong>{warning.title}</strong>
-                <span>{warning.message}</span>
-                <button className="ui-button" type="button" onClick={dismiss}>Dismiss warning</button>
-              </div>
-            )}
-          </div>
+          <NotificationBubbles notices={notifications.visible} onDismiss={notifications.dismiss} />
 
           <EdgePanels side="right" active={featureSelection.activeSidePanel} onActiveChange={featureSelection.setActiveSidePanel} className="side-panels">
             {loaded.navigation && selected && (

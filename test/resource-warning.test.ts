@@ -13,6 +13,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const { useCallback } = await import('react');
+const { useNotifications } = await import('../src/shell/use-notifications');
 const { useResourceWarning } = await import('../src/shell/use-resource-warning');
 const { useChartCache } = await import('../src/layers/charts/use-cache');
 loader.deregister();
@@ -36,7 +37,9 @@ function setup(t: test.TestContext, online = true) {
     const warnings = useResourceWarning(connection.onLine);
     const onError = useCallback((message: string, code?: ResourceErrorCode) => warnings.report('Chart unavailable', message, code), [warnings.report]);
     useChartCache(undefined, onError);
-    return warnings;
+    const notifications = useNotifications(warnings.warning ? [{ id: 'resource', ...warnings.warning }] : []);
+    return { ...warnings, warning: notifications.visible.length ? warnings.warning : undefined,
+      notices: notifications.notices, dismiss: () => notifications.dismiss(notifications.notices[0]!) };
   });
   const chartError = (message: string, url = 'https://charts.test/a.mbtiles', code?: ResourceErrorCode) => {
     serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'chart-archive-error', url, message, code } }));
@@ -69,7 +72,7 @@ test('typed worker failures are classified by code independently of their displa
   assert.ok(render().warning, 'an integrity failure stays visible even when its wording contains a network phrase');
 });
 
-test('one dismissal covers repeated map and chart requests across URLs and reconnection', t => {
+test('one dismissal covers repeated map and chart requests until connectivity resets the condition', t => {
   const { render, connection, chartError } = setup(t);
   render().report('Map layer unavailable', 'basemap: Failed to fetch');
   assert.equal(render().warning?.title, 'Map layer unavailable');
@@ -83,19 +86,21 @@ test('one dismissal covers repeated map and chart requests across URLs and recon
   render();
   connection.onLine = true;
   render().report('Map layer unavailable', 'basemap: Load failed');
-  assert.equal(render().warning, undefined);
+  assert.ok(render().warning, 'a new failure after reconnect is a new occurrence');
 });
 
-test('dismissing a chart warning also suppresses subsequent map fetch failures', t => {
+test('dismissing a chart warning retains its details and recovery clears the notice', t => {
   const { render, chartError } = setup(t);
   render();
   chartError('Failed to fetch');
   assert.equal(render().warning?.title, 'Chart unavailable');
   render().dismiss();
-  render().clear();
+  assert.match(render().notices[0]!.message, /Failed to fetch/);
   render().report('Map layer unavailable', 'chart: Unable to load chart package: 503');
   chartError('Load failed', 'https://charts.test/another.mbtiles');
   assert.equal(render().warning, undefined);
+  render().clear();
+  assert.equal(render().notices.length, 0);
 });
 
 test('going offline clears an existing fetch warning without replaying it on reconnect', t => {
@@ -124,6 +129,8 @@ test('storage, integrity and rendering errors remain visible and independently d
     render().dismiss();
     chartError(message);
     assert.equal(render().warning, undefined);
+    render().clear();
+    render();
   }
   render().report('Map layer unavailable', 'Unable to load chart package: 507');
   assert.ok(render().warning?.message.includes('507'));

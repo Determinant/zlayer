@@ -44,7 +44,8 @@ through camera movement.
   retains its actions, Info/Plates tabs, content and refresh demand.
 - Airport Info/Plates uses core's [content tabs](../../../docs/features/shared-ui.md#shared-controls),
   including selected-state semantics and Left/Right/Home/End navigation. Selection
-  remains plugin-persisted. Inactive panel shells stay empty; selecting another tab
+  remains plugin-persisted for the 128 most recently written feature-tab identities.
+  Older optional tab preferences are evicted; feature selection is unaffected. Inactive panel shells stay empty; selecting another tab
   or identification unmounts the previous body, while stowing retains it.
 - [Fix display](fix-display.md) owns classification, zoom/density rules, route/selection
   context and its real-map verification fixture.

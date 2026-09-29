@@ -4,6 +4,13 @@ import { degrees, PDFDocument, rgb } from 'pdf-lib';
 
 test.use({ hasTouch: true });
 
+async function expectPlateReady(page: Page) {
+  await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
+  // Keyboard reopening can finish PDF preparation before the panel slide ends.
+  // Target controls only once their positions have finished changing.
+  await expect(page.locator('.side-panels')).toHaveCSS('--edge-panel-reveal', '1');
+}
+
 async function openPlate(page: Page) {
   await page.goto('/');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
@@ -12,9 +19,7 @@ async function openPlate(page: Page) {
   const opener = page.getByRole('button', { name: /TEST APPROACH/ });
   await opener.click();
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
-  await expect(page.locator('.procedure-page-loading')).toHaveCount(0);
-  await page.locator('.side-panels').evaluate(element =>
-    Promise.all(element.getAnimations().map(animation => animation.finished)));
+  await expectPlateReady(page);
   return opener;
 }
 
@@ -160,7 +165,7 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   await opener.focus();
   await expect(opener).toBeFocused();
   await opener.press('Enter');
-  await expect(page.locator('.procedure-page-loading')).toHaveCount(0);
+  await expectPlateReady(page);
   const enter = page.getByRole('button', { name: 'Enter full screen' });
   await dialog.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
@@ -195,6 +200,7 @@ test('fullscreen keeps the loaded plate and zoom, excludes background focus, and
   await opener.focus();
   await expect(opener).toBeFocused();
   await opener.press('Enter');
+  await expectPlateReady(page);
   await expect(page.getByRole('button', { name: 'Exit full screen' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.procedure-zoom-controls')).toContainText('120%');
   await page.keyboard.press('Escape');

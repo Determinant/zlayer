@@ -11,7 +11,6 @@ import { formatBytes, storageStatus, type StorageStatus } from '../offline/stora
 import { chartRegionPlans } from '../layers/charts';
 import { cacheProcedureDocument, fetchOfflinePlateIndex, withRegionPlates, type OfflinePlateIndex } from '../layers/plates';
 import { useOnline } from '../core/use-online';
-import { SettingsLoading } from './settings-dialog';
 import { RegionDownloadRow, type RegionDownloadEntry } from './region-download-row';
 import type { RegionOperation } from './download-presentation';
 
@@ -24,8 +23,8 @@ export default function Settings({ catalog, open }: {
   const jobs = useSyncExternalStore(downloads.subscribe, downloads.snapshot, downloads.snapshot);
   const [storageTask, setStorageTask] = useState<'checking' | 'cleaning' | undefined>('checking');
   const loading = storageTask !== undefined;
-  const [restored, setRestored] = useState(false);
   const [storage, setStorage] = useState<StorageStatus>();
+  const [storagePending, setStoragePending] = useState(true);
   const [storageRequest, setStorageRequest] = useState<'idle' | 'pending' | 'denied'>('idle');
   const [error, setError] = useState<string>();
   const [query, setQuery] = usePersistentState('settings-region-query', '', isString);
@@ -38,13 +37,37 @@ export default function Settings({ catalog, open }: {
   const [plateError, setPlateError] = useState<string>();
   const [plateAttempt, setPlateAttempt] = useState(0);
   const online = useOnline();
-  const plans = useMemo(() => chartRegionPlans(catalog, location.href).map(({ region, plan }) => {
-    if (!plateIndex) return { plan, problem: undefined };
-    try {
-      const complete = { ...plan, ...(catalog.terrain ? { terrain: true } : {}) };
-      return { plan: withRegionPlates(complete, region, plateIndex, catalog, location.href), problem: undefined };
-    } catch (error) { return { plan, problem: error instanceof Error ? error.message : 'Plate coverage unavailable' }; }
-  }), [catalog, plateIndex]);
+  const chartPlans = useMemo(() => chartRegionPlans(catalog, location.href), [catalog]);
+  const [prepared, setPrepared] = useState<{
+    catalog: CatalogResponse; index: OfflinePlateIndex;
+    plans: Array<{ plan: DownloadPlan; problem: string | undefined }>;
+  }>();
+  const plansReady = Boolean(plateIndex && prepared?.catalog === catalog && prepared.index === plateIndex);
+  const plans = useMemo(() => plansReady ? prepared!.plans
+    : chartPlans.map(({ plan }) => ({ plan, problem: undefined })), [chartPlans, plansReady, prepared]);
+  useEffect(() => {
+    setPrepared(undefined);
+    if (!plateIndex) return;
+    let cancelled = false;
+    const prepare = async () => {
+      const plans: Array<{ plan: DownloadPlan; problem: string | undefined }> = [];
+      for (const { region, plan } of chartPlans) {
+        // National airport/book indexes are expensive on phones. Yield between
+        // regions rather than preparing every state's plan in a React render.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        if (cancelled) return;
+        try {
+          const complete = { ...plan, ...(catalog.terrain ? { terrain: true } : {}) };
+          plans.push({ plan: withRegionPlates(complete, region, plateIndex, catalog, location.href), problem: undefined });
+        } catch (error) {
+          plans.push({ plan, problem: error instanceof Error ? error.message : 'Plate coverage unavailable' });
+        }
+      }
+      if (!cancelled) setPrepared({ catalog, index: plateIndex, plans });
+    };
+    void prepare();
+    return () => { cancelled = true; };
+  }, [catalog, chartPlans, plateIndex]);
   const active = Boolean(operation) || jobs.some(isDownloadActive);
   const rows = useMemo(() => {
     const entries = new Map<string, RegionDownloadEntry>(plans.map(({ plan, problem }) => [plan.id, {
@@ -84,8 +107,11 @@ export default function Settings({ catalog, open }: {
     setError(undefined);
     setStorageTask('checking');
     void downloads.restore().catch(reason => { if (!cancelled) setError(String(reason)); })
-      .finally(() => { if (!cancelled) { setStorageTask(undefined); setRestored(true); } });
-    void storageStatus().then(value => { if (!cancelled) setStorage(value); });
+      .finally(() => { if (!cancelled) setStorageTask(undefined); });
+    setStoragePending(true);
+    void storageStatus().then(value => { if (!cancelled) setStorage(value); })
+      .catch(reason => { if (!cancelled) setError(String(reason)); })
+      .finally(() => { if (!cancelled) setStoragePending(false); });
     return () => { cancelled = true; };
   }, [open, downloads]);
 
@@ -131,14 +157,13 @@ export default function Settings({ catalog, open }: {
     }
   });
 
-  const ready = restored && Boolean(storage);
   return <>
-    {!ready && <SettingsLoading />}
-    <div className="settings-downloads content-reveal" hidden={!ready}>
+    <div className="settings-downloads content-reveal">
       <section className="storage-summary" aria-labelledby="storage-title">
         <div className="settings-section-heading"><h3 id="storage-title">App storage</h3>
           <span className="offline-tag">{online ? 'Online' : 'Offline'}</span></div>
-        <strong>{storage?.usage !== undefined ? `${formatBytes(storage.usage)} used` : 'Storage usage unavailable'}
+        <strong>{storage?.usage !== undefined ? `${formatBytes(storage.usage)} used`
+          : storagePending ? 'Checking storage usage…' : 'Storage usage unavailable'}
           {storage?.usage !== undefined && storage.quota !== undefined && ` of an estimated ${formatBytes(storage.quota)}`}</strong>
         {storage?.quota !== undefined && <progress aria-label="App storage usage" value={storage.usage ?? 0} max={storage.quota || 1} />}
         <div className="storage-guidance">
@@ -155,7 +180,8 @@ export default function Settings({ catalog, open }: {
               : storageRequest === 'denied' ? 'Try storage protection again' : 'Request storage protection'}</button>}
           <div className={`storage-request-result${storage?.persistent ? ' is-protected' : ''}`} role="status">
             <strong>{storageRequest === 'pending' ? 'Waiting for the browser…'
-              : storage?.persistent ? 'Downloads protected from browser cleanup'
+              : !storage && storagePending ? 'Checking storage protection…'
+                : storage?.persistent ? 'Downloads protected from browser cleanup'
                 : !storage?.persistenceSupported ? 'Storage protection unavailable in this browser'
                   : storageRequest === 'denied' ? 'The browser did not grant protection' : 'Storage protection not granted yet'}</strong>
             {storageRequest === 'pending' ? <p>Your browser may ask you to allow storage protection.</p>
@@ -213,6 +239,7 @@ export default function Settings({ catalog, open }: {
           use Verify / update to add terrain after it becomes available.</p>}
         {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary charts and plates…' : 'Checking saved files…'}</p>}
         {!plateIndex && !plateError && <p role="status">Loading region details…</p>}
+        {plateIndex && !plansReady && <p role="status">Preparing region details…</p>}
         {plateError && <p className="settings-error" role="alert">{plateError}{' '}
           <button className="ui-button" type="button" onClick={() => setPlateAttempt(value => value + 1)}>Try again</button></p>}
         <div className="region-filters">
@@ -224,11 +251,11 @@ export default function Settings({ catalog, open }: {
         </div>
         {!catalog.chartPackages && <p role="status">Regional downloads are unavailable for this cycle. You can still use cached charts.</p>}
         {catalog.chartPackages && plans.length === 0 && <p role="status">New regional downloads are unavailable. Reload online to try again. Saved downloads remain listed below.</p>}
-        {visibleRows.length === 0 && <p role="status">{savedOnly && jobs.length === 0
+        {!loading && visibleRows.length === 0 && <p role="status">{savedOnly && jobs.length === 0
           ? 'No region downloads yet. Choose All regions to get started.' : 'No regions match your search.'}</p>}
         <div className="region-list">
           {visibleRows.map(region => <RegionDownloadRow key={region.plan.id} region={region}
-            details={plateIndex ? 'ready' : plateError ? 'unavailable' : 'loading'}
+            details={plansReady ? 'ready' : plateError ? 'unavailable' : 'loading'}
             pending={operation?.plan.id === region.plan.id ? operation.action : undefined}
             error={regionError?.id === region.plan.id ? regionError.message : undefined}
             busy={loading || active} onStart={start} onPause={id => downloads.pause(id)}
