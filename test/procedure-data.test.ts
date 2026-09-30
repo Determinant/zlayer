@@ -184,6 +184,29 @@ test('procedures and supplements use the same normalized feature aliases', () =>
   assert.equal(groups[1]!.plates[0]!.selection.procedure.id, approach.id);
 });
 
+test('the airport plate list folds only reachable continuation pages into their first chart', () => {
+  const base = { ...approach, id: 'anaheim', kind: 'departure' as const, name: 'ANAHEIM TWO',
+    source: { ...approach.source, chartCode: 'DP', procedureId: '11539', amendmentNumber: null },
+    volumeTarget: { ...approach.volumeTarget!, pageIndex: 604 } };
+  const continuation = (part: number) => ({ ...base, id: `anaheim-${part}`,
+    name: `ANAHEIM TWO, CONT.${part}`, volumeTarget: { ...base.volumeTarget, pageIndex: 604 + part } });
+  const second = continuation(1), third = continuation(2);
+  const list = (procedures: ProcedureRecord[]) => airportPlateGroups(feature,
+    { catalog: { ...catalog, airports: [{ ...airport, procedures }] }, url: '/tpp/catalog.json' },
+    undefined, 'https://zlayer.test/')[0]!.plates;
+  const folded = list([base, second, third]);
+  assert.equal(folded.length, 1);
+  assert.equal(folded[0]!.selection.procedure.name, 'ANAHEIM TWO');
+  assert.equal(folded[0]!.selection.document.pageIndex, 604);
+  assert.equal(folded[0]!.detail, 'DP · 3 pages');
+  assert.deepEqual(list([base, third]).map(row => row.selection.procedure.name),
+    ['ANAHEIM TWO', 'ANAHEIM TWO, CONT.2'], 'a missing page keeps the continuation visible');
+  assert.equal(list([base, { ...second, volumeTarget: null }]).length, 2,
+    'individual PDFs cannot be reached through the book page control');
+  assert.equal(list([base, { ...second, source: { ...second.source, procedureId: 'other' } }]).length, 2);
+  assert.equal(list([base, { ...second, source: { ...second.source, userAction: 'D' } }]).length, 1);
+});
+
 test('supplement selections prefer normalized ICAO and fall back to the matched catalog airport', () => {
   for (const [properties, expected] of [
     [{ icaoId: ' khwd ', faaId: ' hwd ' }, 'KHWD'],

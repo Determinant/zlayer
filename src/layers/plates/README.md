@@ -29,8 +29,9 @@ plate and verifying every dependency of a saved region are different promises.
 
 ## Publisher-owned indexing
 
-`faa-regs` owns FAA d-TPP discovery/normalization and publishes `tpp/catalog.json`
-and `tpp/manifest.json` under a dated chart directory. ZLayer consumes that catalog,
+`faa-regs` owns FAA d-TPP discovery/normalization and publishes a hashed
+`tpp/catalog.<sha256>.json` and `tpp/manifest.json` under a dated chart directory.
+ZLayer resolves the active catalog through the manifest,
 which retains:
 
 - cycle/effective interval, volume, state/city and FAA/ICAO airport identifiers;
@@ -61,6 +62,11 @@ followed by Chart Supplement entries; supplements also appear at VFR-only airpor
 TPP and supplement metadata load independently so one failed source does not hide the other.
 Results remain tied to the selected airport and exact catalog resources; changing
 editions hides the previous results immediately, before replacement requests finish.
+Continuations such as `ANAHEIM TWO, CONT.1` share one list row with the first
+chart when their procedure UID matches and every page is consecutive in the same
+indexed volume. The row shows the page count and opens at the first page; the
+reader's page control reaches the remaining pages. An individual-only continuation,
+missing page or mismatched UID stays visible as its own row.
 
 A row opens a slide-in dialog immediately; a loading skeleton remains visible while
 the PDF.js renderer and document load. `use-pdf-viewer.ts` owns the document
