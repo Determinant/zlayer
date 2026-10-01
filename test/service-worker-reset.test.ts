@@ -30,12 +30,14 @@ async function workerFixture(t: TestContext) {
   type Fetch = { request: Request; respondWith: (response: Promise<Response>) => void; waitUntil: (work: Promise<unknown>) => void };
   let onMessage!: (event: Message) => void, onFetch!: (event: Fetch) => void;
   const client = { id: 'reset-screen', url: 'https://app.test/?reset=1', postMessage: () => {} };
+  let activations = 0;
   const original = Object.getOwnPropertyDescriptor(globalThis, 'self');
   const clients = { matchAll: async (): Promise<{ id: string; url: string; navigate?: (url: string) => Promise<unknown> }[]> => [client],
     claim: async () => {} };
   Object.defineProperty(globalThis, 'self', { configurable: true, value: Object.assign(Object.create(globalThis), {
     location: { pathname: '/sw.js', origin: 'https://app.test' },
     clients,
+    skipWaiting: async () => { activations++; },
     addEventListener(type: string, listener: never) {
       if (type === 'fetch') onFetch = listener;
       if (type === 'message') onMessage = listener;
@@ -43,7 +45,7 @@ async function workerFixture(t: TestContext) {
   }) });
   t.after(() => original ? Object.defineProperty(globalThis, 'self', original) : Reflect.deleteProperty(globalThis, 'self'));
   await import(`../src/service-worker.ts?test=${encodeURIComponent(t.name)}`);
-  return { cache, stored, client, clients,
+  return { cache, stored, client, clients, activations: () => activations,
     onMessage: (event: Message) => onMessage(event), onFetch: (event: Fetch) => onFetch(event) };
 }
 
@@ -193,4 +195,24 @@ test('concurrent PWA preparations acknowledge a rebuilt shell and report failure
   onFetch({ request: new Request(url), respondWith: work => { response = work; }, waitUntil: () => {} });
   await response;
   assert.equal(await (await caches.match(url))?.text(), 'weather');
+});
+
+test('waiting-worker recovery activates only a complete matching shell', async t => {
+  const { onMessage, activations } = await workerFixture(t);
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('offline'); });
+  const cache = await caches.open('zlayers-shell-dev');
+  const activate = () => {
+    let work!: Promise<unknown>;
+    onMessage({ data: { type: 'activate-update' }, source: { id: 'app', url: 'https://app.test/' },
+      ports: [], waitUntil: value => { work = value; } });
+    return work;
+  };
+  await assert.rejects(activate(), /shell is not ready/);
+  await cache.put('https://app.test/', new Response('<meta name="zlayer-release" content="wrong">'));
+  await assert.rejects(activate(), /shell is not ready/);
+  assert.equal(activations(), 0);
+  await cache.put('https://app.test/', new Response(shellHtml));
+  await activate();
+  assert.equal(activations(), 1);
+  assert.equal(await (await cache.match('https://app.test/'))?.text(), shellHtml);
 });

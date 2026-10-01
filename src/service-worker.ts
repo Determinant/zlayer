@@ -74,7 +74,13 @@ worker.addEventListener('fetch', (event) => {
       : (async () => (await caches.match(event.request).catch(() => undefined)) ?? fetch(event.request))());
     return;
   }
-  const respond = (response: Promise<Response>) => event.respondWith(trackWork(response));
+  const respond = (response: Promise<Response>) => {
+    const work = trackWork(response);
+    // Keep asynchronous response/cache work in the event lifetime as well as
+    // reset accounting, so a departing worker can finish before activation.
+    event.waitUntil(work);
+    event.respondWith(work);
+  };
   const onChartFeed = isOnChartFeed(url, `${worker.location.origin}/`);
 
   if (onChartFeed && /\.(mbtiles|dem|terrain)$/.test(url.pathname) && ['GET', 'HEAD'].includes(event.request.method)) {
@@ -171,6 +177,16 @@ worker.addEventListener('message', (event) => {
     return;
   }
   if (resetting) return;
+  if (isRecord(event.data) && event.data.type === 'activate-update' && event.source && 'url' in event.source &&
+    new URL(event.source.url).origin === worker.location.origin) {
+    // Recovery can find an already-installed waiting worker after a reload.
+    // Only a complete validated shell may take over; never offer broken HTML.
+    event.waitUntil((async () => {
+      if (!development && !await cachedApplicationPage()) throw new Error('Application shell is not ready');
+      await worker.skipWaiting();
+    })());
+    return;
+  }
   if (isRecord(event.data) && event.data.type === 'app-release') {
     // Preserve the opaque ID so already-open older clients can still offer this update.
     event.ports[0]?.postMessage({ release: shellDefinition.version, displayVersion: shellDefinition.displayVersion });

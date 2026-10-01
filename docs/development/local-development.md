@@ -39,8 +39,8 @@ production defaults to that chart origin directly (requiring CORS). Blank or `la
 `VITE_ZLAYERS_CHART_REVISION` discovers dates from that root's `cycles.json` and defaults
 to the latest supported release. An explicit date sets the initial preference; the
 FAA data cycle menu under Settings → General can pin any published or saved edition
-and return to Default · Latest. Reload after publishing new dates/files; no client
-date list or rebuild is needed. Publication layout, manifest fallback
+and return to Default · Latest. Visible online windows recheck on return, reconnect
+and every five minutes; no client date list or rebuild is needed. Publication layout, manifest fallback
 and cache identity rules belong in the [chart-feed contract](../data/chart-feed.md).
 
 On first launch, the camera centers KPAO at zoom 9, independently of feed ordering;
@@ -206,6 +206,10 @@ Native weather samples are prepared once through the real weather server; resets
 restore a pristine copy of that cache. Startup allows four minutes for preparation;
 ordinary browser assertions retain their shorter timeouts.
 It uses port 4197 by default (`ZLAYER_TEST_PORT` overrides it) and does not replace `dist/`.
+
+For focused PWA or chart-catalog checks, set `ZLAYER_TEST_SKIP_WEATHER=1` to skip
+native weather preparation. Weather endpoints return 503 in this mode; do not use
+it for weather coverage or full verification.
 
 ```bash
 npx playwright install chromium
