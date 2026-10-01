@@ -30,18 +30,15 @@
 .feature-card .feature-facts > div { align-content: start; }
 .feature-fact-retry { padding-inline: 4px; text-decoration: underline; }
 .feature-card .feature-facts > .is-frequency {
-  --frequency-label-width: 88px;
-  --frequency-row-height: 32px;
+  --frequency-label-width: 92px;
+  --frequency-row-height: max(32px, var(--touch-target));
   grid-template-columns: var(--frequency-label-width) minmax(0, 1fr);
   gap: 10px;
   padding: 0 10px;
 }
-.feature-card .feature-facts > .is-frequency:has(.airport-frequency-notes) {
-  --frequency-row-height: max(32px, var(--touch-target));
-}
 .feature-card .is-frequency dt {
   padding-top: calc((var(--frequency-row-height) - 18px) / 2);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 18px;
   letter-spacing: 0.06em;
 }
@@ -53,9 +50,10 @@
   padding: 5px 0;
   line-height: 20px;
 }
-.airport-frequency-number { color: var(--text-dff5f2); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.airport-frequency-unit { color: var(--text-819da9); font-size: 10px; }
-.airport-frequency-context { color: var(--text-9aafbe); font-size: 10px; }
+.airport-frequency-number { color: var(--text-dff5f2); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.airport-frequency-unit { color: var(--text-819da9); font-size: 11px; }
+.airport-frequency-context { color: var(--text-9aafbe); font-size: 11px; }
+.airport-frequency-channel { min-width: 0; }
 .airport-frequency-notes summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: var(--overlay-61d6c5-a80); }
 .airport-frequency-notes summary::-webkit-details-marker { display: none; }
 .airport-frequency-notes summary:hover .airport-frequency-number { color: var(--text-action); }
@@ -81,7 +79,9 @@
   font-size: 11px;
   line-height: 1.5;
 }
-.airport-frequency-note-list p { margin: 4px 0 0; }
+.airport-frequency-note { display: grid; gap: 2px; padding-top: 6px; overflow-wrap: anywhere; }
+.airport-frequency-note + .airport-frequency-note { margin-top: 4px; }
+.airport-frequency-note p { margin: 0; }
 
 .append-route-button,
 .remove-route-button {

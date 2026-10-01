@@ -18,7 +18,8 @@ export function withMapLabelKeys(collection: FeatureCollectionResponse): Feature
     // restored from the matching navigation export on selection. Copying them
     // into every vector tile wastes memory and serializes them into strings.
     // Anonymous features have no lookup identity, so keep their full fallback.
-    const { runways: _runways, frequencies: _frequencies, charts: _charts, ...display } = feature.properties;
+    const { runways: _runways, frequencies: _frequencies, terminalFrequencies: _terminalFrequencies,
+      centerFrequencies: _centerFrequencies, charts: _charts, ...display } = feature.properties;
     return { ...feature, properties: { ...(feature.id === undefined ? feature.properties : display),
       mapFeatureId: feature.id, mapLabelKey: mapLabelKey(feature) } };
   }) };

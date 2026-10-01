@@ -60,11 +60,11 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
       <div {...(hasPlates ? tabPanelProps(tabsId, 'info', activeTab) : { hidden: !!identification })}>
         {activeTab === 'info' && <div className="content-reveal">
           {detailRows.length > 0 && <dl className="feature-facts">
-            {detailRows.map(({ label, value, wide, morse, notes, frequency }) => (
+            {detailRows.map(({ label, value, wide, morse, frequency }) => (
               <div key={label} className={frequency ? 'is-wide is-frequency' : wide ? 'is-wide' : undefined}>
-                <dt>{label}</dt>
+                <dt title={label === 'CD' ? 'Clearance delivery' : label === 'App / Dep' ? 'Approach / Departure' : undefined}>{label}</dt>
                 <dd>{needsTerrainElevation && label === 'Elevation' ? elevation(panel.open)
-                  : frequency ? <AirportFrequencyValue {...{ label, value, ...(notes ? { notes } : {}) }} /> : <>
+                  : frequency ? <AirportFrequencyValue label={label} frequency={frequency} /> : <>
                   {value}{morse && <span className="navaid-morse" role="img"
                   aria-label={morse.description} title={`Morse identifier ${morse.identifier}`}>
                   {morse.groups.map((code, index) => <span key={index} aria-hidden="true">{code}{' '}</span>)}

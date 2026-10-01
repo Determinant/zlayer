@@ -123,17 +123,33 @@ product IDs and feature identity remain stable.
 
 Stable feature IDs identify exact route pins; display identifiers are not unique.
 Airport features may include `frequencies[]` from the same cycle's FAA `FRQ.csv`.
-Each record has `type` (`ATIS`, `D-ATIS`, `AWOS`, `ASOS`, `TOWER`, `CTAF`, or
-`GROUND`) and numeric `frequencyMHz`, plus optional published `use`, `sector`,
+Its service `type` remains limited to `ATIS`, `D-ATIS`, `AWOS`, `ASOS`, `TOWER`,
+`CTAF`, and `GROUND`. Optional `terminalFrequencies[]` adds `CLEARANCE`,
+`APPROACH`, `DEPARTURE`, and `APPROACH/DEPARTURE`. Optional `centerFrequencies[]`
+adds `CENTER` without expanding either previous service enum. All lists use numeric
+`frequencyMHz`, plus optional published `use`, `sector`,
 `hours`, and `remarks`. The producer joins the serviced FAA facility identifier,
 state, country, and facility type; it never substitutes a nearby station's radio.
-The Info summary shows elevation, longest runway, weather broadcast, Tower/CTAF,
-and Ground. Frequencies use compact aligned rows; matching Tower/CTAF channels
-combine, and sectors remain visible. A chevron expands hours, remarks, and additional
-UHF channels. VHF channels lead the summary. Frequency precision is retained to
-three decimal places.
+Older PWAs strictly validate the original frequency service enum but ignore
+unknown properties. Keep terminal services in the separate optional field so
+older clients accept the same airport document and retain their existing display.
+Clients that already support terminal services likewise ignore `centerFrequencies`.
+New clients validate all three lists and combine them only for presentation. Optional
+`facilityId` and `facilityName` identify the servicing provider on terminal and
+Center records; the name is its published radio call when available, otherwise
+its official facility name. RCAG records identify their owning Center, with the
+remote site retained in `use`. The publisher resolves names using provider records
+and exact Center identifiers, rather than borrowing another facility's primary
+approach name or selecting a nearby transmitter. This
+extension does not change navigation paths, product IDs, or the manifest version;
+normal content hashes change and prior immutable artifacts must remain available.
+Combined approach/departure uses remain one record with their raw `use`, rather
+than duplicating a source row. The publisher recognizes explicit service codes;
+named procedure channels and roles mentioned only in remarks are not inferred.
+The [navigation guide](../../src/layers/navigation/README.md#airport-frequencies)
+owns the Info frequency order, labels and note disclosures.
 `hours` preserves FAA `TOWER_HRS` verbatim and is labeled **Tower hours** only
-under Tower; its presence on an ATIS or Ground source row does not establish that
+under Tower; its presence on another service's source row does not establish that
 service's operating hours. `remarks` preserves the source `REMARK` text.
 Older exports without frequencies remain valid and show the available airport
 facts. Rebuild and publish `faa-regs` navigation with the `FRQ` ZIP to add the

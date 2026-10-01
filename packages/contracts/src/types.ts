@@ -278,11 +278,22 @@ export type AirportFrequency = {
   frequencyMHz: number;
   /** Published FAA use, including primary/secondary and weather system subtype. */
   use?: string;
+  /** Servicing ATC facility identifier and published radio call/name, when available. */
+  facilityId?: string;
+  facilityName?: string;
   sector?: string;
   /** FAA TOWER_HRS, describing the tower rather than this individual service. */
   hours?: string;
   remarks?: string;
 };
+
+/** Additive field: older clients strictly validate the service types in frequencies[]. */
+export type AirportTerminalFrequency = Omit<AirportFrequency, 'type'> & {
+  type: 'CLEARANCE' | 'APPROACH' | 'DEPARTURE' | 'APPROACH/DEPARTURE';
+};
+
+/** Separate extension so clients with the original terminal service enum stay compatible. */
+export type AirportCenterFrequency = Omit<AirportFrequency, 'type'> & { type: 'CENTER' };
 
 export type GeoPointProperties = Record<string, unknown> & {
   // Assigned by the client when composing navigation from multiple saved sources.
@@ -302,6 +313,8 @@ export type GeoPointProperties = Record<string, unknown> & {
   elevationFt?: number;
   frequency?: string;
   frequencies?: AirportFrequency[];
+  terminalFrequencies?: AirportTerminalFrequency[];
+  centerFrequencies?: AirportCenterFrequency[];
   /** Published VOR station alignment relative to true north; east positive. */
   stationDeclinationDeg?: number;
   longestRunwayFt?: number;

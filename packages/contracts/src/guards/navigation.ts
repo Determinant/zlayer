@@ -136,6 +136,8 @@ export function isGeoPointProperties(value: unknown): boolean {
     (value.towered === undefined || typeof value.towered === 'boolean') &&
     (value.runways === undefined || (Array.isArray(value.runways) && value.runways.every(isAirportRunway))) &&
     (value.frequencies === undefined || (Array.isArray(value.frequencies) && value.frequencies.every(isAirportFrequency))) &&
+    (value.terminalFrequencies === undefined || (Array.isArray(value.terminalFrequencies) && value.terminalFrequencies.every(isAirportTerminalFrequency))) &&
+    (value.centerFrequencies === undefined || (Array.isArray(value.centerFrequencies) && value.centerFrequencies.every(isAirportCenterFrequency))) &&
     [
       value.elevationFt,
       value.longestRunwayFt,
@@ -172,9 +174,25 @@ export function isAirportRunway(value: unknown): boolean {
 export function isAirportFrequency(value: unknown): boolean {
   return isRecord(value) && typeof value.type === 'string' &&
     ['ATIS', 'D-ATIS', 'AWOS', 'ASOS', 'TOWER', 'CTAF', 'GROUND'].includes(value.type) &&
+    hasAirportFrequencyDetails(value);
+}
+
+function isAirportTerminalFrequency(value: unknown): boolean {
+  return isRecord(value) && typeof value.type === 'string' &&
+    ['CLEARANCE', 'APPROACH', 'DEPARTURE', 'APPROACH/DEPARTURE'].includes(value.type) &&
+    hasAirportFrequencyDetails(value);
+}
+
+function hasAirportFrequencyDetails(value: Record<string, unknown>): boolean {
+  return (
     typeof value.frequencyMHz === 'number' && Number.isFinite(value.frequencyMHz) &&
     value.frequencyMHz >= 100 && value.frequencyMHz < 400 &&
-    [value.use, value.sector, value.hours, value.remarks].every(isOptionalString);
+    [value.use, value.facilityId, value.facilityName, value.sector, value.hours, value.remarks].every(isOptionalString)
+  );
+}
+
+function isAirportCenterFrequency(value: unknown): boolean {
+  return isRecord(value) && value.type === 'CENTER' && hasAirportFrequencyDetails(value);
 }
 
 export function isNavigationLayerId(value: unknown): value is NavigationLayerId {

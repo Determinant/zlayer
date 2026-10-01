@@ -2,15 +2,14 @@ import type { GeoPointFeature, NavigationData } from '@zlayer/contracts';
 import { isAirportFeature, routeCoordinateFeature } from '@zlayer/domain';
 import { metarDetailRows } from '../metar-taf/api';
 import { navaidMorse, type NavaidMorse } from './navaid-morse';
-import { airportFrequencyRows } from './airport-frequencies';
+import { airportFrequencyRows, type AirportFrequencyDisplay } from './airport-frequencies';
 
 export type FeatureDetailRow = {
   label: string;
   value: string;
   wide?: boolean;
-  frequency?: true;
+  frequency?: AirportFrequencyDisplay;
   morse?: NavaidMorse;
-  notes?: string[];
 };
 
 export function featureDetailRows(feature: GeoPointFeature, includeWeather = true): FeatureDetailRow[] {
@@ -22,7 +21,8 @@ export function featureDetailRows(feature: GeoPointFeature, includeWeather = tru
     row('Elevation', formatNumber(properties.elevationFt, ' ft')),
     !airport ? frequencyRow(feature) : undefined,
     row('Longest runway', formatNumber(properties.longestRunwayFt, ' ft')),
-    ...(airport ? airportFrequencyRows(properties.frequencies) : []),
+    ...(airport ? airportFrequencyRows([...(properties.frequencies ?? []), ...(properties.terminalFrequencies ?? []),
+      ...(properties.centerFrequencies ?? [])]) : []),
     !airport ? row('ARTCC', properties.lowArtcc) : undefined,
     includeWeather ? row('Raw', properties.rawMetar, true) : undefined,
     coordinateRow(feature),

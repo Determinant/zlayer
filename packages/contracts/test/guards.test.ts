@@ -283,9 +283,47 @@ test('airport frequencies validate services, channels and optional operational n
   assert.equal(accepts([]), true);
   const valid = { type: 'GROUND', frequencyMHz: 118.025, use: 'GND/P', sector: 'EAST', hours: '24', remarks: 'TEST' };
   assert.equal(accepts([valid]), true);
+  for (const type of ['CLEARANCE', 'APPROACH', 'DEPARTURE', 'APPROACH/DEPARTURE', 'CENTER']) {
+    assert.equal(accepts([{ ...valid, type }]), false, 'the original frequency service enum must remain compatible');
+  }
   for (const frequency of [{ ...valid, frequencyMHz: '118.025' }, { ...valid, frequencyMHz: NaN },
     { ...valid, frequencyMHz: 0 }, { ...valid, type: 'UNICOM' }, { ...valid, hours: 24 }]) {
     assert.equal(accepts([frequency]), false);
   }
   assert.equal(accepts('{}'), false);
+});
+
+test('terminal frequency extensions are optional and validated independently of legacy radio services', () => {
+  const feature = { type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { frequencies: [{ type: 'GROUND', frequencyMHz: 121.9 }] } };
+  const accepts = (terminalFrequencies: unknown) => isGeoPointFeature({ ...feature,
+    properties: { ...feature.properties, terminalFrequencies } });
+  assert.equal(accepts(undefined), true);
+  assert.equal(accepts([]), true);
+  const valid = { type: 'CLEARANCE', frequencyMHz: 118.025, use: 'CD/P', sector: 'EAST', hours: '24', remarks: 'TEST',
+    facilityId: 'SCT', facilityName: 'SOCAL' };
+  for (const type of ['CLEARANCE', 'APPROACH', 'DEPARTURE', 'APPROACH/DEPARTURE']) {
+    assert.equal(accepts([{ ...valid, type }]), true);
+  }
+  for (const record of [{ ...valid, type: 'TOWER' }, { ...valid, type: 'CENTER' }, { ...valid, type: 'UNKNOWN' },
+    { ...valid, frequencyMHz: '118.025' }, { ...valid, frequencyMHz: NaN }, { ...valid, frequencyMHz: 0 },
+    { ...valid, sector: 4 }, { ...valid, hours: 24 }, { ...valid, remarks: {} },
+    { ...valid, facilityName: 4 }, { ...valid, facilityId: {} }]) {
+    assert.equal(accepts([record]), false);
+  }
+  assert.equal(accepts('{}'), false);
+});
+
+test('Center frequencies validate separately without expanding older service enums', () => {
+  const accepts = (centerFrequencies: unknown) => isGeoPointFeature({ type: 'Feature',
+    geometry: { type: 'Point', coordinates: [-122, 37] }, properties: { centerFrequencies } });
+  const valid = { type: 'CENTER', frequencyMHz: 127.95, facilityName: 'OAKLAND', facilityId: 'ZOA', sector: 'LOW' };
+  assert.equal(accepts(undefined), true);
+  assert.equal(accepts([]), true);
+  assert.equal(accepts([valid]), true);
+  for (const record of [{ ...valid, type: 'APPROACH' }, { ...valid, frequencyMHz: '127.95' },
+    { ...valid, frequencyMHz: Infinity }, { ...valid, facilityName: 3 }, { ...valid, remarks: {} }]) {
+    assert.equal(accepts([record]), false);
+  }
+  assert.equal(accepts({}), false);
 });
