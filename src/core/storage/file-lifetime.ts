@@ -74,3 +74,30 @@ export async function deleteUnusedFile(directory: FileSystemDirectoryHandle, nam
     return true;
   });
 }
+
+/** Freeze only idle candidate files while inspecting their receipt inventory.
+ * Existing readers/writers are skipped. New readers wait until the short sweep
+ * releases its locks; no URL lock may be acquired inside work (readers hold those).
+ * This lets cleanup inspect cache keys once without racing receipt publication. */
+export async function withUnusedFiles<T>(names: readonly string[], work: (unused: readonly string[]) => Promise<T>): Promise<T> {
+  if (!navigator.locks) return work([]);
+  const unused: string[] = [];
+  let release!: () => void;
+  const lifetime = new Promise<void>(resolve => { release = resolve; });
+  const held: Promise<unknown>[] = [];
+  try {
+    await Promise.all(names.map(name => new Promise<void>((resolve, reject) => {
+      const request = navigator.locks.request(lockName(name), { ifAvailable: true }, async lock => {
+        if (lock) unused.push(name);
+        resolve();
+        if (lock) await lifetime;
+      });
+      held.push(request);
+      void request.catch(reject);
+    })));
+    return await work(unused);
+  } finally {
+    release();
+    await Promise.allSettled(held);
+  }
+}

@@ -1,9 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { expectCycle, selectCycle } from './settings';
+import { expectCycle, selectCycle, publishCycles } from './settings';
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-19T12:00:00Z'));
 });
+
+test.afterEach(async ({ request }) => { await request.post('/__test/reset'); });
 
 async function setRoute(page: Page) {
   const input = page.getByRole('textbox', { name: 'Add route waypoint' });
@@ -118,77 +120,63 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
   expect(errors).toEqual([]);
 });
 
-test('published dates load on selection and two editions of a region stay isolated offline and on removal', async ({ page, context }) => {
-  const requests: string[] = [];
-  page.on('request', request => requests.push(request.url()));
+test('one region updates to Latest despite pinned browsing and verifies its saved edition offline', async ({ page, context }) => {
+  await publishCycles(page, ['2026-08-06']);
   await page.goto('/');
-  const menu = page.getByRole('combobox', { name: 'FAA data cycle', exact: true, includeHidden: true });
-  await expectCycle(page, 'latest');
-  await expect(menu.locator('option')).toHaveText(['Default · Latest', 'FAA Sep 3', 'FAA Aug 6']);
-  expect(requests.some(url => url.includes('/2026-07-09/'))).toBe(false);
-  expect(requests.some(url => url.includes('/2026-08-06/'))).toBe(false);
+  await selectCycle(page, '2026-08-06');
   await setRoute(page);
-  const saveCalifornia = async (revision: string) => {
+  const settings = async () => {
     await page.getByLabel('Settings and offline downloads').click();
     await page.getByRole('tab', { name: 'Offline', exact: true }).click();
     await page.getByLabel('Find a state or territory').fill('California');
-    await expect(page.locator('.region-cycle'))
-      .toContainText(revision === '2026-09-03' ? 'Sep 3' : 'Aug 6');
-    await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
-    const card = page.locator('.download-card').filter({ hasText: `Cycle ${revision === '2026-09-03' ? 'Sep 3' : 'Aug 6'}` });
-    await expect(card.locator('.offline-tag')).toHaveText('Saved');
-    await page.getByLabel('Close settings').click();
   };
-  await saveCalifornia('2026-09-03');
-  await selectCycle(page, '2026-08-06');
-  await saveCalifornia('2026-08-06');
-  await page.reload();
-  await expectCycle(page, '2026-08-06');
-  await expect(page.locator('.feed-status').filter({ hasText: /Using FAA cycle Aug 6/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Advise', exact: true }).click();
-  await expect(page.locator('[data-route-category="frequency"] li').first()).toBeVisible();
-  await page.locator('.route-recommend-close').click();
+  await settings();
+  await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
+  const card = page.locator('.download-card');
+  await expect(card.locator('.offline-tag')).toHaveText('Saved');
+  await expect(card).toHaveAttribute('data-revision', '2026-08-06');
+  await publishCycles(page);
+  await page.getByRole('button', { name: 'Check for updates', exact: true }).click();
+  await expect(card).toContainText('New cycle available: Sep 3');
+  await expect(card).toHaveCount(1);
+  await card.getByRole('button', { name: 'Verify saved files', exact: true }).click();
+  await expect(card.locator('.offline-tag')).toHaveText('Saved');
+  await expect(card).toHaveAttribute('data-revision', '2026-08-06');
+  await card.getByRole('button', { name: 'Update to latest', exact: true }).click();
+  await expect(card).toHaveAttribute('data-revision', '2026-09-03');
+  await expect(card.locator('.offline-tag')).toHaveText('Saved');
+  await expect(card).toHaveCount(1);
+  const revisions = await page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+    const open = indexedDB.open('zlayer-offline', 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const read = db.transaction('records').objectStore('records').getAll(IDBKeyRange.bound('region:', 'region:\uffff'));
+      read.onsuccess = () => { db.close(); resolve(read.result.map((plan: { revision: string }) => plan.revision)); };
+      read.onerror = () => { db.close(); reject(read.error); };
+    };
+  }));
+  expect(revisions).toEqual(['2026-09-03']);
+  await page.getByLabel('Close settings').click();
   await context.setOffline(true);
   await page.reload();
   await expectCycle(page, '2026-08-06');
   await expect(page.locator('[data-route-entry]')).toHaveCount(2);
-  await page.getByLabel('Settings and offline downloads').click();
-  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
-  const old = page.locator('.download-card').filter({ hasText: 'Cycle Aug 6' });
-  const current = page.locator('.download-card').filter({ hasText: 'Cycle Sep 3' });
-  await expect(old.locator('.offline-tag')).toHaveText('Saved');
-  await expect(current.locator('.offline-tag')).toHaveText('Saved');
-  // Verify the other date while viewing the older map: it must keep its own plan.
-  await current.getByRole('button', { name: 'Verify / update' }).click();
-  await expect(current.locator('.offline-tag')).toHaveText('Saved');
+  await settings();
+  await card.getByRole('button', { name: 'Verify saved files', exact: true }).click();
+  await expect(card.locator('.offline-tag')).toHaveText('Saved');
+  await expect(card.getByRole('button', { name: 'Update to latest' })).toBeDisabled();
   await page.getByLabel('Close settings').click();
-  await selectCycle(page, 'latest');
-  await page.getByLabel('Settings and offline downloads').click();
-  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
-  await old.getByRole('button', { name: 'Remove', exact: true }).click();
-  const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Aug 6/ });
-  await confirmation.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(old).toHaveCount(0);
-  await expect(current.locator('.offline-tag')).toHaveText('Saved');
-  const keys = await page.evaluate(async () => {
-    const names = ['zlayers-chart-archives-v3', 'zlayers-procedures-v1'];
-    return Promise.all(names.map(async name => (await (await caches.open(name)).keys()).map(key => key.url)));
-  });
-  for (const urls of keys) {
-    expect(urls.some(url => url.includes('/2026-09-03/'))).toBe(true);
-    expect(urls.some(url => url.includes('/2026-08-06/'))).toBe(false);
-  }
-  await page.getByLabel('Close settings').click();
-  await page.reload();
-  await expectCycle(page, 'latest');
   await page.getByLabel('Search FAA navigation data').fill('KSBA');
   await page.locator('.search-results button').filter({ hasText: 'KSBA' }).click();
   await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await page.getByRole('button', { name: /TEST APPROACH/ }).click();
+  await expect(page.getByText('Open original ↗')).toHaveAttribute('href', /\/2026-09-03\//);
   await expect(page.getByText('Available offline', { exact: true })).toBeVisible();
 });
 
 test('an older saved region overrides latest browsing online and after an offline restart', async ({ page, context }) => {
+  await publishCycles(page, ['2026-08-06']);
   await page.goto('/');
   const menu = page.getByRole('combobox', { name: 'FAA data cycle', exact: true, includeHidden: true });
   await selectCycle(page, '2026-08-06');
@@ -198,6 +186,8 @@ test('an older saved region overrides latest browsing online and after an offlin
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
   await page.getByLabel('Close settings').click();
+  await publishCycles(page);
+  await page.reload();
   await selectCycle(page, 'latest');
   await expect(menu.locator('option:checked')).toHaveText('Default · Latest');
 
@@ -298,6 +288,7 @@ test('cleanup keeps all releases while another app window is open', async ({ pag
 test('legacy browsing sheets and saved regional packages both render after restart', async ({ page, request }) => {
   await request.post('/__test/legacy-latest-charts');
   try {
+    await publishCycles(page, ['2026-08-06']);
     await page.goto('/');
     await selectCycle(page, '2026-08-06');
     await page.getByLabel('Settings and offline downloads').click();
@@ -306,6 +297,8 @@ test('legacy browsing sheets and saved regional packages both render after resta
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
     await page.getByLabel('Close settings').click();
+    await publishCycles(page);
+    await page.reload();
     await selectCycle(page, 'latest');
     const archives: string[] = [];
     page.on('request', event => { if (event.url().includes('.mbtiles?')) archives.push(event.url()); });
@@ -396,7 +389,7 @@ test('a stalled verification can pause, reopen settings, and resume before the o
       release: () => { for (const resolve of pending) resolve(); },
     } });
   });
-  await card.getByRole('button', { name: 'Verify / update' }).click();
+  await card.getByRole('button', { name: 'Verify saved files' }).click();
   await page.waitForFunction(() => (window as unknown as { downloadCheckAudit: { pending: unknown[] } }).downloadCheckAudit.pending.length > 0);
   await expect(card.locator('.offline-tag')).toHaveText('Checking files');
   await card.getByRole('button', { name: 'Pause', exact: true }).click();
@@ -457,7 +450,7 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
     });
     await page.getByRole('button', { name: 'Check saved files', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
-    await page.locator('.download-card').getByRole('button', { name: 'Verify / update' }).click();
+    await page.locator('.download-card').getByRole('button', { name: 'Update to latest' }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Needs attention', { timeout: 15_000 });
     await page.getByText('Temporary files and storage limits', { exact: true }).click();
     await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
@@ -493,6 +486,7 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
 
 test('a lost regional airport export preserves healthy search and recovers on reconnect without changing edition', async ({ page, request, context }) => {
   const save = async (region: string, revision: string) => {
+    await publishCycles(page, [revision]);
     await selectCycle(page, revision);
     await page.getByLabel('Settings and offline downloads').click();
     await page.getByRole('tab', { name: 'Offline', exact: true }).click();
@@ -504,6 +498,8 @@ test('a lost regional airport export preserves healthy search and recovers on re
   await page.goto('/');
   await save('California', '2026-09-03');
   await save('Nevada', '2026-08-06');
+  await publishCycles(page);
+  await page.reload();
   await selectCycle(page, 'latest');
   await page.getByLabel('Search FAA navigation data').fill('KRNO');
   await page.locator('.search-results button').filter({ hasText: 'KRNO' }).click();

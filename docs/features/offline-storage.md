@@ -4,7 +4,8 @@
 
 The gear button opens **Settings**. Its **Offline** tab, immediately after General,
 contains offline regions and app storage controls. General retains the FAA data
-cycle selection for browsing and new downloads. Regions are U.S. states and territories.
+cycle selection for browsing. New downloads and updates independently check Latest.
+Regions are U.S. states and territories.
 Every new region selection includes VFR and IFR low charts at every native zoom,
 airport/fix/NAVAID/waypoint and airway data, and all applicable plates and Chart
 Supplements. There is no charts-only or omit-books option. Complete books can be
@@ -23,14 +24,14 @@ archive cache used by the terrain renderer. Regional verification checks require
 index membership as well as retained file receipts. Terrain is independent of FAA
 cycles; unchanged archives are shared across regions and cycles.
 
-Existing selections retain their original scope until **Verify / update**. Settings
+Existing selections retain their original scope until **Update to latest**. Settings
 labels downloads that do not include terrain, including selections from feeds where
 terrain has not yet been published. Publishing the terrain product does not add bytes
 to a previously saved region automatically.
 
 Regional saves include the optional national preferred/TEC, SID/STAR, approach and historical
 route references when published. Each export is shared once per identity in the same
-reference cache used by routing. **Verify / update** adds newly available references
+reference cache used by routing. **Update to latest** adds newly available references
 to an existing selection without re-fetching verified charts or books. Older feeds
 remain usable with missing route data shown as unavailable.
 For navigation manifest schema 3, IFR fixes and VFR waypoints share one verified
@@ -186,7 +187,7 @@ trusts the previously verified stored bytes; it does not detect arbitrary
 same-length content changes under an unchanged receipt.
 
 TPP metadata must match the export timestamp in its `v` URL parameter. New saves
-and **Verify / update** capture `jsonSha256`, the SHA-256 digest of each validated
+and **Update to latest** capture `jsonSha256`, the SHA-256 digest of each validated
 parsed JSON export: navigation, airways, preferred routes, SID/STAR and approach routes,
 historical routes and TPP metadata. Preparation persists these identities in both
 the staged catalog and reference expectations before transferring files or activating.
@@ -200,7 +201,7 @@ Later cache checks still validate the saved JSON contents, schema and expected
 digest; an in-memory result cannot prove that a persistent copy survived eviction.
 
 Older records without a digest use surviving cached references only; eviction
-requires **Verify / update**. A historical digest cannot be reconstructed from
+requires **Update to latest**. A historical digest cannot be reconstructed from
 dates and counts. The publisher must retain immutable exports for exact repair to
 succeed; a digest query parameter detects replacement content but cannot recover
 an export the publisher no longer serves.
@@ -224,7 +225,7 @@ Region records also retain their applicable Chart Supplement airport/page target
 and book identities. Refreshing the national index cannot redirect a saved airport
 to an undownloaded replacement book. Existing selections capture these targets from
 the matching cached index before it is refreshed; unavailable or mismatched legacy
-metadata remains unverified until **Verify / update** supplies a complete plan.
+metadata remains unverified until **Update to latest** supplies a complete plan.
 
 ### Transfers and removal
 
@@ -291,15 +292,16 @@ Explicit chart saves restore a missing cache entry from a worker's already verif
 Blob when one is available. IndexedDB reconnects after an unexpected connection close.
 Failed FAA-cycle switches keep the working workspace and cycle controls visible.
 
-Cache Storage is the portable large-object store for this access pattern. OPFS would
-not grant an additional quota, bypass eviction, or make background downloads reliable;
-it is not necessary to copy immutable whole-file objects into another storage system.
-IndexedDB contains metadata, not a second copy of those large blobs.
+Small files remain complete Cache Storage entries. Large files live in OPFS with
+small Cache Storage receipts, avoiding WebKit's whole-body buffering. Both paths
+share the same file-cache API and content identity. OPFS does not grant additional
+quota, bypass eviction, or make background downloads reliable. IndexedDB contains
+selection/catalog metadata, not a second copy of those file bytes.
 
 Older URL-only selections recover reference expectations from same-cycle cached
 catalogs with matching URLs. If those expectations cannot be recovered, the selection
 stays incomplete/resumable and its chart/PDF bytes are kept. Reload feeds and use
-**Verify / update** to adopt the current complete plan; already verified files are reused.
+**Update to latest** to adopt the current complete plan; already verified files are reused.
 
 ### Platform limits
 
@@ -457,6 +459,12 @@ identity includes both the shared catalog and the region's file/reference depend
 so a same-catalog supplement update refreshes readers. Availability is independent of
 that identity. Startup opens committed selection metadata before background health
 checks; legacy adoption still requires complete verification before claiming ownership.
+Workspace metadata refresh and background health checking each run one pass at a
+time, with notifications coalesced into the newest follow-up. Metadata publishes
+promptly even if an obsolete health read is slow. Admitted file-read batches settle
+before the next health pass starts; cancellation stops subsequent file/reference/
+terrain work, including on unmount. Startup never waits for the entire saved-file
+inventory to establish committed edition ownership.
 Restoration returns healthy bundles and per-record issues separately. A failed legacy
 cache read or unreadable record cannot discard another region's committed metadata.
 Failed refreshes retain previously known ownership; a successful inventory read that
@@ -471,18 +479,71 @@ identities. Legacy selections are adopted only when their files and reference ve
 match recoverable catalog metadata; otherwise their bytes remain available for repair.
 
 Switching the browsing date does not update, remove, or cancel saved regional downloads.
-Region IDs include the dated package root; file/cache keys include the full dated URL
-and content identity. The same state can be saved independently for several dates,
-even when archive IDs, filenames, or hashes repeat. Settings shows every saved date.
-Resume and Retry keep the saved full plan, including its exact reference identities
-and books, even if the publisher has replaced data within that cycle. **Verify / update**
-selects a refreshed plan only for that exact region ID and date. Removing one
-edition protects files referenced by any other saved region/date. Download the new
-date explicitly before relying on it offline; a saved older state does not make a
-new edition of that state available offline.
-Settings can remove unsaved chart/PDF copies while keeping every saved region's files.
+Settings shows one row per publisher and region. **Download** and **Update to latest**
+revalidate the cycle index and product manifests, choose the latest effective cycle
+(09:01 UTC), and include current same-cycle corrections. A stale discovery list or
+failed product metadata check leaves the saved selection unchanged and reports the
+failure. These actions do not use the browsing date selector.
+
+**Verify saved files**, Resume and Retry retain the exact saved/staged plan, including
+its reference identities and books. Verification repairs missing files when their
+exact identities remain available; it never silently adopts replacement content.
+**Check saved files** only checks local readiness. **Check for updates** refreshes
+discovery without changing any saved selection. One shared refresh loads discovery
+and book indexes for the list and Update action. Unchanged modern metadata retains
+prepared plans; background refresh of the browsing catalog does not start another
+download-discovery request. A busy download lock makes metadata preservation fail
+promptly with a retry message, rather than waiting behind a long transfer. Hidden
+Settings does not prepare region plans or scan the saved inventory; reopening
+checks current storage again.
+
+An inventory pass shares checks of identical files and national references across
+regions. Quota estimation reuses the operation's initial file inspection, including
+checking newly added terrain files. Transfers still recheck storage, and activation
+always performs a fresh final inspection; cached readiness never survives into it.
+If another window changes the inventory during a check, restoration repeats against
+the new inventory before finishing. A failed restoration check stops admitting reads
+and waits for its outstanding reads to settle before checking the next region, so
+failures cannot accumulate background scans beyond the concurrency limit.
+
+The existing dated record format remains readable by older app versions. A cross-cycle
+update stages a separate record; a same-record update retains its `previous` selection.
+`region-repository.ts` owns staging and activation. Once every dependency verifies,
+one IndexedDB transaction activates the new snapshot and retires earlier records for
+that publisher/region. Until that commit succeeds, old records and their files remain
+selected and protected. After restart, Resume continues the staged plan; unreadable inventory blocks
+retirement. Publisher identity comes from dated feed URLs; unknown legacy layouts stay
+separate rather than being guessed. An older update cannot retire a newer saved cycle.
+
+File/cache keys retain full dated URLs and content identities. Navigation and TPP
+notices can advance while rasters and base books keep their own earlier publication
+dates; unchanged dependencies reuse existing bytes. Activation deletes no files.
+Unused old bytes become temporary cache, subject to normal reader protection and expiry.
+**Remove** removes all saved and staged editions for that publisher/region while
+preserving files referenced by other regions or publishers.
+Settings can remove unsaved chart/PDF copies while keeping every saved region's files
+and files retained by open airport/plate views.
+
+Routine expiry and explicit temporary cleanup also reclaim unreferenced immutable
+catalog snapshots under the region lock. Every active, staged and previous plan
+retains its snapshot; unreadable ownership blocks cleanup. Legacy records defer
+snapshot reclamation until adoption, including while older app windows remain open.
+New migration writes create the snapshot and its owner under that same lock.
+Open views retain their loaded catalog directly and do not depend on a retired
+snapshot record remaining in IndexedDB.
+
+Disk orphan sweeps run at most once per storage context per day; failed sweeps
+remain retryable. They hold exclusive locks on idle candidate files, skip active
+readers/writers, and inventory receipts once across all candidates. Only remaining
+orphans require a legacy-key pass, without opening legacy PDF bodies. A publisher
+owns a shared file lease before publication, so it cannot race reclamation. Cleanup
+never acquires URL locks while holding those file locks. Normal replacement/removal
+still reclaims unused bytes immediately; files held by readers retry serially once
+per minute using targeted URL lookups. Clock rollback resets cleanup/access
+throttles and gives future access receipts a fresh grace period.
 Region removal and temporary-file cleanup use the shared core confirmation dialog.
-The region prompt identifies its name and FAA cycle. Cancel receives initial focus;
+The region prompt identifies its name and explains that all its saved/staged editions
+are removed. Cancel receives initial focus;
 Cancel or Escape returns to Settings without deleting files. Removal starts only
 after choosing **Remove**, with progress and errors shown in Settings.
 Route-corridor downloads and automatic cycle migration remain separate future work.

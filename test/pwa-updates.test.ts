@@ -236,10 +236,14 @@ test('foreground and reconnection checks are throttled, stop in the background, 
   window.dispatchEvent(new Event('online'));
   await until(pwaUpdates, () => !pwaUpdates.snapshot().checking);
   assert.equal(checks, 3);
+  now -= 120_000;
+  window.dispatchEvent(new Event('focus'));
+  await until(pwaUpdates, () => !pwaUpdates.snapshot().checking);
+  assert.equal(checks, 4, 'clock rollback cannot suppress foreground checks');
   stop();
   now += 60_000;
   window.dispatchEvent(new Event('focus'));
-  assert.equal(checks, 3);
+  assert.equal(checks, 4);
 });
 
 test('an installed waiting update keeps recovery enabled and is retried after reconnecting', async t => {

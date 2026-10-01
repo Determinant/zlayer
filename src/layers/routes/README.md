@@ -215,7 +215,7 @@ fixes within the coded turn extent. A feeder can follow one explicit onward
 transition; ambiguous continuations remain gaps. Separate ILS DME positions need
 the rebuilt navigation export. See the
 [geometry validation guide](approach-coverage.md#geometry-lessons-retained-in-the-implementation).
-Previously saved regions retain their pinned data; use **Verify / update** to
+Previously saved regions retain their pinned data; use **Update to latest** to
 include approach routes added by a newer export of the same FAA cycle.
 
 The selected entry decompresses on the map into magenta approach legs, named

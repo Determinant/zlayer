@@ -183,6 +183,11 @@ const server = createServer(async (request, response) => {
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/available-cycles') {
+      let body = ''; for await (const chunk of request) body += chunk;
+      const { cycles } = JSON.parse(body);
+      fixtures.set('/chart-data/cycles.json', { type: 'application/json',
+        body: Buffer.from(JSON.stringify({ schemaVersion: 1, cycles })) });
     } else if (path === '/__test/chart-rollover') {
       let body = ''; for await (const chunk of request) body += chunk;
       publishChartRollover(fixtures, originalFixtures, JSON.parse(body));

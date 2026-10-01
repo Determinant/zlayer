@@ -172,7 +172,7 @@ test('legacy selections recover expectations only from matching cached catalog i
     stored.set(url, Response.json({ cached: 'keep' }));
     assert.equal(await manager.backend.referencesReady(unknown), false);
     assert.ok(stored.has(url), 'unknown expectations must not evict cached data');
-    await assert.rejects(manager.backend.prepare(unknown, new AbortController().signal), /Verify \/ update/);
+    await assert.rejects(manager.backend.prepare(unknown, new AbortController().signal), /Update to latest/);
   }
 });
 

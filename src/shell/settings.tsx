@@ -9,14 +9,20 @@ import { createBrowserDownloads, removeUnsavedFiles } from '../offline/browser-d
 import { isDownloadActive, type DownloadPlan, type Download } from '../offline/downloads';
 import { formatBytes, storageStatus, type StorageStatus } from '../offline/storage';
 import { chartRegionPlans } from '../layers/charts';
-import { cacheProcedureDocument, fetchOfflinePlateIndex, withRegionPlates, type OfflinePlateIndex } from '../layers/plates';
-import { useOnline } from '../core/use-online';
-import { RegionDownloadRow, type RegionDownloadEntry } from './region-download-row';
+import { cacheProcedureDocument, withRegionPlates, type OfflinePlateIndex } from '../layers/plates';
+import { RegionDownloadRow } from './region-download-row';
+import { regionDownloadEntries } from './region-downloads';
+import { useDownloadCatalog } from './use-download-catalog';
+import { regionKey } from '../offline/region-selection';
+import { OFFLINE_REGIONS } from '../offline/regions';
+import { observeOfflineInventory } from '../offline/inventory-events';
 import type { RegionOperation } from './download-presentation';
 
-export default function Settings({ catalog, open }: {
+export default function Settings({ catalog: browsing, open }: {
   catalog: CatalogResponse; open: boolean;
 }) {
+  const latest = useDownloadCatalog(browsing, open);
+  const catalog = latest.catalog;
   const [downloads] = useState(() => createBrowserDownloads(file => cacheProcedureDocument({
     ...file, nativeUrl: file.url, pageIndex: 0, source: file.kind === 'faa-pdf' ? 'faa-individual' : 'combined-volume',
   })));
@@ -32,11 +38,8 @@ export default function Settings({ catalog, open }: {
   const [operation, setOperation] = useState<{ plan: DownloadPlan; action: RegionOperation }>();
   const [regionError, setRegionError] = useState<{ id: string; message: string }>();
   const [confirmation, setConfirmation] = useState<{ kind: 'region'; job: Download } | { kind: 'temporary' }>();
-  const [loadedIndex, setLoadedIndex] = useState<{ catalog: CatalogResponse; index: OfflinePlateIndex }>();
-  const plateIndex = loadedIndex?.catalog === catalog ? loadedIndex.index : undefined;
-  const [plateError, setPlateError] = useState<string>();
-  const [plateAttempt, setPlateAttempt] = useState(0);
-  const online = useOnline();
+  const plateIndex = latest.index;
+  const online = latest.online;
   const chartPlans = useMemo(() => chartRegionPlans(catalog, location.href), [catalog]);
   const [prepared, setPrepared] = useState<{
     catalog: CatalogResponse; index: OfflinePlateIndex;
@@ -46,8 +49,7 @@ export default function Settings({ catalog, open }: {
   const plans = useMemo(() => plansReady ? prepared!.plans
     : chartPlans.map(({ plan }) => ({ plan, problem: undefined })), [chartPlans, plansReady, prepared]);
   useEffect(() => {
-    setPrepared(undefined);
-    if (!plateIndex) return;
+    if (!open || !plateIndex || prepared?.catalog === catalog && prepared.index === plateIndex) return;
     let cancelled = false;
     const prepare = async () => {
       const plans: Array<{ plan: DownloadPlan; problem: string | undefined }> = [];
@@ -67,35 +69,12 @@ export default function Settings({ catalog, open }: {
     };
     void prepare();
     return () => { cancelled = true; };
-  }, [catalog, chartPlans, plateIndex]);
+  }, [open, catalog, chartPlans, plateIndex, prepared]);
   const active = Boolean(operation) || jobs.some(isDownloadActive);
-  const rows = useMemo(() => {
-    const entries = new Map<string, RegionDownloadEntry>(plans.map(({ plan, problem }) => [plan.id, {
-      plan, problem, current: true, job: undefined,
-    }]));
-    for (const job of jobs) {
-      const entry = entries.get(job.id);
-      if (entry) entry.job = job;
-      else entries.set(job.id, { plan: job, problem: undefined, current: false, job });
-    }
-    if (operation && !entries.has(operation.plan.id)) {
-      entries.set(operation.plan.id, { plan: operation.plan, problem: undefined, current: false, job: undefined });
-    }
-    // Keep a region in the same position as it starts, pauses, and completes.
-    return [...entries.values()].sort((a, b) => a.plan.title.localeCompare(b.plan.title)
-      || b.plan.revision.localeCompare(a.plan.revision) || a.plan.id.localeCompare(b.plan.id));
-  }, [plans, jobs, operation]);
-  const visibleRows = rows.filter(({ plan, job }) => (!savedOnly || job || operation?.plan.id === plan.id)
+  const rows = useMemo(() => regionDownloadEntries(plans, jobs), [plans, jobs]);
+  const operationKey = operation ? regionKey(operation.plan) : undefined;
+  const visibleRows = rows.filter(({ key, plan, job }) => (!savedOnly || job || operationKey === key)
     && plan.title.toLowerCase().includes(query.trim().toLowerCase()));
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadedIndex(undefined);
-    setPlateError(undefined);
-    void fetchOfflinePlateIndex(catalog).then(index => { if (!cancelled) setLoadedIndex({ catalog, index }); })
-      .catch(error => { if (!cancelled) setPlateError(String(error)); });
-    return () => { cancelled = true; };
-  }, [catalog, plateAttempt]);
 
   const perform = (operation: () => Promise<unknown>) => {
     setError(undefined);
@@ -114,6 +93,12 @@ export default function Settings({ catalog, open }: {
       .finally(() => { if (!cancelled) setStoragePending(false); });
     return () => { cancelled = true; };
   }, [open, downloads]);
+  useEffect(() => {
+    if (!open) return;
+    return observeOfflineInventory(() => {
+      void downloads.restore(true).catch(reason => setError(String(reason)));
+    });
+  }, [open, downloads]);
 
   const refreshStorage = async (requestPersistence = false) => {
     const status = await storageStatus(requestPersistence);
@@ -128,7 +113,7 @@ export default function Settings({ catalog, open }: {
   const performRegion = (plan: DownloadPlan, action: RegionOperation, work: () => Promise<void>) => {
     setRegionError(undefined);
     setOperation({ plan, action });
-    void work().then(() => refreshStorage()).catch(reason => setRegionError({ id: plan.id,
+    void work().then(() => refreshStorage()).catch(reason => setRegionError({ id: regionKey(plan),
       message: reason instanceof Error ? reason.message : 'Download unavailable',
     })).finally(() => setOperation(undefined));
   };
@@ -136,11 +121,25 @@ export default function Settings({ catalog, open }: {
     await refreshStorage(true);
     await downloads.start(plan);
   });
+  const update = (plan: DownloadPlan) => performRegion(plan, 'update', async () => {
+    if (!online) throw new Error('Reconnect to check for the latest cycle. Saved files can still be verified offline.');
+    // Recheck at the gesture too: an open PWA can cross 0901Z or receive a correction.
+    const { catalog: current, index } = await latest.refresh();
+    if (current.revision < plan.revision) throw new Error('A newer saved cycle is already selected; no downgrade was made.');
+    const region = OFFLINE_REGIONS.find(region => region.id === plan.regionId);
+    const candidate = region && chartRegionPlans(current, location.href, [region])
+      .find(({ plan: next }) => regionKey(next) === regionKey(plan));
+    if (!candidate) throw new Error('This region is not available in the latest feed. The saved edition is kept.');
+    const complete = withRegionPlates({ ...candidate.plan, ...(current.terrain ? { terrain: true } : {}) },
+      candidate.region, index, current, location.href);
+    await refreshStorage(true);
+    await downloads.start(complete);
+  });
   const confirmRemoval = () => {
     if (!confirmation || loading || active) return;
     setConfirmation(undefined);
     if (confirmation.kind === 'region') {
-      performRegion(confirmation.job, 'remove', () => downloads.remove(confirmation.job.id));
+      performRegion(confirmation.job, 'remove', () => downloads.removeRegion(confirmation.job.id));
     } else {
       performStorage('cleaning', removeUnsavedFiles);
     }
@@ -200,7 +199,7 @@ export default function Settings({ catalog, open }: {
           <summary>Temporary files and storage limits</summary>
           <p>Charts and plates you view without downloading a region are stored as temporary files.
             Remove them to free up space; you’ll need an internet connection to view them again.</p>
-          <p>This cleanup keeps saved regions, paused downloads, previous versions needed during updates, and reference data.</p>
+          <p>This cleanup keeps saved regions, paused downloads, previous versions needed during updates, files retained by open views, and reference data.</p>
           <button className="ui-button" type="button" disabled={loading || active}
             onClick={() => setConfirmation({ kind: 'temporary' })}>Remove temporary charts and plates</button>
           <p>Your browser manages storage, including in the installed app.
@@ -216,7 +215,12 @@ export default function Settings({ catalog, open }: {
             onClick={() => performStorage('checking', () => downloads.restore())}>Check saved files</button></div>
         <p>Save a state or territory for offline use. Keep ZLayer open while downloading.
           You can pause and resume here.</p>
-        <p className="region-cycle">New downloads use FAA cycle {formatDate(catalog.revision)}.</p>
+        <p className="region-cycle">{latest.checking || latest.error
+          ? `Last loaded download cycle: ${formatDate(catalog.revision)}.`
+          : `Latest available download cycle: ${formatDate(catalog.revision)}.`}</p>
+        <button className="ui-button" type="button" disabled={loading || active || latest.checking || !online}
+          onClick={() => { void latest.refresh().catch(() => {}); }}>{latest.checking ? 'Checking for updates…' : 'Check for updates'}</button>
+        {latest.error && <p className="settings-error" role="status">{latest.error}</p>}
         <PersistentDetails storageKey="settings-region-details-open" className="region-details">
           <summary>Coverage, sizes and FAA cycles</summary>
           <p>Includes all published VFR and IFR low charts at every zoom, navigation data,
@@ -227,21 +231,22 @@ export default function Settings({ catalog, open }: {
             downloading, so their regions show a minimum size until saved. Overlapping
             regions share files; navigation data and indexes add storage once.</p>
           <p>Saved editions are used in their regions, even online. The FAA data cycle controls
-            browsing elsewhere and new downloads. Different cycles are saved separately.</p>
-          <p>Resume continues the original download. Verify / update checks saved files and
-            downloads any changes for that same cycle. Check saved files only checks local storage.</p>
+            browsing elsewhere. Downloads and updates always check the latest effective cycle.</p>
+          <p>Update to latest downloads the current cycle and any published corrections, reusing shared files.
+            Your saved edition stays selected until the replacement is fully saved. Resume continues the original download.
+            Verify saved files repairs that exact saved edition; Check saved files only checks local storage.</p>
+          <p>Charts, navigation, plates and supplements can have different effective dates.
+            Updates keep each product's published edition and reuse books or charts that remain effective.</p>
           <p>Saved means the region’s files and required data are available offline.
             The final check confirms storage availability, not whether the FAA cycle is current. Basemap tiles
             are saved only as viewed and are not included. Cached weather may be outdated;
             check its timestamp.</p>
         </PersistentDetails>
         {!catalog.terrain && <p role="status">Terrain downloads are not available from this feed. These downloads include charts and plates;
-          use Verify / update to add terrain after it becomes available.</p>}
+          use Update to latest to add terrain after it becomes available.</p>}
         {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary charts and plates…' : 'Checking saved files…'}</p>}
-        {!plateIndex && !plateError && <p role="status">Loading region details…</p>}
+        {!plateIndex && !latest.error && <p role="status">Loading region details…</p>}
         {plateIndex && !plansReady && <p role="status">Preparing region details…</p>}
-        {plateError && <p className="settings-error" role="alert">{plateError}{' '}
-          <button className="ui-button" type="button" onClick={() => setPlateAttempt(value => value + 1)}>Try again</button></p>}
         <div className="region-filters">
           <label>Find a state or territory<input className="ui-input" value={query} onChange={event => setQuery(event.target.value)} placeholder="California, CA, Guam…" type="search" /></label>
           <div className="region-filter-options" role="group" aria-label="Regions to show">
@@ -254,22 +259,23 @@ export default function Settings({ catalog, open }: {
         {!loading && visibleRows.length === 0 && <p role="status">{savedOnly && jobs.length === 0
           ? 'No region downloads yet. Choose All regions to get started.' : 'No regions match your search.'}</p>}
         <div className="region-list">
-          {visibleRows.map(region => <RegionDownloadRow key={region.plan.id} region={region}
-            details={plansReady ? 'ready' : plateError ? 'unavailable' : 'loading'}
-            pending={operation?.plan.id === region.plan.id ? operation.action : undefined}
-            error={regionError?.id === region.plan.id ? regionError.message : undefined}
-            busy={loading || active} onStart={start} onPause={id => downloads.pause(id)}
+          {visibleRows.map(region => <RegionDownloadRow key={region.key} region={region}
+            details={plansReady ? 'ready' : latest.error ? 'unavailable' : 'loading'}
+            pending={operationKey === region.key ? operation?.action : undefined}
+            error={regionError?.id === region.key ? regionError.message : undefined}
+            busy={loading || active} canUpdate={online && !latest.checking && !latest.error}
+            onStart={start} onUpdate={update} onPause={id => downloads.pause(id)}
             onRemove={job => setConfirmation({ kind: 'region', job })} />)}
         </div>
       </section>
     </div>
     {open && confirmation && <ConfirmationDialog
       title={confirmation.kind === 'region'
-        ? `Remove ${confirmation.job.title} (cycle ${formatDate(confirmation.job.revision)})?`
+        ? `Remove ${confirmation.job.title}?`
         : 'Remove temporary charts and plates?'}
       description={confirmation.kind === 'region'
-        ? 'Files used by other saved regions will stay.'
-        : 'This keeps saved regions, paused downloads, previous versions needed during updates, and reference data. Removed files will need an internet connection to download again.'}
+        ? 'This removes all saved editions and pending updates for this region. Files used by other saved regions will stay.'
+        : 'This keeps saved regions, paused downloads, previous versions needed during updates, files retained by open views, and reference data. Removed files will need an internet connection to download again.'}
       confirmLabel="Remove" destructive disabled={loading || active}
       onConfirm={confirmRemoval} onCancel={() => setConfirmation(undefined)} />}
   </>;

@@ -156,7 +156,7 @@ manifest. Missing or mismatched input leaves the previous manifest readable.
 Keep earlier content files until edition retention removes them. When uploading,
 upload content files first and manifests last; directory synchronization by itself
 is not an atomic remote publication. Local builds do not change the hosted feed.
-After deployment, **Verify / update** refreshes saved regional downloads.
+After deployment, **Update to latest** refreshes saved regional downloads.
 
 The TPP catalog records matched, ambiguous and unmatched associations, tied to
 both FAA source identities and the terminal JSON digest. Reviewed exceptions are

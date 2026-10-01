@@ -29,7 +29,7 @@ async function readIndex(source: TerrainPackage, signal: AbortSignal, cacheOnly 
     const response = await cache.match(url);
     if (!response || response.status !== 200 || !verificationReceipt(response.headers, source.shard)) {
       await response?.body?.cancel();
-      throw new ResourceError('storage', 'Saved terrain index is missing. Verify / update this region.');
+      throw new ResourceError('storage', 'Saved terrain index is missing. Use Update to latest for this region.');
     }
     try { blob = await storedFileBlob(response); } finally { discardResponseBody(response); }
   } else {

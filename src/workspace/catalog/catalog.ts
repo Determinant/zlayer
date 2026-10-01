@@ -12,7 +12,7 @@ import { chartRoot } from './feed';
 import { isTerrainManifest, isNavigationManifest, isSha256, type NavigationManifest, type NavigationProduct } from '@zlayer/contracts';
 import { matchesJsonIdentity } from '../../core/data/references';
 import { fetchChartCycles, isSupportedCycle } from './cycles';
-import { chartEditionCoversCycle } from '@zlayer/contracts';
+import { chartEditionCoversCycle, faaEffectiveDate } from '@zlayer/contracts';
 import { fetchJson, JsonResponseError } from '../../core/data/fetch-json';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
   isStrictBounds as isBounds, hasUniqueStrings } from '@zlayer/contracts';
@@ -79,9 +79,9 @@ export async function fetchNavigationLayer(revision: string, id: NavigationLayer
   return navigationLayer(revision, manifest, NAVIGATION.find(layer => layer.id === id)!);
 }
 
-async function fetchNavigationManifest(revision: string, signal?: AbortSignal): Promise<NavigationManifest> {
+async function fetchNavigationManifest(revision: string, signal?: AbortSignal, requireFresh = false): Promise<NavigationManifest> {
   return fetchDocument(`${chartRoot()}/${revision}/nav/manifest.json`, isNavigationManifest,
-    'FAA navigation manifest', revision, signal);
+    'FAA navigation manifest', revision, signal, undefined, requireFresh);
 }
 
 /** Optional geographic model; discovery uses the selected cycle and configured feed. */
@@ -115,8 +115,22 @@ export function isInsideChartCoverage(
   );
 }
 
+/** Offline updates explicitly discover the latest effective, usable publication.
+ * A stale discovery list cannot authorize a claim that a selection is up to date.
+ */
+export async function fetchLatestDownloadCatalog(signal?: AbortSignal): Promise<ChartCatalog> {
+  const { revisions, stale } = await fetchChartCycles(signal);
+  if (stale) throw new Error('Could not check the latest FAA cycle. Reconnect and try again; saved downloads are kept.');
+  for (const revision of revisions.filter(revision => revision <= faaEffectiveDate())) {
+    const catalog = await fetchChartCatalog(revision, signal, revisions, { requireFresh: true });
+    if (catalog.issues.length) throw new Error(`FAA ${revision} download metadata is unavailable: ${catalog.issues.map(issue => issue.message).join(' ')}`);
+    if (catalog.charts.length) return catalog;
+  }
+  throw new Error('No effective FAA cycle is ready for download. Saved downloads are kept.');
+}
+
 export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
-  publishedRevisions?: readonly string[]): Promise<ChartCatalog> {
+  publishedRevisions?: readonly string[], options: { requireFresh?: boolean } = {}): Promise<ChartCatalog> {
   if (!isSupportedCycle(revision)) throw new Error(`Unsupported FAA cycle: ${revision}`);
   const revisionRoot = `${chartRoot()}/${revision}`;
   const issues: CatalogIssue[] = [];
@@ -134,18 +148,18 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
     return manifest;
   };
   const navigationRequest = load('navigation', async () => {
-    const manifest = await fetchNavigationManifest(revision, signal);
+    const manifest = await fetchNavigationManifest(revision, signal, options.requireFresh);
     const products = new Map(manifest.products.map(product => [product.id, product]));
     for (const id of [...NAVIGATION.filter(layer => manifest.schemaVersion !== 3 || layer.id !== 'vfr-waypoints')
       .map(layer => layer.id), 'airways']) requiredProduct(products, id);
     return manifest;
   });
   const procedureRequest = load('procedures', async () => inCycle(await fetchDocument(
-    `${revisionRoot}/tpp/manifest.json`, isProcedureManifest, 'FAA procedure manifest', revision, signal,
+    `${revisionRoot}/tpp/manifest.json`, isProcedureManifest, 'FAA procedure manifest', revision, signal, undefined, options.requireFresh,
   )));
   const [charts, navigation, procedures, terrain] = await Promise.all([
     load('charts', async () => {
-      try { return await fetchChartManifest(revisionRoot, revision, signal); }
+      try { return await fetchChartManifest(revisionRoot, revision, signal, options.requireFresh); }
       catch (error) {
         signal?.throwIfAborted();
         // Carryover is only for absent raster publications with complete current
@@ -158,7 +172,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
           date < revision && chartEditionCoversCycle(date, revision)).sort().reverse();
         for (const date of candidates) {
           signal?.throwIfAborted();
-          try { return await fetchChartManifest(`${chartRoot()}/${date}`, date, signal); }
+          try { return await fetchChartManifest(`${chartRoot()}/${date}`, date, signal, options.requireFresh); }
           catch (error) { if (!isMissingManifest(error)) throw error; }
         }
         throw error;
@@ -168,7 +182,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
     procedureRequest,
     load('terrain', async () => {
       try { return await fetchJson(`${chartRoot()}/terrain/manifest.json`, isTerrainManifest,
-        'Terrain manifest', { revalidate: true, ...(signal ? { signal } : {}) }); }
+        'Terrain manifest', { revalidate: true, requireFresh: !!options.requireFresh, ...(signal ? { signal } : {}) }); }
       catch (error) {
         if (error instanceof JsonResponseError && [404, 410].includes(error.status)) return undefined;
         throw error;
@@ -276,6 +290,7 @@ async function fetchChartManifest(
   revisionRoot: string,
   revision: string,
   signal?: AbortSignal,
+  requireFresh = false,
 ): Promise<{ manifest: ChartManifest; root: string; packageRoot?: string }> {
   const root = `${revisionRoot}/mbtiles`;
   for (const packageRoot of [root, `${root}/packages`]) {
@@ -283,7 +298,7 @@ async function fetchChartManifest(
       const manifest = await fetchDocument(
         `${packageRoot}/manifest.json`,
         (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 2,
-        'FAA chart package manifest', revision, signal, supportedChartFamilies,
+        'FAA chart package manifest', revision, signal, supportedChartFamilies, requireFresh,
       );
       return { manifest, root, packageRoot };
     } catch (error) {
@@ -294,7 +309,7 @@ async function fetchChartManifest(
     const manifest = await fetchDocument(
       `${root}/chart-manifest.json`,
       (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 1,
-      'FAA chart manifest', revision, signal, supportedChartFamilies,
+      'FAA chart manifest', revision, signal, supportedChartFamilies, requireFresh,
     );
     return { manifest, root };
   } catch (error) {
@@ -305,7 +320,7 @@ async function fetchChartManifest(
     const manifest = await fetchDocument(
       `${revisionRoot}/chart-manifest.json`,
       (value): value is ChartManifest => isChartManifest(value) && value.schemaVersion === 1,
-      'FAA chart manifest', revision, signal, supportedChartFamilies,
+      'FAA chart manifest', revision, signal, supportedChartFamilies, requireFresh,
     );
     return { manifest, root: revisionRoot };
   }
@@ -323,11 +338,12 @@ async function fetchDocument<T>(
   revision: string,
   signal?: AbortSignal,
   normalize?: (value: unknown) => unknown,
+  requireFresh = false,
 ): Promise<T> {
   // A manual upload can expand the same FAA cycle; retain only a validated fallback.
   return fetchJson(url, (value): value is T => guard(value) &&
     isRecord(value) && value.effectiveDate === revision, label,
-    { revalidate: true, ...(signal ? { signal } : {}), ...(normalize ? { normalize } : {}) });
+    { revalidate: true, requireFresh, ...(signal ? { signal } : {}), ...(normalize ? { normalize } : {}) });
 }
 
 /** An added chart family must not invalidate products this client understands.

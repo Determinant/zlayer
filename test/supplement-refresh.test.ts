@@ -69,3 +69,20 @@ test('offline fallback and failed snapshot preservation can refresh later in the
   assert.deepEqual(preservation.seen, [original, original, original]);
   assert.deepEqual(await (await cache.match(url))!.json(), corrected);
 });
+
+test('explicit updates reject stale supplement metadata while browsing keeps its validated fallback', async t => {
+  const { cache } = cacheFixture(t);
+  const location = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://zlayer.test/' } });
+  t.after(() => location ? Object.defineProperty(globalThis, 'location', location) : Reflect.deleteProperty(globalThis, 'location'));
+  const url = 'https://charts.test/2026-10-01/cs/catalog.json';
+  await cache.put(url, Response.json(original));
+  preservation.blocked = false;
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Offline'); });
+  await assert.rejects(readSupplementCatalog(url, '2026-10-01', true), /Offline/);
+  assert.deepEqual(await readSupplementCatalog(url, '2026-10-01'), original);
+  preservation.blocked = true;
+  await assert.rejects(readSupplementCatalog(url, '2026-10-01', true), /Saved snapshot storage unavailable/);
+  assert.deepEqual(await (await cache.match(url))!.json(), original);
+  preservation.blocked = false;
+});

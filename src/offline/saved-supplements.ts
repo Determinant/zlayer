@@ -3,14 +3,16 @@ import { featureIdentifiers } from '@zlayer/domain';
 import { savedPlans } from './saved-plans';
 import { snapshotFilesIncluded } from './plan-records';
 import { cachedFileBytes } from './storage';
+import { isActivated } from './region-selection';
 
 
-/** Prefer a saved airport edition whose entire book set is still present, including during failed updates. */
+/** Legacy fallback considers only activated editions (or verifiable pre-snapshot records).
+ * Downloaded books alone cannot activate a staged replacement. */
 export async function savedAirportSupplements(feature: GeoPointFeature, revision: string): Promise<ChartSupplementCatalog | undefined> {
   const identifiers = new Set(featureIdentifiers(feature));
   const plans = await savedPlans();
   const candidates = plans.flatMap(plan => [plan, ...(plan.previous ? [plan.previous] : [])])
-    .filter(plan => plan.revision === revision && snapshotFilesIncluded(plan))
+    .filter(plan => isActivated(plan) && plan.revision === revision && snapshotFilesIncluded(plan))
     .flatMap(plan => plan.references.flatMap(reference => reference.id === 'chart-supplements' && reference.snapshot &&
       isChartSupplementCatalog(reference.snapshot, revision)
       ? [{ url: reference.url, snapshot: reference.snapshot }] : []))

@@ -11,8 +11,8 @@ export function supplementCatalogUrl(revision: string): string {
 }
 
 /** Small metadata loads once on opening Plates; no PDF is fetched until selection. */
-export function fetchChartSupplements(revision: string): Promise<ChartSupplementCatalog | undefined> {
-  return readSupplementCatalog(supplementCatalogUrl(revision), revision);
+export function fetchChartSupplements(revision: string, requireFresh = false): Promise<ChartSupplementCatalog | undefined> {
+  return readSupplementCatalog(supplementCatalogUrl(revision), revision, requireFresh);
 }
 
 export async function fetchAirportSupplements(revision: string, feature: GeoPointFeature): Promise<ChartSupplementCatalog | undefined> {

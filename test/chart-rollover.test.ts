@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { isCatalogResponse } from '@zlayer/contracts';
-import { fetchChartCatalog } from '../src/workspace/catalog/catalog';
+import { fetchChartCatalog, fetchLatestDownloadCatalog } from '../src/workspace/catalog/catalog';
 import { retainCachedProducts } from '../src/workspace/catalog/saved-catalog';
 import { chartRegionPlans } from '../src/layers/charts/offline';
 import { cacheFixture } from './helpers/cache';
@@ -113,4 +113,23 @@ test('verified cached mixed-edition catalogs survive failed refreshes and retain
     'persisted charts cannot be relabeled past their effective interval');
   assert.equal(isCatalogResponse({ ...saved, charts: [{ ...saved.charts[0], revision: next }] }), false,
     'future imagery is not accepted for an older selected cycle');
+});
+
+test('regional update discovery advances at 0901Z and preserves individual product dates', async t => {
+  const f = fixture(t);
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T09:00:59Z'));
+  assert.equal((await fetchLatestDownloadCatalog()).revision, first);
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T09:01:00Z'));
+  const latest = await fetchLatestDownloadCatalog();
+  assert.equal(latest.revision, notice);
+  assert.equal(latest.charts[0]!.revision, first);
+  assert.ok(!f.requests.some(url => url.includes(`/${next}/`)));
+});
+
+test('regional updates refuse incomplete latest metadata instead of silently adopting an older edition', async t => {
+  const f = fixture(t);
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T12:00:00Z'));
+  await fetchLatestDownloadCatalog();
+  f.broken.set(`${root}/${notice}/nav/manifest.json`, 503);
+  await assert.rejects(fetchLatestDownloadCatalog(), /download metadata is unavailable/);
 });

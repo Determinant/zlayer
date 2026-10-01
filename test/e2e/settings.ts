@@ -15,3 +15,9 @@ export async function expectCycle(page: Page, revision: string) {
   await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toHaveValue(revision);
   await page.getByLabel('Close settings').click();
 }
+
+/** Replay publication, independently of the user's browsing preference. */
+export async function publishCycles(page: Page, cycles = ['2026-09-03', '2026-08-06']) {
+  const response = await page.request.post('/__test/available-cycles', { data: { cycles } });
+  expect(response.ok()).toBe(true);
+}

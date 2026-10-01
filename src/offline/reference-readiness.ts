@@ -7,11 +7,14 @@ import type { DownloadPlan } from './downloads';
 import { terrainFilesIncluded } from './terrain';
 
 export async function regionReferencesReady(plan: DownloadPlan,
-  verified = new Map<string, Promise<boolean>>()): Promise<boolean> {
+  verified = new Map<string, Promise<boolean>>(), signal?: AbortSignal): Promise<boolean> {
+  signal?.throwIfAborted();
   if (!snapshotFilesIncluded(plan)) return false;
-  if (!await terrainFilesIncluded(plan)) return false;
+  if (!await terrainFilesIncluded(plan, signal)) return false;
+  signal?.throwIfAborted();
   const cache = await caches.open(DATA_CACHE);
   for (const resource of plan.references) {
+    signal?.throwIfAborted();
     const key = JSON.stringify([plan.revision, resource]);
     if (!verified.has(key)) verified.set(key, (async () => {
       // Unknown legacy expectations must not evict potentially usable cached bytes.
@@ -23,7 +26,10 @@ export async function regionReferencesReady(plan: DownloadPlan,
       return await readCachedJson(cache, resource.url, referenceGuard(resource, plan.revision),
         'Regional reference data') !== undefined;
     })());
-    if (!await verified.get(key)) return false;
+    const ready = await verified.get(key);
+    signal?.throwIfAborted();
+    if (!ready) return false;
   }
+  signal?.throwIfAborted();
   return true;
 }

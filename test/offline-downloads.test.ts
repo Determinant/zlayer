@@ -453,6 +453,43 @@ test('a failed saved-region check keeps every selection visible and other region
   assert.deepEqual(f.manager.snapshot().map(job => job.state), ['complete', 'complete']);
 });
 
+test('failed restoration drains admitted reads before checking the next region', async () => {
+  const f = fixture();
+  const release = deferred();
+  const neighbor = { ...plan, id: 'neighbor', files: files.slice(0, 3).map(file => ({
+    ...file, url: `${file.url}?neighbor`,
+  })) };
+  f.saved.set(plan.id, plan);
+  f.saved.set(neighbor.id, neighbor);
+  f.backend.referencesReady = async () => true;
+  const reads: string[] = [];
+  let active = 0, peak = 0, finished = false;
+  f.backend.cachedBytes = async file => {
+    reads.push(file.url);
+    active++; peak = Math.max(peak, active);
+    try {
+      if (file === files[0]) throw new Error('Cache temporarily unavailable');
+      if (files.some(original => original.url === file.url)) await release.promise;
+      return await Promise.resolve(file.byteLength);
+    } finally { active--; }
+  };
+  const restoring = f.manager.restore().then(() => { finished = true; });
+  try {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(reads, files.slice(0, 4).map(file => file.url));
+    assert.equal(active, 3);
+    assert.equal(finished, false, 'the next region must wait for admitted reads to settle');
+  } finally { release.resolve(); await restoring; }
+  assert.deepEqual(reads, [...files.slice(0, 4), ...neighbor.files].map(file => file.url),
+    'the failed region must not schedule its remaining files');
+  assert.ok(peak <= 4, 'cache read concurrency stays bounded across regions');
+  assert.equal(active, 0);
+  assert.deepEqual(f.manager.snapshot().map(job => job.state), ['error', 'complete']);
+  assert.match(f.manager.snapshot()[0]!.error!, /Cache temporarily unavailable/);
+  assert.equal(f.manager.snapshot()[1]!.completedFiles, neighbor.files.length);
+  assert.equal(f.saved.size, 2);
+});
+
 test('pause during activation finishes the commit and keeps the saved status', async () => {
   const f = fixture();
   const entered = deferred(), release = deferred();
@@ -660,4 +697,102 @@ test('removal includes retained previous files and protects another region await
   assert.deepEqual(f.cached, new Set([files[0]!.url, files[1]!.url]));
   await f.manager.remove(neighbor.id);
   assert.equal(f.cached.size, 0);
+});
+
+test('removing a grouped region removes all editions and preserves shared files owned by another region', async () => {
+  const f = fixture();
+  const edition = (revision: string): DownloadPlan => ({ ...plan, id: revision, revision,
+    references: [{ ...plan.references[0]!, url: `https://charts.test/${revision}/nav/airways.json` }] });
+  const old = edition('2026-08-06'), current = edition('2026-09-03');
+  const neighbor = { ...current, id: 'neighbor', regionId: 'east', files: [files[0]!] };
+  for (const selection of [old, current, neighbor]) f.saved.set(selection.id, selection);
+  files.forEach(file => f.cached.add(file.url));
+  await f.manager.restore();
+  await f.manager.removeRegion(current.id);
+  assert.deepEqual([...f.saved.keys()], ['neighbor']);
+  assert.deepEqual(f.manager.snapshot().map(job => job.id), ['neighbor']);
+  assert.deepEqual(f.cached, new Set([files[0]!.url]));
+});
+
+test('a failed post-commit inventory refresh cannot mark a committed download failed', async () => {
+  const f = fixture();
+  f.backend.complete = async value => {
+    const active = activatedPlan(value);
+    f.saved.set(value.id, active);
+    f.backend.list = async () => { throw new Error('Temporary inventory failure'); };
+    return active;
+  };
+  await f.manager.start(plan);
+  assert.equal(f.manager.snapshot()[0]!.state, 'complete');
+  assert.ok(f.saved.get(plan.id)!.completedAt);
+});
+
+test('an inventory pass reads shared files once and a later check notices eviction', async () => {
+  const f = fixture();
+  f.saved.set(plan.id, plan);
+  f.saved.set('neighbor', { ...plan, id: 'neighbor', regionId: 'east' });
+  files.forEach(file => f.cached.add(file.url));
+  f.backend.referencesReady = async () => true;
+  let reads = 0;
+  const cachedBytes = f.backend.cachedBytes;
+  f.backend.cachedBytes = file => { reads++; return cachedBytes(file); };
+  await f.manager.restore();
+  assert.equal(reads, files.length);
+  f.cached.delete(files[0]!.url);
+  await f.manager.restore();
+  assert.equal(reads, files.length * 2);
+  assert.ok(f.manager.snapshot().every(job => job.state === 'paused'));
+});
+
+test('a cross-window inventory change during restoration is checked before restoration finishes', async () => {
+  const f = fixture();
+  f.saved.set(plan.id, plan);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  let reads = 0;
+  f.backend.list = async () => {
+    const plans = [...f.saved.values()];
+    if (++reads === 1) { entered(); await gate; }
+    return plans;
+  };
+  const first = f.manager.restore();
+  await started;
+  f.saved.set('neighbor', { ...plan, id: 'neighbor' });
+  const changed = f.manager.restore(true);
+  assert.equal(changed, first);
+  release();
+  await first;
+  assert.deepEqual(f.manager.snapshot().map(job => job.id), [plan.id, 'neighbor']);
+  assert.equal(reads, 2);
+});
+
+test('quota preparation reuses the initial inspection but transfers and final verification observe eviction', async () => {
+  const f = fixture();
+  files.forEach(file => f.cached.add(file.url));
+  let reads = 0;
+  const cachedBytes = f.backend.cachedBytes;
+  f.backend.cachedBytes = file => { reads++; return cachedBytes(file); };
+  f.backend.prepare = async (selection, _signal, inspect) => {
+    const before = reads;
+    for (const file of selection.files) assert.equal(await inspect!(file), file.byteLength);
+    assert.equal(reads, before, 'quota preparation must not scan the same files again');
+    f.cached.delete(files[0]!.url);
+  };
+  f.backend.referencesReady = async () => true;
+  await f.manager.start(plan);
+  assert.deepEqual(f.requests, [files[0]!.url]);
+  assert.equal(f.manager.snapshot()[0]!.state, 'complete');
+});
+
+test('a failed verification displays the staged plan without inheriting its prior activation receipt', async () => {
+  const f = fixture();
+  const active = activatedPlan({ ...plan, snapshotId: 'a'.repeat(64) });
+  f.backend.save = async value => stagedPlan(value, active);
+  f.backend.prepare = async () => { throw new Error('Preparation interrupted'); };
+  await f.manager.start(active);
+  const job = f.manager.snapshot()[0]!;
+  assert.equal(job.state, 'error');
+  assert.equal(job.completedAt, undefined);
+  assert.equal(job.previous?.completedAt, active.completedAt);
 });

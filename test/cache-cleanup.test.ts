@@ -4,14 +4,16 @@ import test from 'node:test';
 import type { DownloadPlan } from '../src/offline/downloads';
 import { CHART_CACHE, PDF_CACHE } from '../src/core/storage/cache-names';
 
-const state = { plans: [] as unknown[], locked: false };
+const state = { plans: [] as unknown[], locked: false, activeFiles: [] as string[] };
 Object.assign(globalThis, { testCleanupState: state });
 const loader = registerHooks({ resolve(specifier, context, next) {
-  if (specifier.endsWith('/storage/database') && /\/(browser-downloads|saved-plans)\.ts$/.test(context.parentURL ?? '')) return {
+  if (specifier.endsWith('/storage/database') && /\/(browser-downloads|saved-plans|active-catalogs|bundle-snapshots)\.ts$/.test(context.parentURL ?? '')) return {
     url: 'data:text/javascript,' + encodeURIComponent(`
       export const offlineRecords = async prefix => prefix === 'region:' ? globalThis.testCleanupState.plans : [];
       export const writeOfflineRecord = async () => {};
-      export const readOfflineRecord = async () => undefined;
+      export const writeOfflineRecords = async () => {};
+      export const readOfflineRecord = async key => key === 'active-files:viewer' ? globalThis.testCleanupState.activeFiles : undefined;
+      export const offlineRecordKeys = async () => [];
     `), shortCircuit: true,
   };
   return next(specifier, context);
@@ -30,6 +32,7 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
   const globals = {
     location: { href: 'https://app.test/' },
     navigator: { serviceWorker: { controller: { postMessage() {} } }, locks: {
+      query: async () => ({ held: [{ name: 'active-files:viewer' }] }),
       request: async (_name: string, _options: unknown, callback: (lock: object | null) => Promise<void>) =>
         callback(state.locked ? null : {}),
     } },
@@ -55,9 +58,12 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
   const previousBook = { ...book, url: 'https://app.test/previous.pdf' };
   plan.previous = { ...plan, files: [previousBook] };
   stores.get(PDF_CACHE)!.add(previousBook.url);
+  const openBook = 'https://app.test/open.pdf';
+  state.activeFiles = [openBook];
+  stores.get(PDF_CACHE)!.add(openBook);
   await removeUnsavedFiles();
   assert.deepEqual([...stores.get(CHART_CACHE)!], [chart.url]);
-  assert.deepEqual([...stores.get(PDF_CACHE)!], [book.url, previousBook.url]);
+  assert.deepEqual([...stores.get(PDF_CACHE)!], [book.url, previousBook.url, openBook]);
 
   const manager = createBrowserDownloads(async () => {});
   manager.backend.cachedBytes = async file => file.byteLength;

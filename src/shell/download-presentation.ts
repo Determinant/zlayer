@@ -1,7 +1,7 @@
 import { isDownloadActive, type Download } from '../offline/downloads';
 import { formatBytes } from '../offline/storage';
 
-export type RegionOperation = 'start' | 'remove';
+export type RegionOperation = 'start' | 'update' | 'remove';
 type ProgressPresentation = {
   label: 'download' | 'file check' | 'final check';
   value: number | undefined;
@@ -15,17 +15,18 @@ type DownloadPresentation = {
 
 /** Keep each phase's badge, action and progress together. This adds no UI state. */
 export function presentDownload(job: Download | undefined, pending: RegionOperation | undefined): DownloadPresentation {
+  const starting = pending === 'start' || pending === 'update';
   const present = (status: string | undefined, label: string, progress?: ProgressPresentation): DownloadPresentation => ({
     status: pending === 'remove' ? 'Removing…' : status,
     action: { kind: job && isDownloadActive(job) ? 'pause' : 'start', label, disabled: job?.state === 'pausing' },
     progress,
   });
   if (!job) {
-    const status = pending === 'start' ? 'Starting…' : pending === 'remove' ? 'Removing…' : undefined;
-    return present(status, status ?? 'Download', pending === 'start'
+    const status = starting ? 'Starting…' : pending === 'remove' ? 'Removing…' : undefined;
+    return present(status, status ?? 'Download', starting
       ? { label: 'download', value: undefined, message: 'Preparing download…' } : undefined);
   }
-  if (pending === 'start' && !isDownloadActive(job)) {
+  if (starting && !isDownloadActive(job)) {
     return present('Starting…', 'Starting…', { label: 'download', value: undefined, message: 'Preparing download…' });
   }
 
@@ -34,7 +35,7 @@ export function presentDownload(job: Download | undefined, pending: RegionOperat
     message: `${job.completedFiles.toLocaleString()} of ${files} saved · ${formatBytes(job.completedBytes)}` };
   switch (job.state) {
     case 'complete':
-      return present('Saved', 'Verify / update');
+      return present('Saved', 'Verify saved files');
     case 'paused':
       return present('Paused', 'Resume', { ...saved, message: job.completedFiles === job.files.length
         ? 'Files saved. Resume to finish the offline check.' : saved.message });

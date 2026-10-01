@@ -13,6 +13,10 @@ const loader = registerHooks({ resolve(specifier, context, next) {
       export const readOfflineRecord = async key => globalThis.onlineCacheTestRecords.get(key);
       export const writeOfflineRecord = async (key, value) => value === undefined
         ? globalThis.onlineCacheTestRecords.delete(key) : globalThis.onlineCacheTestRecords.set(key, value);
+      export const writeOfflineRecords = async entries => {
+        for (const [key, value] of entries) value === undefined
+          ? globalThis.onlineCacheTestRecords.delete(key) : globalThis.onlineCacheTestRecords.set(key, value);
+      };
       export const offlineRecords = async prefix => [...globalThis.onlineCacheTestRecords]
         .filter(([key]) => key.startsWith(prefix)).map(([,value]) => value);
       export const offlineRecordKeys = async prefix => [...globalThis.onlineCacheTestRecords.keys()].filter(key => key.startsWith(prefix));
@@ -127,4 +131,29 @@ test('cleanup is throttled and defers offline, during downloads, or with unreada
   f.add(CHART_CACHE, `${old}/later.mbtiles`);
   assert.equal((await pruneOnlineCache([], { now: now + 60_000 })).removed, 0);
   assert.equal((await pruneOnlineCache([], { now: now + 60_000, force: true })).removed, 1);
+});
+
+test('clock rollback resets cleanup and access throttles without deleting future-dated entries immediately', async t => {
+  const f = fixture(t);
+  const url = `${old}/clock-rollback.pdf`;
+  f.add(PDF_CACHE, url);
+  const future = now + 10 * ONLINE_CACHE_RETENTION_MS;
+  await noteCacheAccess(PDF_CACHE, url, future);
+  records.set('online-cache-cleanup:last', future);
+  assert.equal((await pruneOnlineCache([], { now })).removed, 0);
+  assert.equal(records.get(cacheAccessKey(PDF_CACHE, url)), now);
+  assert.equal(records.get('online-cache-cleanup:last'), now);
+  assert.equal((await pruneOnlineCache([], { now: now + ONLINE_CACHE_RETENTION_MS + 1 })).removed, 1);
+});
+
+test('routine expiry reclaims abandoned snapshots and defers all cleanup for unreadable ownership', async t => {
+  fixture(t);
+  const key = `bundle-snapshot:${'a'.repeat(64)}`;
+  records.set(key, { abandoned: true });
+  records.set('region:unreadable', { invalid: true });
+  await assert.rejects(pruneOnlineCache([], { now }), /could not be read/);
+  assert.equal(records.has(key), true);
+  records.delete('region:unreadable');
+  await pruneOnlineCache([], { now });
+  assert.equal(records.has(key), false);
 });

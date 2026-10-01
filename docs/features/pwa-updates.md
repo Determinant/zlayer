@@ -31,8 +31,8 @@ from older workers that report only the ID.
 Update checks run at startup, when the app becomes visible or focused, when
 connectivity returns, and every five minutes while visible and online. Foreground
 events are throttled to one check per 30 seconds; manual checks bypass that
-throttle. Mobile operating systems can suspend background apps, so a release is
-not guaranteed to download while the app is closed. Reopening an installed PWA
+throttle; clock rollback also permits a new check. Mobile operating systems can
+suspend background apps, so a release is not guaranteed to download while the app is closed. Reopening an installed PWA
 can resume its existing document rather than load it again.
 
 The worker continues using `skipWaiting()` and `clients.claim()` after its complete

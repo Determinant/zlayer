@@ -592,7 +592,7 @@ async function magentaPixels(page: Page) {
   }, screenshot.toString('base64'));
 }
 
-test('Verify / update makes new approaches available for first-use offline planning', async ({ page, context, request }) => {
+test('Update to latest makes new approaches available for first-use offline planning', async ({ page, context, request }) => {
   try {
     await page.goto('/');
     await page.getByLabel('Settings and offline downloads').click();
@@ -606,7 +606,7 @@ test('Verify / update makes new approaches available for first-use offline plann
       const manifest = await (await caches.open('zlayers-data-v6')).match('/chart-data/2026-09-03/nav/manifest.json');
       return manifest && (await manifest.json()).generatedAt === '2026-09-20T22:52:37.101Z';
     });
-    await page.locator('.download-card').getByRole('button', { name: 'Verify / update' }).click();
+    await page.locator('.download-card').getByRole('button', { name: 'Update to latest' }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
     await page.getByLabel('Close settings').click();
     // No route or approach has been opened online; all dependencies come from the saved region.

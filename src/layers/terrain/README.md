@@ -262,7 +262,7 @@ The reader also accepts schema 1 `ZDEM0001` float32-feet Mercator packages at zo
 1–13, so saved selections survive the transition. Saved sources retain precedence
 over browsing sources across formats and geographic resolutions. The 2.45-arc-second
 extension preserves levels 1–10 exactly and adds native level 11. Saved 4.9-arc-second
-selections continue to work; **Verify / update** acquires the finer archive set.
+selections continue to work; **Update to latest** acquires the finer archive set.
 Publish the updated client before the 2.45-arc-second terrain manifest. Old immutable
 archives and source caches are retained until explicit cleanup.
 
@@ -348,7 +348,7 @@ Completion and later verification require retained files and index membership;
 an in-memory grid or index never proves offline coverage. Overlapping regions
 share files and removal retains files owned by another region.
 
-Use **Verify / update** on older downloads to add terrain after the publisher has
+Use **Update to latest** on older downloads to add terrain after the publisher has
 built and uploaded it. Feeds without the terrain product remain usable; Settings
 explicitly states that their downloads exclude terrain. PNG fallback HTTP caching
 remains opportunistic. See [offline storage](../../../docs/features/offline-storage.md) for rollout details.

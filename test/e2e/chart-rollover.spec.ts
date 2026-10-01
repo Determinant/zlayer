@@ -71,9 +71,9 @@ test('failed notice save preserves September; retry and a standalone next full e
   await page.reload();
   await expect.poll(async () => (await catalog(page, '2026-10-01'))?.revision).toBe('2026-10-01');
   await offlineSettings(page);
-  await row(page, '2026-10-01').getByRole('button', { name: 'Download', exact: true }).click();
+  await row(page, '2026-09-03').getByRole('button', { name: 'Update to latest', exact: true }).click();
   await expect(row(page, '2026-10-01').locator('.offline-tag')).toHaveText('Needs attention');
-  await expect(row(page, '2026-09-03').locator('.offline-tag')).toHaveText('Saved');
+  await expect(row(page, '2026-10-01')).toContainText('Saved cycle Sep 3 stays selected');
   await page.getByLabel('Close settings').click();
   await context.setOffline(true);
   await page.reload();
@@ -85,7 +85,7 @@ test('failed notice save preserves September; retry and a standalone next full e
   await expect(row(page, '2026-10-01').locator('.offline-tag')).toHaveText('Paused');
   await row(page, '2026-10-01').getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(row(page, '2026-10-01').locator('.offline-tag')).toHaveText('Saved');
-  await expect(row(page, '2026-09-03').locator('.offline-tag')).toHaveText('Saved');
+  await expect(row(page, '2026-09-03')).toHaveCount(0);
   await page.getByLabel('Close settings').click();
   await approach(page, 'NOTICE APPROACH');
   await request.post('/__test/chart-rollover', { data: { edition: 'full', onlyLatest: true } });
@@ -94,7 +94,7 @@ test('failed notice save preserves September; retry and a standalone next full e
   // Browsing advances, but the verified October region keeps its own sources.
   await approach(page, 'NOTICE APPROACH');
   await offlineSettings(page);
-  await row(page, '2026-10-29').getByRole('button', { name: 'Download', exact: true }).click();
+  await row(page, '2026-10-01').getByRole('button', { name: 'Update to latest', exact: true }).click();
   await expect(row(page, '2026-10-29').locator('.offline-tag')).toHaveText('Saved');
   await page.getByLabel('Close settings').click();
   await context.setOffline(true);

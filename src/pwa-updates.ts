@@ -234,7 +234,8 @@ export function watchPwaUpdates(registration: ServiceWorkerRegistration): () => 
   pwaUpdates.connect(registration, navigator.serviceWorker);
   let lastCheck = -Infinity;
   const check = () => {
-    if (document.visibilityState !== 'visible' || navigator.onLine === false || Date.now() - lastCheck < 30_000) return;
+    const elapsed = Date.now() - lastCheck;
+    if (document.visibilityState !== 'visible' || navigator.onLine === false || (elapsed >= 0 && elapsed < 30_000)) return;
     lastCheck = Date.now();
     void pwaUpdates.check();
   };

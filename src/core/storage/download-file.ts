@@ -2,7 +2,7 @@ import { InvalidDataError, ResourceError } from '../data/errors';
 import { discardResponseBody } from './response';
 import { boundedBlobStream } from './blob-stream';
 import { CHART_CACHE, PDF_CACHE, DATA_CACHE, fileReceiptCacheName } from './cache-names';
-import { deleteUnusedFile, readLockedFile, releaseUnusedFile } from './file-lifetime';
+import { deleteUnusedFile, readLockedFile, releaseUnusedFile, withUnusedFiles } from './file-lifetime';
 import { verificationReceipt } from './verification-receipt';
 
 export const DOWNLOAD_MEMORY_LIMIT = 8 * 1024 * 1024;
@@ -275,6 +275,7 @@ export async function discardDownloadedFile(blob: Blob): Promise<void> {
 
 const retired = new Map<string, { name: string; cache: Cache; url: string }>();
 let retirementTimer: ReturnType<typeof setTimeout> | undefined;
+let retiring = false;
 async function retireFile(cacheName: string, cache: Cache, url: string, name: string): Promise<void> {
   retired.set(name, { name: cacheName, cache, url });
   // The caller holds the URL lock. A busy reader delays physical reclamation,
@@ -294,23 +295,29 @@ async function removeRetiredFile(cacheName: string, cache: Cache, url: string, n
   }
   // Pre-release legacy receipts may still refer to the file. Inspect keys only;
   // opening old complete bodies during cleanup would reintroduce large buffers.
-  if ((await cache.keys()).some(key => key.url === url)) return true;
+  if ((await cache.keys(url, { ignoreVary: true })).length) return true;
   try {
     const directory = await (await storage()!.getDirectory()).getDirectoryHandle(DOWNLOAD_DIRECTORY);
     return await deleteUnusedFile(directory, name);
   } catch (error) { if (missing(error)) return true; throw error; }
 }
 function scheduleRetirement(): void {
-  if (!retired.size || retirementTimer !== undefined) return;
+  if (!retired.size || retirementTimer !== undefined || retiring) return;
   retirementTimer = setTimeout(() => {
     retirementTimer = undefined;
-    void Promise.all([...retired].map(async ([name, { name: cacheName, cache, url }]) => {
-      await withFileLock(url, 'exclusive', async () => {
-        try { if (await removeRetiredFile(cacheName, cache, url, name)) retired.delete(name); }
-        catch { /* Browser shutdown/full storage: the durable orphan sweep retries. */ }
-      });
-    })).catch(() => {}).finally(scheduleRetirement);
-  }, 1_000);
+    retiring = true;
+    void (async () => {
+      // A live view can hold a File for hours. Retry infrequently and serially;
+      // never rescan an entire cache or launch one task per retained reader.
+      for (const [name, entry] of [...retired]) {
+        if (retired.get(name) !== entry) continue; // Reset or another successful removal.
+        await withFileLock(entry.url, 'exclusive', async () => {
+          try { if (await removeRetiredFile(entry.name, entry.cache, entry.url, name)) retired.delete(name); }
+          catch { /* Browser shutdown/full storage: the durable orphan sweep retries. */ }
+        });
+      }
+    })().catch(() => {}).finally(() => { retiring = false; scheduleRetirement(); });
+  }, 60_000);
   // Node's storage tests use the same Web Locks implementation; cleanup timers
   // must not keep a terminated test context alive.
   if (typeof retirementTimer === 'object' && 'unref' in retirementTimer) retirementTimer.unref();
@@ -329,33 +336,50 @@ export async function removeDownloadFiles(): Promise<void> {
 }
 
 let pruning: Promise<void> | undefined;
-/** Reclaim abandoned downloads after a day. Never open a legacy body. Receipt
- * inspection and reclamation share publication's URL lock, and file locks protect
- * live readers and suspended writers even if their files are more than a day old. */
+const lastPruned = new WeakMap<StorageManager, number>();
+/** Reclaim abandoned downloads after a day. Hold idle files against new readers
+ * while inventorying receipts once. A publisher already owns a shared file lease,
+ * so this also protects suspended writers and concurrent receipt publication. */
 async function pruneDownloadFiles(directory: FileSystemDirectoryHandle): Promise<void> {
+  const manager = storage(), now = Date.now();
+  const last = manager && lastPruned.get(manager);
+  if (last !== undefined && now >= last && now - last < 86_400_000) return;
+  // One sweep per storage context/day, not one full inventory scan per PDF book.
   pruning ??= (async () => {
     const stale = new Set<string>();
     for await (const name of directory.keys()) {
-      if (fileNamePattern.test(name) && Date.now() - Number(name.split('-')[0]) > 86_400_000) stale.add(name);
+      if (fileNamePattern.test(name) && now - Number(name.split('-')[0]) > 86_400_000) stale.add(name);
     }
     if (!stale.size) return;
-    for (const file of stale) {
-      const hash = file.slice(-64);
-      await navigator.locks.request(`zlayer-download-key:${hash}`, { mode: 'exclusive' }, async () => {
-        for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
-          const cache = await caches.open(name);
-          for (const key of await cache.keys()) if (await keyHash(key) === hash) return;
-          const receipts = await caches.open(fileReceiptCacheName(name));
-          for (const key of await receipts.keys()) if (await keyHash(key) === hash) {
-            const response = await receipts.match(key);
-            const referenced = response?.headers.get(FILE_HEADER) === file;
-            discardResponseBody(response);
-            if (referenced) return;
-          }
+    await withUnusedFiles([...stale], async unused => {
+      if (!unused.length) return;
+      const candidates = new Set(unused);
+      for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
+        const receipts = await caches.open(fileReceiptCacheName(name));
+        for (const key of await receipts.keys()) {
+          const response = await receipts.match(key);
+          const file = response?.headers.get(FILE_HEADER);
+          discardResponseBody(response);
+          if (file) candidates.delete(file);
         }
-        await deleteUnusedFile(directory, file).catch(() => {});
-      });
-    }
-  })().finally(() => { pruning = undefined; });
+      }
+      if (!candidates.size) return;
+      // Only abandoned candidates need the legacy scan. Keep its hash set bounded
+      // by those candidates, not by the number of viewed chart packages.
+      const hashes = new Set([...candidates].map(file => file.slice(-64)));
+      const legacy = new Set<string>();
+      for (const name of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) {
+        // Never open legacy complete bodies: WebKit can materialize them in memory.
+        for (const key of await (await caches.open(name)).keys()) {
+          const hash = await keyHash(key);
+          if (hashes.has(hash)) legacy.add(hash);
+        }
+      }
+      for (const file of candidates) if (!legacy.has(file.slice(-64))) {
+        try { await directory.removeEntry(file); }
+        catch (error) { if (!missing(error)) throw error; }
+      }
+    });
+  })().then(() => { if (manager) lastPruned.set(manager, now); }).finally(() => { pruning = undefined; });
   await pruning;
 }

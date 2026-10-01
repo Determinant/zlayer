@@ -2,32 +2,27 @@ import { formatDate } from '../core/format/time';
 import { downloadBytes, type Download, type DownloadPlan } from '../offline/downloads';
 import { formatBytes } from '../offline/storage';
 import { presentDownload, type RegionOperation } from './download-presentation';
+import type { RegionDownloadEntry } from './region-downloads';
 
-export type RegionDownloadEntry = {
-  plan: DownloadPlan;
-  current: boolean;
-  job: Download | undefined;
-  problem: string | undefined;
-};
 export type RegionDownloadRowProps = {
   region: RegionDownloadEntry;
   details: 'loading' | 'ready' | 'unavailable';
   pending: RegionOperation | undefined;
   error: string | undefined;
   busy: boolean;
+  canUpdate: boolean;
   onStart: (plan: DownloadPlan) => void;
+  onUpdate: (plan: DownloadPlan) => void;
   onPause: (id: string) => void;
   onRemove: (job: Download) => void;
 };
 
-export function RegionDownloadRow({ region, details, pending, error, busy, onStart, onPause, onRemove }: RegionDownloadRowProps) {
-  const { plan, job, current, problem } = region;
+export function RegionDownloadRow({ region, details, pending, error, busy, canUpdate, onStart, onUpdate, onPause, onRemove }: RegionDownloadRowProps) {
+  const { plan, job, active, current, problem } = region;
   const display = job ?? plan;
   const view = presentDownload(job, pending);
   const running = view.action.kind === 'pause';
-  const update = current && details === 'ready' && !problem && (!job || job.revision === plan.revision) ? plan : undefined;
-  // Resume/retry uses the saved selection. Only Verify / update adopts a new plan.
-  const primaryPlan = job?.state === 'complete' ? update ?? job : job ?? plan;
+  const updateReady = current && details === 'ready' && !problem && canUpdate && plan.revision >= display.revision;
   const message = error ?? job?.error ?? (!job ? problem : undefined);
   const knownSize = Boolean(job || details === 'ready' && !problem);
   const size = knownSize
@@ -46,24 +41,27 @@ export function RegionDownloadRow({ region, details, pending, error, busy, onSta
     <div className="region-row-summary">
       <p>Cycle {formatDate(display.revision)} · {size}
         {knownSize && ` · ${display.files.length.toLocaleString()} ${display.files.length === 1 ? 'file' : 'files'}`}</p>
+      {job && current && plan.revision > display.revision && <p>New cycle available: {formatDate(plan.revision)}.</p>}
+      {active && job && !job.completedAt && job.state !== 'complete' && <p>
+        Saved cycle {formatDate(active.revision)} stays selected until this update finishes.
+      </p>}
       <div className="download-actions">
-        <button className="ui-button" type="button" disabled={running ? view.action.disabled : busy || (!job && !update)
-          || (job?.state === 'complete' && current && details === 'loading')}
-          onClick={() => running ? onPause(display.id) : onStart(primaryPlan)}>{view.action.label}</button>
+        <button className="ui-button" type="button" disabled={running ? view.action.disabled : busy || (!job && !updateReady)}
+          onClick={() => running ? onPause(display.id) : job ? onStart(job) : onUpdate(plan)}>{view.action.label}</button>
         {job && !running && <>
-          {job.state !== 'complete' && update && <button className="ui-button" type="button" disabled={busy}
-            onClick={() => onStart(update)}>Verify / update</button>}
+          <button className="ui-button" type="button" disabled={busy || !updateReady}
+            onClick={() => onUpdate(display)}>Update to latest</button>
           <button className="ui-button" type="button" disabled={busy} onClick={() => onRemove(job)}>Remove</button>
         </>}
       </div>
     </div>
     {view.progress && <div className="region-progress">
-      <progress aria-label={`${plan.title} ${formatDate(plan.revision)} ${view.progress.label} progress`}
+      <progress aria-label={`${display.title} ${formatDate(display.revision)} ${view.progress.label} progress`}
         value={view.progress.value} max={display.files.length || 1} />
       <p>{view.progress.message}</p>
     </div>}
     {message && <p className="settings-error" role="alert">{message}</p>}
-    {job && !job.terrain && <p>Terrain is not included in this older download. Use Verify / update to add it.</p>}
+    {job && !job.terrain && <p>Terrain is not included in this download. Update to latest to include available terrain.</p>}
   </article>;
 }
 

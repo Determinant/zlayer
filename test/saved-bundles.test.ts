@@ -1,18 +1,27 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test, { type TestContext } from 'node:test';
-import type { CatalogResponse } from '@zlayer/contracts';
+import { bookUrl, type ChartSupplementCatalog, type GeoPointFeature, type CatalogResponse } from '@zlayer/contracts';
 import { chartRegionPlans } from '../src/layers/charts/offline';
 import type { DownloadPlan } from '../src/offline/downloads';
 
 const records = new Map<string, unknown>(), present = new Set<string>();
-Object.assign(globalThis, { bundleTestRecords: records, bundleTestFiles: present });
+const commits = { fail: false, count: 0 };
+Object.assign(globalThis, { bundleTestRecords: records, bundleTestFiles: present, bundleTestCommits: commits });
 const loader = registerHooks({ resolve(specifier, context, next) {
   if (context.parentURL?.includes('/offline/') && specifier.startsWith('.')) {
     const modules: Record<string, string> = {
       [new URL('../src/core/storage/database', import.meta.url).href]: `export const readOfflineRecord = async key => globalThis.bundleTestRecords.get(key);
         export const writeOfflineRecord = async (key, value) => value === undefined
           ? globalThis.bundleTestRecords.delete(key) : globalThis.bundleTestRecords.set(key, value);
+        export const writeOfflineRecords = async (entries, options) => {
+          if (globalThis.bundleTestCommits.fail) throw new Error('Injected commit failure');
+          if (options?.requireKey && !globalThis.bundleTestRecords.has(options.requireKey)) throw new Error('Saved data was deleted');
+          globalThis.bundleTestCommits.count++;
+          for (const [key, value] of entries) value === undefined
+            ? globalThis.bundleTestRecords.delete(key) : globalThis.bundleTestRecords.set(key, value);
+        };
+        export const offlineRecordKeys = async prefix => [...globalThis.bundleTestRecords.keys()].filter(key => key.startsWith(prefix));
         export const offlineRecords = async prefix => [...globalThis.bundleTestRecords]
           .filter(([key]) => key.startsWith(prefix)).map(([, value]) => value);`,
       [new URL('../src/offline/storage', import.meta.url).href]: `export const cachedFileBytes = async file => globalThis.bundleTestFiles.has(file.url) ? file.byteLength : undefined;`,
@@ -24,11 +33,14 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const { restoreSavedBundles, restoreSavedBundleMetadata, checkSavedBundleAvailability, retainFailedBundleOwnership } = await import('../src/offline/bundle-repository');
-const { persistBundleSnapshot } = await import('../src/offline/bundle-snapshots');
+const { persistBundleSnapshot, pruneBundleSnapshots } = await import('../src/offline/bundle-snapshots');
+const { savedPlans } = await import('../src/offline/saved-plans');
+const { stageRegion, activateRegion } = await import('../src/offline/region-repository');
+const { savedAirportSupplements } = await import('../src/offline/saved-supplements');
 loader.deregister();
 
 function setup(t: TestContext) {
-  records.clear(); present.clear();
+  records.clear(); present.clear(); commits.fail = false; commits.count = 0;
   for (const [key, value] of Object.entries({ location: { href: 'https://app.test/' },
     navigator: { locks: { request: async (_name: string, _options: unknown, work: (lock: object) => unknown) => work({}) } },
   })) {
@@ -181,6 +193,8 @@ test('legacy adoption does not overwrite a selection while another window holds 
   const { bundles: restored } = await restoreSavedBundleMetadata();
   assert.equal(restored[0]!.catalog.generatedAt, legacy.catalog!.generatedAt);
   assert.equal(records.get(`region:${legacy.id}`), legacy, 'the contended record stays untouched');
+  assert.equal([...records.keys()].some(key => key.startsWith('bundle-snapshot:')), false,
+    'a skipped migration must not write an unowned snapshot outside the lock');
 });
 
 test('legacy adoption compares the original record under the lock before writing', async t => {
@@ -244,4 +258,122 @@ test('legacy adoption requires exact catalog dependencies and never assigns a fr
   assert.ok(migrated.completedAt);
   records.delete('catalog:legacy');
   assert.equal((await restoreSavedBundles()).bundles[0]!.catalog.generatedAt, original.generatedAt);
+});
+
+test('a cross-cycle activation atomically replaces its region and leaves shared files and other selections intact', async t => {
+  setup(t);
+  const old = await save(plan(catalog('2026-08-06')));
+  const neighbor = await save(plan(catalog('2026-08-06'), 'us-NV'));
+  const otherFeed = await save(JSON.parse(JSON.stringify(plan(catalog('2026-08-06')))
+    .replaceAll('charts.test', 'other.test')) as DownloadPlan);
+  const future = await save(plan(catalog('2026-10-29')));
+  const next = await stageRegion(plan(catalog()));
+  next.files.forEach(file => present.add(file.url));
+  const bytes = new Set(present);
+  commits.fail = true;
+  await assert.rejects(activateRegion(next), /Injected commit failure/);
+  assert.equal(records.get(`region:${old.id}`), old);
+  assert.equal((records.get(`region:${next.id}`) as DownloadPlan).completedAt, undefined);
+  assert.ok((await restoreSavedBundleMetadata()).bundles.some(bundle => bundle.plan.id === old.id));
+  commits.fail = false;
+  const active = await activateRegion(next);
+  assert.ok(active.completedAt);
+  assert.equal(commits.count, 1, 'activation and retirement use a single commit');
+  assert.equal(records.has(`region:${old.id}`), false);
+  for (const kept of [neighbor, otherFeed, future]) assert.equal(records.get(`region:${kept.id}`), kept);
+  assert.deepEqual(present, bytes, 'activation never deletes shared or in-use bytes');
+});
+
+test('same-cycle staging preserves its selected snapshot through failure and activates on retry', async t => {
+  setup(t);
+  const old = await save(plan(catalog()));
+  const next = await stageRegion(plan(catalog(old.revision, '2026-09-17T00:00:00Z')));
+  assert.equal(next.previous?.snapshotId, old.snapshotId);
+  commits.fail = true;
+  await assert.rejects(activateRegion(next), /Injected commit failure/);
+  assert.equal((await restoreSavedBundleMetadata()).bundles[0]!.plan.snapshotId, old.snapshotId);
+  commits.fail = false;
+  const active = await activateRegion(next);
+  assert.equal(active.previous, undefined);
+  assert.equal((await restoreSavedBundleMetadata()).bundles[0]!.plan.snapshotId, next.snapshotId);
+});
+
+test('supplement fallback cannot select a staged replacement merely because its book has downloaded', async t => {
+  setup(t);
+  const url = 'https://charts.test/2026-09-03/cs/catalog.json';
+  const snapshot: ChartSupplementCatalog = { schemaVersion: 3, builderVersion: 3,
+    generatedAt: '2026-09-03T09:01:00Z', effectiveDate: '2026-09-03', expirationDate: '2026-10-29',
+    sourceXml: { url: 'https://faa.test/afd.xml', sha256: 'a'.repeat(64) },
+    volumes: [{ id: 'SW', url: 'old.pdf', pageCount: 2, byteLength: 2000, sha256: 'b'.repeat(64) }],
+    airports: [{ faaId: 'HWD', name: 'HAYWARD EXEC', city: 'HAYWARD', state: 'CALIFORNIA',
+      volumeId: 'SW', printedPage: '174', pageIndex: 1 }],
+  };
+  const makePlan = (snapshot: ChartSupplementCatalog): DownloadPlan => ({ ...plan(catalog()),
+    files: snapshot.volumes.map(volume => ({ kind: 'pdf', url: bookUrl(volume, url), byteLength: volume.byteLength, sha256: volume.sha256 })),
+    references: [{ id: 'chart-supplements', url, snapshot }],
+  });
+  const old = await save(makePlan(snapshot));
+  const corrected = { ...snapshot, generatedAt: '2026-09-17T09:01:00Z',
+    volumes: snapshot.volumes.map(volume => ({ ...volume, url: 'new.pdf', sha256: 'c'.repeat(64) })) };
+  const pending = await stageRegion(makePlan(corrected));
+  pending.files.forEach(file => present.add(file.url));
+  const feature: GeoPointFeature = { type: 'Feature', id: 'airport:HWD',
+    geometry: { type: 'Point', coordinates: [-122.12, 37.66] }, properties: { faaId: 'HWD', icaoId: 'KHWD' } };
+  const selected = await savedAirportSupplements(feature, old.revision);
+  assert.equal(selected?.generatedAt, snapshot.generatedAt);
+  await activateRegion(pending);
+  assert.equal((await savedAirportSupplements(feature, old.revision))?.generatedAt, corrected.generatedAt);
+});
+
+test('snapshot cleanup retains shared, staged and previous editions and reclaims only unowned metadata', async t => {
+  setup(t);
+  const original = catalog();
+  const ca = await save(plan(original));
+  const nv = await save(plan(original, 'us-NV'));
+  const corrected = await stageRegion(plan(catalog(original.revision, '2026-09-17T00:00:00Z')));
+  const nextCycle = await stageRegion(plan(catalog('2026-10-01')));
+  const abandoned = await persistBundleSnapshot(plan(catalog('2026-08-06')));
+  records.set('unrelated:keep', true);
+  const has = (id: string | undefined) => records.has(`bundle-snapshot:${id}`);
+  await pruneBundleSnapshots(await savedPlans(true));
+  assert.equal(has(ca.snapshotId), true);
+  assert.equal(has(corrected.snapshotId), true);
+  assert.equal(has(nextCycle.snapshotId), true);
+  assert.equal(has(abandoned.snapshotId), false);
+  await activateRegion(nextCycle);
+  await pruneBundleSnapshots(await savedPlans(true));
+  assert.equal(has(corrected.snapshotId), false, 'retired pending metadata can be reclaimed');
+  assert.equal(has(ca.snapshotId), true, 'another region still owns the earlier shared catalog');
+  records.delete(`region:${nv.id}`);
+  await pruneBundleSnapshots(await savedPlans(true));
+  assert.equal(has(ca.snapshotId), false);
+  assert.equal(has(nextCycle.snapshotId), true);
+  assert.equal(records.get('unrelated:keep'), true);
+});
+
+test('a cancelled health check finishes its current batch without scanning the rest of a saved region', async t => {
+  setup(t);
+  const base = plan(catalog());
+  base.files = Array.from({ length: 12 }, (_, i) => ({ ...base.files[0]!, url: `https://charts.test/${i}.mbtiles` }));
+  await save(base);
+  const { bundles } = await restoreSavedBundleMetadata();
+  const controller = new AbortController();
+  let reads = 0;
+  const has = present.has.bind(present);
+  t.mock.method(present, 'has', (url: string) => {
+    reads++;
+    if (reads === 1) controller.abort();
+    return has(url);
+  });
+  await assert.rejects(checkSavedBundleAvailability(bundles, controller.signal), { name: 'AbortError' });
+  assert.equal(reads, 4, 'only the already admitted batch runs');
+});
+
+test('snapshot reclamation defers while an older app can still adopt a legacy selection', async t => {
+  setup(t);
+  const legacy = plan(catalog());
+  records.set(`region:${legacy.id}`, legacy);
+  const migrating = await persistBundleSnapshot(legacy);
+  await pruneBundleSnapshots(await savedPlans(true));
+  assert.equal(records.has(`bundle-snapshot:${migrating.snapshotId}`), true);
 });

@@ -3,6 +3,7 @@ import { isOnChartFeed } from '../workspace/catalog/feed';
 import { readOfflineRecord, writeOfflineRecord } from '../core/storage/database';
 import { cacheAccessKey, cacheLastUsed, noteCacheAccess } from '../core/storage/cache-access';
 import { savedPlans } from './saved-plans';
+import { pruneBundleSnapshots } from './bundle-snapshots';
 import { retainedFiles, type DownloadPlan } from './downloads';
 import { CHART_CACHE, DATA_CACHE, PDF_CACHE } from '../core/storage/cache-names';
 import { openFileCache } from '../core/storage/download-file';
@@ -50,7 +51,7 @@ export async function pruneOnlineCache(activeCatalogs: readonly CatalogResponse[
     if (!lock) return { removed: 0 };
     const now = options.now ?? Date.now();
     const last = await readOfflineRecord(LAST_CLEANUP);
-    if (!options.force && typeof last === 'number' && now - last < CLEANUP_INTERVAL_MS) return { removed: 0 };
+    if (!options.force && typeof last === 'number' && now >= last && now - last < CLEANUP_INTERVAL_MS) return { removed: 0 };
     const plans = await savedPlans(true);
     const protectedUrls = new Set([
       ...plans.flatMap(retainedResourceUrls),
@@ -66,8 +67,8 @@ export async function pruneOnlineCache(activeCatalogs: readonly CatalogResponse[
         // DATA_CACHE also contains weather and basemap resources with separate lifetimes.
         if (name === DATA_CACHE && !isOnChartFeed(new URL(request.url), location.href)) continue;
         const lastUsed = await cacheLastUsed(name, request.url);
-        if (lastUsed === undefined) {
-          await noteCacheAccess(name, request.url, now); // Existing installs receive a full grace period.
+        if (lastUsed === undefined || lastUsed > now) {
+          await noteCacheAccess(name, request.url, now); // Missing/future receipts receive a full grace period.
           continue;
         }
         if (now - lastUsed < ONLINE_CACHE_RETENTION_MS) continue;
@@ -76,6 +77,7 @@ export async function pruneOnlineCache(activeCatalogs: readonly CatalogResponse[
         if (name === CHART_CACHE) navigator.serviceWorker?.controller?.postMessage({ type: 'forget-chart-memory', url: request.url });
       }
     }
+    await pruneBundleSnapshots(plans);
     await writeOfflineRecord(LAST_CLEANUP, now);
     return { removed };
   });
