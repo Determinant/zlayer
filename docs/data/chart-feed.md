@@ -56,6 +56,12 @@ committed offline regions retain their exact downloaded snapshots. Existing pers
 date choices remain pinned. A blank or `latest` `VITE_ZLAYERS_CHART_REVISION` uses
 Latest; an explicit supported date sets the initial preference only.
 
+Offline **Download** and **Update to latest** check the latest effective publication
+independently of this browsing preference, including at the button gesture. They
+require fresh discovery and valid product metadata; a failed check keeps the saved
+edition unchanged. **Verify saved files** repairs the exact saved selection.
+See [regional updates](../features/offline-storage.md#updates-and-repair).
+
 The validated cycle list and catalogs are stored separately per feed root.
 Cached catalogs appear before network revalidation and remain usable offline.
 A failed selection keeps the active catalog; a late response from an abandoned

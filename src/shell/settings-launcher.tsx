@@ -85,7 +85,7 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
             </select>
           </label>
           <p id="cycle-description">Browsing FAA {formatDate(catalog.revision)}. Default follows the latest available cycle.
-            {' '}This applies to browsing and new downloads. Saved regions keep their downloaded editions.</p>
+            {' '}This applies to browsing. Offline downloads and updates check Latest; saved regions keep their edition until you update them.</p>
           {rasterDates.some(date => date !== catalog.revision) && <p>Raster charts use the {rasterDates.map(date => formatDate(date)).join(', ')} edition, still effective for this cycle.</p>}
           {cycleNotice && <p className="settings-cycle-notice" role="status">{cycleNotice}</p>}
         </section>

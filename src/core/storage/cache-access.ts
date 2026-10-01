@@ -12,7 +12,8 @@ export function cacheAccessKey(cache: string, url: string): string {
 export async function noteCacheAccess(cache: string, url: string, now = Date.now()): Promise<void> {
   try {
     const key = cacheAccessKey(cache, url);
-    if (now - (recentlyUsed.get(key) ?? 0) < WRITE_INTERVAL_MS) return;
+    const last = recentlyUsed.get(key);
+    if (last !== undefined && now >= last && now - last < WRITE_INTERVAL_MS) return;
     recentlyUsed.set(key, now);
     if (recentlyUsed.size > 4_096) recentlyUsed.delete(recentlyUsed.keys().next().value!);
     await writeOfflineRecord(key, now);

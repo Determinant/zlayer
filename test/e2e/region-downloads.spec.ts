@@ -81,7 +81,7 @@ test('Offline follows General, keeps transfers running across tabs, and restores
   // Completion while the panel is hidden proves that switching tabs preserves the transfer.
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
   await tabs.getByRole('tab', { name: 'Offline', exact: true }).click();
-  await expect(row.getByRole('button', { name: 'Verify / update', exact: true })).toBeEnabled();
+  await expect(row.getByRole('button', { name: 'Verify saved files', exact: true })).toBeEnabled();
   await page.getByLabel('Close settings').click();
   await page.getByLabel('Settings and offline downloads').click();
   await expect(tabs.getByRole('tab', { name: 'Offline', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -115,7 +115,7 @@ for (const [width, height] of [[320, 568], [393, 852], [1280, 900]] as const) {
     await page.evaluate(() => (window as DownloadWindow).regionDownloadFixture.release());
     await expect(row.locator('.offline-tag')).toHaveText('Saved');
     await expect(row.getByRole('progressbar')).toHaveCount(0);
-    await expect(row.getByRole('button', { name: 'Verify / update', exact: true })).toBeEnabled();
+    await expect(row.getByRole('button', { name: 'Verify saved files', exact: true })).toBeEnabled();
     await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeEnabled();
     expect(await element.evaluate(node => node.isConnected)).toBe(true);
     expect(await page.locator('.region-row h4').allTextContents()).toEqual(order);
@@ -124,7 +124,7 @@ for (const [width, height] of [[320, 568], [393, 852], [1280, 900]] as const) {
 
     const remove = row.getByRole('button', { name: 'Remove', exact: true });
     await remove.click();
-    const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Sep 3/ });
+    const confirmation = page.getByRole('alertdialog', { name: /Remove California/ });
     await expect(confirmation).toBeInViewport();
     await expect(confirmation).toContainText('Files used by other saved regions will stay.');
     await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
@@ -154,7 +154,7 @@ test('pause, resume and removal remain available in the original region row', as
   await row.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
   await row.getByRole('button', { name: 'Remove', exact: true }).click();
-  const confirmation = page.getByRole('alertdialog', { name: /Remove California.*cycle Sep 3/ });
+  const confirmation = page.getByRole('alertdialog', { name: /Remove California/ });
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(confirmation).toHaveCount(0);
   await expect(row.getByRole('button', { name: 'Remove', exact: true })).toBeFocused();
@@ -239,7 +239,7 @@ test('a file removal error leaves settings usable and removal can be retried', a
   expect(errors).toEqual([]);
 });
 
-test('my downloads includes saved editions from other cycles and restores its filter', async ({ page }) => {
+test('my downloads keeps one saved region when browsing another cycle and restores its filter', async ({ page }) => {
   await openSettings(page);
   const current = california(page);
   await current.getByRole('button', { name: 'Download', exact: true }).click();
@@ -247,15 +247,14 @@ test('my downloads includes saved editions from other cycles and restores its fi
   await page.getByRole('tab', { name: 'General', exact: true }).click();
   await page.getByRole('combobox', { name: 'FAA data cycle', exact: true }).selectOption('2026-08-06');
   await page.getByRole('tab', { name: 'Offline', exact: true }).click();
-  const older = california(page, '2026-08-06');
-  await older.getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(older.locator('.offline-tag')).toHaveText('Saved');
+  await expect(california(page, '2026-08-06')).toHaveCount(0);
+  await expect(current.getByRole('button', { name: 'Update to latest', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'My downloads', exact: true }).click();
-  await expect(page.locator('.region-row')).toHaveCount(2);
+  await expect(page.locator('.region-row')).toHaveCount(1);
   await expect(current.locator('.offline-tag')).toHaveText('Saved');
   await page.reload();
   await expect(page.getByRole('button', { name: 'My downloads', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.region-row')).toHaveCount(2);
+  await expect(page.locator('.region-row')).toHaveCount(1);
   await page.getByLabel('Find a state or territory').fill('Nevada');
   await expect(page.getByText('No regions match your search.', { exact: true })).toBeVisible();
   await page.getByLabel('Find a state or territory').fill('');

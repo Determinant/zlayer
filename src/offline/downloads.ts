@@ -1,6 +1,6 @@
 import type { ReferenceResource } from '../core/data/references';
 import type { Bounds, CatalogResponse, ChartSupplementTarget } from '@zlayer/contracts';
-import { isActivated } from './region-selection';
+import { isActivated, regionKey } from './region-selection';
 import { withAbort } from '../core/data/abort';
 import { snapshotFilesIncluded } from './plan-records';
 import { DOWNLOAD_RETRY_DELAYS, isRetryableDownloadError, waitForDownloadRetry } from './download-retry';
@@ -55,8 +55,8 @@ export type DownloadBackend = {
   complete?: (plan: DownloadPlan) => Promise<DownloadPlan | void>;
   forget: (id: string) => Promise<void>;
   cachedBytes: (file: OfflineFile) => Promise<number | undefined>;
-  referencesReady: (plan: DownloadPlan) => Promise<boolean>;
-  prepare: (plan: DownloadPlan, signal: AbortSignal) => Promise<DownloadPlan | void>;
+  referencesReady: (plan: DownloadPlan, verified?: Map<string, Promise<boolean>>, signal?: AbortSignal) => Promise<boolean>;
+  prepare: (plan: DownloadPlan, signal: AbortSignal, cachedBytes?: (file: OfflineFile) => Promise<number | undefined>) => Promise<DownloadPlan | void>;
   download: (file: OfflineFile) => Promise<void>;
   remove: (file: OfflineFile) => Promise<void>;
   exclusive: (work: () => Promise<void>) => Promise<void>;
@@ -71,6 +71,7 @@ export class RegionDownloads {
   #controller: AbortController | undefined;
   #operation = false;
   #restoring: Promise<void> | undefined;
+  #inventoryVersion = 0;
   constructor(readonly backend: DownloadBackend) {}
   snapshot = (): readonly Download[] => this.#snapshot;
   subscribe = (listener: () => void): (() => void) => {
@@ -85,60 +86,84 @@ export class RegionDownloads {
     this.#snapshot = [...this.#jobs.values()];
     for (const listener of this.#listeners) listener();
   }
-  restore(): Promise<void> {
+  restore(inventoryChanged = false): Promise<void> {
+    if (inventoryChanged) this.#inventoryVersion++;
     if (this.#restoring) return this.#restoring;
     if (this.#operation) return Promise.resolve();
     this.#operation = true;
     const request = (async () => {
-      const plans = await this.backend.list();
-      const restored = new Map<string, Download>();
-      // Regions share national reference files. Validate them once per check,
-      // but never reuse that readiness after a later eviction or schema update.
-      const references = new Map<string, Promise<boolean>>();
-      for (const plan of plans) {
-        try {
-          const { progress, ready } = await this.#inspect(plan, references);
-          restored.set(plan.id, { ...plan, ...progress, state: ready && isActivated(plan) ? 'complete' : 'paused' });
-        } catch (error) {
-          // A failed read must neither hide this selection nor prevent checking others.
-          restored.set(plan.id, { ...plan, completedBytes: 0, completedFiles: 0, state: 'error',
-            error: `Could not check saved data. ${error instanceof Error ? error.message : 'Retry when storage is available.'}` });
-        }
-      }
-      this.#jobs = restored;
-      this.#publish();
+      let version: number;
+      do {
+        version = this.#inventoryVersion;
+        await this.#restore();
+      } while (version !== this.#inventoryVersion);
     })().finally(() => { this.#operation = false; this.#restoring = undefined; });
     this.#restoring = request;
     return request;
   }
+  async #restore(): Promise<void> {
+    const plans = await this.backend.list();
+    const restored = new Map<string, Download>();
+    // Regions share national reference files. Validate them once per check,
+    // but never reuse that readiness after a later eviction or schema update.
+    const references = new Map<string, Promise<boolean>>();
+    const files = new Map<string, Promise<number | undefined>>();
+    for (const plan of plans) {
+      try {
+        const { progress, ready } = await this.#inspect(plan, references, { files });
+        restored.set(plan.id, { ...plan, ...progress, state: ready && isActivated(plan) ? 'complete' : 'paused' });
+      } catch (error) {
+        // A failed read must neither hide this selection nor prevent checking others.
+        restored.set(plan.id, { ...plan, completedBytes: 0, completedFiles: 0, state: 'error',
+          error: `Could not check saved data. ${error instanceof Error ? error.message : 'Retry when storage is available.'}` });
+      }
+    }
+    this.#jobs = restored;
+    this.#publish();
+  }
+  #cachedBytes(file: OfflineFile, files?: Map<string, Promise<number | undefined>>): Promise<number | undefined> {
+    if (!files) return this.backend.cachedBytes(file);
+    const key = JSON.stringify(file);
+    if (!files.has(key)) files.set(key, this.backend.cachedBytes(file));
+    return files.get(key)!;
+  }
   async #inspect(plan: DownloadPlan, references = new Map<string, Promise<boolean>>(), options: {
     signal?: AbortSignal; progress?: (progress: DownloadProgress & { checkedFiles: number }) => void;
     file?: (file: OfflineFile, bytes: number | undefined) => void; filesOnly?: boolean;
+    files?: Map<string, Promise<number | undefined>>;
   } = {}): Promise<DownloadAvailability> {
     const { signal } = options;
     const read = <T>(request: Promise<T>) => signal ? withAbort(request, signal) : request;
     let completedBytes = 0, completedFiles = 0, checkedFiles = 0;
     // Bound cache reads; never open an entire region's blobs concurrently.
     let cursor = 0;
-    await Promise.all(Array.from({ length: 4 }, async () => {
+    const checks = Array.from({ length: 4 }, async () => {
       while (cursor < plan.files.length) {
         signal?.throwIfAborted();
         const file = plan.files[cursor++]!;
-        const bytes = await read(this.backend.cachedBytes(file));
+        const bytes = await read(this.#cachedBytes(file, options.files));
         signal?.throwIfAborted();
         if (bytes !== undefined) { completedBytes += bytes; completedFiles++; }
         checkedFiles++;
         options.file?.(file, bytes);
         options.progress?.({ completedBytes, completedFiles, checkedFiles });
       }
-    }));
+    });
+    try { await Promise.all(checks); }
+    catch (error) {
+      cursor = plan.files.length; // Stop peers from admitting any more reads.
+      // Restoration has no cancellation signal: drain admitted reads before the
+      // next region. Foreground jobs retain prompt pause/error handling.
+      if (!signal) await Promise.allSettled(checks);
+      throw error;
+    }
     // Shared reference readiness does not prove that this selection includes
     // every book named by its snapshot. Check membership before consulting it.
     let complete = plan.files.length > 0 && completedFiles === plan.files.length && snapshotFilesIncluded(plan);
     signal?.throwIfAborted();
     if (complete && !options.filesOnly) {
       const key = JSON.stringify([plan.revision, plan.references, plan.terrain ? [plan.snapshotId, plan.bounds, plan.files] : null]);
-      if (!references.has(key)) references.set(key, this.backend.referencesReady(plan));
+      if (!references.has(key)) references.set(key, this.backend.referencesReady(plan, references, signal));
       complete = await read(references.get(key)!);
     }
     return { progress: { completedBytes, completedFiles }, ready: complete };
@@ -161,10 +186,11 @@ export class RegionDownloads {
     try {
       await this.backend.exclusive(async () => {
         plan = await this.backend.save(plan) ?? plan; // Resumable even if this tab is killed next.
-        job = { ...job, ...plan };
+        job = { ...plan, state: 'verifying', completedBytes: 0, completedFiles: 0, checkedFiles: 0 };
         signal.throwIfAborted();
         const counted = new Map<string, number>();
-        await this.#inspect(plan, undefined, { signal, filesOnly: true,
+        const inspected = new Map<string, Promise<number | undefined>>();
+        await this.#inspect(plan, undefined, { signal, filesOnly: true, files: inspected,
           file: (file, bytes) => { if (bytes !== undefined) counted.set(file.url, bytes); },
           progress: progress => {
             job = { ...job, ...progress };
@@ -174,12 +200,14 @@ export class RegionDownloads {
         job = { ...job, state: 'preparing' };
         this.#publish(job);
         signal.throwIfAborted();
-        const prepared = await withAbort(this.backend.prepare(plan, signal), signal);
+        const prepared = await withAbort(this.backend.prepare(plan, signal, file => this.#cachedBytes(file, inspected)), signal);
         signal.throwIfAborted();
         if (prepared) plan = await this.backend.save(prepared) ?? prepared;
-        job = { ...job, ...plan };
+        // Replace plan metadata completely: a prior activation receipt must not
+        // survive staging merely because the staged plan omits completedAt.
+        job = { ...plan, state: 'downloading', completedBytes: job.completedBytes,
+          completedFiles: job.completedFiles, checkedFiles: job.checkedFiles ?? 0 };
         signal.throwIfAborted();
-        job = { ...job, state: 'downloading' };
         this.#publish(job);
         const countFile = (file: OfflineFile, bytes: number | undefined) => {
           const previous = counted.get(file.url);
@@ -248,6 +276,13 @@ export class RegionDownloads {
         if (active) plan = active;
         if (!isActivated(plan)) throw new Error('The region could not be marked saved. Retry to finish saving it.');
         job = { ...plan, ...progress, state: 'complete' };
+        // Activation may retire older edition records. A failed optional inventory
+        // refresh cannot turn an already committed save into an error.
+        const inventory = await this.backend.list().catch(() => undefined);
+        if (inventory) {
+          const retained = new Set(inventory.map(plan => plan.id));
+          for (const id of this.#jobs.keys()) if (!retained.has(id)) this.#jobs.delete(id);
+        }
       });
       this.#publish(job);
     } catch (error) {
@@ -269,7 +304,9 @@ export class RegionDownloads {
     this.#controller?.abort();
     this.#publish(this.#jobs.get(id));
   }
-  async remove(id: string): Promise<void> {
+  remove(id: string): Promise<void> { return this.#remove(id, false); }
+  removeRegion(id: string): Promise<void> { return this.#remove(id, true); }
+  async #remove(id: string, allEditions: boolean): Promise<void> {
     if (this.#operation) throw new Error('Wait for the active download to pause before removing a region');
     const job = this.#jobs.get(id);
     if (!job) return;
@@ -278,12 +315,15 @@ export class RegionDownloads {
       await this.backend.exclusive(async () => {
         // Include selections made by other tabs, not only this window's snapshot.
         const plans = await this.backend.list(true);
-        const others = plans.filter(plan => plan.id !== id);
-        const shared = new Set(others.flatMap(plan => retainedFiles(plan).map(file => file.url)));
-        for (const file of retainedFiles(plans.find(plan => plan.id === id) ?? job)) {
-          if (!shared.has(file.url)) await this.backend.remove(file);
+        const targets = plans.filter(plan => allEditions ? regionKey(plan) === regionKey(job) : plan.id === id);
+        const ids = new Set(targets.map(plan => plan.id));
+        const shared = new Set(plans.filter(plan => !ids.has(plan.id)).flatMap(plan => retainedFiles(plan).map(file => file.url)));
+        const files = new Map(targets.flatMap(retainedFiles).map(file => [file.url, file]));
+        for (const file of files.values()) if (!shared.has(file.url)) await this.backend.remove(file);
+        for (const target of targets) {
+          await this.backend.forget(target.id);
+          this.#jobs.delete(target.id);
         }
-        await this.backend.forget(id);
       });
       this.#jobs.delete(id);
       this.#publish();

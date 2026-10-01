@@ -211,7 +211,11 @@ viewed; weather remains time-stamped and visibly stale. The obstruction dataset 
 cached on demand and is not part of regional completeness. See
 [offline storage](../features/offline-storage.md) for guarantees, limits, and release checks.
 Committed regional snapshots retain their edition online and offline; staged updates
-activate only after verification. Route drafts, camera and workspace presentation
+activate only after verification. Settings groups editions by publisher/region;
+**Update to latest** discovers the current effective cycle independently of browsing
+and atomically replaces older records after the new snapshot verifies. File caches
+stay shared; old unreferenced bytes expire through ordinary cleanup. Route drafts,
+camera and workspace presentation
 persist separately in localStorage; see [persistence contracts](../data/contracts.md#workspace-persistence).
 Optional AHRS recordings use bounded IndexedDB chunks in the same offline database.
 Settings offers a [full local reset](../features/offline-storage.md#full-local-reset) of app data

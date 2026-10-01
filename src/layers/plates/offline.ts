@@ -17,13 +17,13 @@ export type OfflinePlateIndex = {
   supplements: ChartSupplementCatalog;
 };
 
-export async function fetchOfflinePlateIndex(catalog: CatalogResponse): Promise<OfflinePlateIndex> {
+export async function fetchOfflinePlateIndex(catalog: CatalogResponse, requireFresh = false): Promise<OfflinePlateIndex> {
   const airports = catalog.navigation.find(layer => layer.id === 'airports');
   if (!airports || !catalog.procedures) throw new Error('Airport and plate indexes are required for regional plate downloads');
   const [navigation, procedures, supplements] = await Promise.all([
     // Book coverage must not be clipped to whichever chart footprints were published.
     fetchNavigation(airports, catalog.revision, []),
-    fetchProcedureCatalog(catalog.procedures), fetchChartSupplements(catalog.revision),
+    fetchProcedureCatalog(catalog.procedures, requireFresh), fetchChartSupplements(catalog.revision, requireFresh),
   ]);
   if (!supplements) throw new Error('Chart Supplement index is unavailable; retry before downloading a complete region');
   return { airports: navigation.features, procedures, supplements };

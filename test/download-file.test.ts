@@ -8,7 +8,7 @@ import { CHART_CACHE, PDF_CACHE, DATA_CACHE, VERIFIED_SHA256_HEADER, fileReceipt
 import { cacheFixture } from './helpers/cache';
 import { fileStorageFixture } from './helpers/file-storage';
 import { cachedFileBytes } from '../src/offline/storage';
-import { releaseUnusedFile } from '../src/core/storage/file-lifetime';
+import { releaseUnusedFile, readLockedFile, withUnusedFiles } from '../src/core/storage/file-lifetime';
 import { discardResponseBody } from '../src/core/storage/response';
 import { WholeFileChartCache } from '../src/layers/charts/archive-cache';
 
@@ -272,4 +272,80 @@ test('unavailable storage rejects known large downloads and caps unknown or dish
   const exact = source(DOWNLOAD_MEMORY_LIMIT);
   const blob = await downloadFile(exact.response, { key, byteLength: DOWNLOAD_MEMORY_LIMIT, label: 'Book' });
   assert.equal(await verifyBlob(blob, { sha256: exact.digest() }, 'Book'), await verifyBlob(blob, {}, 'Book'));
+});
+
+test('serial book acquisitions sweep orphan files once per day, with retry after clock rollback', async t => {
+  const disk = await fileStorageFixture(t);
+  cacheFixture(t);
+  const root = await disk.storage.getDirectory();
+  const directory = await root.getDirectoryHandle('zlayer-downloads', { create: true });
+  let scans = 0, now = Date.parse('2026-10-01T12:00:00Z');
+  const keys = directory.keys.bind(directory);
+  t.mock.method(directory, 'keys', async function* () { scans++; yield* keys(); });
+  t.mock.method(disk.storage, 'getDirectory', async () => ({ ...root, getDirectoryHandle: async () => directory }));
+  t.mock.method(Date, 'now', () => now);
+  const acquire = async () => {
+    const file = await downloadFile(new Response('book'), { key, label: 'Book' });
+    await discardDownloadedFile(file);
+  };
+  await acquire(); await acquire();
+  assert.equal(scans, 1);
+  now += 86_400_001;
+  await acquire();
+  assert.equal(scans, 2);
+  now -= 120_000;
+  await acquire();
+  assert.equal(scans, 3);
+});
+
+test('orphan reclamation inventories each cache once across multiple files and keeps committed receipts', async t => {
+  const disk = await fileStorageFixture(t);
+  cacheFixture(t);
+  const directory = await (await disk.storage.getDirectory()).getDirectoryHandle('zlayer-downloads', { create: true });
+  const old = Date.now() - 2 * 86_400_000;
+  const names: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const url = `${key}?orphan=${i}`;
+    const name = `${old}-${crypto.randomUUID()}-${createHash('sha256').update(url).digest('hex')}`;
+    await directory.getFileHandle(name, { create: true });
+    names.push(name);
+  }
+  const receipts = await caches.open(fileReceiptCacheName(PDF_CACHE));
+  await receipts.put(`${key}?orphan=0`, new Response(null, { headers: { 'x-zlayer-local-file': names[0]! } }));
+  const scans = new Map<string, number>();
+  for (const logical of [CHART_CACHE, PDF_CACHE, DATA_CACHE]) for (const name of [logical, fileReceiptCacheName(logical)]) {
+    const cache = await caches.open(name);
+    const keys = cache.keys.bind(cache);
+    t.mock.method(cache, 'keys', async (...args: Parameters<Cache['keys']>) => {
+      scans.set(name, (scans.get(name) ?? 0) + 1);
+      return keys(...args);
+    });
+  }
+  const next = await downloadFile(new Response('book'), { key, label: 'Book' });
+  assert.ok([...scans.values()].every(count => count === 1));
+  assert.equal(scans.size, 6);
+  assert.equal((await disk.files()).length, 2);
+  await directory.getFileHandle(names[0]!);
+  for (const name of names.slice(1)) await assert.rejects(directory.getFileHandle(name), { name: 'NotFoundError' });
+  await discardDownloadedFile(next);
+});
+
+test('reclamation skips active files and releases idle-file locks when its inventory read fails', async t => {
+  const disk = await fileStorageFixture(t);
+  const directory = await (await disk.storage.getDirectory()).getDirectoryHandle('zlayer-downloads', { create: true });
+  await directory.getFileHandle('active', { create: true });
+  await directory.getFileHandle('idle', { create: true });
+  const active = await readLockedFile(directory, 'active');
+  let opened = false;
+  let reader: Promise<Blob> | undefined;
+  await assert.rejects(withUnusedFiles(['active', 'idle'], async unused => {
+    assert.deepEqual(unused, ['idle']);
+    reader = readLockedFile(directory, 'idle').then(blob => { opened = true; return blob; });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(opened, false, 'new readers wait while cleanup inspects receipt ownership');
+    throw new Error('Inventory unavailable');
+  }), /Inventory unavailable/);
+  const recovered = await reader!;
+  assert.equal(opened, true);
+  releaseUnusedFile(active); releaseUnusedFile(recovered);
 });

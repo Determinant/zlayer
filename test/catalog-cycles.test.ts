@@ -25,8 +25,11 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier === '../../pwa') return { url: moduleUrl('export const preparePwa = async () => true;'), shortCircuit: true };
   if (specifier.endsWith('/storage/database')) return { url: moduleUrl(`
     export const readOfflineRecord = async key => globalThis.testCycleRecords.get(key);
-    export const writeOfflineRecord = async (key, value) => value === undefined
-      ? globalThis.testCycleRecords.delete(key) : globalThis.testCycleRecords.set(key, value);
+    export const writeOfflineRecords = async entries => {
+      for (const [key, value] of entries) value === undefined
+        ? globalThis.testCycleRecords.delete(key) : globalThis.testCycleRecords.set(key, value);
+    };
+    export const writeOfflineRecord = async (key, value) => writeOfflineRecords([[key, value]]);
     export const offlineRecords = async prefix => [...globalThis.testCycleRecords].filter(([key]) => key.startsWith(prefix)).map(([,value]) => value);
     export const offlineRecordKeys = async prefix => [...globalThis.testCycleRecords.keys()].filter(key => key.startsWith(prefix));
   `), shortCircuit: true };

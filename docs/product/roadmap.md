@@ -58,10 +58,10 @@ adding more data sources. Current capabilities and planned work are listed separ
 2. Review the remaining [color-system proposal](color-system-plan.md) separately
    from the implemented light/dark modes, and complete rendered contrast, focus,
    status and navigation/weather checks across supported layouts.
-3. Add shareable route/view URLs and explicit offline-region cycle migration without
-   replacing a working saved download until its new edition is verified. Regions
-   from different cycles can already be saved separately. Immutable publisher metadata
-   and an atomic release descriptor would improve exact repair and date discovery;
+3. Add shareable route/view URLs. Explicit offline-region updates now discover Latest
+   and replace the saved edition atomically after verification; different regions
+   can retain different cycles. Immutable publisher metadata and an atomic release
+   descriptor would further improve exact repair and date discovery;
    see [ADR 0005](../adr/0005-offline-snapshot-authority.md).
 4. Extend regional downloads to route corridors, departure/destination/alternates,
    with an explicit inventory and the same shared whole-file cache.

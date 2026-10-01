@@ -7,7 +7,8 @@ import { readArtifact } from '../storage/artifacts';
 import { discardResponseBody } from '../storage/response';
 
 type FetchJsonOptions<T> = {
-  signal?: AbortSignal; revalidate?: boolean; requireCache?: boolean; cacheOnly?: boolean; gzip?: GzipJsonSize;
+  signal?: AbortSignal; revalidate?: boolean; requireFresh?: boolean; requireCache?: boolean; cacheOnly?: boolean; gzip?: GzipJsonSize;
+  // requireFresh rejects network/validation failures even when a validated fallback exists.
   // Project an extensible feed onto supported products before validating it.
   // The original response is cached, so later clients can read its added products.
   normalize?: (value: unknown) => unknown;
@@ -103,10 +104,10 @@ export async function fetchJson<T>(
       return saved!;
     };
     options.signal?.throwIfAborted();
-    if (saved !== undefined && !options.revalidate) return await useSaved();
+    if (saved !== undefined && !options.revalidate && !options.requireFresh) return await useSaved();
     if (options.cacheOnly) {
       if (saved !== undefined) return await useSaved();
-      throw new ResourceError('storage', `${label} has no saved export identity. Verify / update this region.`);
+      throw new ResourceError('storage', `${label} has no saved export identity. Use Update to latest for this region.`);
     }
     const timeout = AbortSignal.timeout(30_000);
     const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
@@ -119,7 +120,7 @@ export async function fetchJson<T>(
       await cache?.put(url, response).catch(error => { if (requireCache) throw error; });
       return body;
     } catch (error) {
-      if (saved !== undefined && !options.signal?.aborted) return await useSaved();
+      if (saved !== undefined && !options.requireFresh && !options.signal?.aborted) return await useSaved();
       throw error;
     } finally { discardResponseBody(response); }
   } finally { discardResponseBody(savedResponse); }

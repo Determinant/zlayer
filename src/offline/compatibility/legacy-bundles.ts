@@ -18,14 +18,17 @@ export function createLegacyBundleMigration() {
     /** Called only after the repository establishes eligibility and verifies legacy dependencies.
      * Compare the original record under the existing download lock before writing. */
     async adopt(root: DownloadPlan, plan: DownloadPlan, catalog: CatalogResponse, bounds: Bounds[]) {
-      const migrated = { ...await persistBundleSnapshot({ ...plan, catalog, bounds }), completedAt: Date.now() };
+      let snapshotId: string | undefined;
       await navigator.locks?.request('zlayer-region-downloads', { ifAvailable: true }, async lock => {
         if (!lock) return;
         const latest = await readOfflineRecord(`${REGION_PREFIX}${root.id}`);
         if (JSON.stringify(latest) !== JSON.stringify(root)) return;
+        // Snapshot creation and its owning record share the lock with reclamation.
+        const migrated = { ...await persistBundleSnapshot({ ...plan, catalog, bounds }), completedAt: Date.now() };
         await writeOfflineRecord(`${REGION_PREFIX}${root.id}`, plan === root ? migrated : { ...root, previous: migrated });
+        snapshotId = migrated.snapshotId;
       });
-      return migrated.snapshotId;
+      return snapshotId;
     },
   };
 }

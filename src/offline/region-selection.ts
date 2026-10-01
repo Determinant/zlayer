@@ -9,6 +9,26 @@ export function regionSelection(plan: DownloadPlan): RegionSelection {
   return { staged: plan, ...(plan.previous ? { active: plan.previous } : {}) };
 }
 
+/** A region belongs to one publisher, independently of its raster/navigation dates.
+ * Existing plans already contain absolute dated feed URLs. Unknown legacy layouts
+ * stay separate rather than guessing which saved records an update can retire.
+ */
+export function regionKey(plan: DownloadPlan): string {
+  for (const source of [...plan.references, ...plan.files.filter(file => file.kind === 'chart')]) {
+    try {
+      const url = new URL(source.url);
+      const match = url.pathname.match(/^(.*)\/\d{4}-\d{2}-\d{2}\/(?:nav|tpp|cs|mbtiles)(?:\/|$)/);
+      if (match) return JSON.stringify([url.origin + match[1], plan.regionId]);
+    } catch { /* Preserve unrecognized legacy selections under their original identity. */ }
+  }
+  return plan.id;
+}
+
+export function supersededRegionPlans(next: DownloadPlan, plans: readonly DownloadPlan[]): DownloadPlan[] {
+  const key = regionKey(next);
+  return plans.filter(plan => plan.id !== next.id && regionKey(plan) === key && plan.revision <= next.revision);
+}
+
 /** Copy only plan metadata. Never persist Download's progress, errors or state. */
 export function planMetadata(plan: DownloadPlan): DownloadPlan {
   return { id: plan.id, regionId: plan.regionId, title: plan.title, revision: plan.revision,

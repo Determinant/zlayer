@@ -132,7 +132,7 @@ test('legacy cache-only reference reads cannot download replacement exports afte
   const { stored } = cacheFixture(t);
   const airports = { ...layer('airports', 'legacy-snapshot'), cacheOnly: true };
   const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(source));
-  await assert.rejects(fetchNavigation(airports, revision, []), /Verify \/ update/);
+  await assert.rejects(fetchNavigation(airports, revision, []), /Update to latest/);
   assert.equal(fetch.mock.calls.length, 0);
   stored.set(airports.url, Response.json(source));
   assert.equal((await fetchNavigation(airports, revision, [])).features.length, 1);

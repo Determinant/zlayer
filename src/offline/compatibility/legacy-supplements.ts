@@ -12,7 +12,8 @@ import { regionAirportIds, supplementSnapshot } from '../../layers/plates/supple
 /** Capture legacy page targets before a mutable index is refreshed. Never guess a missing edition. */
 export async function preserveSavedSupplements(catalog: ChartSupplementCatalog, url: string): Promise<void> {
   if (!navigator.locks) throw new Error('Download coordination unavailable');
-  await navigator.locks.request('zlayer-region-downloads', async () => {
+  await navigator.locks.request('zlayer-region-downloads', { ifAvailable: true }, async lock => {
+    if (!lock) throw new Error('Another ZLayer window is managing downloads. Retry when it finishes.');
     const cache = await caches.open(DATA_CACHE);
     const pin = async (plan: DownloadPlan): Promise<DownloadPlan> => {
       const references = [];
@@ -34,7 +35,10 @@ export async function preserveSavedSupplements(catalog: ChartSupplementCatalog, 
       }
       return { ...plan, references };
     };
+    const needsPin = (plan: DownloadPlan) => plan.references.some(reference =>
+      reference.id === 'chart-supplements' && !reference.snapshot && reference.url === url);
     for (const plan of await savedPlans(true)) {
+      if (!needsPin(plan) && !(plan.previous && needsPin(plan.previous))) continue;
       const next = await pin(plan);
       if (plan.previous) next.previous = await pin(plan.previous);
       if (JSON.stringify(next) !== JSON.stringify(plan)) await writeOfflineRecord(`${REGION_PREFIX}${plan.id}`, next);

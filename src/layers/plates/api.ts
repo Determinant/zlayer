@@ -7,12 +7,15 @@ const procedureCatalogCache = new ResourceCache<ProcedureCatalog>();
 
 export async function fetchProcedureCatalog(
   resource: ProcedureResourceRecord,
+  requireFresh = false,
 ): Promise<ProcedureCatalog> {
   const key = JSON.stringify(resource);
-  return procedureCatalogCache.get(key, () => fetchJson(
+  const load = () => fetchJson(
     resource.url,
     procedureCatalogGuard(resource),
     'FAA procedure catalog',
-    { cacheOnly: !!resource.cacheOnly },
-  ));
+    { cacheOnly: !!resource.cacheOnly, requireFresh: requireFresh && !resource.jsonSha256 },
+  );
+  // Published hashes already pin immutable catalogs; mutable legacy metadata must revalidate.
+  return requireFresh && !resource.jsonSha256 ? load() : procedureCatalogCache.get(key, load);
 }

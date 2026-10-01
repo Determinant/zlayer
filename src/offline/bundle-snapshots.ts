@@ -1,5 +1,5 @@
 import { isCatalogResponse, type CatalogResponse } from '@zlayer/contracts';
-import { readOfflineRecord, writeOfflineRecord } from '../core/storage/database';
+import { readOfflineRecord, writeOfflineRecord, offlineRecordKeys, writeOfflineRecords } from '../core/storage/database';
 import type { DownloadPlan } from './downloads';
 import { planMetadata } from './region-selection';
 
@@ -12,6 +12,19 @@ export async function persistBundleSnapshot(plan: DownloadPlan): Promise<Downloa
   const snapshotId = await metadataIdentity(catalog);
   await writeOfflineRecord(`${PREFIX}${snapshotId}`, catalog);
   return { ...next, snapshotId };
+}
+
+/** The caller holds the region mutation lock and supplies a fully readable
+ * inventory. Active, staged and previous plans all retain their metadata. Open
+ * views already own their loaded catalog; they do not reopen snapshot records. */
+export async function pruneBundleSnapshots(plans: readonly DownloadPlan[]): Promise<void> {
+  // Older open app versions can write migration snapshots before taking the
+  // region lock. Defer reclamation until every legacy owner has been adopted.
+  if (plans.some(plan => !plan.snapshotId || (plan.previous && !plan.previous.snapshotId))) return;
+  const retained = new Set(plans.flatMap(plan => [plan.snapshotId, plan.previous?.snapshotId])
+    .filter(id => id !== undefined).map(id => `${PREFIX}${id}`));
+  const obsolete = (await offlineRecordKeys(PREFIX)).filter(key => !retained.has(key));
+  if (obsolete.length) await writeOfflineRecords(obsolete.map(key => [key, undefined] as const));
 }
 
 /** Catalogs are shared nationally; regional supplement targets and file choices

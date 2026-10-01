@@ -1,11 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
-import { selectCycle } from './settings';
+import { selectCycle, publishCycles } from './settings';
 import type { DownloadPlan } from '../../src/offline/downloads';
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-19T12:00:00Z'));
 });
+test.afterEach(async ({ request }) => { await request.post('/__test/reset'); });
+
 async function saveRegion(page: Page, region = 'California', revision = '2026-09-03') {
+  await publishCycles(page, [revision]);
   await page.goto('/');
   await selectCycle(page, revision);
   await page.getByLabel('Settings and offline downloads').click();
@@ -14,6 +17,8 @@ async function saveRegion(page: Page, region = 'California', revision = '2026-09
   await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
   await page.getByLabel('Close settings').click();
+  await publishCycles(page);
+  await page.reload();
 }
 
 async function openAirportPlates(page: Page) {
@@ -56,8 +61,8 @@ test('an open airport keeps its edition and plate targets when a newer saved reg
   await page.getByLabel('Settings and offline downloads').click();
   await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await page.getByLabel('Find a state or territory').fill('California');
-  await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
-  await expect(page.locator('.download-card .offline-tag')).toHaveText(['Saved', 'Saved']);
+  await page.locator('.region-row').getByRole('button', { name: 'Update to latest', exact: true }).click();
+  await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
   await page.getByLabel('Close settings').click();
   await expect(page.locator('.saved-editions')).toContainText('Sep 3');
   // Wait for the new navigation to load, not merely for download completion.

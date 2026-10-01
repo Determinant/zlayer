@@ -228,7 +228,7 @@ shared-file removal and device testing.
 When published for the saved edition, the region also retains coded approach routes,
 entries and fixes. A new route can be planned offline: attach an approach to an airport,
 choose a published entry or VTF, switch approaches, and draw the selected route without
-opening that approach online first. Existing regions need **Verify / update** to acquire
+opening that approach online first. Existing regions need **Update to latest** to acquire
 approach data added after their download. See [anchored approaches](../routes/README.md#anchored-approaches).
 
 ## Planned route packages and cycle migration
@@ -240,7 +240,8 @@ and ordinary stale/expiration behavior. This is selective, not a nationwide prel
 
 Regional saves already capture immutable local catalog/reference identities and
 activate a staged update only after verification, retaining the previous selection
-on failure. Future route packages and cycle migration should reuse that lifecycle,
+on failure. **Update to latest** now applies that lifecycle across cycles for a saved region.
+Future route packages and automatic cycle migration should reuse it,
 recording route/coverage identity and schema compatibility alongside product intervals
 and artifact identities. Reuse shared files instead of copying cache namespaces.
 See [ADR 0005](../../../docs/adr/0005-offline-snapshot-authority.md) for the remaining publisher and

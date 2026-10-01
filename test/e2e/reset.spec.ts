@@ -302,11 +302,11 @@ test('Resume retains the saved plan when a newer same-cycle supplement is publis
       const saved = await (await caches.open('zlayers-data-v6')).match('/chart-data/2026-09-03/cs/catalog.json');
       return saved && (await saved.json()).generatedAt === '2026-09-17T00:00:00Z';
     });
-    await expect(page.locator('.region-row').getByRole('button', { name: 'Verify / update' })).toBeEnabled();
+    await expect(page.locator('.region-row').getByRole('button', { name: 'Update to latest' })).toBeEnabled();
     await page.locator('.download-card').getByRole('button', { name: 'Resume', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
     // Updating remains an explicit, separate action that selects the new book.
-    await page.locator('.download-card').getByRole('button', { name: 'Verify / update' }).click();
+    await page.locator('.download-card').getByRole('button', { name: 'Update to latest' }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Needs attention', { timeout: 15_000 });
   } finally { await request.post('/__test/reset'); }
 });

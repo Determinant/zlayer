@@ -145,7 +145,7 @@ export function useCatalog() {
     state.stale ? 'Cycle list unavailable online. Using saved editions; reconnect to check for newer charts.' : undefined,
     state.catalog && ((latest && state.catalog.revision !== latest) ||
       (state.selection !== 'latest' && state.catalog.revision !== state.selection))
-      ? `Using FAA cycle ${formatDate(state.catalog.revision)}.${latest ? ` Latest: ${formatDate(latest)}.` : ''} Download each cycle separately.` : undefined,
+      ? `Using FAA cycle ${formatDate(state.catalog.revision)}.${latest ? ` Latest: ${formatDate(latest)}.` : ''} Use Update to latest in Offline settings to update saved regions.` : undefined,
   ].filter(Boolean).join(' ') || undefined;
   // An evicted pinned catalog can fall back to another saved edition at launch.
   // The menu must label the actual map, even while retrying the saved preference.
