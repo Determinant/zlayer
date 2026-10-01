@@ -44,6 +44,15 @@ also restart it. Reopening or reloading after an update has installed can load t
 latest shell automatically, without ever showing the prompt. This is a reload
 control, not an approval requirement for every app update.
 
+An installed worker can remain waiting when activation is delayed or its original
+request is lost. The monitor observes waiting workers on startup and asks them to
+activate again on installation and manual checks. Installation ends the download
+state, so **Check for updates** remains usable. The worker accepts activation only
+with a validated complete shell; **Update now** still requires an activated worker
+controlling the page. Fetch response/cache work is explicitly included in the
+fetch event lifetime, allowing the outgoing worker to finish before handover.
+No recovery path reloads the page without a user action.
+
 Old shell caches remain available for older windows' lazy assets. Cache cleanup
 pauses during installation and stops if activation changes while it is running.
 Routes, preferences, saved regions and chart/PDF caches are not erased by an app
@@ -76,13 +85,14 @@ cleanup, mismatched page/worker releases, and repeated shell recovery failures
 followed by a successful offline launch. Device-level Android and iOS testing
 remains part of release verification.
 
-An unresolved verification finding (October 1, 2026) affects recovery from a
-mismatched page/worker deployment. Repeated runs of the mismatch test can leave the
-repaired worker installed but waiting after a reload, with **Check for updates**
-disabled. The existing page remains usable, but this recovery path has not passed
-reliably. Reproduce with `npm run test:browser:session -- test/e2e/pwa-updates.spec.ts
---grep "mismatched page" --repeat-each=8`; resolve it before claiming complete
-app-update rollout verification.
+The October 1, 2026 recovery regression followed a rejected mismatched deployment:
+a repaired worker could remain waiting after reload while the monitor kept
+**Check for updates** disabled. Waiting-worker observation, activation retries
+and explicit fetch event lifetimes address this path. The mismatch browser test
+keeps this recovery sequence; the additional lost-activation test requires a
+complete release to recover and reload offline. Run focused recovery checks with
+`ZLAYER_TEST_SKIP_WEATHER=1 npm run test:browser:session --
+test/e2e/pwa-updates.spec.ts --grep "mismatched page" --repeat-each=8`.
 
 The update bubble also dismisses when its body is tapped or clicked. Its update
 action remains available in **Settings → Notifications**, alongside other

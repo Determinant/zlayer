@@ -25,6 +25,8 @@ process.env.VITE_ZLAYERS_BASEMAP_TILE_URL = `http://127.0.0.1:${port}/basemap.pn
 process.env.VITE_ZLAYERS_BASEMAP_STYLE_URL = '';
 process.env.VITE_ZLAYERS_TERRAIN_TILE_URL = `http://127.0.0.1:${port}/terrain/{z}/{x}/{y}.png`;
 const benchmark = process.env.ZLAYER_RENDER_BENCHMARK === '1';
+// PWA/catalog checks do not need native weather decoding. Full sessions keep it enabled.
+const skipWeather = benchmark || process.env.ZLAYER_TEST_SKIP_WEATHER === '1';
 const benchmarkPlugins = benchmark ? [(await import('../../tools/rendering-benchmark-plugin.ts')).renderingBenchmark()] : [];
 await build({ plugins: benchmarkPlugins, build: { outDir: directory, rolldownOptions: {
   preserveEntrySignatures: 'exports-only',
@@ -76,6 +78,7 @@ let progsRequests = 0, progsFailure = false;
 let weather;
 let weatherSeeded = false;
 async function resetWeather() {
+  if (skipWeather) return;
   await weather?.close();
   const cacheDirectory = resolve(directory, 'weather-cache');
   const seedDirectory = resolve(directory, 'weather-seed');
@@ -102,6 +105,7 @@ if (!benchmark) await resetWeather();
 let appRelease;
 let failAppInstall = false;
 let mismatchedAppHtml = false;
+let deferAppActivation = false;
 let appInstallGate;
 let releaseAppInstall;
 let chartArchiveGate;
@@ -119,7 +123,7 @@ const server = createServer(async (request, response) => {
   if (benchmark && request.method === 'POST' && path === '/__test/rendering-benchmark-connect') {
     disconnected = false; response.end('ok'); return;
   }
-  if (benchmark && path.startsWith('/api/weather/')) { response.writeHead(503).end(); return; }
+  if (skipWeather && path.startsWith('/api/weather/')) { response.writeHead(503).end(); return; }
   if (disconnected && !path.startsWith('/__test/')) { request.socket.destroy(); return; }
   if (path === '/__test/awc-counts') { response.end(JSON.stringify({ requests: awcRequests, grids: gridRequests, gridFiles: gridFileRequests, nativeFiles: nativeFileRequests, progs: progsRequests })); return; }
   if (path.startsWith('/api/weather/radar/')) { weather.server.emit('request', request, response); return; }
@@ -174,6 +178,7 @@ const server = createServer(async (request, response) => {
       appRelease = undefined;
       failAppInstall = false;
       mismatchedAppHtml = false;
+      deferAppActivation = false;
       releaseAppInstall?.();
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
@@ -209,14 +214,16 @@ const server = createServer(async (request, response) => {
     } else if (path === '/__test/allow-chart-archives') {
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
-    } else if (['/__test/app-update', '/__test/fail-app-update', '/__test/hold-app-update', '/__test/mismatched-app-update'].includes(path)) {
+    } else if (['/__test/app-update', '/__test/fail-app-update', '/__test/hold-app-update', '/__test/mismatched-app-update', '/__test/waiting-app-update'].includes(path)) {
       appRelease = '2222222222222222';
       failAppInstall = path === '/__test/fail-app-update';
       mismatchedAppHtml = path === '/__test/mismatched-app-update';
+      deferAppActivation = path === '/__test/waiting-app-update';
       if (path === '/__test/hold-app-update') appInstallGate = new Promise(resolve => { releaseAppInstall = resolve; });
     } else if (path === '/__test/allow-app-update') {
       failAppInstall = false;
       mismatchedAppHtml = false;
+      deferAppActivation = false;
       releaseAppInstall?.();
       appInstallGate = releaseAppInstall = undefined;
     } else if (path === '/__test/id-navaids-legacy' || path === '/__test/id-navaids-current') {
@@ -325,6 +332,12 @@ const server = createServer(async (request, response) => {
       const nextRelease = mismatchedAppHtml && path !== '/sw.js' ? '3333333333333333' : appRelease;
       const nextVersion = originalVersion.replace(/\.b[a-f0-9]{8}$/, `.b${nextRelease.slice(0, 8)}`);
       body = Buffer.from(body.toString().replaceAll(originalVersion, nextVersion).replaceAll(originalRelease, nextRelease));
+      if (deferAppActivation && path === '/sw.js') {
+        // Lose the automatic install-time activation request. Recovery must find
+        // the real waiting worker, without weakening complete-shell validation.
+        body = Buffer.concat([Buffer.from(`const skip = self.skipWaiting.bind(self); let attempts = 0;
+          self.skipWaiting = () => ++attempts === 1 ? Promise.resolve() : skip();\n`), body]);
+      }
     }
     response.writeHead(200, { 'content-type': fixture?.type ?? types[extname(file)] ?? 'application/octet-stream',
       'content-length': body.length, 'cache-control': 'no-store', 'service-worker-allowed': '/' });

@@ -9,13 +9,15 @@ function fixture(t: TestContext, release = current) {
   let reloads = 0, checks = 0;
   const worker = Object.assign(new EventTarget(), {
     state: 'activated', release,
-    postMessage(_message: unknown, ports: MessagePort[]) {
+    postMessage(_message: unknown, ports: MessagePort[] = []) {
+      if (!ports[0]) return;
       ports[0]!.postMessage({ release: this.release, displayVersion: versionFor(this.release) }); ports[0]!.close();
     },
   });
   const container = Object.assign(new EventTarget(), { controller: worker });
   const registration = Object.assign(new EventTarget(), {
     installing: null as typeof worker | null,
+    waiting: null as typeof worker | null,
     update: async () => { checks++; },
   });
   const updates = new PwaUpdates({ id: current, version: versionFor(current) }, () => { reloads++; }, 100);
@@ -79,7 +81,7 @@ test('an abandoned check cannot block a replacement registration or overwrite it
 test('a manual check reports an unresponsive release handshake rather than silently succeeding', async t => {
   const { updates, worker } = fixture(t);
   await updates.check();
-  worker.postMessage = (_message, ports) => { ports[0]!.close(); };
+  worker.postMessage = (_message, ports = []) => { ports[0]!.close(); };
   await updates.check();
   assert.equal(updates.snapshot().checked, false);
   assert.match(updates.snapshot().error!, /confirm the installed release/);
@@ -129,7 +131,7 @@ test('legacy workers without a display version remain usable during migration', 
   const { updates, worker, container, reloads } = fixture(t);
   await updates.check();
   worker.release = next;
-  worker.postMessage = function (_message, ports) { ports[0]!.postMessage({ release: this.release }); ports[0]!.close(); };
+  worker.postMessage = function (_message, ports = []) { ports[0]!.postMessage({ release: this.release }); ports[0]!.close(); };
   container.dispatchEvent(new Event('controllerchange'));
   await until(updates, () => updates.snapshot().availableRelease === next);
   assert.equal(updates.snapshot().availableVersion, next);
@@ -196,7 +198,7 @@ test('checks coalesce and a failed download keeps the current app usable', async
 test('an unresponsive worker times out and cannot cause an early reload', async t => {
   const { updates, worker, reloads } = fixture(t, next);
   await until(updates, () => updates.snapshot().availableRelease === next);
-  worker.postMessage = (_message, ports) => { ports[0]!.close(); };
+  worker.postMessage = (_message, ports = []) => { ports[0]!.close(); };
   await updates.apply();
   assert.equal(updates.snapshot().applying, false);
   assert.match(updates.snapshot().error!, /not ready/);
@@ -238,4 +240,40 @@ test('foreground and reconnection checks are throttled, stop in the background, 
   now += 60_000;
   window.dispatchEvent(new Event('focus'));
   assert.equal(checks, 3);
+});
+
+test('an installed waiting update keeps recovery enabled and is retried after reconnecting', async t => {
+  const { updates, registration, container, worker, reloads } = fixture(t);
+  let activations = 0;
+  const waiting = Object.assign(new EventTarget(), { state: 'installing', release: next,
+    postMessage(message: unknown, ports?: MessagePort[]) {
+      if ((message as { type: string }).type === 'activate-update') activations++;
+      else worker.postMessage.call(this, message, ports!);
+    },
+  });
+  registration.installing = waiting;
+  registration.dispatchEvent(new Event('updatefound'));
+  assert.equal(updates.snapshot().downloading, true);
+  registration.installing = null;
+  registration.waiting = waiting;
+  waiting.state = 'installed';
+  waiting.dispatchEvent(new Event('statechange'));
+  assert.equal(updates.snapshot().downloading, false, 'a waiting update cannot disable Check for updates');
+  assert.equal(updates.snapshot().availableRelease, undefined, 'installation alone is not readiness');
+  assert.equal(activations, 1);
+  updates.disconnect();
+  updates.connect(registration as unknown as ServiceWorkerRegistration, container as unknown as ServiceWorkerContainer);
+  assert.equal(activations, 2, 'startup notices an already-waiting worker');
+  await updates.check();
+  assert.equal(updates.snapshot().checking, false);
+  assert.equal(updates.snapshot().checked, false, 'the old controller cannot claim the waiting release is current');
+  assert.ok(activations > 2, 'manual checks retry activation');
+  registration.waiting = null;
+  container.controller = waiting;
+  waiting.state = 'activated';
+  container.dispatchEvent(new Event('controllerchange'));
+  await until(updates, () => updates.snapshot().availableRelease === next);
+  assert.equal(reloads(), 0);
+  await updates.apply();
+  assert.equal(reloads(), 1);
 });

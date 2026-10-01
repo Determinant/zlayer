@@ -67,6 +67,11 @@ export class PwaUpdates {
       if (installing?.state === 'redundant') {
         installing.removeEventListener('statechange', changed);
         this.publish({ downloading: false, error: 'The update could not be downloaded. Try checking again.' });
+      } else if (installing?.state === 'installed') {
+        // A waiting worker has finished downloading. Keep manual recovery usable
+        // even if activation is delayed or this document missed updatefound.
+        this.publish({ downloading: false });
+        requestActivation(installing);
       } else if (installing?.state === 'activated') {
         installing.removeEventListener('statechange', changed);
         this.publish({ downloading: false });
@@ -75,7 +80,7 @@ export class PwaUpdates {
     };
     const found = () => {
       installing?.removeEventListener('statechange', changed);
-      installing = registration.installing;
+      installing = registration.installing ?? registration.waiting;
       if (!installing) return;
       this.publish({ downloading: true, checked: false, error: undefined });
       installing.addEventListener('statechange', changed);
@@ -127,7 +132,9 @@ export class PwaUpdates {
     // the coalescing state retryable, and stale requests cannot clear a new one.
     const request = Promise.resolve().then(async () => {
       try {
+        requestActivation(registration.waiting);
         await withTimeout(registration.update(), this.timeoutMs);
+        requestActivation(registration.waiting);
         if (connection !== this.connection) return;
         const inspected = await this.inspect();
         if (connection !== this.connection) return;
@@ -177,6 +184,11 @@ export class PwaUpdates {
     this.publish({ checking: false, checked: false, downloading: false, applying: false,
       availableRelease: undefined, availableVersion: undefined, error: undefined });
   }
+}
+
+function requestActivation(worker: ServiceWorker | null): void {
+  // The browser can replace a worker between observing its state and messaging it.
+  try { worker?.postMessage({ type: 'activate-update' }); } catch { /* next check retries */ }
 }
 
 async function readRelease(worker: ServiceWorker, timeoutMs: number): Promise<PwaRelease> {

@@ -247,3 +247,17 @@ test('shell recovery rejects mismatched cached and downloaded pages on every ret
   await expect(page.locator(releaseSelector)).toHaveAttribute('content', originalRelease!);
   await expect(page.locator('.pwa-update-settings')).toBeVisible();
 });
+
+test('a complete worker recovers when its install-time activation request is lost', async ({ page, request, context }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+  const version = await nextVersion(page);
+  await page.getByLabel('Settings and offline downloads').click();
+  await request.post('/__test/waiting-app-update');
+  await page.getByRole('button', { name: 'Check for updates', exact: true }).click();
+  await expect(page.locator('.pwa-update-settings')).toContainText(`Update available: ${version}`);
+  await expect(page.getByRole('button', { name: 'Check for updates', exact: true })).toBeEnabled();
+  await context.setOffline(true);
+  await page.locator('.pwa-update-settings').getByRole('button', { name: 'Update now', exact: true }).click();
+  await expect(page.locator(releaseSelector)).toHaveAttribute('content', release);
+});
