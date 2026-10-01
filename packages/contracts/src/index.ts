@@ -1,6 +1,7 @@
 export * from './guards.js';
 export type * from './types.js';
 export * from './chart-packages.js';
+export * from './chart-editions.js';
 export * from './chart-supplements.js';
 export * from './preferred-routes.js';
 export { isRecord, isNonEmptyString, isNonNegativeInteger, isIsoDate, isSha256,

@@ -99,6 +99,13 @@ The client assembles this catalog from the publisher's separate manifests; see
 [chart feed](chart-feed.md). Reference URLs include the export version, and committed
 snapshots additionally retain `jsonSha256` identities where captured.
 
+`revision` identifies the selected navigation/TPP cycle. Each chart's `revision`
+is its raster publication date; an older ISO date is accepted only while its
+56-day interval covers the selected cycle. Future or expired raster editions
+are rejected. Same-edition legacy catalogs remain valid. `chartPackages.root`
+and chart URLs retain the actual raster directory so consecutive navigation
+cycles share verified bytes without relabeling their source edition.
+
 Each viewed MBTiles response is verified
 against its publisher-provided byte length and SHA-256, then retained as one Cache
 Storage object. A service worker answers SQLite range reads from its cached `Blob`. A

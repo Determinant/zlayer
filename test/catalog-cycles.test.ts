@@ -49,6 +49,7 @@ const { fetchChartCycles, parseChartCycles } = await import('../src/workspace/ca
 loader.deregister();
 
 function fixture(t: TestContext) {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T12:00:00Z'));
   records.clear(); state.offline = false; state.requests = []; state.unavailable.clear(); state.pending.clear();
   state.revisions = [old.revision, fresh.revision, '2026-07-09'];
   const originalFetch = globalThis.fetch;
@@ -210,4 +211,69 @@ test('an evicted pinned catalog never mislabels a different saved map date', asy
   assert.match(value.cycleNotice!, /Using FAA cycle Sep 3/);
   assert.match(value.error!, /Oct 1.* unavailable/);
   assert.equal(records.get(`catalog-selection:${root}`), fresh.revision, 'failed refresh preserves the requested preference');
+});
+
+test('a resumed PWA refreshes Latest and same-cycle data while an explicit date stays pinned', async t => {
+  const f = fixture(t);
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const window = new EventTarget();
+  for (const [key, value] of Object.entries({ document, window, navigator: { onLine: true } })) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+    t.after(() => original ? Object.defineProperty(globalThis, key, original) : Reflect.deleteProperty(globalThis, key));
+  }
+  state.revisions = [old.revision];
+  f.render();
+  assert.equal((await f.settled()).catalog?.revision, old.revision);
+  state.revisions.push(fresh.revision);
+  window.dispatchEvent(new Event('online'));
+  assert.equal((await f.settled()).catalog?.revision, fresh.revision);
+  const requests = state.requests.length;
+  window.dispatchEvent(new Event('online'));
+  assert.equal((await f.settled()).catalog?.revision, fresh.revision);
+  assert.ok(state.requests.length > requests, 'same-cycle corrections are revalidated too');
+  (await f.settled()).selectCycle(old.revision);
+  assert.equal((await f.settled()).catalog?.revision, old.revision);
+  window.dispatchEvent(new Event('online'));
+  assert.equal((await f.settled()).catalog?.revision, old.revision);
+  state.offline = true;
+  window.dispatchEvent(new Event('online'));
+  assert.equal((await f.settled()).catalog?.revision, old.revision, 'a failed refresh preserves the selected edition');
+});
+
+test('Latest does not activate a prepublished or cached cycle before 0901Z', async t => {
+  const f = fixture(t);
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T09:00:59.999Z'));
+  await saveCatalog(old);
+  await saveCatalog(fresh);
+  assert.equal((await savedCatalogs()).catalog?.revision, old.revision);
+  f.render();
+  let result = await f.settled();
+  assert.equal(result.catalog?.revision, old.revision);
+  assert.equal(result.latest, old.revision);
+  assert.ok(!state.requests.includes(fresh.revision));
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T09:01:00Z'));
+  result.selectCycle('latest');
+  result = await f.settled();
+  assert.equal(result.catalog?.revision, fresh.revision);
+  assert.equal(result.latest, fresh.revision);
+});
+
+test('a first launch with no saved catalog recovers when connectivity returns', async t => {
+  const f = fixture(t);
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const window = new EventTarget();
+  for (const [key, value] of Object.entries({ document, window, navigator: { onLine: true } })) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+    t.after(() => original ? Object.defineProperty(globalThis, key, original) : Reflect.deleteProperty(globalThis, key));
+  }
+  state.offline = true;
+  f.render();
+  const failed = await f.settled();
+  assert.equal(failed.catalog, undefined);
+  assert.ok(failed.error);
+  state.offline = false;
+  window.dispatchEvent(new Event('online'));
+  assert.equal((await f.settled()).catalog?.revision, fresh.revision);
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { faaEffectiveDate } from '@zlayer/contracts';
 import { formatDate } from '../../core/format/time';
 
 import { fetchChartCatalog, type ChartCatalog } from './catalog';
@@ -47,17 +48,56 @@ export function useCatalog() {
       });
       if (!controller.signal.aborted) setState(current => ({ ...current, ...discovered, ready: true }));
     })().catch((error: unknown) => {
-      if (!controller.signal.aborted) setState(current => ({ ...current, error: errorMessage(error) }));
+      if (!controller.signal.aborted) setState(current => ({ ...current, ready: true, stale: true, error: errorMessage(error) }));
     });
     return () => controller.abort();
   }, []);
+
+  // Installed PWAs can resume the same document for days. Revalidate the feed
+  // on return and while visible so Latest and same-edition corrections advance.
+  useEffect(() => {
+    if (!state.ready || typeof window === 'undefined') return;
+    const controller = new AbortController();
+    let pending = false;
+    let lastCheck = Date.now();
+    const refresh = async () => {
+      const elapsed = Date.now() - lastCheck;
+      if (pending || document.visibilityState !== 'visible' || navigator.onLine === false ||
+        (elapsed >= 0 && elapsed < 30_000)) return;
+      pending = true;
+      lastCheck = Date.now();
+      try {
+        const discovered = await fetchChartCycles(controller.signal);
+        if (!controller.signal.aborted) setState(current => ({ ...current, ...discovered }));
+      } catch {
+        if (!controller.signal.aborted) setState(current => ({ ...current, stale: true }));
+      } finally { pending = false; }
+    };
+    const returned = () => { void refresh(); };
+    const online = () => { lastCheck = -Infinity; returned(); };
+    window.addEventListener('focus', returned);
+    window.addEventListener('pageshow', returned);
+    window.addEventListener('online', online);
+    document.addEventListener('visibilitychange', returned);
+    const interval = setInterval(returned, 5 * 60_000);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+      window.removeEventListener('focus', returned);
+      window.removeEventListener('pageshow', returned);
+      window.removeEventListener('online', online);
+      document.removeEventListener('visibilitychange', returned);
+    };
+  }, [state.ready]);
 
   useEffect(() => {
     if (!state.ready) return;
     const controller = new AbortController();
     const selection = requested?.selection ?? state.selection;
-    const candidates = selection === 'latest' ? state.revisions : [selection];
-    setState(current => ({ ...current, loadingCycle: selection, error: undefined }));
+    const candidates = selection === 'latest'
+      ? state.revisions.filter(revision => revision <= faaEffectiveDate()) : [selection];
+    setState(current => ({ ...current,
+      loadingCycle: current.catalog?.revision === candidates[0] ? undefined : selection, error: undefined }));
     const commit = (catalog: ChartCatalog) => {
       if (controller.signal.aborted) return;
       setState(current => ({ ...current, catalog, selection, loadingCycle: undefined,
@@ -75,7 +115,7 @@ export function useCatalog() {
       controller.signal.throwIfAborted();
       for (const revision of candidates) {
         const cached = state.catalogs.find(value => value.revision === revision);
-        const catalog = retainCachedProducts(await fetchChartCatalog(revision, controller.signal), cached);
+        const catalog = retainCachedProducts(await fetchChartCatalog(revision, controller.signal, state.revisions), cached);
         controller.signal.throwIfAborted();
         // A dated directory may be a partial upload. Require usable chart metadata
         // before automatically choosing it; keep any same-cycle saved products.
@@ -97,12 +137,12 @@ export function useCatalog() {
   };
   const cycles = [...new Set([...state.revisions, ...state.catalogs.map(value => value.revision),
     ...(isSupportedCycle(state.selection) ? [state.selection] : [])])].sort().reverse();
-  const latest = state.revisions[0];
+  const latest = state.revisions.find(revision => revision <= faaEffectiveDate());
   const cycleNotice = [
     state.loadingCycle ? state.loadingCycle === 'latest' ? 'Loading latest FAA cycle…'
       : `Loading FAA cycle ${formatDate(state.loadingCycle)}…` : undefined,
     state.error,
-    state.stale ? 'Cycle list unavailable online. Using saved editions; reconnect and reload to check for newer charts.' : undefined,
+    state.stale ? 'Cycle list unavailable online. Using saved editions; reconnect to check for newer charts.' : undefined,
     state.catalog && ((latest && state.catalog.revision !== latest) ||
       (state.selection !== 'latest' && state.catalog.revision !== state.selection))
       ? `Using FAA cycle ${formatDate(state.catalog.revision)}.${latest ? ` Latest: ${formatDate(latest)}.` : ''} Download each cycle separately.` : undefined,

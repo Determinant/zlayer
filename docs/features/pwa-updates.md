@@ -76,6 +76,14 @@ cleanup, mismatched page/worker releases, and repeated shell recovery failures
 followed by a successful offline launch. Device-level Android and iOS testing
 remains part of release verification.
 
+An unresolved verification finding (October 1, 2026) affects recovery from a
+mismatched page/worker deployment. Repeated runs of the mismatch test can leave the
+repaired worker installed but waiting after a reload, with **Check for updates**
+disabled. The existing page remains usable, but this recovery path has not passed
+reliably. Reproduce with `npm run test:browser:session -- test/e2e/pwa-updates.spec.ts
+--grep "mismatched page" --repeat-each=8`; resolve it before claiming complete
+app-update rollout verification.
+
 The update bubble also dismisses when its body is tapped or clicked. Its update
 action remains available in **Settings → Notifications**, alongside other
 [active workspace notices](shared-ui.md#notifications), and in General → App updates.

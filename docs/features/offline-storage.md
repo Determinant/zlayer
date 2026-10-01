@@ -405,6 +405,16 @@ A later successful refresh resumes browsing while regional edition ownership rem
 unchanged. These fallbacks do not claim that uncached areas are available offline.
 
 The global date selects the **browsing edition** and the edition for new downloads.
+A change-notice cycle can share the preceding raster files and base PDF books while
+using current navigation and procedure metadata. Such cycles have distinct saved
+region IDs even when their raster root is identical; existing same-edition IDs stay
+unchanged. Saving the new cycle reuses matching file URLs/identities and leaves
+older saved regions intact. A failed new save cannot activate or replace the older
+region. The next full raster edition uses its own source directory. Deleting old
+server files neither upgrades saved regions nor guarantees they can repair an
+evicted file; publishers must retain current cross-cycle dependencies and follow
+the [published-file retention contract](../data/chart-feed.md#publication-and-transport-rules).
+
 Completed regional selections override it both online and offline. Charts, airport
 features, details and badges use the same state-boundary ownership masks. Extra
 neighboring bytes acquired by conservative download envelopes do not override the

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { resolve, extname } from 'node:path';
 import { build } from 'vite';
 import { fixtureFiles } from './fixtures.mjs';
+import { publishChartRollover } from './chart-rollover-fixture.mjs';
 import { terrainPng } from './terrain-fixture.mjs';
 
 const directory = await mkdtemp(resolve(tmpdir(), 'zlayer-e2e-'));
@@ -177,6 +178,9 @@ const server = createServer(async (request, response) => {
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/chart-rollover') {
+      let body = ''; for await (const chunk of request) body += chunk;
+      publishChartRollover(fixtures, originalFixtures, JSON.parse(body));
     } else if (path === '/__test/progs') {
       let body = ''; for await (const chunk of request) body += chunk;
       progsFailure = !!JSON.parse(body).failure;

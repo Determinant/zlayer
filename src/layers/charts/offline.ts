@@ -25,7 +25,9 @@ export function chartRegionPlans(catalog: CatalogResponse, baseUrl: string,
   return regions.filter(region => catalog.charts.some(chart =>
     region.bounds.some(bounds => packageBoundsIntersect(bounds, chart.bounds))))
     .map(region => ({ region, plan: {
-      id: `${root}|${region.id}|all-v1`,
+      // Shared raster roots must not make two navigation cycles share a saved-plan ID.
+      // Retain existing same-edition IDs so installed users keep their selections.
+      id: `${root}|${region.id}|all-v1${catalog.charts.some(chart => chart.revision !== catalog.revision) ? `|${catalog.revision}` : ''}`,
       regionId: region.id,
       title: `${region.title} (${region.code})`,
       revision: catalog.revision,

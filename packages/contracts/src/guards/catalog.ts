@@ -5,6 +5,7 @@ import { isTerminalProceduresResource } from '../terminal-procedures.js';
 import { isProcedureResourceRecord } from './procedures.js';
 import { isBounds, isRecord, isNonEmptyString, isNonNegativeInteger, isSha256, hasValidDate, hasUniqueStrings } from '../validation.js';
 import { isChartPackageIndex } from '../chart-packages.js';
+import { chartEditionCoversCycle } from '../chart-editions.js';
 import { isPreferredRoutesResource } from '../preferred-routes.js';
 import { isTerrainManifest } from '../terrain.js';
 
@@ -17,7 +18,7 @@ export function isCatalogResponse(value: unknown): value is CatalogResponse {
     isNonEmptyString(value.revision) &&
     Array.isArray(value.charts) &&
     value.charts.every(isChartRecord) &&
-    value.charts.every((chart) => chart.revision === value.revision) &&
+    value.charts.every((chart) => chartEditionCoversCycle(chart.revision, value.revision as string)) &&
     hasUniqueStrings(value.charts.map((chart) => chart.id)) &&
     (value.chartPackages === undefined || (isRecord(value.chartPackages) &&
       isNonEmptyString(value.chartPackages.root) && isChartPackageIndex(value.chartPackages))) &&

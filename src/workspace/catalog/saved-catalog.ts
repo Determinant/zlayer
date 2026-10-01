@@ -1,4 +1,4 @@
-import { isCatalogResponse } from '@zlayer/contracts';
+import { faaEffectiveDate, isCatalogResponse } from '@zlayer/contracts';
 import { offlineRecords, readOfflineRecord, writeOfflineRecord } from '../../core/storage/database';
 import type { ChartCatalog } from './catalog';
 import { defaultCycleSelection, isSupportedCycle, type CycleSelection } from './cycles';
@@ -16,7 +16,8 @@ export async function savedCatalogs(): Promise<{ catalogs: ChartCatalog[]; catal
     .filter(value => isSupportedCycle(value.revision) && hasCatalogData(value))
     .sort((a, b) => b.revision.localeCompare(a.revision));
   const selection = selected === 'latest' || isSupportedCycle(selected) ? selected : defaultCycleSelection();
-  const catalog = catalogs.find(value => value.revision === selection) ?? catalogs[0];
+  const catalog = catalogs.find(value => value.revision === selection)
+    ?? catalogs.find(value => value.revision <= faaEffectiveDate());
   return { catalogs, selection, ...(catalog ? { catalog } : {}) };
 }
 
