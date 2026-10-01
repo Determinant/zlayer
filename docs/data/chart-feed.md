@@ -20,7 +20,11 @@ come from each edition's validated manifests.
 
 The default **Latest** mode fetches `https://charts.tedyin.com/charts/cycles.json`
 (or `<configured-root>/cycles.json`) without caching on launch and chooses the newest supported date
-with usable chart metadata. Partial new uploads without a valid chart manifest are
+with usable chart metadata whose 09:01 UTC effective time has arrived. This
+also applies to cached catalogs on startup; prepublished future dates remain
+available for explicit selection. A 28-day navigation/TPP change notice can use the
+preceding raster publication while it remains within its 56-day interval. Missing
+or incomplete publications that cannot provide those validated products are
 skipped. Dates at or before `2026-07-09` are excluded: that release predates the
 ZLayer feeds and the faa-regs reorganization.
 
@@ -30,10 +34,25 @@ supported dates are deduplicated and sorted newest first. FAA-regs generates it
 after `npm run build:charts`, or separately with `npm run build:chart-cycles`.
 Publish dated artifacts before this index and serve it with revalidation.
 
+Cycle folders are product publication dates, not standalone bundles. The client
+first requests raster manifests under the selected date. If they are absent, and
+both that date's navigation and TPP manifests validate, it searches published
+older dates newest first, strictly within the raster's 56-day interval. It never
+uses future or expired rasters, and invalid manifests/readable server errors do
+not trigger carryover. For example, October 1 navigation and procedures use the
+September 3 raster URLs; October 29 requires a new raster edition. The browsing
+catalog keeps the selected navigation date in `revision` and the actual raster
+publication date in each `charts[].revision`. Settings explains differing raster dates beside the cycle selector; this
+expected carryover does not produce a map notification. Each manifest still validates against its own directory date.
+
 The cycle menu includes published dates and locally saved catalogs. Older published
 editions load their manifests on selection; discovery does not fetch every edition's
 archives or reference data. A date selection persists until changed; selecting
-**Latest** restores automatic discovery on subsequent launches. Existing persisted
+**Latest** restores automatic discovery. The catalog revalidates on launch,
+reconnect, return to a visible window, and every five minutes while visible and
+online. Foreground events are throttled to one check per 30 seconds. This also
+refreshes same-edition corrections; explicit date selections remain pinned, and
+committed offline regions retain their exact downloaded snapshots. Existing persisted
 date choices remain pinned. A blank or `latest` `VITE_ZLAYERS_CHART_REVISION` uses
 Latest; an explicit supported date sets the initial preference only.
 
@@ -53,6 +72,14 @@ Date discovery requires a readable `cycles.json`, including CORS when using a
 cross-origin root. The existing production `/chart-data/` alias serves this file
 without enabling directory listing. Copying frontend assets alone does not publish
 the FAA-regs index.
+
+Rollover can be reproduced without waiting for a live publication. Run
+`npm run test:browser:session -- test/e2e/chart-rollover.spec.ts` with the
+[browser prerequisites](../development/local-development.md#verification).
+The fixtures advance a full edition through a change notice to the next full
+edition, including failed notice downloads, retries, saved-region isolation and
+offline restarts. `test/chart-rollover.test.ts` checks carryover boundaries,
+manifest failures and source identities in the ordinary unit suite.
 
 ## Spatial/zoom package manifest
 
@@ -213,7 +240,11 @@ files for open clients and saved regions; do not mirror with blanket deletion.
    in `npm run build:charts`). This verifies inputs but does not rerender source TIFFs.
 4. Upload package archives before `mbtiles/manifest.json`. The entire `charts/` tree
    excludes intermediate MBTiles; do not upload the sibling `dist/mbtiles/` build cache.
-5. Keep at least one prior effective-date directory and old hashed packages for rollback.
+5. Retain every older file referenced by current catalogs, plus prior editions and
+   immutable files needed by supported saved clients. An older folder can still
+   supply current raster charts and PDF books; keeping only the newest folder is
+   unsafe. Removing a date from discovery does not migrate pinned clients or
+   repair missing files in saved regions.
 6. Serve deployed cross-origin GET requests with CORS enabled. HEAD and Range requests
    are handled locally after the initial whole-file download.
 
@@ -261,7 +292,9 @@ volumes live at `charts/<cycle>/cs/cs-*.pdf`. Each catalog's `volumes[].url` is
 relative to its catalog file: TPP books use their filename, the Pacific TPP target
 uses `../cs/cs-pac.pdf`, and supplement books use their filename. The app resolves
 those URLs from the catalog, including when a catalog uses a book from an earlier
-edition.
+edition. A procedure target can refer to volume `CN` in the current change-notice
+PDF while its airport's regional volume remains in the earlier base edition. Both
+the viewer and regional planner resolve the procedure target's volume ID.
 
 Publish the rebuilt navigation data files before `nav/manifest.json`. A page reload
 then discovers the new export. Publishing only the frontend cannot add fields that

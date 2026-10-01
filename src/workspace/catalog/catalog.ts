@@ -11,7 +11,8 @@ import { isRouteHistoryResource, type RouteHistoryResource, isChartPackageIndex,
 import { chartRoot } from './feed';
 import { isTerrainManifest, isNavigationManifest, isSha256, type NavigationManifest, type NavigationProduct } from '@zlayer/contracts';
 import { matchesJsonIdentity } from '../../core/data/references';
-import { isSupportedCycle } from './cycles';
+import { fetchChartCycles, isSupportedCycle } from './cycles';
+import { chartEditionCoversCycle } from '@zlayer/contracts';
 import { fetchJson, JsonResponseError } from '../../core/data/fetch-json';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
   isStrictBounds as isBounds, hasUniqueStrings } from '@zlayer/contracts';
@@ -114,7 +115,8 @@ export function isInsideChartCoverage(
   );
 }
 
-export async function fetchChartCatalog(revision: string, signal?: AbortSignal): Promise<ChartCatalog> {
+export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
+  publishedRevisions?: readonly string[]): Promise<ChartCatalog> {
   if (!isSupportedCycle(revision)) throw new Error(`Unsupported FAA cycle: ${revision}`);
   const revisionRoot = `${chartRoot()}/${revision}`;
   const issues: CatalogIssue[] = [];
@@ -131,26 +133,39 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
     if (manifest.effectiveDate !== revision) throw new Error(`Feed revision does not match ${revision}`);
     return manifest;
   };
+  const navigationRequest = load('navigation', async () => {
+    const manifest = await fetchNavigationManifest(revision, signal);
+    const products = new Map(manifest.products.map(product => [product.id, product]));
+    for (const id of [...NAVIGATION.filter(layer => manifest.schemaVersion !== 3 || layer.id !== 'vfr-waypoints')
+      .map(layer => layer.id), 'airways']) requiredProduct(products, id);
+    return manifest;
+  });
+  const procedureRequest = load('procedures', async () => inCycle(await fetchDocument(
+    `${revisionRoot}/tpp/manifest.json`, isProcedureManifest, 'FAA procedure manifest', revision, signal,
+  )));
   const [charts, navigation, procedures, terrain] = await Promise.all([
     load('charts', async () => {
-      const result = await fetchChartManifest(revisionRoot, revision, signal);
-      inCycle(result.manifest);
-      return result;
+      try { return await fetchChartManifest(revisionRoot, revision, signal); }
+      catch (error) {
+        signal?.throwIfAborted();
+        // Carryover is only for absent raster publications with complete current
+        // navigation and TPP metadata. Invalid manifests and server errors stay visible.
+        if (!isMissingManifest(error)) throw error;
+        const [navigation, procedures] = await Promise.all([navigationRequest, procedureRequest]);
+        if (!navigation || !procedures) throw error;
+        const published = publishedRevisions ?? (await fetchChartCycles(signal)).revisions;
+        const candidates = [...new Set(published)].filter(date => isSupportedCycle(date) &&
+          date < revision && chartEditionCoversCycle(date, revision)).sort().reverse();
+        for (const date of candidates) {
+          signal?.throwIfAborted();
+          try { return await fetchChartManifest(`${chartRoot()}/${date}`, date, signal); }
+          catch (error) { if (!isMissingManifest(error)) throw error; }
+        }
+        throw error;
+      }
     }),
-    load('navigation', async () => {
-      const manifest = await fetchNavigationManifest(revision, signal);
-      const products = new Map(manifest.products.map(product => [product.id, product]));
-      for (const id of [...NAVIGATION.filter(layer => manifest.schemaVersion !== 3 || layer.id !== 'vfr-waypoints')
-        .map(layer => layer.id), 'airways']) requiredProduct(products, id);
-      return manifest;
-    }),
-    load('procedures', async () => inCycle(await fetchDocument(
-      `${revisionRoot}/tpp/manifest.json`,
-      isProcedureManifest,
-      'FAA procedure manifest',
-      revision,
-      signal,
-    ))),
+    navigationRequest,
+    procedureRequest,
     load('terrain', async () => {
       try { return await fetchJson(`${chartRoot()}/terrain/manifest.json`, isTerrainManifest,
         'Terrain manifest', { revalidate: true, ...(signal ? { signal } : {}) }); }
@@ -193,7 +208,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       id: chart.id,
       title: chart.title,
       kind: chart.kind,
-      revision,
+      revision: chartManifest!.effectiveDate,
       format: 'mbtiles',
       bounds: chart.bounds,
       minZoom: chart.minZoom,

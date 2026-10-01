@@ -53,7 +53,10 @@ the client never guesses page indexes from printed numbers or extracted text.
 
 Chart Supplements use independent `cs/catalog.json` metadata generated from FAA d-CS
 XML and original books. Their 56-day edition can span two TPP cycles. Books alone do
-not supply airport/page lookup; publish the index too.
+not supply airport/page lookup; publish the index too. Mid-cycle TPP changes can
+point at the current `CN` volume while unchanged procedures use an earlier regional
+book. Target volume IDs, not the airport's regional volume ID, determine which PDF
+the viewer and offline planner use.
 
 ## One viewer, every source
 

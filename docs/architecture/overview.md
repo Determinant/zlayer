@@ -66,8 +66,12 @@ Device Motion API ────────────────────�
   into a bounded whole-package memory cache; legacy byte ranges stay local as well.
 
 `WorkspaceReadContext` keeps the browsing catalog, committed regional bundles and
-one national routing catalog explicit. It does not manufacture a mixed-edition
-`CatalogResponse` or attach hidden metadata to one. Its combined chart list is only
+one national routing catalog explicit. It does not merge different saved regions'
+navigation editions into a `CatalogResponse` or attach hidden metadata to one.
+Within a browsing or saved catalog, raster publication dates may precede the
+navigation/TPP cycle while their 56-day interval covers it; the
+[feed contract](../data/chart-feed.md#date-discovery-and-selection) preserves each
+source date and URL. Its combined chart list is only
 for display controls; readers resolve an exact source catalog through the context.
 Startup resolves committed metadata first, then checks saved-file health in the
 background. Missing bytes cannot change edition ownership.

@@ -17,6 +17,7 @@ export type ChartRecord = {
   id: string;
   title: string;
   kind: ChartKind;
+  /** Raster publication date; may precede the catalog navigation/TPP cycle. */
   revision: string;
   format: 'mbtiles';
   bounds: Bounds;

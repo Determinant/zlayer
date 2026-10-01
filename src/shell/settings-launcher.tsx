@@ -52,6 +52,7 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
     });
     return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [visible, tab, offlineOpened]);
+  const rasterDates = [...new Set(catalog.charts.map(chart => chart.revision))].sort();
   const updateNotification = useUpdateNotification();
   const retry = () => setAttempt(value => value + 1);
   return <>
@@ -85,6 +86,7 @@ export function SettingsLauncher({ catalog, cycles, selection, onCycleChange, cy
           </label>
           <p id="cycle-description">Browsing FAA {formatDate(catalog.revision)}. Default follows the latest available cycle.
             {' '}This applies to browsing and new downloads. Saved regions keep their downloaded editions.</p>
+          {rasterDates.some(date => date !== catalog.revision) && <p>Raster charts use the {rasterDates.map(date => formatDate(date)).join(', ')} edition, still effective for this cycle.</p>}
           {cycleNotice && <p className="settings-cycle-notice" role="status">{cycleNotice}</p>}
         </section>
         <PwaUpdateSettings />
