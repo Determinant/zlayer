@@ -15,6 +15,7 @@ import type { ProcedureSelection } from '../src/layers/plates/data.js';
 import { airportPlateGroups } from '../src/layers/plates/groups.js';
 import { fetchChartSupplements, supplementSelections } from '../src/layers/plates/supplements.js';
 import { withRegionPlates } from '../src/layers/plates/offline.js';
+import { requiredSupplementTargets, supplementSnapshot } from '../src/layers/plates/supplement-snapshot';
 import { fetchProcedureCatalog } from '../src/layers/plates/api';
 import { createBrowserDownloads } from '../src/offline/browser-downloads';
 import { cacheFixture } from './helpers/cache';
@@ -87,7 +88,7 @@ const catalog: ProcedureCatalog = {
   sourceXml: { url: 'test', sha256: 'a'.repeat(64) },
   volumes: [{
     id: 'SW2',
-    url: '/chart-data/2026-09-03/tpp-sw2.pdf',
+    url: 'tpp-sw2.pdf',
     byteLength: 130_373_606,
     sha256: 'b'.repeat(64),
     pageCount: 560,
@@ -167,12 +168,25 @@ test('finds an airport and groups only current procedures', () => {
 const supplements: ChartSupplementCatalog = {
   schemaVersion: 2, builderVersion: 2, generatedAt: catalog.generatedAt,
   effectiveDate: '2026-09-03', expirationDate: '2026-10-29', sourceXml: catalog.sourceXml,
-  volumes: [{ id: 'SW', url: '../cs-sw.pdf', pageCount: 831, byteLength: 49_209_653, sha256: 'c'.repeat(64) }],
+  volumes: [{ id: 'SW', url: 'cs-sw.pdf', pageCount: 831, byteLength: 49_209_653, sha256: 'c'.repeat(64) }],
   airports: [{ faaId: 'HWD', name: 'HAYWARD EXEC', city: 'HAYWARD', state: 'CALIFORNIA',
     volumeId: 'SW', printedPage: '174', pageIndex: 175 }],
   expected: [{ faaId: 'HWD', state: 'CALIFORNIA', volumeId: 'SW', printedPage: '174' }],
 };
 const supplementResource = { catalog: supplements, url: '/chart-data/2026-09-03/cs/catalog.json' };
+
+test('schema 3 regional supplement snapshots retain published targets and book identities', () => {
+  const { expected: _removed, ...withoutExpected } = supplements;
+  const current: ChartSupplementCatalog = { ...withoutExpected, schemaVersion: 3, builderVersion: 3 };
+  const region = OFFLINE_REGIONS.find(region => region.code === 'CA')!;
+  const identifiers = new Set(['HWD']);
+  const targets = requiredSupplementTargets(current, region, identifiers);
+  const snapshot = supplementSnapshot(current, region, identifiers)!;
+  assert.deepEqual(targets.map(target => target.faaId), ['HWD']);
+  assert.equal(isChartSupplementCatalog(snapshot, current.effectiveDate), true);
+  assert.deepEqual(snapshot.volumes, current.volumes);
+  assert.equal('expected' in snapshot, false);
+});
 
 test('procedures and supplements use the same normalized feature aliases', () => {
   const selected = { ...feature, properties: { icaoId: ' ', faaId: ' hwd ', ident: 'HWD' } };
@@ -249,7 +263,7 @@ test('regional plates include individual-only PDFs, share books, and reject genu
       effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate, airportCount: 1, sourceAirportCount: 1,
       procedureCount: 2, sourceProcedureCount: 2, url: '/chart-data/2026-09-03/tpp/catalog.json' } };
   // Pacific procedures and supplements intentionally reference the same physical book.
-  const sharedBook = { ...catalog.volumes[0]!, url: 'https://charts.test/cs-pac.pdf' };
+  const sharedBook = { ...catalog.volumes[0]!, url: 'https://charts.test/cs/cs-pac.pdf' };
   const sharedSupplements = { ...supplements, volumes: [{ ...sharedBook, id: 'SW' }] };
   const index = { airports: [feature], procedures: { ...catalog, volumes: [sharedBook] }, supplements: sharedSupplements };
   const result = withRegionPlates(plan, region, index, feed, 'https://zlayer.test/');
@@ -313,7 +327,7 @@ test('places CS immediately after airport diagrams and before approaches, with i
   assert.equal(cs.document.source, 'chart-supplement');
   assert.equal(cs.document.pageIndex, 175);
   assert.equal(cs.document.nativeUrl.endsWith('#page=176'), true);
-  assert.equal(new URL(cs.document.url).pathname, '/chart-data/2026-09-03/cs-sw.pdf');
+  assert.equal(new URL(cs.document.url).pathname, '/chart-data/2026-09-03/cs/cs-sw.pdf');
   assert.equal(new URL(cs.document.url).searchParams.get('sha256'), 'c'.repeat(64));
   assert.equal(cs.expirationDate, '2026-10-29');
   assert.equal(groups[0]!.plates[1]!.detail, 'CS SW · Page 174');
@@ -369,8 +383,8 @@ test('prefers a verified combined-volume page over the individual URL', () => {
     '/chart-data/2026-09-03/tpp/catalog.json',
     'http://localhost:4173/',
   ), {
-    url: `http://localhost:4173/chart-data/2026-09-03/tpp-sw2.pdf?sha256=${'b'.repeat(64)}&bytes=130373606`,
-    nativeUrl: `http://localhost:4173/chart-data/2026-09-03/tpp-sw2.pdf?sha256=${'b'.repeat(64)}&bytes=130373606#page=220`,
+    url: `http://localhost:4173/chart-data/2026-09-03/tpp/tpp-sw2.pdf?sha256=${'b'.repeat(64)}&bytes=130373606`,
+    nativeUrl: `http://localhost:4173/chart-data/2026-09-03/tpp/tpp-sw2.pdf?sha256=${'b'.repeat(64)}&bytes=130373606#page=220`,
     pageIndex: 219,
     pageCount: 560,
     byteLength: 130_373_606,

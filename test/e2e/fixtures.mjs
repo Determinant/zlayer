@@ -127,10 +127,11 @@ export async function fixtureFiles() {
         file: archiveFile, byteLength: chart.length, sha256: hash(chart), bounds: [-180, -85.0511287798066, 180, 85.0511287798066], tileMask: '1' }],
       regions: [{ id: 'west', title: 'West', bounds: [[-125, 32, -114, 42]], archiveIds: ['vfr-sectional-z0-r0-0-0'] }],
     });
-    const volume = { url: '../book.pdf', byteLength: book.length, sha256: hash(book), pageCount: 1 };
+    const volume = { url: 'book.pdf', byteLength: book.length, sha256: hash(book), pageCount: 1 };
     const source = Object.fromEntries(['userAction', 'changeNoticeFlag', 'changeNoticeSection', 'changeNoticePage',
       'procedureId', 'twoColored', 'civil', 'faaComputerCode', 'copter', 'amendmentNumber', 'amendmentDate'].map(key => [key, null]));
-    add(`${root}/book.pdf`, book, 'application/pdf');
+    add(`${root}/tpp/book.pdf`, book, 'application/pdf');
+    add(`${root}/cs/book.pdf`, book, 'application/pdf');
     add(`${root}/tpp/manifest.json`, { schemaVersion: 1, cycle, effectiveDate: revision, expirationDate, generatedAt, airportCount: 1, procedureCount: 1 });
     add(`${root}/tpp/catalog.json`, {
       schemaVersion: 1, builderVersion: 1, cycle, effectiveDate: revision, expirationDate, generatedAt,

@@ -125,27 +125,18 @@ charts/cycles.json                # available edition dates
 charts/terrain/manifest.json      # feed-wide, versioned elevation packages
 charts/obstacles/manifest.json    # feed-wide FAA Daily DOF dataset
 charts/<cycle>/
-├── *.pdf / *.tif
+├── *.pdf
 ├── mbtiles/
 │   ├── <kind>-z<zoom>-r<depth>-<x>-<y>-<sha256>.mbtiles
 │   └── manifest.json
 ├── nav/
-│   ├── airports.geojson
-│   ├── fixes.geojson
-│   ├── navaids.geojson
-│   ├── vfr-waypoints.geojson
-│   ├── airways.json
-│   ├── preferred-routes.json       (optional)
-│   ├── terminal-procedures.json    (optional)
-│   ├── route-history.json.gz       (optional)
+│   ├── <manifest-listed hashed products>
 │   └── manifest.json
 ├── cs/
 │   └── catalog.json
-├── nasr/
-├── tpp/
-│   ├── catalog.json
-│   └── manifest.json
-└── tpp-<volume>.pdf
+└── tpp/
+    ├── catalog.<sha256>.json
+    └── manifest.json
 ```
 
 All default weather requests use the same-origin TypeScript weather server. It

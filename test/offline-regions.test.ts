@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CatalogResponse, ChartPackageArchive } from '@zlayer/contracts';
 import { OFFLINE_REGIONS } from '../src/offline/regions';
+import { withReferenceSnapshot } from '../src/offline/reference-snapshot';
 import { chartRegionPlans } from '../src/layers/charts/offline';
 import { resource as routeHistory } from './helpers/route-history';
 
@@ -57,6 +58,44 @@ test('one state selection includes every published family/zoom and shares canoni
   assert.deepEqual(california.files, nevada.files, 'overlapping envelopes reuse whole files');
   assert.match(california.id, /us-CA\|all-v1$/);
   assert.ok(california.files.every(file => file.url.startsWith('https://zlayer.test/charts/') && file.url.includes('sha256=')));
+});
+
+test('regional plans pin the shared fixes export for both IFR and VFR views', async () => {
+  const feed = catalog([archive([-118, 37], 'vfr-sectional', 8)]);
+  const fixes = feed.navigation.find(layer => layer.id === 'fixes')!;
+  fixes.subset = 'other-fixes';
+  feed.navigation = feed.navigation.map(layer => layer.id === 'vfr-waypoints'
+    ? { ...layer, url: fixes.url, sourceCount: fixes.sourceCount, subset: 'vfr-waypoints' } : layer);
+  const plan = chartRegionPlans(feed, 'https://zlayer.test/').find(({ region }) => region.code === 'CA')!.plan;
+  assert.equal(plan.references.filter(resource => resource.url.endsWith('/nav/fixes.geojson')).length, 1);
+  assert.ok(plan.references.some(resource => resource.id === 'fixes'));
+  const digest = 'b'.repeat(64);
+  const pinned = plan.references.map(resource => ({ ...resource,
+    url: `${resource.url}?jsonSha256=${digest}`, jsonSha256: digest }));
+  const saved = await withReferenceSnapshot(plan, pinned);
+  const savedFixes = saved.catalog!.navigation.find(layer => layer.id === 'fixes')!;
+  const savedWaypoints = saved.catalog!.navigation.find(layer => layer.id === 'vfr-waypoints')!;
+  assert.equal(savedWaypoints.url, savedFixes.url);
+  assert.equal(savedWaypoints.jsonSha256, digest);
+  assert.equal(savedWaypoints.id, 'vfr-waypoints');
+  assert.equal(savedWaypoints.subset, 'vfr-waypoints');
+  assert.equal(saved.references.filter(resource => resource.id === 'fixes').length, 1);
+});
+
+test('regional plans retain separate references unless both navigation views describe one export', () => {
+  const feed = catalog([archive([-118, 37], 'vfr-sectional', 8)]);
+  const fixes = feed.navigation.find(layer => layer.id === 'fixes')!;
+  const waypoints = feed.navigation.find(layer => layer.id === 'vfr-waypoints')!;
+  waypoints.url = fixes.url;
+  waypoints.sourceCount = fixes.sourceCount;
+  const references = () => chartRegionPlans(feed, 'https://zlayer.test/')
+    .find(({ region }) => region.code === 'CA')!.plan.references;
+  assert.equal(references().filter(resource => resource.url.endsWith('/nav/fixes.geojson')).length, 2);
+  fixes.subset = 'other-fixes';
+  waypoints.subset = 'vfr-waypoints';
+  waypoints.jsonSha256 = 'a'.repeat(64);
+  fixes.jsonSha256 = 'b'.repeat(64);
+  assert.equal(references().filter(resource => resource.url.endsWith('/nav/fixes.geojson')).length, 2);
 });
 
 test('Alaska selects both sides of the date line without downloading distant mainland packages', () => {

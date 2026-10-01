@@ -1,33 +1,37 @@
 // Read-only national audit, independent of plate-title matching.
-// node --import=tsx tools/audit-terminal-coverage.mjs <nav-directory> <report.json>
+// node --import=tsx tools/audit-terminal-coverage.mjs <nav-directory> <CIFP ZIP or FAACIFP18> <report.json>
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { gunzipSync } from 'node:zlib';
+import { execFile } from 'node:child_process';
 import { isTerminalProceduresData } from '@zlayer/contracts';
 import { terminalPaths, approachEntryOptions, approachPreview } from '@zlayer/domain';
 import { resolveApproachLegs } from '../packages/domain/src/approach-path.ts';
 
-const [directory, output] = process.argv.slice(2);
-if (!directory || !output) throw new Error('Usage: node --import=tsx tools/audit-terminal-coverage.mjs <nav-directory> <report.json>');
+const [directory, cifpFile, output] = process.argv.slice(2);
+if (!directory || !cifpFile || !output) throw new Error('Usage: node --import=tsx tools/audit-terminal-coverage.mjs <nav-directory> <CIFP ZIP or FAACIFP18> <report.json>');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const manifest = JSON.parse(readFileSync(resolve(directory, 'manifest.json')));
-const bytes = readFileSync(resolve(directory, manifest.products.find(p => p.id === 'terminal-procedures').file));
+const product = manifest.products.find(p => p.id === 'terminal-procedures');
+if (!product) throw new Error('Missing terminal-procedures product');
+const bytes = readFileSync(resolve(directory, product.file));
 const data = JSON.parse(bytes);
 if (!isTerminalProceduresData(data) || !data.codedProcedures || !data.approaches) throw new Error('A complete coded terminal edition is required');
 if (manifest.effectiveDate !== data.metadata.effectiveDate) throw new Error('Manifest edition mismatch');
-let sourceText;
-for (const id of ['terminal-procedures', 'cifp-source']) {
-  const product = manifest.products.find(p => p.id === id);
-  if (!product) throw new Error(`Missing product: ${id}`);
-  const content = readFileSync(resolve(directory, product.file));
-  if (content.length !== product.bytes || hash(content) !== product.sha256) throw new Error(`Integrity mismatch: ${id}`);
-  if (id === 'cifp-source') {
-    const decoded = gunzipSync(content);
-    if (hash(decoded) !== product.decodedSha256) throw new Error('CIFP source hash mismatch');
-    sourceText = decoded.toString('utf8');
-  }
+if (bytes.length !== product.bytes || hash(bytes) !== product.sha256) {
+  throw new Error('Terminal procedure integrity mismatch');
 }
+const cifp = manifest.sourceArchives.find(source => source.group === 'CIFP');
+if (!cifp) throw new Error('Missing CIFP source identity');
+const sourceFile = resolve(cifpFile);
+const archive = readFileSync(sourceFile);
+if (hash(archive) !== cifp.sha256) throw new Error('CIFP source archive hash mismatch');
+const sourceBytes = /\.zip$/i.test(sourceFile)
+  ? await new Promise((resolve, reject) => execFile('unzip', ['-p', sourceFile, 'FAACIFP18'],
+    { encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => error ? reject(error) : resolve(stdout)))
+  : archive;
+if (hash(sourceBytes) !== cifp.recordFile.sha256) throw new Error('CIFP record hash mismatch');
+const sourceText = sourceBytes.toString('utf8');
 // Recount independently of the publisher's coverage fields.
 const sourceCounts = { departure: 0, arrival: 0, approach: 0 }, exportedCounts = { ...sourceCounts };
 const continuationCounts = { source: 0, exported: 0 };

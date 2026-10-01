@@ -89,14 +89,20 @@ export async function fetchMagneticModelResource(revision: string, signal?: Abor
   const manifest = await fetchNavigationManifest(revision, signal);
   const product = requiredProduct(new Map(manifest.products.map(item => [item.id, item])), 'magnetic-model');
   return { count: product.count, ...jsonIdentityFields(product),
-    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
+    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion >= 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
 }
 
 function navigationLayer(revision: string, manifest: NavigationManifest,
   definition: NavigationDefinition): NavigationLayerRecord {
-  const product = requiredProduct(new Map(manifest.products.map(product => [product.id, product])), definition.id);
-  return { ...definition, count: product.count, sourceCount: product.count, ...jsonIdentityFields(product),
-    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
+  const product = requiredProduct(new Map(manifest.products.map(product => [product.id, product])),
+    manifest.schemaVersion === 3 && definition.id === 'vfr-waypoints' ? 'fixes' : definition.id);
+  const count = manifest.schemaVersion === 3 && (definition.id === 'fixes' || definition.id === 'vfr-waypoints')
+    ? definition.id === 'fixes' ? product.count - product.vfrWaypointCount! : product.vfrWaypointCount!
+    : product.count;
+  return { ...definition, count, sourceCount: product.count, ...jsonIdentityFields(product),
+    ...(manifest.schemaVersion === 3 && definition.id === 'vfr-waypoints' ? { subset: 'vfr-waypoints' as const } : {}),
+    ...(manifest.schemaVersion === 3 && definition.id === 'fixes' ? { subset: 'other-fixes' as const } : {}),
+    url: `${chartRoot()}/${revision}/nav/${product.file}${manifest.schemaVersion >= 2 ? '' : `?v=${encodeURIComponent(manifest.generatedAt)}`}` };
 }
 
 export function isInsideChartCoverage(
@@ -134,7 +140,8 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
     load('navigation', async () => {
       const manifest = await fetchNavigationManifest(revision, signal);
       const products = new Map(manifest.products.map(product => [product.id, product]));
-      for (const id of [...NAVIGATION.map(layer => layer.id), 'airways']) requiredProduct(products, id);
+      for (const id of [...NAVIGATION.filter(layer => manifest.schemaVersion !== 3 || layer.id !== 'vfr-waypoints')
+        .map(layer => layer.id), 'airways']) requiredProduct(products, id);
       return manifest;
     }),
     load('procedures', async () => inCycle(await fetchDocument(
@@ -157,7 +164,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
   const chartManifest = charts?.manifest;
 
   // Immutable filenames already identify the bytes. Legacy paths still need a build key.
-  const navigationVersion = navigation?.schemaVersion === 2 ? '' : `?v=${encodeURIComponent(navigation?.generatedAt ?? '')}`;
+  const navigationVersion = navigation && navigation.schemaVersion >= 2 ? '' : `?v=${encodeURIComponent(navigation?.generatedAt ?? '')}`;
   const products = new Map(navigation?.products.map((product) => [product.id, product]));
   const navigationLayers = navigation ? NAVIGATION.map(definition => navigationLayer(revision, navigation, definition)) : [];
   const airways = products.get('airways');
@@ -239,7 +246,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal):
       id: 'terminal-procedures', title: 'FAA terminal procedure routes',
       count: terminal.count, sourceCount: terminal.count,
       ...jsonIdentityFields(terminal),
-      ...(navigation?.schemaVersion === 2 ? { schemaVersion: 2 as const, coverage: terminal.coverage! } : {}),
+      ...(navigation && navigation.schemaVersion >= 2 ? { schemaVersion: 2 as const, coverage: terminal.coverage! } : {}),
       url: `${revisionRoot}/nav/${terminal.file}${navigationVersion}`,
     } } : {}),
     weather: [

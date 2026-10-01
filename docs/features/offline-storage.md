@@ -33,6 +33,10 @@ route references when published. Each export is shared once per identity in the 
 reference cache used by routing. **Verify / update** adds newly available references
 to an existing selection without re-fetching verified charts or books. Older feeds
 remain usable with missing route data shown as unavailable.
+For navigation manifest schema 3, IFR fixes and VFR waypoints share one verified
+`fixes` export. The saved catalog pins that export for both views while retaining
+their separate filters and counts.
+
 History stays gzip-compressed in storage; decoding, validation and airport-pair
 indexing run in a worker. Offline checks validate the stored response, not worker
 memory. See [routes and recommendations](../../src/layers/routes/README.md#recommendations) for UI behavior

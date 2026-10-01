@@ -5,7 +5,7 @@ type StreamingWindow = Window & typeof globalThis & {
 };
 
 for (const supplement of [false, true]) {
-  test(`${supplement ? 'CS' : 'TPP'} shows live download progress, resumes it on reopen, and reuses the saved region`, async ({ page }, testInfo) => {
+  test(`${supplement ? 'CS' : 'TPP'} shows live download progress, resumes it on reopen, and reuses only its saved regional book`, async ({ page }, testInfo) => {
     await page.setViewportSize(supplement ? { width: 1280, height: 900 } : { width: 393, height: 852 });
     // Hold a real PDF response at known byte boundaries, without timing-dependent sleeps.
     await page.addInitScript(() => {
@@ -71,12 +71,25 @@ for (const supplement of [false, true]) {
     await expect(meter).toHaveCount(0);
     await page.getByRole('button', { name: 'Close plate', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    // The fixture shares a physical book across these two regional references.
+    // Reopening the saved book must not start another download.
     await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
-    await page.getByRole('button', { name: supplement ? /TEST APPROACH/ : /Chart Supplement/ }).click();
+    await opener.click();
     await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('.procedure-page-stage canvas')).toBeVisible();
     await expect(page.getByRole('progressbar')).toHaveCount(0);
     expect(await page.evaluate(() => (window as StreamingWindow).plateDownloadFixture.requests)).toBe(1);
+    // Both catalogs name book.pdf, but their relative URLs identify separate books.
+    await page.getByRole('button', { name: 'Close plate', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
+    await page.getByRole('button', { name: supplement ? /TEST APPROACH/ : /Chart Supplement/ }).click();
+    await expect(page.getByRole('progressbar', {
+      name: supplement ? 'Downloading regional plates…' : 'Downloading Chart Supplement…',
+    })).toHaveAttribute('aria-valuenow', '50');
+    expect(await page.evaluate(() => (window as StreamingWindow).plateDownloadFixture.requests)).toBe(2);
+    await page.evaluate(() => (window as StreamingWindow).plateDownloadFixture.finish());
+    await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
+    await expect(page.locator('.procedure-page-stage canvas')).toBeVisible();
+    await expect(page.locator('.procedure-cache-state')).toHaveText('Available offline');
   });
 }

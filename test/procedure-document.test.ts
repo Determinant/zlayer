@@ -16,8 +16,8 @@ const cacheFixture = (t: test.TestContext) => sharedCacheFixture(t, PDF_CACHE);
 const bytes = new TextEncoder().encode('%PDF-1.7\nverified test document');
 const digest = createHash('sha256').update(bytes).digest('hex');
 const source: ProcedureDocument = {
-  url: `https://charts.test/tpp-sw2.pdf?sha256=${digest}&bytes=${bytes.length}`,
-  nativeUrl: 'https://charts.test/tpp-sw2.pdf#page=3',
+  url: `https://charts.test/tpp/tpp-sw2.pdf?sha256=${digest}&bytes=${bytes.length}`,
+  nativeUrl: 'https://charts.test/tpp/tpp-sw2.pdf#page=3',
   source: 'combined-volume', pageIndex: 2, sha256: digest, byteLength: bytes.length,
 };
 const pdf = (body: BodyInit = bytes) => new Response(body, { headers: { 'content-type': 'application/pdf' } });

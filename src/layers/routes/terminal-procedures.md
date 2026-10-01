@@ -66,7 +66,7 @@ The publisher now indexes airport-reference records, retains runway thresholds,
 decodes speed/RNP/vertical-angle and related leg fields, and attaches all terminal
 continuation records to their primary legs. W continuations expose authorized
 service names such as LPV/LNAV; these are not numerical approach minima. It also
-publishes the complete original CIFP text as the `cifp-source` product with encoded and
+keeps the complete original CIFP text in the publisher's local source cache with encoded and
 decoded hashes, so unprojected fields and supporting records remain auditable.
 That audit source is not automatically downloaded by the client.
 

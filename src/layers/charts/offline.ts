@@ -11,11 +11,17 @@ export function chartRegionPlans(catalog: CatalogResponse, baseUrl: string,
   const files = new Map(index.archives.map(file => [file.id, {
     url: chartPackageUrl(root, file), byteLength: file.byteLength, sha256: file.sha256, kind: 'chart' as const,
   }]));
-  const references = [...catalog.navigation, catalog.airways,
+  const resources = [...catalog.navigation, catalog.airways,
     ...(catalog.preferredRoutes ? [catalog.preferredRoutes] : []),
     ...(catalog.terminalProcedures ? [catalog.terminalProcedures] : []),
-    ...(catalog.routeHistory ? [catalog.routeHistory] : [])]
-    .map(resource => ({ ...resource, url: new URL(resource.url, baseUrl).href }));
+    ...(catalog.routeHistory ? [catalog.routeHistory] : [])];
+  const resolved = resources.map(resource => ({ ...resource, url: new URL(resource.url, baseUrl).href }));
+  const fixes = catalog.navigation.find(resource => resource.id === 'fixes');
+  const waypoints = catalog.navigation.find(resource => resource.id === 'vfr-waypoints');
+  const sharedFixes = fixes?.subset === 'other-fixes' && waypoints?.subset === 'vfr-waypoints' &&
+    fixes.url === waypoints.url && fixes.sourceCount === waypoints.sourceCount &&
+    fixes.jsonSha256 === waypoints.jsonSha256;
+  const references = resolved.filter(resource => !sharedFixes || resource.id !== 'vfr-waypoints');
   return regions.filter(region => catalog.charts.some(chart =>
     region.bounds.some(bounds => packageBoundsIntersect(bounds, chart.bounds))))
     .map(region => ({ region, plan: {

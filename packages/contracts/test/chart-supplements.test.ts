@@ -6,7 +6,7 @@ const catalog: ChartSupplementCatalog = {
   schemaVersion: 1, builderVersion: 1, generatedAt: '2026-09-16T00:00:00Z',
   effectiveDate: '2026-09-03', expirationDate: '2026-10-29',
   sourceXml: { url: 'https://example.test/afd.xml', sha256: 'a'.repeat(64) },
-  volumes: [{ id: 'SW', url: '../cs-sw.pdf', pageCount: 831, byteLength: 100, sha256: 'b'.repeat(64) }],
+  volumes: [{ id: 'SW', url: 'cs-sw.pdf', pageCount: 831, byteLength: 100, sha256: 'b'.repeat(64) }],
   airports: [{ faaId: 'HWD', name: 'HAYWARD EXEC', city: 'HAYWARD', state: 'CALIFORNIA',
     volumeId: 'SW', printedPage: '174', pageIndex: 175 }],
 };
@@ -32,4 +32,12 @@ test('requires valid book identities, unique targets, and physical page bounds',
     const changed = structuredClone(catalog); mutate(changed);
     assert.equal(isChartSupplementCatalog(changed), false);
   }
+});
+
+test('schema 3 validates published page targets without a duplicate expected list', () => {
+  const current = { ...catalog, schemaVersion: 3 as const, builderVersion: 3 };
+  assert.equal(isChartSupplementCatalog(current, '2026-09-03'), true);
+  assert.equal(isChartSupplementCatalog({ ...current, expected: [
+    { faaId: 'HWD', state: 'CALIFORNIA', volumeId: 'SW', printedPage: '174' },
+  ] }), false);
 });

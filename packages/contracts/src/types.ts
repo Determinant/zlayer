@@ -31,6 +31,7 @@ export type NavigationLayerId = 'airports' | 'vfr-waypoints' | 'navaids' | 'fixe
 
 export type NavigationLayerRecord = JsonReferenceIdentity & {
   id: NavigationLayerId;
+  subset?: 'vfr-waypoints' | 'other-fixes';
   title: string;
   count: number;
   sourceCount: number;
