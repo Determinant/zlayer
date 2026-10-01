@@ -2,6 +2,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
 import type { OwnshipLayer } from './layer';
 import { ownshipGeometry, sameOwnshipGeometry } from './geometry';
+import { createFrameTask } from '../../core/graphics/frame-task';
 
 export const OWNSHIP_SOURCE = 'ownship';
 export const OWNSHIP_LAYERS = ['ownship-accuracy', 'ownship-trace-halo', 'ownship-trace', 'ownship-position', 'ownship-aircraft'];
@@ -13,26 +14,23 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
   let source: GeoJSONSource | undefined;
   let unsubscribe: (() => void) | undefined;
   let rendered: ReturnType<OwnshipLayer['getSnapshot']> | undefined;
-  let frame: number | undefined;
   const sourceFailed = () => { rendered = undefined; };
-  const render = () => {
-    frame = undefined;
+  const frame = createFrameTask(() => {
     if (!map) return;
     const snapshot = product.getSnapshot();
     if (rendered && sameOwnshipGeometry(rendered, snapshot)) return;
     if (!source) return;
     void source.setData(ownshipGeometry(snapshot));
     rendered = snapshot;
-  };
+  });
   const schedule = () => {
     const snapshot = product.getSnapshot();
     // Loss of validity clears the live vector immediately. Fresh callbacks in
     // the same frame share one geometry build; there is no idle render loop.
     if (!snapshot.enabled || snapshot.state !== 'tracking') {
-      if (frame !== undefined) cancelAnimationFrame(frame);
-      render();
-    } else if ((!rendered || !sameOwnshipGeometry(rendered, snapshot)) && frame === undefined) {
-      frame = requestAnimationFrame(render);
+      frame.flush();
+    } else if (!rendered || !sameOwnshipGeometry(rendered, snapshot)) {
+      frame.schedule();
     }
   };
   return {
@@ -73,8 +71,7 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
     unmount() {
       unsubscribe?.();
       unsubscribe = undefined;
-      if (frame !== undefined) cancelAnimationFrame(frame);
-      frame = undefined;
+      frame.cancel();
       rendered = undefined;
       source?.off('error', sourceFailed);
       source = undefined;

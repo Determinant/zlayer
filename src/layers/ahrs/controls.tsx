@@ -1,4 +1,4 @@
-import { selectLayerStore } from '../../core/layers/input';
+import { selectLayerStore } from '../../core/layers/store';
 import { ahrsControlStatus } from './control-status';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RoutePlan } from '@zlayer/domain';

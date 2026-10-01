@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { contrast, lightColor, parseColor } from '../src/core/theme/color';
-import { palettes, seeds } from '../src/core/theme/palette';
+import { contrast, lightColor, parseColor } from '../tools/theme/color';
+import { palettes, seeds } from '../tools/theme/palette';
 import { isTheme, themeRecord } from '../src/core/theme/preference';
 
 test('derived opaque light text remains readable across all opaque UI surface tones', () => {

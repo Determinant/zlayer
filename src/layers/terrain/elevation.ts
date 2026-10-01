@@ -1,7 +1,7 @@
 import { decodeTerrarium } from './contours';
 import { createPixelContext } from '../../core/graphics/pixel-context';
 import type { Tile } from './geometry';
-import { TerrainWorkLimit } from './work-limit';
+import { TaskLimiter } from '../../core/data/task-limiter';
 import { terrainArchiveUrl } from '@zlayer/contracts';
 import { readGeographicElevation } from './geographic';
 import { readPackagedElevation, type TerrainPackage } from './packages';
@@ -15,7 +15,7 @@ type PendingTile = { controller: AbortController; promise: Promise<Float32Array>
 /** Four active DEM reads and at most 32 MiB of decoded grids per worker. */
 export class ElevationTiles {
   readonly #cache = new Map<string, Float32Array>();
-  readonly #downloads = new TerrainWorkLimit(4);
+  readonly #downloads = new TaskLimiter(4);
   readonly #pending = new Map<string, PendingTile>();
 
   #cached(url: string): Float32Array | undefined {

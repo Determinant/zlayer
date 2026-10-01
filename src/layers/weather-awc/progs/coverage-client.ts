@@ -1,6 +1,6 @@
 import { isRecord, isProgsCoverageCatalog, progsCoverageImageSize, PROGS_COVERAGE_CATALOG_MAX_BYTES, PROGS_COVERAGE_MAX_BYTES,
   type ProgsCoverageCatalog, type ProgsCoverageFile } from '@zlayer/contracts';
-import { requestJson } from '../../../core/data/fetch-json';
+import { requestJson } from '../../../core/data/request-json';
 import { pluginStorage } from '../storage';
 import { authenticatePreparedFile } from '../prepared-file';
 

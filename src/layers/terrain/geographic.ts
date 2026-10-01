@@ -2,7 +2,7 @@ import { TERRAIN_MAX_ZOOM, terrainSpacing, terrainGridSize, terrainShardKey, ter
 import { withAbort } from '../../core/data/abort';
 import { ResourceError } from '../../core/data/errors';
 import { readPackagedElevation, type TerrainPackage } from './packages';
-import { TerrainWorkLimit } from './work-limit';
+import { TaskLimiter } from '../../core/data/task-limiter';
 import type { Tile } from './geometry';
 
 /** Map each Mercator pixel footprint to geographic cells. Maxima over all
@@ -61,7 +61,7 @@ export function packagesForElevationTile(packages: readonly TerrainPackage[], ti
 const decoded = new Map<string, Float32Array>();
 type PendingGrid = { controller: AbortController; promise: Promise<Float32Array>; readers: number };
 const pendingGrids = new Map<string, PendingGrid>();
-const gridReads = new TerrainWorkLimit(4);
+const gridReads = new TaskLimiter(4);
 async function geographicGrid(tile: Tile, source: TerrainPackage, signal: AbortSignal, surface: boolean) {
   signal.throwIfAborted();
   const key = `${terrainArchiveUrl(source.root, source.shard)}#${tile.z}/${tile.x}/${tile.y}/${surface}`;

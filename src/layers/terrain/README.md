@@ -409,7 +409,7 @@ support is Chromium-only](https://playwright.dev/docs/service-workers). WebKit's
 offline navigation emulation failed before terrain code even with a cached app
 shell and no terrain fixture. Rendering/lifecycle tests still run on WebKit at 1×
 and 2× density; offline reload on physical Safari remains a separate device check.
-`test/terrain-work-limit.test.ts` checks bounded render work and queue progress after
+`test/task-limiter.test.ts` checks bounded render work and queue progress after
 cancellation or failure, including cancellation while a slot is being handed over.
 `test/terrain-clearance.test.ts` verifies palette encoding, clearance signs/color
 thresholds, lowlands, nodata, fade opacity and two-line label expressions.

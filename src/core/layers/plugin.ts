@@ -3,7 +3,9 @@ import type { ComponentType } from 'react';
 import type { MapContribution } from '../map/contribution';
 import type { PluginStorage } from '../storage/plugin-storage';
 import type { PreferenceSlice } from '../storage/preferences';
-import type { LayerDefinition } from './product';
+
+/** A cohesive workspace feature. Its presentation need not be on the map. */
+export type LayerDefinition = { readonly id: string; readonly title: string };
 
 export type PanelContribution = {
   readonly id: string;

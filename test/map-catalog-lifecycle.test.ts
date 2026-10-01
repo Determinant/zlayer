@@ -4,7 +4,7 @@ import test from 'node:test';
 import { Hooks, hookModule } from './helpers/hooks';
 import type { ComponentProps } from 'react';
 import type { CatalogResponse } from '@zlayer/contracts';
-import { createLayerInput } from '../src/core/layers/input';
+import { createLayerInput } from '../src/core/layers/store';
 import { createOwnshipLayer } from '../src/layers/ownship/layer';
 import { createGpsService } from '../src/core/gps/service';
 

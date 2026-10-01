@@ -1,7 +1,7 @@
 import { ProgsCoverageClient } from './progs/coverage-client';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import type { PluginExports } from '../../core/layers/bridge';
-import { createLayerInput } from '../../core/layers/input';
+import { createLayerInput } from '../../core/layers/store';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { GridClient } from './grids/client';
 import { AdvisoryClient } from './client';

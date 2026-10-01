@@ -2,7 +2,7 @@ import { pluginStorage } from './storage';
 import { chartPreferences } from './preferences';
 import type { ChartLayerInput } from './layer';
 import type { ComponentProps } from 'react';
-import { createLayerInput, selectLayerStore } from '../../core/layers/input';
+import { createLayerInput, selectLayerStore } from '../../core/layers/store';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { ToolPanel } from '../../core/ui/tool-panel';

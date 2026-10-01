@@ -1,5 +1,5 @@
 import { PluginRegistry } from '../core/layers/bridge';
-import { createLayerInput } from '../core/layers/input';
+import { createLayerInput } from '../core/layers/store';
 import type { MapSelectionInput } from '../core/map/selection';
 import type { WorkspacePluginApis } from './plugin-apis';
 import { createMetarPlugin } from '../layers/metar-taf/plugin';

@@ -4,7 +4,7 @@ import { selectedApproach, legArrivalCourse, updateApproachHoldEntries } from '.
 import { selectedCodedTerminal } from './coded-terminals.js';
 import { terminalConstraint } from './procedure-constraints.js';
 import { terminalFixFeature, sameTerminalFix, TERMINAL_FIX_TOLERANCE_NM } from './terminal-fixes.js';
-import { distanceNm, geographicMidpoint } from './route.js';
+import { distanceNm, geographicMidpoint } from './geographic.js';
 import type { RouteLeg, RoutePlan, RouteWaypoint } from './route-model.js';
 import { routeFlightSequence } from './route-sequence.js';
 import type { RouteOwner } from './route-source.js';

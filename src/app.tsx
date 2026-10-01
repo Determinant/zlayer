@@ -49,7 +49,7 @@ import { MapEdgeTools } from './shell/map-edge-tools';
 import { NearbyFeaturePicker } from './workspace/nearby-feature-picker';
 import { StartupScreen } from './shell/startup-screen';
 import { weatherStartupWork, workspaceStartupSteps } from './workspace/startup';
-import { selectLayerStore } from './core/layers/input';
+import { selectLayerStore } from './core/layers/store';
 import { useWorkspaceSelection } from './workspace/use-selection';
 import { useStartup } from './shell/use-startup';
 
@@ -175,6 +175,7 @@ export function App() {
       onVisibilityChange: (id: NavigationLayerId) => setMapPreferences(current => ({ ...current,
         visibility: { ...current.visibility, [id]: !current.visibility[id] } })),
     },
+    weather: { change: (patch: Partial<typeof mapPreferences>) => setMapPreferences(current => ({ ...current, ...patch })) },
     metar: { onToggle: () => setMapPreferences(current => ({ ...current, metarEnabled: !current.metarEnabled })) },
   }), [setMapPreferences, clear]);
   const resolveMapFeature = useCallback((feature: GeoPointFeature) => resolveNavigationFeature(feature, mapNavigationData), [mapNavigationData]);
@@ -199,9 +200,9 @@ export function App() {
       ...pluginActions.navigation });
     workspaceLayers.metar.input.set({ catalog: context, enabled: metarEnabled,
       ...pluginActions.metar });
-    workspaceLayers.weatherAwc.input.set({ ...mapPreferences, revision: context.browsing.revision,
+    workspaceLayers.weatherAwc.input.set({ ...workspaceLayers.weatherAwc.preferences.select(mapPreferences), revision: context.browsing.revision,
       awcEnabled: !!loaded['weather-awc'] && mapPreferences.awcEnabled,
-      change: patch => setMapPreferences(current => ({ ...current, ...patch })) });
+      ...pluginActions.weather });
     workspaceLayers.routes.input.set(route.mapInput);
     workspaceLayers.selectionInput.set({
       resolveFeature: resolveMapFeature, onSelect: selectFeature,

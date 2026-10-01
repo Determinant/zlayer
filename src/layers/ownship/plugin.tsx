@@ -5,7 +5,7 @@ import { pluginStorage } from './storage';
 import { ownshipPreferences } from './preferences';
 import { createOwnshipLayer } from './layer';
 import { OwnshipStatus } from './controls';
-import { createLayerInput } from '../../core/layers/input';
+import { createLayerInput } from '../../core/layers/store';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { ToolPanel } from '../../core/ui/tool-panel';

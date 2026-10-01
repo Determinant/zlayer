@@ -1,7 +1,7 @@
 import type { GeoPointFeature, NavigationData, PointGeometry } from '@zlayer/contracts';
 import { featureIdent, featureKey, featureIdentifiers } from './features.js';
 import { nearbyVorStations } from './nearby-navaids.js';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 import { routeCoordinateFeature } from './route-coordinate.js';
 import { radialReference, type RadialPosition } from './radial-position.js';
 import type { RouteDraft, RoutePlan, RouteWaypoint } from './route-model.js';

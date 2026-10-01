@@ -46,7 +46,7 @@ function scan(directory: string): void {
       CallExpression(node) {
         const call = source.slice(node.callee.start, node.callee.end);
         if (local(file).startsWith('src/layers/') && /^(?:(?:globalThis|window|self)\.)?fetch$/.test(call)) {
-          failures.add(`${local(file)}: plugins must use core fetchJson, transferFile or readManagedFile; direct fetch bypasses shared acquisition policy`);
+          failures.add(`${local(file)}: plugins must use core fetchJson, requestJson, transferFile or readManagedFile; direct fetch bypasses shared acquisition policy`);
         }
       },
       ImportDeclaration(node) {

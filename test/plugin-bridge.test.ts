@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PluginRegistry, PluginScope, PluginUnavailableError } from '../src/core/layers/bridge';
-import { createLayerStore, type LayerStore } from '../src/core/layers/store';
-import { createLayerInput, selectLayerStore, combineLayerStores } from '../src/core/layers/input';
+import { createLayerStore, type LayerStore, createLayerInput, selectLayerStore, combineLayerStores } from '../src/core/layers/store';
 import { createLayerEvents, type LayerEvents } from '../src/core/layers/events';
 
 type Api = { state: LayerStore<number>; increment(): void; events: LayerEvents<number> };

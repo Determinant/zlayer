@@ -1,5 +1,5 @@
 import { createLayerStore } from '../../core/layers/store';
-import type { ProductLayer } from '../../core/layers/product';
+import type { LayerDefinition } from '../../core/layers/plugin';
 import type { ProcedureSelection } from './data';
 import { plateSelectionRecord, mappedPlateRecord } from './persistence';
 import type { PlateMapImage } from './map-image';
@@ -21,7 +21,7 @@ export function createPlatesController(persist = false) {
     ...(mapped ? { mapSelection: mapped } : {}) });
   let restoration: AbortController | undefined;
   return {
-    definition: { id: 'plates', title: 'Plates' } satisfies ProductLayer['definition'],
+    definition: { id: 'plates', title: 'Plates' } satisfies LayerDefinition,
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
     /** Release live rendering without deleting the selected document or its saved intent. */

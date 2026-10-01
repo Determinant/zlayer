@@ -1,5 +1,6 @@
 import { isChartSupplementCatalog, type ChartSupplementCatalog } from '@zlayer/contracts';
-import { fetchJson, readCachedJson, JsonResponseError } from '../core/data/fetch-json';
+import { fetchJson, readCachedJson } from '../core/data/fetch-json';
+import { JsonResponseError } from '../core/data/errors';
 import { ResourceCache } from '../core/data/resource-cache';
 import { preserveSavedSupplements } from './compatibility/legacy-supplements';
 import { DATA_CACHE } from '../core/storage/cache-names';
@@ -20,7 +21,7 @@ export function readSupplementCatalog(url: string, revision: string, requireFres
         return saved; // Browsing can retain the index whose saved page targets could not be preserved.
       }
     }
-    return fetchJson(url, guard, 'Chart Supplement catalog', { revalidate: true, requireFresh }).catch(error => {
+    return fetchJson(url, guard, 'Chart Supplement catalog', { policy: requireFresh ? 'network-only' : 'network-first' }).catch(error => {
       if (error instanceof JsonResponseError && error.status === 404) return undefined;
       throw error;
     });

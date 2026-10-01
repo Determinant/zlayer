@@ -1,5 +1,5 @@
 import type { Map } from 'maplibre-gl';
-import { createSourceSubmission } from '../source-submission';
+import { createSourceSubmission } from '../../../core/map/source-submission';
 import type { WeatherController } from '../controller';
 import { gridKey, gridMatchesTime, type DecodedGrid } from './format';
 import { barbGeometry, windSymbols, windLatticeLevel } from './wind';

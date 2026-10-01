@@ -241,17 +241,40 @@ test('a failed fixes feed preserves healthy airport search data', async t => {
   assert.equal(result.collections[0]?.features[0]?.properties.ident, 'KMGM');
 });
 
+for (const policy of ['cache-first', 'network-first', 'network-only', 'cache-only'] as const) {
+  test(`JSON ${policy} preserves source preference and offline fallback`, async t => {
+    const { stored } = cacheFixture(t);
+    const url = 'https://charts.test/read-policy.json';
+    const guard = (value: unknown): value is string => value === 'saved' || value === 'fresh';
+    const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json('fresh'));
+    stored.set(url, Response.json('saved'));
+    const network = policy === 'network-first' || policy === 'network-only';
+    assert.equal(await fetchJson(url, guard, 'Reference', { policy }), network ? 'fresh' : 'saved');
+    assert.equal(fetch.mock.callCount(), network ? 1 : 0);
+    stored.set(url, Response.json('saved'));
+    fetch.mock.mockImplementation(async () => { throw new Error('offline'); });
+    const fallback = fetchJson(url, guard, 'Reference', { policy });
+    if (policy === 'network-only') await assert.rejects(fallback, /offline/);
+    else assert.equal(await fallback, 'saved');
+    assert.equal(fetch.mock.callCount(), network ? 2 : 0);
+    stored.delete(url);
+    const missing = fetchJson(url, guard, 'Reference', { policy });
+    await assert.rejects(missing, policy === 'cache-only' ? /no saved export identity/ : /offline/);
+    assert.equal(fetch.mock.callCount(), policy === 'cache-only' ? 0 : network ? 3 : 1);
+  });
+}
+
 test('revalidation preserves a valid offline fallback, but respects explicit cancellation', async t => {
   const { stored } = cacheFixture(t);
   const url = 'https://charts.test/manifest.json';
   const guard = (value: unknown): value is { ready: true } => !!value && (value as { ready?: boolean }).ready === true;
   stored.set(url, Response.json({ ready: true }));
   t.mock.method(globalThis, 'fetch', async () => Response.json({ bad: true }));
-  assert.deepEqual(await fetchJson(url, guard, 'Manifest', { revalidate: true }), { ready: true });
+  assert.deepEqual(await fetchJson(url, guard, 'Manifest', { policy: 'network-first' }), { ready: true });
   assert.deepEqual(await stored.get(url)!.clone().json(), { ready: true });
   const signal = AbortSignal.abort();
   t.mock.method(globalThis, 'fetch', async () => { signal.throwIfAborted(); return Response.json({}); });
-  await assert.rejects(fetchJson(url, guard, 'Manifest', { revalidate: true, signal }), { name: 'AbortError' });
+  await assert.rejects(fetchJson(url, guard, 'Manifest', { policy: 'network-first', signal }), { name: 'AbortError' });
 });
 
 test('ordinary browsing tolerates denied storage, but explicit offline downloads do not', async t => {

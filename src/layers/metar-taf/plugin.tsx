@@ -1,7 +1,7 @@
 import type { MetarApi } from './public';
 import type { NavigationApi } from '../navigation/public';
 import type { PluginExports } from '../../core/layers/bridge';
-import { createLayerStore } from '../../core/layers/store';
+import { createLayerStore, createLayerInput, selectLayerStore, combineLayerStores } from '../../core/layers/store';
 import { pluginStorage } from './storage';
 import { metarPreferences } from './preferences';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
@@ -9,7 +9,6 @@ import type { CatalogReadSource } from '../../workspace/read-context';
 import { createMetarLayer } from './metar/layer';
 import { WeatherControls } from './controls';
 import { FlightCategoryLegend } from './metar/legend';
-import { createLayerInput, selectLayerStore, combineLayerStores } from '../../core/layers/input';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { bindMapLayer } from '../../core/map/contribution';

@@ -1,5 +1,5 @@
 import { isRecord, isAwcAdvisorySnapshot, type AwcAdvisoryProduct, type AwcAdvisorySnapshot } from '@zlayer/contracts';
-import { requestJson } from '../../core/data/fetch-json';
+import { requestJson } from '../../core/data/request-json';
 import { noaaAdvisoryUrl } from './advisory-endpoints';
 import { pluginStorage } from './storage';
 

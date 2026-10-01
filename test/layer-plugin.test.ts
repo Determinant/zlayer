@@ -2,13 +2,38 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { LayerScope } from '../src/core/layers/scope';
-import { createLayerInput } from '../src/core/layers/input';
+import { createLayerInput } from '../src/core/layers/store';
 import { MapLayerHost } from '../src/core/map/layer';
 import { bindMapLayer } from '../src/core/map/contribution';
 import { layerPlugins } from '../src/core/layers/plugin';
 import { panelPlacement, validatePanelLayout } from '../src/core/layers/panel-layout';
 import { PANEL_LAYOUT } from '../src/workspace/panel-layout';
 import { pluginActivation, pluginContributions } from '../src/core/layers/activation';
+
+test('dependency normalization follows prerequisites even when registration order is reversed', () => {
+  const policy = pluginActivation([
+    { definition: { id: 'tip', title: 'Tip' }, requires: ['left', 'right'] },
+    { definition: { id: 'left', title: 'Left' }, requires: ['root'] },
+    { definition: { id: 'right', title: 'Right' }, requires: ['root'] },
+    { definition: { id: 'root', title: 'Root' } },
+    { definition: { id: 'independent', title: 'Independent' } },
+  ]);
+  assert.deepEqual(policy.normalize(['root']), ['tip', 'left', 'right', 'root']);
+  assert.deepEqual(policy.normalize(['left']), ['tip', 'left']);
+  assert.deepEqual(policy.change(['root', 'independent'], 'tip', true), ['independent']);
+});
+
+test('inputs distinguish absent properties from own properties with undefined values', () => {
+  const input = createLayerInput<Record<string, undefined>>();
+  input.set({ first: undefined });
+  let updates = 0;
+  const stop = input.subscribe(() => updates++);
+  input.set({ second: undefined });
+  assert.deepEqual(input.getSnapshot(), { second: undefined });
+  input.set({ second: undefined });
+  assert.equal(updates, 1);
+  stop();
+});
 
 test('loading restores prerequisites and unloading removes transitive dependents without touching other plugins', () => {
   const plugins = ['gps', 'ahrs', 'recorder', 'charts'].map(id => ({ definition: { id, title: id },
@@ -103,8 +128,8 @@ test('host reserves current tab positions and rejects collisions or missing assi
   assert.throws(() => validatePanelLayout({ other: { side: 'left', tab: { edge: 'top', order: -1 } } }), /Invalid panel placement/);
 });
 
-test('lazy map factories preserve registration order, isolate rejection, and discard a detached load', async () => {
-  const { loadMapContributions } = await import('../src/core/map/load-contributions');
+test('lazy map factories settle independently, isolate rejection, and discard a detached load', async () => {
+  const { loadMapContribution } = await import('../src/core/map/contribution');
   const controller = new AbortController();
   const context = { map: {} as MapLibreMap, signal: controller.signal, preserveView: true,
     interactiveLayerIds: () => [], occupiedRects: () => [], targetBearing: () => 0, run(_id: string, action: () => void) { action(); }, reportError() {} };
@@ -113,13 +138,12 @@ test('lazy map factories preserve registration order, isolate rejection, and dis
   const delayed = new Promise<void>(resolve => { finish = resolve; });
   const module = (id: string) => ({ id, slot: 'route' as const,
     mount() { events.push(id); }, update() {}, unmount() {} });
-  const loaded = loadMapContributions([
-    { id: 'slow', async load() { await delayed; return [module('slow')]; } },
-    { id: 'failed', load() { throw new Error('import failed'); } },
-    { id: 'fast', async load() { return [module('fast')]; } },
-  ], context);
+  const slow = loadMapContribution({ id: 'slow', async load() { await delayed; return [module('slow')]; } }, context);
+  const failed = loadMapContribution({ id: 'failed', load() { throw new Error('import failed'); } }, context);
+  const fast = await loadMapContribution({ id: 'fast', async load() { return [module('fast')]; } }, context);
+  assert.deepEqual(fast.map(value => value.id), ['fast'], 'a pending contribution does not block another');
   finish();
-  const modules = await loaded;
+  const modules = [...await slow, ...await failed, ...fast];
   assert.deepEqual(modules.map(value => value.id), ['slow', 'failed', 'fast']);
   assert.deepEqual(events, [], 'loading must not mount or acquire resources');
   const errors: string[] = [];
@@ -130,13 +154,16 @@ test('lazy map factories preserve registration order, isolate rejection, and dis
   assert.deepEqual(errors, ['failed:Error: import failed']);
   host.unmount();
   let release!: () => void;
-  const detached = loadMapContributions([{ id: 'late', async load() {
+  const detached = loadMapContribution({ id: 'late', async load() {
     await new Promise<void>(resolve => { release = resolve; }); return [module('late')];
-  } }], context);
+  } }, context);
   await Promise.resolve();
   controller.abort(); release();
   assert.deepEqual(await detached, []);
   assert.deepEqual(events, ['slow', 'fast']);
+  assert.deepEqual(await loadMapContribution({ id: 'cancelled', async load() {
+    assert.fail('cancelled factories must not start');
+  } }, context), []);
 });
 
 

@@ -1,5 +1,4 @@
-import { selectLayerStore } from '../src/core/layers/input';
-import { createLayerStore } from '../src/core/layers/store';
+import { selectLayerStore, createLayerStore } from '../src/core/layers/store';
 import { ahrsControlStatus } from '../src/layers/ahrs/control-status';
 import assert from 'node:assert/strict';
 import test from 'node:test';

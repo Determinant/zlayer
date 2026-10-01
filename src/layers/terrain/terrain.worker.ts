@@ -8,7 +8,7 @@ import { INNER_NM, segmentsForTile } from './geometry';
 import { interpolateElevation, sampledHigh, simplifyElevation } from './grid';
 import { terrainIsolines, type TerrainIsoline } from './isolines';
 import type { TerrainRequest, TerrainResult, TerrainWorker } from './types';
-import { TerrainWorkLimit } from './work-limit';
+import { TaskLimiter } from '../../core/data/task-limiter';
 import { viewportPixels } from './viewport';
 import { terrainBorder, type TerrainBorder } from './seams';
 import { terrainCorridor } from './corridor';
@@ -16,7 +16,7 @@ import { readTerrainPoint, type TerrainPointRequest } from './point-elevation';
 
 const elevation = new ElevationTiles();
 const jobs = new Map<number, AbortController>();
-const renderLimit = new TerrainWorkLimit(4);
+const renderLimit = new TaskLimiter(4);
 
 async function sample(request: TerrainPointRequest): Promise<number | null> {
   const controller = new AbortController();

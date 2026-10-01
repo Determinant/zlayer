@@ -10,7 +10,7 @@ export function createRouteHistoryStore() {
   type Lookup = ReturnType<typeof createRouteHistoryLookup>;
   let loaded: { key: string; promise: Promise<Lookup> } | undefined;
   const load = (resource: RouteHistoryResource, revision: string, requireCache = false) =>
-    fetchJson(resource.url, guard(resource, revision), 'Historical filed routes', { gzip: resource, requireCache, cacheOnly: !!resource.cacheOnly });
+    fetchJson(resource.url, guard(resource, revision), 'Historical filed routes', { gzip: resource, requireCache, policy: resource.cacheOnly ? 'cache-only' : 'cache-first' });
   return {
     async query(resource: RouteHistoryResource, revision: string, query: RouteHistoryQuery) {
       const key = JSON.stringify([revision, resource]);

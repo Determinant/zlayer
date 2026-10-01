@@ -13,7 +13,8 @@ import { isTerrainManifest, isNavigationManifest, isSha256, type NavigationManif
 import { matchesJsonIdentity } from '../../core/data/references';
 import { fetchChartCycles, isSupportedCycle } from './cycles';
 import { chartEditionCoversCycle, faaEffectiveDate } from '@zlayer/contracts';
-import { fetchJson, JsonResponseError } from '../../core/data/fetch-json';
+import { fetchJson } from '../../core/data/fetch-json';
+import { JsonResponseError } from '../../core/data/errors';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
   isStrictBounds as isBounds, hasUniqueStrings } from '@zlayer/contracts';
 
@@ -182,7 +183,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
     procedureRequest,
     load('terrain', async () => {
       try { return await fetchJson(`${chartRoot()}/terrain/manifest.json`, isTerrainManifest,
-        'Terrain manifest', { revalidate: true, requireFresh: !!options.requireFresh, ...(signal ? { signal } : {}) }); }
+        'Terrain manifest', { policy: options.requireFresh ? 'network-only' : 'network-first', ...(signal ? { signal } : {}) }); }
       catch (error) {
         if (error instanceof JsonResponseError && [404, 410].includes(error.status)) return undefined;
         throw error;
@@ -343,7 +344,7 @@ async function fetchDocument<T>(
   // A manual upload can expand the same FAA cycle; retain only a validated fallback.
   return fetchJson(url, (value): value is T => guard(value) &&
     isRecord(value) && value.effectiveDate === revision, label,
-    { revalidate: true, requireFresh, ...(signal ? { signal } : {}), ...(normalize ? { normalize } : {}) });
+    { policy: requireFresh ? 'network-only' : 'network-first', ...(signal ? { signal } : {}), ...(normalize ? { normalize } : {}) });
 }
 
 /** An added chart family must not invalidate products this client understands.

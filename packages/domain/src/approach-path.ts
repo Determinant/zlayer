@@ -1,6 +1,6 @@
 import type { ApproachCoordinate as Coordinate, ApproachFix, ApproachLeg, ApproachRoute } from '@zlayer/contracts';
 import type { ApproachDepiction } from './route-model.js';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 import { approachCourse, arrivalBearing, bearing, courseFromFix, courseIntercept, destination, holdingPattern, radiusArc } from './approach-geometry.js';
 import { approachSchematicPolicy, difference, joinCourse, joinOutboundCourse, rangeIntersection, rayIntersection, selfCrosses, turnToFix, turnToHeading } from './approach-path-geometry.js';
 

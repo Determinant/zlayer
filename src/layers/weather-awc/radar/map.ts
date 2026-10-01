@@ -1,5 +1,5 @@
 import type { Map } from 'maplibre-gl';
-import { createSourceSubmission } from '../source-submission';
+import { createSourceSubmission } from '../../../core/map/source-submission';
 import { RADAR_LEVELS, type RadarCatalog, type RadarContours, type RadarFile } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';
 import { currentRadar } from './time';

@@ -158,6 +158,12 @@ are ignored on restore. Coded saved reports retain original labels until refresh
 Raw METAR text uses the selected report's flight-category color, sharing TAF's
 palette: green VFR, blue MVFR, red IFR and magenta LIFR. Unknown categories retain
 neutral text; cached and nearby reports use their own observation's category.
+Derived METAR and TAF categories share visibility-bound handling: `M1` remains
+below 1 SM, and `P5`/`5+` remain above 5 SM at category boundaries. Reported
+distances keep their original bound for presentation; supplied METAR categories
+remain authoritative. METAR category derivation uses the same parsed distance as
+the visibility display, including numeric strings such as `.5`, `1.` and `1e0`.
+TAF retains its stricter decoded-visibility validation before applying shared bounds.
 The two rows above the raw text show Wind / Visibility, then Ceiling / Altimeter;
 there is no separate flight-category field. Missing values retain their grid slots.
 Altimeter settings come from the coded report body before `RMK`, preserving the

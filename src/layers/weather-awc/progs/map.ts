@@ -1,5 +1,5 @@
 import type { Map, ExpressionSpecification } from 'maplibre-gl';
-import { createSourceSubmission } from '../source-submission';
+import { createSourceSubmission } from '../../../core/map/source-submission';
 import type { SurfaceBoundary, SurfaceFrame, SurfacePhase } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';
 import { isSurfacePressureLabel, SURFACE_COLORS } from './palette';

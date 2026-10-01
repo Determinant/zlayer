@@ -7,8 +7,7 @@ import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 import type { Bounds, GeoPointFeature } from '@zlayer/contracts';
 import type { MapCallbacks, MapAttachment } from './inputs';
-import { loadMapContributions } from '../../core/map/load-contributions';
-import type { MapContribution, MapContributionContext } from '../../core/map/contribution';
+import { loadMapContribution, type MapContribution, type MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
 import { occupiedMapRegions } from './occupied-regions';
 import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
@@ -17,6 +16,7 @@ import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
 import { mapErrorMessage } from './errors';
 import { createViewReporter } from './view-reporter';
 import { MapNavigationControl } from './navigation-control';
+import { LayerScope } from '../../core/layers/scope';
 import { resourceErrorCode } from '../../core/data/errors';
 
 // MapLibre's default relative worker URL is not emitted by Vite's app bundler.
@@ -45,12 +45,11 @@ export class MapRuntime {
   #contributions: readonly MapContribution[] | undefined;
   readonly #attachments = new Map<MapContribution, ContributionAttachment>();
   readonly #context: Omit<MapContributionContext, 'signal' | 'preserveView'>;
-  readonly #lifetime = new AbortController();
+  readonly #scope = new LayerScope();
   readonly #layerHost: MapLayerHost;
   readonly #onReady: MapRuntimeOptions['onReady'];
   readonly #onError: MapRuntimeOptions['onError'];
   readonly #reportIdle: (idle: boolean) => void;
-  readonly #saveView: () => void;
 
   constructor(options: MapRuntimeOptions) {
     this.#onReady = options.onReady;
@@ -58,87 +57,100 @@ export class MapRuntime {
 
     // MapLibre observes and throttles container resizes itself. A second
     // observer or initial resize would repeat writes to the canvas backing size.
-    this.#map = new MapLibreMap({
-      container: options.container,
-      style: mapStyle(),
-      ...(options.initialView ?? DEFAULT_MAP_VIEW),
-      minZoom: 3,
-      maxZoom: 13,
-      attributionControl: false,
-      fadeDuration: 0,
-    });
-    const { onIdleChange } = options;
-    let idle = false;
-    this.#reportIdle = value => { if (value !== idle) { idle = value; onIdleChange?.(value); } };
-    this.#map.on('idle', () => {
-      if ([...this.#attachments.values()].every(attachment => attachment.modules)) this.#reportIdle(true);
-    });
-    this.#map.on('dataloading', () => this.#reportIdle(false));
-    this.#map.on('movestart', () => this.#reportIdle(false));
-    configureTouchRotation(this.#map.touchZoomRotate);
-    this.#layerHost = new MapLayerHost(this.#map, (id, error) => {
-      this.#onError(`${id}: ${error instanceof Error ? error.message : 'Layer unavailable'}`, resourceErrorCode(error));
-    }, () => { this.#reportIdle(false); this.#map.triggerRepaint(); });
-    this.#navigation = new MapNavigationControl(options.orientation);
-    this.#map.addControl(this.#navigation, 'top-right');
-    this.#map.addControl(
-      new CollapsedAttributionControl({ compact: true, customAttribution: 'FAA aeronautical data' }),
-      'bottom-right',
-    );
+    try {
+      this.#map = new MapLibreMap({
+        container: options.container,
+        style: mapStyle(),
+        ...(options.initialView ?? DEFAULT_MAP_VIEW),
+        minZoom: 3,
+        maxZoom: 13,
+        attributionControl: false,
+        fadeDuration: 0,
+      });
+      this.#scope.add(() => this.#map.remove());
+      const { onIdleChange } = options;
+      let idle = false;
+      this.#reportIdle = value => { if (value !== idle) { idle = value; onIdleChange?.(value); } };
+      this.#map.on('idle', () => {
+        if ([...this.#attachments.values()].every(attachment => attachment.modules)) this.#reportIdle(true);
+      });
+      this.#map.on('dataloading', () => this.#reportIdle(false));
+      this.#map.on('movestart', () => this.#reportIdle(false));
+      configureTouchRotation(this.#map.touchZoomRotate);
+      this.#layerHost = new MapLayerHost(this.#map, (id, error) => {
+        this.#onError(`${id}: ${error instanceof Error ? error.message : 'Layer unavailable'}`, resourceErrorCode(error));
+      }, () => { this.#reportIdle(false); this.#map.triggerRepaint(); });
+      this.#scope.add(() => this.#layerHost.unmount());
+      this.#navigation = new MapNavigationControl(options.orientation);
+      this.#map.addControl(this.#navigation, 'top-right');
+      this.#map.addControl(
+        new CollapsedAttributionControl({ compact: true, customAttribution: 'FAA aeronautical data' }),
+        'bottom-right',
+      );
 
-    this.#map.on('style.load', () => {
-      this.#layerHost.unmount();
-      this.#styleReady = true;
-      this.#onReady();
-      this.#installLayers();
-    });
-    this.#map.on('error', (event) => {
-      const message = mapErrorMessage(event);
-      if (message) this.#onError(message, resourceErrorCode(event.error));
-      // A terminal tile error can settle a source after its last render. Ask
-      // for the final frame/idle event so offline startup cannot stay "busy".
-      if (!idle) this.#map.triggerRepaint();
-    });
-    this.#context = {
-      map: this.#map,
-      interactiveLayerIds: () => this.#layerHost.interactiveLayerIds(),
-      occupiedRects: () => occupiedMapRegions(options.container),
-      targetBearing: () => this.#navigation.getTargetBearing(),
-      run: (id, action) => this.#layerHost.run(id, action),
-      reportError: error => this.#onError(error instanceof Error ? error.message : 'Layer unavailable', resourceErrorCode(error)),
-    };
-    this.setContributions(options.contributions, !!options.initialView);
-    // Long-lived camera listeners need callbacks, not the initial input object
-    // (which also holds a catalog, route and national navigation collections).
-    const { onViewportChange, onViewChange } = options;
-    let previousViewport: Bounds | undefined;
-    const reportViewport = () => {
-      const bounds = this.#map.getBounds();
-      const viewport: Bounds = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
-      if (previousViewport?.every((value, index) => value === viewport[index])) return;
-      previousViewport = viewport;
-      onViewportChange(viewport);
-    };
-    const viewReporter = createViewReporter(() => ({
-      center: [this.#map.getCenter().lng, this.#map.getCenter().lat],
-      zoom: this.#map.getZoom(), bearing: this.#map.getBearing(), pitch: this.#map.getPitch(),
-    }), view => onViewChange?.(view));
-    this.#saveView = viewReporter.flush;
-    window.addEventListener('pagehide', this.#saveView);
-    document.addEventListener('visibilitychange', this.#saveView);
-    this.#map.on('moveend', event => {
-      if (this.#lifetime.signal.aborted) return;
+      this.#map.on('style.load', () => {
+        this.#layerHost.unmount();
+        this.#styleReady = true;
+        this.#onReady();
+        this.#installLayers();
+      });
+      this.#map.on('error', (event) => {
+        const message = mapErrorMessage(event);
+        if (message) this.#onError(message, resourceErrorCode(event.error));
+        // A terminal tile error can settle a source after its last render. Ask
+        // for the final frame/idle event so offline startup cannot stay "busy".
+        if (!idle) this.#map.triggerRepaint();
+      });
+      this.#context = {
+        map: this.#map,
+        interactiveLayerIds: () => this.#layerHost.interactiveLayerIds(),
+        occupiedRects: () => occupiedMapRegions(options.container),
+        targetBearing: () => this.#navigation.getTargetBearing(),
+        run: (id, action) => this.#layerHost.run(id, action),
+        reportError: error => this.#onError(error instanceof Error ? error.message : 'Layer unavailable', resourceErrorCode(error)),
+      };
+      // Long-lived camera listeners need callbacks, not the initial input object
+      // (which also holds a catalog, route and national navigation collections).
+      const { onViewportChange, onViewChange } = options;
+      let previousViewport: Bounds | undefined;
+      const reportViewport = () => {
+        const bounds = this.#map.getBounds();
+        const viewport: Bounds = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+        if (previousViewport?.every((value, index) => value === viewport[index])) return;
+        previousViewport = viewport;
+        onViewportChange(viewport);
+      };
+      const viewReporter = createViewReporter(() => ({
+        center: [this.#map.getCenter().lng, this.#map.getCenter().lat],
+        zoom: this.#map.getZoom(), bearing: this.#map.getBearing(), pitch: this.#map.getPitch(),
+      }), view => onViewChange?.(view));
+      window.addEventListener('pagehide', viewReporter.flush);
+      this.#scope.add(() => window.removeEventListener('pagehide', viewReporter.flush));
+      document.addEventListener('visibilitychange', viewReporter.flush);
+      this.#scope.add(() => document.removeEventListener('visibilitychange', viewReporter.flush));
+      this.#scope.add(viewReporter.flush);
+      this.#map.on('moveend', event => {
+        if (this.#scope.signal.aborted) return;
+        reportViewport();
+        viewReporter.report((event as typeof event & { gpsCamera?: boolean }).gpsCamera === true);
+      });
+      this.#map.on('resize', reportViewport);
+      this.#scope.add(() => {
+        for (const attachment of this.#attachments.values()) attachment.controller.abort();
+        this.#attachments.clear();
+      });
+      this.setContributions(options.contributions, !!options.initialView);
       reportViewport();
-      viewReporter.report((event as typeof event & { gpsCamera?: boolean }).gpsCamera === true);
-    });
-    this.#map.on('resize', reportViewport);
-    reportViewport();
-    viewReporter.flush();
+      viewReporter.flush();
+    } catch (error) {
+      this.#scope.dispose();
+      throw error;
+    }
   }
 
   /** Reconcile on the existing map; unrelated adapters keep their live resources. */
   setContributions(contributions: readonly MapContribution[], preserveView = true): void {
-    if (this.#lifetime.signal.aborted || this.#contributions === contributions) return;
+    if (this.#scope.signal.aborted || this.#contributions === contributions) return;
     this.#contributions = contributions;
     for (const [contribution, attachment] of this.#attachments) {
       if (contributions.includes(contribution)) continue;
@@ -154,7 +166,7 @@ export class MapRuntime {
       this.#attachments.set(contribution, attachment);
       const { signal } = attachment.controller;
       // Each import settles independently. A stalled addition cannot block its peers.
-      void loadMapContributions([contribution], { ...this.#context, signal, preserveView }).then(modules => {
+      void loadMapContribution(contribution, { ...this.#context, signal, preserveView }).then(modules => {
         if (signal.aborted || this.#attachments.get(contribution) !== attachment) return;
         attachment.modules = modules;
         this.#installLayers();
@@ -166,20 +178,10 @@ export class MapRuntime {
     this.#map.flyTo({ center: feature.geometry.coordinates, zoom: 10.5, duration: 650 });
   }
 
-  destroy(): void {
-    if (this.#lifetime.signal.aborted) return;
-    this.#lifetime.abort();
-    for (const attachment of this.#attachments.values()) attachment.controller.abort();
-    this.#attachments.clear();
-    this.#saveView();
-    window.removeEventListener('pagehide', this.#saveView);
-    document.removeEventListener('visibilitychange', this.#saveView);
-    this.#layerHost.unmount();
-    this.#map.remove();
-  }
+  destroy(): void { this.#scope.dispose(); }
 
   #installLayers(): void {
-    if (!this.#styleReady || this.#lifetime.signal.aborted) return;
+    if (!this.#styleReady || this.#scope.signal.aborted) return;
     // Keep terrain visible above plates, including when either layer is refreshed.
     for (const id of [CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]) {
       if (!this.#map.getLayer(id)) this.#map.addLayer({

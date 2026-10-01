@@ -9,7 +9,7 @@ const terminalCache = new ResourceCache<TerminalProceduresData>();
 
 export function fetchTerminalProcedures(resource: TerminalProceduresResource, revision: string): Promise<TerminalProceduresData> {
   const key = JSON.stringify([revision, resource]);
-  return terminalCache.get(key, () => fetchJson(resource.url, terminalProceduresDocumentGuard(resource, revision), 'FAA terminal procedure routes', { cacheOnly: !!resource.cacheOnly }));
+  return terminalCache.get(key, () => fetchJson(resource.url, terminalProceduresDocumentGuard(resource, revision), 'FAA terminal procedure routes', { policy: resource.cacheOnly ? 'cache-only' : 'cache-first' }));
 }
 
 export function fetchPreferredRoutes(resource: PreferredRoutesResource, revision: string): Promise<PreferredRoutesData> {
@@ -17,6 +17,6 @@ export function fetchPreferredRoutes(resource: PreferredRoutesResource, revision
   return cache.get(key, () => fetchJson(resource.url,
     preferredRoutesDocumentGuard(resource, revision),
     'FAA preferred routes',
-    { cacheOnly: !!resource.cacheOnly },
+    { policy: resource.cacheOnly ? 'cache-only' : 'cache-first' },
   ));
 }

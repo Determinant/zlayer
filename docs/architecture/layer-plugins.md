@@ -51,7 +51,9 @@ external distribution, compatibility and permissions remain separate decisions.
    for an initially disabled plugin. Keep renderer imports behind `mapContribution.load`
    and separate data-only entries from UI entries.
 2. **Connect inputs and optional providers.** Receive committed workspace inputs through
-   a `createLayerInput` store when needed. For optional live integration, import another
+   a `createLayerInput` store from `core/layers/store.ts` when needed. Store creation,
+   selection and combination share that module; the React adapter stays in
+   `core/layers/use-snapshot.ts`. For optional live integration, import another
    plugin's `public.ts` types and declare `PluginExports<OwnApi, { providerId: ProviderApi }>` alongside
    `LayerPlugin` using `satisfies`; include extra factory members in that constraint,
    such as `& { input: typeof input }`. Expose stores and commands through the activation
@@ -507,7 +509,9 @@ Enabling includes prerequisites; disabling includes active dependents, named in 
 settings row. The activation policy rejects missing dependencies and cycles and
 orders cleanup before prerequisites.
 
-Saved enablement and successful activation are separate. A failed activation is
+Saved enablement and successful activation are separate. One observable activation
+snapshot owns attempted/ready/failed state; React observes it and reconciliation
+publishes the next snapshot after ordered activation and cleanup. A failed activation is
 cleaned up, shown as failed in Settings, and contributes no UI or map attachments;
 required dependents remain blocked. **Retry** retries that plugin and its failed
 prerequisites. A failure inside a `bridge.watch` setup instead marks its consumer
@@ -595,10 +599,10 @@ lifecycle failures while other contributions remain mounted. Reconciliation does
 not retry a failed adapter; disabling/re-enabling its plugin or replacing the map does.
 
 `workspace/products.ts` collects lazy map contributions from the plugins. Their
-factories construct detached adapters. The runtime calls `loadMapContributions`
-independently per contribution, with a separate cancellation signal. The loader
-isolates import failures and discards completions after disabling. Each contribution
-attaches when its own import and the map style are ready; rendering order still
+factories construct detached adapters. The runtime calls `loadMapContribution`
+from `core/map/contribution.ts` with a separate cancellation signal for each
+contribution. The loader isolates import failures and discards completions after
+disabling. Each contribution attaches when its own import and the map style are ready; rendering order still
 follows registration, not completion order.
 `bindMapLayer` binds a typed input store to an existing adapter; selectors suppress
 updates from unrelated controls. `LayerScope` provides reverse-order, idempotent
@@ -607,6 +611,25 @@ Renderer entries may use MapLibre directly; adapters own their source/layer/imag
 identities and cleanup without an exhaustive proxy API. Attachment cancellation
 must prevent stale asynchronous work from mutating a replacement attachment.
 Style/map replacement rebuilds rendering while retaining feature intent.
+
+`core/graphics/frame-task.ts` coalesces event-driven work into one requested frame,
+with explicit cancellation and immediate flushing. Ownship, terrain palettes,
+ruler dragging and the visible viewport share it. Plugins retain their input and
+validity policy: GPS validity loss and pointer-release commits remain immediate.
+This primitive creates no idle animation loop; AHRS owns its separate continuous
+display cadence and Routes starts drag-source work immediately.
+
+`core/map/source-submission.ts` owns GeoJSON acceptance, source-error invalidation
+and late-completion checks for Navigation identification and weather renderers.
+Plugins own geometry, visibility, recovery resources and admission policy;
+Navigation still permits only one pending submission and uses the latest camera
+for its successor.
+
+`core/data/task-limiter.ts` supplies one bounded, cancellable admission queue.
+`TaskLimiter.run` waits for active work and cleanup before settling, as terrain
+requires for worker jobs and allocations. `createTaskLimiter` lets a caller stop
+waiting immediately on cancellation while that same queue retains the occupied
+slot until cleanup finishes. Both remove canceled queued work before allocation.
 
 `MapRuntime` owns the map, camera persistence, orientation control and resizing.
 It receives contributions and callbacks, with no individual-feature imports.
@@ -855,7 +878,8 @@ owns station demand, refresh intervals, nearby selection, cached-report recovery
 map presentation and runway-wind behavior.
 The [AWC Weather guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
 owns advisory demand, complete family snapshots and their source-check freshness.
-Its network-only core `requestJson` helper never falls back internally; the product
+Its network-only `requestJson` helper in `core/data/request-json.ts` stays separate
+from durable reference caching and never falls back internally; the product
 retains and labels the original snapshot on failure. Advisory fills/outlines use
 the fixed `WEATHER_LAYER_ANCHOR` between terrain and route/navigation resources.
 
@@ -961,7 +985,10 @@ name an existing file namespace to migrate after successful validation/publicati
 Changing validation semantics requires a new identity. A URL alone is insufficient.
 
 Core owns bounded cached reads, shared transfer scheduling, LRU count/byte/unused-age
-cleanup, corruption repair, quota recovery and cross-window locking. Reads touch
+cleanup, corruption repair, quota recovery and cross-window locking. Downloaded,
+generated and converted legacy bytes share one validation/readiness/publication
+path. Retention decisions use one ordered inventory and clock reading; applying
+the resulting removals remains inside the publication lock. Reads touch
 only small receipts, including when clocks tie or move backward. Retention batches
 receipt headers under the publication lock and tests file presence without reading
 its body again. Publication first

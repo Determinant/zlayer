@@ -31,7 +31,7 @@ async function indexObstructions(blob: Blob, manifest: ObstructionManifest): Pro
 export type LoadedObstructions = { index: ObstructionIndex; identity: string; sourceDate?: string };
 
 export async function loadObstructions(manifestUrl: string, previous?: LoadedObstructions): Promise<LoadedObstructions> {
-  const manifest = await fetchJson(manifestUrl, isObstructionManifest, 'FAA obstructions', { revalidate: true });
+  const manifest = await fetchJson(manifestUrl, isObstructionManifest, 'FAA obstructions', { policy: 'network-first' });
   const url = new URL(manifest.dataset.path, manifestUrl).href;
   const snapshotUrl = new URL(url);
   snapshotUrl.searchParams.set('zlayer-obstruction-index', [OBSTRUCTION_INDEX_VERSION,

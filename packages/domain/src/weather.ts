@@ -120,7 +120,8 @@ function metarCategory(metar: MetarFeature, ceiling: MetarCeiling, visibility: n
   if (supplied) return supplied;
 
   const knownCeiling = ceiling.status === 'unknown' ? ceiling.upperBoundFt : ceiling.heightFt;
-  const category = flightCategoryForConditions(knownCeiling, visibility);
+  const category = flightCategoryForConditions(knownCeiling, typeof metar.properties.visib === 'string'
+    ? visibilityForCategory(visibility, metar.properties.visib) : visibility);
   // Partial observations can establish a restriction, but an unknown ceiling cannot establish VFR.
   return ceiling.status === 'unknown' && category === 'VFR' ? undefined : category;
 }
@@ -286,6 +287,16 @@ export function parseVisibility(value: string): number | undefined {
   return wholeOrFraction.includes('/')
     ? parseFraction(wholeOrFraction)
     : finiteNumber(Number.parseFloat(wholeOrFraction));
+}
+
+/** Apply bounds to an already parsed distance; each report format owns validation. */
+export function visibilityForCategory(miles: number | undefined, text: string): number | undefined {
+  if (miles === undefined) return undefined;
+  const value = text.trim().toUpperCase();
+  // Preserve strict inequalities at category boundaries, e.g. M1 is LIFR.
+  const epsilon = Math.max(1, miles) * Number.EPSILON * 4;
+  return value.startsWith('M') ? Math.max(0, miles - epsilon)
+    : value.startsWith('P') || value.endsWith('+') ? miles + epsilon : miles;
 }
 
 function parseFraction(value: string): number | undefined {

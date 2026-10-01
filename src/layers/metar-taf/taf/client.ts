@@ -3,7 +3,7 @@ import { isTafReport, type PointGeometry, type TafReport } from '@zlayer/contrac
 import { normalizeIdentifier } from '@zlayer/domain';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
-import { weatherCheckedAt } from '../../../core/data/fetch-json';
+import { weatherCheckedAt } from '../../../core/data/request-json';
 
 export const TAF_REFRESH_MS = 5 * 60_000;
 const cacheSlot = pluginStorage.slot('tafs', 'zlayers.tafs.v1');

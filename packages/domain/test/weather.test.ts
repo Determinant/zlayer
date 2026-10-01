@@ -73,6 +73,22 @@ test('derives the most restrictive FAA category from ceiling and visibility', ()
   assert.equal(metarFlightCategory(metar({ id: 'KEEE', visib: '1 1/2' })), 'IFR');
 });
 
+test('derived METAR categories use the displayed visibility and preserve its bounds', () => {
+  for (const [visib, category, distance] of [
+    ['M1', 'LIFR', 1], ['M3', 'IFR', 3], ['P5', 'VFR', 5], ['5+', 'VFR', 5],
+    ['1', 'IFR', 1], ['3', 'MVFR', 3], ['5', 'MVFR', 5], ['1 1/2', 'IFR', 1.5],
+    ['.5', 'LIFR', 0.5], ['  .5  ', 'LIFR', 0.5], ['1.', 'IFR', 1], ['1e0', 'IFR', 1],
+    ['M1.', 'LIFR', 1], ['P5e0', 'VFR', 5], ['5.+', 'VFR', 5],
+  ] as const) {
+    const report = metar({ visib, clouds: [{ cover: 'BKN', base: 50 }] });
+    assert.equal(metarFlightCategory(report), category, visib);
+    const properties = metarWeatherProperties(report);
+    assert.equal(properties.flightCategory, category, visib);
+    assert.equal(properties.metarVisibilitySm, distance, 'presentation retains the reported bound');
+  }
+  assert.equal(metarFlightCategory(metar({ visib: 'M1', fltcat: 'IFR' })), 'IFR', 'supplied categories remain authoritative');
+});
+
 test('decoded METAR ceilings retain GeoJSON units, the lowest ceiling layer, and vertical visibility', () => {
   const cases: [MetarFeature['properties'], number][] = [
     [{ ceil: 9, clouds: [{ cover: 'OVC', base: 20 }] }, 900],

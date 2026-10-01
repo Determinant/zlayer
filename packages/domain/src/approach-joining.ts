@@ -1,7 +1,7 @@
 import type { ApproachLeg, ApproachRoute } from '@zlayer/contracts';
 import { approachCourse, bearing } from './approach-geometry.js';
 import { difference } from './approach-path-geometry.js';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 
 /** Join a feeder to the inbound approach, never to a later missed occurrence of
  * the same fix. A reversal may reference a station lying on the inbound course

@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePersistentState } from '../ui/use-persistent-state';
 import { pluginActivation, pluginContributions } from './activation';
 import type { LayerPlugin } from './plugin';
+import { createLayerStore } from './store';
+import { useLayerSnapshot } from './use-snapshot';
 
 export type PluginControl = {
   id: string; title: string; enabled: boolean; loaded: boolean;
@@ -21,9 +23,10 @@ export function usePlugins(plugins: readonly LayerPlugin[]) {
   const [saved, setSaved] = usePersistentState<string[]>('plugins-unloaded', [], validUnloaded);
   const unloaded = useMemo(() => new Set(policy.normalize(saved)), [policy, saved]);
   const requested = useMemo(() => plugins.filter(plugin => !unloaded.has(plugin.definition.id)), [plugins, unloaded]);
-  // null means activation succeeded; a string records a failed attempt until retry.
-  const attempts = useRef(new Map<LayerPlugin, string | null>());
-  const [states, setStates] = useState<ReadonlyMap<LayerPlugin, string | null>>(() => new Map());
+  // One committed snapshot owns attempts; null means ready, a string means failed.
+  // Reconciliation edits a local copy, then publishes it to both runtime and UI.
+  const [attempts] = useState(() => createLayerStore<ReadonlyMap<LayerPlugin, string | null>>(new Map()));
+  const states = useLayerSnapshot(attempts);
   const active = useMemo(() => {
     const unavailable = new Set(policy.normalize([...unloaded,
       ...plugins.filter(plugin => states.get(plugin) !== null).map(plugin => plugin.definition.id)]));
@@ -45,7 +48,7 @@ export function usePlugins(plugins: readonly LayerPlugin[]) {
   }, [plugins]);
   // Child attachment effects detach map/UI resources before feature cleanup.
   useEffect(() => {
-    const current = attempts.current;
+    const current = new Map(attempts.getSnapshot());
     const unavailable = new Set(policy.normalize([...unloaded,
       ...plugins.filter(plugin => current.get(plugin) !== null).map(plugin => plugin.definition.id)]));
     const reportCleanup = (plugin: LayerPlugin, reason: unknown) =>
@@ -68,16 +71,15 @@ export function usePlugins(plugins: readonly LayerPlugin[]) {
       }
     }
     // Retain prerequisite order even when an earlier plugin was re-enabled later.
-    attempts.current = new Map(policy.activationOrder.filter(plugin => current.has(plugin))
-      .map(plugin => [plugin, current.get(plugin)!]));
-    setStates(new Map(attempts.current));
-  }, [requested, policy, plugins, unloaded]);
+    attempts.publish(new Map(policy.activationOrder.filter(plugin => current.has(plugin))
+      .map(plugin => [plugin, current.get(plugin)!])));
+  }, [requested, policy, plugins, unloaded, attempts]);
   useEffect(() => () => {
-    for (const [plugin, failure] of [...attempts.current].reverse()) {
+    for (const [plugin, failure] of [...attempts.getSnapshot()].reverse()) {
       if (failure === null) disposePlugin(plugin, error => console.error(error));
     }
-    attempts.current.clear();
-  }, []);
+    attempts.publish(new Map());
+  }, [attempts]);
   return {
     ...contributions, error,
     isLoaded: (id: string) => loadedIds.has(id),
@@ -99,11 +101,13 @@ export function usePlugins(plugins: readonly LayerPlugin[]) {
         // Reuse enable for explicit retry, including failed prerequisites. Healthy
         // providers keep their connections; unrelated failures are left alone.
         const excluded = new Set(policy.change(plugins.map(plugin => plugin.definition.id), id, true));
-        for (const [plugin, failure] of attempts.current) {
+        const current = new Map(attempts.getSnapshot());
+        for (const [plugin, failure] of current) {
           if (excluded.has(plugin.definition.id)) continue;
-          if (failure !== null) attempts.current.delete(plugin);
+          if (failure !== null) current.delete(plugin);
           else plugin.communication?.retryFailed?.();
         }
+        attempts.publish(current);
       }
       setSaved(current => policy.change(current, id, loaded));
     },

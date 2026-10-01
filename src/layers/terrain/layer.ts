@@ -1,6 +1,7 @@
 import { addProtocol, removeProtocol, type ErrorEvent, type Map as MapLibreMap } from 'maplibre-gl';
 import type { RoutePlan } from '@zlayer/domain';
 import { WorkerClient } from '../../core/data/worker-client';
+import { createFrameTask } from '../../core/graphics/frame-task';
 import { observeOfflineInventory } from '../../offline/inventory-events';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { contourInterval, MIN_TERRAIN_ZOOM, terrainTileZoom } from './detail';
@@ -43,7 +44,6 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   let coverageKey = '';
   let published: TerrainVectors[] | undefined;
   let vectorTimer: ReturnType<typeof setTimeout> | undefined;
-  let colorFrame: number | undefined;
   let appliedAltitude: number | null | undefined, appliedInterval: number | undefined;
   const tileUrl = import.meta.env?.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL;
   const url = () => `${protocol}://tiles/${revision}/{z}/{x}/{y}`;
@@ -66,17 +66,17 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   // Retain it until recovery so returning to an unresolved gap still warns.
   const hasVisibleFailure = () => [...coverage.keys()].some(key => failedTiles.has(key));
   const hasMissingVectors = () => mode() === 'route' && [...coverage.keys()].some(key => !tiles.has(key));
+  const colors = createFrameTask(() => {
+    if (!map) return;
+    appliedAltitude = input.altitude ?? null; appliedInterval = interval;
+    syncTerrainAltitude(map, appliedAltitude, interval, mode());
+  });
   const syncColors = () => {
     if (!map) return;
     const altitude = input.altitude ?? null;
     if (altitude === appliedAltitude && interval === appliedInterval) return;
     // Coalesce slider events to at most one palette/layout update per frame.
-    if (colorFrame === undefined) colorFrame = requestAnimationFrame(() => {
-      colorFrame = undefined;
-      if (!map) return;
-      appliedAltitude = input.altitude ?? null; appliedInterval = interval;
-      syncTerrainAltitude(map, appliedAltitude, interval, mode());
-    });
+    colors.schedule();
   };
   const syncVectors = () => {
     if (!map || mode() === 'viewport') return;
@@ -253,8 +253,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       corridor.clear(); corridorKey = ''; workerError = undefined;
       revision++; cancel(); client?.dispose(); client = undefined;
       clearTimeout(vectorTimer); vectorTimer = undefined; tiles.clear(); coverage.clear(); coverageKey = ''; published = undefined;
-      if (colorFrame !== undefined) cancelAnimationFrame(colorFrame);
-      colorFrame = undefined; appliedAltitude = undefined; appliedInterval = undefined;
+      colors.cancel(); appliedAltitude = undefined; appliedInterval = undefined;
       window.removeEventListener('online', retry);
       stopObservingInventory?.(); stopObservingInventory = undefined;
       if (map) {

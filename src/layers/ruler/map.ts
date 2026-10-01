@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { MapLayerModule } from '../../core/map/layer';
 import { LayerScope } from '../../core/layers/scope';
+import { createFrameTask } from '../../core/graphics/frame-task';
 import type { RulerEndpoint, RulerLayer, RulerSnapshot } from './layer';
 import { createRulerRenderer, RULER_LAYER_IDS } from './renderer';
 import { suggestedEnd, type ScreenPoint, type ScreenRect } from './handles';
@@ -46,10 +47,13 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
   let obstacles: ScreenRect[] = [];
   const findObstacles = () => { obstacles = occupiedRects(); };
   const draw = () => view.draw(product.getSnapshot(), obstacles, drag);
-  let dragFrame: number | undefined, pendingPoint: ScreenPoint | undefined;
+  let pendingPoint: ScreenPoint | undefined;
+  const dragFrame = createFrameTask(() => {
+    const latest = pendingPoint; pendingPoint = undefined;
+    if (latest) move(latest);
+  });
   const discardMove = () => {
-    if (dragFrame !== undefined) cancelAnimationFrame(dragFrame);
-    dragFrame = undefined; pendingPoint = undefined;
+    dragFrame.cancel(); pendingPoint = undefined;
   };
   const move = (next: ScreenPoint) => {
     if (!drag) return;
@@ -115,11 +119,7 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
     event.preventDefault();
     if (Math.hypot(next.x - drag.origin.x, next.y - drag.origin.y) > 2) drag.moved = true;
     pendingPoint = next;
-    dragFrame ??= requestAnimationFrame(() => {
-      dragFrame = undefined;
-      const latest = pendingPoint; pendingPoint = undefined;
-      if (latest) move(latest);
-    });
+    dragFrame.schedule();
   }, { passive: false });
   listen(window, 'pointerup', (event: PointerEvent) => {
     if (drag?.id === event.pointerId) {
