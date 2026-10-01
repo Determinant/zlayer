@@ -16,12 +16,9 @@ export function pluginActivation(plugins: readonly LayerPlugin[]) {
   for (const id of byId.keys()) visit(id);
   const normalize = (unloaded: readonly string[]) => {
     const disabled = new Set(unloaded.filter(id => byId.has(id)));
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const plugin of plugins) if (!disabled.has(plugin.definition.id) && plugin.requires?.some(id => disabled.has(id))) {
-        disabled.add(plugin.definition.id); changed = true;
-      }
+    // Prerequisites precede dependents, so one pass includes every transitive disable.
+    for (const plugin of activationOrder) {
+      if (plugin.requires?.some(id => disabled.has(id))) disabled.add(plugin.definition.id);
     }
     return [...byId.keys()].filter(id => disabled.has(id));
   };

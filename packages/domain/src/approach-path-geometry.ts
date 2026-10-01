@@ -1,6 +1,6 @@
 import type { ApproachCoordinate as Coordinate } from '@zlayer/contracts';
 import { bearing, destination } from './approach-geometry.js';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 
 /** One deterministic drawing policy. These dimensions are not a performance model. */
 export const approachSchematicPolicy = Object.freeze({ version: 5, climbNm: 1.5, turnRadiusNm: .7, maxExtentNm: 100,

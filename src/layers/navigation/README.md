@@ -34,8 +34,11 @@ Search ranks navigation independently of weather and enriches only the returned
 airport matches. Observation updates cannot rescore national navigation data.
 Navaid identification skips unchanged projected geometry and allows one source
 submission at a time; subsequent movement uses the latest camera after acceptance.
-Source errors invalidate visual reuse, including when MapLibre resolves the failed
-submission; the next input or camera update can retry unchanged geometry.
+Core’s [`source-submission.ts`](../../core/map/source-submission.ts) owns source
+acceptance and error invalidation; Navigation retains geometry identity and its
+one-at-a-time submission queue. Source errors invalidate visual reuse, including
+when MapLibre resolves the failed submission; the next input or camera update can
+retry unchanged geometry.
 Unmounting removes the error listener and invalidates pending completions.
 Geographic connections and projected label placement retain their existing meaning
 through camera movement.

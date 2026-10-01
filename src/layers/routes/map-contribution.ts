@@ -2,7 +2,7 @@ import { PluginScope } from '../../core/layers/bridge';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
-import type { createLayerInput } from '../../core/layers/input';
+import type { createLayerInput } from '../../core/layers/store';
 import type { RouteEditingStore, RoutePluginInput } from './plugin';
 import type { RouteMapEditing } from './public';
 import { createRouteLayer } from './layer';

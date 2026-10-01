@@ -1,7 +1,7 @@
 export { terminalConstraint } from './procedure-constraints.js';
 import type { ApproachLeg, CodedTerminalBranch, CodedTerminalProcedure, TerminalProceduresData } from '@zlayer/contracts';
 import { resolveApproachLegs } from './approach-path.js';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 import { terminalFixFeature as approachFixFeature } from './terminal-fixes.js';
 import { terminalIndex } from './terminal-index.js';
 import type { RouteTerminal } from './route-model.js';

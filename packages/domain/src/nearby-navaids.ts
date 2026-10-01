@@ -1,5 +1,5 @@
 import type { GeoPointFeature, PointGeometry } from '@zlayer/contracts';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 import { isMonVor } from './mon-vors.js';
 import { normalizeNavaidType } from './navaids.js';
 export { MON_VOR_REFERENCE_DATE } from './mon-vors.js';

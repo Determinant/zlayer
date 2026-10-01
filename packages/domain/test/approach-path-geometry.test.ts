@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { arrivalBearing, bearing, destination } from '../src/approach-geometry.js';
 import { difference, joinCourse, rangeIntersection, rayIntersection, selfCrosses, turnToFix, turnToHeading } from '../src/approach-path-geometry.js';
-import { distanceNm } from '../src/route.js';
+import { distanceNm } from '../src/geographic.js';
 import type { ApproachCoordinate as Coordinate } from '@zlayer/contracts';
 
 test('a permitted return crossing exempts only its exact segment pair', () => {

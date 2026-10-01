@@ -1,5 +1,5 @@
 import type { ApproachCoordinate as Coordinate, ApproachLeg, ApproachRoute } from '@zlayer/contracts';
-import { distanceNm, geographicMidpoint } from './route.js';
+import { distanceNm, geographicMidpoint } from './geographic.js';
 
 const radians = Math.PI / 180;
 export function bearing(a: Coordinate, b: Coordinate): number {

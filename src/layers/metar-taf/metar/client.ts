@@ -8,7 +8,7 @@ import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDi
 
 import { withAbort } from '../../../core/data/abort';
 import { createTaskLimiter } from '../../../core/data/task-limiter';
-import { weatherCheckedAt } from '../../../core/data/fetch-json';
+import { weatherCheckedAt } from '../../../core/data/request-json';
 
 export { observationTime, reportStationId };
 

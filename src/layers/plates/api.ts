@@ -14,7 +14,7 @@ export async function fetchProcedureCatalog(
     resource.url,
     procedureCatalogGuard(resource),
     'FAA procedure catalog',
-    { cacheOnly: !!resource.cacheOnly, requireFresh: requireFresh && !resource.jsonSha256 },
+    { policy: resource.cacheOnly ? 'cache-only' : requireFresh && !resource.jsonSha256 ? 'network-only' : 'cache-first' },
   );
   // Published hashes already pin immutable catalogs; mutable legacy metadata must revalidate.
   return requireFresh && !resource.jsonSha256 ? load() : procedureCatalogCache.get(key, load);

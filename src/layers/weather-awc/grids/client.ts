@@ -1,5 +1,5 @@
 import { isAwcGridManifest, isRecord, type AwcGridProduct } from '@zlayer/contracts';
-import { requestJson } from '../../../core/data/fetch-json';
+import { requestJson } from '../../../core/data/request-json';
 import { FORECAST_CACHE_BYTES, pluginStorage } from '../storage';
 import { decodeGrid, gridKey, type DecodedGrid } from './format';
 import { HRRR_DOWNLOAD_ROOT, isNativeManifest, type ForecastManifest, type ForecastFrame } from './native-source';

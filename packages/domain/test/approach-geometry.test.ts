@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bearing, courseIntercept, holdingEntry } from '../src/approach-geometry.js';
-import { distanceNm } from '../src/route.js';
+import { distanceNm } from '../src/geographic.js';
 import type { ApproachCoordinate, ApproachLeg, ApproachRoute } from '@zlayer/contracts';
 
 test('Napa intercept preserves both published courses with magnetic or true coding', () => {

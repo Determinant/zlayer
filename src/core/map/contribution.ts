@@ -21,6 +21,22 @@ export type MapContribution = {
   load(context: MapContributionContext): Promise<readonly MapLayerModule<void>[]>;
 };
 
+/** Load one detached contribution; the runtime owns independent attachment and order. */
+export async function loadMapContribution(contribution: MapContribution, context: MapContributionContext): Promise<readonly MapLayerModule<void>[]> {
+  // Let synchronous setup finish or cancel before constructing adapters.
+  await Promise.resolve();
+  if (context.signal.aborted) return [];
+  try {
+    const modules = await contribution.load(context);
+    return context.signal.aborted ? [] : [...modules];
+  } catch (error) {
+    if (context.signal.aborted) return [];
+    // Report import failures through the same host boundary as mount failures.
+    return [{ id: contribution.id, slot: 'navigation',
+      mount() { throw error; }, update() {}, unmount() {} }];
+  }
+}
+
 /** Bind only this feature's input store; the map host guards subscription updates. */
 export function bindMapLayer<T>(layer: MapLayerModule<T>, input: LayerStore<T>): MapLayerModule<void> {
   return {

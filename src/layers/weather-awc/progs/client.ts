@@ -1,5 +1,5 @@
 import { isRecord, isSha256, isSurfaceSnapshot, isSurfaceCatalog, isSurfaceArtifact, surfacePositions, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES, type SurfaceProduct, type SurfaceSnapshot, type SurfaceCatalog, type SurfaceArtifact, type SurfaceFrame } from '@zlayer/contracts';
-import { requestJson } from '../../../core/data/fetch-json';
+import { requestJson } from '../../../core/data/request-json';
 import { pluginStorage } from '../storage';
 import { preparedJson } from '../prepared-file';
 

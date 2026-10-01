@@ -1,5 +1,5 @@
 import type { ApproachFix, GeoPointFeature } from '@zlayer/contracts';
-import { distanceNm } from './route.js';
+import { distanceNm } from './geographic.js';
 
 /** Published reference rounding only; a shared name does not establish identity. */
 export const TERMINAL_FIX_TOLERANCE_NM = 0.01;

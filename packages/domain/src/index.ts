@@ -1,5 +1,6 @@
 export * from './airways.js';
 export * from './route.js';
+export * from './geographic.js';
 export * from './route-model.js';
 export * from './route-sequence.js';
 export * from './approaches.js';

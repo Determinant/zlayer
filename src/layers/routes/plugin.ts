@@ -1,10 +1,9 @@
 import { pluginStorage } from './storage';
 import { emptyRoutePlan, type RoutePlan } from '@zlayer/domain';
-import { createLayerStore } from '../../core/layers/store';
+import { createLayerStore, createLayerInput, selectLayerStore } from '../../core/layers/store';
 import type { RoutesApi, RouteMapEditing, RouteEditingActions } from './public';
 import type { PluginExports } from '../../core/layers/bridge';
 import type { RouteMapPreview } from './map-preview';
-import { createLayerInput, selectLayerStore } from '../../core/layers/input';
 import type { LayerPlugin } from '../../core/layers/plugin';
 
 export type RoutePluginInput = {

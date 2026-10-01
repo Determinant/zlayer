@@ -89,7 +89,7 @@ export async function fetchNavigation(
   return navigationViews.get(cacheKey, async () => {
     const source = await navigationSources.get(JSON.stringify([revision, layer.url, layer.jsonSha256,
       layer.sourceCount, layer.cacheOnly]),
-      () => fetchJson(layer.url, navigationDocumentGuard(layer, revision), `Navigation layer ${layer.id}`, { cacheOnly: !!layer.cacheOnly }));
+      () => fetchJson(layer.url, navigationDocumentGuard(layer, revision), `Navigation layer ${layer.id}`, { policy: layer.cacheOnly ? 'cache-only' : 'cache-first' }));
     const selected = layer.subset ? source.features.filter(feature =>
       (feature.properties.kind === 'vfr-waypoint') === (layer.subset === 'vfr-waypoints')) : source.features;
     if (layer.subset && selected.length !== layer.count) throw new Error(`Navigation ${layer.id} count disagrees with fixes`);
@@ -124,7 +124,7 @@ export async function fetchAirways(
     resource.url,
     airwayDocumentGuard(resource, revision),
     'FAA airways',
-    { cacheOnly: !!resource.cacheOnly },
+    { policy: resource.cacheOnly ? 'cache-only' : 'cache-first' },
   ));
 }
 

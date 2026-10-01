@@ -6,7 +6,7 @@ import type { GeoPointFeature, NavigationData } from '@zlayer/contracts';
 import type { FixMapContext } from './fix-display';
 import type { NavaidIdentification } from './identification-layer';
 import { NavigationControls, type NavigationControlsInput } from './controls';
-import { createLayerInput, selectLayerStore } from '../../core/layers/input';
+import { createLayerInput, selectLayerStore } from '../../core/layers/store';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { bindMapLayer } from '../../core/map/contribution';

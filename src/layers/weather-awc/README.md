@@ -30,8 +30,8 @@ Time, filter, catalog and altitude changes invalidate the relevant result.
 Only the selected product tab mounts its controls. Advisory shown counts use one
 accepted-ID set, and a closed, empty inspection does not scan chart features.
 
-GeoJSON renderers use `source-submission.ts` for source acceptance, error
-invalidation and stale completions. Each renderer still builds its own geometry,
+GeoJSON renderers use core’s [`source-submission.ts`](../../core/map/source-submission.ts)
+for source acceptance, error invalidation and stale completions. Each renderer still builds its own geometry,
 layers and recovery resources. A failed source is recreated before retrying;
 neither a late completion nor an error event may claim that old geometry is shown.
 

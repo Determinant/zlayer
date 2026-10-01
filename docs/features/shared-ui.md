@@ -228,9 +228,9 @@ storage events synchronize open windows. Full local-data reset removes the choic
 Changing appearance updates CSS and browser chrome without recreating the map,
 reloading data, or disturbing open panels, route edits or camera state.
 
-`core/theme/palette.ts` owns dark seeds and semantic roles; `color.ts` derives the
-light palette in OKLab, preserving hue and reducing chroma to fit sRGB. Surface
-depth reverses into pale cool tones; text and focus/accent tones become dark enough
+`tools/theme/palette.ts` owns dark seeds and semantic roles; its sibling `color.ts`
+derives the light palette in OKLab, preserving hue and reducing chroma to fit sRGB.
+Surface depth reverses into pale cool tones; text and focus/accent tones become dark enough
 for light surfaces. Light panels are opaque to isolate text from chart content.
 Light elevation shadows keep their ink with reduced opacity; modal scrims and
 explicitly fixed colors retain their original values. Decorative dark gradients

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { selectLayerStore } from '../../core/layers/input';
+import { selectLayerStore } from '../../core/layers/store';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import type { OwnshipLayer, OwnshipSnapshot } from './layer';
 import { GPS_MOTION_ACCURACY_METERS } from '../../core/gps/position';

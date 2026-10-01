@@ -1,5 +1,5 @@
 import type { Map, ExpressionSpecification } from 'maplibre-gl';
-import { createSourceSubmission } from './source-submission';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import { WEATHER_LAYER_ANCHOR, type MapLayerModule } from '../../core/map/layer';
 import { shadedGrid, type WeatherState, type WeatherController } from './controller';
 import { mountGridMap } from './grids/map';

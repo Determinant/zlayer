@@ -1,5 +1,5 @@
 import type { Map } from 'maplibre-gl';
-import { createSourceSubmission } from '../source-submission';
+import { createSourceSubmission } from '../../../core/map/source-submission';
 import type { FeatureCollection, Feature } from 'geojson';
 import type { RadarMotionCatalog, RadarMotionSnapshot } from '@zlayer/contracts';
 import type { WeatherController } from '../controller';

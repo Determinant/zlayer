@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { palettes, themeCss } from '../src/core/theme/palette';
+import { palettes, themeCss } from './theme/palette';
 
 const logo = await readFile(new URL('../public/logo.svg', import.meta.url), 'utf8');
 const outputs = [

@@ -1,8 +1,9 @@
 import type { FeatureCollection, LineString, Point } from 'geojson';
-import { MercatorCoordinate, type ErrorEvent, type ExpressionSpecification, type GeoJSONSource, type Map as MapLibreMap } from 'maplibre-gl';
+import { MercatorCoordinate, type ExpressionSpecification, type Map as MapLibreMap } from 'maplibre-gl';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { greatCircleCoordinates, NEARBY_VOR_MAP_LIMIT, radialReference, type NearbyVor, type RadialPosition } from '@zlayer/domain';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import { REFERENCE_LINE_COLOR as COLOR, REFERENCE_LINE_HALO, REFERENCE_LINE_PAINT } from '../../core/map/reference-line';
 import { formatNavaidRadial, formatNavaidTrueBearing } from './nearby-navaids-format';
 
@@ -98,32 +99,23 @@ const geometryIdentity = (data: FeatureCollection) => JSON.stringify(data,
 export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentification> {
   let map: MapLibreMap | undefined;
   let input: NavaidIdentification;
-  let submitted = '', pending = false, dirty = false, generation = 0;
-  const sourceFailed = (event: ErrorEvent & { sourceId?: string }) => {
-    if (event.sourceId !== SOURCE) return;
-    // MapLibre can emit an error and still resolve setData. Retry on the next
-    // input/camera update without releasing an outstanding submission early.
-    submitted = ''; dirty = false;
-  };
+  let submitted = '', pending = false, dirty = false;
+  let submission: ReturnType<typeof createSourceSubmission> | undefined;
   const refresh = () => {
-    if (!map) return;
+    if (!map || !submission) return;
     dirty = true;
     if (pending) return;
     dirty = false;
     const data = identificationGeoJson(input, map), identity = geometryIdentity(data);
     if (identity === submitted) return;
-    const source = map.getSource(SOURCE) as GeoJSONSource | undefined;
-    if (!source) return;
+    if (!map.getSource(SOURCE)) return;
     submitted = identity; pending = true;
-    const version = generation;
+    const source = submission, version = source.begin();
     // Keep at most one worker submission active; its successor uses the latest camera.
-    let result: ReturnType<GeoJSONSource['setData']>;
-    try { result = source.setData(data); }
-    catch { submitted = ''; pending = false; return; }
-    void Promise.resolve(result)
-      .catch(() => { if (version === generation) { submitted = ''; dirty = false; } })
+    void source.submit(version, data)
+      .catch(error => source.reject(version, error))
       .finally(() => {
-        if (version !== generation) return;
+        if (submission !== source) return;
         pending = false;
         if (dirty) refresh();
       });
@@ -135,7 +127,11 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
       map = target;
       const data = identificationGeoJson(input, map);
       submitted = geometryIdentity(data);
-      map.on('error', sourceFailed);
+      submission = createSourceSubmission(map, SOURCE, () => {
+        // Retain the outstanding worker call; retry on the next input/camera update.
+        submitted = ''; dirty = false;
+      });
+      submission.begin();
       map.addSource(SOURCE, { type: 'geojson', data });
       map.addLayer({ id: 'navaid-id-halo', type: 'line', source: SOURCE, filter: ['==', '$type', 'LineString'],
         ...REFERENCE_LINE_HALO, paint: { ...REFERENCE_LINE_HALO.paint, 'line-color': trim } });
@@ -167,9 +163,9 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
       refresh();
     },
     unmount() {
-      generation++; pending = false; dirty = false; submitted = '';
+      submission?.destroy(); submission = undefined;
+      pending = false; dirty = false; submitted = '';
       if (map) {
-        map.off('error', sourceFailed);
         map.off('move', move);
         removeLayerResources(map, LAYERS, [SOURCE]);
       }

@@ -8,6 +8,7 @@
 src/                   React/Vite PWA: product layers, shared core, workspace shell
 public/                static app assets
 tools/weather-server/  Node TypeScript AWC/NOMADS cache gateway
+tools/theme/           build-time palette definitions and color derivation
 test/                  unit tests, browser fixtures and Playwright regressions
 tools/                 import checks, local proxies, offline shell and boundary builder
 packages/contracts/    shared data types and runtime document guards

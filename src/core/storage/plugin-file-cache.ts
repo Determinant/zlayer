@@ -165,6 +165,15 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
       // depending on wall-clock monotonicity. Old receipts sort before new ones.
       entries.sort((a, b) => a.sequence - b.sequence);
     }
+    const plan = retentionPlan(entries, key, bytes, Date.now(), retention, protectedLegacy);
+    for (const entry of plan.removals) await remove(entry.stores, entry.key, signal);
+    if (!plan.fits) throw new Error('Plugin file budget exhausted');
+    return plan;
+  }
+
+  /** Decide against one ordered inventory; the caller owns locks and mutations. */
+  function retentionPlan(entries: readonly Entry[], key: string, bytes: number, now: number,
+    retention?: FileRetention, protectedLegacy?: MigrationSource) {
     const sequence = entries.reduce((max, entry) => Math.max(max, entry.sequence), 0) + 1;
     const limits = retention ? groupLimits(retention.group)! : budget;
     const keep = new Set(retention?.keep);
@@ -176,28 +185,28 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     let total = others.reduce((sum, entry) => sum + entry.bytes, bytes), count = others.length + 1;
     let localBytes = others.filter(entry => entry.stores.name === cacheName).reduce((sum, entry) => sum + entry.bytes, bytes);
     let localCount = others.filter(entry => entry.stores.name === cacheName).length + 1;
-    const retained: Entry[] = [];
+    const retained: Entry[] = [], removals: Entry[] = [];
     for (const entry of others) {
       if (protectedLegacy && entry.stores.name === protectedLegacy.cache && entry.key.url === protectedLegacy.key) continue;
       if (protectedFile(entry) || retention?.cohort && entry.cohort === retention.cohort) continue;
       const local = entry.stores.name === cacheName;
-      if (Date.now() - entry.used > (local ? Math.min(policy.maxUnusedMs, limits?.maxUnusedMs ?? Infinity) : limits!.maxUnusedMs)
+      if (now - entry.used > (local ? Math.min(policy.maxUnusedMs, limits?.maxUnusedMs ?? Infinity) : limits!.maxUnusedMs)
         || local && (localBytes > policy.maxBytes || localCount > policy.maxEntries)
         || limits && (total > limits.maxBytes || count > limits.maxEntries)) {
-        await remove(entry.stores, entry.key, signal); total -= entry.bytes; count--;
+        removals.push(entry); total -= entry.bytes; count--;
         if (local) { localBytes -= entry.bytes; localCount--; }
       } else retained.push(entry);
     }
     // A protected migration source stays intact if both copies cannot fit.
-    if (localBytes > policy.maxBytes || localCount > policy.maxEntries ||
-      limits && (total > limits.maxBytes || count > limits.maxEntries)) throw new Error('Plugin file budget exhausted');
+    const fits = localBytes <= policy.maxBytes && localCount <= policy.maxEntries &&
+      (!limits || total <= limits.maxBytes && count <= limits.maxEntries);
     // Category saves may reclaim disposable/default files on actual browser
     // quota pressure, but no category is a victim of another category.
     const disposable = retention ? entries.filter(entry => !groupLimits(entry.group) &&
       (entry.stores.name !== cacheName || entry.key.url !== key) &&
       !protectedFile(entry) &&
       !(protectedLegacy && entry.stores.name === protectedLegacy.cache && entry.key.url === protectedLegacy.key)) : [];
-    return { victims: [...disposable, ...retained], sequence };
+    return { removals, victims: [...disposable, ...retained], sequence, fits };
   }
 
   async function acquire<T>(request: CacheRequest<T>, key: string, signal: AbortSignal, locks: LockManager | undefined, ready: (value: T) => void): Promise<PluginFileResult<T>> {
@@ -230,6 +239,23 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
         }), signal);
       } catch { signal.throwIfAborted(); return false; }
     };
+    const decode = async (bytes: ArrayBuffer): Promise<T> => {
+      const value = await request.validate(bytes, signal);
+      signal.throwIfAborted();
+      ready(value);
+      return value;
+    };
+    // Downloads, producers and converted legacy bytes share one acceptance path.
+    const accept = async (result: ArrayBuffer | { value: T }, legacy?: MigrationSource): Promise<PluginFileResult<T>> => {
+      signal.throwIfAborted();
+      if (!(result instanceof ArrayBuffer)) return { value: result.value, saved: false };
+      const fits = result.byteLength > 0 && result.byteLength <= policy.maxFileBytes;
+      if (!fits && !legacy) throw new Error(`${request.label} exceeds its file cache limits`);
+      const value = await decode(result);
+      const saved = fits && await publish(result, legacy);
+      signal.throwIfAborted();
+      return { value, saved };
+    };
     const read = async (cache: Cache | undefined, savedKey: string, legacy = false): Promise<PluginFileResult<T> | undefined> => {
       let response: Response | undefined;
       let bodyRead = false;
@@ -241,9 +267,7 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
         const bytes = await optionalStorage(storageSignal => readBytes(response!, size, storageSignal, request.label), signal);
         bodyRead = true;
         if ('create' in request && await digest(bytes) !== response.headers.get(DIGEST)) throw new Error('Cached artifact checksum mismatch');
-        const value = await request.validate(bytes, signal);
-        signal.throwIfAborted();
-        ready(value);
+        const value = await decode(bytes);
         let saved = true;
         if (legacy) {
           if (await publish(bytes, { cache: policy.legacyCache!, key: savedKey })) await optionalStorage(storageSignal => locks!.request(publicationLock,
@@ -289,17 +313,12 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
         const cache = await optionalStorage(async () => globalThis.caches?.open(legacy.cache), signal);
         response = await optionalStorage(async () => cache?.match(legacy.key), signal, discardResponseBody);
         if (!response) continue;
-        const bytes = await legacy.convert(response, signal, ready);
-        signal.throwIfAborted();
-        if (!(bytes instanceof ArrayBuffer)) return { value: bytes.value, saved: false };
-        const value = await request.validate(bytes, signal);
-        ready(value);
-        const saved = bytes.byteLength > 0 && bytes.byteLength <= policy.maxFileBytes && await publish(bytes, legacy);
-        if (saved) await optionalStorage(storageSignal => locks!.request(publicationLock, { signal: storageSignal }, () => {
+        const result = await accept(await legacy.convert(response, signal, ready), legacy);
+        if (result.saved) await optionalStorage(storageSignal => locks!.request(publicationLock, { signal: storageSignal }, () => {
           storageSignal.throwIfAborted(); return cache!.delete(legacy.key);
         }), signal).catch(() => {});
         signal.throwIfAborted();
-        return { value, saved };
+        return result;
       } catch { signal.throwIfAborted(); /* Keep old bytes until a replacement is saved. */ }
       finally { discardResponseBody(response); }
     }
@@ -311,29 +330,9 @@ export function createPluginFileCache(pluginId: string, name: string, policy: Pl
     }
     signal.throwIfAborted();
     if (request.cacheOnly) throw new Error(`${request.label} is not saved for offline use`);
-    if ('create' in request) {
-      const bytes = await request.create(signal, ready);
-      signal.throwIfAborted();
-      if (!(bytes instanceof ArrayBuffer)) return { value: bytes.value, saved: false };
-      if (!bytes.byteLength || bytes.byteLength > policy.maxFileBytes) throw new Error(`${request.label} exceeds its file cache limits`);
-      const value = await request.validate(bytes, signal);
-      signal.throwIfAborted();
-      ready(value);
-      const saved = await publish(bytes);
-      signal.throwIfAborted();
-      return { value, saved };
-    }
+    if ('create' in request) return accept(await request.create(signal, ready));
     return transferFile({ url: request.url, label: request.label, byteLength: request.byteLength, signal,
-      retries: request.retries ?? 0 }, async ({ blob }) => {
-      const bytes = await blob.arrayBuffer(); // Acquisition already enforced the declared bound.
-      signal.throwIfAborted();
-      const value = await request.validate(bytes, signal);
-      signal.throwIfAborted();
-      ready(value);
-      const saved = await publish(bytes);
-      signal.throwIfAborted();
-      return { value, saved };
-    });
+      retries: request.retries ?? 0 }, async ({ blob }) => accept(await blob.arrayBuffer()));
   }
 
   function load<T>(request: CacheRequest<T>): Promise<PluginFileResult<T>> {

@@ -1,6 +1,6 @@
 import { isRadarMotionCatalog, isRadarMotionSnapshot, RADAR_MOTION_MAX_BYTES,
   type RadarMotionCatalog, type RadarMotionFile, type RadarMotionSnapshot } from '@zlayer/contracts';
-import { requestJson } from '../../../core/data/fetch-json';
+import { requestJson } from '../../../core/data/request-json';
 import { pluginStorage } from '../storage';
 import { preparedJson } from '../prepared-file';
 

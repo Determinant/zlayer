@@ -1,6 +1,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { createSHA256 } from 'hash-wasm';
 import { InvalidDataError, ResourceError } from '../data/errors';
+import { TaskLimiter } from '../data/task-limiter';
 import { discardResponseBody } from './response';
 import type { ArtifactIdentity } from './verification-receipt';
 
@@ -23,8 +24,8 @@ export async function readArtifact<T>(cache: Pick<Cache, 'match'> | undefined, k
   } finally { discardResponseBody(response); }
 }
 
-let activeHashes = 0;
-const waitingHashes: Array<() => void> = [];
+const hashes = new TaskLimiter(2);
+const hashSignal = new AbortController().signal;
 const blobDigests = new WeakMap<Blob, Promise<string>>();
 
 /** Blobs are immutable. Share work by the actual byte object, never by URL or
@@ -32,7 +33,7 @@ const blobDigests = new WeakMap<Blob, Promise<string>>();
 export function blobSha256(blob: Blob): Promise<string> {
   const prior = blobDigests.get(blob);
   if (prior) return prior;
-  const request = hashBlob(blob);
+  const request = hashes.run(hashSignal, () => hashBlob(blob));
   blobDigests.set(blob, request);
   void request.catch(() => { blobDigests.delete(blob); });
   return request;
@@ -41,8 +42,6 @@ export function blobSha256(blob: Blob): Promise<string> {
 /** Hash a book/archive without making a second, whole-file ArrayBuffer. Bound
  * both each allocation and concurrent verifications in this page/worker. */
 async function hashBlob(blob: Blob): Promise<string> {
-  if (activeHashes >= 2) await new Promise<void>(resolve => waitingHashes.push(resolve));
-  else activeHashes++;
   let hash: Awaited<ReturnType<typeof createSHA256>> | ReturnType<typeof sha256.create> | undefined;
   try {
     // WASM verifies large books/archives without spending seconds in JavaScript
@@ -56,8 +55,6 @@ async function hashBlob(blob: Blob): Promise<string> {
     return typeof digest === 'string' ? digest : Array.from(digest, value => value.toString(16).padStart(2, '0')).join('');
   } finally {
     if (hash && 'destroy' in hash) hash.destroy();
-    const next = waitingHashes.shift();
-    if (next) next(); else activeHashes--;
   }
 }
 

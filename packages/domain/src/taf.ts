@@ -1,5 +1,5 @@
 import type { FlightCategory, TafForecast, TafReport } from '@zlayer/contracts';
-import { flightCategoryForConditions, parseVisibility } from './weather.js';
+import { flightCategoryForConditions, parseVisibility, visibilityForCategory } from './weather.js';
 
 export type TafLine = {
   text: string;
@@ -115,13 +115,8 @@ function conditionsFor(forecast: TafForecast, text: string, base: Conditions): C
 
 function tafVisibility(text: string): number | undefined {
   const value = text.trim().toUpperCase().replace(/\s+/g, ' ');
-  if (!/^[MP]?(?:\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\+?$/.test(value)) return undefined;
-  const miles = parseVisibility(value);
-  if (miles === undefined) return undefined;
-  // Preserve strict inequalities at category boundaries, e.g. M1 is LIFR.
-  const epsilon = Math.max(1, miles) * Number.EPSILON * 4;
-  return value.startsWith('M') ? Math.max(0, miles - epsilon)
-    : value.startsWith('P') || value.endsWith('+') ? miles + epsilon : miles;
+  return /^[MP]?(?:\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\+?$/.test(value)
+    ? visibilityForCategory(parseVisibility(value), value) : undefined;
 }
 
 function categoryFor({ ceiling, visibility }: Conditions): FlightCategory | undefined {

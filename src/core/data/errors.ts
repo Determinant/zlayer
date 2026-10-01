@@ -12,6 +12,10 @@ export class ResourceError extends Error {
   }
 }
 
+export class JsonResponseError extends ResourceError {
+  constructor(message: string, readonly status: number) { super('http', message); }
+}
+
 export class InvalidDataError extends ResourceError {
   constructor(message: string, options?: ErrorOptions) { super('invalid-data', message, options); }
 }

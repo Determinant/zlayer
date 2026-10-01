@@ -2,7 +2,7 @@ import { emptyRoutePlan } from '@zlayer/domain';
 import type { MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
 import type { MapSelectionInput } from '../../core/map/selection';
-import type { createLayerInput } from '../../core/layers/input';
+import type { createLayerInput } from '../../core/layers/store';
 import { PluginScope, type PluginBridge } from '../../core/layers/bridge';
 import type { RoutesApi, RouteMapEditing, RouteEditingActions } from '../../layers/routes/public';
 import type { RulerApi } from '../../layers/ruler/public';

@@ -14,7 +14,7 @@ import { radarFixture } from './fixtures/radar';
 import { createWeatherController, forecastPreparation, type WeatherState } from '../src/layers/weather-awc/controller';
 import { createWeatherSelectors, forecastChanges } from '../src/layers/weather-awc/selection';
 import { weatherAwcPreferences } from '../src/layers/weather-awc/preferences';
-import { requestJson, weatherCheckedAt } from '../src/core/data/fetch-json';
+import { requestJson, weatherCheckedAt } from '../src/core/data/request-json';
 import { createWeatherMap, ADVISORY_LAYERS } from '../src/layers/weather-awc/map';
 import { WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../src/core/map/layer';
 import type { Map as MapLibreMap } from 'maplibre-gl';

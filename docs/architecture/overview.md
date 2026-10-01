@@ -52,7 +52,10 @@ Device Motion API ────────────────────�
   committed feature inputs to observable stores; map adapters subscribe to their
   feature's inputs. `MapRuntime.setContributions` reconciles plugin map contributions
   on that same map, with independent loading and cancellation. Focus and route
-  fitting remain explicit commands.
+  fitting remain explicit commands. Map construction registers resources in a
+  core cleanup scope as they are acquired. Failed setup and normal shutdown share
+  that scope, releasing pending contributions, camera-save listeners, layers and
+  the map even if another cleanup fails.
 - A product catalog maps stable IDs to raster/vector/GeoJSON assets and styles.
 - Runtime guards reject malformed catalogs, navigation collections, and weather
   documents at the network boundary.
@@ -77,7 +80,10 @@ Startup resolves committed metadata first, then checks saved-file health in the
 background. Missing bytes cannot change edition ownership.
 
 Immutable reference loaders use `ResourceCache` for in-flight coalescing, bounded
-retention and retry after failure. Navigation caches raw exports before deriving
+retention and retry after failure. Durable JSON reads choose one policy:
+`cache-first`, `network-first` with a validated fallback, `network-only` for a
+required refresh, or `cache-only` for legacy saved references. Required persistence
+and pinning the validated response are independent of that read policy. Navigation caches raw exports before deriving
 coverage views. Route planning and recommendations share resource loading and reuse
 resolvers for identical inputs while preserving their distinct product/retry policies.
 `WorkerClient` owns RPC deadlines, error/messageerror handling and termination for

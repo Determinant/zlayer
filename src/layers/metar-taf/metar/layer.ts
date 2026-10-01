@@ -2,7 +2,7 @@ import type { Map as MapLibreMap, MapSourceDataEvent, MapLibreEvent } from 'mapl
 import type { FeatureCollectionResponse, GeoPointFeature } from '@zlayer/contracts';
 import { isAirportFeature, latestMetarObservation, mergeMetarsIntoAirports, setFlightCategoryDisplay } from '@zlayer/domain';
 
-import type { ProductLayer } from '../../../core/layers/product';
+import type { LayerDefinition } from '../../../core/layers/plugin';
 import { type MapLayerModule, removeLayerResources } from '../../../core/map/layer';
 import { createLayerStore } from '../../../core/layers/store';
 import { createMetarClient, METAR_REFRESH_MS, type MetarClient, type MetarSnapshot } from './client';
@@ -184,7 +184,7 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     },
   };
   return {
-    definition: { id: 'metar', title: 'METAR/TAF' } satisfies ProductLayer['definition'],
+    definition: { id: 'metar', title: 'METAR/TAF' } satisfies LayerDefinition,
     client, map: layer, getSnapshot: store.getSnapshot, subscribe: store.subscribe,
   };
 }

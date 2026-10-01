@@ -2,7 +2,7 @@ import { createRulerLayer } from './layer';
 import { RulerTool } from './controls';
 import type { RulerApi } from './public';
 import type { PluginExports } from '../../core/layers/bridge';
-import { createLayerInput, selectLayerStore } from '../../core/layers/input';
+import { createLayerInput, selectLayerStore } from '../../core/layers/store';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 
