@@ -118,7 +118,7 @@ test('validates procedure catalogs and exact combined-volume pages', () => {
     },
     volumes: [{
       id: 'SW2',
-      url: '/chart-data/2026-09-03/tpp-sw2.pdf',
+      url: 'tpp-sw2.pdf',
       byteLength: 130_373_606,
       sha256: 'b'.repeat(64),
       pageCount: 560,

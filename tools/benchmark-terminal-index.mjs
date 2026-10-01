@@ -7,9 +7,13 @@ if (!directory || !output) throw Error('Expected nav directory and output JSON')
 const manifest = JSON.parse(readFileSync(resolve(directory, 'manifest.json')));
 const read = id => JSON.parse(readFileSync(resolve(directory, manifest.products.find(p => p.id === id).file)));
 const terminal = read('terminal-procedures');
+const sharedFixes = manifest.schemaVersion === 3 ? read('fixes') : undefined;
 const collections = ['airports', 'fixes', 'vfr-waypoints', 'navaids'].map(layer => {
-  const data = read(layer);
-  return { ...data, meta: { layer, revision: manifest.effectiveDate, returned: data.features.length, truncated: false } };
+  const data = sharedFixes && (layer === 'fixes' || layer === 'vfr-waypoints') ? sharedFixes : read(layer);
+  const features = sharedFixes && (layer === 'fixes' || layer === 'vfr-waypoints')
+    ? data.features.filter(feature => (feature.properties.kind === 'vfr-waypoint') === (layer === 'vfr-waypoints'))
+    : data.features;
+  return { ...data, features, meta: { layer, revision: manifest.effectiveDate, returned: features.length, truncated: false } };
 });
 const airport = collections[0].features.find(f => f.properties.icaoId === 'KVGT');
 if (!airport) throw Error('KVGT fixture unavailable');

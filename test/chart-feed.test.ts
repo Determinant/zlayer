@@ -4,6 +4,8 @@ import test from 'node:test';
 import { fetchChartCatalog, isInsideChartCoverage } from '../src/workspace/catalog/catalog';
 import { resource as historyResource } from './helpers/route-history';
 import { cacheFixture } from './helpers/cache';
+import { fetchNavigation } from '../src/layers/navigation/api';
+import { jsonIdentity } from '../src/core/data/json-identity';
 
 for (const layout of ['flat-packages', 'packages', 'mbtiles', 'legacy-404', 'legacy-410', 'legacy-cors'] as const) {
   test(`consumes all published chart identities from the ${layout} layout`, async () => {
@@ -284,4 +286,42 @@ test('versioned publication retains publisher identities, coverage and associati
   const second = await fetchChartCatalog('2026-09-03');
   assert.deepEqual(second.navigation, first.navigation);
   assert.equal(second.terminalProcedures?.url, first.terminalProcedures?.url);
+});
+
+test('schema 3 shares one fixes export between IFR fixes and VFR waypoints', async t => {
+  cacheFixture(t);
+  const revision = '2026-09-03';
+  const data = { type: 'FeatureCollection', metadata: { effectiveDate: revision, source: 'FAA NASR' }, features: [
+    { type: 'Feature', id: 'fix:VPABC', geometry: { type: 'Point', coordinates: [-122, 37] },
+      properties: { kind: 'vfr-waypoint', ident: 'VPABC' } },
+    { type: 'Feature', id: 'fix:IFRXY', geometry: { type: 'Point', coordinates: [-121, 38] },
+      properties: { kind: 'fix', ident: 'IFRXY' } },
+  ] };
+  const hash = 'a'.repeat(64), coverage = { departures: 0, arrivals: 0, approaches: 0, unavailableApproaches: 0,
+    codedDepartures: 0, codedArrivals: 0, sourceLegs: { departure: 0, arrival: 0, approach: 0 },
+    exportedLegs: { departure: 0, arrival: 0, approach: 0 }, continuationRecords: 0,
+    exportedContinuations: 0, unresolvedReferences: 0 };
+  const products = ['airports', 'fixes', 'navaids', 'airways', 'preferred-routes', 'terminal-procedures', 'magnetic-model']
+    .map(id => ({ id, file: `${id}.${hash}.json`, sha256: hash, bytes: 1, jsonSha256: id === 'fixes' ? jsonIdentity(data) : hash,
+      count: id === 'fixes' ? 2 : 0,
+      ...(id === 'fixes' ? { vfrWaypointCount: 1 } : {}),
+      ...(id === 'terminal-procedures' ? { schemaVersion: 2, coverage } : {}) }));
+  let fixesRequests = 0;
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith('/nav/manifest.json')) return Response.json({ schemaVersion: 3, effectiveDate: revision,
+      generatedAt: '2026-09-30T00:00:00Z', products });
+    if (url.includes('/nav/fixes.')) { fixesRequests++; return Response.json(data); }
+    return new Response(null, { status: 404 });
+  });
+  const catalog = await fetchChartCatalog(revision);
+  assert.equal(catalog.issues.some(issue => issue.product === 'navigation'), false, JSON.stringify(catalog.issues));
+  const fixes = catalog.navigation.find(layer => layer.id === 'fixes')!;
+  const waypoints = catalog.navigation.find(layer => layer.id === 'vfr-waypoints')!;
+  assert.equal(fixes.url, waypoints.url);
+  assert.deepEqual([fixes.count, waypoints.count, fixes.sourceCount, waypoints.sourceCount], [1, 1, 2, 2]);
+  const [ifr, vfr] = await Promise.all([fetchNavigation(fixes, revision, []), fetchNavigation(waypoints, revision, [])]);
+  assert.deepEqual(ifr.features.map(feature => feature.id), ['fix:IFRXY']);
+  assert.deepEqual(vfr.features.map(feature => feature.id), ['fix:VPABC']);
+  assert.equal(fixesRequests, 1);
 });

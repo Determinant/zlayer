@@ -311,7 +311,7 @@ current navigation, preferred/TEC routes, SID/STAR topology and packaged history
 local dated rebuilds use the source options in [contracts](../data/contracts.md).
 Build missing supplement metadata with
 `npm run build:supplements -- --effective-date=YYYY-MM-DD`; publish
-`cs/catalog.json` alongside `cs-*.pdf`. Existing PDFs alone do not provide airport/page
+`cs/catalog.json` alongside `cs/cs-*.pdf`. Existing PDFs alone do not provide airport/page
 lookup. A missing supplement index must not hide working procedures.
 
 The routes, terrain and ownship fixtures also participate in the production-build

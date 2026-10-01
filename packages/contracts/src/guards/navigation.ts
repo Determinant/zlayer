@@ -39,6 +39,8 @@ export function isFeatureCollectionResponse(
 export function isNavigationLayerRecord(value: unknown): value is NavigationLayerRecord {
   if (!isRecord(value)) return false;
   return isNavigationLayerId(value.id) &&
+    (value.subset === undefined || value.id === 'vfr-waypoints' && value.subset === 'vfr-waypoints' ||
+      value.id === 'fixes' && value.subset === 'other-fixes') &&
     isNonEmptyString(value.title) &&
     isNonNegativeInteger(value.count) &&
     isNonNegativeInteger(value.sourceCount) &&

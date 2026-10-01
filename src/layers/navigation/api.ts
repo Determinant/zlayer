@@ -87,11 +87,14 @@ export async function fetchNavigation(
   }
   const cacheKey = navigationRequestKey(layer, revision, charts);
   return navigationViews.get(cacheKey, async () => {
-    const source = await navigationSources.get(JSON.stringify([revision, layer]),
+    const source = await navigationSources.get(JSON.stringify([revision, layer.url, layer.jsonSha256,
+      layer.sourceCount, layer.cacheOnly]),
       () => fetchJson(layer.url, navigationDocumentGuard(layer, revision), `Navigation layer ${layer.id}`, { cacheOnly: !!layer.cacheOnly }));
-    const features = source.features.filter((feature) =>
-      charts.length === 0 || isInsideChartCoverage(feature.geometry.coordinates, charts)
-    );
+    const selected = layer.subset ? source.features.filter(feature =>
+      (feature.properties.kind === 'vfr-waypoint') === (layer.subset === 'vfr-waypoints')) : source.features;
+    if (layer.subset && selected.length !== layer.count) throw new Error(`Navigation ${layer.id} count disagrees with fixes`);
+    const features = selected.filter(feature =>
+      charts.length === 0 || isInsideChartCoverage(feature.geometry.coordinates, charts));
     const collection: FeatureCollectionResponse = {
       type: 'FeatureCollection',
       features,
@@ -107,7 +110,9 @@ export async function fetchNavigation(
 }
 
 export function navigationRequestKey(layer: NavigationLayerRecord, revision: string, charts: readonly ChartRecord[], scope?: CatalogReadSource): string {
-  return JSON.stringify([revision, layer.id, layer.url, layer.jsonSha256, layer.cacheOnly, layer.sourceCount, charts.map(chart => chart.bounds), scope ? regionalCatalogKey(scope) : undefined]);
+  return JSON.stringify([revision, layer.id, layer.url, layer.jsonSha256, layer.cacheOnly,
+    layer.sourceCount, layer.count, layer.subset, charts.map(chart => chart.bounds),
+    scope ? regionalCatalogKey(scope) : undefined]);
 }
 
 export async function fetchAirways(

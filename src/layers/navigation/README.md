@@ -8,6 +8,9 @@ navigation data readers remain usable independently of this plugin’s enablemen
 
 This plugin owns FAA airport, NAVAID, fix and VFR-waypoint data, airway loading,
 search, airport/runway/frequency details, map symbols and navaid identification.
+With navigation manifest schema 3, IFR fixes and VFR waypoints share the publisher's
+`fixes` file. Each view filters by `properties.kind`; the manifest supplies the VFR
+count, and the parsed source is shared in memory.
 Search and route resolution retain access to navigation data independently of
 background map visibility. Weather observations belong to the
 [METAR/TAF plugin](../metar-taf/README.md); route editing and procedure selection

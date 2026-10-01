@@ -19,6 +19,8 @@ export function supplementSnapshot(catalog: ChartSupplementCatalog, region: Offl
 }
 
 export function requiredSupplementTargets(catalog: ChartSupplementCatalog, region: OfflineRegion, identifiers: ReadonlySet<string>) {
+  if (catalog.schemaVersion === 3) return catalog.airports.filter(airport =>
+    airport.state === region.title.toUpperCase() || identifiers.has(airport.faaId));
   if (!catalog.expected) throw new Error('Chart Supplement coverage is unavailable. Refresh the published index before saving this region.');
   const expected = catalog.expected.filter(target => target.state === region.title.toUpperCase() || identifiers.has(target.faaId));
   const available = new Set(catalog.airports.map(supplementTargetKey));

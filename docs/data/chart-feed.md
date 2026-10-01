@@ -14,6 +14,7 @@ come from each edition's validated manifests.
 - [Legacy sheet manifest](#legacy-sheet-manifest)
 - [Identity and caching](#identity-and-caching)
 - [Publication and transport rules](#publication-and-transport-rules)
+- [Navigation and supplement exports](#navigation-and-supplement-exports)
 
 ## Date discovery and selection
 
@@ -235,15 +236,32 @@ validated on both network and offline reads. Incompatible schemas or packaging
 still require coordinated publisher and consumer changes. Previously deployed
 clients with stricter family guards require a compatible feed until updated.
 
-### Navigation rebuilds within a cycle
+### Navigation and supplement exports
 
-Navigation and airway URLs include the navigation manifest's `generatedAt` value as
-`?v=...`. Rebuilding a cycle gives its data a new cache key, so newly added runway
-fields cannot be hidden by an earlier cached airport file. The application checks
-manifests against the network on reload. The page's validated loader owns navigation
+Navigation manifest schema 3 lists content-addressed files. Its `fixes` product
+contains all FAA fixes and includes `vfrWaypointCount`. ZLayer uses the same verified
+file for IFR fixes and VFR waypoints, selecting records by `properties.kind`. The
+source ZIPs, excluded-row coverage, and CIFP text stay in the publisher's local
+`dist/sources/<cycle>/nav/` cache. Source identities remain in the manifest.
+
+Immutable navigation URLs use their hashed filenames; a rebuild with changed bytes
+gets a new URL. The application checks manifests against the network on reload.
+The page's validated loader owns navigation
 manifest revalidation and offline fallback; the service worker passes those requests
 through even when browser settings override their cache mode. Versioned navigation
 exports remain in the shared durable cache for ordinary map movement and offline use.
+
+Chart Supplement catalog schema 3 lists only airport page targets in the available
+regional PDF books. Regional downloads save those targets and their exact book
+identities as one snapshot. The former full FAA `expected` target list is not part of
+the published catalog.
+
+Published TPP volumes live at `charts/<cycle>/tpp/tpp-*.pdf`, and Chart Supplement
+volumes live at `charts/<cycle>/cs/cs-*.pdf`. Each catalog's `volumes[].url` is
+relative to its catalog file: TPP books use their filename, the Pacific TPP target
+uses `../cs/cs-pac.pdf`, and supplement books use their filename. The app resolves
+those URLs from the catalog, including when a catalog uses a book from an earlier
+edition.
 
 Publish the rebuilt navigation data files before `nav/manifest.json`. A page reload
 then discovers the new export. Publishing only the frontend cannot add fields that
@@ -252,8 +270,7 @@ are absent from the data feed.
 ### Optional magnetic model
 
 The AHRS HSI looks for a `magnetic-model` product in the browsing cycle's
-`nav/manifest.json`. Its `file` is relative to `nav/`; the request uses the same
-`?v=<generatedAt>` versioning as other navigation exports. The loader checks the
+`nav/manifest.json`. Its hashed `file` is relative to `nav/`. The loader checks the
 document's `effectiveDate` against the requested cycle and its coefficient count
 against the manifest. A missing or invalid model leaves the HSI in true-north mode.
 

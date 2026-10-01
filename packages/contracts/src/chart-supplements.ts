@@ -17,7 +17,7 @@ export type ChartSupplementAirport = {
 };
 
 export type ChartSupplementCatalog = {
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
   builderVersion: number;
   effectiveDate: string;
   expirationDate: string;
@@ -46,7 +46,7 @@ export function bookUrl(volume: ChartSupplementVolume, catalogUrl: string): stri
 const REGIONS = new Set(['AK', 'EC', 'NC', 'NE', 'NW', 'PAC', 'SC', 'SE', 'SW']);
 
 export function isChartSupplementCatalog(value: unknown, revision?: string): value is ChartSupplementCatalog {
-  if (!record(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !count(value.builderVersion) ||
+  if (!record(value) || ![1, 2, 3].includes(value.schemaVersion as number) || !count(value.builderVersion) ||
       !date(value.effectiveDate) || !date(value.expirationDate) || value.expirationDate <= value.effectiveDate ||
       (revision !== undefined && (revision < value.effectiveDate || revision >= value.expirationDate)) ||
       !text(value.generatedAt) || !Number.isFinite(Date.parse(value.generatedAt)) ||
@@ -71,7 +71,7 @@ export function isChartSupplementCatalog(value: unknown, revision?: string): val
     targets.add(key);
   }
   if (!targets.size) return false;
-  if (value.schemaVersion === 1) return value.expected === undefined;
+  if (value.schemaVersion === 1 || value.schemaVersion === 3) return value.expected === undefined;
   if (!Array.isArray(value.expected) || !value.expected.length || !value.expected.every(isSupplementTarget)) return false;
   const expected = new Map(value.expected.map(target => [supplementTargetKey(target), target.state]));
   return expected.size === value.expected.length && value.airports.every(airport => expected.get(supplementTargetKey(airport)) === airport.state);

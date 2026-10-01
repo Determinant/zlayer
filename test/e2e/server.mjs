@@ -278,7 +278,7 @@ const server = createServer(async (request, response) => {
     } else if (path === '/__test/update-supplement') {
       const url = '/chart-data/2026-09-03/cs/catalog.json';
       const catalog = JSON.parse(originalFixtures.get(url).body);
-      const body = Buffer.concat([originalFixtures.get('/chart-data/2026-09-03/book.pdf').body, Buffer.from('\n')]);
+      const body = Buffer.concat([originalFixtures.get('/chart-data/2026-09-03/cs/book.pdf').body, Buffer.from('\n')]);
       catalog.generatedAt = '2026-09-17T00:00:00Z';
       Object.assign(catalog.volumes[0], { url: '../updated-book.pdf', byteLength: body.length,
         sha256: createHash('sha256').update(body).digest('hex') });

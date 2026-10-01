@@ -548,6 +548,8 @@ zero-based page indexes. Printed page labels are display metadata, never viewer
 indexes. The validator rejects duplicate/unknown books, duplicate airport/page
 targets, invalid hashes, and out-of-range pages. The CS validity interval must
 contain the selected chart revision; it need not equal the shorter TPP interval.
+Schema 3 publishes only targets backed by available regional books. Offline selections
+save that target set and the matching PDF identities as one snapshot.
 
 ## Radar observations and history
 
