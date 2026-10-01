@@ -363,6 +363,12 @@ test('supplement metadata coalesces, revalidates, retries missing feeds, and nev
   assert.equal(a, b);
   assert.deepEqual(a, supplements);
   assert.equal(requests, 2);
+  const corrected = { ...supplements, generatedAt: '2026-09-04T00:00:00Z',
+    volumes: supplements.volumes.map(volume => ({ ...volume, sha256: 'd'.repeat(64),
+      url: `cs-sw.${'d'.repeat(64)}.pdf` })) };
+  globalThis.fetch = async () => { requests++; return Response.json(corrected); };
+  assert.deepEqual(await fetchChartSupplements('2026-09-03'), corrected);
+  assert.equal(requests, 3, 'a successful read must not pin a mutable catalog for the session');
 });
 
 test('rejects failed or invalid supplement feeds and allows retry', async (t) => {

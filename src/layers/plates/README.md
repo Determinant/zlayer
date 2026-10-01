@@ -136,6 +136,10 @@ advice. Unselected books are not eagerly loaded on map startup; a restored reade
 or on-map plate can load its exact saved book. Every airport using a book shares its
 content-addressed URL; the selected page is independent of that cache key. Pacific
 procedures and supplements pointing at the same book likewise share one stored file.
+Mutable Chart Supplement metadata coalesces concurrent reads, then revalidates on
+later opens and main-catalog refreshes. A cached offline fallback or failed legacy
+snapshot preservation is retried on the next read. Committed region snapshots keep
+their exact targets and books until an explicit verified update activates.
 
 FAA PDF fallback needs same-origin/CORS-readable delivery. Vite provides
 `/faa-procedures/<cycle>/<filename>.PDF` locally; production needs the equivalent

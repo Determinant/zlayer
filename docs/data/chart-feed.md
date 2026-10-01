@@ -289,8 +289,11 @@ the published catalog.
 
 Published TPP volumes live at `charts/<cycle>/tpp/tpp-*.pdf`, and Chart Supplement
 volumes live at `charts/<cycle>/cs/cs-*.pdf`. Each catalog's `volumes[].url` is
-relative to its catalog file: TPP books use their filename, the Pacific TPP target
-uses `../cs/cs-pac.pdf`, and supplement books use their filename. The app resolves
+relative to its catalog file. New books include their SHA-256 in the filename
+(`tpp-sw2.<sha256>.pdf`, `cs-sw.<sha256>.pdf`); the Pacific TPP target uses
+`../cs/cs-pac.<sha256>.pdf`. Older catalogs can still use the original fixed filenames.
+The publisher keeps mutable downloads in `sources/` and retains published PDF bytes
+at their original URLs, including corrections within a single edition. The app resolves
 those URLs from the catalog, including when a catalog uses a book from an earlier
 edition. A procedure target can refer to volume `CN` in the current change-notice
 PDF while its airport's regional volume remains in the earlier base edition. Both
