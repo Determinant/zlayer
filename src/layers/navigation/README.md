@@ -40,6 +40,53 @@ Unmounting removes the error listener and invalidates pending completions.
 Geographic connections and projected label placement retain their existing meaning
 through camera movement.
 
+## Airport frequencies
+
+Info leads with elevation and longest runway, then groups radio services in this
+order: weather broadcasts (ATIS/D-ATIS/AWOS/ASOS), **CD** (clearance delivery),
+**Ground**, **Tower / CTAF**, **Approach**, **App / Dep** (a published combined
+service), **Departure**, and **Center**. Missing services are omitted. Tower and CTAF combine
+only when their displayed channels, facilities, sectors and secondary status match;
+otherwise they stay separate.
+Separate and combined approach/departure records retain their published roles.
+The publisher keeps legacy services in `frequencies[]` and adds the new services
+in optional `terminalFrequencies[]`. Center records use optional `centerFrequencies[]`
+so clients that already validate the terminal service enum remain compatible.
+Info combines all three lists for display; older PWAs ignore unknown extensions.
+
+Terminal and Center channels show their servicing facility's published radio call
+or name beside the frequency (for example, SOCAL, NORCAL or OAKLAND). A facility
+identifier is the fallback when its name is unavailable. When distinct providers
+share a published name, append their identifiers to keep both entries identifiable.
+Names remain associated
+with each channel and its notes, including equal frequencies served by different
+facilities. Center rows retain the published altitude/sector, and their disclosures
+include the RCAG site/use and remarks. Only Center frequencies explicitly associated
+with the airport are included; proximity and the airport's responsible Center do
+not establish a frequency assignment. The publisher resolves provider names from
+its own facility records; an airport's primary approach call can name a different
+facility and must not be reused blindly for secondary services or Center channels.
+
+Summaries and expanded notes share structured channel data and the same number,
+unit and context renderer; display strings are never parsed back into fields.
+Within each service, VHF channels lead and primary channels precede secondary channels, with published
+sectors and secondary status visible beside each channel. Precision is retained
+to three decimal places. Each service's chevron opens its remarks, qualified uses
+(including Tower/Ground `IC`, pre-taxi clearance and weather subtypes), and additional UHF channels. Notes for multiple
+channels, including a single VHF channel with additional UHF alternatives, retain
+their frequency, sector and secondary status so restrictions stay
+associated with the correct channel. Combined Tower / CTAF notes label each channel’s
+service explicitly. UHF-only services remain visible in the summary.
+FAA `TOWER_HRS` is labeled **Tower hours** only under Tower; it is not a schedule
+for the other services. A schedule shared by every Tower record appears once;
+conflicting or partially missing schedules stay attached to their channels.
+The [frequency contract](../../../docs/data/contracts.md#feature)
+defines source identity, supported types and compatibility with older exports.
+
+`test/feature-details.test.ts` covers service ordering, precision and note attribution;
+`test/e2e/airport-summary.spec.ts` covers map/search selection, disclosures, responsive
+layout and offline restoration.
+
 ## Behavior, contracts and verification
 
 - Selected features use core's `DetailPanel`, shared with weather advisories, for
