@@ -134,9 +134,9 @@ test('flat ground at high latitude keeps the expected physical glide distance an
       const bounds: [number, number, number, number] = [-.1, latitude - .1, .1, latitude + .1];
       const result = await planner.calculate({ id: 1, viewport: boundsViewport(bounds), altitude, ratio, ownship: origin,
         airports: [], segments: [], sources: [], sourceKey: 'flat', base: '', tileUrl: '' }, new AbortController().signal);
-      assert.equal(result.ownshipIncomplete, false); assert.equal(result.ownship.features.length, 1);
+      assert.equal(result.ownship!.incomplete, false); assert.equal(result.ownship!.line.features.length, 1);
       const ideal = (altitude - 200) * ratio / FEET_PER_NM;
-      for (const coordinate of result.ownshipArea.features.flatMap(f => f.geometry.coordinates.flat(2))) {
+      for (const coordinate of result.ownship!.area.features.flatMap(f => f.geometry.coordinates.flat(2))) {
         const point = project(coordinate as Point), radius = Math.hypot(point[0] - center[0], point[1] - center[1]);
         let distance = 0;
         for (let i = 0; i < 100; i++) distance += radius * nmPerWorldUnit(center[1] + (point[1] - center[1]) * (i + .5) / 100) / 100;

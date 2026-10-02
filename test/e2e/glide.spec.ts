@@ -241,8 +241,10 @@ test('ownship ring stays distinct, reuses airport geometry, and responds to rout
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
 
-test('route changes invalidate coverage and new airports are discovered when brought into view', async ({ page, context }) => {
+test('route edits filter cached airports and restore eligible offscreen origins without new terrain', async ({ page, context }) => {
   await airports(context);
+  let terrainRequests = 0;
+  page.on('request', request => { if (/\/terrain\/\d+\/\d+\/\d+\.png/.test(request.url())) terrainRequests++; });
   await page.goto('/test/browser/glide.html');
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
@@ -251,6 +253,7 @@ test('route changes invalidate coverage and new airports are discovered when bro
     return data.features.length;
   });
   expect(await count()).toBe(2);
+  const initialRequests = terrainRequests;
   await page.evaluate(() => window.glideAudit.route([[-120.1, 35], [-119.4, 35]]));
   await expect.poll(count).toBe(0);
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
@@ -259,9 +262,134 @@ test('route changes invalidate coverage and new airports are discovered when bro
     window.glideAudit.map.jumpTo({ center: [-119.62, 34.43], zoom: 12, bearing: 45 });
   });
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
-  await expect.poll(count).toBe(0);
+  await expect.poll(count).toBe(2);
+  expect(terrainRequests).toBe(initialRequests);
   await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.78, 34.43], zoom: 9.2, bearing: 45 }));
   await expect.poll(count).toBe(2);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+test('route-only edits replace airport coverage without blanking independent ranges, including at overview zoom', async ({ page, context }) => {
+  await airports(context);
+  await controlGlideResults(page);
+  let terrainRequests = 0;
+  page.on('request', request => { if (/\/terrain\/\d+\/\d+\/\d+\.png/.test(request.url())) terrainRequests++; });
+  await page.goto('/test/browser/glide.html');
+  await page.waitForFunction(() => !!window.glideAudit);
+  await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
+  await page.mouse.click(640, 450, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
+  const status = page.getByTestId('glide-state'), html = page.locator('html');
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  const ids = ['glide-areas', 'glide-ownship', 'glide-ownship-area', 'glide-point-range', 'glide-point-area', 'glide-point'];
+  const snapshot = () => page.evaluate(async ids => Promise.all(ids.map(id => window.glideAudit.map.getSource<GeoJSONSource>(id)!.getData())), ids);
+  const initial = await snapshot(), initialRequests = terrainRequests;
+  for (const data of initial) expect((data as GeoJSON.FeatureCollection).features.length).toBe(1);
+  await page.evaluate(ids => {
+    document.documentElement.dataset.glideRouteWrites = '[]';
+    for (const id of ids) {
+      const source = window.glideAudit.map.getSource<GeoJSONSource>(id)!, original = source.setData.bind(source);
+      source.setData = (...args: Parameters<typeof source.setData>) => {
+        const writes = JSON.parse(document.documentElement.dataset.glideRouteWrites!);
+        writes.push([id, (args[0] as GeoJSON.FeatureCollection).features.length]);
+        document.documentElement.dataset.glideRouteWrites = JSON.stringify(writes);
+        return original(...args);
+      };
+    }
+  }, ids);
+  for (const zoom of [9.2, 5]) {
+    await page.evaluate(zoom => window.glideAudit.map.jumpTo({ zoom }), zoom);
+    await expect(status).toHaveAttribute('data-state', zoom < 7 ? 'zoom' : 'ready');
+    await page.evaluate(zoom => {
+      document.documentElement.dataset.holdGlideResults = 'true';
+      const latitude = zoom < 7 ? 34.43 : 35.43;
+      window.glideAudit.route([[-120.2, latitude], [zoom < 7 ? -119.2 : -119.3, latitude]]);
+    }, zoom);
+    await expect(html).toHaveAttribute('data-pending-glide-results', '1');
+    expect(await snapshot()).toEqual(initial);
+    // An obsolete empty corridor result must not erase the restored route.
+    if (zoom >= 7) await page.evaluate(() => window.glideAudit.route([[-120.2, 34.43], [-119.3, 34.43]]));
+    await page.evaluate(() => window.dispatchEvent(new Event('release-glide-results')));
+    await expect(status).toHaveAttribute('data-state', zoom < 7 ? 'zoom' : 'ready');
+    // Observe publication, not just the zoom status set before reconciliation.
+    await expect.poll(() => page.evaluate(() => JSON.parse(document.documentElement.dataset.glideRouteWrites!).length)).toBe(zoom < 7 ? 2 : 1);
+    expect((await snapshot()).slice(1)).toEqual(initial.slice(1));
+    expect(terrainRequests).toBe(initialRequests);
+  }
+  const writes = await page.evaluate(() => JSON.parse(document.documentElement.dataset.glideRouteWrites!) as [string, number][]);
+  expect(writes).toEqual([['glide-areas', 1], ['glide-areas', 1]]);
+  await expect(page.getByLabel('Ownship glide status')).toContainText('live position');
+  await expect(page.getByLabel('Selected point glide status')).toHaveText('Using the planning altitude below');
+  // A real performance change still invalidates all ranges. At overview zoom,
+  // the status must not describe an uncalculated new range as ready.
+  await page.getByRole('slider', { name: 'Glide start altitude' }).fill('6000');
+  await expect(page.getByLabel('Ownship glide status')).toHaveText('Zoom in to calculate ownship range');
+  await expect(page.getByLabel('Selected point glide status')).toHaveText('Zoom in to calculate point range');
+  expect((await snapshot()).map(data => (data as GeoJSON.FeatureCollection).features.length)).toEqual([0, 0, 0, 0, 0, 1]);
+  expect(terrainRequests).toBe(initialRequests);
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ zoom: 9.2 }));
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  for (const data of await snapshot()) expect((data as GeoJSON.FeatureCollection).features.length).toBe(1);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+test('removing a route releases obsolete airport loading so a selected point can calculate immediately', async ({ page, context }) => {
+  await airports(context);
+  let release!: () => void, requested = false;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await context.route('**/nav/airports.geojson*', async route => { requested = true; await gate; await route.fallback(); });
+  try {
+    await page.goto('/test/browser/glide.html');
+    await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+    await expect.poll(() => requested).toBe(true);
+    await page.evaluate(() => window.glideAudit.route(null));
+    await page.mouse.click(640, 450, { button: 'right' });
+    await page.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
+    await expect(page.getByLabel('Selected point glide status')).toHaveText('Using the planning altitude below');
+    const snapshot = () => page.evaluate(async () => Promise.all(['glide-areas', 'glide-point-area'].map(async id =>
+      (await window.glideAudit.map.getSource<GeoJSONSource>(id)!.getData() as GeoJSON.FeatureCollection).features.length)));
+    expect(await snapshot()).toEqual([0, 1]);
+    // The discarded consumer must not cancel shared navigation acquisition or
+    // publish the old route when that acquisition eventually completes.
+    const response = page.waitForResponse('**/nav/airports.geojson*');
+    release(); await response;
+    await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
+    expect(await snapshot()).toEqual([0, 1]);
+    await expect(page.getByTestId('errors')).toBeEmpty();
+  } finally { release(); }
+});
+
+for (const during of ['movement', 'overview', 'discarded result'] as const) test(`offline terrain repair recovers cached gaps during ${during}`, async ({ page, context }) => {
+  await airports(context);
+  await context.route('**/terrain/*/*/*.png', route => route.fulfill({ status: 404 }));
+  if (during === 'discarded result') await controlGlideResults(page);
+  await page.goto('/test/browser/glide.html');
+  if (during === 'discarded result') await page.evaluate(() => { document.documentElement.dataset.holdGlideResults = 'true'; });
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  if (during === 'discarded result') {
+    await expect(page.locator('html')).toHaveAttribute('data-pending-glide-results', '1');
+    // Incomplete terrain is cached, but its response never reaches the view.
+    // Drain the cancelled request before repairing the inventory.
+    await page.evaluate(async () => {
+      window.glideAudit.map.fire('movestart');
+      window.dispatchEvent(new Event('release-glide-results'));
+      await new Promise(requestAnimationFrame);
+    });
+    await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'loading');
+  } else await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'partial');
+  await context.unroute('**/terrain/*/*/*.png');
+  await airports(context);
+  await page.evaluate(during => {
+    const map = window.glideAudit.map;
+    if (during === 'overview') map.jumpTo({ zoom: 5 });
+    else map.fire('movestart');
+    window.dispatchEvent(new Event('zlayer-offline-inventory'));
+    if (during === 'overview') map.jumpTo({ zoom: 9.2 });
+    else map.fire('moveend');
+  }, during);
+  await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
+  const data = await page.evaluate(() => window.glideAudit.map.getSource<GeoJSONSource>('glide-areas')!.getData()) as GeoJSON.FeatureCollection;
+  expect(data.features.length).toBe(1);
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
 

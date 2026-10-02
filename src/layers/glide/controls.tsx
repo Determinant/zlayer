@@ -35,7 +35,7 @@ export function GlideControls({ glideEnabled, glideRatio, glideAltitude, status,
     {point && <div className="glide-selected-point" aria-label="Selected glide point">
       <div><strong>Glide from here</strong><output aria-label="Selected glide point coordinates">{Math.abs(point[1]).toFixed(3)}°{point[1] < 0 ? 'S' : 'N'} · {Math.abs(point[0]).toFixed(3)}°{point[0] < 0 ? 'W' : 'E'}</output>
         <small aria-live="polite" aria-label="Selected point glide status">{!glideEnabled ? 'Glide coverage is off'
-          : status.state === 'zoom' ? 'Zoom in to calculate point range'
+          : status.point === 'zoom' ? 'Zoom in to calculate point range'
           : status.point === 'outside' ? 'Point is outside the visible map'
           : status.point === 'partial' ? 'Terrain incomplete at selected point'
           : status.point === 'ready' ? 'Using the planning altitude below' : status.state === 'error' ? 'Point range unavailable' : 'Checking terrain…'}</small></div>
@@ -65,6 +65,7 @@ export function GlideControls({ glideEnabled, glideRatio, glideAltitude, status,
     {glideEnabled && <small aria-live="polite" aria-label="Ownship glide status">{status.ownship === 'ready' ? 'Ownship ring · live position, planning altitude'
       : status.ownship === 'partial' ? 'Ownship ring · terrain incomplete'
       : status.ownship === 'loading' ? 'Ownship ring · checking terrain…'
+      : status.ownship === 'zoom' ? 'Zoom in to calculate ownship range'
       : status.ownship === 'outside' ? 'Ownship is outside the visible map' : 'Ownship ring needs a fresh GPS position'}</small>}
     <p role="status" aria-label="Glide coverage status">{glideEnabled ? glideSummary(status) : 'Glide coverage is off'}</p>
     {glideEnabled && (['error', 'partial'].includes(status.state) || status.ownship === 'partial' || status.point === 'partial') && <button className="ui-button ui-button--compact" type="button" onClick={retry}>Retry glide coverage</button>}
