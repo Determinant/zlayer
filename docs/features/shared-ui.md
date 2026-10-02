@@ -60,14 +60,16 @@ Display scaling and browser chrome can change the available viewport.
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
   Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
   advisory, Progs, radar, cloud, icing and wind controls use six content tabs in two rows inside its left toolbox.
-- Chart/MBTiles status, GPS, Terrain and AWC Weather retain their compact contents and tuck away
+- Chart/MBTiles status, GPS, Terrain, Glide and AWC Weather retain their compact contents and tuck away
   off the left edge. Clicking or tapping a tab toggles its panel open or closed, on
   desktop and touch devices alike. Moving across the map or hovering another tab
   never changes the open state. Opening another tab switches panels, and Escape
   closes the active panel for keyboard users. Hidden controls leave the tab order while
   GPS tracking, terrain rendering and selected altitude continue unchanged. The
-  AWC Weather tab sits directly above Terrain; its time selection, filters and map
-  weather remain active when stowed. Its Advisories, Progs, Radar, Cloud, Icing and Winds content tabs
+  Glide tab sits directly above AWC Weather, which sits directly above Terrain. Glide retains
+  its ratio, start altitude and active coverage while stowed. Completed Glide ranges
+  remain cached while panning, rotating or zooming, including zoomed-out overviews. Weather retains its
+  time selection, filters and active map weather while stowed. Its Advisories, Progs, Radar, Cloud, Icing and Winds content tabs
   share core's keyboard navigation and retain selection while stowed. One weather
   timeline above the content tabs combines recent radar observations and forecasts
   while preserving the selected time across all six tabs.
@@ -91,7 +93,10 @@ Display scaling and browser chrome can change the available viewport.
   Empty-space context gestures open a temporary GPS waypoint with coordinates and
   terrain elevation, without editing the route. When a plugin contributes actions,
   the shared map menu combines them with nearby features or that coordinate waypoint.
-  Plate actions apply inside the current plate footprint. **Inspect weather** applies
+  **Show glide range** selects a temporary planning point, enables Glide coverage
+  and opens its altitude control. A labeled pin and dashed teal outline distinguish
+  it from the solid teal ownship ring; the panel and menu can clear the selection.
+  This action works without a route or GPS. Plate actions apply inside the current plate footprint. **Inspect weather** applies
   while AWC weather is enabled and available at the point, including with its toolbox stowed; ordinary
   taps never inspect weather. Releasing a long press cannot activate a newly opened
   menu item. Moving the map dismisses the menu, and keyboard arrows/Home/End select

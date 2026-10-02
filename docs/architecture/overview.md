@@ -97,7 +97,7 @@ Its presentation can be map imagery, weather circles and airport details, or a s
 procedure panel. A MapLibre style layer is only a rendering primitive within a product.
 
 Source is grouped by product under `src/layers/`: `charts/`, `metar-taf/`,
-`weather-awc/`, `plates/`, `navigation/`, `routes/`, `terrain/`, `obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
+`weather-awc/`, `plates/`, `navigation/`, `routes/`, `glide/`, `terrain/`, `obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
 exposes internal entry points; these are still evolving, not a stable framework API.
 Map adapters and the chart service-worker adapter have separate entry points so the
 PDF viewer and map runtime remain lazy-loaded. `core/` holds reusable request, storage,

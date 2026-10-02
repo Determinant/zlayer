@@ -144,6 +144,7 @@ capabilities for every plugin.
 | [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory and surface-analysis/Progs vectors, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
+| [glide/](../../src/layers/glide/README.md) | Route-corridor airport coverage, forward ownship ring, shared visible terrain profiles and controls |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
 | [obstructions/](../../src/layers/obstructions/README.md) | FAA DOF acquisition/validation, worker index, viewport/route demand, symbols and controls |
 | [ownship/](../../src/layers/ownship/README.md) | Map GPS demand, centering requests, track/projection, status and map presentation |

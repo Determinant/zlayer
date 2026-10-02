@@ -83,6 +83,7 @@ guides stay in that same folder or its implementation subfolders.
 | AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [surface analysis and Progs](../src/layers/weather-awc/progs/README.md); [NEXRAD/TDWR radar](../src/layers/weather-awc/radar/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |
 | Plates | [Airport plates, document viewer and georeferenced overlays](../src/layers/plates/README.md) |
 | Routes | [Editing and recommendations](../src/layers/routes/README.md); [SID/STAR previews](../src/layers/routes/terminal-procedures.md), [approach geometry](../src/layers/routes/approach-geometry.md), [coverage and validation](../src/layers/routes/approach-coverage.md) |
+| Glide Planner | [Route-corridor airport coverage, ownship ring, terrain and planning assumptions](../src/layers/glide/README.md) |
 | Terrain | [Route/viewport elevation, sources and verification](../src/layers/terrain/README.md) |
 | Obstructions | [FAA DOF symbols, demand and lifecycle](../src/layers/obstructions/README.md) |
 | Ownship | [GPS aircraft and device checks](../src/layers/ownship/README.md); [shared core GPS service](architecture/layer-plugins.md#shared-gps-service) |

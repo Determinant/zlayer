@@ -1,0 +1,25 @@
+.map-edge-glide .map-edge-content { width: 292px; max-width: calc(100vw - 96px); }
+.glide-panel { display: grid; gap: 10px; padding: 12px; }
+.glide-heading, .glide-row, .glide-value, .glide-limits, .glide-key { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.glide-heading strong { font-size: 14px; }
+.glide-panel p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.glide-panel small, .glide-limits, .glide-key, .glide-panel details { font-size: 11px; line-height: 1.4; color: var(--text-muted); }
+.glide-row label { font-size: 12px; }
+.glide-row output { white-space: nowrap; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.glide-value input { width: 76px; text-align: right; }
+.glide-value { flex-shrink: 0; }
+.glide-slider { width: 100%; margin: 0; height: max(36px, var(--touch-target)); accent-color: var(--accent-75d8cd); touch-action: none; }
+.glide-slider:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.glide-limits { margin-top: -10px; }
+.glide-key { justify-content: flex-start; }
+.glide-key i { width: 24px; height: 12px; border: 2px solid #ffc875; background: #ffc87552; flex-shrink: 0; }
+.glide-panel summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.glide-panel details p + p { margin-top: 8px; }
+
+.glide-key-ownship i, .glide-key-point i { border-color: #53e4c6; background: #53e4c63d; }
+.glide-key-point i { border-style: dashed; }
+.glide-selected-point { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid #53e4c680; border-radius: 6px; background: #53e4c614; }
+.glide-selected-point > div { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.glide-selected-point strong { font-size: 12px; }
+.glide-selected-point output { font-size: 11px; font-variant-numeric: tabular-nums; }
+.glide-selected-point button { flex-shrink: 0; }

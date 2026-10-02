@@ -1,3 +1,4 @@
+import type { GlideApi } from '../../layers/glide/public';
 import { emptyRoutePlan } from '@zlayer/domain';
 import type { MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
@@ -11,7 +12,7 @@ import type { WeatherAwcApi } from '../../layers/weather-awc/public';
 import type { LayerScope } from '../../core/layers/scope';
 import { MapGestures } from '../../layers/routes/map-gestures';
 
-type SelectionBridge = PluginBridge<{ routes: RoutesApi; ruler: RulerApi; plates: PlatesApi; 'weather-awc': WeatherAwcApi }>;
+type SelectionBridge = PluginBridge<{ routes: RoutesApi; ruler: RulerApi; plates: PlatesApi; glide: GlideApi; 'weather-awc': WeatherAwcApi }>;
 
 /** One selection lifetime per map, independent of any optional renderer. */
 export function createSelectionContribution(input: ReturnType<typeof createLayerInput<MapSelectionInput>>,
@@ -35,6 +36,7 @@ export function createSelectionContribution(input: ReturnType<typeof createLayer
         preview: value => editing?.(value),
         onSelect: (feature, pointId) => input.require().onSelect(feature, pointId),
         contextActions: point => [...bridge.get('weather-awc')?.contextActions(point) ?? [],
+          ...bridge.get('glide')?.contextActions(point) ?? [],
           ...bridge.get('plates')?.contextActions(point) ?? []],
         onChooseNearby: (features, point, actions) => input.require().onChooseNearby(features, point, actions),
         onCloseNearby: () => input.require().onCloseNearby?.(),

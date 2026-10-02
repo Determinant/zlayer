@@ -175,6 +175,7 @@ export function App() {
       onVisibilityChange: (id: NavigationLayerId) => setMapPreferences(current => ({ ...current,
         visibility: { ...current.visibility, [id]: !current.visibility[id] } })),
     },
+    glide: { change: (patch: Partial<typeof mapPreferences>) => setMapPreferences(current => ({ ...current, ...patch })) },
     weather: { change: (patch: Partial<typeof mapPreferences>) => setMapPreferences(current => ({ ...current, ...patch })) },
     metar: { onToggle: () => setMapPreferences(current => ({ ...current, metarEnabled: !current.metarEnabled })) },
   }), [setMapPreferences, clear]);
@@ -189,6 +190,8 @@ export function App() {
     workspaceLayers.terrain.input.set({ enabled: terrainEnabled, catalog: context,
       altitude: terrainAltitude, coverage: terrainCoverage,
       ...pluginActions.terrain });
+    workspaceLayers.glide.input.set({ ...workspaceLayers.glide.preferences.select(mapPreferences), catalog: context,
+      glideEnabled: !!loaded.glide && mapPreferences.glideEnabled, ...pluginActions.glide });
     workspaceLayers.obstructions.input.set({ enabled: obstructionsEnabled,
       ...pluginActions.obstructions });
     workspaceLayers.charts.input.set({ catalog: context, selection: renderedCharts, chartSelection, chartCacheState,

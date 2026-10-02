@@ -7,6 +7,9 @@ adding more data sources. Current capabilities and planned work are listed separ
 
 ## Implemented baseline
 
+- [Glide Planner](../../src/layers/glide/README.md): adjustable ratio and MSL start altitude,
+  terrain-aware merged airport coverage within 20 NM of the route, and a distinct
+  ownship planning ring, with complete ranges cached by origin across pan and zoom.
 - Static React/MapLibre PWA with product-owned layer lifecycles and a precached shell.
 - Viewport/zoom-selected, prestitched VFR/IFR MBTiles with whole-file caching.
 - Searchable FAA navigation with progressive fix decluttering and runway details.
