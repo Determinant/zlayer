@@ -4,12 +4,14 @@ import type { HeadingSource, HeadingListener } from '../src/core/map/heading';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { createLayerStore } from '../src/core/layers/store';
 import { createGpsCamera, type OrientationSource } from '../src/workspace/map/gps-camera';
+import { project } from '../src/core/geo/route-corridor';
+import { destination } from '../src/layers/ownship/position';
 
 type Snapshot = ReturnType<OrientationSource['getSnapshot']>;
-function setup(t: test.TestContext, trackUp = false, assistance: Partial<HeadingSource> = {}) {
+function setup(t: test.TestContext, trackUp = false, assistance: Partial<HeadingSource> = {}, initialZoom?: number) {
   const store = createLayerStore<Snapshot>({ enabled: true, state: 'acquiring', fix: null, centerRequest: 0 });
   const listeners = new Map<string, Set<(event: object) => void>>();
-  let center = { lng: 0, lat: 0 }, zoom = 7, bearing = 0, moving = false, stops = 0;
+  let center = { lng: 0, lat: 0 }, zoom = initialZoom ?? 7, bearing = 0, moving = false, stops = 0;
   let active: { options: { center?: [number, number]; zoom: number; bearing?: number }; event: object } | undefined;
   const calls: typeof active[] = [];
   const emit = (type: string, event = {}) => { for (const fn of listeners.get(type) ?? []) fn({ type, ...event }); };
@@ -24,6 +26,10 @@ function setup(t: test.TestContext, trackUp = false, assistance: Partial<Heading
   const map = {
     project(point: [number, number] | { lng: number; lat: number }) {
       const [lng, lat] = Array.isArray(point) ? point : [point.lng, point.lat];
+      if (initialZoom !== undefined) {
+        const [x, y] = project([lng, lat]);
+        return { x: x * 512 * 2 ** zoom, y: y * 512 * 2 ** zoom };
+      }
       return { x: lng * 100, y: lat * 100 };
     },
     getCenter: () => center, getZoom: () => zoom, getBearing: () => bearing, isMoving: () => moving,
@@ -55,6 +61,24 @@ test('first and explicit GPS centers defer to user motion and select the latest 
   assert.equal(s.calls[0]!.options.zoom, 9);
   s.finish(); s.fix(-120);
   assert.equal(s.calls.length, 1, 'north up preserves the camera after initial centering');
+});
+
+test('high-zoom stationary jitter stays idle while travel, flight and explicit centering still follow', t => {
+  const s = setup(t, true, {}, 15), home: [number, number] = [-122, 37];
+  let time = 0;
+  const fix = (meters: number, speed: number | null = 0, centerRequest = 0) => s.store.publish({
+    enabled: true, state: 'tracking', centerRequest,
+    fix: { coordinates: destination(home, 90, meters), accuracy: 10, track: speed ? 90 : null, speed, time: ++time },
+  });
+  fix(5); s.finish();
+  for (let i = 0; i < 60; i++) { fix(i % 2 ? -5 : 5, i % 3 ? 0 : null); s.finish(); }
+  assert.equal(s.calls.length, 1, 'no map animations for a minute of parked drift, even after centering on a noisy fix');
+  fix(30); s.finish();
+  assert.equal(s.calls.length, 2, 'displacement beyond uncertainty still follows without velocity');
+  fix(28, 60); s.finish();
+  assert.equal(s.calls.length, 3, 'confirmed flight preserves fine position following');
+  fix(27, 0, 1); s.finish();
+  assert.equal(s.calls.length, 4, 'explicit centering bypasses the uncertainty threshold');
 });
 
 for (const trackUp of [false, true]) {
@@ -136,7 +160,7 @@ test('track noise does not rotate the map even when fresh positions need centeri
   s.fix(); s.finish();
   for (let time = 2; time <= 60; time++) {
     s.store.publish({ ...s.store.getSnapshot(), fix: { coordinates: [-122 + time * .01, 37], accuracy: 5,
-      track: 90 + (Math.floor((time - 2) / 2) % 2 ? -3 : 3), time } });
+      track: 90 + (Math.floor((time - 2) / 3) % 2 ? -5 : 5), time } });
     assert.equal(s.calls.at(-1)!.options.bearing, 90);
     s.finish();
   }
@@ -159,7 +183,10 @@ test('heading demand follows camera mode and GPS quality without publishing Owns
   for (let sample = 2; sample <= 10; sample++) {
     now = sample / 4; notify({ degrees: 73, time: now, frame: 1 }); s.finish();
   }
-  assert.ok(s.calls.at(-1)!.options.bearing! > 92 && s.calls.at(-1)!.options.bearing! < 93);
+  assert.equal(s.calls.at(-1)!.options.bearing, 90, 'a three-degree sensor offset stays inside the map deadband');
+  now = 2.75; notify({ degrees: 78, time: now, frame: 1 }); s.finish();
+  now = 3; notify({ degrees: 78, time: now, frame: 1 }); s.finish();
+  assert.ok(s.calls.at(-1)!.options.bearing! > 93, 'larger sustained motion still reaches the camera');
   assert.equal(publications, 0);
   s.store.publish({ ...s.store.getSnapshot(), fix: { ...s.store.getSnapshot().fix!, speed: 2 } });
   assert.equal(released, 1);

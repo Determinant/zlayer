@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { destination, estimateTurnRate, projectedTrack } from '../src/layers/ownship/position';
+import { destination, estimateTurnRate, projectedTrack, smoothMotion } from '../src/layers/ownship/position';
 import { distanceMeters, GPS_STALE_MS, readGpsFix, type GpsFix } from '../src/core/gps/position';
 import { ownshipGeometry } from '../src/layers/ownship/geometry';
 
@@ -101,11 +101,11 @@ test('dateline and high-latitude projections stay short and finite', () => {
 test('turn estimates unwrap north and stay consistent with irregular, frequent GPS updates', () => {
   for (const rate of [-1, 1]) {
     const history: GpsFix[] = [];
-    for (const elapsed of [0, 100, 300, 800, 1000, 1700, 2400, 3000]) {
+    for (const elapsed of [0, 100, 300, 800, 1000, 1700, 2400, 3000, 3800, 4700, 6000]) {
       const heading = (360 + rate * (elapsed / 1000 - 1.5)) % 360;
-      const fix = readGpsFix(position({ heading, speed: 60 }, now - 3000 + elapsed), null, clock)!;
+      const fix = readGpsFix(position({ heading, speed: 60 }, now - 6000 + elapsed), null, clock)!;
       const estimate = estimateTurnRate(fix, history);
-      if (elapsed < 1000) assert.equal(estimate, null);
+      if (elapsed < 3000) assert.equal(estimate, null);
       else assert.ok(Math.abs(estimate! - rate) < 1e-9);
       history.push(fix);
     }
@@ -125,25 +125,54 @@ test('turn estimates reject discontinuities and unavailable motion, and suppress
   }
   const missing = { ...origin, timestamp: now - 500, track: null };
   assert.equal(estimateTurnRate(current, [origin, missing]), null, 'do not bridge an interruption in usable tracks');
-  assert.equal(estimateTurnRate({ ...current, track: 90.05 }, [origin]), 0);
+  assert.equal(estimateTurnRate({ ...current, track: 90.05 }, [
+    { ...origin, timestamp: now - 4000 }, origin,
+  ]), 0);
 });
 
 test('rounded GPS tracks do not lose a steady turn when callbacks arrive between retained samples', () => {
-  const history = Array.from({ length: 21 }, (_, index) => readGpsFix(position({
+  const history = Array.from({ length: 41 }, (_, index) => readGpsFix(position({
     heading: Math.round(90.495 + index / 10), speed: 60,
-  }, now - 2010 + index * 100), null, clock)!);
-  const current = readGpsFix(position({ heading: 93, speed: 60 }), null, clock)!;
+  }, now - 4010 + index * 100), null, clock)!);
+  const current = readGpsFix(position({ heading: 95, speed: 60 }), null, clock)!;
   const rate = estimateTurnRate(current, history);
   assert.notEqual(rate, null, 'a rounded one-degree step over 10 ms is not a sudden physical turn');
   assert.ok(Math.abs(rate! - 1) < .2);
 });
 
 test('a recent continuous turn can recover after an older track discontinuity', () => {
-  const history = [180, 90, 91].map((heading, index) =>
-    readGpsFix(position({ heading, speed: 60 }, now - 3000 + index * 1000), null, clock)!);
-  const current = readGpsFix(position({ heading: 92, speed: 60 }), null, clock)!;
+  const history = [180, 90, 91, 92].map((heading, index) =>
+    readGpsFix(position({ heading, speed: 60 }, now - 4000 + index * 1000), null, clock)!);
+  const current = readGpsFix(position({ heading: 93, speed: 60 }), null, clock)!;
   assert.equal(estimateTurnRate(current, history), 1);
 });
+
+for (const hz of [1, 5, 10]) {
+  test(`straight-flight heading noise does not become a one-minute turn at ${hz} Hz`, () => {
+    const history: GpsFix[] = [];
+    for (let sample = 0; sample <= 30 * hz; sample++) {
+      const elapsed = sample / hz;
+      // Correlated, multi-second noise is more demanding than alternating each fix.
+      const heading = (359 + 3 * Math.sin(elapsed * Math.PI / 2) + 360) % 360;
+      const fix: GpsFix = { coordinates: [-122, 37], accuracy: 5, track: heading, speed: 60,
+        timestamp: now + elapsed * 1000, time: elapsed, estimated: false, altitude: null, altitudeAccuracy: null };
+      const rate = estimateTurnRate(fix, history);
+      assert.equal(rate ?? 0, 0, `noise at ${elapsed}s must keep the vector straight`);
+      history.push(fix);
+    }
+    // A sustained turn must emerge from the noisy history, and level-out must
+    // remove that old turn once a full straight window has replaced it.
+    for (let sample = 1; sample <= 12 * hz; sample++) {
+      const elapsed = sample / hz;
+      const fix = { ...history.at(-1)!, track: (359 + Math.min(elapsed, 6) * 3) % 360,
+        timestamp: now + (30 + elapsed) * 1000, time: 30 + elapsed };
+      const rate = estimateTurnRate(fix, history);
+      if (elapsed >= 4 && elapsed <= 6) assert.ok(rate! > 1.5 && rate! <= 3.5, `turn follows by ${elapsed}s`);
+      if (elapsed === 12) assert.equal(rate, 0, 'level-out clears the curved projection');
+      history.push(fix);
+    }
+  });
+}
 
 test('turning vectors follow the current tangent, retain one minute of travel and clip at 90 degrees', () => {
   const fix = readGpsFix(position({ heading: 0, speed: 60 }), null, clock)!;
@@ -173,10 +202,71 @@ test('turning vectors follow the current tangent, retain one minute of travel an
   }
 });
 
+test('shallow turns remain continuous through the former curvature cutoff', () => {
+  const history: GpsFix[] = [];
+  let previousEnd: [number, number] | undefined;
+  for (let second = 0; second < 40; second++) {
+    const fix: GpsFix = { coordinates: [-122, 37], accuracy: 5, track: 90 + .51 * second + .15 * Math.sin(second * Math.PI / 3),
+      speed: 120 * 1852 / 3600, timestamp: now + second * 1000, time: second, estimated: false, altitude: null, altitudeAccuracy: null };
+    const rate = estimateTurnRate(fix, history);
+    history.push(fix);
+    if (second < 6) continue;
+    assert.ok(rate! > 0, 'small noise must not alternate between straight and curved');
+    // Hold the tangent fixed to isolate the contribution from curvature.
+    const end = projectedTrack({ ...fix, track: 90 }, rate).at(-1)!;
+    if (previousEnd) assert.ok(distanceMeters(end, previousEnd) < 100, 'no kilometre-scale endpoint jumps at the threshold');
+    previousEnd = end;
+  }
+});
+
+for (const hz of [1, 5, 10]) {
+  test(`display motion damps track noise across north and follows genuine turns at ${hz} Hz`, () => {
+    let previous = { fix: null as GpsFix | null, displayTrack: null as number | null, turnRate: null as number | null };
+    const history: GpsFix[] = [];
+    let lastEnd: [number, number] | undefined;
+    for (let i = 0; i <= 50 * hz; i++) {
+      const time = i / hz;
+      const track = (359 + (time <= 20 ? 3 * Math.sin(time * Math.PI / 2) : Math.min(time - 20, 15) * 3)) % 360;
+      const fix: GpsFix = { coordinates: [-122, 37], accuracy: 5, track, speed: 120 * 1852 / 3600,
+        timestamp: now + time * 1000, time, estimated: false, altitude: null, altitudeAccuracy: null };
+      const raw = structuredClone(fix);
+      const motion = smoothMotion(fix, previous, estimateTurnRate(fix, history));
+      const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequest: 0, ...motion });
+      const vector = geometry.features.find(feature => feature.properties?.kind === 'projection')!.geometry;
+      assert.equal(vector.type, 'LineString');
+      if (vector.type !== 'LineString') assert.fail();
+      const end = vector.coordinates.at(-1)! as [number, number];
+      assert.deepEqual(fix, raw, 'display filtering must leave raw observations intact');
+      assert.deepEqual(vector.coordinates[0], fix.coordinates);
+      assert.equal(geometry.features[0]!.properties?.track, motion.displayTrack, 'aircraft and vector share the displayed direction');
+      if (time > 6 && time <= 20) {
+        assert.equal(motion.turnRate, 0);
+        if (lastEnd) assert.ok(distanceMeters(end, lastEnd) < 120 / hz, 'straight-flight vector no longer swings hundreds of meters');
+      }
+      if (time === 35) {
+        assert.ok(motion.turnRate! > 2.9, 'sustained turns retain their curvature');
+        assert.ok(Math.abs(motion.displayTrack! - track) < 6.1, 'direction follows a sustained turn with bounded lag');
+      }
+      if (time === 50) {
+        assert.ok(Math.abs(motion.turnRate!) < .05, 'curvature settles after level-out');
+        assert.ok(Math.abs(motion.displayTrack! - track) < .01);
+      }
+      history.push(fix); previous = { ...motion, fix }; lastEnd = end;
+    }
+    for (const change of [{ track: null }, { speed: 0, track: null }, { accuracy: 101, track: null },
+      { estimated: true }, { timestamp: previous.fix!.timestamp + 3000 }]) {
+      const fix = { ...previous.fix!, ...change };
+      const motion = smoothMotion(fix, previous, 3);
+      assert.equal(motion.turnRate, null, 'invalid or discontinuous motion clears curvature immediately');
+      assert.equal(motion.displayTrack, fix.track, 'recovery seeds the current observation, never the old filtered direction');
+    }
+  });
+}
+
 test('ownship stays exactly at the current fix and only the track vector extends into the future', () => {
   const fix = readGpsFix(position({ heading: 90, speed: 60 }), null, clock)!;
   for (const turnRate of [null, -1, 1, 3]) {
-    const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequest: 1, turnRate });
+    const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequest: 1, turnRate, displayTrack: fix.track });
     const aircraft = geometry.features.find(feature => feature.properties?.kind === 'aircraft')!;
     assert.deepEqual(aircraft.geometry, { type: 'Point', coordinates: [-122, 37] });
     assert.equal(aircraft.properties?.track, 90);
@@ -191,7 +281,7 @@ test('ownship stays exactly at the current fix and only the track vector extends
 
 test('stale fixes lose the aircraft orientation and projection; disabled layers clear all geometry', () => {
   const fix = readGpsFix(position({ speed: 60, heading: 90 }), null, clock)!;
-  const snapshot = { enabled: true, state: 'tracking' as const, fix, centerRequest: 1, turnRate: 1 };
+  const snapshot = { enabled: true, state: 'tracking' as const, fix, centerRequest: 1, turnRate: 1, displayTrack: fix.track };
   const live = ownshipGeometry(snapshot);
   assert.deepEqual(live.features.map(feature => feature.properties?.kind), ['aircraft', 'accuracy', 'projection']);
   const stale = ownshipGeometry({ ...snapshot, state: 'stale' });

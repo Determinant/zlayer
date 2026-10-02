@@ -11,12 +11,12 @@ test('track-up holds small GPS noise, follows sustained turns, wraps north and r
   for (let time = 1; time <= 60; time++) bearing.observeGps(90 + (time % 2 ? .8 : -.8), time);
   assert.equal(bearing.read(), 90);
   bearing.observeGps(120, 61);
-  assert.ok(bearing.read()! > 100 && bearing.read()! < 110, 'even a large GPS change is low-pass filtered');
-  for (let time = 62; time <= 67; time++) bearing.observeGps(120, time);
-  near(bearing.read(), 120, 2);
+  assert.ok(bearing.read()! > 95 && bearing.read()! < 110, 'even a large GPS change is low-pass filtered');
+  for (let time = 62; time <= 72; time++) bearing.observeGps(120, time);
+  near(bearing.read(), 120, 3);
   bearing.reset(); bearing.observeGps(359, 0);
-  for (let time = 1; time <= 8; time++) bearing.observeGps(2, time);
-  assert.ok(bearing.read()! >= 0 && bearing.read()! < 2, 'cross north along the short arc');
+  for (let time = 1; time <= 8; time++) bearing.observeGps(4, time);
+  assert.ok(bearing.read()! >= 0 && bearing.read()! < 4, 'cross north along the short arc');
   const held = bearing.read();
   bearing.observeGps(180, 0); assert.equal(bearing.read(), held);
   bearing.observeGps(1.5, 20); assert.equal(bearing.read(), 1.5, 'recovery seeds directly, even inside the deadband');
@@ -28,18 +28,18 @@ for (const hz of [1, 5, 10]) {
   test(`cruise track fluctuations stay quiet while sustained corrections and turns follow at ${hz} Hz`, () => {
     const bearing = new TrackBearing();
     bearing.observeGps(90, 0);
-    // Several degrees of noise persist for two seconds at a time, rather than
+    // Several degrees of noise persist for three seconds at a time, rather than
     // alternating unrealistically on every high-rate callback.
     for (let sample = 1; sample <= 60 * hz; sample++) {
-      bearing.observeGps(90 + (Math.floor((sample - 1) / (2 * hz)) % 2 ? -3 : 3), sample / hz);
+      bearing.observeGps(90 + (Math.floor((sample - 1) / (3 * hz)) % 2 ? -5 : 5), sample / hz);
       assert.equal(bearing.read(), 90, 'cruise noise must not rotate the map');
     }
     for (let sample = 1; sample <= 15 * hz; sample++) bearing.observeGps(95, 60 + sample / hz);
-    near(bearing.read(), 95, 2);
+    near(bearing.read(), 95, 3);
     // A continuous 3-degree/second turn must advance without waiting for a
     // single large step in GPS track.
     for (let sample = 1; sample <= 10 * hz; sample++) bearing.observeGps(95 + 3 * sample / hz, 75 + sample / hz);
-    assert.ok(bearing.read()! > 113 && bearing.read()! <= 125, 'sustained turns stay within 12 degrees');
+    assert.ok(bearing.read()! > 112 && bearing.read()! <= 125, 'sustained turns stay within 13 degrees');
   });
 }
 

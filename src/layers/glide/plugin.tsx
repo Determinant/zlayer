@@ -19,14 +19,18 @@ export function createGlidePlugin() {
   const status = createLayerStore<GlideStatus>({ state: 'idle' });
   const revision = createLayerStore(0);
   const retry = () => revision.publish(revision.getSnapshot() + 1);
-  const segments = createLayerStore<Segment[]>([]);
+  const noSegments: Segment[] = [];
+  const segments = createLayerStore<Segment[]>(noSegments);
   const ownship = createLayerStore<Point | null>(null);
   const selectedPoint = createLayerStore<Point | null>(null);
   const clearPoint = () => selectedPoint.publish(null);
   let coordinateAt: ((point: { x: number; y: number }) => Point | undefined) | undefined;
   const settingsInput = combineLayerStores(selectLayerStore(input, state => state && ({ catalog: state.catalog,
-    enabled: state.glideEnabled, ratio: state.glideRatio, altitude: state.glideAltitude })), revision, (state, retry) => ({ ...state, retry }));
-  const flightInput = combineLayerStores(combineLayerStores(settingsInput, segments, (state, segments) => ({ ...state, segments })),
+    enabled: state.glideEnabled, airportsEnabled: state.glideAirportsEnabled, ratio: state.glideRatio, altitude: state.glideAltitude })), revision, (state, retry) => ({ ...state, retry }));
+  // No route demand means no airport acquisition or preparation. The existing
+  // route lifecycle clears amber coverage while retaining independent ranges.
+  const flightInput = combineLayerStores(combineLayerStores(settingsInput, segments,
+    (state, segments) => ({ ...state, segments: state.airportsEnabled ? segments : noSegments })),
     ownship, (state, ownship) => ({ ...state, ownship }));
   const mapInput = combineLayerStores(flightInput, selectedPoint, (state, point) => ({ ...state, point }));
   function Panel() {

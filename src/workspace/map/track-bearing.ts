@@ -2,9 +2,9 @@ import type { HeadingSample } from '../../core/map/heading';
 
 const wrap = (value: number) => (value % 360 + 360) % 360;
 const difference = (a: number, b: number) => wrap(a - b + 180) - 180;
-const BEARING_DEADBAND_DEGREES = 2;
+const BEARING_DEADBAND_DEGREES = 3;
 const GPS_CORRECTION_SECONDS = 3;
-const MAP_BEARING_SECONDS = 1.5;
+const MAP_BEARING_SECONDS = 2;
 
 /** Event-driven display filter. GPS owns the reference; sensors supply only
  * relative rotation. No extrapolation, timers, or changes to aircraft geometry. */
@@ -68,7 +68,7 @@ export class TrackBearing {
       const aided = this.sensor && Math.abs(time - this.sensor.time) <= .5;
       // Correct substantial GPS-only errors promptly; the final map filter
       // still damps their display. Sensors supply relative turns separately.
-      const tau = aided ? GPS_CORRECTION_SECONDS : Math.abs(error) > 10 ? .3 : 1.5;
+      const tau = aided ? GPS_CORRECTION_SECONDS : Math.abs(error) > 10 ? .75 : 1.5;
       this.value = value + error * -Math.expm1(-(time - previous.time) / tau);
     }
     this.commit(Math.max(time, this.history.at(-1)?.time ?? time), seed);

@@ -157,7 +157,7 @@ test('off-route direct to creates only a self-contained origin and the pinned ta
 });
 
 function tracking(): OwnshipSnapshot {
-  return { enabled: true, state: 'tracking', centerRequest: 0, turnRate: null, fix: {
+  return { enabled: true, state: 'tracking', centerRequest: 0, turnRate: null, displayTrack: null, fix: {
     coordinates: position, accuracy: 5, timestamp: Date.now(), time: performance.now() / 1000, track: null, speed: null,
     altitude: null, altitudeAccuracy: null, estimated: false,
   } };

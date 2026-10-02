@@ -2,8 +2,8 @@
 .glide-panel { display: grid; gap: 10px; padding: 12px; }
 .glide-heading, .glide-row, .glide-value, .glide-limits, .glide-key { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .glide-heading strong { font-size: 14px; }
-.glide-panel p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--text-muted); }
-.glide-panel small, .glide-limits, .glide-key, .glide-panel details { font-size: 11px; line-height: 1.4; color: var(--text-muted); }
+.glide-panel p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
+.glide-panel small, .glide-limits, .glide-key { font-size: 11px; line-height: 1.4; color: var(--text-muted); }
 .glide-row label { font-size: 12px; }
 .glide-row output { white-space: nowrap; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .glide-value input { width: 76px; text-align: right; }
@@ -13,7 +13,7 @@
 .glide-limits { margin-top: -10px; }
 .glide-key { justify-content: flex-start; }
 .glide-key i { width: 24px; height: 12px; border: 2px solid #ffc875; background: #ffc87552; flex-shrink: 0; }
-.glide-panel summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.glide-panel summary { cursor: pointer; min-height: max(32px, var(--touch-target)); display: flex; align-items: center; font-size: 12px; line-height: 1.4; color: var(--text-muted); }
 .glide-panel details p + p { margin-top: 8px; }
 
 .glide-key-ownship i, .glide-key-point i { border-color: #53e4c6; background: #53e4c63d; }

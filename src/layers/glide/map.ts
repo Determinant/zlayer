@@ -10,6 +10,8 @@ import { terrainSources, terrainSourceKey, DEFAULT_ELEVATION_URL, TERRAIN_ATTRIB
 import { visibleGlideAirports } from './airports';
 import { insideViewport, localRouteSegments, unwrapPoint, viewportBounds, type GlideViewport } from './coverage';
 import { project, type Point, type Segment } from '../../core/geo/route-corridor';
+import { distanceMeters } from '../../core/gps/position';
+import { createRangeAnimation } from './range-animation';
 import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult, type GlideRange } from './types';
 
 export type GlideMapInput = { enabled?: boolean; ratio?: number; altitude?: number; catalog?: CatalogReadSource; retry: number; segments?: Segment[]; ownship?: Point | null; point?: Point | null };
@@ -18,6 +20,9 @@ const POINT = 'glide-point-range', POINT_AREA = 'glide-point-area', PIN = 'glide
 const RANGE_SOURCES = { ownship: [OWN, OWN_AREA], point: [POINT, POINT_AREA] } as const;
 type RangeName = keyof typeof RANGE_SOURCES;
 const samePoint = (a: Point | null | undefined, b: Point | null | undefined) => a?.[0] === b?.[0] && a?.[1] === b?.[1];
+// Keep the terrain origin stable through GPS drift, well below a planning cell.
+const ORIGIN_DEADBAND_METERS = 25;
+const RETAIN_RANGE_METERS = 185.2; // 0.1 NM, only while a nearby replacement loads
 function rangeStatus(current: Point | null | undefined, requested: Point | null, visible: boolean, result: GlideRange | null | undefined): GlideStatus['point'] {
   if (!current) return undefined;
   if (!samePoint(current, requested)) return 'loading';
@@ -31,6 +36,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   let map: MapLibreMap | undefined, input: GlideMapInput = { retry: 0 }, generation = 0;
   let client: WorkerClient<GlideWorker> | undefined;
   let running: { id: number; controller: AbortController } | undefined, queued = false;
+  let followingGps = false;
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let airportData: { key: string; collection: FeatureCollectionResponse; partial: boolean } | undefined;
   let lastStatus: GlideStatus = { state: 'idle' };
@@ -38,12 +44,24 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   let publishedPlanRevision: number | undefined;
   // Recovery is a property of acquired data, not the transient loading/zoom UI.
   let recoveryNeeded = false;
-  const publishedRanges = new Set<RangeName>();
+  const publishedRanges = new Map<RangeName, { key: string; origin: Point }>();
   let pinKey: string | undefined;
   let sources = terrainSources(undefined), sourceKey = '';
   const status = (next: GlideStatus) => { lastStatus = next; onStatus(next); };
   const source = (id: string) => map?.getSource<GeoJSONSource>(id);
+  const ownshipAnimation = createRangeAnimation(async range => {
+    await Promise.all([source(OWN)?.setData(range.line), source(OWN_AREA)?.setData(range.area)]);
+  });
+  const onScreen = (point: Point) => {
+    if (!map) return false;
+    const center = map.getCenter(), canvas = map.getCanvas();
+    const pixel = map.project([point[0] + 360 * Math.round((center.lng - point[0]) / 360), point[1]]);
+    return pixel.x >= 0 && pixel.x <= canvas.clientWidth && pixel.y >= 0 && pixel.y <= canvas.clientHeight;
+  };
+  const nearbyOwnship = (origin: Point | null | undefined) => !!origin && !!input.ownship
+    && distanceMeters(origin, input.ownship) <= RETAIN_RANGE_METERS && onScreen(input.ownship);
   const clearRange = (name: RangeName) => {
+    if (name === 'ownship') ownshipAnimation.reset();
     publishedRanges.delete(name);
     const [line, area] = RANGE_SOURCES[name];
     source(line)?.setData(emptyLines()); source(area)?.setData(emptyAreas());
@@ -67,8 +85,13 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   const publish = (result: GlideResult, origins: { ownship: Point | null; point: Point | null }) => {
     for (const name of ['ownship', 'point'] as const) {
       const range = result[name], [line, area] = RANGE_SOURCES[name];
-      if (!range || publishedRanges.has(name) || !samePoint(origins[name], input[name])) continue;
-      source(line)?.setData(range.line); source(area)?.setData(range.area); publishedRanges.add(name);
+      const origin = origins[name];
+      if (!range || !origin || publishedRanges.get(name)?.key === range.key
+        || !(samePoint(origin, input[name]) || name === 'ownship' && nearbyOwnship(origin))) continue;
+      if (name === 'ownship') ownshipAnimation.set(range, origin, !document.hidden
+        && (!map?.isMoving() || followingGps) && !matchMedia('(prefers-reduced-motion: reduce)').matches);
+      else { source(line)?.setData(range.line); source(area)?.setData(range.area); }
+      publishedRanges.set(name, { key: range.key, origin });
     }
     if (result.planRevision !== publishedPlanRevision) {
       source(AREA)?.setData(result.areas);
@@ -92,12 +115,12 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
     cancel();
     if (!map || !input.enabled || !input.catalog) { clear(); release(); recoveryNeeded = false; status({ state: 'idle' }); return; }
     showPin();
-    if (document.hidden) return;
+    if (document.hidden) { ownshipAnimation.finish(); return; }
     status({ ...lastStatus, state: map.getZoom() < 7 ? 'zoom' : 'loading' });
     timer = setTimeout(() => { timer = undefined; void calculate(); }, 180);
   };
   async function calculate() {
-    if (!map || !input.enabled || !input.catalog || document.hidden || map.isMoving()) return;
+    if (!map || !input.enabled || !input.catalog || document.hidden || map.isMoving() && !followingGps) return;
     if (running !== undefined) { queued = true; return; }
     const id = generation, catalog = input.catalog, ratio = input.ratio!, altitude = input.altitude!;
     const job = { id, controller: new AbortController() };
@@ -170,7 +193,20 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   const inventory = () => { if (recoveryNeeded || running) recover(); };
   // Camera motion invalidates pending discovery, not completed origin coverage.
   // The worker retains and unions visited airport footprints along the route.
-  const moving = () => { cancel(); if (input.enabled) status({ ...lastStatus, state: 'loading' }); };
+  const moving = (event: { type: string; gpsCamera?: boolean }) => {
+    followingGps = event.gpsCamera === true;
+    if (followingGps) return;
+    ownshipAnimation.finish();
+    cancel(); if (input.enabled) status({ ...lastStatus, state: 'loading' });
+  };
+  const moved = (event: { type: string; gpsCamera?: boolean }) => {
+    followingGps = false;
+    if (!event.gpsCamera) { schedule(); return; }
+    // Following the aircraft does not invalidate camera-independent terrain work.
+    // Reconcile discovery afterward without discarding an in-flight result.
+    if (running) queued = true;
+    else if (timer === undefined && input.enabled) timer = setTimeout(() => { timer = undefined; void calculate(); }, 180);
+  };
   return { id: 'glide', slot: 'weather',
     coordinateAt(point) {
       if (!map || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -207,11 +243,14 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       map.addLayer({ id: 'glide-point-label', type: 'symbol', source: PIN,
         layout: { 'text-field': 'Glide from here', 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1] },
         paint: { 'text-color': FLIGHT_COLOR, 'text-halo-color': FLIGHT_DARK, 'text-halo-width': 2 } }, before);
-      map.on('movestart', moving); map.on('moveend', schedule); map.on('resize', schedule);
+      map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', schedule);
       stopInventory = observeOfflineInventory(inventory); clear(); schedule();
     },
     update(next) {
+      if (next.ownship && input.ownship && distanceMeters(next.ownship, input.ownship) < ORIGIN_DEADBAND_METERS) {
+        next = { ...next, ownship: input.ownship };
+      }
       let airportKey = airportInputKey;
       if (next.catalog !== input.catalog) {
         sources = terrainSources(next.catalog);
@@ -225,13 +264,14 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       const retryChanged = next.retry !== input.retry;
       const shipChanged = !samePoint(next.ownship, input.ownship), pointChanged = !samePoint(next.point, input.point);
       input = next; rangeInputKey = rangeKey; airportInputKey = airportKey; routeInputKey = routeKey;
+      if (!input.enabled && !enabledChanged) return;
       if (retryChanged) { recover(); return; }
       const planningChanged = rangesChanged || airportsChanged || routeChanged || enabledChanged;
       if (!planningChanged && !shipChanged && !pointChanged) return;
       if (rangesChanged || enabledChanged) { clear(); status({ state: 'idle' }); }
       else {
         if (airportsChanged || routeChanged && !next.segments?.length) clearAirports();
-        if (shipChanged) clearRange('ownship');
+        if (shipChanged && !nearbyOwnship(publishedRanges.get('ownship')?.origin)) clearRange('ownship');
         if (pointChanged) clearRange('point');
       }
       if (airportsChanged) airportData = undefined;
@@ -247,10 +287,12 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       }
     },
     unmount() {
+      ownshipAnimation.reset();
       cancel(); release(); airportData = undefined; recoveryNeeded = false;
       stopInventory?.(); stopInventory = undefined;
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', schedule);
-      if (map) { map.off('movestart', moving); map.off('moveend', schedule); map.off('resize', schedule); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
+      if (map) { map.off('movestart', moving); map.off('moveend', moved); map.off('resize', schedule); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
+      followingGps = false;
       map = undefined; status({ state: 'idle' });
     },
   };

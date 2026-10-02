@@ -2,7 +2,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { TrackBearing } from './track-bearing';
 import type { HeadingSource } from '../../core/map/heading';
 import type { LayerStore } from '../../core/layers/store';
-import { GPS_MOTION_ACCURACY_METERS, type GpsFix } from '../../core/gps/position';
+import { distanceMeters, GPS_MOTION_ACCURACY_METERS, type GpsFix } from '../../core/gps/position';
 
 type CameraFix = Pick<GpsFix, 'coordinates' | 'accuracy' | 'track' | 'time'> & Partial<Pick<GpsFix, 'speed' | 'estimated'>>;
 export type OrientationSource = LayerStore<{
@@ -66,11 +66,13 @@ export function createGpsCamera(map: CameraMap, source: OrientationSource, initi
       const longitude = lng + 360 * Math.round((current.lng - lng) / 360);
       const target: [number, number] = [longitude, lat];
       const position = map.project(target), origin = map.project(current);
-      // Subpixel jitter should not animate the entire map. The aircraft feature
-      // still uses the exact fix; explicit centering retains geographic precision.
+      // With no reliable motion, stay within the fix's uncertainty rather than
+      // chase parked GPS drift at high zoom. Accumulated travel still recenters.
+      const moving = fix.track !== null && (fix.speed ?? 0) >= 1;
+      const significant = moving || distanceMeters([current.lng, current.lat], target) > Math.max(5, 2 * fix.accuracy);
       const moved = request === 'center'
         ? Math.abs(longitude - current.lng) > 1e-9 || Math.abs(lat - current.lat) > 1e-9
-        : Math.hypot(position.x - origin.x, position.y - origin.y) >= 0.5;
+        : significant && Math.hypot(position.x - origin.x, position.y - origin.y) >= 0.5;
       if (moved) center = target;
     }
     const bearing = desiredBearing();

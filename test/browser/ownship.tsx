@@ -46,7 +46,7 @@ function Fixture() {
     window.ownshipFixture = {
       project: coordinates => map.project(coordinates),
       stats: async () => ({
-        turnRate: product.getSnapshot().turnRate, sourceUpdates,
+        turnRate: product.getSnapshot().turnRate, displayTrack: product.getSnapshot().displayTrack, sourceUpdates,
         geometry: await (map.getSource(OWNSHIP_SOURCE) as GeoJSONSource).getData(),
         rendered: map.queryRenderedFeatures(undefined, { layers: OWNSHIP_LAYERS }).map(feature => feature.layer.id),
         bearing: map.getBearing(), center: map.getCenter().toArray(),
@@ -78,7 +78,7 @@ declare global { interface Window { ownshipFixture: {
   project: (coordinates: [number, number]) => { x: number; y: number };
   camera: (options: { center?: [number, number]; bearing?: number; pitch?: number; zoom?: number }) => void;
   stats: () => Promise<{
-  turnRate: number | null; sourceUpdates: number;
+  turnRate: number | null; displayTrack: number | null; sourceUpdates: number;
   geometry: GeoJSON.GeoJSON; rendered: string[]; bearing: number; center: [number, number]; alignment: unknown; rotation: unknown;
   moving: boolean;
   movement: number[];

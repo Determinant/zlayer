@@ -25,17 +25,18 @@ aircraft while holding the bearing. Missing track shows **Waiting for GPS track*
 North-up works without GPS and does not continuously follow position.
 
 Track-up rotation applies a circular low-pass filter to the combined GPS/sensor
-bearing, with a 1.5-second time constant followed by a 2° angular deadband.
+bearing, with a two-second time constant followed by a 3° angular deadband.
 This map-only filter damps brief heading changes, including AHRS motion, before
 they rotate the whole map; it does not change HSI response. It uses elapsed sample
 time rather than a fixed per-callback gain and takes the short path across north.
 The GPS reference correction separately uses a three-second time constant with
 sensor assistance. Without it, corrections use 1.5 seconds for small errors and
-0.3 seconds for errors above 10°; the final map filter still applies to both.
+0.75 seconds for errors above 10°; the final map filter still applies to both.
 Small GPS fluctuations do not rotate the map, even during position following.
 Sustained turns still follow, with some display lag. First acquisition and recovery
-seed the bearing directly; north-up remains exactly north. Aircraft track, status
-and projection use the original GPS measurements.
+seed the bearing directly; north-up remains exactly north. Raw GPS measurements
+remain available to status, integrations and recordings. Aircraft/vector display
+motion is filtered separately as described below.
 
 Ownship optionally discovers AHRS's leased heading capability. With reported GPS
 speed at least 10 m/s (about 20 kt), accuracy within 50 m, and usable motion, AHRS
@@ -68,8 +69,8 @@ bearing while waiting for track, and respects the recommendation panel's padding
 Manual rotation returns to the selected orientation when the gesture ends if that
 orientation is available.
 
-The blue aircraft stays at the current GPS position and points along GPS ground
-track in degrees true, including when the map is rotated. A solid blue track
+The blue aircraft stays at the exact current GPS position and points along a
+smoothed GPS ground track in degrees true, including when the map is rotated. A solid blue track
 vector starts there and shows the next minute's trend at current groundspeed:
 straight in steady flight and curved with the recent ground-track turn rate.
 There is no separate future-position marker. Like the
@@ -78,9 +79,23 @@ the displayed arc stops at 90° of turn if reached before one minute. It does no
 follow the planned route. The status shows true track, knots, and reported
 horizontal accuracy in meters. A shaded circle displays that accuracy on the map.
 
-Turn rate is estimated from up to three seconds of continuous GPS tracks, with at
-least one second of samples. Tracks unwrap across north; small changes below
-0.1°/s are treated as straight flight. Gaps longer than 2.5 seconds, missing motion,
+Turn rate is estimated from up to six seconds of continuous GPS tracks, with at
+least three seconds of samples. Tracks unwrap across north. Curvature confidence
+fades in continuously from 0.3 to 1°/s, with both halves of the window supporting
+the same turn. Full confidence requires at least 1.5° of travel in each half and
+fitted travel exceeding three times the RMS residual noise by 1.5°. The weakest
+of these three factors controls curvature. This replaces a hard straight/curved
+cutoff that amplified tiny noise near its threshold.
+
+Aircraft direction and the vector's initial tangent share a circular two-second
+low-pass filter; curvature has the same elapsed-time damping. Neither filter
+modifies the shared fix, its timestamp, reported track/speed or the vector's exact
+position anchor. Filtering runs only on new fixes, without timers or extra sensor
+demand. It suppresses small or reversing GPS errors at the cost of a few seconds
+of turn-onset and level-out lag, and attenuates uncertain shallow turns. These are
+display heuristics, not a confidence or integrity estimate; correlated GPS drift
+can still resemble a real turn.
+Gaps longer than 2.5 seconds, missing motion,
 changes between reported and estimated velocity, or track jumps above 12°/s
 restart the continuous sampling window. The rate calculation uses samples at
 least 100 ms apart so rounded headings in rapid callbacks do not imply extreme
@@ -174,9 +189,13 @@ A source error invalidates visual reuse so the next fresh fix can retry even
 without movement. There is no recurring animation-frame loop or idle rendering timer.
 
 Camera following retains only the latest pending fix during a movement and skips
-bearing changes within the angular deadband and center shifts smaller than half a CSS pixel. The aircraft
-feature retains the exact measured position; explicit centering bypasses this
-visual jitter threshold. Orientation labels change only when their displayed
+bearing changes within the angular deadband and center shifts smaller than half a
+CSS pixel. When ground track or speed of at least 1 m/s is unavailable, a shift
+must also exceed twice the current accuracy radius (at least 5 m) from the camera
+center. This avoids chasing parked drift at high zoom while accumulated movement
+still recenters. Confirmed motion keeps precise following. The aircraft feature
+retains the exact measured position; explicit centering bypasses both thresholds.
+Orientation labels change only when their displayed
 state changes; the status panel also selects its displayed text and controls so
 unchanged fixes do not rerender React. Automatic track-follow camera saves are
 coalesced on a fixed two-second deadline; manual camera changes and explicit
@@ -187,6 +206,12 @@ persistence writes, and cover synchronous teardown/re-enable. Browser regression
 exercise the real renderer and initial-centering cancellation. These bounded-work
 checks do not measure battery life; installed-device energy and frame-time profiling
 remain necessary before claiming a measured battery improvement.
+The [Glide planner](../glide/README.md#work-and-recovery) separately filters small
+position drift and retains nearby ranges during calculation. Automatic GPS camera
+following does not cancel its terrain worker on each fix.
+Motion regressions also cover shallow turns with noise near the former cutoff,
+display-direction jitter across north at 1/5/10 Hz, sustained turns and level-out,
+raw-fix preservation and high-zoom stationary drift.
 
 ## Release verification
 
