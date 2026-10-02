@@ -4,6 +4,7 @@ import { createOwnshipLayer } from '../src/layers/ownship/layer';
 import { destination } from '../src/layers/ownship/position';
 import { createGpsService } from '../src/core/gps/service';
 import { GPS_STALE_MS } from '../src/core/gps/position';
+import { ownshipGeometry } from '../src/layers/ownship/geometry';
 
 function setup(t: test.TestContext) {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1_800_000_000_000 });
@@ -52,6 +53,23 @@ test('GPS waits for a consumer, uses a single high-accuracy watch and clears eve
   assert.equal(layer.getSnapshot().fix, null);
   fix();
   assert.equal(layer.getSnapshot().state, 'off', 'late callbacks cannot resurrect a disabled layer');
+});
+
+test('map presentation smooths direction without changing the shared GPS observation and resets on loss', t => {
+  const { layer, gps, fix, error } = setup(t);
+  layer.setEnabled(true); layer.attach(); fix();
+  t.mock.timers.tick(1000); fix(undefined, 0, { heading: 93 });
+  const snapshot = layer.getSnapshot();
+  assert.equal(snapshot.fix, gps.getSnapshot().fix);
+  assert.equal(snapshot.fix!.track, 93);
+  assert.ok(snapshot.displayTrack! > 90 && snapshot.displayTrack! < 92);
+  assert.equal(ownshipGeometry(snapshot).features[0]!.properties?.track, snapshot.displayTrack);
+  error(2);
+  assert.equal(layer.getSnapshot().displayTrack, null);
+  t.mock.timers.tick(1000); fix(undefined, 0, { heading: 270 });
+  assert.equal(layer.getSnapshot().displayTrack, 270, 'new acquisition cannot retain the old direction');
+  layer.setEnabled(false);
+  assert.equal(layer.getSnapshot().displayTrack, null);
 });
 
 test('detaching during initial GPS publication releases the pending lease', t => {
@@ -199,7 +217,9 @@ test('GPS turn trends use recent tracks and reset after stopping, stale fixes an
     assert.equal(layer.getSnapshot().turnRate, null);
     t.mock.timers.tick(1000); fix(undefined, 0, { heading: 359 });
     t.mock.timers.tick(1000); fix(undefined, 0, { heading: 0 });
-    assert.equal(layer.getSnapshot().turnRate, 1);
+    assert.equal(layer.getSnapshot().turnRate, null, 'a brief trend is not enough for a curved projection');
+    t.mock.timers.tick(1000); fix(undefined, 0, { heading: 1 });
+    assert.ok(layer.getSnapshot().turnRate! > 0 && layer.getSnapshot().turnRate! < 1, 'curvature eases in');
     assert.deepEqual(layer.getSnapshot().fix!.coordinates, [-122, 37]);
   };
   establishTurn();
@@ -219,25 +239,25 @@ for (const interruption of ['missing track', 'estimated speed'] as const) {
   test(`turn history retains ${interruption} interruptions between sampled fixes`, t => {
     const { layer, fix } = setup(t);
     layer.setEnabled(true); layer.attach();
-    for (let second = 0; second <= 2; second++) {
+    for (let second = 0; second <= 3; second++) {
       if (second) t.mock.timers.tick(1000);
       fix(0, 0, { heading: 90 + second });
     }
-    assert.equal(layer.getSnapshot().turnRate, 1);
+    assert.ok(layer.getSnapshot().turnRate! > 0 && layer.getSnapshot().turnRate! < 1);
     // This callback falls between the layer's retained 100 ms samples.
     const lastRetainedTime = Date.now();
     t.mock.timers.tick(50);
     const [longitude, latitude] = destination([-122, 37], 90, 123);
     fix(0, 0, interruption === 'missing track' ? { heading: null }
-      : { longitude, latitude, heading: 92.05, speed: null });
+      : { longitude, latitude, heading: 93.05, speed: null });
     assert.equal(layer.getSnapshot().turnRate, null);
     assert.equal(layer.getSnapshot().fix!.estimated, interruption === 'estimated speed');
-    for (const elapsed of [100, 200, 500, 1000, 1100]) {
+    for (const elapsed of [100, 200, 500, 1000, 2000, 3000, 3100]) {
       t.mock.timers.setTime(lastRetainedTime + elapsed);
-      fix(0, 0, { heading: 92 + elapsed / 1000 });
+      fix(0, 0, { heading: 93 + elapsed / 1000 });
       const rate = layer.getSnapshot().turnRate;
-      if (elapsed < 1100) assert.equal(rate, null, 'wait for a new continuous one-second turn baseline');
-      else assert.ok(Math.abs(rate! - 1) < 1e-9);
+      if (elapsed < 3100) assert.equal(rate, null, 'wait for a new continuous three-second turn baseline');
+      else assert.ok(rate! > 0 && rate! < 1, 'the new estimate eases in from straight flight');
     }
   });
 }

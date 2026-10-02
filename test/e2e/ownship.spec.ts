@@ -69,21 +69,21 @@ for (const rate of [-1, 1]) {
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
     await page.getByRole('switch', { name: 'GPS aircraft' }).click();
-    await sendFix(page, { heading: 90 - 2 * rate });
-    for (const second of [1, 2]) {
+    await sendFix(page, { heading: 90 - 12 * rate });
+    for (let second = 1; second <= 12; second++) {
       await page.clock.runFor(1000);
-      await sendFix(page, { heading: 90 + (second - 2) * rate });
+      await sendFix(page, { heading: 90 + (second - 12) * rate });
     }
     await page.clock.resume();
-    await expect.poll(async () => (await stats(page)).turnRate).toBeCloseTo(rate, 8);
+    await expect.poll(async () => (await stats(page)).turnRate).toBeCloseTo(rate, 1);
     await expect.poll(async () => (await stats(page)).rendered).toContain('ownship-trace');
     await expect.poll(async () => ((await stats(page)).geometry as GeoJSON.FeatureCollection)
-      .features.find(feature => feature.properties?.kind === 'aircraft')?.properties?.track).toBe(90);
+      .features.find(feature => feature.properties?.kind === 'aircraft')?.properties?.track).toBe((await stats(page)).displayTrack);
     const geometry = (await stats(page)).geometry as GeoJSON.FeatureCollection;
     const aircraft = geometry.features.find(feature => feature.properties?.kind === 'aircraft')!;
     const trace = geometry.features.find(feature => feature.properties?.kind === 'projection')!.geometry as GeoJSON.LineString;
     expect(aircraft.geometry).toEqual({ type: 'Point', coordinates: [-122, 37] });
-    expect(aircraft.properties?.track).toBe(90);
+    expect(Math.abs(aircraft.properties?.track - 90)).toBeLessThan(2);
     expect(trace.coordinates[0]).toEqual([-122, 37]);
     expect(trace.coordinates.at(-1)![0]).toBeGreaterThan(-122);
     expect(Math.sign(trace.coordinates.at(-1)![1]! - 37)).toBe(-rate);

@@ -31,6 +31,9 @@ async function controlGlideResults(page: Page) {
       constructor(url: string | URL, options?: WorkerOptions) {
         super(url, options); this.glide = String(url).includes('glide.worker');
         if (this.glide) this.addEventListener('message', event => {
+          const ownship = event.data?.value?.ownship?.line as GeoJSON.FeatureCollection<GeoJSON.MultiLineString> | undefined;
+          const points = ownship?.features.flatMap(feature => feature.geometry.coordinates.flat());
+          if (points?.length) document.documentElement.dataset.rangeTargetEast = String(Math.max(...points.map(point => point[0]!)));
           if (!event.data?.value?.work || document.documentElement.dataset.holdGlideResults !== 'true') return;
           event.stopImmediatePropagation();
           pending.push(() => this.dispatchEvent(new MessageEvent('message', { data: event.data })));
@@ -41,16 +44,71 @@ async function controlGlideResults(page: Page) {
         if (this.glide && (message as { path?: string[] }).path?.[0] === 'calculate') {
           document.documentElement.dataset.glideCalculations = String(Number(document.documentElement.dataset.glideCalculations ?? 0) + 1);
         }
+        if (this.glide && (message as { path?: string[] }).path?.[0] === 'cancel') {
+          document.documentElement.dataset.glideCancellations = String(Number(document.documentElement.dataset.glideCancellations ?? 0) + 1);
+        }
         if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
       }
     };
   });
 }
 
+test('airport coverage switches independently, preserves ownship, rejects late results and persists off', async ({ page, context }) => {
+  await airports(context);
+  await controlGlideResults(page);
+  let airportReads = 0;
+  page.on('request', request => { if (request.url().includes('/nav/airports.geojson')) airportReads++; });
+  await page.goto('/test/browser/glide.html');
+  await page.waitForFunction(() => !!window.glideAudit);
+  const master = page.getByRole('switch', { name: 'Show glide coverage' });
+  const airportSwitch = page.getByRole('switch', { name: 'Show airport coverage' });
+  const state = page.getByTestId('glide-state');
+  const data = (id: string) => page.evaluate(async id =>
+    await window.glideAudit.map.getSource<GeoJSONSource>(id)!.getData() as GeoJSON.FeatureCollection, id);
+  await expect(airportSwitch).toHaveAttribute('aria-checked', 'false');
+  await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.48]));
+  await master.click();
+  await expect.poll(async () => (await data('glide-ownship-area')).features.length).toBe(1);
+  const ownship = await data('glide-ownship-area');
+  expect((await data('glide-areas')).features).toEqual([]);
+  expect(airportReads, 'ownship-only planning must not acquire the airport catalog').toBe(0);
+  await expect(page.getByRole('status', { name: 'Glide coverage status' })).toHaveText('Airport coverage is off');
+
+  await page.evaluate(() => { document.documentElement.dataset.holdGlideResults = 'true'; });
+  await airportSwitch.click();
+  await expect(page.locator('html')).toHaveAttribute('data-pending-glide-results', '1');
+  await airportSwitch.click();
+  await page.evaluate(() => window.dispatchEvent(new Event('release-glide-results')));
+  await expect(state).toHaveAttribute('data-state', 'ready');
+  expect((await data('glide-areas')).features).toEqual([]);
+  expect(await data('glide-ownship-area')).toEqual(ownship);
+
+  await airportSwitch.click();
+  await expect.poll(async () => (await data('glide-airports')).features.length).toBe(2);
+  await airportSwitch.click();
+  await expect.poll(async () => (await data('glide-airports')).features.length).toBe(0);
+  expect((await data('glide-areas')).features).toEqual([]);
+  expect(await data('glide-ownship-area')).toEqual(ownship);
+  await expect(master).toHaveAttribute('aria-checked', 'true');
+  await master.click(); await master.click();
+  await expect(airportSwitch).toHaveAttribute('aria-checked', 'false');
+  await expect.poll(async () => (await data('glide-ownship-area')).features.length).toBe(1);
+  const reads = airportReads;
+  await page.reload();
+  await expect(master).toHaveAttribute('aria-checked', 'true');
+  await expect(airportSwitch).toHaveAttribute('aria-checked', 'false');
+  await page.waitForFunction(() => !!window.glideAudit);
+  await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.48]));
+  await expect.poll(async () => (await data('glide-ownship-area')).features.length).toBe(1);
+  expect(airportReads).toBe(reads);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
 test('reverse airport coverage merges, grows, clears on disable and survives map remounts', async ({ page, context }, testInfo) => {
   await airports(context);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   const panel = page.getByRole('region', { name: 'Glide Planner', exact: true });
   await panel.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
@@ -84,6 +142,7 @@ test('missing terrain never draws optimistic circles and retry recovers the open
   await airports(context);
   await context.route('**/terrain/*/*/*.png', route => route.fulfill({ status: 404 }));
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'partial', { timeout: 30_000 });
   const count = () => page.evaluate(async () => {
@@ -126,6 +185,7 @@ test('app puts Glide above Weather and preserves its controls on a narrow screen
   await panel.getByRole('spinbutton', { name: 'Glide ratio' }).fill('9.5');
   await panel.getByRole('spinbutton', { name: 'Glide ratio' }).press('Enter');
   await panel.getByRole('slider', { name: 'Glide start altitude' }).fill('8500');
+  await panel.getByRole('switch', { name: 'Show airport coverage' }).click();
   await panel.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(panel.getByRole('status', { name: 'Glide coverage status' })).toHaveText('2 airports within planning range');
   const bounds = await panel.boundingBox();
@@ -135,6 +195,7 @@ test('app puts Glide above Weather and preserves its controls on a narrow screen
   await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
   await expect(panel.getByRole('spinbutton', { name: 'Glide ratio' })).toHaveValue('9.5');
   await expect(panel.getByRole('slider', { name: 'Glide start altitude' })).toHaveValue('8500');
+  await expect(panel.getByRole('switch', { name: 'Show airport coverage' })).toHaveAttribute('aria-checked', 'true');
   await expect(panel.getByRole('switch', { name: 'Show glide coverage' })).toHaveAttribute('aria-checked', 'true');
 });
 
@@ -164,6 +225,7 @@ test('obsolete terrain reads cannot revive disabled coverage and only one glide 
   });
   try {
     await page.goto('/test/browser/glide.html');
+    await page.getByRole('switch', { name: 'Show airport coverage' }).click();
     expect(await page.evaluate(() => document.documentElement.dataset.glideWorkers ?? '0')).toBe('0');
     const toggle = page.getByRole('switch', { name: 'Show glide coverage' });
     await toggle.click();
@@ -189,6 +251,7 @@ test('obsolete terrain reads cannot revive disabled coverage and only one glide 
 test('ownship ring stays distinct, reuses airport geometry, and responds to route/GPS/provider changes', async ({ page, context }, testInfo) => {
   await airports(context);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
   const count = (id: string) => page.evaluate(async id => {
@@ -246,6 +309,7 @@ test('route edits filter cached airports and restore eligible offscreen origins 
   let terrainRequests = 0;
   page.on('request', request => { if (/\/terrain\/\d+\/\d+\/\d+\.png/.test(request.url())) terrainRequests++; });
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
   const count = () => page.evaluate(async () => {
@@ -275,6 +339,7 @@ test('route-only edits replace airport coverage without blanking independent ran
   let terrainRequests = 0;
   page.on('request', request => { if (/\/terrain\/\d+\/\d+\/\d+\.png/.test(request.url())) terrainRequests++; });
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
   await page.mouse.click(640, 450, { button: 'right' });
@@ -340,6 +405,7 @@ test('removing a route releases obsolete airport loading so a selected point can
   await context.route('**/nav/airports.geojson*', async route => { requested = true; await gate; await route.fallback(); });
   try {
     await page.goto('/test/browser/glide.html');
+    await page.getByRole('switch', { name: 'Show airport coverage' }).click();
     await page.getByRole('switch', { name: 'Show glide coverage' }).click();
     await expect.poll(() => requested).toBe(true);
     await page.evaluate(() => window.glideAudit.route(null));
@@ -364,6 +430,7 @@ for (const during of ['movement', 'overview', 'discarded result'] as const) test
   await context.route('**/terrain/*/*/*.png', route => route.fulfill({ status: 404 }));
   if (during === 'discarded result') await controlGlideResults(page);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   if (during === 'discarded result') await page.evaluate(() => { document.documentElement.dataset.holdGlideResults = 'true'; });
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   if (during === 'discarded result') {
@@ -397,6 +464,7 @@ test('panning retains completed ranges without republishing and rejects delayed 
   await airports(context);
   await controlGlideResults(page);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.48]));
   await page.mouse.click(760, 440, { button: 'right' });
@@ -488,6 +556,7 @@ test('zoom and route exploration retain cached airports and extend coverage only
   let terrainRequests = 0;
   page.on('request', request => { if (/\/terrain\/\d+\/\d+\/\d+\.png/.test(request.url())) terrainRequests++; });
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => {
     window.glideAudit.route([[-120.1, 34.43], [-118.6, 34.43]]);
@@ -547,6 +616,7 @@ test('mountain coverage uses compact smooth contours for airports and ownship', 
     }) });
   });
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await expect(page.getByTestId('glide-state')).toHaveAttribute('data-state', 'ready');
   await page.evaluate(() => window.glideAudit.ownship([-119.8, 34.48]));
@@ -589,6 +659,7 @@ test('a mountain valley produces long smooth lobes for airport, ownship and sele
     }) });
   });
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
   await page.mouse.click(640, 450, { button: 'right' });
@@ -620,6 +691,7 @@ test('a mountain valley produces long smooth lobes for airport, ownship and sele
 test('map menu enables point planning, replaces the pin and clears only its range', async ({ page, context }, testInfo) => {
   await airports(context);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   const panel = page.getByRole('region', { name: 'Glide Planner', exact: true });
   const menu = page.getByRole('menu', { name: 'Map actions' });
@@ -634,7 +706,7 @@ test('map menu enables point planning, replaces the pin and clears only its rang
   expect(await count('glide-point')).toBe(0);
   await menu.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  await expect(panel.getByRole('switch', { name: 'Show glide coverage' })).toHaveAttribute('aria-checked', 'true');
   await expect(panel.getByRole('slider')).toBeFocused();
   await expect(page.getByLabel('Selected point glide status')).toHaveText('Using the planning altitude below');
   expect(await count('glide-areas')).toBe(0); expect(await count('glide-ownship')).toBe(0);
@@ -687,6 +759,7 @@ test('clearing a point while terrain loads cannot restore its pin or range', asy
   });
   try {
     await page.goto('/test/browser/glide.html');
+    await page.getByRole('switch', { name: 'Show airport coverage' }).click();
     await page.waitForFunction(() => !!window.glideAudit);
     await page.mouse.click(760, 440, { button: 'right' });
     await page.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
@@ -729,7 +802,7 @@ test.describe('touch point planning', () => {
     await menu.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Glide Planner', exact: true });
     await expect(panel).toBeVisible();
-    await expect(panel.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    await expect(panel.getByRole('switch', { name: 'Show glide coverage' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByLabel('Selected point glide status')).toHaveText('Using the planning altitude below');
     await expect(panel.getByRole('slider')).toHaveValue('6500');
     const bounds = (await panel.boundingBox())!;
@@ -738,7 +811,7 @@ test.describe('touch point planning', () => {
     await page.reload();
     await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
     await expect(page.getByLabel('Selected glide point coordinates')).toHaveCount(0);
-    await expect(panel.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+    await expect(panel.getByRole('switch', { name: 'Show glide coverage' })).toHaveAttribute('aria-checked', 'true');
     await page.getByLabel('Settings and offline downloads').click();
     await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
     for (const id of ['glide', 'routes']) {
@@ -757,6 +830,7 @@ test('GPS loss while a result is pending cannot restore its ring or ready status
   await airports(context);
   await controlGlideResults(page);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
@@ -784,9 +858,87 @@ test('GPS loss while a result is pending cannot restore its ring or ready status
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
 
+test('GPS drift does no glide work and nearby moving rings replace without blanking during track-up follow', async ({ page, context }) => {
+  await airports(context);
+  await controlGlideResults(page);
+  await page.clock.install();
+  await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
+  await page.waitForFunction(() => !!window.glideAudit);
+  await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await expect(page.getByLabel('Ownship glide status')).toContainText('live position');
+  await page.evaluate(() => {
+    document.documentElement.dataset.rangeUploads = '0';
+    document.documentElement.dataset.rangeBlanks = '0';
+    document.documentElement.dataset.glideCalculations = '0';
+    document.documentElement.dataset.glideCancellations = '0';
+    document.documentElement.dataset.rangeEdges = '[]';
+    for (const id of ['glide-ownship', 'glide-ownship-area']) {
+      const source = window.glideAudit.map.getSource<GeoJSONSource>(id)!, original = source.setData.bind(source);
+      source.setData = (...args: Parameters<typeof source.setData>) => {
+        const data = args[0] as GeoJSON.FeatureCollection;
+        const key = data.features.length ? 'rangeUploads' : 'rangeBlanks';
+        document.documentElement.dataset[key] = String(Number(document.documentElement.dataset[key]) + 1);
+        if (id === 'glide-ownship' && data.features.length) {
+          const lines = data as GeoJSON.FeatureCollection<GeoJSON.MultiLineString>;
+          const east = Math.max(...lines.features.flatMap(feature => feature.geometry.coordinates.flat().map(point => point[0]!)));
+          const edges = JSON.parse(document.documentElement.dataset.rangeEdges!) as number[];
+          edges.push(east); document.documentElement.dataset.rangeEdges = JSON.stringify(edges);
+        }
+        return original(...args);
+      };
+    }
+  });
+  for (const offset of [0, .00003, -.00003, .00008, -.00008, 0]) {
+    await page.evaluate(offset => window.glideAudit.ownship([-119.78 + offset, 34.43]), offset);
+    await page.clock.runFor(1000);
+  }
+  await expect(page.locator('html')).toHaveAttribute('data-glide-calculations', '0');
+  await expect(page.locator('html')).toHaveAttribute('data-range-uploads', '0');
+  await expect(page.locator('html')).toHaveAttribute('data-range-blanks', '0');
+  await page.evaluate(() => {
+    document.documentElement.dataset.holdGlideResults = 'true';
+    window.glideAudit.ownship([-119.7794, 34.43]); // about 55 m of real movement
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-pending-glide-results', '1');
+  await page.evaluate(() => window.glideAudit.map.easeTo({ center: [-119.7794, 34.43], bearing: 45, duration: 250 }, { gpsCamera: true }));
+  await page.clock.runFor(300);
+  await expect(page.locator('html')).toHaveAttribute('data-range-blanks', '0');
+  await expect(page.locator('html')).toHaveAttribute('data-glide-cancellations', '0');
+  await page.evaluate(() => window.dispatchEvent(new Event('release-glide-results')));
+  await expect(page.getByLabel('Ownship glide status')).toContainText('live position');
+  await expect.poll(() => page.evaluate(() => new Set(JSON.parse(document.documentElement.dataset.rangeEdges!) as number[]).size)).toBeGreaterThan(3);
+  await page.clock.runFor(1000);
+  await expect.poll(() => page.evaluate(() => (JSON.parse(document.documentElement.dataset.rangeEdges!) as number[]).at(-1)
+    === Number(document.documentElement.dataset.rangeTargetEast))).toBe(true);
+  const uploads = await page.evaluate(() => Number(document.documentElement.dataset.rangeUploads));
+  expect(uploads).toBeGreaterThan(6); expect(uploads).toBeLessThanOrEqual(42);
+  await page.clock.runFor(1000);
+  await expect(page.locator('html')).toHaveAttribute('data-range-uploads', String(uploads));
+  await expect(page.locator('html')).toHaveAttribute('data-range-blanks', '0');
+  // Retention is bounded by distance from the published origin, not each fix.
+  await page.evaluate(() => {
+    document.documentElement.dataset.holdGlideResults = 'true';
+    window.glideAudit.ownship([-119.77, 34.43]);
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-range-blanks', '2');
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.evaluate(() => {
+    document.documentElement.dataset.rangeBlanks = '0';
+    document.documentElement.dataset.glideCalculations = '0';
+    for (let i = 0; i < 20; i++) window.glideAudit.ownship([-119.77 + i * .001, 34.43]);
+  });
+  await page.clock.runFor(1000);
+  await expect(page.locator('html')).toHaveAttribute('data-range-blanks', '0');
+  await expect(page.locator('html')).toHaveAttribute('data-glide-calculations', '0');
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
 test('a calculated empty forward range is retained without repeated source updates', async ({ page, context }) => {
   await airports(context);
   await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show airport coverage' }).click();
   await page.waitForFunction(() => !!window.glideAudit);
   await page.evaluate(() => window.glideAudit.ownship([-119.78, 34.43]));
   await page.getByRole('slider').fill('0');

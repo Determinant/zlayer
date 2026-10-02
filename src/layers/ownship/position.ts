@@ -2,13 +2,18 @@ import { GPS_MOTION_ACCURACY_METERS, GPS_MOTION_SAMPLE_MS, validSpeed, type GpsF
 
 const EARTH_RADIUS = 6_371_008.8;
 const RADIANS = Math.PI / 180;
-const TURN_WINDOW_MS = 3000;
-const TURN_MIN_SPAN_MS = 1000;
+const TURN_WINDOW_MS = 6000;
+const TURN_MIN_SPAN_MS = 3000;
 const TURN_MAX_GAP_MS = 2500;
 const MAX_TURN_RATE = 12; // degrees per second; reject track discontinuities
-const TURN_RATE_DEADBAND = 0.1; // degrees per second
 const TRACK_VECTOR_SECONDS = 60;
 const TRACK_VECTOR_MAX_TURN = 90; // degrees
+const wrap = (angle: number) => (angle % 360 + 360) % 360;
+const difference = (a: number, b: number) => wrap(a - b + 180) - 180;
+const fade = (value: number, low: number, high: number) => {
+  const t = Math.max(0, Math.min(1, (value - low) / (high - low)));
+  return t * t * (3 - 2 * t);
+};
 
 /** Keep longitude near the origin so a dateline crossing draws the short path. */
 export function destination(from: [number, number], track: number, meters: number): [number, number] {
@@ -58,13 +63,47 @@ export function estimateTurnRate(fix: GpsFix, history: readonly GpsFix[]): numbe
     variance += (sample.time - meanTime) ** 2;
   }
   const rate = covariance / variance;
-  return Math.abs(rate) < TURN_RATE_DEADBAND ? 0 : rate;
+  const oldest = samples.at(-1)!, middleTime = oldest.time / 2;
+  const middleIndex = samples.findIndex(sample => sample.time <= middleTime);
+  const before = samples[middleIndex]!, after = samples[middleIndex - 1]!;
+  const middleAngle = before.angle + (after.angle - before.angle) * (middleTime - before.time) / (after.time - before.time);
+  // Both halves must support the same turn. A short left/right wobble can
+  // otherwise have a steep regression slope, especially on high-rate feeds.
+  // A one-minute extrapolation magnifies a tiny or inconsistent heading trend.
+  // Fade confidence in continuously instead of switching full curvature on/off
+  // at a threshold. Even tiny heading noise otherwise moves the endpoint ~1 km.
+  // RMS (not standard error) avoids pretending high-rate callbacks are independent.
+  const residual = Math.sqrt(samples.reduce((sum, sample) =>
+    sum + (sample.angle - meanAngle - rate * (sample.time - meanTime)) ** 2, 0) / samples.length);
+  const travel = Math.abs(rate) * (fix.timestamp - newer.timestamp) / 1000;
+  const direction = Math.sign(rate);
+  const consistentTravel = Math.min(direction * (middleAngle - oldest.angle), direction * -middleAngle) * 2;
+  const confidence = Math.min(fade(Math.abs(rate), .3, 1), fade(consistentTravel, 0, 3),
+    fade(travel, 3 * residual, 3 * residual + 1.5));
+  return confidence === 0 ? 0 : rate * confidence;
+}
+
+export type DisplayMotion = { displayTrack: number | null; turnRate: number | null };
+
+/** Presentation only: never change the observed position, velocity or timestamp.
+ * Elapsed-time damping behaves consistently on 1 Hz and high-rate GPS feeds. */
+export function smoothMotion(fix: GpsFix, previous: DisplayMotion & { fix: GpsFix | null }, rate: number | null): DisplayMotion {
+  const before = previous.fix;
+  if (!usableMotion(fix)) return { displayTrack: fix.track, turnRate: null };
+  const seconds = before ? (fix.timestamp - before.timestamp) / 1000 : Infinity;
+  if (!before || !usableMotion(before) || before.estimated !== fix.estimated || seconds > TURN_MAX_GAP_MS / 1000
+    || seconds <= 0 || previous.displayTrack === null) return { displayTrack: fix.track, turnRate: null };
+  const gain = -Math.expm1(-seconds / 2);
+  return {
+    displayTrack: wrap(previous.displayTrack + gain * difference(fix.track, previous.displayTrack)),
+    turnRate: rate === null ? null : (previous.turnRate ?? 0) + gain * (rate - (previous.turnRate ?? 0)),
+  };
 }
 
 /** A 60-second track vector, clipped at 90° of turn as on the G1000. */
-export function projectedTrack(fix: GpsFix, turnRate: number | null = null): [number, number][] {
+export function projectedTrack(fix: GpsFix, turnRate: number | null = null, displayTrack = fix.track): [number, number][] {
   if (!usableMotion(fix)) return [];
-  const { track, speed } = fix;
+  const { speed } = fix, track = displayTrack ?? fix.track;
   const rate = turnRate !== null && Number.isFinite(turnRate) && Math.abs(turnRate) <= MAX_TURN_RATE ? turnRate : 0;
   const seconds = rate === 0 ? TRACK_VECTOR_SECONDS : Math.min(TRACK_VECTOR_SECONDS, TRACK_VECTOR_MAX_TURN / Math.abs(rate));
   // At most five seconds or three degrees per segment keeps the vector smooth.

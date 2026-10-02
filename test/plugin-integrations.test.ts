@@ -9,6 +9,11 @@ import { PluginRegistry, PluginScope } from '../src/core/layers/bridge';
 import { createRoutesPlugin } from '../src/layers/routes/plugin';
 import { createTerrainPlugin } from '../src/layers/terrain/plugin';
 import { createObstructionsPlugin } from '../src/layers/obstructions/plugin';
+import { createGlidePlugin } from '../src/layers/glide/plugin';
+import { createOwnshipPlugin } from '../src/layers/ownship/plugin';
+import { createLayerStore } from '../src/core/layers/store';
+import type { GpsSnapshot } from '../src/core/gps/service';
+import type { GlideMapInput } from '../src/layers/glide/map';
 import type { WorkspacePluginApis } from '../src/workspace/plugin-apis';
 
 // Exercise actual plugin connections and map bindings; substitute only GPU/worker adapters.
@@ -19,6 +24,78 @@ export function ${name}() { return { id: 'probe', slot: 'terrain', mount() {}, u
     globalThis.pluginInputs.push(input);
   } }; }
 `);
+
+test('Glide independently gates airport demand and observes Ownship through revocable core connections', async t => {
+  const loader = registerHooks({ resolve(specifier, context, next) {
+    if (specifier === './map' && context.parentURL?.endsWith('/glide/plugin.tsx')) {
+      return { url: adapterModule('createGlideLayer'), shortCircuit: true };
+    }
+    return next(specifier, context);
+  } });
+  t.after(() => loader.deregister());
+  const updates: GlideMapInput[] = [];
+  Object.assign(globalThis, { pluginInputs: updates });
+  t.after(() => Reflect.deleteProperty(globalThis, 'pluginInputs'));
+  const gps = createLayerStore<GpsSnapshot>({ state: 'tracking', fix: {
+    coordinates: [-119.78, 34.43], accuracy: 5, timestamp: 1000, time: 1,
+    track: null, speed: null, altitude: null, altitudeAccuracy: null, estimated: false,
+  } });
+  let leases = 0;
+  const ownship = createOwnshipPlugin({ ...gps, acquire() { leases++; return () => { leases--; }; }, retry() {} });
+  const glide = createGlidePlugin(), routes = createRoutesPlugin();
+  const plan = { ...emptyRoutePlan(), approachExtensions: [[[-120, 34], [-119, 34]]] } as RoutePlan;
+  routes.input.set({ route: plan, displayedRoutes: [plan], routePreview: undefined, focusNonce: 0,
+    actions: { insert() {}, replace() {}, remove() {} } });
+  glide.input.set({ ...glide.preferences.select({ glideEnabled: true }), catalog: {} as CatalogReadSource, change() {} });
+  const registry = new PluginRegistry<WorkspacePluginApis>();
+  const registrations = { glide: registry.registration('glide', glide), ownship: registry.registration('ownship', ownship),
+    routes: registry.registration('routes', routes) };
+  t.after(() => { for (const registration of Object.values(registrations)) registration.deactivate(); ownship.detach(); });
+  registrations.glide.activate();
+  const [binding] = await glide.mapContribution.load();
+  binding!.mount({} as MapContributionContext['map']);
+  t.after(() => binding!.unmount());
+  t.after(binding!.subscribeInputs!(() => binding!.update()));
+  const latest = () => updates.at(-1)!;
+  assert.deepEqual(latest().segments, []);
+  assert.equal(latest().ownship, null);
+  assert.equal(leases, 0, 'Glide can activate without Ownship and never acquires GPS');
+  registrations.routes.activate(); registrations.ownship.activate();
+  assert.equal(leases, 0, 'passive provider discovery does not enable GPS');
+  ownship.setEnabled(true); ownship.attach();
+  assert.equal(leases, 1);
+  assert.equal(latest().ownship, gps.getSnapshot().fix!.coordinates);
+  assert.deepEqual(latest().segments, [], 'airport coverage defaults off even with a route');
+  glide.input.set({ ...glide.input.require(), glideAirportsEnabled: true });
+  assert.ok(latest().segments!.length);
+  glide.input.set({ ...glide.input.require(), glideAirportsEnabled: false });
+  assert.deepEqual(latest().segments, []);
+  assert.equal(latest().ownship, gps.getSnapshot().fix!.coordinates);
+  const count = updates.length;
+  routes.input.set({ ...routes.input.require(), displayedRoutes: [{ ...plan, approachExtensions: [[[-121, 34], [-120, 34]]] }] });
+  assert.equal(updates.length, count, 'route edits do not update the renderer while airport coverage is off');
+  glide.input.set({ ...glide.input.require(), glideAirportsEnabled: true });
+  const segments = latest().segments;
+  assert.ok(segments!.length);
+  registrations.ownship.deactivate();
+  assert.equal(latest().ownship, null);
+  assert.equal(latest().segments, segments, 'removing Ownship preserves airport demand');
+  registrations.ownship.activate();
+  assert.equal(latest().ownship, gps.getSnapshot().fix!.coordinates);
+  registrations.routes.deactivate();
+  assert.deepEqual(latest().segments, []);
+  assert.equal(latest().ownship, gps.getSnapshot().fix!.coordinates, 'removing Routes preserves the ownship ring');
+  registrations.glide.deactivate();
+  assert.equal(leases, 1, 'removing Glide does not stop Ownship GPS');
+  updates.length = 0;
+  gps.publish({ ...gps.getSnapshot(), fix: { ...gps.getSnapshot().fix!, coordinates: [-119.77, 34.43], timestamp: 2000, time: 2 } });
+  assert.equal(updates.length, 0, 'the revoked connection cannot deliver late positions');
+  registrations.glide.activate(); updates.length = 0;
+  gps.publish({ ...gps.getSnapshot(), fix: { ...gps.getSnapshot().fix!, coordinates: [-119.76, 34.43], timestamp: 3000, time: 3 } });
+  assert.equal(updates.length, 1, 'reconnection leaves exactly one active position subscription');
+  gps.publish({ ...gps.getSnapshot(), state: 'stale' });
+  assert.equal(latest().ownship, null, 'stale GPS clears the optional ring');
+});
 
 test('terrain and obstructions discover late routes, follow previews, clear on unload and recover without duplicate listeners', async t => {
   const loader = registerHooks({ resolve(specifier, context, next) {

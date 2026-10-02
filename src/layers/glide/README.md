@@ -9,6 +9,17 @@ is 8:1 at 6,500 ft, with coverage initially off. These preferences persist in th
 plugin's version-2 `preferences` record. Stowing the panel keeps coverage active;
 unloading the plugin stops its worker and removes its map resources.
 
+The main **Show glide coverage** switch enables the planner. A separate **Airport
+coverage** switch controls the amber airport regions, markers and labels; it
+defaults off, including for older saved preferences without that field. Turning it
+off keeps ownship and selected-point ranges visible and stops airport acquisition
+and preparation. Its saved setting survives toggling the main planner switch.
+
+The panel follows [shared UI typography and controls](../../../docs/features/shared-ui.md#typography):
+inherited B612, core switches/buttons/inputs and touch sizing, 14 px explanatory
+prose with 1.6 line height, and compact labels and metadata. Its native altitude
+slider retains plugin-specific styling and uses core's touch and focus tokens.
+
 8:1 is a deliberately reduced planning starting point for light singles such as
 C172/DA40/SR22-class aircraft, not a model-specific POH performance claim. Actual
 configuration, airspeed and wind matter; use the aircraft's POH and a suitable
@@ -30,7 +41,8 @@ and landing maneuvers are not modeled.
   showing a straight glide from that point. It is independent of the route.
   Ownship must be enabled, tracking a fresh fix with accuracy within 100 m, and
   visible when a new position is first calculated. Panning away retains a completed
-  ring for the same position. Stale/unavailable GPS or provider removal clears it;
+  ring for the same planning origin. Drift under 25 m retains that origin;
+  larger movement requests a new range. Stale/unavailable GPS or provider removal clears it;
   a changed off-screen GPS position never inherits the previous position’s range. The ring follows live **position**, using the **selected planning MSL
   altitude**; raw browser GPS altitude is not substituted. Both the legend and
   status explain this distinction. No second GPS watch is acquired.
@@ -56,6 +68,14 @@ pan, zoom and rotation unchanged. Unvisited off-screen origins are not eagerly
 calculated. A route edit reselects cached airport origins and clips their complete
 footprints to the new corridor; it does not invalidate ownship or selected-point
 ranges. Changed glide/data inputs invalidate the ranges that depend on them.
+
+Glide and Ownship are independently registered plugins. Glide uses core's scoped
+`bridge.watch('ownship')` connection to observe the read-only `OwnshipApi.position`
+store, and similarly observes Routes' displayed plans. Neither is an activation
+prerequisite: losing Ownship clears only its ring, and losing Routes clears only
+airport coverage. Selected-point planning needs neither provider. Disabling Glide
+releases its subscriptions without changing Ownship or acquiring/releasing a GPS
+lease. See the [inter-plugin bridge contract](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
 
 ## Airports and elevation
 
@@ -219,11 +239,47 @@ later route edits. Altitude, ratio or navigation-source changes clear affected
 airport geometry. Terrain-source changes invalidate all terrain-derived results.
 No coverage is saved to disk.
 
-Origin changes coalesce at 250 ms without canceling airport preparation. Each
-published airport union carries a revision; a completed-but-discarded response
+Ownship demand uses a **25 m displacement deadband**, measured from the last
+accepted planning origin, so timestamp-only updates and small GPS drift do not
+request worker or geometry-upload work. Disabled coverage ignores GPS updates.
+The aircraft marker still uses the exact GPS fix.
+Origin changes coalesce at 250 ms without canceling airport preparation. During
+nearby movement, keep the completed ring at its calculated geographic origin until
+the new result replaces it, without an intervening empty source upload. Retention
+is limited to **0.1 NM from the published origin** and requires the new origin to be
+on screen; larger jumps and changed off-screen origins clear it immediately.
+Nearby late results may replace the retained ring while the newest origin queues;
+status remains loading until the result matches the accepted origin. The retained
+ring is a previous planning result, not a terrain-clearance guarantee from the
+moving aircraft's new position. Settings, source changes and GPS loss still clear
+obsolete ranges immediately. The displacement limits bound drift; this does not
+reduce GPS acquisition frequency or establish measured battery savings.
+
+Nearby complete ownship ranges transition over **600 ms**, using **128 fixed radial
+bearings** sampled from the displayed and new outlines. Retargeting resamples that
+fixed mesh instead of accumulating bearings from earlier clipped frames, so
+geometry complexity depends on the mesh and newest terrain footprint, not flight
+duration or GPS frequency. Each intermediate shape is
+intersected with the **new** terrain footprint: contractions appear immediately,
+while newly reachable portions move smoothly outward. The line and fill share
+that boundary. This interpolates completed results; it never translates an old
+terrain shape to an uncalculated GPS position or extrapolates motion between fixes.
+Unknown/open ranges, empty results and antimeridian-split geometry update directly
+so animation cannot bridge a terrain gap. First acquisition and reduced-motion
+mode also publish directly. Manual camera movement or hiding finishes a pending
+transition; GPS loss, invalidation, disable and teardown cancel it.
+
+Animation uploads are capped at **30 frames/second**, wait for both MapLibre
+source updates before admitting another frame, and coalesce newer results while
+the renderer is busy. Intermediate geometry uses the fixed mesh and latest terrain
+mask and does no terrain work. Transitions stop at the exact new result, including
+all its original detail, and leave no idle animation loop.
+
+Each published airport union carries a revision; a completed-but-discarded response
 cannot make a later cached response skip an unpublished union. Each published
-forward result must match its current origin; late results cannot
-restore a moved or cleared point. Old forward-origin profiles are replaced within
+selected-point result must match its current origin; late results cannot
+restore a moved or cleared point. Ownship results follow the bounded retention
+policy above. Old forward-origin profiles are replaced within
 the shared resident budget. Unchanged completed geometry is not republished to
 MapLibre when the camera moves, including calculated empty forward ranges.
 Ownship and selected-point results share one representation: `null` for an
@@ -239,8 +295,11 @@ union when its current result is ready, with the preceding union labeled as
 loading in the meantime. Route removal clears that union immediately. Unchanged
 ownship and selected-point geometry remains published throughout route edits,
 including at overview zoom. Forward status distinguishes a retained calculated
-range from an uncalculated origin that needs zooming in. Camera movement and
+range from an uncalculated origin that needs zooming in. Manual camera movement and
 hiding cancel pending work but keep completed ranges and the idle worker/cache.
+Automatic GPS-follow movement preserves in-flight terrain calculations and
+reconciles viewport discovery after the movement, avoiding cancel/restart cycles
+on every GPS fix. Completed geographic ranges do not depend on camera bearing.
 Zoomed-out or empty views retain them as well. Returning to a visited area uses
 the cache immediately; only newly discovered origins need terrain calculation.
 Each calculation owns an abortable wait for shared navigation acquisition.
@@ -278,6 +337,12 @@ mosaic alignment.
 revisits, cumulative polygon union, off-screen route reclipping, overview discovery
 limits, settings/source invalidation, forward origin identity, independent memory
 budgets, unknown terrain and cancellation.
+
+`test/glide-animation.test.ts` checks intermediate motion, containment within the
+new terrain footprint, immediate ridge cutbacks, incomplete/world-split bypasses,
+upload backpressure, exact completion and cancellation without idle frames. A
+minute of overlapping 400 ms updates checks bounded vertices, containment and
+absence of periodic snapping when new results precede animation completion.
 
 `test/glide.test.ts` covers the bounded calculation kernel: field eligibility, private runways, route/date-line
 selection, the 20 NM boundary, MSL/reserve arithmetic, reverse and forward terrain

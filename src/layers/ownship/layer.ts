@@ -1,18 +1,16 @@
 import { createLayerStore } from '../../core/layers/store';
 import type { GpsService, GpsState } from '../../core/gps/service';
 import { GPS_MOTION_ACCURACY_METERS, GPS_MOTION_SAMPLE_MS, GPS_STALE_MS, type GpsFix } from '../../core/gps/position';
-import { estimateTurnRate } from './position';
+import { estimateTurnRate, smoothMotion, type DisplayMotion } from './position';
 
 export type OwnshipState = GpsState;
-export type OwnshipSnapshot = {
+export type OwnshipSnapshot = DisplayMotion & {
   enabled: boolean; state: OwnshipState; fix: GpsFix | null; centerRequest: number;
-  /** Recent GPS ground-track turn rate in degrees per second, clockwise positive. */
-  turnRate: number | null;
 };
 
 /** Map presentation and demand; the core GPS source owns sensor acquisition. */
 export function createOwnshipLayer(gps: GpsService) {
-  const store = createLayerStore<OwnshipSnapshot>({ enabled: false, state: 'off', fix: null, centerRequest: 0, turnRate: null });
+  const store = createLayerStore<OwnshipSnapshot>({ enabled: false, state: 'off', fix: null, centerRequest: 0, turnRate: null, displayTrack: null });
   let attached = false, centerOnFix = true, acquiringGps = false;
   let releaseGps: (() => void) | undefined, unsubscribe: (() => void) | undefined;
   let motionHistory: GpsFix[] = [];
@@ -21,24 +19,26 @@ export function createOwnshipLayer(gps: GpsService) {
   const observeGps = () => {
     if (!attached || !store.getSnapshot().enabled) return;
     const { state, fix } = gps.getSnapshot(), previous = store.getSnapshot();
-    let turnRate = previous.turnRate, centerRequest = previous.centerRequest;
+    let { turnRate, displayTrack, centerRequest } = previous;
     if (state !== 'tracking' || !fix) {
       motionHistory = [];
       turnHistoryStart = -Infinity;
       turnRate = null;
+      displayTrack = null;
     } else if (fix !== previous.fix) {
       // Retain continuity breaks even between the sampled track observations.
       if (fix.track === null || fix.speed === null || (previous.fix && fix.estimated !== previous.fix.estimated)) {
         turnHistoryStart = fix.timestamp;
       }
-      turnRate = estimateTurnRate(fix, motionHistory.filter(sample => sample.timestamp >= turnHistoryStart));
+      ({ turnRate, displayTrack } = smoothMotion(fix, previous,
+        estimateTurnRate(fix, motionHistory.filter(sample => sample.timestamp >= turnHistoryStart))));
       motionHistory = motionHistory.filter(sample => fix.timestamp - sample.timestamp <= GPS_STALE_MS);
       if ((fix.speed !== null && fix.speed < 1) || fix.accuracy > GPS_MOTION_ACCURACY_METERS) motionHistory = [];
       if (!motionHistory.length || fix.timestamp - motionHistory.at(-1)!.timestamp >= GPS_MOTION_SAMPLE_MS) motionHistory.push(fix);
       if (centerOnFix && fix.accuracy <= GPS_MOTION_ACCURACY_METERS) { centerRequest++; centerOnFix = false; }
     }
     if (state !== previous.state || fix !== previous.fix || turnRate !== previous.turnRate || centerRequest !== previous.centerRequest) {
-      store.publish({ ...previous, state, fix, turnRate, centerRequest });
+      store.publish({ ...previous, state, fix, turnRate, displayTrack, centerRequest });
     }
   };
   const syncDemand = () => {
@@ -73,7 +73,7 @@ export function createOwnshipLayer(gps: GpsService) {
       if (enabled === store.getSnapshot().enabled) return;
       centerOnFix = true;
       if (!enabled) { motionHistory = []; turnHistoryStart = -Infinity; }
-      store.publish({ ...store.getSnapshot(), enabled, ...(!enabled && { state: 'off' as const, fix: null, turnRate: null }) });
+      store.publish({ ...store.getSnapshot(), enabled, ...(!enabled && { state: 'off' as const, fix: null, turnRate: null, displayTrack: null }) });
       syncDemand();
     },
     attach(options?: { centerOnFix: boolean }) {
@@ -89,7 +89,7 @@ export function createOwnshipLayer(gps: GpsService) {
       syncDemand();
       motionHistory = [];
       turnHistoryStart = -Infinity;
-      store.publish({ ...store.getSnapshot(), state: 'off', fix: null, turnRate: null });
+      store.publish({ ...store.getSnapshot(), state: 'off', fix: null, turnRate: null, displayTrack: null });
     },
     retry: gps.retry,
     center() {
