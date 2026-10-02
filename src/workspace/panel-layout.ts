@@ -7,6 +7,7 @@ export const PANEL_LAYOUT = {
   ahrs: { side: 'left', tab: { edge: 'top', order: 2 }, bodyFromEdge: true },
   terrain: { side: 'left', tab: { edge: 'bottom', order: 0 } },
   'weather-awc': { side: 'left', tab: { edge: 'bottom', order: 1 }, bodyFromEdge: true },
+  glide: { side: 'left', tab: { edge: 'bottom', order: 2 }, bodyFromEdge: true },
   plate: { side: 'right', tab: { edge: 'bottom', order: 0 } },
   details: { side: 'right', tab: { edge: 'bottom', order: 1 } },
   'weather-awc-details': { side: 'right', tab: { edge: 'bottom', order: 2 } },

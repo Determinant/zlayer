@@ -1,3 +1,5 @@
+import type { GlideApi } from '../layers/glide/public';
+import type { OwnshipApi } from '../layers/ownship/public';
 import type { AhrsApi } from '../layers/ahrs/public';
 import type { RoutesApi } from '../layers/routes/public';
 import type { NavigationApi } from '../layers/navigation/public';
@@ -16,9 +18,10 @@ export type WorkspacePluginApis = {
   ruler: RulerApi;
   metar: MetarApi;
   terrain: TerrainApi;
+  glide: GlideApi;
   obstructions: ObstructionApi;
   'weather-awc': WeatherAwcApi;
   ahrs: AhrsApi;
-  ownship: object;
+  ownship: OwnshipApi;
   charts: object;
 };

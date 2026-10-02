@@ -7,6 +7,7 @@ import { createPlatesLayer } from '../layers/plates';
 import { createOwnshipPlugin } from '../layers/ownship/plugin';
 import { createAhrsPlugin } from '../layers/ahrs/plugin';
 import { createRulerPlugin } from '../layers/ruler/plugin';
+import { createGlidePlugin } from '../layers/glide/plugin';
 import { createTerrainPlugin } from '../layers/terrain/plugin';
 import { createObstructionsPlugin } from '../layers/obstructions/plugin';
 import { createChartsPlugin } from '../layers/charts/plugin';
@@ -27,6 +28,7 @@ if (import.meta.hot) {
 export function createWorkspaceLayers() {
   const charts = createChartsPlugin();
   const terrain = createTerrainPlugin();
+  const glide = createGlidePlugin();
   const obstructions = createObstructionsPlugin();
   const navigation = createNavigationPlugin();
   const metar = createMetarPlugin();
@@ -45,6 +47,7 @@ export function createWorkspaceLayers() {
   } };
   const plugins = layerPlugins([
     { ...charts, communication: registry.registration('charts', { publicApi: () => ({}) }) },
+    { ...glide, communication: registry.registration('glide', glide) },
     { ...terrain, communication: registry.registration('terrain', terrain) },
     { ...plates, communication: registry.registration('plates', plates) },
     { ...obstructions, communication: registry.registration('obstructions', obstructions) },
@@ -56,5 +59,5 @@ export function createWorkspaceLayers() {
     { ...ownship, communication: registry.registration('ownship', ownship) },
     { ...ahrs, communication: registry.registration('ahrs', ahrs) },
   ] as const);
-  return { charts, terrain, obstructions, navigation, metar, weatherAwc, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
+  return { charts, terrain, glide, obstructions, navigation, metar, weatherAwc, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
 }

@@ -224,3 +224,13 @@ beta release assessment but does not establish mobile GPS behavior.
 
 References: [W3C Geolocation](https://www.w3.org/TR/geolocation/),
 [MapLibre symbol rotation](https://maplibre.org/maplibre-style-spec/layers/#icon-rotation-alignment).
+
+## Passive position observation
+
+The typed `OwnshipApi.position` store exposes the existing enabled state and GPS
+snapshot through the scoped plugin bridge. Consumers share the map's GPS lifecycle
+and do not acquire a second watch. [Glide](../glide/README.md) uses fresh, accurate
+positions first acquired on screen for its teal planning ring; completed ranges
+remain cached while panning away from that same position. It takes MSL altitude from its
+planning slider, not the browser's raw altitude. Removing Ownship revokes the
+store connection and clears dependent rings.

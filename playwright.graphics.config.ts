@@ -3,7 +3,7 @@ import base from './playwright.config';
 
 export default defineConfig({
   ...base,
-  testMatch: ['graphics.spec.ts', 'map-resize.spec.ts', 'terrain.spec.ts', 'ownship.spec.ts', 'plate-fullscreen.spec.ts', 'plate-pinch.spec.ts'],
+  testMatch: ['graphics.spec.ts', 'map-resize.spec.ts', 'terrain.spec.ts', 'glide.spec.ts', 'ownship.spec.ts', 'plate-fullscreen.spec.ts', 'plate-pinch.spec.ts'],
   outputDir: 'test-results/graphics',
   use: { ...base.use, launchOptions: {} },
   projects: [

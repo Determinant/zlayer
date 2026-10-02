@@ -204,6 +204,18 @@ or rerun terrain workers. Touch and pointer interaction stays inside the toolbox
 
 ## Elevation and precision
 
+The data-only `data.ts` entry provides an elevation reader for the shared
+`core/terrain/elevation.ts` mosaic service. [Glide](../glide/README.md) uses it
+independently of Terrain overlay visibility, retaining the same maximum-height
+source selection, saved-source precedence and acquisition/cache contracts. Its
+optional cell mask limits mosaic copying and tile demand to needed cells. Glide's
+origin windows can extend beyond the viewport. Core can pool whole source-cell
+maxima before mosaic copying, sharing preparations across origins in a bounded
+4 MiB cache without changing acquisition resolution or unknown-cell semantics.
+Whole source tiles retain their existing decoding/cache behavior. A maximum of
+resampled fallback values is not a maximum of the original upstream terrain;
+see Glide's [accuracy limits](../glide/README.md#accuracy-limits-and-next-improvements).
+
 File acquisition uses core's [shared transfer framework](../../../docs/architecture/layer-plugins.md#file-downloads).
 Packaged terrain uses the core whole-file cache. Legacy 256px PNGs use bounded
 response consumption with a 4 MiB ceiling and the existing short retry/deadline;

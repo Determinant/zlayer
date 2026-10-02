@@ -1,3 +1,4 @@
+import type { OwnshipApi } from './public';
 import type { AhrsApi } from '../ahrs/public';
 import type { PluginExports } from '../../core/layers/bridge';
 import { createHeadingConnection } from './heading';
@@ -5,7 +6,7 @@ import { pluginStorage } from './storage';
 import { ownshipPreferences } from './preferences';
 import { createOwnshipLayer } from './layer';
 import { OwnshipStatus } from './controls';
-import { createLayerInput } from '../../core/layers/store';
+import { createLayerInput, selectLayerStore } from '../../core/layers/store';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { ToolPanel } from '../../core/ui/tool-panel';
@@ -15,6 +16,7 @@ import type { GpsService } from '../../core/gps/service';
 export function createOwnshipPlugin(gps: GpsService) {
   const layer = createOwnshipLayer(gps);
   const heading = createHeadingConnection();
+  const position = selectLayerStore(layer, ({ enabled, state, fix }) => ({ enabled, state, fix }));
   const input = createLayerInput<{ enabled: boolean; onToggle(): void }>();
   function Panel() {
     const state = useLayerSnapshot(input);
@@ -25,7 +27,7 @@ export function createOwnshipPlugin(gps: GpsService) {
     </ToolPanel>;
   }
   return {
-    publicApi: () => ({}),
+    publicApi: scope => ({ position: scope.store(position) }),
     connect(bridge) {
       bridge.watch('ahrs', (api, connection) => {
         connection.add(() => heading.setProvider(undefined));
@@ -53,5 +55,5 @@ export function createOwnshipPlugin(gps: GpsService) {
       }
     } },
     dispose: () => layer.detach(),
-  } satisfies LayerPlugin & PluginExports<object, { ahrs: AhrsApi }> & { acquireHeading: typeof heading.acquireHeading } & typeof layer & { input: typeof input };
+  } satisfies LayerPlugin & PluginExports<OwnshipApi, { ahrs: AhrsApi }> & { acquireHeading: typeof heading.acquireHeading } & typeof layer & { input: typeof input };
 }

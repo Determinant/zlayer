@@ -41,6 +41,7 @@ await build({ plugins: benchmarkPlugins, build: { outDir: directory, rolldownOpt
     weatherGridTest: resolve('test/browser/weather-grids.html'),
     weatherNativeTest: resolve('test/browser/weather-native.html'),
     obstructionTest: resolve('test/browser/obstructions.html'),
+    glideTest: resolve('test/browser/glide.html'),
     routeEditor: resolve('test/browser/routes.html'), routeMap: resolve('test/browser/route-map.html'), terrainTest: resolve('test/browser/terrain.html'),
     ownshipTest: resolve('test/browser/ownship.html'), graphicsTest: resolve('test/browser/graphics.html'),
     ahrsDrums: resolve('test/browser/ahrs-drums.html'), ahrsGeometry: resolve('test/browser/ahrs-geometry.html') },
