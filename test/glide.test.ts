@@ -164,7 +164,7 @@ test('slider adjustments reuse polar terrain profiles and ownship movement reuse
   const coldMs = performance.now() - start, readsAfterCold = reads, warmStart = performance.now();
   const warm = await calculator.calculate(request({ altitude: 6200, ownship: [0.03, .03] }), signal);
   const warmMs = performance.now() - warmStart;
-  assert.ok(cold.areas.features.length && cold.ownship.features.length);
+  assert.ok(cold.areas.features.length && cold.ownship!.line.features.length);
   assert.ok(cold.work.terrainCells > 0 && cold.work.profilesBuilt === 2);
   assert.equal(reads, readsAfterCold); assert.equal(warm.work.terrainCells, 0);
   assert.equal(warm.work.profileCells, 0); assert.equal(warm.work.profilesBuilt, 0); assert.equal(warm.work.profilesReused, 2);
@@ -239,7 +239,7 @@ test('range expansion leaves enough sampled halo for whole planning cells withou
   for (const ratio of [3, 8, 20]) for (const altitude of [600, 1500, 2800, 4400, 6500, 18000]) {
     const result = await calculator.calculate(request({ viewport: boundsViewport(bounds), ratio, altitude, ownship: [0, 0] }), new AbortController().signal);
     assert.equal(result.incomplete, false, `${altitude} ft, ${ratio}:1 airport coverage`);
-    assert.equal(result.ownshipIncomplete, false, `${altitude} ft, ${ratio}:1 ownship coverage`);
+    assert.equal(result.ownship!.incomplete, false, `${altitude} ft, ${ratio}:1 ownship coverage`);
   }
 });
 
@@ -248,25 +248,25 @@ test('a selected map point uses forward glide independently of routes/GPS and re
   const signal = new AbortController().signal;
   const selectedOnly = await calculator.calculate(request({ segments: [], ownship: null, point: [.01, 0] }), signal);
   assert.equal(selectedOnly.areas.features.length, 0);
-  assert.equal(selectedOnly.ownship.features.length, 0);
-  assert.equal(selectedOnly.point.features.length, 1);
-  assert.equal(selectedOnly.pointArea.features.length, 1);
-  assert.equal(selectedOnly.pointIncomplete, false);
+  assert.equal(selectedOnly.ownship, null);
+  assert.equal(selectedOnly.point!.line.features.length, 1);
+  assert.equal(selectedOnly.point!.area.features.length, 1);
+  assert.equal(selectedOnly.point!.incomplete, false);
   const together = await calculator.calculate(request({ ownship: [.02, 0], point: [.01, 0] }), signal);
-  assert.ok(together.areas.features.length && together.ownshipArea.features.length && together.pointArea.features.length);
+  assert.ok(together.areas.features.length && together.ownship!.area.features.length && together.point!.area.features.length);
   const moved = await calculator.calculate(request({ ownship: [.02, 0], point: [.015, 0] }), signal);
   assert.equal(moved.work.planReused, true); assert.equal(moved.work.profilesBuilt, 1); assert.equal(moved.work.footprintsReused, 2);
   assert.deepEqual(moved.ownship, together.ownship);
   const cleared = await calculator.calculate(request({ ownship: [.02, 0], point: null }), signal);
-  assert.equal(cleared.point.features.length, 0); assert.equal(cleared.pointArea.features.length, 0);
+  assert.equal(cleared.point, null);
   assert.equal(cleared.work.planReused, true); assert.equal(cleared.work.profilesBuilt, 0);
   const outside = await calculator.calculate(request({ ownship: [.02, 0], point: [20, 20] }), signal);
-  assert.equal(outside.point.features.length, 0); assert.equal(outside.work.terrainCells, 0); assert.equal(outside.work.profilesBuilt, 0);
+  assert.equal(outside.point, null); assert.equal(outside.work.terrainCells, 0); assert.equal(outside.work.profilesBuilt, 0);
 });
 
 test('selected-point terrain failures remain separate and never produce optimistic filled circles', async () => {
   const calculator = new GlidePlanner(async () => { throw new Error('missing'); });
   const result = await calculator.calculate(request({ airports: [], segments: [], point: [.01, 0] }), new AbortController().signal);
-  assert.equal(result.pointIncomplete, true); assert.equal(result.incomplete, false); assert.equal(result.ownshipIncomplete, false);
-  assert.equal(result.point.features.length, 0); assert.equal(result.pointArea.features.length, 0);
+  assert.equal(result.point!.incomplete, true); assert.equal(result.incomplete, false); assert.equal(result.ownship, null);
+  assert.equal(result.point!.line.features.length, 0); assert.equal(result.point!.area.features.length, 0);
 });

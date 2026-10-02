@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
 import { WorkerClient } from '../../core/data/worker-client';
+import { withAbort } from '../../core/data/abort';
 import { WEATHER_LAYER_ANCHOR, removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { observeOfflineInventory } from '../../offline/inventory-events';
 import { routingCatalog, type CatalogReadSource } from '../../workspace/read-context';
@@ -9,26 +10,44 @@ import { terrainSources, terrainSourceKey, DEFAULT_ELEVATION_URL, TERRAIN_ATTRIB
 import { visibleGlideAirports } from './airports';
 import { insideViewport, localRouteSegments, unwrapPoint, viewportBounds, type GlideViewport } from './coverage';
 import { project, type Point, type Segment } from '../../core/geo/route-corridor';
-import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult } from './types';
+import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult, type GlideRange } from './types';
 
 export type GlideMapInput = { enabled?: boolean; ratio?: number; altitude?: number; catalog?: CatalogReadSource; retry: number; segments?: Segment[]; ownship?: Point | null; point?: Point | null };
 const AREA = 'glide-areas', AIRPORTS = 'glide-airports', OWN = 'glide-ownship', OWN_AREA = 'glide-ownship-area';
 const POINT = 'glide-point-range', POINT_AREA = 'glide-point-area', PIN = 'glide-point';
+const RANGE_SOURCES = { ownship: [OWN, OWN_AREA], point: [POINT, POINT_AREA] } as const;
+type RangeName = keyof typeof RANGE_SOURCES;
+const samePoint = (a: Point | null | undefined, b: Point | null | undefined) => a?.[0] === b?.[0] && a?.[1] === b?.[1];
+function rangeStatus(current: Point | null | undefined, requested: Point | null, visible: boolean, result: GlideRange | null | undefined): GlideStatus['point'] {
+  if (!current) return undefined;
+  if (!samePoint(current, requested)) return 'loading';
+  if (result?.incomplete) return 'partial';
+  if (!visible) return 'outside';
+  return result ? 'ready' : 'zoom';
+}
 const AIRPORT_COLOR = '#ffc875', AIRPORT_DARK = '#332510', FLIGHT_COLOR = '#53e4c6', FLIGHT_DARK = '#102d2a';
 const LAYERS = ['glide-fill', 'glide-outline-trim', 'glide-outline', 'glide-airport-points', 'glide-airport-labels', 'glide-ownship-fill', 'glide-ownship-trim', 'glide-ownship-ring', 'glide-point-fill', 'glide-point-trim', 'glide-point-ring', 'glide-point-pin', 'glide-point-label'];
 export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLayerModule<GlideMapInput> & { coordinateAt(point: { x: number; y: number }): Point | undefined } {
-  let map: MapLibreMap | undefined, input: GlideMapInput = { retry: 0 }, inputKey = '', generation = 0;
-  let client: WorkerClient<GlideWorker> | undefined, running: number | undefined, queued = false;
+  let map: MapLibreMap | undefined, input: GlideMapInput = { retry: 0 }, generation = 0;
+  let client: WorkerClient<GlideWorker> | undefined;
+  let running: { id: number; controller: AbortController } | undefined, queued = false;
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let airportData: { key: string; collection: FeatureCollectionResponse; partial: boolean } | undefined;
   let lastStatus: GlideStatus = { state: 'idle' };
-  let planInputKey = '', planPublished = false, publishedPlanRevision: number | undefined;
-  let shipPublished = false, pointPublished = false, pinKey: string | undefined;
-  let sources = terrainSources(undefined), sourceKey = '', catalogKeys: string[] = [];
+  let rangeInputKey = '', airportInputKey = '', routeInputKey = '';
+  let publishedPlanRevision: number | undefined;
+  // Recovery is a property of acquired data, not the transient loading/zoom UI.
+  let recoveryNeeded = false;
+  const publishedRanges = new Set<RangeName>();
+  let pinKey: string | undefined;
+  let sources = terrainSources(undefined), sourceKey = '';
   const status = (next: GlideStatus) => { lastStatus = next; onStatus(next); };
   const source = (id: string) => map?.getSource<GeoJSONSource>(id);
-  const clearOwnship = () => { shipPublished = false; source(OWN)?.setData(emptyLines()); source(OWN_AREA)?.setData(emptyAreas()); };
-  const clearPoint = () => { pointPublished = false; source(POINT)?.setData(emptyLines()); source(POINT_AREA)?.setData(emptyAreas()); };
+  const clearRange = (name: RangeName) => {
+    publishedRanges.delete(name);
+    const [line, area] = RANGE_SOURCES[name];
+    source(line)?.setData(emptyLines()); source(area)?.setData(emptyAreas());
+  };
   const showPin = () => {
     const point = input.enabled ? input.point : null, key = JSON.stringify(point ?? null);
     if (key === pinKey) return;
@@ -37,44 +56,52 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: point },
     }] : [] });
   };
-  const clear = () => {
-    planPublished = false; pinKey = undefined; clearOwnship(); clearPoint();
-    source(PIN)?.setData({ type: 'FeatureCollection', features: [] });
+  const clearAirports = () => {
+    publishedPlanRevision = undefined;
     source(AREA)?.setData(emptyAreas()); source(AIRPORTS)?.setData({ type: 'FeatureCollection', features: [] });
   };
-  const publish = (result: GlideResult, shipKey: string, pointKey: string) => {
-    if (!shipPublished && result.ownshipCalculated && shipKey === JSON.stringify(input.ownship ?? null)) {
-      source(OWN)?.setData(result.ownship); source(OWN_AREA)?.setData(result.ownshipArea); shipPublished = true;
+  const clear = () => {
+    clearAirports(); clearRange('ownship'); clearRange('point'); pinKey = undefined;
+    source(PIN)?.setData({ type: 'FeatureCollection', features: [] });
+  };
+  const publish = (result: GlideResult, origins: { ownship: Point | null; point: Point | null }) => {
+    for (const name of ['ownship', 'point'] as const) {
+      const range = result[name], [line, area] = RANGE_SOURCES[name];
+      if (!range || publishedRanges.has(name) || !samePoint(origins[name], input[name])) continue;
+      source(line)?.setData(range.line); source(area)?.setData(range.area); publishedRanges.add(name);
     }
-    if (!pointPublished && result.pointCalculated && pointKey === JSON.stringify(input.point ?? null)) {
-      source(POINT)?.setData(result.point); source(POINT_AREA)?.setData(result.pointArea); pointPublished = true;
-    }
-    if (result.planRevision !== publishedPlanRevision || !result.work.planReused || !planPublished) {
+    if (result.planRevision !== publishedPlanRevision) {
       source(AREA)?.setData(result.areas);
       source(AIRPORTS)?.setData({ type: 'FeatureCollection', features: result.airports });
-      planPublished = true; publishedPlanRevision = result.planRevision;
+      publishedPlanRevision = result.planRevision;
     }
   };
   const cancel = () => {
     generation++; clearTimeout(timer); timer = undefined; queued = false;
-    if (client && running !== undefined) { const id = running; void client.call(remote => remote.cancel(id)).catch(() => {}); }
+    if (running) {
+      // The worker may retain incomplete origins even when cancellation keeps
+      // their result from reaching this view. Inventory repair must reach them.
+      recoveryNeeded = true;
+      running.controller.abort();
+      const id = running.id;
+      if (client) void client.call(remote => remote.cancel(id)).catch(() => {});
+    }
   };
-  const release = () => { client?.dispose(); client = undefined; running = undefined; };
-  const schedule = (preserveGeometry = false) => {
+  const release = () => { running?.controller.abort(); client?.dispose(); client = undefined; running = undefined; };
+  const schedule = () => {
     cancel();
-    if (!map || !input.enabled || !input.catalog) { clear(); release(); status({ state: 'idle' }); return; }
-    if (!preserveGeometry) clear();
+    if (!map || !input.enabled || !input.catalog) { clear(); release(); recoveryNeeded = false; status({ state: 'idle' }); return; }
     showPin();
-    if (map.getZoom() < 7) { status({ ...lastStatus, state: 'zoom' }); return; }
     if (document.hidden) return;
-    status(preserveGeometry ? { ...lastStatus, state: 'loading' } : { state: 'loading' });
+    status({ ...lastStatus, state: map.getZoom() < 7 ? 'zoom' : 'loading' });
     timer = setTimeout(() => { timer = undefined; void calculate(); }, 180);
   };
   async function calculate() {
-    if (!map || !input.enabled || !input.catalog || document.hidden || map.getZoom() < 7 || map.isMoving()) return;
+    if (!map || !input.enabled || !input.catalog || document.hidden || map.isMoving()) return;
     if (running !== undefined) { queued = true; return; }
     const id = generation, catalog = input.catalog, ratio = input.ratio!, altitude = input.altitude!;
-    running = id;
+    const job = { id, controller: new AbortController() };
+    running = job;
     try {
       const canvas = map.getCanvas(), center = project([map.getCenter().lng, map.getCenter().lat]);
       const viewport: GlideViewport = [[0, 0], [canvas.clientWidth, 0], [canvas.clientWidth, canvas.clientHeight], [0, canvas.clientHeight]]
@@ -84,20 +111,19 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
         });
       if (!viewport.flat().every(Number.isFinite) || !insideViewport(center, viewport)) { status({ ...lastStatus, state: 'zoom' }); return; }
       const bounds = viewportBounds(viewport), segments = input.segments ?? [], localSegments = localRouteSegments(segments, viewport);
-      const shipKey = JSON.stringify(input.ownship ?? null), pointKey = JSON.stringify(input.point ?? null);
-      const pointVisible = !!input.point && insideViewport(unwrapPoint(input.point, viewport), viewport);
-      const point = input.point ?? null;
-      const pointState = input.point ? pointVisible ? 'ready' as const : 'outside' as const : undefined;
-      const shipVisible = !!input.ownship && insideViewport(unwrapPoint(input.ownship, viewport), viewport);
-      const ownship = input.ownship ?? null;
-      const ownshipState = shipVisible ? 'ready' as const : ownship ? 'outside' as const : 'unavailable' as const;
+      let discover = map.getZoom() >= 7 && bounds[2] - bounds[0] <= 45 && bounds[3] - bounds[1] <= 25;
+      const ownship = input.ownship ?? null, point = input.point ?? null;
+      const shipVisible = !!ownship && insideViewport(unwrapPoint(ownship, viewport), viewport);
+      const pointVisible = !!point && insideViewport(unwrapPoint(point, viewport), viewport);
       let airports: ReturnType<typeof visibleGlideAirports> = [], airportPartial = false;
-      if (localSegments.length) {
+      if (discover && localSegments.length) {
         const layer = regionalNavigationLayers(catalog).find(layer => layer.id === 'airports');
         if (layer) {
           const key = navigationRequestKey(layer, routingCatalog(catalog).revision, catalog.charts, catalog);
           if (airportData?.key !== key) {
-            const result = await fetchNavigationResult(layer, routingCatalog(catalog).revision, catalog.charts, catalog);
+            // Leave shared acquisition running for other consumers, but release
+            // this generation's wait immediately when its demand is obsolete.
+            const result = await withAbort(fetchNavigationResult(layer, routingCatalog(catalog).revision, catalog.charts, catalog), job.controller.signal);
             if (id !== generation || !map) return;
             if (result.collection) airportData = { key, collection: result.collection, partial: result.issues.length > 0 };
             else airportPartial = true;
@@ -108,40 +134,43 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
           }
         } else airportPartial = true;
       }
-      const tooLarge = airports.length > 160 || bounds[2] - bounds[0] > 45 || bounds[3] - bounds[1] > 25;
-      if (tooLarge) { status({ ...lastStatus, state: 'zoom', route: !!segments.length, ownship: ownshipState, point: pointState }); return; }
-      if (!client && !airports.length && !shipVisible && !pointVisible) {
-        status({ state: airportPartial ? 'partial' : 'ready', airports: 0, route: !!segments.length, ownship: ownshipState, point: pointState }); return;
+      if (airports.length > 160) discover = false;
+      recoveryNeeded ||= airportPartial;
+      let result: GlideResult | undefined;
+      if (client || discover && (airports.length || shipVisible || pointVisible)) {
+        if (!client || client.retired) {
+          client = new WorkerClient<GlideWorker>(new Worker(new URL('./glide.worker.ts', import.meta.url), { type: 'module' }), 'Glide calculation unavailable');
+          publishedPlanRevision = undefined; publishedRanges.clear();
+        }
+        // Even an overview can reclip known footprints to an edited route. The
+        // discovery gate forbids terrain acquisition, not reconciliation.
+        result = await client.call(remote => remote.calculate({ id, discover, airports, altitude, ratio, viewport, segments, ownship, point, sources,
+          sourceKey, airportKey: airportInputKey, base: location.href,
+          tileUrl: import.meta.env.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
+        if (id !== generation || !map) return;
+        publish(result, { ownship, point });
+        recoveryNeeded ||= result.incomplete || !!result.ownship?.incomplete || !!result.point?.incomplete;
       }
-      if (!client || client.retired) client = new WorkerClient<GlideWorker>(new Worker(new URL('./glide.worker.ts', import.meta.url), { type: 'module' }), 'Glide calculation unavailable');
-      const base = location.href;
-      const result = await client.call(remote => remote.calculate({ id, airports, altitude, ratio, viewport, segments, ownship, point, sources,
-        sourceKey, airportKey: JSON.stringify(catalogKeys), base,
-        tileUrl: import.meta.env.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
-      if (id !== generation || !map) return;
-      publish(result, shipKey, pointKey);
-      const currentPoint = pointKey === JSON.stringify(input.point ?? null);
-      const currentShip = shipKey === JSON.stringify(input.ownship ?? null);
-      status({ state: result.incomplete || airportPartial ? 'partial' : 'ready', airports: result.airports.length, route: !!segments.length,
-        ownship: currentShip ? result.ownshipIncomplete ? 'partial' : ownshipState : input.ownship ? 'loading' : 'unavailable',
-        point: currentPoint ? result.pointIncomplete ? 'partial' : pointState : input.point ? 'loading' : undefined });
-      if (!currentShip || !currentPoint) queued = true;
+      status({ state: !discover ? 'zoom' : result?.incomplete || airportPartial ? 'partial' : 'ready', airports: result?.airports.length ?? 0, route: !!segments.length,
+        ownship: rangeStatus(input.ownship, ownship, shipVisible, result?.ownship) ?? 'unavailable',
+        point: rangeStatus(input.point, point, pointVisible, result?.point) });
+      if (!samePoint(ownship, input.ownship) || !samePoint(point, input.point)) queued = true;
     } catch {
-      if (id === generation && map) status({ ...lastStatus, state: 'error' });
+      if (id === generation && map) { recoveryNeeded = true; status({ ...lastStatus, state: 'error' }); }
     } finally {
-      if (running === id) {
+      if (running === job) {
         running = undefined;
         if (queued) { queued = false; clearTimeout(timer); timer = undefined; void calculate(); }
       }
     }
   }
-  const recover = () => { airportData = undefined; release(); schedule(); };
-  const inventory = () => { if (['error', 'partial'].includes(lastStatus.state) || lastStatus.ownship === 'partial' || lastStatus.point === 'partial') recover(); };
+  const recover = () => {
+    airportData = undefined; recoveryNeeded = false; release(); clear(); status({ state: 'idle' }); schedule();
+  };
+  const inventory = () => { if (recoveryNeeded || running) recover(); };
   // Camera motion invalidates pending discovery, not completed origin coverage.
   // The worker retains and unions visited airport footprints along the route.
   const moving = () => { cancel(); if (input.enabled) status({ ...lastStatus, state: 'loading' }); };
-  const viewportChanged = () => schedule(true);
-  const visibilityChanged = () => schedule(true);
   return { id: 'glide', slot: 'weather',
     coordinateAt(point) {
       if (!map || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -178,41 +207,50 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       map.addLayer({ id: 'glide-point-label', type: 'symbol', source: PIN,
         layout: { 'text-field': 'Glide from here', 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1] },
         paint: { 'text-color': FLIGHT_COLOR, 'text-halo-color': FLIGHT_DARK, 'text-halo-width': 2 } }, before);
-      map.on('movestart', moving); map.on('moveend', viewportChanged); map.on('resize', viewportChanged);
-      window.addEventListener('online', recover); document.addEventListener('visibilitychange', visibilityChanged);
-      stopInventory = observeOfflineInventory(inventory); schedule();
+      map.on('movestart', moving); map.on('moveend', schedule); map.on('resize', schedule);
+      window.addEventListener('online', recover); document.addEventListener('visibilitychange', schedule);
+      stopInventory = observeOfflineInventory(inventory); clear(); schedule();
     },
     update(next) {
+      let airportKey = airportInputKey;
       if (next.catalog !== input.catalog) {
         sources = terrainSources(next.catalog);
         sourceKey = terrainSourceKey(sources, globalThis.location?.href ?? 'http://localhost/');
-        catalogKeys = next.catalog ? regionalNavigationLayers(next.catalog).filter(l => l.id === 'airports')
-          .map(l => navigationRequestKey(l, routingCatalog(next.catalog!).revision, next.catalog!.charts, next.catalog)) : [];
+        airportKey = JSON.stringify(next.catalog ? regionalNavigationLayers(next.catalog).filter(l => l.id === 'airports')
+          .map(l => navigationRequestKey(l, routingCatalog(next.catalog!).revision, next.catalog!.charts, next.catalog)) : []);
       }
-      const planKey = JSON.stringify([next.enabled, next.ratio, next.altitude, next.retry, catalogKeys, sourceKey, next.segments ?? []]);
-      const key = JSON.stringify([planKey, next.ownship ?? null, next.point ?? null]);
-      const shipChanged = JSON.stringify(next.ownship ?? null) !== JSON.stringify(input.ownship ?? null);
-      const pointChanged = JSON.stringify(next.point ?? null) !== JSON.stringify(input.point ?? null);
-      if (next.retry !== input.retry) { airportData = undefined; release(); }
-      input = next;
-      if (key !== inputKey) {
-        const onlyOrigins = planKey === planInputKey;
-        inputKey = key; planInputKey = planKey;
-        if (!onlyOrigins) schedule();
-        else if (map && input.enabled) {
-          // Coalesce origin changes without canceling airport preparation or
-          // continually restarting a debounce on high-rate location feeds.
-          if (shipChanged) { clearOwnship(); status({ ...lastStatus, ownship: input.ownship ? 'loading' : 'unavailable' }); }
-          if (pointChanged) { clearPoint(); showPin(); status({ ...lastStatus, point: input.point ? 'loading' : undefined }); }
-          if (timer === undefined) timer = setTimeout(() => { timer = undefined; void calculate(); }, 250);
-        }
+      const rangeKey = JSON.stringify([next.ratio, next.altitude, sourceKey]), routeKey = JSON.stringify(next.segments ?? []);
+      const rangesChanged = rangeKey !== rangeInputKey, airportsChanged = airportKey !== airportInputKey;
+      const routeChanged = routeKey !== routeInputKey, enabledChanged = next.enabled !== input.enabled;
+      const retryChanged = next.retry !== input.retry;
+      const shipChanged = !samePoint(next.ownship, input.ownship), pointChanged = !samePoint(next.point, input.point);
+      input = next; rangeInputKey = rangeKey; airportInputKey = airportKey; routeInputKey = routeKey;
+      if (retryChanged) { recover(); return; }
+      const planningChanged = rangesChanged || airportsChanged || routeChanged || enabledChanged;
+      if (!planningChanged && !shipChanged && !pointChanged) return;
+      if (rangesChanged || enabledChanged) { clear(); status({ state: 'idle' }); }
+      else {
+        if (airportsChanged || routeChanged && !next.segments?.length) clearAirports();
+        if (shipChanged) clearRange('ownship');
+        if (pointChanged) clearRange('point');
+      }
+      if (airportsChanged) airportData = undefined;
+      if (map && input.enabled && (shipChanged || pointChanged)) status({ ...lastStatus,
+        ...(shipChanged ? { ownship: input.ownship ? 'loading' as const : 'unavailable' as const } : {}),
+        ...(pointChanged ? { point: input.point ? 'loading' as const : undefined } : {}) });
+      if (planningChanged) schedule();
+      else if (map && input.enabled) {
+        // Coalesce origin changes without canceling airport preparation or
+        // continually restarting a debounce on high-rate location feeds.
+        if (pointChanged) showPin();
+        if (timer === undefined) timer = setTimeout(() => { timer = undefined; void calculate(); }, 250);
       }
     },
     unmount() {
-      cancel(); release(); airportData = undefined;
+      cancel(); release(); airportData = undefined; recoveryNeeded = false;
       stopInventory?.(); stopInventory = undefined;
-      window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', visibilityChanged);
-      if (map) { map.off('movestart', moving); map.off('moveend', viewportChanged); map.off('resize', viewportChanged); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
+      window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', schedule);
+      if (map) { map.off('movestart', moving); map.off('moveend', schedule); map.off('resize', schedule); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
       map = undefined; status({ state: 'idle' });
     },
   };

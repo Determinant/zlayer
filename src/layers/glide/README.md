@@ -53,7 +53,9 @@ Airport coverage additionally reserves 500 ft above field elevation on arrival.
 The camera clips drawing, not the calculated footprint. Complete origin-centered
 work windows allow cached airport, ownship and selected-point ranges to survive
 pan, zoom and rotation unchanged. Unvisited off-screen origins are not eagerly
-calculated. A route edit or changed glide/data inputs invalidates affected ranges.
+calculated. A route edit reselects cached airport origins and clips their complete
+footprints to the new corridor; it does not invalidate ownship or selected-point
+ranges. Changed glide/data inputs invalidate the ranges that depend on them.
 
 ## Airports and elevation
 
@@ -68,9 +70,10 @@ landing suitability, permission or current NOTAM status.
 
 Viewport and route filters run before calculation. No nearest-airport cap silently
 drops fields: views with more than 160 eligible visible candidates, below zoom 7,
-or spanning over 45° longitude/25° latitude pause new calculations and ask the user
-to zoom in. Previously drawn coverage remains visible at those overview scales. Airport markers
-include eligible candidates even where terrain is incomplete. Airport footprints
+or spanning over 45° longitude/25° latitude pause new origin discovery and ask the
+user to zoom in. Cached footprints can still be reconciled after a route edit at
+those overview scales, without acquiring terrain or discovering new origins.
+Airport markers include eligible candidates even where terrain is incomplete. Airport footprints
 are unioned before drawing, so touching/overlapping footprints share a perimeter
 and enclosed holes remain. World wrapping keeps date-line coverage local.
 
@@ -197,19 +200,24 @@ Terrain reader coalesces and caches source acquisition across origins.
 
 Completed airport footprints occupy a separate LRU of **512 airports / 8 MiB of
 estimated serialized geometry and metadata**, whichever limit is reached first.
-Visiting a new field adds its footprint to the cached union; touching/overlapping
-coverage has one perimeter. Revisiting an origin touches its LRU entry and performs
-no terrain or profile work. Zoom, rotation and panning reuse the same geometry;
-a smaller or empty camera view never replaces it with a truncated range. Oldest
+Visiting a new field adds its complete, unclipped footprint to the cache; the
+current route selects eligible cached fields and clips their coverage to the
+corridor. Touching/overlapping coverage has one perimeter. Revisiting an origin
+touches its LRU entry and performs no terrain or profile work. Zoom, rotation and
+panning reuse the same geometry; a smaller or empty camera view never replaces it
+with a truncated range. Oldest
 visited fields may be evicted when this bounded cache fills. Current ownship and
 selected-point results have their own slots, keyed by position, altitude and ratio.
 
 Prepared numeric DEM/profile buffers have an independent **32 MiB LRU**. Evicting
 those buffers keeps the completed footprint. Slider changes within a resident
 origin window scan cached profiles; altitude decreases reuse larger windows.
-Larger demand expands the window and rebuilds only that origin. Route, altitude,
-ratio or navigation-source changes clear affected airport geometry. Terrain-source
-changes invalidate all terrain-derived results. No coverage is saved to disk.
+Larger demand expands the window and rebuilds only that origin. Route changes
+reselect and reclip visited airports, including off-screen origins, without terrain
+work. Removing a route hides airport coverage but retains bounded footprints for
+later route edits. Altitude, ratio or navigation-source changes clear affected
+airport geometry. Terrain-source changes invalidate all terrain-derived results.
+No coverage is saved to disk.
 
 Origin changes coalesce at 250 ms without canceling airport preparation. Each
 published airport union carries a revision; a completed-but-discarded response
@@ -218,16 +226,29 @@ forward result must match its current origin; late results cannot
 restore a moved or cleared point. Old forward-origin profiles are replaced within
 the shared resident budget. Unchanged completed geometry is not republished to
 MapLibre when the camera moves, including calculated empty forward ranges.
-An unvisited off-screen origin is distinguished from a calculated empty range, so
-bringing it into view still acquires terrain. GPS loss clears both geometry and
-status immediately; a pending result cannot restore either.
+Ownship and selected-point results share one representation: `null` for an
+uncalculated origin, or a completed range containing its identity, line, fill and
+terrain completeness. This distinguishes unvisited origins from calculated empty
+ranges throughout planning, publication and status. Bringing an unvisited origin
+into view still acquires terrain. GPS loss clears both geometry and status
+immediately; a pending result cannot restore either.
 
-Planning inputs clear obsolete geometry and debounce 180 ms. Camera movement and
+Performance and terrain changes clear obsolete ranges; navigation-source changes
+clear only airport coverage. Route edits debounce 180 ms and replace the airport
+union when its current result is ready, with the preceding union labeled as
+loading in the meantime. Route removal clears that union immediately. Unchanged
+ownship and selected-point geometry remains published throughout route edits,
+including at overview zoom. Forward status distinguishes a retained calculated
+range from an uncalculated origin that needs zooming in. Camera movement and
 hiding cancel pending work but keep completed ranges and the idle worker/cache.
 Zoomed-out or empty views retain them as well. Returning to a visited area uses
 the cache immediately; only newly discovered origins need terrain calculation.
-Cancellation rejects late results and yields between origins. Core reads at most
-four DEM tiles concurrently. Disable and unmount release the worker and all caches.
+Each calculation owns an abortable wait for shared navigation acquisition.
+Cancelling obsolete demand releases that wait without cancelling other consumers'
+downloads. Active worker calculations still drain before another request starts;
+late results cannot publish against a newer route or source identity.
+Cancellation yields between origins. Core reads at most four DEM tiles
+concurrently. Disable and unmount release the worker and all caches.
 The plugin owns every map source, layer, listener and timer. Optional typed bridge
 subscriptions to Routes and Ownship clear on provider removal and recover on return.
 
@@ -237,7 +258,12 @@ and offline inventory recovery reload failed inputs. Navigation acquisition uses
 the existing validated data API and shared caches. No new network queue or
 persistent DEM representation is introduced. A failed discovery keeps previously
 completed coverage; Retry, reconnect and inventory recovery explicitly reset the
-worker cache so repaired inputs can be recalculated.
+worker cache so repaired inputs can be recalculated. Recovery need is retained
+separately from loading/zoom presentation, so an inventory notification during
+camera motion or overview cannot hide an earlier data failure. Cancelled work also
+remains eligible for recovery: its worker may have cached incomplete origins that
+the view never received. Inventory changes during active acquisition invalidate
+that attempt too.
 
 ## Verification
 
@@ -249,8 +275,9 @@ terrain gaps, shared maxima, unknown propagation, memory eviction and date-line
 mosaic alignment.
 
 `test/glide-planner.test.ts` verifies camera-independent full footprints, zero-work
-revisits, cumulative polygon union, route/settings/source invalidation, forward
-origin identity, independent memory budgets, unknown terrain and cancellation.
+revisits, cumulative polygon union, off-screen route reclipping, overview discovery
+limits, settings/source invalidation, forward origin identity, independent memory
+budgets, unknown terrain and cancellation.
 
 `test/glide.test.ts` covers the bounded calculation kernel: field eligibility, private runways, route/date-line
 selection, the 20 NM boundary, MSL/reserve arithmetic, reverse and forward terrain
@@ -273,7 +300,10 @@ timing thresholds.
 graphics matrix (CDP touch injection is Chromium-only). It exercises the real
 worker/MapLibre boundary, merged coverage,
 slider updates, distinct ownship styling, passive provider connections, GPS loss,
-route removal, cached offscreen origins, missing terrain/retry, teardown/remount, tab order,
+route removal, cached offscreen origins, route edits at overview zoom, delayed
+obsolete route results, cancelled navigation waits, missing terrain/retry,
+inventory recovery during movement/overview and after discarded results,
+teardown/remount, tab order,
 phone layout, saved inputs and compact contours over a serrated synthetic mountain
 ridge in the production-built app. Desktop right-click and touch long-press tests
 cover point selection, replacement, clearing, pending calculations, automatic panel

@@ -64,7 +64,7 @@ test('cached airport unions retain date-line wrapping when origins are visited f
   assert.strictEqual(revisited.areas, result.areas); assert.equal(revisited.work.terrainCells, 0);
 });
 
-test('route, altitude, ratio, navigation and terrain changes cannot retain old airport coverage', async () => {
+test('route removal hides airports; altitude, ratio, navigation and terrain changes invalidate their coverage', async () => {
   let reads = 0;
   const planner = new GlidePlanner(async () => { reads++; return new Float32Array(65536); });
   const first = await planner.calculate(request(), signal());
@@ -81,23 +81,63 @@ test('route, altitude, ratio, navigation and terrain changes cannot retain old a
   assert.equal(replaced.airports.length, 1); assert.ok(reads > before); assert.equal(replaced.work.profilesBuilt, 1);
 });
 
+test('route edits reclip complete visited footprints off screen without terrain work or discovery', async () => {
+  let reads = 0;
+  const planner = new GlidePlanner(async () => { reads++; return new Float32Array(65536); });
+  const start = request({ altitude: 18000, ratio: 20, ownship: [0, 0], point: [0, 0] });
+  const first = await planner.calculate(start, signal()), initialReads = reads;
+  const north = (result: typeof first) => Math.max(...result.areas.features.flatMap(f => f.geometry.coordinates.flat(2)).map(p => p[1]!));
+  const outside = { ...start, viewport: boundsViewport([.5, -.1, .7, .1]), airports: [airport(.6)], discover: false };
+  const shifted = await planner.calculate({ ...outside, segments: [[project([-2, .2]), project([2, .2])]] }, signal());
+  assert.equal(shifted.airports.length, 1, 'retain the visited off-screen airport; do not discover the new visible one');
+  assert.ok(north(shifted) > north(first) + .1, 'reclip the complete footprint, not its previous route-clipped subset');
+  assert.strictEqual(shifted.ownship, first.ownship); assert.strictEqual(shifted.point!.area, first.point!.area);
+  for (const p of shifted.areas.features.flatMap(f => f.geometry.coordinates.flat(2))) {
+    assert.ok(inRouteCorridor(project(p as Point), [[project([-2, .2]), project([2, .2])]]));
+  }
+  for (const segments of [[], [[project([-2, 1]), project([2, 1])]]]) {
+    const removed = await planner.calculate({ ...outside, segments: segments as GlideRequest['segments'] }, signal());
+    assert.equal(removed.airports.length, 0); assert.equal(removed.areas.features.length, 0);
+    assert.strictEqual(removed.ownship, first.ownship); assert.strictEqual(removed.point, first.point);
+  }
+  const restored = await planner.calculate(outside, signal());
+  assert.deepEqual(restored.areas, first.areas); assert.deepEqual(restored.airports, first.airports);
+  assert.equal(reads, initialReads);
+  assert.equal(restored.work.terrainCells, 0); assert.equal(restored.work.profilesBuilt, 0);
+});
+
+test('overview reconciliation cannot acquire new forward origins or retain ranges for obsolete inputs', async () => {
+  let reads = 0;
+  const planner = new GlidePlanner(async () => { reads++; return new Float32Array(65536); });
+  const start = request({ ownship: [0, 0], point: [0, 0] });
+  await planner.calculate(start, signal());
+  const initialReads = reads;
+  const moved = await planner.calculate({ ...start, discover: false, ownship: [.01, 0], point: [.02, 0] }, signal());
+  assert.equal(moved.ownship, null); assert.equal(moved.point, null);
+  assert.equal(moved.airports.length, 1);
+  for (const change of [{ altitude: 5000 }, { ratio: 7 }, { airportKey: 'new-navigation' }, { sourceKey: 'new-terrain' }]) {
+    const result = await planner.calculate({ ...start, ...change, discover: false }, signal());
+    assert.equal(result.areas.features.length, 0);
+  }
+  assert.equal(reads, initialReads);
+});
+
 test('forward ranges retain complete geometry off screen and never follow an obsolete origin', async () => {
   const planner = new GlidePlanner(async () => new Float32Array(65536));
   const start = request({ airports: [], segments: [], ownship: [0, 0], point: [.01, 0] });
   const first = await planner.calculate(start, signal());
-  for (const ring of [first.ownship, first.point]) {
+  for (const ring of [first.ownship!.line, first.point!.line]) {
     assert.equal(ring.features.length, 1);
     const path = ring.features[0]!.geometry.coordinates[0]!;
     assert.deepEqual(path[0], path.at(-1), 'the camera cannot truncate a full forward range');
   }
   const outside = await planner.calculate({ ...start, viewport: boundsViewport([1, 1, 1.1, 1.1]) }, signal());
-  assert.strictEqual(outside.ownship, first.ownship); assert.strictEqual(outside.pointArea, first.pointArea);
+  assert.strictEqual(outside.ownship, first.ownship); assert.strictEqual(outside.point!.area, first.point!.area);
   assert.equal(outside.work.terrainCells, 0); assert.equal(outside.work.footprintsReused, 2);
   const changed = await planner.calculate({ ...start, ownship: [.005, 0], point: null }, signal());
-  assert.notDeepEqual(changed.ownship, first.ownship); assert.equal(changed.point.features.length, 0);
+  assert.notDeepEqual(changed.ownship, first.ownship); assert.equal(changed.point, null);
   const newOffscreen = await planner.calculate({ ...start, ownship: [10, 0], point: [10, 0] }, signal());
-  assert.equal(newOffscreen.ownship.features.length, 0); assert.equal(newOffscreen.point.features.length, 0);
-  assert.equal(newOffscreen.ownshipCalculated, false); assert.equal(newOffscreen.pointCalculated, false);
+  assert.equal(newOffscreen.ownship, null); assert.equal(newOffscreen.point, null);
   assert.equal(newOffscreen.work.terrainCells, 0);
 });
 
@@ -121,8 +161,8 @@ test('unknown terrain and cancellation never enter the cache as successful cover
   const missing = new GlidePlanner(async () => { throw new Error('missing'); });
   const partial = await missing.calculate(request({ ownship: [0, 0], point: [0, 0] }), signal());
   assert.equal(partial.incomplete, true); assert.equal(partial.areas.features.length, 0);
-  assert.equal(partial.ownshipIncomplete, true); assert.equal(partial.pointIncomplete, true);
-  assert.equal(partial.ownshipCalculated, true); assert.equal(partial.pointCalculated, true);
+  assert.equal(partial.ownship!.incomplete, true); assert.equal(partial.point!.incomplete, true);
+  assert.equal(partial.ownship!.line.features.length, 0); assert.equal(partial.point!.area.features.length, 0);
   const controller = new AbortController();
   const planner = new GlidePlanner(async () => { controller.abort(); return new Float32Array(65536); });
   await assert.rejects(planner.calculate(request(), controller.signal), { name: 'AbortError' });
