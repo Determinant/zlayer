@@ -67,8 +67,8 @@ but they do not drive the first storage and basemap scope.
 ### Map and navigation
 
 - Responsive desktop/tablet layout; graceful narrow-screen layout.
-- VFR sectional with TAC/flyway overlays, IFR low, and continuous basemap context;
-  IFR high and a production basemap-provider decision remain planned.
+- VFR sectional with TAC/flyway overlays, IFR low/high, and continuous basemap context;
+  a production basemap-provider decision remains planned.
 - FAA airport, heliport, NAVAID, fix, and airway features rendered independently of
   the raster chart so they can be selected, searched, filtered, and updated.
 - Airport/station search, geolocation, bookmarks, shareable URL state, and UTC clock.

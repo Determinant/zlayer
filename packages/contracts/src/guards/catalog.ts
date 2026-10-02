@@ -70,6 +70,7 @@ const CHART_KINDS = new Set<ChartKind>([
   'vfr-terminal',
   'vfr-flyway',
   'ifr-low',
+  'ifr-high',
   'unknown',
 ]);
 

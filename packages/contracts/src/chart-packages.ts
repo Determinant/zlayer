@@ -19,7 +19,7 @@ export type ChartPackageIndex = {
   regions: ChartOfflineRegion[];
 };
 
-const kinds = new Set(['vfr-sectional', 'vfr-terminal', 'vfr-flyway', 'ifr-low']);
+const kinds = new Set(['vfr-sectional', 'vfr-terminal', 'vfr-flyway', 'ifr-low', 'ifr-high']);
 
 function archive(value: unknown): value is ChartPackageArchive {
   if (!object(value) || !text(value.id) || !text(value.kind) || !kinds.has(value.kind) ||

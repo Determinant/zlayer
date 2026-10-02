@@ -6,7 +6,7 @@ The gear button opens **Settings**. Its **Offline** tab, immediately after Gener
 contains offline regions and app storage controls. General retains the FAA data
 cycle selection for browsing. New downloads and updates independently check Latest.
 Regions are U.S. states and territories.
-Every new region selection includes VFR and IFR low charts at every native zoom,
+Every new region selection includes published VFR and IFR low/high charts at every native zoom,
 airport/fix/NAVAID/waypoint and airway data, and all applicable plates and Chart
 Supplements. There is no charts-only or omit-books option. Complete books can be
 large; books shared by several regions are stored only once. Procedures without a
@@ -24,7 +24,9 @@ archive cache used by the terrain renderer. Regional verification checks require
 index membership as well as retained file receipts. Terrain is independent of FAA
 cycles; unchanged archives are shared across regions and cycles.
 
-Existing selections retain their original scope until **Update to latest**. Settings
+Existing selections retain their original scope until **Update to latest**, which
+adds newly supported chart families, including IFR high, only after verification.
+Existing snapshots are not silently expanded. Settings
 labels downloads that do not include terrain, including selections from feeds where
 terrain has not yet been published. Publishing the terrain product does not add bytes
 to a previously saved region automatically.

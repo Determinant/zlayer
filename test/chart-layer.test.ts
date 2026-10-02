@@ -114,7 +114,7 @@ for (const packaged of [false, true]) {
     const selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
     const products = CHART_FAMILIES.map(family => createChartLayer(current, family));
     products.forEach(product => { product.update({ catalog: current, selection }); product.mount(map); });
-    assert.equal(listenerCount(), 4);
+    assert.equal(listenerCount(), CHART_FAMILIES.length);
     reads = 0;
     for (let i = 0; i < 60; i++) move([-119, 32, -118.5, 35]);
     assert.equal(reads, 0, 'movement does not traverse catalog records again');
@@ -256,9 +256,11 @@ for (const packaged of [false, true]) {
     selection = { base: 'vfr-sectional', overlay: 'vfr-flyway' };
     products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
     assert.deepEqual(visible(), [id('vfr-sectional'), id('vfr-flyway')]);
-    selection = { base: 'ifr-low', overlay: 'vfr-flyway' };
-    products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
-    assert.deepEqual(visible(), [id('ifr-low')], 'inactive VFR overlays must not request tiles over IFR');
+    for (const base of ['ifr-low', 'ifr-high'] as const) {
+      selection = { base, overlay: 'vfr-flyway' };
+      products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
+      assert.deepEqual(visible(), [id(base)], 'only the selected IFR base may request tiles');
+    }
     selection = { base: '', overlay: 'vfr-flyway' };
     products.forEach(product => product.update({ catalog: product === products[0] ? refresh : current, selection }));
     assert.deepEqual(visible(), []);

@@ -176,7 +176,7 @@ Every dated manifest is validated against that requested cycle.
 ## Map rendering stack
 
 1. Continuous USGS topography/shaded-relief basemap, or a configured replacement
-2. Exclusive VFR sectional / IFR low chart base, then an optional terminal-area or
+2. Exclusive VFR sectional / IFR low / IFR high chart base, then an optional terminal-area or
    flyway overlay requiring the sectional base (coverage-limited, whole-file cached)
 3. Optional georeferenced IAP image
 4. Route-corridor terrain fill and contours, or viewport elevation shading
@@ -205,7 +205,7 @@ The package index also declares named regions with all intersecting chart files 
 all zooms. The region planner deduplicates shared files, totals download bytes, and
 requires every exact content identity for completeness. Publisher regions default
 to FAA chart footprints. **Settings** instead selects U.S. state/territory
-envelopes against that same archive grid, always including VFR/IFR low, navigation
+envelopes against that same archive grid, always including published VFR/IFR low/high, navigation
 and all applicable whole plate/supplement books, individual-only plates and published
 terrain packages at supported DEM detail levels, with sizes, progress, pause/resume, retry,
 and removal. On-demand browsing and regional downloads share verified whole files:

@@ -67,14 +67,52 @@ test('a new chart family leaves supported charts available on a clean launch and
   await expect.poll(async () => (await browsingCatalog(page))?.charts.length ?? 0).toBeGreaterThan(0);
   await expect.poll(() => archives.length).toBeGreaterThan(0);
   const saved = (await browsingCatalog(page))!;
-  expect(saved.charts.map(chart => chart.kind)).not.toContain('ifr-high');
-  expect(saved.chartPackages!.archives.map(archive => archive.kind)).not.toContain('ifr-high');
+  expect(saved.charts.map(chart => chart.kind)).not.toContain('future-chart');
+  expect(saved.chartPackages!.archives.map(archive => archive.kind)).not.toContain('future-chart');
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByLabel('Settings and offline downloads')).toBeEnabled();
   await expect(page.getByRole('heading', { name: 'Chart feed unavailable' })).toHaveCount(0);
   expect((await browsingCatalog(page))?.charts).toEqual(saved.charts);
-  expect(archives.some(url => url.includes('ifr-high'))).toBe(false);
+  expect(archives.some(url => url.includes('future-chart'))).toBe(false);
+});
+
+test('IFR high selects exclusively, caches its package and restores offline', async ({ page, request, context }, testInfo) => {
+  await request.post('/__test/add-ifr-charts');
+  const errors: string[] = [], archives: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('request', event => { if (event.url().includes('.mbtiles')) archives.push(event.url()); });
+  await page.goto('/');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  expect(archives.some(url => url.includes('ifr-')), 'unselected IFR bases do not download').toBe(false);
+  await page.getByLabel('Open map layers', { exact: true }).click();
+  const high = page.getByRole('button', { name: /IFR high enroute/ });
+  const low = page.getByRole('button', { name: /IFR low enroute/ });
+  await high.click();
+  await expect(high).toHaveAttribute('aria-pressed', 'true');
+  await expect(low).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('button', { name: /VFR sectionals/ })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByLabel('Chart status', { exact: true })).toContainText('IFR high enroute');
+  await expect.poll(() => page.evaluate(async () => {
+    const keys = await (await caches.open('zlayers-chart-archives-v3')).keys();
+    return keys.some(key => key.url.includes('/ifr-high-'));
+  })).toBe(true);
+  expect(archives.some(url => url.includes('ifr-low'))).toBe(false);
+  const saved = (await browsingCatalog(page))!;
+  expect(saved.charts.map(chart => chart.kind)).toContain('ifr-high');
+  expect(saved.chartPackages!.archives.map(archive => archive.kind)).toContain('ifr-high');
+  await low.click();
+  await expect(low).toHaveAttribute('aria-pressed', 'true');
+  await expect(high).toHaveAttribute('aria-pressed', 'false');
+  await high.click();
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await expect(high).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Chart status', { exact: true })).toContainText('IFR high enroute');
+  expect((await browsingCatalog(page))?.charts).toEqual(saved.charts);
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('ifr-high-offline.png') });
 });
 
 test('a broken live manifest uses the saved browsing catalog with a nonblocking refresh notice', async ({ page, request }) => {

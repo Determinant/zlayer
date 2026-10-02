@@ -26,6 +26,7 @@ const PUBLISHED_CHART_KINDS = new Set<Exclude<ChartKind, 'unknown'>>([
   'vfr-terminal',
   'vfr-flyway',
   'ifr-low',
+  'ifr-high',
 ]);
 
 type ProcedureManifest = {

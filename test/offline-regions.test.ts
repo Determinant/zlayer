@@ -46,7 +46,7 @@ test('region geography covers 50 states, DC and five territories with valid date
 });
 
 test('one state selection includes every published family/zoom and shares canonical file URLs', () => {
-  const archives = (['vfr-sectional', 'vfr-terminal', 'vfr-flyway', 'ifr-low'] as const)
+  const archives = (['vfr-sectional', 'vfr-terminal', 'vfr-flyway', 'ifr-low', 'ifr-high'] as const)
     .flatMap(kind => [0, 7, 8].map(zoom => archive([-118, 37], kind, zoom)));
   const eastern = archive([-74, 41], 'ifr-low', 8);
   const feed = catalog([...archives, eastern]);

@@ -17,16 +17,19 @@ const charts = [
   chart('flyway-sf', 'vfr-flyway'),
   chart('ifr-l02', 'ifr-low'),
   chart('ifr-l03', 'ifr-low'),
+  chart('ifr-h01', 'ifr-high'),
 ];
 const sectionalOnly = { base: 'vfr-sectional', overlay: '' } as const;
 const ifrOnly = { base: 'ifr-low', overlay: '' } as const;
+const ifrHighOnly = { base: 'ifr-high', overlay: '' } as const;
 
 test('separates exclusive bases from optional overlays requiring a sectional base', () => {
   assert.deepEqual(
-    availableChartBases(charts).map(base => base.id), ['vfr-sectional', 'ifr-low'],
+    availableChartBases(charts).map(base => base.id), ['vfr-sectional', 'ifr-low', 'ifr-high'],
   );
   assert.deepEqual(availableChartOverlays(charts, 'vfr-sectional').map(overlay => overlay.id), ['vfr-flyway']);
   assert.deepEqual(availableChartOverlays(charts, 'ifr-low'), []);
+  assert.deepEqual(availableChartOverlays(charts, 'ifr-high'), []);
   assert.deepEqual(availableChartOverlays(charts, ''), []);
   assert.equal(chartCountForFamily(charts, 'vfr-sectional'), 2);
   assert.equal(chartCountForSelection(charts, NO_CHARTS), 0);
@@ -48,6 +51,8 @@ test('default and unavailable choices resolve safely without making overlays sta
   assert.deepEqual(resolveChartSelection([], undefined, ''), NO_CHARTS);
   assert.deepEqual(resolveChartSelection([chart('flyway', 'vfr-flyway')], undefined, 'vfr-flyway'), NO_CHARTS);
   assert.deepEqual(resolveChartSelection([chart('ifr', 'ifr-low')], 'vfr-sectional', 'vfr-flyway'), ifrOnly);
+  assert.deepEqual(resolveChartSelection([chart('ifr', 'ifr-high')], undefined, ''), ifrHighOnly);
+  assert.deepEqual(resolveChartSelection([chart('ifr', 'ifr-low')], 'ifr-high', ''), ifrOnly);
 });
 
 test('an overlay adds to sectionals but never to IFR; titles/counts reflect the whole stack', () => {
@@ -59,6 +64,10 @@ test('an overlay adds to sectionals but never to IFR; titles/counts reflect the 
   assert.deepEqual(resolveChartSelection(charts, 'ifr-low', 'vfr-flyway'), ifrOnly);
   assert.equal(chartIsSelected('vfr-flyway', { base: 'ifr-low', overlay: 'vfr-flyway' }), false,
     'the renderer enforces dependencies even for unresolved input');
+  assert.deepEqual(resolveChartSelection(charts, 'ifr-high', 'vfr-flyway'), ifrHighOnly);
+  assert.deepEqual(charts.filter(chart => chartIsSelected(chart.kind, ifrHighOnly)).map(chart => chart.id), ['ifr-h01']);
+  assert.equal(chartCountForSelection(charts, ifrHighOnly), 1);
+  assert.equal(chartSelectionTitle(ifrHighOnly), 'IFR high enroute');
 });
 
 test('only activates selected sheets intersecting the viewport', () => {

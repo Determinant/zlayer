@@ -74,7 +74,7 @@ workspaces. Run all commands from the root; `npm run build` produces static `dis
 Routes, the map camera, open panels and plate reading state survive reloads.
 The local Route Stash saves named route snapshots, including feature pins and
 approach attachments, for later loading; see [routes](src/layers/routes/README.md).
-Settings saves complete state/territory selections: VFR/IFR low charts, navigation,
+Settings saves complete state/territory selections: VFR/IFR low/high charts, navigation,
 applicable procedure/Chart Supplement books and individual-only plates. Verified
 saved editions remain authoritative through feed updates and outages; browsing
 dates are independent. Viewed files share the same cache without implying complete

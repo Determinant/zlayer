@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isCatalogResponse } from '@zlayer/contracts';
 import { fetchChartCatalog } from '../src/workspace/catalog/catalog';
 import { retainCachedProducts } from '../src/workspace/catalog/saved-catalog';
 import { cacheFixture } from './helpers/cache';
@@ -7,7 +8,7 @@ import { cacheFixture } from './helpers/cache';
 const root = 'https://charts.tedyin.com/charts/2026-09-03/mbtiles';
 function manifest(schemaVersion = 2) {
   const bounds = [-180, -85.0511287798066, 180, 85.0511287798066];
-  const charts = ['vfr-sectional', 'ifr-high'].map(kind => ({
+  const charts = ['vfr-sectional', 'ifr-high', 'future-chart'].map(kind => ({
     id: `${kind}-test`, title: kind, kind, file: `${kind}-test.mbtiles`, bounds,
     minZoom: 0, maxZoom: 0, byteLength: 32768, sha256: 'a'.repeat(64), cutlineProvenance: 'test',
   }));
@@ -33,11 +34,12 @@ for (const layout of ['flat-packages', 'nested-packages', 'nested-sheets', 'lega
     t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => String(input) === url
       ? Response.json(data) : new Response(null, { status: 404 }));
     const result = await fetchChartCatalog('2026-09-03');
-    assert.deepEqual(result.charts.map(chart => chart.kind), ['vfr-sectional']);
+    assert.deepEqual(result.charts.map(chart => chart.kind), ['vfr-sectional', 'ifr-high']);
+    assert.equal(isCatalogResponse(result), true, 'supported charts can be saved and restored');
     assert.equal(result.issues.some(issue => issue.product === 'charts'), false);
     if (packages) {
-      assert.deepEqual(result.chartPackages!.archives.map(item => item.kind), ['vfr-sectional']);
-      assert.deepEqual(result.chartPackages!.regions[0]!.archiveIds, [data.archives[0]!.id]);
+      assert.deepEqual(result.chartPackages!.archives.map(item => item.kind), ['vfr-sectional', 'ifr-high']);
+      assert.deepEqual(result.chartPackages!.regions[0]!.archiveIds, data.archives.slice(0, 2).map(item => item.id));
     }
     assert.deepEqual(await stored.get(url)!.clone().json(), data, 'cache preserves the publisher response for newer clients');
     t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Offline'); });
@@ -55,14 +57,19 @@ test('family filtering cannot hide broken supported charts, package identities o
     ['unsupported packaging', data => { data.packagingVersion = 2; }],
     ['wrong edition', data => { data.effectiveDate = '2026-08-06'; }],
     ['bad supported chart', data => { data.charts[0]!.sha256 = 'invalid'; }],
-    ['unidentified chart family', data => { data.charts[1]!.kind = ''; }],
+    ['bad IFR high chart', data => { data.charts[1]!.sha256 = 'invalid'; }],
+    ['unidentified chart family', data => { data.charts[2]!.kind = ''; }],
     ['bad supported archive', data => { data.archives[0]!.tileMask = '0'; }],
-    ['unidentified archive family', data => { data.archives[1]!.kind = ''; }],
-    ['colliding archive IDs', data => { data.archives[1]!.id = data.archives[0]!.id; }],
+    ['bad IFR high archive', data => { data.archives[1]!.tileMask = '0'; }],
+    ['unidentified archive family', data => { data.archives[2]!.kind = ''; }],
+    ['colliding archive IDs', data => { data.archives[2]!.id = data.archives[0]!.id; }],
     ['missing supported dependency', data => { data.regions[0]!.archiveIds.shift(); }],
+    ['missing IFR high dependency', data => { data.regions[0]!.archiveIds.splice(1, 1); }],
     ['unknown dependency', data => { data.regions[0]!.archiveIds.push('missing-archive'); }],
-    ['duplicate excluded dependency', data => { data.regions[0]!.archiveIds.push(data.archives[1]!.id); }],
-    ['no supported charts', data => { data.charts.shift(); data.archives.shift(); data.regions[0]!.archiveIds.shift(); }],
+    ['duplicate excluded dependency', data => { data.regions[0]!.archiveIds.push(data.archives[2]!.id); }],
+    ['no supported charts', data => {
+      data.charts.splice(0, 2); data.archives.splice(0, 2); data.regions[0]!.archiveIds.splice(0, 2);
+    }],
   ];
   for (const [label, mutate] of mutations) {
     const data = manifest(); mutate(data);

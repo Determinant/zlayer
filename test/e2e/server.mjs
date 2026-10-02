@@ -272,17 +272,19 @@ const server = createServer(async (request, response) => {
       Object.assign(tpp, { generatedAt: catalog.generatedAt, airportCount: catalog.airports.length,
         procedureCount: catalog.airports.reduce((sum, airport) => sum + airport.procedures.length, 0) });
       setJson(`${root}/tpp/manifest.json`, tpp);
-    } else if (path === '/__test/add-chart-family' || path === '/__test/invalid-chart-feed') {
+    } else if (path === '/__test/add-chart-family' || path === '/__test/add-ifr-charts' || path === '/__test/invalid-chart-feed') {
       for (const [url, file] of originalFixtures) {
         if (!url.endsWith('/mbtiles/manifest.json')) continue;
         const manifest = JSON.parse(file.body);
         if (path.endsWith('invalid-chart-feed')) manifest.charts[0].sha256 = 'invalid';
-        else {
-          const kind = 'ifr-high', original = manifest.archives[0];
+        else for (const kind of path.endsWith('add-ifr-charts') ? ['ifr-low', 'ifr-high'] : ['future-chart']) {
+          const original = manifest.archives[0];
           const id = original.id.replace(original.kind, kind);
           manifest.charts.push({ ...manifest.charts[0], kind, id: `${kind}-test`, file: `${kind}-test.mbtiles` });
           manifest.archives.push({ ...original, kind, id, file: `${id}-${original.sha256}.mbtiles` });
           for (const region of manifest.regions) if (region.archiveIds.includes(original.id)) region.archiveIds.push(id);
+          const root = url.slice(0, url.lastIndexOf('/'));
+          fixtures.set(`${root}/${id}-${original.sha256}.mbtiles`, originalFixtures.get(`${root}/${original.file}`));
         }
         fixtures.set(url, { type: 'application/json', body: Buffer.from(JSON.stringify(manifest)) });
       }

@@ -28,7 +28,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 
 | Priority | Product | Preferred source/access | Form | Current disposition |
 |---|---|---|---|---|
-| P0 | VFR sectional/TAC/flyway; IFR low charts | `faa-regs` output at `https://charts.tedyin.com/charts/` | coverage-limited raster layers | Whole-file spatial/zoom packages and legacy sheets implemented; IFR high remains planned |
+| P0 | VFR sectional/TAC/flyway; IFR low/high charts | `faa-regs` output at `https://charts.tedyin.com/charts/` | coverage-limited raster layers | Whole-file spatial/zoom packages and legacy sheets implemented |
 | P0 | US airports, runways, NAVAIDs, fixes, airways | FAA 28-day NASR subscription via `faa-regs` | search/detail + GeoJSON map features and route geometry | Cycle-aware navigation, decluttering and V/T airway expansion implemented; vector tiles remain an option for measured density needs |
 | P0 | Airport diagrams, approaches, departures, arrivals, and minima | FAA d-TPP XML/PDF via `faa-regs` | airport procedure catalog + selected PDFs | Exact-page books, individual FAA fallbacks, georeferenced IAP overlays and regional offline saves implemented |
 | P0 | Chart Supplements | FAA d-CS XML/books via `faa-regs` | airport/page catalog + whole PDF books | Exact-page viewer and saved regional targets implemented; independent supplement interval retained |
@@ -56,9 +56,9 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 ## Tedyin aeronautical charts
 
 The sibling `faa-regs` repository builds and maintains the MBTiles published at
-`https://charts.tedyin.com/charts/`. The client supports VFR sectional/TAC/flyway and IFR low
-chart overlays. Their upstream content is based on FAA chart products; preserve the
-`faa-regs` build revision, Tedyin publication provenance, and FAA edition.
+`https://charts.tedyin.com/charts/`. The client supports VFR sectionals and IFR low/high
+chart bases, plus TAC/flyway overlays. Their upstream content is based on FAA chart
+products; preserve the `faa-regs` build revision, Tedyin publication provenance, and FAA edition.
 
 Coverage is discovered from all published chart records, with no California-only
 allowlist. The client keeps the continuous basemap visible outside that coverage and
