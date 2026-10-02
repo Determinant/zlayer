@@ -1,7 +1,7 @@
 import type { Bounds, ChartKind, ChartRecord } from '@zlayer/contracts';
 
 export type ChartFamilyId = Exclude<ChartKind, 'unknown'>;
-export type ChartBaseId = 'vfr-sectional' | 'ifr-low';
+export type ChartBaseId = 'vfr-sectional' | 'ifr-low' | 'ifr-high';
 export type ChartOverlayId = 'vfr-terminal' | 'vfr-flyway';
 export type ChartBaseSelection = ChartBaseId | '';
 export type ChartOverlaySelection = ChartOverlayId | '';
@@ -19,6 +19,7 @@ export type ChartFamilyDefinition = ChartBaseDefinition | ChartOverlayDefinition
 export const CHART_BASES: readonly ChartBaseDefinition[] = [
   { id: 'vfr-sectional', role: 'base', title: 'VFR sectionals', shortTitle: 'VFR' },
   { id: 'ifr-low', role: 'base', title: 'IFR low enroute', shortTitle: 'IFR' },
+  { id: 'ifr-high', role: 'base', title: 'IFR high enroute', shortTitle: 'IFR' },
 ];
 export const CHART_OVERLAYS: readonly ChartOverlayDefinition[] = [
   { id: 'vfr-terminal', role: 'overlay', requires: 'vfr-sectional', title: 'VFR terminal areas', shortTitle: 'VFR' },

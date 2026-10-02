@@ -11,7 +11,7 @@ adding more data sources. Current capabilities and planned work are listed separ
   terrain-aware merged airport coverage within 20 NM of the route, and a distinct
   ownship planning ring, with complete ranges cached by origin across pan and zoom.
 - Static React/MapLibre PWA with product-owned layer lifecycles and a precached shell.
-- Viewport/zoom-selected, prestitched VFR/IFR MBTiles with whole-file caching.
+- Viewport/zoom-selected, prestitched VFR and IFR low/high MBTiles with whole-file caching.
 - Searchable FAA navigation with progressive fix decluttering and runway details.
 - Persisted route entries and exact feature pins; direct/Victor/Tango routing,
   compact TEC routes, SID/STAR previews, anchored approaches with published entries or

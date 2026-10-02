@@ -7,6 +7,19 @@ caching, chart status and its offline-planning/service-worker adapters. It contr
 to the existing workspace map. Chart selection preserves the camera; an absent
 chart tile leaves the continuous basemap visible.
 
+## Chart selection
+
+**Chart base** offers VFR sectionals, IFR low enroute and IFR high enroute when the
+catalog publishes those families, plus **Base map only**. Bases are exclusive;
+terminal-area and flyway overlays require the sectional base. Selection persists
+across reloads and uses the same whole-file readers and cache for both IFR bases.
+Only the selected base and eligible overlay request tiles.
+
+New regional downloads include every published supported family at every zoom,
+including IFR high. Existing saved regions retain their committed chart scope;
+**Update to latest** adds newly supported charts after verification. See
+[offline storage](../../../docs/features/offline-storage.md).
+
 ## Source entry points
 
 | Entry | Responsibility |

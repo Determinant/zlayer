@@ -184,8 +184,8 @@ Schema version 1 has this shape (hashes abbreviated here only):
 ZLayer requires each chart's ID, title, kind, file, bounds, zoom limits, byte length,
 SHA-256, and cutline provenance. Source and builder fields are publisher audit data and
 may grow without changing this schema. Current chart kinds are `vfr-sectional`,
-`vfr-terminal`, `vfr-flyway`, and `ifr-low`. Partial regional coverage is valid. All
-published sheets are available without a client allowlist; loading a dated catalog fetches
+`vfr-terminal`, `vfr-flyway`, `ifr-low`, and `ifr-high`. Partial regional coverage is
+valid. All published sheets are available without a client allowlist; loading a dated catalog fetches
 only manifests, not archives. The chart/navigation/procedure paths require three
 requests for flat packages, four for nested packages, five for nested sheets, or six
 for flat legacy sheets. Discovery also probes the optional feed-wide
@@ -263,8 +263,8 @@ not permission to delete previously published files with an upload sync's delete
 Source chart bounds describe the rectangular extent of the applied cutline; package
 bounds describe a storage-grid cell. Neither replaces the actual transparent cutline
 mask. Within supported schema/packaging versions, additional chart kinds are
-additive. The client excludes explicitly unsupported families (currently including
-`ifr-high`) from chart records, archives and references to those archives in regions.
+additive. The client excludes explicitly unsupported families from chart records,
+archives and references to those archives in regions.
 It still validates all supported records, unique archive identities, region dependency
 completeness and unknown/dangling references. Records without an identifiable family
 are invalid; a feed with no supported charts cannot become the browsing edition.

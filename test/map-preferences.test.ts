@@ -83,7 +83,7 @@ test('map choices survive a fresh app mount, including false switches and base-m
   assert.equal(defaults.terrainCoverage, 'route', 'existing route coverage remains the default');
   assert.equal(defaults.obstructionsEnabled, true);
   assert.equal(defaults.ownshipEnabled, true, 'GPS starts enabled without a saved preference');
-  setPreferences(current => ({ ...current, chartBase: 'ifr-low', chartOverlay: 'vfr-terminal', metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
+  setPreferences(current => ({ ...current, chartBase: 'ifr-high', chartOverlay: 'vfr-terminal', metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
     visibility: { airports: false, navaids: false, 'vfr-waypoints': false, fixes: true },
     fixDisplay: { detail: 'all', airspace: 'high' }, ownshipEnabled: false,
   }));

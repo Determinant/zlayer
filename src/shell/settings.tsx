@@ -223,7 +223,7 @@ export default function Settings({ catalog: browsing, open }: {
         {latest.error && <p className="settings-error" role="status">{latest.error}</p>}
         <PersistentDetails storageKey="settings-region-details-open" className="region-details">
           <summary>Coverage, sizes and FAA cycles</summary>
-          <p>Includes all published VFR and IFR low charts at every zoom, navigation data,
+          <p>Includes all published VFR and IFR low/high charts at every zoom, navigation data,
             published terrain at every supported detail level, all applicable plates and Chart Supplements.
             Published approach entries and fixes, preferred/TEC routes and route history
             are included for offline planning when available.</p>

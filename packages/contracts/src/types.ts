@@ -11,6 +11,7 @@ export type ChartKind =
   | 'vfr-terminal'
   | 'vfr-flyway'
   | 'ifr-low'
+  | 'ifr-high'
   | 'unknown';
 
 export type ChartRecord = {
