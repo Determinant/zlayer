@@ -83,6 +83,23 @@ test('download selections use absolute shared file identities and require naviga
   assert.deepEqual(chartRegionPlans({ ...feed, charts: [] }, 'https://zlayer.test/'), [], 'no false coverage from global overview files');
 });
 
+test('wrapped chart footprints select packages and offline regions on both sides of the dateline', () => {
+  const feed = catalog();
+  feed.charts = [{ ...feed.charts[0]!, bounds: [170, 0, -170, 80], maxZoom: 2 }];
+  const index = feed.chartPackages!;
+  index.archives = [archive(2, { z: 2, x: 0, y: 1 }), archive(2, { z: 2, x: 3, y: 1 })];
+  const resolve = createChartPackageIndex(feed);
+  assert.equal(resolve('vfr-sectional', { z: 2, x: 0, y: 1 }), chartPackageUrl(index.root, index.archives[0]!));
+  assert.equal(resolve('vfr-sectional', { z: 2, x: 3, y: 1 }), chartPackageUrl(index.root, index.archives[1]!));
+  assert.equal(resolve('vfr-sectional', { z: 2, x: 1, y: 1 }), undefined);
+  feed.navigation = (['airports', 'fixes', 'navaids', 'vfr-waypoints'] as const)
+    .map(id => ({ id, title: id, url: `/nav/${id}.geojson`, minZoom: 0, count: 1, sourceCount: 1 }));
+  feed.airways = { id: 'airways', title: 'Airways', url: '/nav/airways.json', count: 1, sourceCount: 1 };
+  const alaska = chartRegionPlans(feed, 'https://zlayer.test/', OFFLINE_REGIONS.filter(region => region.code === 'AK'));
+  assert.equal(alaska.length, 1);
+  assert.equal(alaska[0]!.plan.files.length, 2);
+});
+
 test('rejects malformed, overlapping, oversized and incomplete package indexes', () => {
   const index = catalog().chartPackages!;
   assert.equal(isChartPackageIndex(index), true);

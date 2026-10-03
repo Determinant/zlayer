@@ -225,6 +225,9 @@ receipts. Optional save failure leaves live/nearby data usable, stops distant wo
 and reports **Offline save incomplete**. **Retry forecasts** retries file/catalog
 saves and failed renderers. Rendering failures clear the layer and report errors;
 ordinary status updates cannot trigger endless redraw retries.
+Forecast image-source errors also clear displayed values and hide the failed
+image. Camera movement cannot restore it; explicit retry or a different forecast
+recreates the source before publishing another image.
 
 Saved counts are reconciled against core file inventory after publication/eviction
 hints (including other windows), on resume or demand changes, and roughly once a

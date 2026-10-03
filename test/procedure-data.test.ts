@@ -122,7 +122,8 @@ test('a saved TPP export rejects a replacement build with the same dates and cou
     revision: catalog.effectiveDate, files: [], references: [resource] }), false);
   t.mock.method(globalThis, 'fetch', async () => Response.json(replacement));
   await assert.rejects(fetchProcedureCatalog(resource), /invalid document/);
-  assert.equal(stored.has(resource.url), false, 'a replacement cannot be cached under the saved export URL');
+  assert.deepEqual(await stored.get(resource.url)!.clone().json(), replacement,
+    'rejected acquisition does not mutate storage based on an earlier inspection');
   t.mock.method(globalThis, 'fetch', async () => Response.json(catalog));
   assert.deepEqual(await fetchProcedureCatalog(resource), catalog, 'the exact saved build remains retryable');
 });
@@ -146,7 +147,9 @@ test('offline plate verification and ordinary loading enforce the same manifest 
     stored.set(resource.url, Response.json(catalog));
     assert.equal(await manager.backend.referencesReady(selection(expected)), false);
     await assert.rejects(fetchProcedureCatalog(expected), /invalid document/);
-    assert.equal(stored.has(resource.url), false);
+    assert.deepEqual(await stored.get(resource.url)!.clone().json(), catalog,
+      'a mismatched reader must not delete another reader’s valid export');
+    assert.equal(await manager.backend.referencesReady(selection(expected)), false);
   }
   stored.set(resource.url, Response.json(catalog));
   assert.equal(await manager.backend.referencesReady(selection(resource)), true);

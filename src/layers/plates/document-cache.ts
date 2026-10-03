@@ -30,7 +30,7 @@ export async function cacheProcedureDocument(source: ProcedureDocument): Promise
 /** Readers share an immutable Blob; PDF.js receives only the ranges it needs. */
 export async function loadProcedureDocument(source: ProcedureDocument,
   onProgress?: ProgressListener): Promise<{ blob: Blob; cached: boolean }> {
-  await noteCacheAccess(PDF_CACHE, source.url);
+  void noteCacheAccess(PDF_CACHE, source.url);
   const key = JSON.stringify([source.url, source.sha256, source.byteLength]);
   let request = requests.get(key);
   if (!request) {
@@ -70,7 +70,8 @@ async function load(source: ProcedureDocument, onProgress: ProgressListener): Pr
       }
       return { blob, cached: true };
     }
-    if (stored.state === 'invalid') await cache.delete(source.url).catch(() => {});
+    // Validation used a snapshot. Another tab may already have repaired this
+    // URL; only verified replacement bytes may overwrite its current entry.
     // Preserve offline books saved before content-addressed URLs were introduced.
     // A legacy URL is usable only when its bytes match the current book identity.
     if (source.sha256 && source.byteLength) {

@@ -16,6 +16,7 @@ import { prepareRegionTerrain } from './terrain';
 import { openFileCache } from '../core/storage/download-file';
 import { activeFileUrls } from './active-catalogs';
 import { pruneBundleSnapshots } from './bundle-snapshots';
+import { removeTemporaryBasemapFiles } from '../core/storage/basemap-cache';
 
 async function exclusive(work: () => Promise<void>): Promise<void> {
   if (!navigator.locks) throw new Error('This browser lacks safe multi-window download coordination; update your browser');
@@ -25,7 +26,7 @@ async function exclusive(work: () => Promise<void>): Promise<void> {
   });
 }
 
-/** Explicitly remove opportunistic chart/PDF copies, preserving every saved region. */
+/** Remove temporary charts, PDFs and basemap tiles, preserving every saved region. */
 export async function removeUnsavedFiles(): Promise<void> {
   await exclusive(async () => {
     const plans = await savedPlans(true);
@@ -39,6 +40,7 @@ export async function removeUnsavedFiles(): Promise<void> {
       }
     }
     await pruneBundleSnapshots(plans);
+    await removeTemporaryBasemapFiles();
   });
 }
 

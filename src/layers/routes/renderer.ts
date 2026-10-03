@@ -3,7 +3,7 @@ export { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } 
 import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
-import { greatCircleCoordinates, routeLegCoordinates, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
+import { greatCircleCoordinates, routeLegCoordinates, routePointLabel, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
 import type { RouteDragPreview } from './public';
 export type { RouteDragPreview } from './public';
 import { unwrapRouteCoordinates } from './geometry';
@@ -496,4 +496,3 @@ function routeLegId(leg: RouteLeg, revision: number): string | undefined {
 function dragPreviewKey(id: string, preview: RouteDragPreview): string {
   return JSON.stringify([id, preview.coordinate, preview.snapped]);
 }
-import { routePointLabel } from '@zlayer/domain';

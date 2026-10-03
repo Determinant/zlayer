@@ -197,11 +197,12 @@ export default function Settings({ catalog: browsing, open }: {
 
         <PersistentDetails storageKey="settings-storage-open" className="storage-details">
           <summary>Temporary files and storage limits</summary>
-          <p>Charts and plates you view without downloading a region are stored as temporary files.
+          <p>Charts and plates you view without downloading a region, and recently viewed basemap tiles, are stored as temporary files.
             Remove them to free up space; you’ll need an internet connection to view them again.</p>
+          <p>Basemap tiles expire after one day and may be removed sooner to limit storage. Region downloads do not include them.</p>
           <p>This cleanup keeps saved regions, paused downloads, previous versions needed during updates, files retained by open views, and reference data.</p>
           <button className="ui-button" type="button" disabled={loading || active}
-            onClick={() => setConfirmation({ kind: 'temporary' })}>Remove temporary charts and plates</button>
+            onClick={() => setConfirmation({ kind: 'temporary' })}>Remove temporary map files</button>
           <p>Your browser manages storage, including in the installed app.
             The storage limit is an estimate; your device may have less free space.
             Storage protection does not increase the limit or reserve space.</p>
@@ -244,7 +245,7 @@ export default function Settings({ catalog: browsing, open }: {
         </PersistentDetails>
         {!catalog.terrain && <p role="status">Terrain downloads are not available from this feed. These downloads include charts and plates;
           use Update to latest to add terrain after it becomes available.</p>}
-        {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary charts and plates…' : 'Checking saved files…'}</p>}
+        {loading && <p role="status">{storageTask === 'cleaning' ? 'Removing temporary map files…' : 'Checking saved files…'}</p>}
         {!plateIndex && !latest.error && <p role="status">Loading region details…</p>}
         {plateIndex && !plansReady && <p role="status">Preparing region details…</p>}
         <div className="region-filters">
@@ -272,7 +273,7 @@ export default function Settings({ catalog: browsing, open }: {
     {open && confirmation && <ConfirmationDialog
       title={confirmation.kind === 'region'
         ? `Remove ${confirmation.job.title}?`
-        : 'Remove temporary charts and plates?'}
+        : 'Remove temporary map files?'}
       description={confirmation.kind === 'region'
         ? 'This removes all saved editions and pending updates for this region. Files used by other saved regions will stay.'
         : 'This keeps saved regions, paused downloads, previous versions needed during updates, files retained by open views, and reference data. Removed files will need an internet connection to download again.'}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import test from 'node:test';
 import type { DownloadPlan } from '../src/offline/downloads';
-import { CHART_CACHE, PDF_CACHE } from '../src/core/storage/cache-names';
+import { CHART_CACHE, PDF_CACHE, BASEMAP_CACHE, DATA_CACHE } from '../src/core/storage/cache-names';
 
 const state = { plans: [] as unknown[], locked: false, activeFiles: [] as string[] };
 Object.assign(globalThis, { testCleanupState: state });
@@ -28,7 +28,9 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
     files: [chart, book], references: [] };
   state.plans = [plan, { ...plan, id: 'two', files: [book] }];
   const stores = new Map([[CHART_CACHE, new Set([chart.url, 'https://app.test/unused.mbtiles'])],
-    [PDF_CACHE, new Set([book.url, 'https://app.test/unused.pdf'])]]);
+    [PDF_CACHE, new Set([book.url, 'https://app.test/unused.pdf'])],
+    [BASEMAP_CACHE, new Set(['https://tiles.openfreemap.org/tile'])],
+    [DATA_CACHE, new Set(['https://tiles.openfreemap.org/legacy', 'https://app.test/reference.json'])]]);
   const globals = {
     location: { href: 'https://app.test/' },
     navigator: { serviceWorker: { controller: { postMessage() {} } }, locks: {
@@ -36,7 +38,7 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
       request: async (_name: string, _options: unknown, callback: (lock: object | null) => Promise<void>) =>
         callback(state.locked ? null : {}),
     } },
-    caches: { open: async (name: string) => ({
+    caches: { keys: async () => [...stores.keys()], delete: async (name: string) => stores.delete(name), open: async (name: string) => ({
       match: async (request: Request) => stores.get(name)?.has(request.url) ? new Response('file') : undefined,
       keys: async () => [...stores.get(name) ?? []].map(url => new Request(url)),
       delete: async (request: Request) => stores.get(name)?.delete(request.url) ?? false,
@@ -62,6 +64,8 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
   state.activeFiles = [openBook];
   stores.get(PDF_CACHE)!.add(openBook);
   await removeUnsavedFiles();
+  assert.equal(stores.has(BASEMAP_CACHE), false);
+  assert.deepEqual([...stores.get(DATA_CACHE)!], ['https://app.test/reference.json']);
   assert.deepEqual([...stores.get(CHART_CACHE)!], [chart.url]);
   assert.deepEqual([...stores.get(PDF_CACHE)!], [book.url, previousBook.url, openBook]);
 

@@ -535,7 +535,7 @@ test('published entries, route depiction and approach switching survive a cold o
     await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
     await page.getByText('Temporary files and storage limits', { exact: true }).click();
-    await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+    await page.getByRole('button', { name: 'Remove temporary map files' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check saved files', exact: true })).toBeEnabled();
     expect(await page.evaluate(async () => {

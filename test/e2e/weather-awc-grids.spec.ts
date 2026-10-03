@@ -47,7 +47,8 @@ for (const touch of [false, true]) test.describe(touch ? 'touch inspection' : 'm
     await expect(details).toHaveCount(0);
     let menu = await openWeatherMenu(page, touch);
     await expect(details).toHaveCount(0); // Opening/releasing the long press does not select an action.
-    await expect(menu.getByRole('menuitem')).toHaveCount(2); // Weather and the coordinate waypoint.
+    await expect(menu.getByRole('menuitem', { name: 'Inspect weather', exact: true })).toHaveCount(1);
+    await expect(menu.getByRole('menuitem', { name: /coordinate · GPS waypoint/ })).toHaveCount(1);
     await menu.getByRole('menuitem', { name: 'Inspect weather', exact: true }).click();
     await expect(details).toBeVisible();
     await page.getByRole('button', { name: 'Hide Weather advisory details', exact: true }).click();
@@ -347,6 +348,42 @@ test('forecast pixels remain visible through zoom, pan and resize without fetchi
   expect(result.samples.every(pixel => pixel[2]! - pixel[0]! > 40)).toBe(true);
   expect(result.errors).toEqual([]);
   expect((await (await request.get('/__test/awc-counts')).json()).grids).toBe(requests);
+});
+
+test('a forecast image error clears displayed values until retry restores cached pixels', async ({ page, request }) => {
+  await page.clock.install({ time: WEATHER_NOW });
+  await page.goto('/test/browser/weather-grids.html');
+  const color = () => page.evaluate(() => {
+    const pixel = window.weatherGridFixture?.pixel(); return pixel ? pixel[2]! - pixel[0]! : 0;
+  });
+  await expect.poll(color).toBeGreaterThan(40);
+  await page.waitForFunction(() => {
+    const p = window.weatherGridFixture.controller.getSnapshot().grid.preparation;
+    return p && p.total > 0 && p.ready === p.total;
+  });
+  const files = (await (await request.get('/__test/awc-counts')).json()).gridFiles;
+  await page.evaluate(() => {
+    const { map } = window.weatherGridFixture;
+    map.fire('error', { sourceId: 'weather-awc-grid', error: new Error('Test forecast image failure') });
+    map.jumpTo({ zoom: map.getZoom() + 1 });
+  });
+  await page.setViewportSize({ width: 960, height: 640 });
+  expect(await page.evaluate(() => {
+    const { controller, map, value } = window.weatherGridFixture;
+    const state = controller.getSnapshot();
+    return { shown: !!state.gridDisplay, value: value(), error: state.gridRenderError,
+      visibility: map.getLayoutProperty('weather-awc-grid-raster', 'visibility') };
+  })).toEqual({ shown: false, value: undefined, error: 'Test forecast image failure', visibility: 'none' });
+  await expect.poll(color).toBeLessThan(5);
+  await page.evaluate(() => window.weatherGridFixture.controller.retryForecasts());
+  await expect.poll(color).toBeGreaterThan(40);
+  expect(await page.evaluate(() => {
+    const { controller, value, errors } = window.weatherGridFixture;
+    const state = controller.getSnapshot();
+    return { shown: !!state.gridDisplay, value: value(), error: state.gridRenderError, errors };
+  })).toEqual({ shown: true, value: 75, error: undefined, errors: ['Test forecast image failure'] });
+  // Retry refreshes the catalog; recovering the image reuses saved frame bytes.
+  expect((await (await request.get('/__test/awc-counts')).json()).gridFiles).toBe(files);
 });
 
 test('SLD detail keeps screen-sized sampling in wrapped map worlds without reloading forecasts', async ({ page, request }) => {

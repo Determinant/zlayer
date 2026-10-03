@@ -194,7 +194,8 @@ test('legacy airway caches without gap flags are rejected and replaced by a veri
   stored.set(resource.url, Response.json(legacy));
   t.mock.method(globalThis, 'fetch', async () => Response.json(legacy));
   await assert.rejects(fetchAirways(resource, revision), /invalid document/);
-  assert.equal(stored.has(resource.url), false);
+  assert.deepEqual(await stored.get(resource.url)!.clone().json(), legacy,
+    'invalid bytes stay untouched until a validated replacement is ready');
   const corrected = { ...legacy, airways: [{ ...legacy.airways[0],
     segments: [{ ...legacy.airways[0]!.segments[0], gap: true }] }] };
   t.mock.method(globalThis, 'fetch', async () => Response.json(corrected));
@@ -284,4 +285,110 @@ test('ordinary browsing tolerates denied storage, but explicit offline downloads
   t.mock.method(cache, 'put', async () => { throw new Error('quota'); });
   assert.equal(await fetchJson('https://charts.test/data', guard, 'Reference'), 1);
   await assert.rejects(fetchJson('https://charts.test/data', guard, 'Reference', { requireCache: true }), /quota/);
+});
+
+
+const referenceUrl = 'https://charts.test/storage-recovery.json';
+const referenceGuardOne = (value: unknown): value is number => value === 1;
+function referenceGate() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+for (const operation of ['open', 'match', 'body', 'gzip-body', 'put'] as const) {
+  for (const cancel of [false, true]) test(`reference ${operation} stall permits ${cancel ? 'cancellation' : 'network recovery'}`, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const { cache } = cacheFixture(t), entered = referenceGate();
+    const blocked = async () => { entered.resolve(); return new Promise<never>(() => {}); };
+    let bodyCancelled = false;
+    if (operation === 'open') t.mock.method(caches, 'open', blocked);
+    if (operation === 'match') t.mock.method(cache, 'match', blocked);
+    if (operation === 'body' || operation === 'gzip-body') t.mock.method(cache, 'match', async () =>
+      new Response(new ReadableStream({ pull: blocked, cancel() { bodyCancelled = true; } }, { highWaterMark: 0 })));
+    if (operation === 'put') t.mock.method(cache, 'put', blocked);
+    const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(1));
+    const controller = new AbortController();
+    const result = fetchJson(referenceUrl, referenceGuardOne, 'Reference', { signal: controller.signal,
+      ...(operation === 'gzip-body' ? { gzip: { bytes: 10, uncompressedBytes: 1 } } : {}) });
+    const outcome = cancel ? assert.rejects(result, { name: 'AbortError' }) : result;
+    await entered.promise;
+    if (cancel) controller.abort();
+    else t.mock.timers.tick(10_000);
+    assert.equal(await outcome, cancel ? undefined : 1);
+    assert.equal(fetch.mock.callCount(), cancel && operation !== 'put' ? 0 : 1);
+    if (operation === 'body' || operation === 'gzip-body') {
+      await new Promise<void>(resolve => setImmediate(resolve));
+      assert.ok(bodyCancelled, 'timed-out or cancelled consumption releases the cached producer');
+    }
+  });
+}
+
+test('reference network-only refresh skips cached body inspection', async t => {
+  const { cache } = cacheFixture(t);
+  const match = t.mock.method(cache, 'match', async () => { throw new Error('Must not read old bytes'); });
+  t.mock.method(globalThis, 'fetch', async () => Response.json(1));
+  assert.equal(await fetchJson(referenceUrl, referenceGuardOne, 'Reference', { policy: 'network-only' }), 1);
+  assert.equal(match.mock.callCount(), 0);
+});
+
+test('access bookkeeping cannot delay a validated reference read', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  cacheFixture(t);
+  const opened = referenceGate();
+  const connection = {} as IDBOpenDBRequest;
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: {
+    open() { opened.resolve(); return connection; },
+  } });
+  t.after(() => Reflect.deleteProperty(globalThis, 'indexedDB'));
+  t.mock.method(globalThis, 'fetch', async () => Response.json(1));
+  const result = fetchJson('https://charts.test/bookkeeping.json', referenceGuardOne, 'Reference');
+  await opened.promise;
+  assert.equal(await result, 1);
+  connection.onerror!(new Event('error'));
+});
+
+test('a cancelled cache match disposes its late response without pinning it', async t => {
+  const { cache, stored } = cacheFixture(t), entered = referenceGate(), finish = referenceGate();
+  let discarded = false;
+  t.mock.method(cache, 'match', async () => {
+    entered.resolve(); await finish.promise;
+    return new Response(new ReadableStream({ cancel() { discarded = true; } }));
+  });
+  const controller = new AbortController();
+  const result = assert.rejects(fetchJson(referenceUrl, referenceGuardOne, 'Reference', {
+    signal: controller.signal, cacheAs: () => 'https://charts.test/pinned',
+  }), { name: 'AbortError' });
+  await entered.promise; controller.abort(); await result;
+  finish.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
+  assert.ok(discarded); assert.equal(stored.size, 0);
+});
+
+test('explicit reference saves do not succeed before their cache write completes', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { cache, stored } = cacheFixture(t), entered = referenceGate(), finish = referenceGate();
+  const put = cache.put;
+  t.mock.method(cache, 'put', async (key: RequestInfo | URL, response: Response) => {
+    entered.resolve(); await finish.promise; return put(key, response);
+  });
+  t.mock.method(globalThis, 'fetch', async () => Response.json(1));
+  let completed = false;
+  const result = fetchJson(referenceUrl, referenceGuardOne, 'Reference', { requireCache: true })
+    .then(value => { completed = true; return value; });
+  await entered.promise; t.mock.timers.tick(10_000);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(completed, false); assert.equal(stored.size, 0);
+  finish.resolve(); assert.equal(await result, 1); assert.ok(stored.has(referenceUrl));
+});
+
+test('a stale invalid-reference inspection cannot delete another window’s successful repair', async t => {
+  const { stored } = cacheFixture(t);
+  stored.set(referenceUrl, Response.json('corrupt'));
+  const guard = (value: unknown): value is number => {
+    if (value === 'corrupt') stored.set(referenceUrl, Response.json(1));
+    return value === 1;
+  };
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('offline'); });
+  await assert.rejects(fetchJson(referenceUrl, guard, 'Reference'), /offline/);
+  assert.equal(await fetchJson(referenceUrl, guard, 'Reference', { policy: 'cache-only' }), 1);
 });

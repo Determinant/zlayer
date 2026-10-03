@@ -251,7 +251,8 @@ test('concurrent dates validate and cache their own manifests, rejecting an edit
   const rejected = await fetchChartCatalog('2026-08-06');
   assert.equal(rejected.navigation.length, 0);
   assert.ok(rejected.issues.some(issue => issue.product === 'navigation'));
-  assert.equal(stored.has(oldKey), false, 'wrong-date metadata cannot remain cached');
+  assert.deepEqual(await stored.get(oldKey)!.clone().json(), manifest('2026-09-03'),
+    'failed acquisition leaves storage untouched; guards still reject the wrong edition');
   assert.equal((await fetchChartCatalog('2026-09-03')).navigation.length, 4,
     'rejecting an older date does not evict the newer date');
   await assert.rejects(fetchChartCatalog('2026-07-09'), /Unsupported FAA cycle/);

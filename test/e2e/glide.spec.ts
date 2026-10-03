@@ -2,6 +2,10 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { terrainPng } from './terrain-fixture.mjs';
 import type { GeoJSONSource } from 'maplibre-gl';
 
+// This UI case uses routed airport/terrain fixtures. A controlling worker can
+// bypass Playwright routing, so keep the fixture responses in the page context.
+const routedAppTest = test.extend({ serviceWorkers: 'block' });
+
 async function airports(context: BrowserContext) {
   await context.route('**/nav/airports.geojson*', async route => {
     const response = await route.fetch(), body = await response.json();
@@ -157,10 +161,12 @@ test('missing terrain never draws optimistic circles and retry recovers the open
   expect(await count()).toBe(1);
 });
 
-test('app puts Glide above Weather and preserves its controls on a narrow screen and reload', async ({ page, context }, testInfo) => {
+routedAppTest('app puts Glide above Weather and preserves its controls on a narrow screen and reload', async ({ page, context }, testInfo) => {
   await airports(context);
   await page.addInitScript(() => {
-    if (!localStorage.getItem('zlayers-map-view-v1')) localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-119.78, 34.43], zoom: 9 }));
+    if (!localStorage.getItem('zlayers-map-preferences-v1')) localStorage.setItem('zlayers-map-preferences-v1',
+      JSON.stringify({ version: 2, chartBase: '' }));
+    localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-119.78, 34.43], zoom: 9 }));
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -172,6 +178,11 @@ test('app puts Glide above Weather and preserves its controls on a narrow screen
   expect(glideBox!.y + glideBox!.height).toBeLessThanOrEqual(weatherBox!.y + 1);
   const route = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
   await route.fill('KSBA KSMO'); await route.press('Enter');
+  await expect(page.locator('.route-token')).toHaveCount(2);
+  // Route fitting can put a phone below the zoom-7 acquisition threshold.
+  // Restore the fixture camera before checking controls and their persistence.
+  await page.reload();
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
   await page.getByLabel('Settings and offline downloads').click();
   await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
   for (const id of ['navigation', 'terrain']) {

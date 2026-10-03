@@ -256,12 +256,16 @@ test('camera movement retains the applicable image; new times clear it until rea
   let bounds = [-110, 30, -80, 45], layer: { visibility?: string } | undefined, source: object | undefined;
   let denyLayer = true;
   const visibility = () => layer?.visibility;
-  const events = new Map<string, () => void>();
+  const events = new Map<string, (event?: { sourceId: string; error: Error }) => void>();
+  let rejectImage = false;
   const map = {
     getBounds: () => ({ getWest: () => bounds[0], getSouth: () => bounds[1], getEast: () => bounds[2], getNorth: () => bounds[3] }),
     project: ([x, y]: number[]) => { projections++; return { x, y }; }, unproject: (point: number[]) => ({ lng: point[0], lat: point[1] }),
     getLayer: () => layer, getSource: () => source,
-    addLayer() { if (denyLayer) throw new Error('Map layer failed'); layer = {}; }, addSource() { source = { updateImage() {} }; },
+    addLayer() { if (denyLayer) throw new Error('Map layer failed'); layer = {}; },
+    addSource() { source = { updateImage() {
+      if (rejectImage) events.get('error')!({ sourceId: 'weather-awc-grid', error: new Error('Image rejected') });
+    } }; },
     removeLayer() { layer = undefined; }, removeSource() { source = undefined; },
     setPaintProperty() { opacityWrites++; }, setLayoutProperty(_id: string, _key: string, value: string) { layer!.visibility = value; },
     on(event: string, action: () => void) { events.set(event, action); }, off(event: string) { events.delete(event); },
@@ -328,11 +332,31 @@ test('camera movement retains the applicable image; new times clear it until rea
   assert.equal(visibility(), 'none');
   await finish(() => displayedTime() === next.frame.validTime);
   assert.equal(displayedTime(), next.frame.validTime);
+  const healthySource = source;
+  events.get('error')!({ sourceId: 'unrelated', error: new Error('Other source') });
+  assert.equal(displayedTime(), next.frame.validTime);
+  events.get('error')!({ sourceId: 'weather-awc-grid', error: new Error('Image source failed') });
+  assert.equal(state.gridRenderError, 'Image source failed');
+  assert.equal(state.gridDisplay, undefined); assert.equal(visibility(), 'none');
+  const failedWrites = writes;
+  renderer.update(); events.get('movestart')!(); events.get('moveend')!(); events.get('resize')!();
+  await finish();
+  assert.equal(writes, failedWrites, 'camera and status changes cannot revive failed imagery');
+  assert.equal(state.gridDisplay, undefined);
+  rejectImage = true; state.forecastRetry++; renderer.update(); await finish();
+  assert.equal(state.gridRenderError, 'Image rejected');
+  assert.equal(state.gridDisplay, undefined, 'an error emitted during upload cannot publish a display receipt');
+  assert.equal(visibility(), 'none');
+  rejectImage = false; state.forecastRetry++; renderer.update();
+  await finish(() => displayedTime() === next.frame.validTime);
+  assert.notEqual(source, healthySource, 'retry recreates the failed image source');
+  assert.equal(state.gridRenderError, undefined); assert.equal(visibility(), 'visible');
   bounds = [-120, 25, -70, 46]; events.get('moveend')!();
   state.preferences.awcEnabled = false; renderer.update(); await finish();
   assert.equal(layer, undefined); assert.equal(source, undefined); assert.equal(probe?.({ x: -95, y: 38 }), undefined);
   assert.equal(state.gridDisplay, undefined);
   assert.equal(canvas.width, 0, 'disabling releases the image and cancels the pending redraw');
+  renderer.destroy(); assert.equal(events.size, 0, 'teardown releases error and camera listeners');
 });
 
 test('client isolates endpoint identity, rejects future publications and corrupt transfers, and tolerates denied persistence', async t => {

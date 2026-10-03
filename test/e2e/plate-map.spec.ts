@@ -92,7 +92,10 @@ test('right-click offers the plate panel and removal only inside the plate, and 
   await page.mouse.click(box.x + 40, box.y + box.height / 2, { button: 'right' });
   await expectMapPlate(page);
   const menu = page.getByRole('menu', { name: 'Map actions' });
-  await expect(menu).toHaveCount(0);
+  // Other plugins can offer coordinate/weather actions outside the plate.
+  await expect(menu.getByRole('menuitem', { name: 'Show plate panel' })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Hide IAP from map' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await showPlate(page, 'SECOND APPROACH');
   const point = await center(page);
   await page.locator('.maplibregl-canvas').focus();
@@ -101,7 +104,7 @@ test('right-click offers the plate panel and removal only inside the plate, and 
   await expectMapPlate(page, 'SECOND APPROACH');
   const hide = menu.getByRole('menuitem', { name: 'Hide IAP from map' });
   const show = menu.getByRole('menuitem', { name: 'Show plate panel' });
-  await expect(show).toBeFocused();
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
   await expect(page.getByRole('dialog', { name: 'Nearby map features' })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('iap-menu.png') });
   await page.keyboard.press('Escape');
@@ -215,8 +218,8 @@ test('a long press near the map edge cannot activate the menu underneath the rel
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
   await expect(menu).toBeVisible();
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await expect(menu.getByRole('menuitem', { name: 'Show plate panel' })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  await menu.getByRole('menuitem', { name: 'Show plate panel' }).press('ArrowDown');
   await expect(hide).toBeFocused();
   await page.keyboard.press('Enter');
   await expectMapPlate(page, null);

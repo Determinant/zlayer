@@ -5,6 +5,8 @@ import { parseGzipJson, type GzipJsonSize } from './gzip-json';
 import { InvalidDataError, JsonResponseError, ResourceError } from './errors';
 import { readArtifact } from '../storage/artifacts';
 import { discardResponseBody } from '../storage/response';
+import { optionalStorage } from '../storage/optional-storage';
+import { withAbort } from './abort';
 
 type FetchJsonOptions<T> = {
   signal?: AbortSignal; gzip?: GzipJsonSize;
@@ -27,53 +29,69 @@ export async function fetchJson<T>(
   label: string,
   options: FetchJsonOptions<T> = {},
 ): Promise<T> {
-  options.signal?.throwIfAborted();
-  await noteCacheAccess(DATA_CACHE, url);
-  const cache = await globalThis.caches?.open(DATA_CACHE).catch(() => undefined);
+  const callerSignal = options.signal ?? new AbortController().signal;
+  callerSignal.throwIfAborted();
+  // Bookkeeping is best effort and must never hold up the actual read.
+  void noteCacheAccess(DATA_CACHE, url);
+  const cache = await optionalStorage(async () => globalThis.caches?.open(DATA_CACHE), callerSignal)
+    .catch(() => { callerSignal.throwIfAborted(); return undefined; });
   const policy = options.policy ?? 'cache-first';
   const requireCache = options.requireCache || !!options.cacheAs;
   if (requireCache && !cache) throw new ResourceError('storage', 'Reference storage unavailable');
-  let savedResponse: Response | undefined;
+  const saved = policy === 'network-only' ? undefined : await optionalStorage(async storageSignal => {
+    const inspected = await readArtifact(cache, url, async response => {
+      storageSignal.throwIfAborted();
+      const copy = options.cacheAs ? response.clone() : undefined;
+      try {
+        const body = await withAbort(validate(response, guard, label, options.gzip, options.normalize, storageSignal), storageSignal);
+        return { body, response: copy };
+      } catch (error) { discardResponseBody(copy); throw error; }
+    });
+    return inspected.state === 'ready' ? inspected.value : undefined;
+  }, callerSignal, value => discardResponseBody(value?.response))
+    .catch(() => { callerSignal.throwIfAborted(); return undefined; });
   const pin = async (body: T, response: Response) => {
     const target = options.cacheAs?.(body);
     if (!target || target === url) return;
-    options.signal?.throwIfAborted();
+    callerSignal.throwIfAborted();
     const copy = response.clone();
-    try { await cache!.put(target, copy); }
+    try { await withAbort(cache!.put(target, copy), callerSignal); }
     finally { discardResponseBody(copy); }
   };
   try {
-    const inspected = await readArtifact(cache, url, response => {
-      if (options.cacheAs) savedResponse = response.clone();
-      return validate(response, guard, label, options.gzip, options.normalize);
-    });
-    if (inspected.state === 'invalid' && policy !== 'cache-only') await cache?.delete(url).catch(() => {});
-    const saved = inspected.state === 'ready' ? inspected.value : undefined;
-    if (saved === undefined) discardResponseBody(savedResponse);
+    // Never delete an inspected URL: another window may already have repaired it.
+    // A validated network response replaces the entry atomically with put().
     const useSaved = async () => {
-      if (savedResponse) await pin(saved!, savedResponse);
-      return saved!;
+      if (saved?.response) await pin(saved.body, saved.response);
+      return saved!.body;
     };
-    options.signal?.throwIfAborted();
+    callerSignal.throwIfAborted();
     if (policy === 'cache-only' || policy === 'cache-first' && saved !== undefined) {
       if (saved !== undefined) return await useSaved();
       throw new ResourceError('storage', `${label} has no saved export identity. Use Update to latest for this region.`);
     }
     const timeout = AbortSignal.timeout(30_000);
-    const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+    const signal = AbortSignal.any([callerSignal, timeout]);
     let response: Response | undefined;
     try {
       response = await fetch(url, { cache: 'no-store', signal });
-      const body = await validate(response.clone(), guard, label, options.gzip, options.normalize);
-      options.signal?.throwIfAborted();
+      const validation = response.clone();
+      let body: T;
+      try { body = await withAbort(validate(validation, guard, label, options.gzip, options.normalize, signal), signal); }
+      finally { discardResponseBody(validation); }
+      callerSignal.throwIfAborted();
       await pin(body, response);
-      await cache?.put(url, response).catch(error => { if (requireCache) throw error; });
+      if (cache) {
+        if (requireCache) await withAbort(cache.put(url, response), callerSignal);
+        else await optionalStorage(async () => cache.put(url, response!), callerSignal)
+          .catch(() => { callerSignal.throwIfAborted(); });
+      }
       return body;
     } catch (error) {
       if (saved !== undefined && policy === 'network-first' && !options.signal?.aborted) return await useSaved();
       throw error;
     } finally { discardResponseBody(response); }
-  } finally { discardResponseBody(savedResponse); }
+  } finally { discardResponseBody(saved?.response); }
 }
 
 /** Cache-only verification uses the same guards as loading, without starting a download. */
@@ -89,7 +107,13 @@ export async function readCachedJson<T>(
 }
 
 async function validate<T>(response: Response, guard: (value: unknown) => value is T, label: string,
-  gzip?: GzipJsonSize, normalize?: (value: unknown) => unknown): Promise<T> {
+  gzip?: GzipJsonSize, normalize?: (value: unknown) => unknown, signal?: AbortSignal): Promise<T> {
+  // JSON consumption locks its body. Propagate cancellation through the stream
+  // so a timed-out cached read releases its producer instead of only its caller.
+  if (signal && response.body) response = new Response(
+    response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(), { signal }),
+    { status: response.status, statusText: response.statusText, headers: response.headers },
+  );
   if (!response.ok) throw await responseError(response, label);
   const parsed = gzip ? await parseGzipJson(response, gzip) : await parseResponseJson(response, label);
   const body = normalize ? normalize(parsed) : parsed;

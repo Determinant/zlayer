@@ -25,6 +25,38 @@ const savedPdf = (body: BodyInit = bytes, sha256 = digest, byteLength = bytes.le
   headers: { 'content-type': 'application/pdf', 'content-length': String(byteLength), [VERIFIED_SHA256_HEADER]: sha256 },
 });
 
+test('cache-age bookkeeping cannot delay opening a verified PDF', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { stored } = cacheFixture(t);
+  const book = { ...source, url: `${source.url}&bookkeeping=blocked` };
+  stored.set(book.url, savedPdf());
+  const connection = {} as IDBOpenDBRequest;
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: { open: () => connection } });
+  t.after(() => Reflect.deleteProperty(globalThis, 'indexedDB'));
+  try {
+    assert.ok((await loadProcedureDocument(book)).cached);
+  } finally { connection.onerror!(new Event('error')); }
+});
+
+test('an invalid PDF snapshot cannot delete a repair published by another tab', async t => {
+  const { stored, cache } = cacheFixture(t);
+  stored.set(source.url, pdf('corrupt'));
+  const match = cache.match;
+  t.mock.method(cache, 'match', async (key: RequestInfo | URL) => {
+    const response = await match(key);
+    if (response) {
+      response.blob = async () => {
+        stored.set(source.url, savedPdf());
+        return new Blob(['corrupt']);
+      };
+    }
+    return response;
+  });
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('Offline'); });
+  await assert.rejects(loadProcedureDocument(source), /Offline/);
+  assert.equal(await stored.get(source.url)!.text(), new TextDecoder().decode(bytes));
+});
+
 test('different viewer books serialize transfers and a failed first book releases the next', async t => {
   cacheFixture(t);
   let started!: () => void, fail!: (error: Error) => void;
@@ -371,7 +403,10 @@ test('FAA fallbacks use a constrained proxy, retain export identity, and are ava
   assert.equal(fetch.mock.calls.length, 1);
   stored.set(url, new Response(bytes.slice(0, -1), { headers: stored.get(url)!.headers }));
   await assert.rejects(loadProcedureDocument(fallback), /offline/, 'a truncated individual PDF cannot reuse its stored receipt');
-  assert.equal(stored.has(url), false);
+  assert.equal(stored.has(url), true, 'failed validation cannot delete a concurrent repair');
+  fetch.mock.mockImplementation(async () => pdf());
+  assert.ok((await loadProcedureDocument(fallback)).cached);
+  assert.equal(await stored.get(url)!.text(), new TextDecoder().decode(bytes));
 });
 
 test('existing auto-cached individual PDFs gain receipts without another fetch', async t => {

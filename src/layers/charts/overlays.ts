@@ -1,4 +1,5 @@
 import type { Bounds, ChartKind, ChartRecord } from '@zlayer/contracts';
+import { chartBoundsIntersect } from './bounds';
 
 export type ChartFamilyId = Exclude<ChartKind, 'unknown'>;
 export type ChartBaseId = 'vfr-sectional' | 'ifr-low' | 'ifr-high';
@@ -77,12 +78,7 @@ export function chartIsSelected(kind: ChartKind, selection: ChartSelection): boo
 export function chartIsVisible(
   chart: ChartRecord,
   selection: ChartSelection,
-  [west, south, east, north]: Bounds,
+  bounds: Bounds,
 ): boolean {
-  if (!chartIsSelected(chart.kind, selection)) return false;
-  const [chartWest, chartSouth, chartEast, chartNorth] = chart.bounds;
-  if (north < chartSouth || south > chartNorth) return false;
-  // MapLibre bounds may cross the antimeridian or lie in another world copy.
-  if (east < west) east += 360;
-  return Math.ceil((west - chartEast) / 360) <= Math.floor((east - chartWest) / 360);
+  return chartIsSelected(chart.kind, selection) && chartBoundsIntersect(chart.bounds, bounds);
 }

@@ -216,7 +216,9 @@ mismatched receipts require hashing again. Concurrent opens share the download;
 live readers and map restoration also share their PDF.js document through
 `pdf-document.ts`, without transferring a reader-owned buffer.
 An already-started whole-file download may finish caching after its viewer closes.
-Invalid responses are discarded. Cache-write failure still permits online viewing,
+Invalid responses are rejected; verified downloads replace them without deleting
+a concurrent repair. Cache-age bookkeeping never delays opening a document.
+Cache-write failure still permits online viewing,
 but never an “Available offline” claim. Expired documents retain their actual interval.
 
 Regional saves reuse these same files and always include applicable TPP/CS books and

@@ -3,7 +3,7 @@ import { EdgePanels } from './core/ui/edge-panels';
 import { formatDate } from './core/format/time';
 import { featureKey } from '@zlayer/domain';
 import { routePointForFeature } from './layers/routes/selection';
-import { lazy, Suspense, useEffect, useLayoutEffect, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react';
 
 import type {
   Bounds,
@@ -30,14 +30,12 @@ import { useMapPreferences } from './workspace/use-map-preferences';
 import { useMapView } from './shell/use-map-view';
 import { useResourceWarning } from './shell/use-resource-warning';
 import { NotificationBubbles } from './shell/notifications';
-import { useNotifications, type WorkspaceNotification } from './shell/use-notifications';
+import { useNotifications } from './shell/use-notifications';
 import { useOnline } from './core/use-online';
 import { useCatalog } from './workspace/catalog/use-catalog';
 import { useWorkspaceReadContext } from './workspace/use-workspace-read-context';
 import type { ResourceErrorCode } from './core/data/errors';
 import { visibleSavedBundles } from './offline/visible-bundles';
-import { OFFLINE_REGIONS } from './offline/regions';
-import { navigationIssueMessages } from './layers/navigation/api';
 import { partitionRegionCoverage } from './offline/region-coverage';
 import { LayerPanels } from './core/layers/panels';
 import { LayerContributions } from './core/layers/contributions';
@@ -52,6 +50,8 @@ import { weatherStartupWork, workspaceStartupSteps } from './workspace/startup';
 import { selectLayerStore } from './core/layers/store';
 import { useWorkspaceSelection } from './workspace/use-selection';
 import { useStartup } from './shell/use-startup';
+import { useWorkspaceInputs } from './workspace/use-workspace-inputs';
+import { workspaceNotifications } from './workspace/notifications';
 
 const MapCanvas = lazy(() => import('./workspace/map/canvas'));
 
@@ -71,13 +71,12 @@ export function App() {
   const [mapView, setMapView] = useMapView();
   const plugins = usePlugins(workspaceLayers.plugins);
   const loaded = Object.fromEntries(plugins.controlsList.map(plugin => [plugin.id, plugin.loaded]));
-  const { chartBase, chartOverlay, visibility: savedVisibility, fixDisplay, terrainCoverage, terrainAltitude } = mapPreferences;
+  const { chartBase, chartOverlay, visibility: savedVisibility, fixDisplay } = mapPreferences;
   const visibility = useMemo(() => loaded.navigation ? savedVisibility : Object.fromEntries(
     Object.keys(savedVisibility).map(id => [id, false])) as LayerVisibility, [loaded.navigation, savedVisibility]);
   const metarEnabled = !!loaded.metar && mapPreferences.metarEnabled;
   const terrainEnabled = !!loaded.terrain && mapPreferences.terrainEnabled;
   const obstructionsEnabled = !!loaded.obstructions && mapPreferences.obstructionsEnabled;
-  const ownshipEnabled = !!loaded.ownship && mapPreferences.ownshipEnabled;
   const mapContributions = useMemo(() => [...plugins.mapContributions, workspaceLayers.selectionContribution],
     [plugins.mapContributions, workspaceLayers]);
   const terrainStatus = useLayerSnapshot(workspaceLayers.terrain.status);
@@ -151,65 +150,17 @@ export function App() {
     setQuery('');
   };
 
-  const savedEditions = useMemo(() => [...new Set(visibleBundles.map(bundle => bundle.catalog.revision))]
-    .map(revision => ({ revision, title: visibleBundles.filter(bundle => bundle.catalog.revision === revision)
-      .map(bundle => OFFLINE_REGIONS.find(region => region.id === bundle.plan.regionId)?.title ?? bundle.plan.title).join(', ') })), [visibleBundles]);
   const visibleNavigationIssues = navigationIssues.filter(issue => issue.regionId ?
     visibleBundles.some(bundle => bundle.plan.regionId === issue.regionId && bundle.catalog.revision === issue.revision) : browsingVisible);
-  const savedEditionDetails = `Saved coverage in this view: ${visibleBundles.map(bundle =>
-    `${bundle.plan.title} · ${formatDate(bundle.catalog.revision)}`).join(', ')}. Saved regions override browsing. Route data: ${formatDate(context?.routing.revision ?? context?.browsing.revision ?? '')} (saved).`;
-  const pluginActions = useMemo(() => ({
-    ownship: { onToggle: () => setMapPreferences(current => ({ ...current, ownshipEnabled: !current.ownshipEnabled })) },
-    terrain: {
-      onToggle: () => setMapPreferences(current => ({ ...current, terrainEnabled: !current.terrainEnabled })),
-      onAltitudeChange: (value: typeof terrainAltitude) => setMapPreferences(current => ({ ...current, terrainAltitude: value })),
-      onCoverageChange: (value: typeof terrainCoverage) => setMapPreferences(current => ({ ...current, terrainCoverage: value })),
-    },
-    obstructions: { onToggle: () => setMapPreferences(current => ({ ...current, obstructionsEnabled: !current.obstructionsEnabled })) },
-    charts: {
-      onBaseChange: (value: typeof chartBase) => { clear('Chart unavailable'); setMapPreferences(current => ({ ...current, chartBase: value })); },
-      onOverlayChange: (value: typeof chartOverlay) => { clear('Chart unavailable'); setMapPreferences(current => ({ ...current, chartOverlay: value })); },
-    },
-    navigation: {
-      onFixDisplayChange: (value: typeof fixDisplay) => setMapPreferences(current => ({ ...current, fixDisplay: value })),
-      onVisibilityChange: (id: NavigationLayerId) => setMapPreferences(current => ({ ...current,
-        visibility: { ...current.visibility, [id]: !current.visibility[id] } })),
-    },
-    glide: { change: (patch: Partial<typeof mapPreferences>) => setMapPreferences(current => ({ ...current, ...patch })) },
-    weather: { change: (patch: Partial<typeof mapPreferences>) => setMapPreferences(current => ({ ...current, ...patch })) },
-    metar: { onToggle: () => setMapPreferences(current => ({ ...current, metarEnabled: !current.metarEnabled })) },
-  }), [setMapPreferences, clear]);
   const resolveMapFeature = useCallback((feature: GeoPointFeature) => resolveNavigationFeature(feature, mapNavigationData), [mapNavigationData]);
-  // Explicit workspace bindings publish committed state. Each map contribution
-  // selects only the fields it consumes, so UI changes do not rebuild map data.
-  useLayoutEffect(() => {
-    if (!context) return;
-    workspaceLayers.ownship.input.set({ enabled: ownshipEnabled, ...pluginActions.ownship });
-    workspaceLayers.ahrs.input.set({ revision: context.browsing.revision });
-    workspaceLayers.ruler.input.set({ revision: context.browsing.revision });
-    workspaceLayers.terrain.input.set({ enabled: terrainEnabled, catalog: context,
-      altitude: terrainAltitude, coverage: terrainCoverage,
-      ...pluginActions.terrain });
-    workspaceLayers.glide.input.set({ ...workspaceLayers.glide.preferences.select(mapPreferences), catalog: context,
-      glideEnabled: !!loaded.glide && mapPreferences.glideEnabled, ...pluginActions.glide });
-    workspaceLayers.obstructions.input.set({ enabled: obstructionsEnabled,
-      ...pluginActions.obstructions });
-    workspaceLayers.charts.input.set({ catalog: context, selection: renderedCharts, chartSelection, chartCacheState,
-      activeChartTitle, activeChartCount, savedEditionDetails, routingRevision: context.routing.revision,
-      savedEditions, ...pluginActions.charts });
-    workspaceLayers.navigation.input.set({ catalog: context, data: mapNavigationData, navigationData, visibility, fixDisplay,
-      fixContext, identification: featureSelection.identificationMap, loadState,
-      inspectedCoordinate: selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected) ? selected : undefined,
-      ...pluginActions.navigation });
-    workspaceLayers.metar.input.set({ catalog: context, enabled: metarEnabled,
-      ...pluginActions.metar });
-    workspaceLayers.weatherAwc.input.set({ ...workspaceLayers.weatherAwc.preferences.select(mapPreferences), revision: context.browsing.revision,
-      awcEnabled: !!loaded['weather-awc'] && mapPreferences.awcEnabled,
-      ...pluginActions.weather });
-    workspaceLayers.routes.input.set(route.mapInput);
-    workspaceLayers.selectionInput.set({
-      resolveFeature: resolveMapFeature, onSelect: selectFeature,
-      onChooseNearby: featureSelection.chooseNearby, onCloseNearby: featureSelection.closeNearby });
+  useWorkspaceInputs({ workspaceLayers, context, mapPreferences, setMapPreferences, loaded, clear, visibleBundles,
+    charts: { selection: renderedCharts, chartSelection, chartCacheState, activeChartTitle, activeChartCount },
+    navigation: { data: mapNavigationData, navigationData, visibility, fixContext,
+      identification: featureSelection.identificationMap, loadState,
+      inspectedCoordinate: selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected) ? selected : undefined },
+    routes: route.mapInput,
+    selection: { resolveFeature: resolveMapFeature, onSelect: selectFeature,
+      onChooseNearby: featureSelection.chooseNearby, onCloseNearby: featureSelection.closeNearby },
   });
 
   const startupSteps = workspaceStartupSteps({ context, mapIdle, plugins: plugins.controlsList,
@@ -224,24 +175,12 @@ export function App() {
   });
   const startup = useStartup(startupSteps, mapFailed);
   const connectionFailures = useLayerSnapshot(workspaceLayers.registry.scopedConnections.failures);
-  const pluginTitle = (id: string) => workspaceLayers.plugins.find(plugin => plugin.definition.id === id)?.definition.title ?? id;
-  const notices: WorkspaceNotification[] = [];
-  if (connectionFailures.length) notices.push({ id: 'connections', title: 'Workspace connection unavailable', tone: 'error',
-    message: connectionFailures.map(failure => `${pluginTitle(failure.providerId)}: ${failure.message}`).join('; '),
-    action: { label: 'Retry workspace connections', run: workspaceLayers.registry.scopedConnections.retryFailed } });
-  if (regionError) notices.push({ id: 'regions', title: 'Saved downloads', message: regionError });
-  if (visibleNavigationIssues.length) notices.push({ id: 'navigation', title: 'Navigation data unavailable',
-    message: `${navigationIssueMessages(visibleNavigationIssues).join(' ')} Reconnect or repair the affected download.` });
-  if (workspaceCycleNotice) notices.push({ id: 'cycle', title: 'FAA data cycle', message: workspaceCycleNotice });
-  if (!online) notices.push({ id: 'offline', title: 'Offline', tone: 'offline',
-    message: 'Saved content remains available. Uncached areas are unavailable; weather may be stale.' });
-  if (chartSelection.base && chartCacheState === 'unavailable') notices.push({ id: 'chart-cache', title: 'Charts are disabled', tone: 'error',
-    message: 'A controlling service worker is required for whole-file MBTiles caching.',
-    action: { label: 'Retry chart cache', run: retryChartCache } });
-  if (browsingCatalog?.issues.length) notices.push({ id: 'feeds', title: 'Feed issues',
-    message: browsingCatalog.issues.map(issue => `${issue.product}: ${issue.message}`).join(' '),
-    action: { label: 'Reload feeds', run: () => window.location.reload() } });
-  if (warning) notices.push({ id: 'resource', title: warning.title, message: warning.message, tone: 'error' });
+  const notices = workspaceNotifications({ connectionFailures,
+    pluginTitle: id => workspaceLayers.plugins.find(plugin => plugin.definition.id === id)?.definition.title ?? id,
+    retryConnections: workspaceLayers.registry.scopedConnections.retryFailed,
+    regionError, visibleNavigationIssues, workspaceCycleNotice, online,
+    chartsSelected: !!chartSelection.base, chartCacheState, retryChartCache, feedIssues: browsingCatalog?.issues, warning,
+  });
   const notifications = useNotifications(notices);
   if (catalogError && savedRegionsReady && !context) return <CatalogError message={catalogError} />;
   if (!context) return <StartupScreen steps={startup.steps} slow={startup.slow} />;

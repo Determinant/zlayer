@@ -82,6 +82,7 @@ test('large service-worker chart downloads keep only a receipt and serve saved r
 });
 
 test('two windows can finish the same book and keep reading through replacement and removal', async ({ page, context }) => {
+  await page.clock.install();
   const size = 10 * 1024 * 1024;
   const chunk = Buffer.alloc(256 * 1024); chunk.write('%PDF-1.7\n');
   const hash = createHash('sha256').update(chunk); chunk.fill(0);
@@ -130,6 +131,9 @@ test('two windows can finish the same book and keep reading through replacement 
   });
   await expect.poll(async () => {
     await page.requestGC(); // Unused readers must release storage even while the page stays open.
+    // Retirement intentionally retries once per minute. Advance that deadline
+    // after GC rather than requiring physical deletion within ten real seconds.
+    await remover.clock.fastForward('01:00');
     return remover.evaluate(async () => {
       const module = '/assets/download-memory-test.js'; return (await import(module)).remainingFiles();
     });

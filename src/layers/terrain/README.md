@@ -396,6 +396,8 @@ up to 1,024 archive descriptors each, tile-key lookup and eviction by recent use
 Canceling one caller does not cancel others; failures are evicted for retry. Persistent-storage checks run
 before cache lookup, and cache identity includes the expected shard location.
 Missing files or invalid receipts must remain detectable with a warm parsed index.
+Cache-age bookkeeping runs independently of index and elevation reads, so stalled
+optional metadata cannot delay usable terrain.
 
 ## Verification
 

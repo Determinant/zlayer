@@ -1,3 +1,5 @@
+import { withAbort } from '../../core/data/abort';
+
 type Resource = { dispose: () => Promise<void> | void; isUsable?: () => boolean };
 type Entry<T> = { promise: Promise<T>; users: number; controller: AbortController; resource?: T | undefined; retired: boolean };
 type Waiter = { signal: AbortSignal; start(): void; abort(): void };
@@ -34,7 +36,7 @@ export class ArchiveReaderPool<T extends Resource> {
     const abort = () => { if (!current.resource) release(); };
     signal?.addEventListener('abort', abort, { once: true });
     try {
-      const resource = await current.promise;
+      const resource = await (signal ? withAbort(current.promise, signal) : current.promise);
       signal?.throwIfAborted();
       current.controller.signal.throwIfAborted();
       return await action(resource);

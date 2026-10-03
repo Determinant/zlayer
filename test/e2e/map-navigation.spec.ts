@@ -97,14 +97,14 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   const panned = await camera(page);
   for (const heading of [350, 10]) {
-    // Allow the 1.5s circular filter to settle within its 2° output deadband.
+    // Allow GPS correction and the 2s display filter to settle within the documented 3° deadband.
     // Damping advances on fresh fixes, not while a polling assertion waits.
     // Keep this GPS-only scenario below the optional sensor-assistance gate.
     for (let sample = 0; sample < 10; sample++) {
       await page.clock.runFor(1000);
       await sendFix(page, { heading, longitude: -121.9, latitude: 37.1, speed: 5 });
     }
-    await expect.poll(async () => Math.abs(((await bearing(page)) - heading + 540) % 360 - 180)).toBeLessThan(2);
+    await expect.poll(async () => Math.abs(((await bearing(page)) - heading + 540) % 360 - 180)).toBeLessThan(3);
     await expectCenter(page, -121.9, 37.1);
     expect((await camera(page)).zoom).toBe(panned.zoom);
   }
@@ -315,10 +315,10 @@ test('optional AHRS carries track-up turns without instrument calibration and st
     await page.getByLabel('Close settings').click();
   };
   await setAhrsEnabled(false);
-  await page.clock.runFor(10_000);
+  await page.clock.runFor(20_000);
   expect(await countWatches(page)).toBe(1);
-  // GPS-only correction settles within the camera's 2° output deadband.
-  expect(Math.abs(((await bearing(page)) - 90 + 540) % 360 - 180)).toBeLessThan(2);
+  // GPS-only correction and display damping settle within the camera's 3° deadband.
+  expect(Math.abs(((await bearing(page)) - 90 + 540) % 360 - 180)).toBeLessThan(3);
   await setAhrsEnabled(true);
   await expect(page.locator('body')).toHaveAttribute('data-motion-requests', '2');
   await page.clock.runFor(4500);

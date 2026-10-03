@@ -104,6 +104,24 @@ test('four native elevation tiles share one parsed index, including concurrent r
   assert.equal(parses, 1);
 });
 
+test('cache-age bookkeeping cannot delay saved terrain indices or elevations', async t => {
+  const source = await indexFixture('blocked-bookkeeping');
+  const cache = storage(t, new Map([[source.shard.file, source.bytes]]));
+  const archive = JSON.parse(source.bytes.toString()).archives[0];
+  const tile = { z: archive.zoom, x: archive.x, y: archive.y };
+  const expected = await readPackagedElevation(tile, source, signal());
+  cache.offline();
+  // Advance past the access-write throttle, but keep the blocked connection's
+  // fallback timer frozen: reads must finish without waiting for that timeout.
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() + 61_000 });
+  const connection = {} as IDBOpenDBRequest;
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: { open: () => connection } });
+  t.after(() => Reflect.deleteProperty(globalThis, 'indexedDB'));
+  try {
+    assert.deepEqual(await readPackagedElevation(tile, source, signal()), expected);
+  } finally { connection.onerror!(new Event('error')); }
+});
+
 test('parsed terrain indices remain bounded and recently used entries survive eviction', async t => {
   const sources = await Promise.all(Array.from({ length: 9 }, (_, i) => indexFixture(`bounded-${i}`)));
   storage(t, new Map(sources.map(source => [source.shard.file, source.bytes])));
