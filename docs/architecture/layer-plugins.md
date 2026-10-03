@@ -144,7 +144,7 @@ capabilities for every plugin.
 | [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory and surface-analysis/Progs vectors, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
-| [glide/](../../src/layers/glide/README.md) | Route-corridor airport coverage, forward ownship ring, shared visible terrain profiles and controls |
+| [glide/](../../src/layers/glide/README.md) | Terrain-aware airport, ownship and selected-point ranges; cached origin profiles; prepared off-airport candidate areas and controls |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
 | [obstructions/](../../src/layers/obstructions/README.md) | FAA DOF acquisition/validation, worker index, viewport/route demand, symbols and controls |
 | [ownship/](../../src/layers/ownship/README.md) | Map GPS demand, centering requests, track/projection, status and map presentation |
@@ -706,6 +706,7 @@ descend and bottom slots ascend. `workspace/panel-layout.ts` reserves these posi
 | AHRS toolbox / `ahrs` | Left | Top | 2 |
 | Terrain toolbox / `terrain` | Left | Bottom | 0 |
 | AWC Weather toolbox / `weather-awc` | Left | Bottom | 1 |
+| Glide Planner toolbox / `glide` | Left | Bottom | 2 |
 | Plate reader / `plate` | Right | Bottom | 0 |
 | Feature details / `details` | Right | Bottom | 1 |
 | Weather advisory details / `weather-awc-details` | Right | Bottom | 2 |
@@ -718,8 +719,8 @@ Core owns rail bounds and collision/overflow handling; features cannot override
 placement or compensate with positioning offsets. The shell supplies responsive
 insets and features can size their bodies through `className`. A `bodyFromEdge`
 placement lets a toolbox body reach its anchor edge independently of its tab slot:
-AHRS starts at the top boundary, and AWC extends to the bottom boundary while its
-tab remains above Terrain. Compact attached tabs and separate rails use the
+AHRS starts at the top boundary; AWC and Glide extend to the bottom boundary while
+their tabs retain their slots above Terrain. Compact attached tabs and separate rails use the
 same controller and support either side.
 
 `EdgePanel` inherits its name, label, and placement from the registration. It opens

@@ -14,7 +14,7 @@ It remains a supplemental planning tool, not an official briefing source or cert
   the renderer become idle when nothing changes. Preserve chart sharpness and
   source correctness; measure improvements on repeatable workloads and devices.
 - Each product owns its data, behavior, presentation and lifecycle.
-- Continuous terrain beneath exclusive chart bases and optional additive overlays.
+- Continuous geographic context beneath exclusive chart bases and optional additive overlays.
 - Cached data first; background refresh never blocks unrelated interaction.
 - Share weather acquisition and native-field preparation through one bounded,
   database-free service; publish complete generations. Keep user state, selected

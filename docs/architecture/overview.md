@@ -134,6 +134,7 @@ points and responsibilities. Packaging products separately remains a design ques
 charts/cycles.json                # available edition dates
 charts/terrain/manifest.json      # feed-wide, versioned elevation packages
 charts/obstacles/manifest.json    # feed-wide FAA Daily DOF dataset
+charts/glide/manifest.json        # optional prepared off-airport candidate areas
 charts/<cycle>/
 ├── *.pdf
 ├── mbtiles/
@@ -175,7 +176,7 @@ Every dated manifest is validated against that requested cycle.
 
 ## Map rendering stack
 
-1. Continuous USGS topography/shaded-relief basemap, or a configured replacement
+1. Continuous Esri World Imagery satellite/aerial basemap, or a configured replacement
 2. Exclusive VFR sectional / IFR low / IFR high chart base, then an optional terminal-area or
    flyway overlay requiring the sectional base (coverage-limited, whole-file cached)
 3. Optional georeferenced IAP image
@@ -213,8 +214,9 @@ small files live in Cache Storage, while large files stream into origin-private
 file storage with small Cache Storage receipts. IndexedDB holds catalog/selection
 records, not duplicate chart or PDF blobs. StorageManager reports quota
 and persistence, and Web Locks coordinate windows. Basemap coverage is only saved as
-viewed; weather remains time-stamped and visibly stale. The obstruction dataset is
-cached on demand and is not part of regional completeness. See
+viewed; weather remains time-stamped and visibly stale. Obstruction data and
+prepared off-airport landing areas are cached on demand and excluded from regional
+completeness. See
 [offline storage](../features/offline-storage.md) for guarantees, limits, and release checks.
 Committed regional snapshots retain their edition online and offline; staged updates
 activate only after verification. Settings groups editions by publisher/region;

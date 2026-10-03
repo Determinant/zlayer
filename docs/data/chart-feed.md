@@ -190,7 +190,10 @@ only manifests, not archives. The chart/navigation/procedure paths require three
 requests for flat packages, four for nested packages, five for nested sheets, or six
 for flat legacy sheets. Discovery also probes the optional feed-wide
 `terrain/manifest.json`; its versioned packages are independent of the FAA cycle.
-The obstruction layer separately loads `obstacles/manifest.json` on demand. Reloading revalidates the chart manifest,
+The obstruction layer separately loads `obstacles/manifest.json` on demand.
+Glide loads optional feed-wide `glide/manifest.json` and immutable polygon shards
+when off-airport areas are enabled; its [consumer contract](../../src/layers/glide/README.md#delivery-and-validation)
+is independent of FAA cycles and regional completeness. Reloading revalidates the chart manifest,
 including HTTP caches, so manual same-cycle uploads become discoverable immediately.
 
 Zoom limits describe the archive, not when a selected chart should disappear.

@@ -37,6 +37,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P0 | METAR, TAF | AWC through the TypeScript cache gateway | colored airport pins + detail | Latest coded METAR and AWC TAF periods, normalized and cached in the browser |
 | P0 | Terrain | Packaged elevation from the chart feed; Mapzen Terrain Tiles on AWS (Terrarium) fallback | 500/1,000 ft route contours and translucent elevation bands; viewport elevation shading | [4/8 NM route corridor or viewport](../../src/layers/terrain/README.md), visible demand, bounded worker cache; regional saves include terrain packages |
 | P0 | Obstructions | FAA Daily DOF packaged by `faa-regs` | worker-indexed point symbols with source date | [Viewport/route decluttering](../../src/layers/obstructions/README.md) and on-demand caching implemented; excluded from regional completeness |
+| Experimental | Off-airport landing candidates | Publisher-prepared `glide/manifest.json` and immutable polygon shards on the chart feed | generalized candidate areas in two length tiers | [Consumer and optional caching implemented](../../src/layers/glide/README.md#off-airport-landing-candidates); publication coverage and landing suitability remain unvalidated; excluded from regional completeness |
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
 | P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |
@@ -46,7 +47,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P1 | Winds and temperature aloft | NOAA HRRR CONUS pressure-level GRIB2 | numeric vectors/temperature; zoom-spaced barbs and optional shading | [Browser-derived MSL slices below 18,000 ft and flight levels from FL180](../../src/layers/weather-awc/grids/winds.md), with core caching; reference-device qualification remains |
 | P0 | Station, airport, NAVAID, fix | AWC API; infrequent station cache | reference tiles/search | Approved for spike within published limits |
 | P0 | Surface pressure charts, fronts and ridges | AWC Progs catalog and WPC GeoJSON | server-prepared vectors | [Progs implemented](../../src/layers/weather-awc/progs/README.md); NOAA isobars/labels represent ridges; operational comparison remains outstanding |
-| P1 | NEXRAD mosaic | NOAA nowCOAST OGC services or another explicit NOAA distribution endpoint | raster tiles | Compare latency, coverage, and service policy |
+| P1 | NEXRAD composite and terminal radar | NOAA MRMS public S3 and FAA TDWR through the TypeScript weather server | prepared reflectivity contours | [Current radar and two-hour history implemented](../../src/layers/weather-awc/radar/README.md); operational comparison, automatic playback and physical-device qualification remain |
 | P1 | GOES visible/IR | NOAA GOES-R open object-store data or nowCOAST OGC service | COG/raster tiles | Preferred production path; benchmark both modes |
 | Reference only | COD NEXLAB satellite imagery | Link to NEXLAB with credit | outbound link | No automated retrieval without written permission |
 | P2 | NWS watches/warnings/advisories | NWS API/NOAA geospatial service | vector tiles | Separate aviation relevance and clutter spike |
@@ -338,11 +339,13 @@ References:
 
 ## Basemap policy
 
-The current local style uses opaque USGS Topo tiles, which include shaded relief,
-with USGS attribution and bundled identifier glyphs. It does not request the separate
-USGS shaded-relief service. `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces those default
-tiles; `VITE_ZLAYERS_BASEMAP_STYLE_URL` replaces the complete style. These basemap tiles
-are not bulk-downloaded by regional saves. Route terrain uses separate elevation
+The default local style uses Esri World Imagery satellite/aerial tiles, matching
+the glide preview in `faa-downloader`, with imagery credits for Esri, Vantor,
+Earthstar Geographics and the GIS User Community. It uses 256px tiles and bundled
+identifier glyphs; the map is capped at zoom 13. `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces those
+default tiles; `VITE_ZLAYERS_BASEMAP_STYLE_URL` replaces the complete style. The
+service worker caches viewed imagery tiles; regional saves do not bulk-download
+them or promise offline basemap coverage. Route terrain uses separate elevation
 packages from the chart feed, including saved regional packages, with Mapzen Terrarium
 as a fallback when no packaged source is available; see [route terrain](../../src/layers/terrain/README.md).
 
@@ -353,14 +356,14 @@ visible attribution, identification/referrer behavior, and cache compliance, and
 prohibit bulk downloading. Their URLs must remain configurable.
 
 Before public beta, confirm the current provider or select a hosted/self-hosted build with
-clear terrain, contours/topography, and hillshade, sized for expected traffic. Record
+suitable imagery or terrain context, sized for expected traffic. Record
 its style/data licenses, attribution string, update cadence, cost, SLA, privacy
 behavior, and offline/prefetch terms. Basemap coverage is continuous and independent
 of the regional FAA chart-overlay feed.
 
 References:
 
-- [USGS Topo service and included themes](https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer)
+- [Esri World Imagery service](https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer)
 - [OSMF raster tile policy](https://operations.osmfoundation.org/policies/tiles/)
 - [OSMF vector tile policy](https://operations.osmfoundation.org/policies/vector/)
 - [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/)

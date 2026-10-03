@@ -187,9 +187,13 @@ bring the splash back.
 | Map identifiers, terrain and GPS projection labels | Bundled Noto Sans Bold glyphs; preserve sizes and halos |
 | Compact metadata and badges | 11 px minimum in application CSS; a design choice, not an accessibility-standard minimum |
 | Dense controls and data | 12–14 px with clear weight/color hierarchy; Settings uses the hierarchy above, with 14px region supporting text |
-| Explanatory prose | 14 px, line height 1.6–1.7 |
+| Explanatory prose | Default 14 px, line height 1.6–1.7; compact toolbox guidance follows the owning plugin's hierarchy |
 | Touch text-entry fields | 16 px minimum; terrain altitude input remains 18 px |
 | Long airport and procedure names | Wrap without discarding identifying suffixes; search names use the full width below the identifier/category row |
+
+Compact toolbox help and disclosures can share their surrounding labels' scale;
+the [Glide guide](../../src/layers/glide/README.md) owns its compact paragraph,
+helper-note and value hierarchy. Touch text-entry minimums still apply.
 
 Use the shared font stacks and `--text-muted` for secondary labels, with explicit
 placeholder color and opacity. `src/core/ui/styles.css` owns the shared heading

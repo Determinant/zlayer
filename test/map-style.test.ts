@@ -7,25 +7,27 @@ test('the initial camera is centered on KPAO at a regional zoom', () => {
   assert.deepEqual(DEFAULT_MAP_VIEW, { center: [-122.11504666, 37.46112138], zoom: 9 });
 });
 
-test('the default basemap uses attributed opaque topo without separate relief requests', () => {
+test('the default basemap uses attributed Esri imagery', () => {
   const style = mapStyle({});
   assert.ok(typeof style !== 'string');
   const rasters = style.layers.filter((layer) => layer.type === 'raster');
   assert.equal(rasters.length, 1);
-  const [topo] = rasters;
-  assert.ok(topo);
-  assert.equal(topo.source, 'zlayer-basemap');
-  assert.equal(topo.paint?.['raster-opacity'], 1);
+  const [imagery] = rasters;
+  assert.ok(imagery);
+  assert.equal(imagery.source, 'zlayer-basemap');
+  assert.equal(imagery.paint?.['raster-opacity'], 1);
   assert.deepEqual(Object.keys(style.sources), ['zlayer-basemap']);
   const source = style.sources['zlayer-basemap'];
   assert.ok(source?.type === 'raster');
-  assert.equal(source.attribution, 'USGS The National Map');
+  assert.equal(source.attribution, 'Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community');
+  assert.equal(source.tileSize, 256);
+  assert.equal(source.maxzoom, 16);
   assert.deepEqual(source.tiles, [
-    'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+    'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   ]);
 });
 
-test('preserves a custom basemap without mixing in default relief', () => {
+test('preserves a custom basemap without mixing in default imagery', () => {
   const url = 'https://example.test/tiles/{z}/{x}/{y}.png';
   const style = mapStyle({ VITE_ZLAYERS_BASEMAP_TILE_URL: ` ${url} ` });
   assert.ok(typeof style !== 'string');

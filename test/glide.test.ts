@@ -105,9 +105,9 @@ test('core DEM mosaic preserves failures as unknown, wraps tiles, and responds t
 
 test('invalid saved planning values recover to bounded defaults', () => {
   assert.deepEqual(glidePreferences.select({ glideRatio: NaN, glideAltitude: Infinity, glideEnabled: 'true' }),
-    { glideEnabled: false, glideAirportsEnabled: false, glideRatio: 8, glideAltitude: 6500 });
+    { glideEnabled: false, glideAirportsEnabled: false, glideLandingsEnabled: false, glideRatio: 8, glideAltitude: 6500 });
   assert.deepEqual(glidePreferences.select({ glideRatio: 9.25, glideAltitude: 8750, glideEnabled: true }),
-    { glideEnabled: true, glideAirportsEnabled: false, glideRatio: 9.3, glideAltitude: 8800 });
+    { glideEnabled: true, glideAirportsEnabled: false, glideLandingsEnabled: false, glideRatio: 9.3, glideAltitude: 8800 });
   assert.equal(glidePreferences.select({ glideEnabled: true, glideAirportsEnabled: 'true' }).glideAirportsEnabled, false);
   assert.equal(glidePreferences.select({ glideEnabled: false, glideAirportsEnabled: true }).glideAirportsEnabled, true,
     'the airport preference survives switching the planner off');

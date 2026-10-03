@@ -126,8 +126,9 @@ remaining device/flight checks. These detailed contracts live with the plugin.
 ### Trust and safety
 
 - Persistent “supplemental planning tool” notice and links to official products.
-- Source attribution in the map and details: USGS for the default basemap, terrain
-  source providers, and OpenStreetMap when an OSM-derived replacement is configured.
+- Source attribution in the map and details: Esri and imagery contributors for the
+  default basemap, terrain source providers, and OpenStreetMap when an OSM-derived
+  replacement is configured.
 - Prominent stale-data indicators and a data-health panel.
 - Offline packages show completeness, checksum state, cycle, expiration, storage use,
   and whether the browser granted persistent storage.

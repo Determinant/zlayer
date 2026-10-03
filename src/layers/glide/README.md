@@ -7,7 +7,7 @@ sits immediately above AWC Weather. The inputs are an editable glide ratio
 (3–20:1) and a 0–18,000 ft **MSL** start-altitude slider in 100 ft steps. The default
 is 8:1 at 6,500 ft, with coverage initially off. These preferences persist in the
 plugin's version-2 `preferences` record. Stowing the panel keeps coverage active;
-unloading the plugin stops its worker and removes its map resources.
+unloading the plugin stops its workers and removes its map resources.
 
 The main **Show glide coverage** switch enables the planner. A separate **Airport
 coverage** switch controls the amber airport regions, markers and labels; it
@@ -16,9 +16,17 @@ off keeps ownship and selected-point ranges visible and stops airport acquisitio
 and preparation. Its saved setting survives toggling the main planner switch.
 
 The panel follows [shared UI typography and controls](../../../docs/features/shared-ui.md#typography):
-inherited B612, core switches/buttons/inputs and touch sizing, 14 px explanatory
-prose with 1.6 line height, and compact labels and metadata. Its native altitude
-slider retains plugin-specific styling and uses core's touch and focus tokens.
+inherited B612, core switches/buttons/inputs and touch sizing. Its compact hierarchy
+follows Terrain and AWC Weather: titles, labels, legends and explanatory paragraphs
+use the panel's 12 px base and 1.5 line height. Planning assumptions and landing-area
+explanations keep this same size; the map-gesture hint joins supporting notes,
+status, metadata and slider limits at 11 px. The altitude value and MSL units share
+a bold 14 px baseline, wrapping below the label on narrow panels. Compact padding,
+spacing and dividers group coverage switches, planning inputs, range information
+and landing candidates. Actions use core's compact controls, and the selected-point
+card uses shared theme colors.
+Text inputs retain core's 14 px desktop / 16 px touch sizing. The native slider,
+switches, actions and disclosure retain shared touch sizing and keyboard-focus treatment.
 
 8:1 is a deliberately reduced planning starting point for light singles such as
 C172/DA40/SR22-class aircraft, not a model-specific POH performance claim. Actual
@@ -72,10 +80,113 @@ ranges. Changed glide/data inputs invalidate the ranges that depend on them.
 Glide and Ownship are independently registered plugins. Glide uses core's scoped
 `bridge.watch('ownship')` connection to observe the read-only `OwnshipApi.position`
 store, and similarly observes Routes' displayed plans. Neither is an activation
-prerequisite: losing Ownship clears only its ring, and losing Routes clears only
-airport coverage. Selected-point planning needs neither provider. Disabling Glide
-releases its subscriptions without changing Ownship or acquiring/releasing a GPS
+prerequisite: losing Ownship clears only its ring, and losing Routes clears
+airport coverage and off-airport candidate areas. Selected-point planning needs
+neither provider. Disabling Glide releases its subscriptions without changing
+Ownship or acquiring/releasing a GPS
 lease. See the [inter-plugin bridge contract](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
+
+## Off-airport landing candidates
+
+**Off-field coverage** is a separate, persisted switch, initially off. It requires
+Glide and a displayed route, independently of Airport coverage or Ownship. The
+publisher does the surface, vegetation, hazard, width and length screening; this
+client reads compact conclusions from the feed-wide `glide/manifest.json`.
+It performs no imagery analysis or landing-surface DEM work.
+
+- Light green: preferred tier, a screened straight fit of at least **2,000 ft** (3,000 ft in legacy schema 4).
+- Lavender: best-effort tier, a screened fit of at least **1,500 ft**. It may
+  include flagged scrub selected where the original screening found no candidate.
+  Scrub stays best effort even when its fit exceeds 2,000 ft. Preferred screening
+  retains strict terrain and vegetation criteria; these priorities do not estimate landing-success probability.
+- Both display the supplied connected area, with retained holes. The internal
+  straight-fit witness is never drawn as a runway or used as an arrival point.
+
+These areas represent possible sites, **not glide reachability**. They do not
+change with the ratio or altitude slider, and are distinct from the amber airport
+coverage and teal forward ranges. No reachability cone is calculated from the
+generalized boundary or its witness elevation. The panel labels them screened
+candidates rather than verified landing sites, shows the preparation date, and
+calls out cultivated fields when any displayed group carries the publisher's flag. Neither an
+unflagged area nor either length tier establishes current landing suitability.
+
+### Delivery and validation
+
+Schema **5** (or legacy **4**) must declare `geometryMeaning: generalized-candidate-area` and
+`status: experimental-candidates`. Older runway-oriented schemas are rejected.
+Each shard is a hash-named gzip JSON array, capped at 2 MiB compressed / 16 MiB
+raw; manifest shard counts, per-tier counts, bounds and total compressed size
+are checked before use. Each area is `[qualification, rings, flags]`, where
+qualification is `[lon1E6, lat1E6, lon2E6, lat2E6, widthFt, lengthFt, maxElevationM, tier]`.
+All values are integers; endpoints use millionths of a degree and maximum witness
+elevation is in metres MSL. Wire tier **1** is best effort and wire tier **2** is preferred;
+the manifest's `tiers` counts follow that same order. Ring pairs are cumulative E6
+longitude/latitude deltas, starting from zero independently for each ring; closure is implicit. The exterior
+is first and holes follow. Flags bit 0 means cultivated ground with unverified
+field condition; bit 1 means uncertain shrub surface; bit 2 means the broader
+shrub band was needed and requires bit 1. Bit 3 flags tree-canopy model disagreement
+(Science TCC above the strict limit, corroborated by zero RCMAP tree cover); it requires
+bits 1 and 2. This last fallback remains shrub-only and never relaxes crop screening.
+Schema 5 adds bit 4 for smooth-slope fallback, bit 5 for developed open space,
+and bit 6 for the narrower building setback. Those allowances remain purple even
+with long fits; all fallback flags are rejected on preferred records. Schema 4
+retains its original 3,000/1,500 ft minimums and four-bit flag contract.
+The panel explicitly calls out the fallback conditions. Shrub flags are rejected on preferred
+records. Unsupported flag bits are rejected. The panel calls out shrub uncertainty
+independently of fit length; these bits add no raster payload. The loader checks SHA-256,
+exact compressed/decompressed lengths, count/tier consistency, ring coordinates
+and published geometry bounds. It preserves the publisher's simplification;
+the display outline is not a precise obstacle-clearance mask.
+
+`landing-loader.ts` uses core's validated JSON loading and scoped plugin file
+cache. Immutable shards have a **64-file / 64 MiB / 30-day unused** optional disk
+budget; identity includes the digest, compressed/raw sizes, total/per-tier counts,
+bounds and decoder version. Cached browsing can work offline but does not add verified regional
+save coverage. A failed manifest load or missing shard never means clear land.
+Before publication the panel reports that data is unavailable, and Retry landing
+areas revalidates it without resetting airport/ownship calculations. Manifest reads
+try the network first with a validated saved fallback. Eligible queries after
+camera movement or resume recheck the manifest once the previous check is at least
+five minutes old; Retry and reconnect request revalidation on the next eligible
+query. A missing manifest retries on subsequent demand after a one-minute failure
+backoff, which explicit revalidation bypasses. No background interval polls this
+feed, and no requests run while the feature is off or has no route. The manifest
+is independent of FAA cycles.
+
+### Geometry, caching and lifecycle
+
+One lazy worker owns acquisition, decoding, route clipping and polygon unions.
+Only newly requested shards whose actual geometry bounds intersect the viewport
+and route corridor are acquired, at zoom 7 or above and with viewport spans no
+larger than 45° longitude and 25° latitude. Route clipping uses Glide's
+existing conservative **20 NM** mask. Entire clipped, visited areas remain drawn
+through pan, zoom and rotation, including overview zooms. The camera does not cut
+polygons into screen-edge shapes. Unchanged geometry is not sent to MapLibre again;
+altitude, ratio and GPS updates do not trigger this worker at all.
+Coverage completeness is checked in the route's longitude copy, including both
+sides of the date line; crossing it does not change or reacquire cached areas.
+
+The worker retains at most **24 decoded shards, 24 MiB of raw JSON size and 300,000
+vertices**. These are accounting limits, not a claim about total JS heap size;
+parsing, clipping and renderer allocations add transient overhead. It acquires
+one shard at a time. Off-view LRU entries make room for new demand; if the visible
+set cannot fit, the panel reports the display limit instead of silently pretending
+coverage is complete. Large single shards may remain unavailable at that limit.
+
+Polygons are fused by tier across shard boundaries before outlines are drawn.
+The preferred union takes precedence in overlap, and the cultivated flag is
+propagated to each combined tier group. Route changes reclip retained polygons;
+route loss, disabling or teardown clears them immediately. Requests are serialized,
+obsolete route results cannot publish, and new manifest artifact identities clear
+the old generation. Normal camera movement preserves completed geometry. Disabling
+releases the worker while optional disk cache entries remain reusable.
+
+Focused regressions live in `test/glide-landings.test.ts` and
+`test/e2e/glide-landings.spec.ts`, covering contract validation, authentic bounded
+loads, holes/tiers, seam removal, viewport demand, camera reuse, route
+loss, unavailable publication/retry and preference persistence. These verify
+software behavior; real-world landing suitability and national data coverage
+remain unvalidated.
 
 ## Airports and elevation
 
@@ -208,7 +319,7 @@ the result; a smoother line is not a higher-precision or guaranteed-clearance cl
 
 ## Work and recovery
 
-One lazy worker calculates one request at a time. `GlidePlanner` discovers new
+The range worker calculates one request at a time. `GlidePlanner` discovers new
 origins from the visible map, then asks `GlideCalculator` to prepare their complete
 ranges in camera-independent geographic windows. Each calculator owns exactly one
 origin grid and profile; only the planner owns discovery, completed geometry and

@@ -73,12 +73,13 @@ one consumer cancelling does not abort another, and the last consumer cancels
 its work. The client admits at most two station batches across all consumers.
 Freshness publishes per batch, but changed observations persist together when a
 refresh settles. Unchanged observations retain their content identity and do not
-rewrite storage or rebuild the map source; same-time corrections still replace them.
+rewrite storage. A change in display freshness can rebuild the map source without
+changing the saved report; same-time corrections still replace report content.
 TAF also preserves identical report objects and writes its bounded saved cache only
 when report content or retained membership changes. Successful check times still
 advance independently and are not persisted as fresh source checks.
 The map legend shows the absolute UTC observation timestamp, so unchanged or
-offline reports cannot leave a frozen relative-age label or require another timer.
+offline reports cannot leave a frozen relative-age label.
 
 While the weather plugin is loaded, an open airport Info card adds independent
 METAR and TAF demand through
@@ -112,8 +113,15 @@ Details show UTC observation time, age and the last successful check. These are
 latest-known observations, not a weather-history archive.
 
 METAR owns a separate `metar-airports` GeoJSON source above static navigation.
-Refreshing weather does not resubmit the national navigation source. Cached circles
-can remain gray when categories are disabled; hiding Airports hides both sets of
+Refreshing weather does not resubmit the national navigation source. Category
+colors require a usable observation no more than two hours old. Older, future-dated,
+undated or NIL reports render gray. Display freshness preserves the saved report
+and its original category; stale local observations remain available in details.
+A failed source check alone does not remove the color
+of a still-current observation. A 30-second display clock checks age even when
+stationary or offline and rebuilds the source only when freshness changes. It pauses
+when categories, Airports or the document are hidden and reconciles on return.
+Circles also remain gray when categories are disabled; hiding Airports hides both sets of
 circles. While Airports is hidden, card updates refresh the shared cache without
 rebuilding the hidden map source; showing Airports submits the latest data once.
 Shared airport identity ties circles, search, routes, and details together.
@@ -190,16 +198,20 @@ observation-date declination hook, and runway model demand follows airport Info 
 Model loading follows the open report card and selected feed revision, using the
 shared reference cache and retrying on reopening or reconnection.
 
-While an airport's Info card is open, an absent or older-than-two-hours METAR
-triggers an AWC search within 50 NM. TAF makes an AWC area query when the local
+While an airport's Info card is open, an absent, older-than-two-hours, future-dated,
+undated or NIL METAR triggers an AWC search within 50 NM. TAF makes an AWC area query when the local
 forecast is missing, NIL, cancelled or expired. Complete successful searches
 publish together; failure or cancellation cannot publish partial nearby reports.
-Clients share their own station/nearby
-caches and refresh clocks. The dropdown, nearest-current default, manual selection
-and labeled stale alternatives retain their existing behavior. Nearby reports do
+Clients share their own station/nearby caches and refresh clocks. METAR defaults to
+the airport's own saved observation, including reports older than two hours, with
+observation time, age and cached status visible. A stale local METAR stays first
+in the dropdown; nearby reports remain selectable and are ranked by currentness,
+then distance. Without a usable local observation, METAR defaults to the best-ranked
+nearby report. TAF continues to prefer current forecasts over expired ones, then
+distance. Manual station selections survive refreshes. Nearby reports do
 not supply the selected airport's map category or runway wind. The nearest
 station is a geographic default; it is not a claim of equivalent local weather.
-This follows [ForeFlight's nearby-forecast convention](https://support.foreflight.com/hc/en-us/articles/203723849-How-are-TAF-and-MOS-forecasts-selected-to-display-for-an-airport).
+TAF's nearby default follows [ForeFlight's nearby-forecast convention](https://support.foreflight.com/hc/en-us/articles/203723849-How-are-TAF-and-MOS-forecasts-selected-to-display-for-an-airport).
 
 METARs and TAFs both keep product-owned, per-station caches in memory and localStorage
 through core-managed slots (`zlayer-plugin:metar:metars` and
@@ -252,6 +264,10 @@ See the [AWC API schema](https://aviationweather.gov/data/schema/openapi.yaml) a
 - [Local verification](../../../docs/development/local-development.md#verification)
   covers the repository checks. Weather changes need demand/cancellation,
   stale-cache recovery and real map/card behavior checks as described above.
+- [Map freshness tests](../../../test/metar-layer.test.ts) cover offline aging,
+  future/undated/NIL reports, hidden-state reconciliation and timer cleanup without
+  changing saved observations. [Station browser tests](../../../test/e2e/metar.spec.ts)
+  cover stale local defaults, manual nearby selection and offline restoration.
 - [Plugin browser regressions](../../../test/e2e/weather-plugins.spec.ts) cover
   independent weather/navigation activation, persisted disabled state, report and
   runway-wind removal, stopped refresh requests, and cached reports when re-enabled.

@@ -228,7 +228,7 @@ test('airports without ICAO identifiers distinguish failed, offline and empty ne
   await expect(metar).toContainText('No nearby METAR within 50 NM.');
 });
 
-test('own current METAR skips nearby discovery and a stale observation falls back', async ({ page, context }) => {
+test('own METAR stays selected when stale, with nearby reports available for manual selection', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let searches = 0;
   await context.route('**/api/weather/metars.geojson?*', route => {
@@ -245,34 +245,39 @@ test('own current METAR skips nearby discovery and a stale observation falls bac
   await expect(metar.getByRole('combobox')).toHaveCount(0);
   expect(searches).toBe(0);
   await selectAirport(page, 'KSMO');
-  await expect(metar.getByRole('combobox')).toHaveValue('KLAX');
-  await expect(metar).not.toContainText('METAR KSMO 171800Z');
-  await expect(metar.getByRole('combobox').locator('option').last()).toHaveText(/KSMO · 0.0 NM.*Stale/);
-  await metar.getByRole('combobox').selectOption('KSMO');
-  await expect(metar).toContainText('METAR KSMO 171800Z');
-  await page.clock.runFor(61_000);
   await expect(metar.getByRole('combobox')).toHaveValue('KSMO');
+  await expect(metar.getByRole('combobox').locator('option').first()).toHaveText(/KSMO · 0.0 NM.*Stale/);
+  await expect(metar).toContainText('METAR KSMO 171800Z');
+  await expect(metar).toContainText('Cached report');
+  await expect(metar).toContainText('3h old');
+  await expect.poll(() => searches).toBeGreaterThan(0);
+  await metar.getByRole('combobox').selectOption('KLAX');
+  await expect(metar).toContainText('METAR KLAX 171800Z');
+  await page.clock.runFor(61_000);
+  await expect(metar.getByRole('combobox')).toHaveValue('KLAX');
 });
 
-test('a saved stale local METAR defaults ahead of stale nearby reports and survives offline reload', async ({ page, context }) => {
+test('a five-hour-old local METAR defaults ahead of current nearby reports and survives offline reload', async ({ page, context }) => {
   await page.clock.install({ time: now });
   let offline = false;
   await context.route('**/api/weather/metars.geojson?*', route => {
     if (offline) return route.abort('internetdisconnected');
     const params = new URL(route.request().url()).searchParams;
     return route.fulfill({ json: collection(params.has('bbox')
-      ? [report('KLAX', -118.40, 33.94, now - 4 * 3600_000)]
+      ? [report('KLAX', -118.40, 33.94)]
       : (params.get('ids') ?? '').split(',').includes('KSMO')
-        ? [report('KSMO', -118.45, 34.02, now - 2.5 * 3600_000)] : []) });
+        ? [report('KSMO', -118.45, 34.02, now - 5 * 3600_000)] : []) });
   });
   await page.goto('/');
   await selectAirport(page, 'KSMO');
   const metar = page.getByRole('region', { name: 'METAR', exact: true });
   const selector = metar.getByRole('combobox', { name: 'METAR station' });
-  await expect(selector.locator('option')).toHaveText([/KSMO · 0.0 NM.*Stale/, /KLAX.*Stale/]);
+  await expect(selector.locator('option')).toHaveText([/KSMO · 0.0 NM.*Stale/, /KLAX/]);
   await expect(selector).toHaveValue('KSMO');
   await expect(metar).toContainText('METAR KSMO 171800Z');
   await expect(metar).toContainText('Stale');
+  await expect(metar).toContainText('Cached report');
+  await expect(metar).toContainText('5h old');
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   offline = true;
   await context.setOffline(true);
