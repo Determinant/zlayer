@@ -218,7 +218,7 @@ test('preserves a report without a category and displays it as unavailable', () 
   };
 
   const merged = mergeMetarsIntoAirports(airports, reports);
-  const displayed = setFlightCategoryDisplay(merged, true);
+  const displayed = setFlightCategoryDisplay(merged, true, new Set(['KHWD']));
   assert.equal(displayed.features[0]?.properties.metarStationId, 'KHWD');
   assert.equal(displayed.features[0]?.properties.rawMetar, 'METAR KHWD TEST');
   assert.equal(displayed.features[0]?.properties.flightCategory, undefined);

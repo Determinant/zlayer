@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap, MapSourceDataEvent, MapLibreEvent } from 'maplibre-gl';
 import type { FeatureCollectionResponse, GeoPointFeature } from '@zlayer/contracts';
-import { isAirportFeature, latestMetarObservation, mergeMetarsIntoAirports, setFlightCategoryDisplay } from '@zlayer/domain';
+import { isAirportFeature, latestMetarObservation, mergeMetarsIntoAirports, metarStationId, setFlightCategoryDisplay } from '@zlayer/domain';
 
 import type { LayerDefinition } from '../../../core/layers/plugin';
 import { type MapLayerModule, removeLayerResources } from '../../../core/map/layer';
@@ -10,6 +10,7 @@ import { installMetarLayers, METAR_LAYER_IDS, METAR_SOURCE_ID, syncMetarMap } fr
 import { metarReportSummary } from './summary';
 import { OnDemandRefresh } from '../../../core/layers/on-demand-refresh';
 import { visibleMetarStationIds } from './visible-stations';
+import { hasCurrentReport } from '../nearby-stations';
 
 export type MetarLoadState = {
   status: 'idle' | 'loading' | 'current' | 'stale' | 'error';
@@ -41,7 +42,8 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   let unsubscribe: (() => void) | undefined;
   let scopeDirty = true;
   let following = false;
-  let display: { input: MetarInput; reports: MetarSnapshot['metars']['features'] } | undefined;
+  let displayTimer: ReturnType<typeof setTimeout> | undefined;
+  let display: { input: MetarInput; reports: MetarSnapshot['metars']['features']; currentStations: ReadonlySet<string> } | undefined;
   const store = createLayerStore<MetarLayerSnapshot>({
     ...cache, state: { status: 'idle' }, visibleStationIds: [], weatherAirportCount: 0,
   });
@@ -63,29 +65,45 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       state: { status, ...(observedAt ? { observedAt } : {}), ...(error ? { message: error } : {}) },
     });
   };
-  const mapData = () => {
+  const currentStationIds = () => {
+    const now = Date.now();
+    return new Set(cache.metars.features.flatMap(report => {
+      const id = metarStationId(report);
+      return input.enabled && id && hasCurrentReport(report, now) ? [id] : [];
+    }));
+  };
+  const mapData = (currentStations: ReadonlySet<string>) => {
     // Only weather-bearing airport features enter this source. Static navigation
     // never changes when observations refresh; both sources retain FAA identities.
     const joined = mergeMetarsIntoAirports(input.airports ?? emptyAirports, cache.metars, { weatherOnly: true });
-    return setFlightCategoryDisplay(joined, input.enabled);
+    return setFlightCategoryDisplay(joined, input.enabled, currentStations);
   };
   const render = () => {
+    clearTimeout(displayTimer);
+    displayTimer = undefined;
     if (!map) return;
     if (!input.airportsVisible) {
       syncMetarMap(map, undefined, false);
       return;
     }
     const reports = cache.metars.features;
+    const currentStations = currentStationIds();
     const unchanged = display && display.input.airports === input.airports && display.input.enabled === input.enabled &&
-      reports.length === display.reports.length && reports.every((report, index) => report === display!.reports[index]);
-    syncMetarMap(map, unchanged ? undefined : mapData(), input.airportsVisible);
-    // Keep only input identities; MapLibre owns the rendered GeoJSON copy.
-    display = { input, reports };
+      reports.length === display.reports.length && reports.every((report, index) => report === display!.reports[index]) &&
+      currentStations.size === display.currentStations.size && [...currentStations].every(id => display!.currentStations.has(id));
+    syncMetarMap(map, unchanged ? undefined : mapData(currentStations), input.airportsVisible);
+    // Keep identities and freshness, not a second joined GeoJSON collection.
+    display = { input, reports, currentStations };
+    // Observation age changes without cache updates, including while offline.
+    if (input.enabled && reports.length && document.visibilityState !== 'hidden') {
+      displayTimer = setTimeout(render, 30_000);
+    }
   };
   const demand = () => {
     refresh?.setDemand(scope, canRefresh());
     publish();
   };
+  const environmentChanged = () => { render(); demand(); };
   const invalidateScope = () => { scopeDirty = true; };
   const sourceChanged = (event: MapSourceDataEvent) => {
     if (event.sourceId === 'nav-airports' || event.sourceId === METAR_SOURCE_ID) invalidateScope();
@@ -118,8 +136,9 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       following = false;
       scopeDirty = true;
       cache = client.snapshot();
-      installMetarLayers(map, mapData());
-      display = { input, reports: cache.metars.features };
+      const currentStations = currentStationIds();
+      installMetarLayers(map, mapData(currentStations));
+      display = { input, reports: cache.metars.features, currentStations };
       unsubscribe = client.subscribe(() => {
         cache = client.snapshot();
         render();
@@ -141,9 +160,9 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       map.on('sourcedata', sourceChanged);
       map.on('styledata', invalidateScope);
       map.on('render', rendered);
-      document.addEventListener('visibilitychange', demand);
-      window.addEventListener('online', demand);
-      window.addEventListener('offline', demand);
+      document.addEventListener('visibilitychange', environmentChanged);
+      window.addEventListener('online', environmentChanged);
+      window.addEventListener('offline', environmentChanged);
       render();
       rendered();
     },
@@ -163,9 +182,11 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       unsubscribe = undefined;
       refresh?.destroy();
       refresh = undefined;
-      document.removeEventListener('visibilitychange', demand);
-      window.removeEventListener('online', demand);
-      window.removeEventListener('offline', demand);
+      clearTimeout(displayTimer);
+      displayTimer = undefined;
+      document.removeEventListener('visibilitychange', environmentChanged);
+      window.removeEventListener('online', environmentChanged);
+      window.removeEventListener('offline', environmentChanged);
       if (map) {
         map.off('movestart', moving);
         map.off('moveend', invalidateScope);

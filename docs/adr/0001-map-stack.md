@@ -3,11 +3,16 @@
 - Status: accepted for Phase 0; production tile host deferred
 - Date: 2026-09-12
 
-Implementation update (2026-09-17): the MapLibre decision is implemented. The current
-local style uses USGS Topo over shaded relief in development and production, with
-USGS attribution and bundled label glyphs. OSM remains the original provider direction,
-not the deployed default. The final provider/offline policy remains open; custom
-tiles or a complete style can be configured. See [data sources](../data/sources.md#basemap-policy).
+Implementation update (2026-09-17): the MapLibre decision was implemented with
+USGS Topo and shaded relief, USGS attribution and bundled label glyphs. OSM remained
+the original provider direction rather than the deployed default.
+
+Implementation update (2026-10-02): the default is now Esri World Imagery, matching
+the satellite/aerial basemap in the `faa-downloader` glide preview, with imagery
+credits and viewed-tile caching. MapLibre, bundled glyphs, chart ordering and the
+separate terrain elevation source are retained. The final provider/offline policy
+remains open; custom tiles or a complete style can be configured. See
+[data sources](../data/sources.md#basemap-policy).
 
 Weather implementation update (2026-09-24): [radar](../../src/layers/weather-awc/radar/README.md)
 uses server-prepared reflectivity contours in bounded GeoJSON layers on the same
@@ -23,7 +28,7 @@ and keep basemap hosting separate from the weather-data pipeline.
 ## Decision
 
 This section records the original provider direction; the implementation update above
-describes the current USGS default. Configuration uses Vite build-time variables.
+describes the current Esri imagery default. Configuration uses Vite build-time variables.
 
 Use MapLibre GL JS as the browser renderer and OpenStreetMap as the underlying
 basemap data source. Load a terrain/topography-oriented basemap, including legible
@@ -41,7 +46,7 @@ Do not make the public OSM Foundation tile servers a production dependency. Use 
 only for compliant low-volume evaluation if needed, then choose a hosted OSM-derived
 provider or self-hosted tile build before beta.
 
-The development client boots from a local style using USGS Topo raster tiles so an
+The initial development client used a local style with USGS Topo raster tiles so an
 external style failure cannot prevent FAA overlays from initializing. A full MapLibre
 style URL remains configurable for provider evaluation. These are replaceable
 development defaults, not the offline or production-provider decision.

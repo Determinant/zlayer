@@ -13,10 +13,14 @@ import type { CatalogReadSource } from '../../workspace/read-context';
 import { pluginStorage, glidePreferences, type GlidePreferences } from './preferences';
 import { GlideControls } from './controls';
 import type { GlideStatus } from './types';
+import type { LandingStatus } from './landing-data';
 export type GlideInput = GlidePreferences & { catalog: CatalogReadSource; change(patch: Partial<GlidePreferences>): void };
 export function createGlidePlugin() {
   const input = createLayerInput<GlideInput>();
   const status = createLayerStore<GlideStatus>({ state: 'idle' });
+  const landingStatus = createLayerStore<LandingStatus>({ state: 'idle' });
+  const landingRevision = createLayerStore(0);
+  const retryLandings = () => landingRevision.publish(landingRevision.getSnapshot() + 1);
   const revision = createLayerStore(0);
   const retry = () => revision.publish(revision.getSnapshot() + 1);
   const noSegments: Segment[] = [];
@@ -33,13 +37,17 @@ export function createGlidePlugin() {
     (state, segments) => ({ ...state, segments: state.airportsEnabled ? segments : noSegments })),
     ownship, (state, ownship) => ({ ...state, ownship }));
   const mapInput = combineLayerStores(flightInput, selectedPoint, (state, point) => ({ ...state, point }));
+  const landingInput = combineLayerStores(combineLayerStores(selectLayerStore(input, state =>
+    !!state?.glideEnabled && !!state?.glideLandingsEnabled), segments, (enabled, segments) => ({ enabled, segments })),
+    landingRevision, (state, retry) => ({ ...state, retry }));
   function Panel() {
     const state = useLayerSnapshot(input), current = useLayerSnapshot(status), point = useLayerSnapshot(selectedPoint);
+    const landings = useLayerSnapshot(landingStatus);
     return state ? <ToolPanel className="map-edge-glide" icon={
       <path transform="rotate(135 12 12)"
         d="M10 3a2 2 0 0 1 4 0v5l8 5v3l-8-3v5l3 2v2l-5-1-5 1v-2l3-2v-5l-8 3v-3l8-5Z" />
     }>{(visible, panel) => <GlideControls {...state} status={current} retry={retry} point={point}
-      clearPoint={clearPoint} reveal={panel.setOpen} visible={visible} />}</ToolPanel> : null;
+      landingStatus={landings} retryLandings={retryLandings} clearPoint={clearPoint} reveal={panel.setOpen} visible={visible} />}</ToolPanel> : null;
   }
   return {
     publicApi: scope => ({ contextActions: scope.command(screenPoint => {
@@ -71,12 +79,12 @@ export function createGlidePlugin() {
     definition: { id: 'glide', title: 'Glide Planner' }, storage: pluginStorage, preferences: glidePreferences, input, status,
     panels: [{ id: 'glide', title: 'Glide Planner toolbox', Component: Panel }],
     mapContribution: { id: 'glide', async load() {
-      const { createGlideLayer } = await import('./map');
+      const [{ createGlideLayer }, { createLandingLayer }] = await Promise.all([import('./map'), import('./landing-map')]);
       const layer = createGlideLayer(status.publish), bound = bindMapLayer(layer, mapInput);
       return [{ ...bound,
         mount(map) { bound.mount(map); coordinateAt = layer.coordinateAt; },
         unmount() { if (coordinateAt === layer.coordinateAt) coordinateAt = undefined; bound.unmount(); },
-      }];
+      }, bindMapLayer(createLandingLayer(landingStatus.publish), landingInput)];
     } },
   } satisfies LayerPlugin & PluginExports<GlideApi, { routes: RoutesApi; ownship: OwnshipApi }> & { input: typeof input; status: typeof status };
 }

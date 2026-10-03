@@ -52,9 +52,10 @@ export function nearbyStations<Report extends WeatherReport>(point: Point, repor
   return rankStations(stations, now);
 }
 
-/** Include saved local reports even when stale or missing station coordinates. */
+/** Prefer the airport's own METAR even when stale; TAFs still rank by validity. */
 export function stationChoices<Report extends WeatherReport>(own: Report | undefined, nearby: readonly NearbyStation<Report>[], now: number): NearbyStation<Report>[] {
   const id = own && stationId(own);
   const local = own && id && usable(own) ? [{ stationId: id, report: own, distanceNm: 0, direction: '' }] : [];
-  return rankStations([...local, ...nearby.filter(station => station.stationId !== id)], now);
+  const alternatives = nearby.filter(station => station.stationId !== id);
+  return own && isMetar(own) ? [...local, ...rankStations(alternatives, now)] : rankStations([...local, ...alternatives], now);
 }

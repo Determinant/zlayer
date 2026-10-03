@@ -16,7 +16,7 @@ download, live sensor, route resolution, or render is still valid.
 | Appearance | Explicit Light / Dark choice; default Dark; synchronized across windows | `core/theme/preference.ts`; UI `appearance`, version 1 |
 | Layer choices | Chart base and overlay; airports, VFR waypoints, navaids and fixes; fix detail/airspace; METAR, GPS, terrain and obstructions; terrain route/viewport coverage and selected altitude | `workspace/use-map-preferences.ts` with feature-owned decoders; each plugin’s `preferences` record, version 2 |
 | Plugin activation | Disabled built-in identities; prerequisites/dependents resolved by the host | `core/layers/use-plugins.ts`; UI `plugins-unloaded` |
-| Glide Planner | Coverage switch, glide ratio and start altitude in feet MSL | `layers/glide/preferences.ts`; plugin `preferences`, version 2 |
+| Glide Planner | Main coverage switch, independent airport and off-field coverage switches, glide ratio and start altitude in feet MSL | `layers/glide/preferences.ts`; plugin `preferences`, version 2 |
 | Terrain toolbox | Last clearance altitude while elevation coloring is selected | `layers/terrain/controls.tsx`; UI `terrain-last-altitude` |
 | Route | Ordered entry IDs, text, feature pins and approach attachments; route summary expansion | `layers/routes/use-draft.ts`; `zlayer-plugin:routes:draft`, record version 2; UI `route-summary-open` |
 | Route stash | Named structured route snapshots, stable save IDs and list order; loading replaces the active draft | `layers/routes/stash.ts`; `zlayer-plugin:routes:stash`, record version 1 |

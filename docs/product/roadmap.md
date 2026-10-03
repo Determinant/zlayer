@@ -8,8 +8,10 @@ adding more data sources. Current capabilities and planned work are listed separ
 ## Implemented baseline
 
 - [Glide Planner](../../src/layers/glide/README.md): adjustable ratio and MSL start altitude,
-  terrain-aware merged airport coverage within 20 NM of the route, and a distinct
-  ownship planning ring, with complete ranges cached by origin across pan and zoom.
+  terrain-aware merged airport coverage within 20 NM of the route, and distinct
+  ownship and selected-point planning ranges, cached by origin across pan and zoom.
+  Optional prepared off-airport polygons show two length tiers along the route;
+  publication coverage and real-world suitability remain validation work.
 - Static React/MapLibre PWA with product-owned layer lifecycles and a precached shell.
 - Viewport/zoom-selected, prestitched VFR and IFR low/high MBTiles with whole-file caching.
 - Searchable FAA navigation with progressive fix decluttering and runway details.
@@ -25,8 +27,11 @@ adding more data sources. Current capabilities and planned work are listed separ
 - Historical filed-route, preferred and TEC recommendations with mapped previews.
 - Airport plates and Chart Supplements in one exact-page PDF.js viewer, with an
   optional georeferenced IAP map overlay that restores independently of the viewer.
-- Current/cached METAR categories and runway wind components, plus selected-airport
-  TAF periods with local validity times and visible stale/error states.
+- [METAR/TAF](../../src/layers/metar-taf/README.md): saved local observations remain
+  the default in airport details, with selectable nearby reports. Map category colors
+  expire with observation age, while details retain the original category and age.
+  Runway wind components remain available; selected-airport TAF periods show local
+  validity times and visible stale/error states.
 - Route-corridor contours and viewport terrain shading, packaged elevation and manual altitude
   comparison; FAA Daily DOF obstructions with viewport/route decluttering; optional
   GPS aircraft position, track, accuracy and one-minute projection.

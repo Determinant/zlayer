@@ -135,7 +135,9 @@ worker.addEventListener('fetch', (event) => {
   if (
     url.hostname === 'demotiles.maplibre.org' ||
     url.hostname === 'tiles.openfreemap.org' ||
-    url.hostname === 'basemap.nationalmap.gov'
+    url.hostname === 'basemap.nationalmap.gov' ||
+    (url.hostname === 'services.arcgisonline.com' &&
+      url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/'))
   ) {
     respond(cacheFirst(event.request, dataCache));
   }

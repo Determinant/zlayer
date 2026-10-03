@@ -43,13 +43,14 @@ test('nearby station boxes cover dateline, world copies, polar positions and inv
   assert.deepEqual(nearbyStationBoxes([0, 91]), []);
 });
 
-test('station choices retain stale local METARs and rank the same currentness and distance as nearby reports', () => {
-  const own = report('KSMO', ...point, now - 2.5 * 3600_000);
+test('station choices prefer a stale local METAR ahead of current nearby reports', () => {
+  const own = report('KSMO', ...point, now - 5 * 3600_000);
   const stale = report('KOLD', -118.40, 33.94, now - 4 * 3600_000);
   const nearby = nearbyStations(point, [stale, lax, own], now);
   const choices = stationChoices(own, nearby, now);
-  assert.deepEqual(choices.map(station => station.stationId), ['KLAX', 'KSMO', 'KOLD']);
-  assert.equal(choices[1]?.distanceNm, 0);
+  assert.deepEqual(choices.map(station => station.stationId), ['KSMO', 'KLAX', 'KOLD']);
+  assert.equal(choices[0]?.distanceNm, 0);
+  assert.equal(hasCurrentReport(choices[0]?.report, now), false);
   assert.deepEqual(stationChoices(own, nearby, now + 3 * 3600_000).map(station => station.stationId),
     ['KSMO', 'KLAX', 'KOLD'], 'the local observation defaults first when all reports are stale');
   assert.equal(stationChoices(report('KSMO', ...point), nearby, now)[0]?.stationId, 'KSMO');

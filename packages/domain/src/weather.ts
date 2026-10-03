@@ -78,9 +78,11 @@ export function metarWeatherProperties(metar: MetarFeature): GeoPointProperties 
   };
 }
 
+/** Apply display eligibility without changing the observation's original category. */
 export function setFlightCategoryDisplay(
   airports: FeatureCollectionResponse,
   enabled: boolean,
+  currentStationIds: ReadonlySet<string>,
 ): FeatureCollectionResponse {
   return {
     ...airports,
@@ -92,7 +94,7 @@ export function setFlightCategoryDisplay(
         ...airport,
         properties: {
           ...properties,
-          displayFlightCategory: enabled
+          displayFlightCategory: enabled && currentStationIds.has(properties.metarStationId)
             ? (properties.flightCategory ?? 'N/A')
             : 'N/A',
         },

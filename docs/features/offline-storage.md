@@ -361,6 +361,11 @@ integrity and renderer errors. See the [notification contract](shared-ui.md#noti
 Regional saves include published elevation terrain; they do **not** bulk-download
 the background basemap or promise current weather.
 
+[Prepared off-airport landing areas](../../src/layers/glide/README.md#delivery-and-validation)
+use a separate, bounded cache populated while browsing. They are excluded from
+regional download plans and completeness checks; saved regions do not guarantee
+landing-area availability. Calculated glide ranges remain in memory only.
+
 [AWC Weather](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
 keeps original source times and cached/unverified labels; Now still expires
 interval advisories offline. Weather storage is separate from regional chart

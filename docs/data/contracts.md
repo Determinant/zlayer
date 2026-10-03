@@ -36,6 +36,7 @@ recommendations. A malformed optional history resource does not disable FAA data
 - [Offline package](#offline-package)
 - [Airport runway details and wind components](#airport-runway-details-and-wind-components)
 - [Chart Supplement catalog](#chart-supplement-catalog)
+- [Off-airport landing candidates](#off-airport-landing-candidates)
 
 ## Catalog
 
@@ -210,6 +211,11 @@ reported flight category, ceiling/visibility, wind, and raw observation preserve
 The client joins them to FAA airports by ICAO ID. On the rendered airport feature,
 normalized presentation fields use `flightCategory`, `metarObservedAt`,
 `metarCeilingFt`, `metarVisibilitySm`, and `rawMetar`.
+Map color uses `displayFlightCategory`: it is `N/A` (gray) when categories are
+disabled or the local observation is older than two hours, future-dated, undated
+or NIL. The original `flightCategory` and saved report are preserved independently;
+nearby reports never supply the airport's map color. Observation age is checked
+even without a network refresh, independently of successful-check time.
 `metarCeilingStatus` distinguishes measured, no reported ceiling, and unknown sky
 conditions so the decoded METAR section keeps its Ceiling field visible. Ceiling
 uses AWC GeoJSON's hundreds-of-feet values, falling back to the lowest broken,
@@ -226,9 +232,12 @@ Catalog, navigation, airway, and METAR documents are runtime-validated before en
 state. A matching report without enough ceiling/visibility information remains
 available for details and renders with category `N/A`; it is not discarded.
 
-METAR and TAF station choices rank current reports before stale/expired reports,
-then by distance, treating the airport's own report as zero distance. The local
-report remains selectable after it ages; a manual selection survives refreshes.
+METAR station choices default to the airport's own saved observation even when
+stale, retaining visible observation time, age and cached status. Nearby METARs
+rank current reports before stale reports, then by distance, and supply the
+default only when no usable local observation exists. TAF station choices rank
+current forecasts before expired forecasts, then by distance, treating the
+airport's own report as zero distance. A manual selection survives refreshes.
 NIL observations and NIL/cancelled forecasts are excluded from station choices.
 
 Default METAR acquisition uses AWC through the shared weather gateway for map,
@@ -595,3 +604,11 @@ positions. Guards bound stations, tracks, coordinates, history and bytes. Motion
 is never substituted across a historical gap or shown newer than the displayed
 composite; [Storm motion](../../src/layers/weather-awc/radar/README.md#storm-motion)
 owns selection and expiration rules.
+
+## Off-airport landing candidates
+
+Glide consumes the publisher's schema-5 (legacy schema-4 supported) feed-wide landing-area manifest and
+bounded, hash-verified polygon shards. The [Glide consumer contract](../../src/layers/glide/README.md#delivery-and-validation)
+owns tuple decoding, tier/flag meaning, geometry validation and cache identity.
+These experimental generalized areas are separate from calculated glide ranges
+and are not part of verified regional offline completeness.

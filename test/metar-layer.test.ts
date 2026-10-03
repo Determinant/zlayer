@@ -1,11 +1,91 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import type { FeatureCollectionResponse } from '@zlayer/contracts';
+import type { FeatureCollectionResponse, MetarFeature } from '@zlayer/contracts';
 import { createMetarLayer, featureWithMetar } from '../src/layers/metar-taf/metar/layer';
 import { MetarClient } from '../src/layers/metar-taf/metar/client';
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+test('METAR map colors expire offline while local reports remain available', async t => {
+  const now = Date.parse('2026-09-15T17:00:00Z');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now });
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const window = new EventTarget();
+  const navigator = { onLine: false };
+  for (const [name, value] of Object.entries({ document, window, navigator })) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => original ? Object.defineProperty(globalThis, name, original) : Reflect.deleteProperty(globalThis, name));
+  }
+  const report = (id: string, age: number): MetarFeature => ({
+    type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { id, obsTime: (now - age) / 1000, fltcat: 'IFR', rawOb: `METAR ${id} TEST` },
+  });
+  const reports = [report('KSQL', 5 * 3600_000), report('KPAO', 0), report('KOLD', 2 * 3600_000),
+    report('KFUT', -3 * 3600_000), report('KUNK', 0), report('KNIL', 0)];
+  delete reports[4]!.properties.obsTime;
+  reports[5]!.properties.rawOb = 'METAR KNIL NIL';
+  const saved = JSON.stringify({ type: 'FeatureCollection', features: reports });
+  const client = new MetarClient(new URL('https://example.test/weather'), {
+    storage: { getItem: () => saved, setItem() {} },
+    fetch: async () => Response.json({ type: 'FeatureCollection', features: [{ ...reports[0]!,
+      properties: { ...reports[0]!.properties, obsTime: Date.now() / 1000 } }] }),
+  });
+  const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
+    meta: { revision: 'test', layer: 'airports', returned: reports.length, truncated: false },
+    features: reports.map(({ geometry, properties }) => ({ type: 'Feature', geometry,
+      properties: { kind: 'airport', icaoId: properties.id! } })),
+  };
+  let data: FeatureCollectionResponse | undefined, writes = 0;
+  const layers = new Set<string>();
+  const map = {
+    addSource(_id: string, source: { data: FeatureCollectionResponse }) { data = source.data; },
+    addLayer(layer: { id: string }) { layers.add(layer.id); },
+    getLayer: (id: string) => layers.has(id) ? {} : undefined,
+    getSource: () => ({ setData(value: FeatureCollectionResponse) { data = value; writes++; } }),
+    removeLayer(id: string) { layers.delete(id); }, removeSource() { data = undefined; },
+    setLayoutProperty() {}, getLayoutProperty: () => 'visible',
+    isMoving: () => false, queryRenderedFeatures: () => [], on() {}, off() {},
+  } as unknown as MapLibreMap;
+  const product = createMetarLayer(client);
+  const properties = (id: string) => data!.features.find(feature => feature.properties.icaoId === id)!.properties;
+  product.map.update({ airports, enabled: true, airportsVisible: true });
+  product.map.mount(map);
+  assert.equal(properties('KSQL').displayFlightCategory, 'N/A', 'a five-hour-old IFR report renders gray');
+  assert.equal(properties('KSQL').flightCategory, 'IFR', 'the original category is preserved');
+  assert.equal(properties('KSQL').rawMetar, 'METAR KSQL TEST');
+  assert.equal(properties('KPAO').displayFlightCategory, 'IFR', 'a nearby current report does not recolor KSQL');
+  assert.equal(properties('KOLD').displayFlightCategory, 'IFR', 'exactly two hours is still current');
+  for (const id of ['KFUT', 'KUNK', 'KNIL']) assert.equal(properties(id).displayFlightCategory, 'N/A');
+  const snapshot = client.snapshot();
+  t.mock.timers.tick(30_000);
+  assert.equal(properties('KOLD').displayFlightCategory, 'N/A', 'a stationary offline map ages to gray');
+  assert.equal(writes, 1);
+  assert.equal(client.snapshot(), snapshot, 'display aging does not modify cached observations');
+  assert.equal(featureWithMetar(airports.features[0]!, snapshot).properties.flightCategory, 'IFR');
+  t.mock.timers.tick(30_000);
+  assert.equal(writes, 1, 'unchanged freshness does not resubmit geometry');
+  document.visibilityState = 'hidden'; document.dispatchEvent(new Event('visibilitychange'));
+  t.mock.timers.tick(3 * 3600_000);
+  assert.equal(writes, 1, 'hidden documents pause the display clock');
+  document.visibilityState = 'visible'; document.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(properties('KPAO').displayFlightCategory, 'N/A', 'returning reconciles expired observations');
+  assert.equal(properties('KFUT').displayFlightCategory, 'IFR', 'a future timestamp becomes current when its time arrives');
+  navigator.onLine = true; window.dispatchEvent(new Event('online'));
+  await client.refresh(['KSQL'], new AbortController().signal);
+  assert.equal(properties('KSQL').displayFlightCategory, 'IFR', 'a fresh local report restores its category color');
+  product.map.update({ airports, enabled: true, airportsVisible: false });
+  const hiddenWrites = writes;
+  t.mock.timers.tick(3 * 3600_000);
+  assert.equal(writes, hiddenWrites, 'hidden Airports pause the display clock');
+  product.map.update({ airports, enabled: true, airportsVisible: true });
+  assert.equal(properties('KSQL').displayFlightCategory, 'N/A');
+  product.map.unmount();
+  const detachedWrites = writes;
+  t.mock.timers.tick(30_000);
+  assert.equal(writes, detachedWrites, 'unmount cancels the display clock');
+});
+
 test('METAR owns its source, visible demand, stationary refresh and attachment cleanup', async t => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.parse('2026-09-15T17:00:00Z') });
   const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });

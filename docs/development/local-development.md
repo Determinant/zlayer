@@ -104,8 +104,8 @@ Individual-only FAA plates, including military HIGH procedures, remain required 
 when all bound TPP books are hosted. See [deployment readiness](deployment.md)
 for exact host requirements and known release gaps.
 
-The default basemap uses opaque USGS Topo tiles, which already include shaded relief.
-It does not request the separate USGS shaded-relief service.
+The default basemap uses Esri World Imagery satellite/aerial tiles, matching the
+`faa-downloader` glide preview, with imagery attribution. The map remains capped at zoom 13.
 `VITE_ZLAYERS_BASEMAP_TILE_URL` replaces it with one opaque raster source;
 `VITE_ZLAYERS_BASEMAP_STYLE_URL` supplies a complete style, including attribution.
 This is not SkyVector's tile service. Review provider/offline terms before public release.

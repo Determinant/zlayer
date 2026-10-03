@@ -5,9 +5,9 @@ export type MapView = { center: [number, number]; zoom: number; bearing?: number
 // KPAO, at a regional scale; independent of feed ordering and chart selection.
 export const DEFAULT_MAP_VIEW: MapView = { center: [-122.11504666, 37.46112138], zoom: 9 };
 
-// USGS Topo includes shaded relief; the separate relief service has missing tiles.
+// Match the satellite basemap in faa-downloader's glide preview.
 const DEFAULT_BASEMAP_TILE_URL =
-  'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}';
+  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
 type BasemapOptions = Pick<
   ImportMetaEnv,
@@ -52,7 +52,7 @@ function rasterSource(url: string): RasterSourceSpecification {
     minzoom: 0,
     maxzoom: 16,
     ...(url === DEFAULT_BASEMAP_TILE_URL
-      ? { attribution: 'USGS The National Map' }
+      ? { attribution: 'Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community' }
       : {}),
   };
 }
