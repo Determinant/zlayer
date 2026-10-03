@@ -154,6 +154,8 @@ test('the app inspects an empty location, adopts saved terrain and retains eleva
   await expect(page.locator('.startup-screen')).toHaveCount(0);
   const box = (await canvas.boundingBox())!;
   await canvas.click({ button: 'right', position: { x: box.width / 2, y: box.height / 2 } });
+  await page.getByRole('menu', { name: 'Map actions' })
+    .getByRole('menuitem', { name: /coordinate · GPS waypoint/ }).click();
   const elevation = elevationFact(page);
   await expect(elevation).toContainText('ft MSL');
   await expect(page.locator('.route-token')).toHaveCount(0);

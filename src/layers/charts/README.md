@@ -35,6 +35,9 @@ including IFR high. Existing saved regions retain their committed chart scope;
 
 Chart family definitions compile once per immutable catalog in a WeakMap.
 Visibility still accounts for antimeridian/world copies and preserves ordering.
+Legacy footprints that themselves cross the dateline use the same intersection
+rule for visibility, package selection, regional composition and offline planning.
+Touching an edge alone does not select chart pixels or influence native zoom.
 
 Transient chart-cache startup failures retry automatically after 1, 3, and 10 seconds.
 Charts appear on the same page once preparation succeeds; catalog refreshes do not
@@ -67,6 +70,8 @@ before posting to the reusable SQLite worker. Cancelling a queued package skips
 its decode; cancelling the active decode terminates that worker, and the next live
 package creates a replacement. Unloading aborts pending reads/admission as well.
 A package's signal represents the reader pool's shared demand, not one tile reader.
+Cancelling an individual tile stops its wait immediately while another tile can
+keep the shared archive open or queued.
 
 Legacy underzoom overviews fetch at most 16 source tiles per indexed, ordered
 batch and draw them sequentially into one 256-pixel canvas. Cancellation is checked

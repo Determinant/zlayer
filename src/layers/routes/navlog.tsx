@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useMemo, useRef } from 'react';
-import type { RoutePlan } from '@zlayer/domain';
+import { routePointLabel, type RoutePlan } from '@zlayer/domain';
 import { formatWaypointLabel } from '../../core/format/coordinates';
 import { useMagneticModel } from '../../core/geo/use-magnetic-model';
 import { useBackDismiss } from '../../core/ui/pwa-back';
@@ -84,4 +84,3 @@ export const RouteNavLog = memo(function RouteNavLog({ id, open, onToggle, plan,
 // Retain the closing animation and scroll position, but freeze hidden rows.
 // Opening always renders the latest plan, callbacks and source revision.
 }, (previous, next) => !previous.open && !next.open);
-import { routePointLabel } from '@zlayer/domain';

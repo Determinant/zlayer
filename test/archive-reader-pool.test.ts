@@ -124,3 +124,24 @@ test('aborting the last queued consumer releases its waiter immediately', async 
   reading.resolve(); await active;
   pool.clear();
 });
+
+test('one cancelled tile settles before a shared archive opens for another tile', async () => {
+  const opened = gate();
+  let disposed = 0, starts = 0;
+  const pool = new ArchiveReaderPool(async () => {
+    starts++; await opened.promise;
+    return { dispose() { disposed++; } };
+  });
+  const controller = new AbortController();
+  const cancelled = assert.rejects(pool.use('shared', async () => assert.fail('obsolete tile'), controller.signal), { name: 'AbortError' });
+  const live = pool.use('shared', async () => 'tile');
+  await tick();
+  controller.abort();
+  await cancelled;
+  assert.equal(disposed, 0);
+  opened.resolve();
+  assert.equal(await live, 'tile');
+  assert.equal(starts, 1);
+  pool.clear(); await tick();
+  assert.equal(disposed, 1);
+});

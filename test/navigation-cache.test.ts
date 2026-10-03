@@ -75,6 +75,9 @@ test('production preserves validated manifest fallback and navigation export ver
 
     stored.set(manifest, Response.json({ ...published, effectiveDate: '2026-10-01' }));
     await assert.rejects(fetchNavigationLayer(revision, 'airports'), /offline/);
-    assert.equal(stored.has(manifest), false, 'an invalid cached manifest cannot become the offline fallback');
+    assert.deepEqual(await stored.get(manifest)!.clone().json(), { ...published, effectiveDate: '2026-10-01' },
+      'failed revalidation leaves storage untouched');
+    await assert.rejects(fetchNavigationLayer(revision, 'airports'), /offline/,
+      'the retained invalid manifest still cannot become the offline fallback');
   });
 });

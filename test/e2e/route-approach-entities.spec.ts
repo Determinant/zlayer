@@ -24,7 +24,7 @@ test('approach previews and attached routes share the existing map fix identity 
   await expect.poll(sharedFix).toEqual({ id: 'fix:AXMUL', role: 'FAF', artcc: 'ZOA', hidden: true });
 });
 
-test('an approach fix appears once in nearby selection and keeps the existing fix details', async ({ page, context, request }, testInfo) => {
+test('an approach fix appears once in map selection and keeps the existing fix details', async ({ page, context, request }, testInfo) => {
   await request.post('/__test/published-approaches');
   try {
     const procedure = published.airports.find(airport => airport.id === 'KSNS')!.procedures.find(procedure => procedure.name === 'ILS RWY 31')!;
@@ -53,12 +53,12 @@ test('an approach fix appears once in nearby selection and keeps the existing fi
     await page.goto('/');
     await expect(page.locator('.route-attached-approach')).toHaveText('ILS 31 · ARTYY');
     const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
-    const nearby = page.getByRole('dialog', { name: 'Nearby map features' });
+    const nearby = page.getByRole('menu', { name: 'Map actions' });
     await expect(async () => {
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
       await expect(nearby).toBeVisible();
     }).toPass();
-    const choices = nearby.getByRole('button', { name: /FREZZ/ });
+    const choices = nearby.getByRole('menuitem', { name: /FREZZ/ });
     await expect(choices).toHaveCount(1);
     await choices.click();
     const card = page.locator('.feature-card');

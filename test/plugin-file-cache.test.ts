@@ -572,3 +572,25 @@ test('derived values too large to serialize can remain usable without claiming p
   assert.deepEqual(result, { value, saved: false });
   assert.equal(stored.size, 0);
 });
+
+
+for (const cacheOnly of [false, true]) test(`legacy worker failures remain retryable ${cacheOnly ? 'offline' : 'online'}`, async t => {
+  const files = scope.files(`legacy-worker-${cacheOnly}`, policy);
+  const legacy = cacheFixture(t, 'old-derived');
+  const key = 'https://test/legacy-worker';
+  await legacy.cache.put(key, new Response('ok'));
+  let failed = true, creates = 0;
+  const options = { url: key, identity: 'migrated', signal: new AbortController().signal, label: 'Forecast', cacheOnly,
+    legacy: [{ cache: 'old-derived', key, async convert(response: Response) {
+      if (failed) throw new ResourceError('worker', 'Migration worker crashed');
+      return response.arrayBuffer();
+    } }],
+    async create() { creates++; return new TextEncoder().encode('ok').buffer; },
+    validate: async (bytes: ArrayBuffer) => new TextDecoder().decode(bytes),
+  };
+  await assert.rejects(files.deriveResult(options), /Migration worker crashed/);
+  assert.equal(creates, 0); assert.ok(legacy.stored.has(key));
+  failed = false;
+  assert.deepEqual(await files.deriveResult(options), { value: 'ok', saved: true });
+  assert.equal(creates, 0); assert.equal(legacy.stored.size, 0);
+});

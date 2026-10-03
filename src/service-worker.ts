@@ -9,6 +9,8 @@ import { ResourceError, resourceErrorCode } from './core/data/errors';
 import { RESET_URL } from './core/storage/reset';
 import { openFileCache } from './core/storage/download-file';
 import { boundedBlobStream } from './core/storage/blob-stream';
+import { basemapResponse, isBasemapUrl, removeLegacyBasemapFiles } from './core/storage/basemap-cache';
+import { optionalStorage } from './core/storage/optional-storage';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const development = worker.location.pathname.startsWith('/src/');
@@ -57,6 +59,7 @@ worker.addEventListener('activate', (event) => {
           )
           .map((key) => caches.delete(key)),
       ))
+      .then(() => optionalStorage(signal => removeLegacyBasemapFiles(signal), new AbortController().signal).catch(() => {}))
       .then(() => worker.clients.claim())),
   );
 });
@@ -84,6 +87,7 @@ worker.addEventListener('fetch', (event) => {
   const onChartFeed = isOnChartFeed(url, `${worker.location.origin}/`);
 
   if (onChartFeed && /\.(mbtiles|dem|terrain)$/.test(url.pathname) && ['GET', 'HEAD'].includes(event.request.method)) {
+    event.waitUntil(trackWork(noteCacheAccess(CHART_CACHE, event.request.url)));
     respond(chartArchiveResponse(event.request));
     return;
   }
@@ -132,14 +136,8 @@ worker.addEventListener('fetch', (event) => {
   // Plates owns full-document validation and caching, including in development.
   // Do not populate that cache with an unverified PDF.js range/stream response.
 
-  if (
-    url.hostname === 'demotiles.maplibre.org' ||
-    url.hostname === 'tiles.openfreemap.org' ||
-    url.hostname === 'basemap.nationalmap.gov' ||
-    (url.hostname === 'services.arcgisonline.com' &&
-      url.pathname.startsWith('/ArcGIS/rest/services/World_Imagery/MapServer/tile/'))
-  ) {
-    respond(cacheFirst(event.request, dataCache));
+  if (isBasemapUrl(url)) {
+    respond(basemapResponse(event.request, work => event.waitUntil(trackWork(work))));
   }
 });
 
@@ -366,7 +364,6 @@ function isChartManifest(pathname: string): boolean {
 
 async function chartArchiveResponse(request: Request): Promise<Response> {
   try {
-    await noteCacheAccess(CHART_CACHE, request.url);
     const cache = await openFileCache(chartArchiveCache);
     const key = new Request(request.url, { method: 'GET' });
     const read = request.method === 'HEAD' ? chartArchives.ensureStored.bind(chartArchives) : chartArchives.load.bind(chartArchives);

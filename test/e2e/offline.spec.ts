@@ -71,7 +71,7 @@ test('saved region, route draft, first-use PDF viewer and glyphs work after a co
     await (await caches.open('zlayers-procedures-v1')).put('/unused.pdf', new Response('unused'));
   });
   await page.getByText('Temporary files and storage limits', { exact: true }).click();
-  await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+  await page.getByRole('button', { name: 'Remove temporary map files' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect.poll(() => page.evaluate(async () => !!await (await caches.open('zlayers-procedures-v1')).match('/unused.pdf'))).toBe(false);
   await page.getByLabel('Close settings').click();
@@ -453,7 +453,7 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
     await page.locator('.download-card').getByRole('button', { name: 'Update to latest' }).click();
     await expect(page.locator('.download-card .offline-tag')).toHaveText('Needs attention', { timeout: 15_000 });
     await page.getByText('Temporary files and storage limits', { exact: true }).click();
-    await page.getByRole('button', { name: 'Remove temporary charts and plates' }).click();
+    await page.getByRole('button', { name: 'Remove temporary map files' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Check saved files', exact: true })).toBeEnabled();
     await context.setOffline(true);
@@ -487,6 +487,9 @@ test('same-cycle supplement refresh and failed updates preserve saved page targe
 test('a lost regional airport export preserves healthy search and recovers on reconnect without changing edition', async ({ page, request, context }) => {
   const save = async (region: string, revision: string) => {
     await publishCycles(page, [revision]);
+    // Publication changes do not synchronously replace discovery in an open
+    // workspace. Reload before selecting the newly advertised fixture edition.
+    await page.reload();
     await selectCycle(page, revision);
     await page.getByLabel('Settings and offline downloads').click();
     await page.getByRole('tab', { name: 'Offline', exact: true }).click();

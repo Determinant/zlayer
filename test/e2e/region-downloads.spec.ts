@@ -342,11 +342,11 @@ test('temporary cleanup can be cancelled or retried after a storage error withou
   await row.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(row.locator('.offline-tag')).toHaveText('Saved');
   await page.getByText('Temporary files and storage limits', { exact: true }).click();
-  const clean = page.getByRole('button', { name: 'Remove temporary charts and plates', exact: true });
+  const clean = page.getByRole('button', { name: 'Remove temporary map files', exact: true });
   const check = page.getByRole('button', { name: 'Check saved files', exact: true });
 
   await clean.click();
-  const confirmation = page.getByRole('alertdialog', { name: 'Remove temporary charts and plates?', exact: true });
+  const confirmation = page.getByRole('alertdialog', { name: 'Remove temporary map files?', exact: true });
   await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(clean).toBeFocused();

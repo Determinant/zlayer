@@ -846,8 +846,8 @@ A periodic timer fits METAR but adds nothing to a dated chart or plate.
 
 `core/data/fetch-json.ts` validates reference documents before writing the shared
 data cache. Navigation, airways, plates and preferred routes include export counts
-and cycle checks in that validation. Invalid older cache entries are evicted and
-retried once from the network with a bounded timeout; `no-store` bypasses the service
+and cycle checks in that validation. Invalid older reference entries are replaced
+only after a network response validates, with a bounded timeout; `no-store` bypasses the service
 worker/HTTP cache on that fetch. Mutable manifests revalidate with a validated
 offline fallback. Regional saves reuse the same cache and require successful storage.
 Search keeps healthy products and identifies unavailable ones; navigation loaders
@@ -895,6 +895,10 @@ or publishes verified bytes with `storeDownloadedFile` before returning. Core al
 discards uncommitted temporary files, including on validation or storage failure.
 The existing writer preserves 64 KiB awaited disk writes and the 8 MiB in-memory
 fallback ceiling. Large files use local files and receipt-only Cache Storage.
+`download-file.ts` remains the public entry point. `download-writer.ts` owns streaming,
+`file-cache.ts` owns receipt-aware reads and publication, and `download-cleanup.ts`
+owns retirement and orphan reclamation. They share file identity through
+`download-state.ts`; reader leases remain in `file-lifetime.ts`.
 When the caller supplies only a maximum, a valid unencoded `Content-Length`
 provides the exact byte bound for allocation and validation. Small responses then
 avoid temporary disk writes, while truncated, oversized or over-limit bodies are
@@ -990,7 +994,9 @@ Core owns bounded cached reads, shared transfer scheduling, LRU count/byte/unuse
 cleanup, corruption repair, quota recovery and cross-window locking. Downloaded,
 generated and converted legacy bytes share one validation/readiness/publication
 path. Retention decisions use one ordered inventory and clock reading; applying
-the resulting removals remains inside the publication lock. Reads touch
+the resulting removals remains inside the publication lock. The pure planner lives
+in `plugin-file-retention.ts`; `shared-file-request.ts` owns in-flight consumers,
+readiness delivery and independent cancellation. Reads touch
 only small receipts, including when clocks tie or move backward. Retention batches
 receipt headers under the publication lock and tests file presence without reading
 its body again. Publication first
@@ -998,8 +1004,10 @@ makes room within the namespace and optional plugin budgets; quota pressure can
 evict their other LRU files.
 Other plugins' data and explicitly saved regions are not eviction candidates.
 Storage failures leave validated live data usable. A typed decoder-worker failure
-does not invalidate saved bytes or start a replacement download; a later request
-can retry decoding. Checksum and content-validation failures still repair corrupt
+does not invalidate saved bytes or start a replacement download, including during
+legacy migration; a later request can retry decoding. Cache-only migration reports
+that worker failure rather than claiming the saved file is absent.
+Checksum and content-validation failures still repair corrupt
 files. Without working Web Locks,
 existing bytes can still be read but optional writes are skipped.
 

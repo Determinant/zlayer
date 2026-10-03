@@ -94,7 +94,8 @@ test('inspection keeps corrupt cache untouched, acquisition repairs it, and expl
   assert.equal(stored.size, 1, 'a cache-only health check must not mutate saved files');
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(bytes.slice(0, -1)));
   await assert.rejects(store.query(resource, revision, query), /size/);
-  assert.equal(stored.size, 0);
+  assert.equal(stored.size, 1, 'failed acquisition leaves the inspected entry untouched');
+  assert.equal(await store.cached(resource, revision), false, 'retained corrupt bytes are never accepted as saved history');
   fetch.mock.mockImplementation(async () => new Response(bytes));
   t.mock.method(cache, 'put', async () => { throw new Error('Quota exceeded'); });
   assert.equal((await store.query(resource, revision, query)).totalCount, 17, 'browsing can use memory after a quota refusal');

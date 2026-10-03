@@ -4,7 +4,8 @@ import type { LazyHttpDatabase, SqliteComlinkMod } from 'sql.js-httpvfs/dist/sql
 import sqliteWasmUrl from 'sql.js-httpvfs/dist/sql-wasm.wasm?url';
 import sqliteWorkerUrl from 'sql.js-httpvfs/dist/sqlite.worker.js?url';
 
-import { packageBoundsIntersect, type CatalogResponse, type ChartKind } from '@zlayer/contracts';
+import type { CatalogResponse, ChartKind } from '@zlayer/contracts';
+import { chartBoundsIntersect } from './bounds';
 
 import { createMbtilesReader, type MbtilesReader, type TileCoordinate } from './mbtiles-reader';
 import { ArchiveReaderPool } from './reader-pool';
@@ -122,7 +123,7 @@ async function readTile(tile: ReturnType<typeof parseTileUrl>, signal: AbortSign
 async function readLegacyFamily(catalog: CatalogResponse, family: ChartKind, tile: TileCoordinate,
   signal: AbortSignal): Promise<ArrayBuffer | ImageBitmap | null> {
   const area = tileBounds(tile);
-  const sheets = catalog.charts.filter(chart => chart.kind === family && packageBoundsIntersect(chart.bounds, area));
+  const sheets = catalog.charts.filter(chart => chart.kind === family && chartBoundsIntersect(chart.bounds, area));
   const read = (url: string) => readers.use(new URL(url, document.baseURI).href,
     ({ read }) => read(tile, signal), signal);
   if (!sheets.length) return null;

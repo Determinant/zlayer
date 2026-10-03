@@ -208,8 +208,17 @@ dates and counts. The publisher must retain immutable exports for exact repair t
 succeed; a digest query parameter detects replacement content but cannot recover
 an export the publisher no longer serves.
 
-Cache-only inspection never deletes a file. Acquisition may remove confirmed
-invalid content, but temporary read/decoding-resource failures keep the stored copy.
+Cache-only inspection never deletes a file. Reference JSON replaces invalid entries
+only after a new response validates; it never deletes a URL based on an older
+inspection that could race another window's repair. Reference access bookkeeping
+does not delay reads. Optional cache opening, cached validation and publication
+have cancellable ten-second waits; a stalled cache permits network fallback, and
+an optional write cannot indefinitely withhold validated network data. Cancelling
+cached JSON consumption also cancels its body stream. Network-only
+refreshes skip cached-body inspection. Explicit reference saves still require
+successful persistence, including pinning the same validated response.
+Other file acquisition may remove confirmed invalid content, but temporary
+read/decoding-resource failures keep the stored copy.
 All Blob hashing uses the shared verifier: 1 MiB chunks with at most two concurrent verifications
 per page/worker, avoiding a second book-sized ArrayBuffer. A locally bundled
 WebAssembly SHA-256 implementation accelerates these checks, with a portable
@@ -387,8 +396,9 @@ Core's [plugin file cache](../architecture/layer-plugins.md#plugin-file-caches)
 owns shared acquisition, integrity, retention and publication mechanics.
 Full local reset removes weather slots, file/access namespaces and legacy caches.
 
-Basemap resources are retained as viewed; missing ones do not disable saved chart
-overlays. Weather keeps its observation times and stale/unavailable labels. Downloads
+Viewed basemap resources use the [temporary cache](#automatic-online-cache-expiry);
+missing or expired tiles do not disable saved chart overlays. Weather keeps its
+observation times and stale/unavailable labels. Downloads
 show their FAA cycle; saved means retained, not current or suitable for navigation.
 Map-label identifier glyphs are bundled in the application shell. See
 [deployment readiness](../development/deployment.md) for the required data-hosting setup.
@@ -600,6 +610,21 @@ and PDFs open in a viewer. Live Web Locks track those views and release automati
 if a tab crashes. Cleanup shares the regional-download lock, defers during transfers
 or offline operation, and fails closed if retention records cannot be read. It leaves
 the shell, weather and viewed basemap caches to their own retention policies.
+
+Viewed basemap resources use the separate `zlayers-basemap-v1` temporary cache
+and bodyless `:metadata` receipts, so retention inventory never reads tile bodies.
+They expire **24 hours after acquisition**, with at most **512 entries**, **64 MiB
+of payload**, and **2 MiB per resource**; browser metadata adds overhead. New writes
+remove expired entries and the oldest acquisitions needed to stay within those
+limits. Clock rollback makes future-dated entries expire. Only readable bounded
+responses are cached; opaque or oversized responses remain available from the
+network. Optional publication runs after the response becomes available for rendering.
+At most four responses may be read/published for caching at once; additional
+responses remain usable without queuing copies or delaying rendering.
+Basemap tiles are never included in regional downloads or completeness checks.
+**Remove temporary map files** clears this cache along with unsaved charts and
+plates. Activation and explicit temporary cleanup also remove old basemap entries
+from the shared data cache, preserving FAA reference documents.
 
 ## Release checks
 

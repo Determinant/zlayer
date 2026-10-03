@@ -131,11 +131,9 @@
 
 .runway-wind-components small {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 400;
 }
-
-.runway-wind-components small { font-size: 10px; }
 
 .runway-wind-components strong {
   color: var(--text-d6e7f1);

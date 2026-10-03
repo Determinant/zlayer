@@ -696,7 +696,9 @@ labeled **current TEC** while retaining the original filed text and counts.
 
 The camera leaves room for the list, which becomes a bottom sheet on phones.
 Restoring an open list preserves the saved camera. Panel state, aircraft filter,
-selection, expanded conditions and row limits persist locally; see
+selection, expanded conditions and row limits persist locally. Condition disclosure
+preferences retain the latest 128 entries; saved routes and drafts are not subject
+to that browsing-state limit. See
 [workspace persistence](../../../docs/data/contracts.md#workspace-persistence). Recommendation sources
 load independently and share national references with the planner and
 [regional downloads](../../../docs/features/offline-storage.md).

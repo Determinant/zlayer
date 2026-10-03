@@ -31,12 +31,13 @@ test.describe('touch map overlays', () => {
       await page.setViewportSize({ width, height });
       await openMap(page);
       const contents = page.locator('.map-edge-content');
+      const panelNames = ['chart status', 'GPS status', 'AHRS toolbox', 'AWC Weather toolbox', 'terrain toolbox', 'Glide Planner toolbox'];
       await expect(page.locator('.map-edge-content:not([inert])')).toHaveCount(0);
       await expect.poll(() => page.locator('.map-edge-tools .map-edge-handle').evaluateAll(tabs => tabs.every(tab => {
         const box = tab.getBoundingClientRect();
         return tab.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
       }))).toBe(true);
-      for (const name of ['chart status', 'GPS status', 'AHRS toolbox', 'AWC Weather toolbox', 'terrain toolbox']) {
+      for (const name of panelNames) {
         const handle = page.getByRole('button', { name: `Show ${name}`, exact: true });
         const box = (await handle.boundingBox())!;
         expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
@@ -85,7 +86,7 @@ test.describe('touch map overlays', () => {
         await expect(page.getByRole('button', { name: `Show ${name}`, exact: true })).toHaveAttribute('aria-expanded', 'false');
         await expect(page.locator('.map-edge-content:not([inert])')).toHaveCount(0);
       }
-      await expect(contents).toHaveCount(5);
+      await expect(contents).toHaveCount(panelNames.length);
       expect(await countWatches(page)).toBe(1);
       await page.getByRole('button', { name: 'Show terrain toolbox', exact: true }).tap();
       await expect(page.getByRole('spinbutton', { name: 'Selected altitude' })).toHaveValue('6500');

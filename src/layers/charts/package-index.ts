@@ -1,7 +1,8 @@
 import {
-  chartPackageUrl, packageBoundsIntersect,
+  chartPackageUrl,
   type Bounds, type CatalogResponse, type ChartKind,
 } from '@zlayer/contracts';
+import { chartBoundsIntersect } from './bounds';
 
 type Tile = { z: number; x: number; y: number };
 
@@ -28,7 +29,7 @@ export function createChartPackageIndex(catalog: CatalogResponse, baseUrl?: stri
   }
   return (kind: ChartKind, tile: Tile): string | undefined => {
     const area = tileBounds(tile);
-    const covering = families.get(kind)?.filter(chart => packageBoundsIntersect(chart.bounds, area));
+    const covering = families.get(kind)?.filter(chart => chartBoundsIntersect(chart.bounds, area));
     if (!covering?.length) return undefined;
     // Preserve variable native resolution (e.g. Alaska vs Honolulu) without
     // storing thousands of needlessly upscaled tiles. Empty native cells are

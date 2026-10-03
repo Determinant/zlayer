@@ -36,7 +36,9 @@ export function installChartLayers(
       // protocol builds missing low-zoom overviews from the cached archive.
       minzoom: 0,
       maxzoom: chart.maxZoom,
-      bounds: chart.bounds,
+      // MapLibre's rectangular source gate does not support wrapped bounds.
+      // Keep its latitude gate; chart visibility and tile lookup own longitude.
+      bounds: chart.bounds[0] <= chart.bounds[2] ? chart.bounds : [-180, chart.bounds[1], 180, chart.bounds[3]],
       attribution: 'FAA charts',
     });
     map.addLayer({

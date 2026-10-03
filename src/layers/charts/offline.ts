@@ -1,6 +1,7 @@
 import { chartPackageUrl, packageBoundsIntersect, type CatalogResponse } from '@zlayer/contracts';
 import type { DownloadPlan } from '../../offline/downloads';
 import { OFFLINE_REGIONS, type OfflineRegion } from '../../offline/regions';
+import { chartBoundsIntersect } from './bounds';
 
 export function chartRegionPlans(catalog: CatalogResponse, baseUrl: string,
   regions: readonly OfflineRegion[] = OFFLINE_REGIONS): Array<{ region: OfflineRegion; plan: DownloadPlan }> {
@@ -23,7 +24,7 @@ export function chartRegionPlans(catalog: CatalogResponse, baseUrl: string,
     fixes.jsonSha256 === waypoints.jsonSha256;
   const references = resolved.filter(resource => !sharedFixes || resource.id !== 'vfr-waypoints');
   return regions.filter(region => catalog.charts.some(chart =>
-    region.bounds.some(bounds => packageBoundsIntersect(bounds, chart.bounds))))
+    region.bounds.some(bounds => chartBoundsIntersect(chart.bounds, bounds))))
     .map(region => ({ region, plan: {
       // Shared raster roots must not make two navigation cycles share a saved-plan ID.
       // Retain existing same-edition IDs so installed users keep their selections.

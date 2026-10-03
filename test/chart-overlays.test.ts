@@ -93,6 +93,16 @@ test('loads both Aleutian hemispheres across the antimeridian and world copies',
   }
 });
 
+test('a single wrapped chart footprint covers both dateline sides but not the rest of the world', () => {
+  const wrapped: ChartRecord = { ...chart('wrapped', 'vfr-sectional'), bounds: [170, 51, -172, 54] };
+  for (const bounds of [[175, 50, 179, 55], [-179, 50, -175, 55], [535, 50, 545, 55], [-180, -85, 180, 85]] as const) {
+    assert.equal(chartIsVisible(wrapped, sectionalOnly, [...bounds]), true);
+  }
+  for (const bounds of [[-10, 50, 10, 55], [-172, 50, 170, 55], [175, 54, 179, 56]] as const) {
+    assert.equal(chartIsVisible(wrapped, sectionalOnly, [...bounds]), false);
+  }
+});
+
 test('leaving an overlay footprint keeps the sectional base visible', () => {
   const sectional = chart('sectional', 'vfr-sectional');
   const terminal: ChartRecord = { ...chart('tac', 'vfr-terminal'), bounds: [-123, 37, -122, 38] };

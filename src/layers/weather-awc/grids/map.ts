@@ -1,4 +1,4 @@
-import type { Map, ImageSource } from 'maplibre-gl';
+import type { Map, ImageSource, ErrorEvent } from 'maplibre-gl';
 import type { AwcGridField } from '@zlayer/contracts';
 import { shadedGrid, type WeatherController } from '../controller';
 import { gridCell, gridKey, gridMatchesTime, type DecodedGrid } from './format';
@@ -25,7 +25,19 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
   const rasters = new globalThis.Map<string, Raster>();
   let viewport: GridViewport | undefined, geometry = '', cameraChanged = true, pixelRatio = 0;
   let opacity: number | undefined, moving = false, destroyed = false;
+  let failed = false, attemptedIdentity = '';
   let retry = controller.getSnapshot().forecastRetry;
+  const fail = (error: unknown) => {
+    failed = true;
+    active?.abort(); active = undefined; warming?.abort(); warming = undefined;
+    displayed = ''; fallback = undefined; painted = undefined;
+    if (map.getLayer(LAYER)) map.setLayoutProperty(LAYER, 'visibility', 'none');
+    controller.setGridDisplay(undefined);
+    controller.setGridRenderError(error instanceof Error ? error.message : 'Forecast rendering failed');
+  };
+  const onError = (event: ErrorEvent & { sourceId?: string }) => {
+    if (!destroyed && attemptedIdentity && event.sourceId === SOURCE) fail(event.error);
+  };
   const retain = (identity: string, raster: Raster) => {
     rasters.delete(identity); rasters.set(identity, raster);
     while (rasters.size > 3 || [...rasters.values()].reduce((n, value) => n + value.pixels.byteLength, 0) > 48 * 1024 * 1024) {
@@ -56,6 +68,8 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
       } }, before);
     }
     (map.getSource(SOURCE) as ImageSource).updateImage({ image: canvas, coordinates });
+    // ImageSource can emit an error synchronously during submission.
+    if (failed) return;
     map.setLayoutProperty(LAYER, 'visibility', 'visible'); map.triggerRepaint();
     painted = raster;
     done();
@@ -114,14 +128,20 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
     if (map.getLayer(LAYER) && opacity !== state.preferences.awcGridOpacity) {
       opacity = state.preferences.awcGridOpacity; map.setPaintProperty(LAYER, 'raster-opacity', opacity);
     }
-    const retryRender = !!state.gridRenderError && retry !== state.forecastRetry;
+    const retryRender = failed && retry !== state.forecastRetry;
     retry = state.forecastRetry;
+    if (failed && identity === attemptedIdentity && !retryRender) return;
     if (wanted === key && !retryRender) {
       if (identity && displayed === identity && data && mode !== 'none' && state.gridDisplay?.data !== data) controller.setGridDisplay({ data, mode, sld });
       if (identity && displayed === identity) warm();
       return;
     }
     key = wanted; active?.abort(); active = undefined; warming?.abort(); warming = undefined;
+    if (failed) {
+      if (map.getLayer(LAYER)) map.removeLayer(LAYER);
+      if (map.getSource(SOURCE)) map.removeSource(SOURCE);
+    }
+    failed = false; attemptedIdentity = identity;
     // Camera redraws can retain the same forecast. A new time/run/field clears
     // the old image and inspection until its own pixels are ready.
     const keep = identity && displayed === identity;
@@ -147,7 +167,7 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
       const current = controller.getSnapshot(), requested = shadedGrid(current).data;
       if (!current.preferences.awcEnabled || current.preferences.awcGridMode !== mode || gridSldOverlay(mode, current.preferences.awcSldOverlay) !== sld ||
         !gridMatchesTime(data, current.selectedTime ?? current.now) || !requested || rasterIdentity(requested, mode, sld) !== identity) task.abort();
-      task.signal.throwIfAborted(); paint(raster); displayed = identity;
+      task.signal.throwIfAborted(); paint(raster); task.signal.throwIfAborted(); displayed = identity;
       controller.setGridDisplay({ data, mode, sld });
     };
     const cached = rasters.get(identity);
@@ -158,18 +178,13 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
       let full = cached;
       if (!full) {
         const fullView = fullGridViewport(data.manifest);
-        let renderFailure: unknown;
         // The validated image can paint while its optional save finishes.
         const pixels = await loadRaster(data, mode, sld, task.signal, pixels => {
           if (task.signal.aborted) return;
           full = { pixels, view: fullView }; fallback = full; retain(identity, full);
           try { commit(full); }
-          catch (error) {
-            renderFailure = error;
-            controller.setGridRenderError(error instanceof Error ? error.message : 'Forecast rendering failed');
-          }
+          catch (error) { if (!task.signal.aborted) fail(error); }
         });
-        if (renderFailure) throw renderFailure;
         full ??= { pixels, view: fullView };
         task.signal.throwIfAborted(); retain(identity, full);
       }
@@ -177,7 +192,7 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
       if (displayed !== identity || moving || !view) commit(full);
       if (!moving && view) commit({ pixels: await rasterGrid(data, mode, sld, view, task.signal), view });
     })().catch(error => {
-      if (!task.signal.aborted) controller.setGridRenderError(error instanceof Error ? error.message : 'Forecast rendering failed');
+      if (!task.signal.aborted) fail(error);
     }).finally(() => { if (active === task) { active = undefined; warm(); } });
   };
   const start = () => {
@@ -185,16 +200,19 @@ export function mountGridMap(map: Map, controller: WeatherController, before: st
     moving = true; active?.abort(); active = undefined; warming?.abort(); warming = undefined;
     // Synchronous replacement before the first animated camera frame, covering
     // the entire domain at every intermediate zoom/pan position.
-    if (fallback && displayed) paint(fallback);
+    try { if (fallback && displayed) paint(fallback); } catch (error) { fail(error); }
     cameraChanged = true; key = ''; update();
   };
   const end = () => { controller.setForecastInteraction('map', false); moving = false; cameraChanged = true; update(); };
-  const resize = () => { if (fallback && displayed) paint(fallback); cameraChanged = true; key = ''; update(); };
-  map.on('movestart', start); map.on('moveend', end); map.on('resize', resize);
+  const resize = () => {
+    try { if (fallback && displayed) paint(fallback); } catch (error) { fail(error); }
+    cameraChanged = true; key = ''; update();
+  };
+  map.on('movestart', start); map.on('moveend', end); map.on('resize', resize); map.on('error', onError);
   return { update, destroy() {
     destroyed = true;
     controller.setForecastInteraction('map', false);
-    map.off('movestart', start); map.off('moveend', end); map.off('resize', resize);
+    map.off('movestart', start); map.off('moveend', end); map.off('resize', resize); map.off('error', onError);
     active?.abort(); warming?.abort(); controller.setLocator(undefined);
     if (map.getLayer(LAYER)) map.removeLayer(LAYER);
     if (map.getSource(SOURCE)) map.removeSource(SOURCE);

@@ -33,8 +33,7 @@ async function readIndex(source: TerrainPackage, signal: AbortSignal, cacheOnly 
     }
     try { blob = await storedFileBlob(response); } finally { discardResponseBody(response); }
   } else {
-    await noteCacheAccess(CHART_CACHE, url);
-    signal.throwIfAborted();
+    void noteCacheAccess(CHART_CACHE, url);
     // EnsureStored also repairs an evicted index still held by an in-memory reader.
     blob = (await withAbort(archives.ensureStored(cache, new Request(url)), signal)).blob;
   }
@@ -85,8 +84,7 @@ export async function readPackagedElevation(tile: Tile, source: TerrainPackage, 
   const url = terrainArchiveUrl(source.root, archive);
   const cache = await openFileCache(CHART_CACHE);
   signal.throwIfAborted();
-  await noteCacheAccess(CHART_CACHE, url);
-  signal.throwIfAborted();
+  void noteCacheAccess(CHART_CACHE, url);
   const { blob } = await withAbort(archives.load(cache, new Request(url)), signal);
   return readTerrainArchive(blob, archive, tile, signal, version);
 }

@@ -49,8 +49,9 @@ Device Motion API ────────────────────�
 
 - React owns controls, search, route editing, and details; shareable URL state is planned.
 - A small imperative runtime owns one MapLibre/WebGL instance. React publishes
-  committed feature inputs to observable stores; map adapters subscribe to their
-  feature's inputs. `MapRuntime.setContributions` reconciles plugin map contributions
+  committed feature inputs to observable stores through `workspace/use-workspace-inputs.ts`;
+  map adapters subscribe to their feature's inputs. Workspace notification assembly
+  lives in `workspace/notifications.ts`. `MapRuntime.setContributions` reconciles map contributions
   on that same map, with independent loading and cancellation. Focus and route
   fitting remain explicit commands. Map construction registers resources in a
   core cleanup scope as they are acquired. Failed setup and normal shutdown share
@@ -213,8 +214,9 @@ and removal. On-demand browsing and regional downloads share verified whole file
 small files live in Cache Storage, while large files stream into origin-private
 file storage with small Cache Storage receipts. IndexedDB holds catalog/selection
 records, not duplicate chart or PDF blobs. StorageManager reports quota
-and persistence, and Web Locks coordinate windows. Basemap coverage is only saved as
-viewed; weather remains time-stamped and visibly stale. Obstruction data and
+and persistence, and Web Locks coordinate windows. Viewed basemap tiles use a separate,
+bounded one-day temporary cache and never count toward saved regions;
+weather remains time-stamped and visibly stale. Obstruction data and
 prepared off-airport landing areas are cached on demand and excluded from regional
 completeness. See
 [offline storage](../features/offline-storage.md) for guarantees, limits, and release checks.
