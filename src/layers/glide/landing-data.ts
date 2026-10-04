@@ -1,18 +1,34 @@
 import { isRecord, type Bounds } from '@zlayer/contracts';
 import type { Polygon } from 'polygon-clipping';
 import { InvalidDataError } from '../../core/data/errors';
+import { jsonIdentity } from '../../core/data/json-identity';
 import { project, type Point } from '../../core/geo/route-corridor';
 
 export type LandingShard = { id: string; file: string; sha256: string; bytes: number; rawBytes: number;
   bounds: Bounds; count: number; tiers: [number, number] };
-export type LandingManifest = { schemaVersion: 4 | 5; builderVersion: number; generatedAt: string; inputSha256: string;
+export type LandingManifest = { schemaVersion: 4 | 5 | 6 | 7 | 8 | 9; builderVersion: number; generatedAt: string; inputSha256: string;
   status: 'experimental-candidates'; geometryMeaning: 'generalized-candidate-area';
-  coverage: { id: string; bounds: Bounds }[]; shards: LandingShard[] };
-export type LandingArea = { polygon: Polygon; tier: 1 | 2; flags: number };
+  coverage: { id: string; bounds: Bounds; shrubEvidenceMissing?: boolean }[]; shards: LandingShard[] };
+export type LandingSite = { id: string; tier: 1 | 2; flags: number;
+  start: Point; end: Point; widthFt: number; lengthFt: number; elevationM: number; alongGradePercent?: number; crossGradePercent?: number };
+export type LandingSelection = LandingSite & { sourceKey: string };
+export type LandingArea = LandingSite & { polygon: Polygon };
 export type LandingCollection = GeoJSON.FeatureCollection<GeoJSON.MultiPolygon, { tier: 1 | 2; flags: number }>;
 export type LandingStatus = { state: 'idle' | 'route' | 'outside' | 'zoom' | 'loading' | 'ready' | 'partial' | 'unavailable' | 'error' | 'limited';
-  count?: number; cultivated?: boolean; shrub?: boolean; canopyUncertain?: boolean; terrainFallback?: boolean; urban?: boolean; closeBuildings?: boolean; preferredLengthFt?: number; generatedAt?: string };
+  sourceKey?: string;
+  densityCells?: number; detail?: boolean; loadedFiles?: number; totalFiles?: number;
+  count?: number; cultivated?: boolean; shrub?: boolean; canopyUncertain?: boolean; terrainFallback?: boolean; urban?: boolean; closeBuildings?: boolean; mixedOpen?: boolean; constrained?: boolean; obstacleUncertain?: boolean; coverUncertain?: boolean; shrubEvidenceMissing?: boolean; preferredLengthFt?: number; generatedAt?: string };
 export const emptyLandings = (): LandingCollection => ({ type: 'FeatureCollection', features: [] });
+const manifestKeys = new WeakMap<LandingManifest, string>();
+/** Preparation time is presentation; source identity includes the complete inventory. */
+export function landingSourceKey(url: string, manifest: LandingManifest): string {
+  let key = manifestKeys.get(manifest);
+  if (!key) {
+    key = jsonIdentity([manifest.schemaVersion, manifest.builderVersion, manifest.inputSha256, manifest.shards, manifest.coverage]);
+    manifestKeys.set(manifest, key);
+  }
+  return JSON.stringify([url, key]);
+}
 const integer = (value: unknown, min: number, max: number): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
 const digest = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -21,14 +37,14 @@ const bounds = (value: unknown): value is Bounds => Array.isArray(value) && valu
 
 /** Reject older runway/unsimplified contracts rather than guessing their meaning. */
 export function isLandingManifest(value: unknown): value is LandingManifest {
-  if (!isRecord(value) || ![4, 5].includes(value.schemaVersion as number) || value.status !== 'experimental-candidates'
+  if (!isRecord(value) || ![4, 5, 6, 7, 8, 9].includes(value.schemaVersion as number) || value.status !== 'experimental-candidates'
     || value.geometryMeaning !== 'generalized-candidate-area' || !integer(value.builderVersion, 1, 100000)
     || !digest(value.inputSha256) || typeof value.generatedAt !== 'string' || !Number.isFinite(Date.parse(value.generatedAt))
     || !Array.isArray(value.coverage) || !value.coverage.length || value.coverage.length > 10000
     || !Array.isArray(value.shards) || value.shards.length > 10000) return false;
   const ids = new Set<string>(), files = new Set<string>();
-  if (!value.coverage.every(region => isRecord(region) && typeof region.id === 'string' && bounds(region.bounds))) return false;
-  let bytes = 0;
+  if (!value.coverage.every(region => isRecord(region) && typeof region.id === 'string' && bounds(region.bounds)
+    && (region.shrubEvidenceMissing === undefined || typeof region.shrubEvidenceMissing === 'boolean'))) return false;
   return value.shards.every(shard => {
     if (!isRecord(shard) || typeof shard.id !== 'string' || !shard.id || ids.has(shard.id)
       || !digest(shard.sha256) || shard.file !== `${shard.sha256}.glide.gz` || files.has(shard.file)
@@ -37,24 +53,29 @@ export function isLandingManifest(value: unknown): value is LandingManifest {
       || !Array.isArray(shard.tiers) || shard.tiers.length !== 2
       || !shard.tiers.every(count => integer(count, 0, shard.count as number))
       || shard.tiers[0]! + shard.tiers[1]! !== shard.count) return false;
-    ids.add(shard.id); files.add(shard.file); bytes += shard.bytes;
-    return bytes <= 64 * 1024 * 1024;
+    ids.add(shard.id); files.add(shard.file);
+    return true; // National inventory size is independent of the bounded local cache.
   });
 }
 
 /** Decode the supplied rings, never the internal straight-fit witness. */
-export function decodeLandingAreas(value: unknown, shard: LandingShard, schemaVersion: 4 | 5 = 4): LandingArea[] {
+export function decodeLandingAreas(value: unknown, shard: LandingShard, schemaVersion: 4 | 5 | 6 | 7 | 8 | 9 = 4): LandingArea[] {
   if (!Array.isArray(value) || value.length !== shard.count) throw new InvalidDataError('Invalid landing-area count');
   const tiers = [0, 0];
-  const result = value.map(record => {
-    if (!Array.isArray(record) || record.length !== 3 || !Array.isArray(record[0]) || record[0].length !== 8
+  const result = value.map((record, index) => {
+    if (!Array.isArray(record) || record.length !== 3 || !Array.isArray(record[0]) || record[0].length !== (schemaVersion >= 9 ? 10 : 8)
       || !record[0].every(Number.isSafeInteger) || !Array.isArray(record[1]) || !record[1].length
-      || !integer(record[2], 0, schemaVersion === 5 ? 127 : 15) || ((record[2] & 4) !== 0 && (record[2] & 2) === 0)
-      || ((record[2] & 8) !== 0 && (record[2] & 6) !== 6)) throw new InvalidDataError('Invalid landing-area record');
+      || !integer(record[2], 0, schemaVersion >= 9 ? 2047 : schemaVersion >= 7 ? 1023 : schemaVersion === 6 ? 255 : schemaVersion === 5 ? 127 : 15) || ((record[2] & 4) !== 0 && (record[2] & 2) === 0)
+      || (schemaVersion < 7 && (record[2] & 8) !== 0 && (record[2] & 6) !== 6)) throw new InvalidDataError('Invalid landing-area record');
     const [witness, rings, flags] = record, tier = witness[7] as 1 | 2;
-    if (![1, 2].includes(tier) || (tier === 2 && (flags & 126) !== 0) || Math.abs(witness[0]) > 180e6 || Math.abs(witness[2]) > 180e6
+    const minimumWidth = tier === 2 || schemaVersion < 7 ? 200 : schemaVersion === 7 ? 100 : 60;
+    const minimumLength = tier === 2 ? schemaVersion === 4 ? 3000 : 2000 : schemaVersion >= 8 ? 600 : 1500;
+    const constrained = tier === 1 && (witness[4] < (schemaVersion >= 8 ? 100 : 200) || witness[5] < 1500);
+    if (![1, 2].includes(tier) || (tier === 2 && (flags & ~1) !== 0) || Math.abs(witness[0]) > 180e6 || Math.abs(witness[2]) > 180e6
       || Math.abs(witness[1]) > 80e6 || Math.abs(witness[3]) > 80e6
-      || witness[4] <= 0 || witness[5] < (tier === 2 ? schemaVersion === 5 ? 2000 : 3000 : 1500) || witness[6] < -1000 || witness[6] > 10000) {
+      || witness[4] < minimumWidth || witness[5] < minimumLength
+      || (schemaVersion >= 7 && constrained && !(flags & 256)) || witness[6] < -1000 || witness[6] > 10000
+      || (schemaVersion >= 9 && (!integer(witness[8], -1000, 1000) || !integer(witness[9], -1000, 1000)))) {
       throw new InvalidDataError('Invalid landing-area qualification');
     }
     const polygon: Polygon = rings.map((ring: unknown) => {
@@ -82,7 +103,10 @@ export function decodeLandingAreas(value: unknown, shard: LandingShard, schemaVe
       points.push([...origin]); return points;
     });
     tiers[tier - 1]!++;
-    return { polygon, tier, flags };
+    return { polygon, tier, flags, id: `${shard.sha256}:${index}`,
+      start: [witness[0] / 1e6, witness[1] / 1e6] as Point, end: [witness[2] / 1e6, witness[3] / 1e6] as Point,
+      widthFt: witness[4], lengthFt: witness[5], elevationM: witness[6],
+      ...(schemaVersion >= 9 ? { alongGradePercent: witness[8] / 10, crossGradePercent: witness[9] / 10 } : {}) };
   });
   if (tiers.some((count, i) => count !== shard.tiers[i])) throw new InvalidDataError('Landing-area tiers do not match the manifest');
   return result;

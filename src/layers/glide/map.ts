@@ -12,9 +12,9 @@ import { insideViewport, localRouteSegments, unwrapPoint, viewportBounds, type G
 import { project, type Point, type Segment } from '../../core/geo/route-corridor';
 import { distanceMeters } from '../../core/gps/position';
 import { createRangeAnimation } from './range-animation';
-import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult, type GlideRange } from './types';
+import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult, type GlideRange, type GlideAreas } from './types';
 
-export type GlideMapInput = { enabled?: boolean; ratio?: number; altitude?: number; catalog?: CatalogReadSource; retry: number; segments?: Segment[]; ownship?: Point | null; point?: Point | null };
+export type GlideMapInput = { enabled?: boolean; airportsEnabled?: boolean; ratio?: number; altitude?: number; catalog?: CatalogReadSource; retry: number; segments?: Segment[]; ownship?: Point | null; point?: Point | null; pointElevationFt?: number };
 const AREA = 'glide-areas', AIRPORTS = 'glide-airports', OWN = 'glide-ownship', OWN_AREA = 'glide-ownship-area';
 const POINT = 'glide-point-range', POINT_AREA = 'glide-point-area', PIN = 'glide-point';
 const RANGE_SOURCES = { ownship: [OWN, OWN_AREA], point: [POINT, POINT_AREA] } as const;
@@ -32,7 +32,7 @@ function rangeStatus(current: Point | null | undefined, requested: Point | null,
 }
 const AIRPORT_COLOR = '#ffc875', AIRPORT_DARK = '#332510', FLIGHT_COLOR = '#53e4c6', FLIGHT_DARK = '#102d2a';
 const LAYERS = ['glide-fill', 'glide-outline-trim', 'glide-outline', 'glide-airport-points', 'glide-airport-labels', 'glide-ownship-fill', 'glide-ownship-trim', 'glide-ownship-ring', 'glide-point-fill', 'glide-point-trim', 'glide-point-ring', 'glide-point-pin', 'glide-point-label'];
-export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLayerModule<GlideMapInput> & { coordinateAt(point: { x: number; y: number }): Point | undefined } {
+export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRanges: (ranges: GlideAreas) => void = () => {}): MapLayerModule<GlideMapInput> & { coordinateAt(point: { x: number; y: number }): Point | undefined } {
   let map: MapLibreMap | undefined, input: GlideMapInput = { retry: 0 }, generation = 0;
   let client: WorkerClient<GlideWorker> | undefined;
   let running: { id: number; controller: AbortController } | undefined, queued = false;
@@ -45,6 +45,8 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   // Recovery is a property of acquired data, not the transient loading/zoom UI.
   let recoveryNeeded = false;
   const publishedRanges = new Map<RangeName, { key: string; origin: Point }>();
+  const rangeAreas = new Map<RangeName, GlideAreas>();
+  const publishRanges = () => onRanges({ type: 'FeatureCollection', features: [...rangeAreas.values()].flatMap(area => area.features) });
   let pinKey: string | undefined;
   let sources = terrainSources(undefined), sourceKey = '';
   const status = (next: GlideStatus) => { lastStatus = next; onStatus(next); };
@@ -63,15 +65,22 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
   const clearRange = (name: RangeName) => {
     if (name === 'ownship') ownshipAnimation.reset();
     publishedRanges.delete(name);
+    if (rangeAreas.delete(name)) publishRanges();
     const [line, area] = RANGE_SOURCES[name];
     source(line)?.setData(emptyLines()); source(area)?.setData(emptyAreas());
   };
   const showPin = () => {
-    const point = input.enabled ? input.point : null, key = JSON.stringify(point ?? null);
+    const point = input.enabled ? input.point : null, key = JSON.stringify([point ?? null, input.pointElevationFt]);
     if (key === pinKey) return;
     pinKey = key;
+    const color = input.pointElevationFt === undefined ? FLIGHT_COLOR : '#a23bff';
+    if (map?.getLayer('glide-point-ring')) {
+      map.setPaintProperty('glide-point-ring', 'line-color', color);
+      map.setPaintProperty('glide-point-fill', 'fill-color', color);
+      map.setPaintProperty('glide-point-label', 'text-color', color);
+    }
     source(PIN)?.setData({ type: 'FeatureCollection', features: point ? [{
-      type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: point },
+      type: 'Feature', properties: { label: input.pointElevationFt === undefined ? 'Glide from here' : 'Glide to selected area' }, geometry: { type: 'Point', coordinates: point },
     }] : [] });
   };
   const clearAirports = () => {
@@ -92,6 +101,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
         && (!map?.isMoving() || followingGps) && !matchMedia('(prefers-reduced-motion: reduce)').matches);
       else { source(line)?.setData(range.line); source(area)?.setData(range.area); }
       publishedRanges.set(name, { key: range.key, origin });
+      rangeAreas.set(name, range.area); publishRanges();
     }
     if (result.planRevision !== publishedPlanRevision) {
       source(AREA)?.setData(result.areas);
@@ -139,7 +149,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       const shipVisible = !!ownship && insideViewport(unwrapPoint(ownship, viewport), viewport);
       const pointVisible = !!point && insideViewport(unwrapPoint(point, viewport), viewport);
       let airports: ReturnType<typeof visibleGlideAirports> = [], airportPartial = false;
-      if (discover && localSegments.length) {
+      if (discover && input.airportsEnabled !== false && localSegments.length) {
         const layer = regionalNavigationLayers(catalog).find(layer => layer.id === 'airports');
         if (layer) {
           const key = navigationRequestKey(layer, routingCatalog(catalog).revision, catalog.charts, catalog);
@@ -167,7 +177,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
         }
         // Even an overview can reclip known footprints to an edited route. The
         // discovery gate forbids terrain acquisition, not reconciliation.
-        result = await client.call(remote => remote.calculate({ id, discover, airports, altitude, ratio, viewport, segments, ownship, point, sources,
+        result = await client.call(remote => remote.calculate({ id, discover, airports, airportsEnabled: input.airportsEnabled !== false, altitude, ratio, viewport, segments, ownship, point, ...(input.pointElevationFt === undefined ? {} : { pointElevationFt: input.pointElevationFt }), sources,
           sourceKey, airportKey: airportInputKey, base: location.href,
           tileUrl: import.meta.env.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
         if (id !== generation || !map) return;
@@ -176,7 +186,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       }
       status({ state: !discover ? 'zoom' : result?.incomplete || airportPartial ? 'partial' : 'ready', airports: result?.airports.length ?? 0, route: !!segments.length,
         ownship: rangeStatus(input.ownship, ownship, shipVisible, result?.ownship) ?? 'unavailable',
-        point: rangeStatus(input.point, point, pointVisible, result?.point) });
+        point: rangeStatus(input.point, point, pointVisible, result?.point), pointRouteNm: result?.pointRouteNm });
       if (!samePoint(ownship, input.ownship) || !samePoint(point, input.point)) queued = true;
     } catch {
       if (id === generation && map) { recoveryNeeded = true; status({ ...lastStatus, state: 'error' }); }
@@ -241,7 +251,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       }
       map.addLayer({ id: 'glide-point-pin', type: 'circle', source: PIN, paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': FLIGHT_DARK, 'circle-stroke-width': 3 } }, before);
       map.addLayer({ id: 'glide-point-label', type: 'symbol', source: PIN,
-        layout: { 'text-field': 'Glide from here', 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1] },
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1] },
         paint: { 'text-color': FLIGHT_COLOR, 'text-halo-color': FLIGHT_DARK, 'text-halo-width': 2 } }, before);
       map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', schedule);
@@ -261,16 +271,17 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       const rangeKey = JSON.stringify([next.ratio, next.altitude, sourceKey]), routeKey = JSON.stringify(next.segments ?? []);
       const rangesChanged = rangeKey !== rangeInputKey, airportsChanged = airportKey !== airportInputKey;
       const routeChanged = routeKey !== routeInputKey, enabledChanged = next.enabled !== input.enabled;
-      const retryChanged = next.retry !== input.retry;
-      const shipChanged = !samePoint(next.ownship, input.ownship), pointChanged = !samePoint(next.point, input.point);
+      const arrivalChanged = next.pointElevationFt !== input.pointElevationFt;
+      const retryChanged = next.retry !== input.retry, airportToggle = next.airportsEnabled !== input.airportsEnabled;
+      const shipChanged = !samePoint(next.ownship, input.ownship), pointChanged = !samePoint(next.point, input.point) || next.pointElevationFt !== input.pointElevationFt;
       input = next; rangeInputKey = rangeKey; airportInputKey = airportKey; routeInputKey = routeKey;
       if (!input.enabled && !enabledChanged) return;
       if (retryChanged) { recover(); return; }
-      const planningChanged = rangesChanged || airportsChanged || routeChanged || enabledChanged;
+      const planningChanged = rangesChanged || airportsChanged || routeChanged || enabledChanged || airportToggle || arrivalChanged;
       if (!planningChanged && !shipChanged && !pointChanged) return;
       if (rangesChanged || enabledChanged) { clear(); status({ state: 'idle' }); }
       else {
-        if (airportsChanged || routeChanged && !next.segments?.length) clearAirports();
+        if (airportsChanged || airportToggle || routeChanged && !next.segments?.length) clearAirports();
         if (shipChanged && !nearbyOwnship(publishedRanges.get('ownship')?.origin)) clearRange('ownship');
         if (pointChanged) clearRange('point');
       }
@@ -287,6 +298,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void): MapLa
       }
     },
     unmount() {
+      rangeAreas.clear(); publishRanges();
       ownshipAnimation.reset();
       cancel(); release(); airportData = undefined; recoveryNeeded = false;
       stopInventory?.(); stopInventory = undefined;

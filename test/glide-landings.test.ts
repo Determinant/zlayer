@@ -119,7 +119,7 @@ test('only visible route-adjacent shards load; terrain-independent areas are cli
     reads.push(part.id); return decodeLandingAreas(rows[parts.indexOf(part)]!, part);
   });
   const result = await worker.query(request());
-  assert.deepEqual(reads, ['low', 'high']);
+  assert.deepEqual(reads, ['high', 'low'], 'load the file nearest the view center first');
   assert.deepEqual(result.collection!.features.map(feature => feature.properties.tier), [1, 2]);
   const points = result.collection!.features.flatMap(feature => feature.geometry.coordinates.flat(2));
   assert.ok(Math.max(...points.map(p => p[1]!)) < .334, 'route corridor clips the full candidate polygon');
@@ -195,4 +195,249 @@ test('schema 5 accepts 2,000 ft preferred fits and flagged fallbacks without wea
     const preferred = [record([-.2, -.05, .2, .05], 2, [], flag)];
     assert.throws(() => decodeLandingAreas(preferred, shard('invalid', [-.2, -.05, .2, .05], preferred), 5));
   }
+});
+
+test('schema 6 preserves bare/mixed surface uncertainty without accepting it as preferred or legacy data', async () => {
+  const rows = [record([-.2, -.05, .2, .05], 1, [], 128)];
+  const part = shard('v17', [-.2, -.05, .2, .05], rows);
+  const document = { ...manifest([part]), schemaVersion: 6 as const, builderVersion: 17 };
+  assert.ok(isLandingManifest(document));
+  assert.equal(decodeLandingAreas(rows, part, 6)[0]!.flags, 128);
+  assert.throws(() => decodeLandingAreas(rows, part, 5));
+  const invalid = [record([-.2, -.05, .2, .05], 2, [], 128)];
+  assert.throws(() => decodeLandingAreas(invalid, shard('bad', part.bounds, invalid), 6));
+  const worker = createLandingWorker(async () => document, async () => decodeLandingAreas(rows, part, 6));
+  const result = await worker.query(request());
+  assert.equal(result.status.mixedOpen, true);
+  assert.equal(result.collection!.features[0]!.properties.tier, 1);
+});
+
+
+test('schema 7 retains mapped-open, constrained-fit and obstacle uncertainty only on purple records', async () => {
+  const flags = 8 | 256 | 512;
+  const rows = [record([-.2, -.05, .2, .05], 1, [], flags)];
+  (rows[0]![0] as number[])[4] = 100;
+  const part = shard('v18', [-.2, -.05, .2, .05], rows);
+  const document = { ...manifest([part]), schemaVersion: 7 as const, builderVersion: 18 };
+  assert.ok(isLandingManifest(document));
+  assert.equal(decodeLandingAreas(rows, part, 7)[0]!.flags, flags);
+  assert.throws(() => decodeLandingAreas(rows, part, 6));
+  const worker = createLandingWorker(async () => document, async () => decodeLandingAreas(rows, part, 7));
+  const result = await worker.query(request());
+  assert.equal(result.status.canopyUncertain, true);
+  assert.equal(result.status.constrained, true);
+  assert.equal(result.status.obstacleUncertain, true);
+  for (const flag of [8, 256, 512, 1024]) {
+    const invalid = [record([-.2, -.05, .2, .05], 2, [], flag)];
+    assert.throws(() => decodeLandingAreas(invalid, shard('bad', part.bounds, invalid), 7));
+  }
+});
+
+
+test('landing widths obey each schema floor and require narrow-fit disclosure', () => {
+  for (const version of [4, 5, 6, 7, 8] as const) {
+    for (const tier of [1, 2]) {
+      const cases: [number, number, boolean][] = tier === 2 || version < 7 ? [[199, 0, false], [200, 0, true]]
+        : version === 7 ? [[99, 256, false], [100, 256, true], [100, 0, false], [200, 0, true]]
+          : [[59, 256, false], [60, 256, true], [99, 0, false], [100, 0, true]];
+      for (const [width, flags, accepted] of cases) {
+        const rows = [record([-.2, -.05, .2, .05], tier, [], flags)];
+        (rows[0]![0] as number[])[4] = width;
+        const part = shard('width', [-.2, -.05, .2, .05], rows);
+        const decode = () => decodeLandingAreas(rows, part, version);
+        if (accepted) assert.doesNotThrow(decode, `schema ${version}, tier ${tier}, width ${width}`);
+        else assert.throws(decode, /Invalid landing-area qualification/);
+      }
+    }
+  }
+});
+
+test('schema 8 accepts flagged short last-resort openings without weakening legacy or green checks', () => {
+  const rows = [record([-.2, -.05, .2, .05], 1, [], 256)];
+  rows[0]![0] = [-1000, 0, 1000, 0, 60, 600, 50, 1];
+  const part = shard('short', [-.2, -.05, .2, .05], rows);
+  assert.ok(isLandingManifest({ ...manifest([part]), schemaVersion: 8, builderVersion: 20 }));
+  assert.equal(decodeLandingAreas(rows, part, 8)[0]!.tier, 1);
+  assert.throws(() => decodeLandingAreas(rows, part, 7));
+  for (const [width, length, flags] of [[59, 600, 256], [60, 599, 256], [60, 600, 0]]) {
+    const bad = structuredClone(rows); (bad[0]![0] as number[])[4] = width!; (bad[0]![0] as number[])[5] = length!; bad[0]![2] = flags!;
+    assert.throws(() => decodeLandingAreas(bad, part, 8));
+  }
+  const badGreen = [record([-.2, -.05, .2, .05], 2)];
+  (badGreen[0]![0] as number[])[4] = 60;
+  assert.throws(() => decodeLandingAreas(badGreen, shard('green', [-.2, -.05, .2, .05], badGreen), 8));
+});
+
+
+test('national manifests may exceed the local cache while each shard remains bounded', () => {
+  const parts = Array.from({ length: 50 }, (_, i) => {
+    const sha256 = i.toString(16).padStart(64, '0');
+    return { id: `nation-${i}`, file: `${sha256}.glide.gz`, sha256, bounds: [-100, 30, -99, 31] as Bounds,
+      count: 1, tiers: [1, 0] as [number, number], bytes: 2 * 1024 * 1024, rawBytes: 8 * 1024 * 1024 };
+  });
+  assert.ok(isLandingManifest(manifest(parts)));
+  assert.equal(isLandingManifest(manifest([{ ...parts[0]!, bytes: 2 * 1024 * 1024 + 1 }])), false);
+  assert.equal(isLandingManifest(manifest([parts[0]!, parts[0]!])), false);
+});
+
+test('inspection retains individual qualifications and flags after visual union, respecting holes and route edits', async () => {
+  const rows = [record([-.2, -.05, 0, .05], 1, [[-.15, -.02, -.1, .02]], 2), record([0, -.05, .2, .05], 1, [], 1)];
+  const part = shard('inspect', [-.2, -.05, .2, .05], rows);
+  const worker = createLandingWorker(async () => manifest([part]), async () => decodeLandingAreas(rows, part));
+  const result = await worker.query(request());
+  assert.equal(result.collection!.features[0]!.properties.flags, 3);
+  const left = worker.inspect([-.18, 0])!, right = worker.inspect([.1, 0])!;
+  assert.equal(left.flags, 2); assert.equal(right.flags, 1); assert.notEqual(left.id, right.id);
+  assert.equal(right.lengthFt, 1500); assert.equal(right.widthFt, 200); assert.equal(right.elevationM, 50);
+  assert.deepEqual(right.start, [0, 0]); assert.deepEqual(right.end, [.2, 0]);
+  assert.equal(worker.inspect([-.125, 0]), null, 'hole is not a landing site');
+  assert.equal(worker.inspect([360.1, 0])!.id, right.id);
+  await worker.query(request({ segments: [] }));
+  assert.equal(worker.inspect([.1, 0]), null);
+});
+
+test('dense views load useful candidates up to the memory budget instead of showing nothing', async () => {
+  const rows = [[record([-.2, -.05, -.1, .05])], [record([.1, -.05, .2, .05])], [record([.3, -.05, .4, .05])]];
+  const parts = rows.map((r, i) => ({ ...shard(String(i), [-.5, -.1, .5, .1], r), rawBytes: 12 * 1024 * 1024 }));
+  let reads = 0;
+  const worker = createLandingWorker(async () => manifest(parts), async (_url, part) => {
+    reads++; return decodeLandingAreas(rows[parts.indexOf(part)]!, part);
+  });
+  const result = await worker.query(request());
+  assert.equal(result.status.state, 'limited'); assert.equal(result.status.count, 2); assert.equal(reads, 2);
+  await worker.query(request()); assert.equal(reads, 2, 'do not repeatedly acquire an unretainable shard');
+});
+
+test('dense shards select whole visible candidates before the vertex limit and reselect after a pan', async () => {
+  const rows = [record([-.2, -.05, .2, .05]), record([1.8, -.05, 2.2, .05]), record([5, 5, 5.3, 5.1])];
+  const dense: Point[] = Array.from({ length: 300001 }, (_, i) => [5 + i / 1e6, 5]);
+  dense.push([5.3, 5.1], [5, 5.1]);
+  rows[2]![1] = [encode(dense)];
+  const part = shard('dense', [-.2, -.05, 5.3, 5.1], rows);
+  let reads = 0;
+  const worker = createLandingWorker(async () => manifest([part]), async () => {
+    reads++; return decodeLandingAreas(rows, part);
+  });
+  const route: Segment[] = [[project([-1, 0]), project([3, 0])]];
+  const first = await worker.query(request({ bounds: [-.1, -.1, .1, .1], segments: route }));
+  assert.equal(first.status.count, 1, 'off-screen vertices cannot reject the entire file');
+  assert.equal(first.status.state, 'ready');
+  const ring = first.collection!.features[0]!.geometry.coordinates[0]![0]!;
+  assert.ok(Math.min(...ring.map(p => p[0]!)) < -.19, 'retain the whole area beyond the viewport edge');
+  await worker.query(request({ bounds: [-.1, -.1, .1, .1], segments: route, renderedKey: first.renderKey }));
+  assert.equal(reads, 1, 'unchanged view reuses its selected records');
+  const next = await worker.query(request({ bounds: [1.9, -.1, 2.1, .1], segments: route, renderedKey: first.renderKey }));
+  assert.equal(next.status.count, 2); assert.equal(reads, 2, 'new view adds records from the cached file');
+  assert.ok(worker.inspect([0, 0]), 'previously visited polygons remain within the budget');
+  assert.ok(worker.inspect([2, 0]));
+  assert.notEqual(next.renderKey, first.renderKey, 'new records under the same shard identity reach the map');
+  await worker.query(request({ segments: [] }));
+  const restored = await worker.query(request({ bounds: [1.9, -.1, 2.1, .1], segments: route }));
+  assert.equal(restored.status.count, 1, 'route restoration clears prior selection attempts');
+});
+
+test('partial shards retain visited areas through pans, failed reloads and cancellation', async () => {
+  const rows = [record([-.4, -.04, -.3, .04]), record([-.05, -.04, .05, .04]), record([.3, -.04, .4, .04])];
+  const part = shard('partial', [-.4, -.04, .4, .04], rows);
+  let reads = 0, fail = false, gate: Promise<void> | undefined;
+  let entered: (() => void) | undefined;
+  const worker = createLandingWorker(async () => manifest([part]), async () => {
+    reads++; entered?.(); await gate;
+    if (fail) throw new Error('reload unavailable');
+    return decodeLandingAreas(rows, part);
+  });
+  const first = await worker.query(request({ bounds: [-.45, -.05, -.25, .05] }));
+  const pan = await worker.query(request({ bounds: [-.44, -.05, -.24, .05], renderedKey: first.renderKey }));
+  assert.equal(reads, 1, 'camera movement away from omitted areas needs no decoding');
+  assert.equal(pan.collection, undefined);
+  const second = await worker.query(request({ bounds: [-.1, -.05, .1, .05] }));
+  assert.equal(second.status.count, 2); assert.equal(reads, 2);
+  assert.ok(worker.inspect([-.35, 0])); assert.ok(worker.inspect([0, 0]));
+  const returned = await worker.query(request({ bounds: [359.55, -.05, 359.75, .05], renderedKey: second.renderKey }));
+  assert.equal(returned.collection, undefined); assert.equal(reads, 2, 'visited world copies keep their polygons');
+  fail = true;
+  const failed = await worker.query(request({ bounds: [.25, -.05, .45, .05], renderedKey: second.renderKey }));
+  assert.equal(failed.status.state, 'partial'); assert.equal(failed.status.count, 2);
+  assert.equal(failed.collection, undefined); assert.ok(worker.inspect([0, 0]));
+  fail = false;
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  let finish!: () => void;
+  gate = new Promise<void>(resolve => { finish = resolve; });
+  const pending = worker.query(request({ id: 10, bounds: [.25, -.05, .45, .05] }));
+  await started; worker.cancel(10); finish();
+  await assert.rejects(pending, { name: 'AbortError' });
+  assert.ok(worker.inspect([-.35, 0])); assert.ok(worker.inspect([0, 0]));
+  assert.equal(worker.inspect([.35, 0]), null);
+  const complete = await worker.query(request({ bounds: [.25, -.05, .45, .05] }));
+  assert.equal(complete.status.count, 3);
+  const totalReads = reads;
+  await worker.query(request());
+  assert.equal(reads, totalReads, 'the fully accumulated shard no longer needs selection reloads');
+});
+
+test('accumulating partial shards still evicts older polygons at the vertex budget', async () => {
+  const boxes: Bounds[] = [[-.4, -.04, -.3, .04], [.3, -.04, .4, .04]];
+  const rows = boxes.map(box => {
+    const row = record(box);
+    row[1] = [encode(rect(box).flatMap(point => Array.from({ length: 40000 }, () => point)))];
+    return row;
+  });
+  const part = shard('budget', [-.4, -.04, .4, .04], rows);
+  let reads = 0;
+  const worker = createLandingWorker(async () => manifest([part]), async () => { reads++; return decodeLandingAreas(rows, part); });
+  await worker.query(request({ bounds: [-.45, -.05, -.25, .05] }));
+  assert.ok(worker.inspect([-.35, 0]));
+  const moved = await worker.query(request({ bounds: [.25, -.05, .45, .05] }));
+  assert.equal(moved.status.count, 1);
+  assert.ok(worker.inspect([.35, 0]));
+  assert.equal(worker.inspect([-.35, 0]), null, 'old offscreen vertices are evicted when both areas cannot fit');
+  await worker.query(request({ bounds: [.26, -.05, .46, .05] }));
+  assert.equal(reads, 2, 'a nearby pan does not reopen the shard');
+  await worker.query(request({ bounds: [-.45, -.05, -.25, .05] }));
+  assert.equal(reads, 3); assert.ok(worker.inspect([-.35, 0]));
+  assert.equal(worker.inspect([.35, 0]), null);
+});
+
+test('a file must intersect the route inside the viewport before it is acquired', async () => {
+  const rows = [record([-.2, 1.9, .2, 2.1])];
+  const part = shard('broad', [-.2, -.1, .2, 2.1], rows);
+  let reads = 0;
+  const worker = createLandingWorker(async () => manifest([part]), async () => { reads++; return decodeLandingAreas(rows, part); });
+  const result = await worker.query(request({ segments: [[project([-1, 2]), project([1, 2])]] }));
+  assert.equal(reads, 0, 'independent bounds overlaps must not acquire off-screen route data');
+  assert.equal(result.collection!.features.length, 0);
+});
+
+
+test('schema 9 carries overall fit grades, cover disagreement and unavailable shrub evidence through inspection', async () => {
+  const box: Bounds = [-.2, -.05, .2, .05];
+  const rows = [record(box, 1, [], 1024 | 256)];
+  const fit = rows[0]![0] as number[];
+  fit[4] = 60; fit[5] = 600; fit.push(-35, 12);
+  const part = shard('refined', box, rows);
+  const doc: LandingManifest = { ...manifest([part]), schemaVersion: 9, builderVersion: 1,
+    coverage: [{ id: 'sample', bounds: [-2, -2, 2, 2], shrubEvidenceMissing: true }] };
+  assert.ok(isLandingManifest(doc));
+  assert.equal(isLandingManifest({ ...doc, coverage: [{ ...doc.coverage[0], shrubEvidenceMissing: 'yes' }] }), false);
+  const [decoded] = decodeLandingAreas(rows, part, 9);
+  assert.equal(decoded!.alongGradePercent, -3.5);
+  assert.equal(decoded!.crossGradePercent, 1.2);
+  assert.throws(() => decodeLandingAreas(rows, part, 8), 'legacy schema cannot silently consume new tuples');
+  const worker = createLandingWorker(async () => doc, async () => decodeLandingAreas(rows, part, 9));
+  const result = await worker.query(request());
+  assert.equal(result.status.coverUncertain, true);
+  assert.equal(result.status.shrubEvidenceMissing, true);
+  assert.equal(worker.inspect([0, 0])!.alongGradePercent, -3.5);
+  assert.equal(worker.inspect([0, 0])!.crossGradePercent, 1.2);
+  const moved = await worker.query(request({ bounds: [5, 5, 6, 6] }));
+  assert.equal(moved.status.shrubEvidenceMissing, false);
+  for (const badGrade of [NaN, 1.5, -1001, 1001]) {
+    const bad = structuredClone(rows); (bad[0]![0] as number[])[8] = badGrade;
+    assert.throws(() => decodeLandingAreas(bad, shard('bad', box, bad), 9));
+  }
+  const green = structuredClone(rows), greenFit = green[0]![0] as number[];
+  greenFit[4] = 200; greenFit[5] = 2000; greenFit[7] = 2;
+  assert.throws(() => decodeLandingAreas(green, shard('bad-green', box, green), 9), 'cover disagreement never promotes green');
+  const legacy = [record(box)];
+  assert.equal(decodeLandingAreas(legacy, shard('old', box, legacy), 8)[0]!.alongGradePercent, undefined);
 });

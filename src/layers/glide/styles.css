@@ -30,5 +30,5 @@
 .glide-selected-point output { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .glide-selected-point button { flex-shrink: 0; }
 
-.glide-key-landing-preferred i { border-color: #9bdf77; background: #9bdf7780; }
-.glide-key-landing-last-resort i { border-color: #b7a4f3; background: #b7a4f380; }
+.glide-key-landing-preferred i { border-color: #53e52d; background: #53e52d9e; }
+.glide-key-landing-last-resort i { border-color: #a23bff; background: #a23bff9e; }

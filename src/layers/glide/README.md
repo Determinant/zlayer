@@ -22,8 +22,12 @@ use the panel's 12 px base and 1.5 line height. Planning assumptions and landing
 explanations keep this same size; the map-gesture hint joins supporting notes,
 status, metadata and slider limits at 11 px. The altitude value and MSL units share
 a bold 14 px baseline, wrapping below the label on narrow panels. Compact padding,
-spacing and dividers group coverage switches, planning inputs, range information
-and landing candidates. Actions use core's compact controls, and the selected-point
+spacing and dividers group coverage switches, planning inputs and one **Map legend**.
+The legend places range and landing-candidate swatches together, with concise color
+and line-style labels followed by density/detail guidance and map actions. Live
+ownship, airport and landing-area status, preparation date and retry actions sit
+directly below the planning-altitude hint in the inputs section.
+Actions use core's compact controls, and the selected-point
 card uses shared theme colors.
 Text inputs retain core's 14 px desktop / 16 px touch sizing. The native slider,
 switches, actions and disclosure retain shared touch sizing and keyboard-focus treatment.
@@ -52,8 +56,8 @@ and landing maneuvers are not modeled.
   ring for the same planning origin. Drift under 25 m retains that origin;
   larger movement requests a new range. Stale/unavailable GPS or provider removal clears it;
   a changed off-screen GPS position never inherits the previous position’s range. The ring follows live **position**, using the **selected planning MSL
-  altitude**; raw browser GPS altitude is not substituted. Both the legend and
-  status explain this distinction. No second GPS watch is acquired.
+  altitude**; raw browser GPS altitude is not substituted. The altitude hint and
+  ownship status explain this distinction. No second GPS watch is acquired.
 
 - **Teal dashed selected-point range** starts at a labeled **Glide from here** pin.
   Right-click or long-press anywhere on the map and choose **Show glide range**.
@@ -81,7 +85,7 @@ Glide and Ownship are independently registered plugins. Glide uses core's scoped
 `bridge.watch('ownship')` connection to observe the read-only `OwnshipApi.position`
 store, and similarly observes Routes' displayed plans. Neither is an activation
 prerequisite: losing Ownship clears only its ring, and losing Routes clears
-airport coverage and off-airport candidate areas. Selected-point planning needs
+airport coverage and route density shading. Ownship/selected-range landing detail and selected-point planning need
 neither provider. Disabling Glide releases its subscriptions without changing
 Ownship or acquiring/releasing a GPS
 lease. See the [inter-plugin bridge contract](../../../docs/architecture/layer-plugins.md#inter-plugin-communication).
@@ -89,35 +93,83 @@ lease. See the [inter-plugin bridge contract](../../../docs/architecture/layer-p
 ## Off-airport landing candidates
 
 **Off-field coverage** is a separate, persisted switch, initially off. It requires
-Glide and a displayed route, independently of Airport coverage or Ownship. The
-publisher does the surface, vegetation, hazard, width and length screening; this
+Glide and either a displayed route or a calculated ownship/selected-point range,
+independently of Airport coverage. The publisher does the surface, vegetation, hazard, width and length screening; this
 client reads compact conclusions from the feed-wide `glide/manifest.json`.
 It performs no imagery analysis or landing-surface DEM work.
 
-- Light green: preferred tier, a screened straight fit of at least **2,000 ft** (3,000 ft in legacy schema 4).
-- Lavender: best-effort tier, a screened fit of at least **1,500 ft**. It may
-  include flagged scrub selected where the original screening found no candidate.
+- Vivid green (`#53e52d`): preferred tier, a screened straight fit of at least **2,000 ft** (3,000 ft in legacy schema 4).
+- Vivid purple (`#a23bff`): last-resort openings ranked within each connected patch. Schema 8
+  prefers **1,500 × 100 ft** but retains measured fits down to **600 × 60 ft**.
+  These are screening floors, not aircraft stopping-distance guarantees. It may
+  include flagged scrub, sloped/uneven ground, bare ground or mixed open surfaces.
   Scrub stays best effort even when its fit exceeds 2,000 ft. Preferred screening
   retains strict terrain and vegetation criteria; these priorities do not estimate landing-success probability.
-- Both display the supplied connected area, with retained holes. The internal
-  straight-fit witness is never drawn as a runway or used as an arrival point.
+- Detailed boundaries display the supplied connected area, clipped to calculated
+  ownship/selected-point ranges, with retained holes. The internal
+  straight-fit witness is never drawn as a runway. Selecting a candidate uses its measured fit for arrival planning.
 
-These areas represent possible sites, **not glide reachability**. They do not
-change with the ratio or altitude slider, and are distinct from the amber airport
-coverage and teal forward ranges. No reachability cone is calculated from the
-generalized boundary or its witness elevation. The panel labels them screened
-candidates rather than verified landing sites, shows the preparation date, and
-calls out cultivated fields when any displayed group carries the publisher's flag. Neither an
-unflagged area nor either length tier establishes current landing suitability.
+The route overview shades the approximate density of screened candidate ground
+within **20 NM** of the route. Stronger shading means more candidate ground, not
+landing-success probability. Each density cell uses its predominant tier’s color (purple on a tie), avoiding
+a gray intermediate hue when both tiers occur. Density still measures their union. Blank
+ground can be unassessed, rejected, below raster resolution or not yet loaded.
+
+Detailed polygons appear only within the calculated ownship range and ranges
+selected through **Show glide range** (including a selected site’s arrival range).
+No route is required for this detail. Altitude/ratio changes change its geographic
+mask, not the publisher’s qualifications. The screened sites themselves do not
+establish approach or landing feasibility. Right-click or long-press a detailed
+area and choose **Inspect landing area**. The
+existing shared context menu selects the original decoded record, preserving its
+fit dimensions, maximum fit elevation and flags rather than inheriting the
+merged tier's combined flags. Hole interiors are not selectable. Where records
+overlap, prefer green, then the largest measured fit area; this is selection
+ordering, not an aircraft suitability score.
+
+An inspected record retains the manifest URL and a digest of its schema, builder,
+input digest, complete shard inventory and preparation coverage. A changed source
+clears the selection and its arrival range, including after a map remount or when
+the preparation timestamp stays the same. Remounting against the same source
+preserves the selection. Inspection replies must match the displayed source;
+transient loading/idle status is not the authority for a selection's identity.
+
+A selected site's fit midpoint and maximum elevation drive an on-demand reverse
+arrival calculation using the same bounded terrain engine as airports, including
+500 ft arrival reserve, 200 ft terrain clearance and inward-only smoothing. A
+**dashed purple** outline and **Glide to selected area** pin distinguish this
+from a forward point range. The slider and ratio update that arrival range. The
+panel shows route distance inside the calculated footprint; empty or incomplete
+terrain is not filled optimistically. This does not establish approach alignment,
+landing direction, surface condition or stopping performance. Only the selected
+site is calculated, keeping preparation proportional to user demand.
+
+The panel combines landing colors with glide-range colors in **Map legend**, with
+short guidance on density shading, detailed boundaries and map gestures. Landing
+status, preparation date and retry actions accompany the glide status below the
+planning-altitude hint.
+The collapsed-by-default **Planning assumptions** disclosure
+groups glide-model limits with off-field screening caveats when Off-field coverage
+is enabled. Concise, labeled paragraphs explain surface uncertainty, last-resort
+allowances, obstacles, conflicting vegetation evidence and unassessed ground;
+flag-specific caveats appear only when reported for the displayed coverage.
+Neither an unflagged area nor either length tier establishes current landing
+suitability; the disclosure explains that candidates are unverified and boundaries
+approximate, and calls for visual inspection of the ground and approach.
 
 ### Delivery and validation
 
-Schema **5** (or legacy **4**) must declare `geometryMeaning: generalized-candidate-area` and
+Schema **9** (or legacy **4/5/6/7/8**) must declare `geometryMeaning: generalized-candidate-area` and
 `status: experimental-candidates`. Older runway-oriented schemas are rejected.
 Each shard is a hash-named gzip JSON array, capped at 2 MiB compressed / 16 MiB
-raw; manifest shard counts, per-tier counts, bounds and total compressed size
-are checked before use. Each area is `[qualification, rings, flags]`, where
-qualification is `[lon1E6, lat1E6, lon2E6, lat2E6, widthFt, lengthFt, maxElevationM, tier]`.
+raw; manifest shard counts (at most 10,000), per-tier counts, bounds and each file size
+are checked before use. There is no 64 MiB national inventory cap: that value
+belongs to the independent local disk cache. Each area is `[qualification, rings, flags]`, where
+qualification is `[lon1E6, lat1E6, lon2E6, lat2E6, widthFt, lengthFt, maxElevationM, tier,
+alongGradePermille, crossGradePermille]`. Schema 9 requires ten values; earlier schemas
+retain eight. The signed overall grades come from a plane fitted to the DEM within
+the measured footprint. Inspection displays their magnitudes in percent, not a
+maximum local slope or a recommended landing direction.
 All values are integers; endpoints use millionths of a degree and maximum witness
 elevation is in metres MSL. Wire tier **1** is best effort and wire tier **2** is preferred;
 the manifest's `tiers` counts follow that same order. Ring pairs are cumulative E6
@@ -125,18 +177,39 @@ longitude/latitude deltas, starting from zero independently for each ring; closu
 is first and holes follow. Flags bit 0 means cultivated ground with unverified
 field condition; bit 1 means uncertain shrub surface; bit 2 means the broader
 shrub band was needed and requires bit 1. Bit 3 flags tree-canopy model disagreement
-(Science TCC above the strict limit, corroborated by zero RCMAP tree cover); it requires
-bits 1 and 2. This last fallback remains shrub-only and never relaxes crop screening.
+(in legacy schemas it requires shrub bits 1 and 2 and denotes corroboration by RCMAP). Builders v16/v17 stopped emitting that legacy allowance. In schema 7, bit 3 instead requires mapped open ground where the Science estimate is 6–20%, with mapped forest/wetland excluded. It no longer requires shrub bits and never permits green.
 Schema 5 adds bit 4 for smooth-slope fallback, bit 5 for developed open space,
 and bit 6 for the narrower building setback. Those allowances remain purple even
-with long fits; all fallback flags are rejected on preferred records. Schema 4
+with long fits. Schema 6 adds bit 7 for bare/sandy substrate or a nonzero impervious fraction within the open-ground limit; neither establishes surface firmness. All fallback flags are rejected on preferred records. Schema 4
 retains its original 3,000/1,500 ft minimums and four-bit flag contract.
-The panel explicitly calls out the fallback conditions. Shrub flags are rejected on preferred
+Schemas 4–6 require 200 ft width in both tiers. Schema 7 permits purple widths
+down to 100 ft only with the constrained-fit flag; preferred records always
+require 200 ft. The decoder enforces these floors independently of polygon size.
+Schema 8 retains the compact tuple and flags but permits the constrained dimensions above;
+older schema minimums remain enforced. Green remains 2,000 × 200 ft.
+Schema 9 adds bit 10 (value 1024) for corroborated land-cover disagreement, allowed
+only on purple records. Coarse forest recovery requires both mapped and fine-raster
+open-ground evidence plus low canopy/impervious estimates. Older fine-raster tree
+evidence can be overridden only with newer NLCD, canopy and mapped open-ground
+sources under the same low limits. Mapped exclusions and water still win. These
+reconciliations indicate uncertain source agreement, not verified absence of trees.
+An optional `coverage[].shrubEvidenceMissing` flag reports regions without both
+shrub source families; it is not a per-pixel completeness mask. The panel explains
+that unmarked ground can be unassessed or rejected.
+Schema 7 adds bit 8 for a narrower fit or reduced ground setback, and bit 9 for a reduced obstacle exclusion. Purple may use a 100 ft width; green retains 200 ft. The panel exposes both allowances. These are screening policies, not aircraft landing-performance guarantees.
+Builder v18 screens two complete masks. Green ground remains usable by purple qualification, and green draws above overlap; every published polygon retains a checked full-width fit. The panel explicitly calls out the fallback conditions. Shrub flags are rejected on preferred
 records. Unsupported flag bits are rejected. The panel calls out shrub uncertainty
 independently of fit length; these bits add no raster payload. The loader checks SHA-256,
 exact compressed/decompressed lengths, count/tier consistency, ring coordinates
 and published geometry bounds. It preserves the publisher's simplification;
-the display outline is not a precise obstacle-clearance mask.
+the display outline is not a precise obstacle-clearance mask. The decoder keeps
+stable shard-digest/record IDs, both fit endpoints, dimensions and elevation for
+inspection. The downloader has brought the stricter obstacle policy back into
+its main working tree: both tiers retain reported position uncertainty and
+mast/guy-wire clearance, while identified ordinary structures receive their own
+physical buffers. The completed schema-8 publication remains readable; it can
+contain mixed original/stricter checkpoints from the interrupted first run.
+Flags alone cannot identify which policy produced those historical records.
 
 `landing-loader.ts` uses core's validated JSON loading and scoped plugin file
 cache. Immutable shards have a **64-file / 64 MiB / 30-day unused** optional disk
@@ -150,43 +223,124 @@ camera movement or resume recheck the manifest once the previous check is at lea
 five minutes old; Retry and reconnect request revalidation on the next eligible
 query. A missing manifest retries on subsequent demand after a one-minute failure
 backoff, which explicit revalidation bypasses. No background interval polls this
-feed, and no requests run while the feature is off or has no route. The manifest
+feed, and no requests run while the feature is off or has neither a route nor a calculated range. The manifest
 is independent of FAA cycles.
 
 ### Geometry, caching and lifecycle
 
-One lazy worker owns acquisition, decoding, route clipping and polygon unions.
-Only newly requested shards whose actual geometry bounds intersect the viewport
-and route corridor are acquired, at zoom 7 or above and with viewport spans no
-larger than 45° longitude and 25° latitude. Route clipping uses Glide's
-existing conservative **20 NM** mask. Entire clipped, visited areas remain drawn
-through pan, zoom and rotation, including overview zooms. The camera does not cut
-polygons into screen-edge shapes. Unchanged geometry is not sent to MapLibre again;
-altitude, ratio and GPS updates do not trigger this worker at all.
-Coverage completeness is checked in the route's longitude copy, including both
-sides of the date line; crossing it does not change or reacquire cached areas.
+Detailed polygons already visited stay in the worker's bounded cache when the
+camera moves. A partial shard adds newly visible whole areas, retaining older
+ones while the vertex budget permits. Bounds of omitted records avoid reopening
+a shard when the new view cannot reveal anything new. Failed or cancelled
+reloads preserve the previous entry; visible candidates take priority only after
+a successful replacement. Cache limits still apply.
 
-The worker retains at most **24 decoded shards, 24 MiB of raw JSON size and 300,000
-vertices**. These are accounting limits, not a claim about total JS heap size;
-parsing, clipping and renderer allocations add transient overhead. It acquires
-one shard at a time. Off-view LRU entries make room for new demand; if the visible
-set cannot fit, the panel reports the display limit instead of silently pretending
-coverage is complete. Large single shards may remain unavailable at that limit.
+One lazy worker owns acquisition and display preparation. Discovery requires zoom
+7 or above and viewport spans no larger than 45° longitude and 25° latitude.
+Only files intersecting the visible **20 NM route corridor** or visible calculated
+ownship/selected-point ranges are eligible; the national inventory is never fetched
+as a batch. Route removal clears shading while retaining independent range detail.
+GPS loss, point clearing and changed planning inputs clear the corresponding detail.
 
-Polygons are fused by tier across shard boundaries before outlines are drawn.
-The preferred union takes precedence in overlap, and the cultivated flag is
-propagated to each combined tier group. Route changes reclip retained polygons;
-route loss, disabling or teardown clears them immediately. Requests are serialized,
-obsolete route results cannot publish, and new manifest artifact identities clear
-the old generation. Normal camera movement preserves completed geometry. Disabling
-releases the worker while optional disk cache entries remain reusable.
+The route prototype derives an immutable tier raster from each existing validated
+polygon file, using worker `OffscreenCanvas` with even-odd holes. Each raster is at
+most **512 × 512 bytes**, approximately 153 m cells at the equator before the size
+cap. Preferred cells win over overlapping fallback polygons. Raster cells sample
+generalized area coverage and can omit narrow openings; inspection always uses
+the original decoded records. No publisher artifacts or schemas change.
 
-Focused regressions live in `test/glide-landings.test.ts` and
-`test/e2e/glide-landings.spec.ts`, covering contract validation, authentic bounded
-loads, holes/tiers, seam removal, viewport demand, camera reuse, route
-loss, unavailable publication/retry and preference persistence. These verify
-software behavior; real-world landing suitability and national data coverage
-remain unvalidated.
+Each route query acquires **two summaries concurrently**, then publishes before
+requesting the next pair. At most **32 files per view** and **64 resident summaries**
+are retained. Core's plugin file cache stores up to **128 derived summaries / 16 MiB**
+under `landing-shading`, keyed by algorithm version, schema and full shard identity.
+A first visit still transfers and decodes the original gzip files. Repeat visits
+can read small summaries without decoding polygon arrays. Reducing first-visit
+transfer size requires a future publisher overview artifact; this prototype does
+not claim that saving or measured mobile battery improvements.
+
+The worker composites union coverage samples into a geographically aligned image:
+roughly **4–8 screen pixels per density cell**, bounded to 385 cells on either
+axis. Zoom changes the geographic resolution; overlapping source grids cannot
+inflate density. Nearest-neighbor filtering keeps cell edges crisp, with conservative
+cell admission inside the route corridor. Each cell samples only overlapping source
+grids: each grid visits its output extent with precomputed sample rows/columns.
+Two 16-bit masks per output cell accumulate the same 4×4 covered/preferred samples;
+preferred samples skip later sources and shared corner checks admit cells once.
+Frame-sized scratch buffers remain bounded (under 0.9 MiB at the maximum dimensions)
+and are released after composition. Empty or missing data stays transparent
+and failed/unprepared coverage remains labeled. Route shading never performs
+polygon clipping/unions of candidate areas or exposes an inspection hit target.
+
+Detailed geometry keeps the independent **24-shard / 24 MiB source raw JSON /
+300,000-vertex** accounting budget. These are retained-input limits, not total JS
+heap limits. Only polygons intersecting the visible calculated range are selected,
+nearest the view center first, preserving whole polygons and their holes. Dense
+files can supply useful detail even when all their off-screen geometry would exceed
+the budget. Partial file selections are refreshed from verified source cache when
+the view changes. Original records remain available for inspection; render unions
+are clipped to the range and fused by tier, with preferred ground winning overlap.
+Candidate selection and rendering prepare range bounds and edge boxes once per
+mask. A candidate box with no possible boundary crossing is accepted or rejected
+by containment; cases near any exterior or hole boundary still use exact polygon
+clipping. This avoids rebuilding clipping sweeps for interior candidates without
+changing their boundaries, holes, flags or inspection records.
+Area fills use 62% opacity and saturated green/purple shared with the legend.
+Outlines retain a 0.75 px tier-colored stroke over a 1.5 px dark casing at 75%
+opacity; contrast comes from color and opacity rather than thicker linework.
+Nonempty density cells use alpha `64 + 160 × sqrt(covered fraction)` (up to
+224/255), keeping sparse candidates visible over chart detail while empty cells
+stay transparent. The palette is presentation only, so cached numeric summaries
+remain reusable after color changes.
+MapLibre generates zoom-dependent vector tiles with 0.75-pixel simplification
+tolerance and maximum source zoom 16, so lower zooms draw less boundary detail.
+
+Unchanged shading and geometry are omitted from worker replies and MapLibre
+uploads. Range changes preserve route shading; route changes preserve independent
+range polygons. Manual camera motion/hiding cancels obsolete work, while GPS-follow
+camera movement preserves active preparation. Nonempty range updates also let
+in-flight file acquisition finish, coalescing a query for the latest range without
+restarting the admission timer. Old detail clears immediately and replies for an
+older range cannot publish; the next query clips cached records to the current
+range. Removing all ranges, route edits, retries, disable and teardown still cancel
+obsolete demand. Queries are serialized. The display worker supplies its accepted
+manifest to detail on every query, including route-only queries, so a refresh or
+cancelled refresh cannot leave detail using an older inventory. Manifest identity
+changes invalidate derived resident data.
+Disabling or teardown releases the worker and map resources; optional disk caches
+remain reusable. Core admission bounds full-file acquisition/validation to two
+concurrent jobs. Completed camera-independent detail can remain off-screen within
+the retained budget; the renderer clips drawing to the camera.
+
+`test/glide-landing-display.test.ts` covers density encoding, overlap, clipping,
+zoom resolution, progressive two-file admission, warm reuse, range-only demand,
+GPS/range loss, failures, cancellation and source invalidation. Existing landing
+contract/geometry tests retain polygon validation, tier unions and individual
+inspection coverage. `test/e2e/glide-landings.spec.ts` exercises the real worker,
+image source, raster holes, zoom resolution, cached revisits, independent selected
+and ownship ranges, GPS loss, acquisition during movement, inspection/arrival,
+selection identity across refresh/remount and unpublished-feed recovery.
+These verify software behavior; landing suitability is not validated.
+
+For repeatable worker CPU diagnostics, run
+`node --import=tsx tools/benchmark-glide-landings.ts`. It uses 32 synthetic numeric
+grids and 768 detailed candidates, with holes and a 180-vertex range, and reports
+five-run medians after one warm-up plus output digests. Network acquisition,
+decoding, raster preparation, worker transport and map/GPU costs are excluded.
+
+A local Node 24.15.0 comparison on 2026-10-03 against `6689354`, with the same
+fixture and unchanged output digests, measured these CPU changes:
+
+| Workload | Before | After |
+| --- | ---: | ---: |
+| Heat composition, adjacent grids | 74.4 ms | 14.5 ms |
+| Heat composition, overlapping grids | 93.1 ms | 22.0 ms |
+| Heat composition, point corridor | 37.6 ms | 7.1 ms |
+| Cold polygon selection/rendering | 162.7 ms | 90.9 ms |
+| Cached polygons with a changed range | 143.2 ms | 92.2 ms |
+
+The warm camera change remained about 1 ms, with no geometry upload or additional
+file read. These synthetic measurements describe the sample and implementation
+above, not device frame rates or real-feed loading times.
 
 ## Airports and elevation
 
@@ -550,3 +704,19 @@ numbers exclude network, decoding, worker transport, rendering and phone behavio
 The flat-ground high-latitude regression at 18,000 ft / 20:1 has a 58.59 NM ideal
 range; displayed vertices at 80° now lie around 58.42–58.46 NM, retaining the inset
 and conservative distance bounds instead of a several-NM window-scale penalty.
+
+
+### Review limits
+
+Patch count is a rendering count, not independent emergency alternatives. Airport
+infields, overlapping chunks and several fragments of one opening can inflate it.
+The downloader's `review:glide` command reports union area, spatial groups, gap
+samples and the Key West airport-vicinity / Bay pond-edge review contexts for
+repeatable inspection. Its geographic proximity statistics are not terrain-aware
+glide coverage. Source misclassification remains a review issue; never promise an
+acceptable landing area in every tile.
+
+Focused checks cover national manifests above 64 MiB with unchanged per-file
+limits, dense-view partial loading, per-record inspection after union, hole and
+longitude-wrap handling, reverse arrival altitude/elevation changes, route
+intersection lengths, and map-menu selection with real workers.

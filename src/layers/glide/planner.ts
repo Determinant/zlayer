@@ -4,6 +4,7 @@ import { ElevationTilePool } from '../../core/terrain/elevation-pool';
 import { nmPerWorldUnit, project, type Point } from '../../core/geo/route-corridor';
 import { ARRIVAL_RESERVE_FT, FEET_PER_NM, TERRAIN_CLEARANCE_FT } from './airports';
 import { insideViewport, inRouteCorridor, localRouteSegments, unwrapPoint, routeMask, type GlideViewport } from './coverage';
+import { coveredRouteNm } from './landing-geometry';
 import { GlideCalculator } from './calculator';
 import { mergeFootprints, ownshipOutline } from './geometry';
 import { emptyAreas, type GlideAirport, type GlideRange, type GlideRequest, type GlideResult } from './types';
@@ -39,6 +40,7 @@ export class GlidePlanner {
   #dirty = false;
   #ownship: GlideRange | null = null;
   #point: GlideRange | null = null;
+  #pointRoute: { area: GlideRange['area']; routeKey: string; distance: number } | undefined;
   constructor(readonly read: ElevationReader, readonly limits = {
     airports: 512, geometryBytes: 8 * 1024 * 1024, residentBytes: 32 * 1024 * 1024,
   }) {}
@@ -52,21 +54,22 @@ export class GlidePlanner {
     }
     // A route selects and clips complete airport footprints; it is not an input
     // to their terrain calculation. Keep visited origins through route edits.
-    const footprintKey = JSON.stringify([request.altitude, request.ratio, request.airportKey]);
+    const footprintKey = JSON.stringify([request.altitude, request.ratio, request.airportKey, request.airportsEnabled]);
     if (footprintKey !== this.#footprintKey) {
       this.#footprintKey = footprintKey; this.#airports.clear(); this.#geometryBytes = 0; this.#dirty = true;
     }
     const routeKey = JSON.stringify(request.segments);
     if (routeKey !== this.#routeKey) { this.#routeKey = routeKey; this.#dirty = true; }
     const work = { terrainSourceCells: 0, terrainCells: 0, profileCells: 0, profilesBuilt: 0, profilesReused: 0, planReused: true, footprintsReused: 0 };
-    const calculateOrigin = async (id: string, coordinate: Point, airport?: GlideAirport) => {
-      const identity = JSON.stringify([id, coordinate, airport?.elevationFt]);
+    const calculateOrigin = async (id: string, coordinate: Point, airport?: Pick<GlideAirport, 'elevationFt'>) => {
+      // Terrain profiles depend on position and sampled extent, not destination elevation.
+      const identity = JSON.stringify([id, coordinate]);
       let resident = this.#residents.get(identity);
       const height = request.altitude - (airport ? airport.elevationFt + ARRIVAL_RESERVE_FT : TERRAIN_CLEARANCE_FT);
       const reachNm = Math.max(4, Math.ceil(Math.max(0, height) * request.ratio / FEET_PER_NM / 4) * 4);
       if (!resident) resident = { calculator: new GlideCalculator(this.read, this.#pool), reachNm, viewport: originViewport(coordinate, reachNm) };
       else if (resident.reachNm < reachNm) { resident.reachNm = reachNm; resident.viewport = originViewport(coordinate, reachNm); }
-      if (!airport) for (const key of this.#residents.keys()) if (key.startsWith(`["${id}",`) && key !== identity) this.#residents.delete(key);
+      if (id === 'point' || id === 'ownship') for (const key of this.#residents.keys()) if (key.startsWith(`["${id}",`) && key !== identity) this.#residents.delete(key);
       this.#residents.delete(identity); this.#residents.set(identity, resident);
       try {
         const result = await resident.calculator.calculate({ coordinate, viewport: resident.viewport,
@@ -87,7 +90,7 @@ export class GlidePlanner {
       }
     };
     const localSegments = localRouteSegments(request.segments, request.viewport);
-    for (const airport of request.discover === false ? [] : request.airports) {
+    for (const airport of request.discover === false || request.airportsEnabled === false ? [] : request.airports) {
       signal.throwIfAborted();
       const point = unwrapPoint(airport.coordinate, request.viewport);
       if (!insideViewport(point, request.viewport) || !inRouteCorridor(point, localSegments) || request.altitude <= airport.elevationFt + ARRIVAL_RESERVE_FT) continue;
@@ -107,19 +110,20 @@ export class GlidePlanner {
         this.#geometryBytes -= this.#airports.get(first)!.bytes; this.#airports.delete(first);
       }
     }
-    const forward = async (id: 'ownship' | 'point', coordinate: Point | null | undefined, previous: GlideRange | null): Promise<GlideRange | null> => {
+    const range = async (id: 'ownship' | 'point', coordinate: Point | null | undefined, previous: GlideRange | null): Promise<GlideRange | null> => {
       if (!coordinate) return null;
-      const key = JSON.stringify([coordinate, request.altitude, request.ratio]);
+      const elevationFt = id === 'point' ? request.pointElevationFt : undefined;
+      const key = JSON.stringify([coordinate, request.altitude, request.ratio, elevationFt]);
       if (key === previous?.key) { work.footprintsReused++; return previous; }
-      // Retain already drawn ranges off screen, but acquire a new forward origin
+      // Retain already drawn ranges off screen, but acquire a new independent origin
       // only when it first comes into view. A changed GPS fix never reuses an old ring.
       if (request.discover === false || !insideViewport(unwrapPoint(coordinate, request.viewport), request.viewport)) return null;
-      const result = await calculateOrigin(id, coordinate);
+      const result = await calculateOrigin(id, coordinate, elevationFt === undefined ? undefined : { elevationFt });
       return { key, line: ownshipOutline(result.profile, result.footprint.radii, result.footprint.unknown),
         area: mergeFootprints([result.footprint.polygon]), incomplete: result.footprint.incomplete };
     };
-    this.#ownship = await forward('ownship', request.ownship, this.#ownship);
-    this.#point = await forward('point', request.point, this.#point);
+    this.#ownship = await range('ownship', request.ownship, this.#ownship);
+    this.#point = await range('point', request.point, this.#point);
     signal.throwIfAborted();
     if (this.#dirty) {
       const covered: AirportFootprint[] = [];
@@ -134,6 +138,12 @@ export class GlidePlanner {
         airports: covered.map(entry => entry.airport.feature), incomplete: covered.some(entry => entry.incomplete) };
       this.#dirty = false; work.planReused = false;
     }
-    return { ...this.#coverage, ownship: this.#ownship, point: this.#point, work };
+    if (request.pointElevationFt !== undefined && this.#point) {
+      if (this.#pointRoute?.area !== this.#point.area || this.#pointRoute.routeKey !== routeKey) {
+        this.#pointRoute = { area: this.#point.area, routeKey, distance: coveredRouteNm(request.segments, this.#point.area) };
+      }
+    } else this.#pointRoute = undefined;
+    return { ...this.#coverage, ownship: this.#ownship, point: this.#point,
+      ...(this.#pointRoute ? { pointRouteNm: this.#pointRoute.distance } : {}), work };
   }
 }

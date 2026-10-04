@@ -12,14 +12,15 @@ import { bindMapLayer } from '../../core/map/contribution';
 import type { CatalogReadSource } from '../../workspace/read-context';
 import { pluginStorage, glidePreferences, type GlidePreferences } from './preferences';
 import { GlideControls } from './controls';
-import type { GlideStatus } from './types';
-import type { LandingStatus } from './landing-data';
+import { emptyAreas, type GlideAreas, type GlideStatus } from './types';
+import type { LandingStatus, LandingSelection } from './landing-data';
 export type GlideInput = GlidePreferences & { catalog: CatalogReadSource; change(patch: Partial<GlidePreferences>): void };
 export function createGlidePlugin() {
   const input = createLayerInput<GlideInput>();
   const status = createLayerStore<GlideStatus>({ state: 'idle' });
   const landingStatus = createLayerStore<LandingStatus>({ state: 'idle' });
   const landingRevision = createLayerStore(0);
+  const landingRanges = createLayerStore<GlideAreas>(emptyAreas());
   const retryLandings = () => landingRevision.publish(landingRevision.getSnapshot() + 1);
   const revision = createLayerStore(0);
   const retry = () => revision.publish(revision.getSnapshot() + 1);
@@ -27,36 +28,51 @@ export function createGlidePlugin() {
   const segments = createLayerStore<Segment[]>(noSegments);
   const ownship = createLayerStore<Point | null>(null);
   const selectedPoint = createLayerStore<Point | null>(null);
-  const clearPoint = () => selectedPoint.publish(null);
+  const selectedSite = createLayerStore<LandingSelection | null>(null);
+  let selectionRevision = 0;
+  const clearPoint = () => { selectionRevision++; selectedSite.publish(null); selectedPoint.publish(null); };
+  let inspectAt: ((point: { x: number; y: number }) => (() => Promise<LandingSelection | null>) | undefined) | undefined;
   let coordinateAt: ((point: { x: number; y: number }) => Point | undefined) | undefined;
   const settingsInput = combineLayerStores(selectLayerStore(input, state => state && ({ catalog: state.catalog,
     enabled: state.glideEnabled, airportsEnabled: state.glideAirportsEnabled, ratio: state.glideRatio, altitude: state.glideAltitude })), revision, (state, retry) => ({ ...state, retry }));
-  // No route demand means no airport acquisition or preparation. The existing
-  // route lifecycle clears amber coverage while retaining independent ranges.
   const flightInput = combineLayerStores(combineLayerStores(settingsInput, segments,
-    (state, segments) => ({ ...state, segments: state.airportsEnabled ? segments : noSegments })),
+    (state, segments) => ({ ...state, segments })),
     ownship, (state, ownship) => ({ ...state, ownship }));
-  const mapInput = combineLayerStores(flightInput, selectedPoint, (state, point) => ({ ...state, point }));
-  const landingInput = combineLayerStores(combineLayerStores(selectLayerStore(input, state =>
+  const pointInput = combineLayerStores(selectedPoint, selectedSite, (point, site) => ({ point,
+    ...(site ? { pointElevationFt: site.elevationM / .3048 } : {}) }));
+  const mapInput = combineLayerStores(flightInput, pointInput, (state, point) => ({ ...state, ...point }));
+  const landingInput = combineLayerStores(combineLayerStores(combineLayerStores(selectLayerStore(input, state =>
     !!state?.glideEnabled && !!state?.glideLandingsEnabled), segments, (enabled, segments) => ({ enabled, segments })),
-    landingRevision, (state, retry) => ({ ...state, retry }));
+    landingRevision, (state, retry) => ({ ...state, retry })), landingRanges, (state, ranges) => ({ ...state, ranges }));
   function Panel() {
     const state = useLayerSnapshot(input), current = useLayerSnapshot(status), point = useLayerSnapshot(selectedPoint);
-    const landings = useLayerSnapshot(landingStatus);
+    const landings = useLayerSnapshot(landingStatus), site = useLayerSnapshot(selectedSite);
     return state ? <ToolPanel className="map-edge-glide" icon={
       <path transform="rotate(135 12 12)"
         d="M10 3a2 2 0 0 1 4 0v5l8 5v3l-8-3v5l3 2v2l-5-1-5 1v-2l3-2v-5l-8 3v-3l8-5Z" />
     }>{(visible, panel) => <GlideControls {...state} status={current} retry={retry} point={point}
-      landingStatus={landings} retryLandings={retryLandings} clearPoint={clearPoint} reveal={panel.setOpen} visible={visible} />}</ToolPanel> : null;
+      site={site} landingStatus={landings} retryLandings={retryLandings} clearPoint={clearPoint} reveal={panel.setOpen} visible={visible} />}</ToolPanel> : null;
   }
   return {
     publicApi: scope => ({ contextActions: scope.command(screenPoint => {
       const locate = coordinateAt, coordinate = locate?.(screenPoint);
       if (!coordinate || !input.getSnapshot()) return [];
-      return [{ id: 'glide:point', label: 'Show glide range', select: scope.command(() => {
+      const inspect = inspectAt?.(screenPoint);
+      return [...(inspect ? [{ id: 'glide:inspect-area', label: 'Inspect landing area', select: scope.command(() => {
+        const current = ++selectionRevision;
+        void inspect().then(site => {
+          const state = input.getSnapshot();
+          if (!site || current !== selectionRevision || !state?.glideEnabled || !state.glideLandingsEnabled
+            || site.sourceKey !== landingStatus.getSnapshot().sourceKey) return;
+          selectedSite.publish(site);
+          selectedPoint.publish([(site.start[0] + site.end[0]) / 2, (site.start[1] + site.end[1]) / 2]);
+        }).catch(() => {
+          if (current === selectionRevision) landingStatus.publish({ ...landingStatus.getSnapshot(), state: 'error' });
+        });
+      }) }] : []), { id: 'glide:point', label: 'Show glide range', select: scope.command(() => {
         const state = input.getSnapshot();
         if (!state || coordinateAt !== locate) return;
-        selectedPoint.publish(coordinate);
+        clearPoint(); selectedPoint.publish(coordinate);
         if (!state.glideEnabled) state.change({ glideEnabled: true });
       }) }, ...(selectedPoint.getSnapshot() ? [{ id: 'glide:clear-point', label: 'Clear selected glide point', select: scope.command(clearPoint) }] : [])];
     }) }),
@@ -80,11 +96,20 @@ export function createGlidePlugin() {
     panels: [{ id: 'glide', title: 'Glide Planner toolbox', Component: Panel }],
     mapContribution: { id: 'glide', async load() {
       const [{ createGlideLayer }, { createLandingLayer }] = await Promise.all([import('./map'), import('./landing-map')]);
-      const layer = createGlideLayer(status.publish), bound = bindMapLayer(layer, mapInput);
+      const layer = createGlideLayer(status.publish, landingRanges.publish), bound = bindMapLayer(layer, mapInput);
+      const landingLayer = createLandingLayer(next => {
+        landingStatus.publish(next);
+        const selected = selectedSite.getSnapshot();
+        if (selected && next.sourceKey && selected.sourceKey !== next.sourceKey) clearPoint();
+      }), landingBound = bindMapLayer(landingLayer, landingInput);
       return [{ ...bound,
         mount(map) { bound.mount(map); coordinateAt = layer.coordinateAt; },
         unmount() { if (coordinateAt === layer.coordinateAt) coordinateAt = undefined; bound.unmount(); },
-      }, bindMapLayer(createLandingLayer(landingStatus.publish), landingInput)];
+      }, { ...landingBound,
+        mount(map) { landingBound.mount(map); inspectAt = landingLayer.inspectAt; },
+        update() { landingBound.update(); if (!landingInput.getSnapshot().enabled && selectedSite.getSnapshot()) clearPoint(); },
+        unmount() { if (inspectAt === landingLayer.inspectAt) inspectAt = undefined; selectionRevision++; landingBound.unmount(); },
+      }];
     } },
   } satisfies LayerPlugin & PluginExports<GlideApi, { routes: RoutesApi; ownship: OwnshipApi }> & { input: typeof input; status: typeof status };
 }
