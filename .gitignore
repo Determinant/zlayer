@@ -19,6 +19,7 @@ playwright-report/
 /tmp/
 
 # Keep infrastructure checkouts, local credentials and history backups private.
+/nms/
 /ops/
 /zlayer-ops/
 *.pem

@@ -17,6 +17,11 @@ cycle migration below remain planned.
 Offline is a product capability, not an accidental HTTP-cache hit. Browsing an opened
 plate and verifying every dependency of a saved region are different promises.
 
+Planned: the [NOTAM plugin](../notams/README.md#plate-notam-bar) contributes an
+expandable, scrollable red bar for notices relevant to the displayed plate. Plates
+will supply exact page/procedure/edition context and retain PDF lifecycle ownership;
+the NOTAM guide owns parsing, applicability and source freshness.
+
 ## Contents
 
 - [Publisher-owned indexing](#publisher-owned-indexing)

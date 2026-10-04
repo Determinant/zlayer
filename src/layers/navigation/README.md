@@ -16,6 +16,10 @@ background map visibility. Weather observations belong to the
 [METAR/TAF plugin](../metar-taf/README.md); route editing and procedure selection
 belong to [Routes](../routes/README.md).
 
+Planned: [NOTAMs](../notams/README.md#airport-detail-tab) adds a third airport-detail
+tab to the right of Plates. That guide owns notice parsing, freshness and display;
+Navigation will retain ownership of the tab host and saved selection.
+
 ## Source entry points
 
 | Entry | Responsibility |

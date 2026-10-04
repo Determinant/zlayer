@@ -166,6 +166,12 @@ their catalogs. HTTP forecast reads only serve saved output; report/advisory
 queries share their own cached acquisition. The
 [server guide](../../tools/weather-server/README.md) owns update and storage limits.
 
+Planned: [FAA NMS collection](../../src/layers/notams/README.md#weather-server-integration)
+will run in that same weather process and expose read-only `/api/notams/` routes.
+Its credentials, request admission and durable dataset/quota state are owned by a
+separate NMS module, outside weather cache eviction and release cache swaps.
+The NOTAM guide owns the design; this is not part of the implemented baseline.
+
 Per-sheet MBTiles, receipts, and work files stay in the publisher's local
 `dist/mbtiles/<cycle>/` cache alongside `dist/zips/`, outside the publishable `charts/`
 tree. The client reads all chart bounds and content identities from the publisher's chart

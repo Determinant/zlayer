@@ -12,6 +12,16 @@ available during preparation and for at least six minutes after replacement.
 Winds retain 37 pressure levels; the PWA interpolates selected MSL/flight levels.
 There is one bounded disk cache, no database or separate publishing process.
 
+## Planned NOTAM integration
+
+The [NOTAM guide](../../src/layers/notams/README.md#weather-server-integration)
+owns the planned collector, local-query API and integration into this listener,
+build and deployment. Its [collection policy](../../src/layers/notams/README.md#collection-and-delivery)
+keeps a full local dataset and durable FAA quota history outside the weather cache.
+The current cache warm/swap procedure must preserve that state and one active
+collector. Routes and configuration remain unimplemented; follow the owning guide
+for credentials, readiness, proxy wiring and release handoff.
+
 ## Run locally
 
 `npm run dev` forwards weather to `https://zlayer.tedyin.com`, reusing the backend’s shared

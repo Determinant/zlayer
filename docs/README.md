@@ -82,6 +82,7 @@ guides stay in that same folder or its implementation subfolders.
 | METAR/TAF | [Weather demand, freshness, nearby stations and report display](../src/layers/metar-taf/README.md) |
 | AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [surface analysis and Progs](../src/layers/weather-awc/progs/README.md); [NEXRAD/TDWR radar](../src/layers/weather-awc/radar/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |
 | Plates | [Airport plates, document viewer and georeferenced overlays](../src/layers/plates/README.md) |
+| NOTAMs (planned) | [Airport D/FDC notices, parsing, plate relevance and NMS collection](../src/layers/notams/README.md) |
 | Routes | [Editing and recommendations](../src/layers/routes/README.md); [SID/STAR previews](../src/layers/routes/terminal-procedures.md), [approach geometry](../src/layers/routes/approach-geometry.md), [coverage and validation](../src/layers/routes/approach-coverage.md) |
 | Glide Planner | [Airport/ownship glide ranges, prepared off-airport candidate areas and planning assumptions](../src/layers/glide/README.md) |
 | Terrain | [Route/viewport elevation, sources and verification](../src/layers/terrain/README.md) |

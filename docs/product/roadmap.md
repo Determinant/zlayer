@@ -85,6 +85,20 @@ an installed-device cold restart; incomplete data is never labeled complete; exp
 is visible rather than mistaken for freshness. See [offline storage](../features/offline-storage.md)
 for today's guarantees and [product budgets](brief.md) for performance targets.
 
+## Airport and procedure NOTAMs
+
+Planned: the [NOTAM plugin guide](../../src/layers/notams/README.md) owns the
+long-term design and implementation sequence. Add an **Info | Plates | NOTAM**
+airport tab showing D and FDC notices with source-backed flairs and per-entry raw
+text disclosures. Add an expandable, scrollable red NOTAM bar for relevant plate
+amendments and restrictions, keyed to the actual displayed procedure and edition.
+
+Onboarding materials are reviewed; live qualification and all implementation remain
+pending. The existing weather server will maintain the full local NMS dataset under
+the guide's [collection policy](../../src/layers/notams/README.md#collection-and-delivery).
+Acceptance requires source continuity, conservative matching, visible freshness/
+uncertainty, shared core UI, preserved PDF lifecycle and production qualification.
+
 ## Radial/distance route positions
 
 Implemented locally: [station-relative input and name/GPS/radial point descriptions](../../src/layers/routes/radial-distance-plan.md),
