@@ -10,8 +10,10 @@ adding more data sources. Current capabilities and planned work are listed separ
 - [Glide Planner](../../src/layers/glide/README.md): adjustable ratio and MSL start altitude,
   terrain-aware merged airport coverage within 20 NM of the route, and distinct
   ownship and selected-point planning ranges, cached by origin across pan and zoom.
-  Optional prepared off-airport polygons show two length tiers along the route;
-  publication coverage and real-world suitability remain validation work.
+  Optional off-field coverage reads published numeric route-density tiles and
+  original detailed candidates inside calculated ranges. Glide package dependencies
+  share verified regional downloads and chart-region edition ownership; legacy feeds
+  remain readable. Publication coverage and real-world suitability remain validation work.
 - Static React/MapLibre PWA with product-owned layer lifecycles and a precached shell.
 - Viewport/zoom-selected, prestitched VFR and IFR low/high MBTiles with whole-file caching.
 - Searchable FAA navigation with progressive fix decluttering and runway details.

@@ -7,11 +7,13 @@ import { isBounds, isRecord, isNonEmptyString, isNonNegativeInteger, isSha256, h
 import { isChartPackageIndex } from '../chart-packages.js';
 import { chartEditionCoversCycle } from '../chart-editions.js';
 import { isPreferredRoutesResource } from '../preferred-routes.js';
+import { isGlideManifest } from '../glide.js';
 import { isTerrainManifest } from '../terrain.js';
 
 export function isCatalogResponse(value: unknown): value is CatalogResponse {
   if (!isRecord(value)) return false;
   return value.schemaVersion === 1 &&
+    (value.glide === undefined || (isRecord(value.glide) && isNonEmptyString(value.glide.root) && isGlideManifest(value.glide))) &&
     (value.terrain === undefined || (isRecord(value.terrain) && isNonEmptyString(value.terrain.root) && isTerrainManifest(value.terrain))) &&
     isNonEmptyString(value.generatedAt) &&
     hasValidDate(value.generatedAt) &&

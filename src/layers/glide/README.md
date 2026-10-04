@@ -128,7 +128,8 @@ overlap, prefer green, then the largest measured fit area; this is selection
 ordering, not an aircraft suitability score.
 
 An inspected record retains the manifest URL and a digest of its schema, builder,
-input digest, complete shard inventory and preparation coverage. A changed source
+input digest, complete inventory and preparation coverage. Packaged sources also pin
+the accepted root manifests and shared chart-region ownership masks. A changed source
 clears the selection and its arrival range, including after a map remount or when
 the preparation timestamp stays the same. Remounting against the same source
 preserves the selection. Inspection replies must match the displayed source;
@@ -159,9 +160,48 @@ approximate, and calls for visual inspection of the ground and approach.
 
 ### Delivery and validation
 
-Schema **9** (or legacy **4/5/6/7/8**) must declare `geometryMeaning: generalized-candidate-area` and
+The preferred feed is **glide-packages delivery schema 1**, independent of engine
+version and the embedded record schema (8 or 9). Catalog discovery captures the
+complete accepted root in its immutable catalog snapshot. Regional saves include
+its exact regional inventory, dependency pages, local index pages, coverage,
+provenance, and all intersecting detail/overview archives at every published zoom.
+An inventory is used only when its ID and download envelopes match; other envelopes
+enumerate intersecting root indexes. Saved ownership uses the same state polygons
+as charts, including holes and date-line copies. Eviction never substitutes a newer
+release inside a saved region. Existing selections keep their original scope until
+**Update to latest**. Legacy feeds remain readable but are not regional glide packs.
+
+`packages/contracts/src/glide.ts` owns delivery guards. Content-addressed `.gld`
+and `.glo` files use the shared verified whole-file archive cache, also used by
+regional downloads. There is no second plugin-cache copy. Each archive is at most
+2 MiB: `GLIDEP01`, a little-endian directory length and reserved zero word, then a
+bounded JSON directory and independent gzip members. Directory offsets are relative
+to the payload; index offsets are absolute. The reader checks their agreement and
+inflates only requested members, checking compressed hash/length and exact raw size.
+Index pages are capped at 512 KiB / 512 entries. Eight parsed pages and the last
+spatial query of each kind are retained; discovery reads at most 32 intersecting
+pages per query and reports a limit if that budget is exceeded.
+
+Ordinary detail blocks are capped at 256 KiB compressed / 1 MiB raw, 4,096 records,
+65,536 vertices and 16,384 rings. Explicit single-record exceptions have separate
+1,792 KiB compressed / 8 MiB raw / 524,288-vertex / 65,536-ring ceilings. Whole
+polygon bounds select detail, even when its owner tile lies outside the view.
+The `{source, indices, areas}` payload preserves the original source-digest/record
+IDs and unchanged qualifications, flags, rings and holes. Repackaging never turns
+an archive or block address into a candidate's identity.
+
+Overview members contain **256 × 256 × 3 uint8** values: preferred, best-effort-only,
+and prepared fractions divided by 255, north to south in EPSG:3857. Preferred plus
+best effort cannot exceed prepared. Zooms 0–10 (optionally 11) are independently
+published. The publisher computes candidate unions, holes and ground-area weighting;
+route browsing reads these fractions without acquiring or rasterizing candidate
+polygons. Prepared coverage describes preparation, not a per-pixel suitability
+assessment. Archive transfers require ordinary unencoded binary responses; publish
+immutable files before replacing discovery `manifest.json`, retaining old files.
+
+Record schema **9** (or **8**, with legacy feeds **4/5/6/7**) must declare `geometryMeaning: generalized-candidate-area` and
 `status: experimental-candidates`. Older runway-oriented schemas are rejected.
-Each shard is a hash-named gzip JSON array, capped at 2 MiB compressed / 16 MiB
+In the legacy feed, each shard is a hash-named gzip JSON array, capped at 2 MiB compressed / 16 MiB
 raw; manifest shard counts (at most 10,000), per-tier counts, bounds and each file size
 are checked before use. There is no 64 MiB national inventory cap: that value
 belongs to the independent local disk cache. Each area is `[qualification, rings, flags]`, where
@@ -211,20 +251,23 @@ physical buffers. The completed schema-8 publication remains readable; it can
 contain mixed original/stricter checkpoints from the interrupted first run.
 Flags alone cannot identify which policy produced those historical records.
 
-`landing-loader.ts` uses core's validated JSON loading and scoped plugin file
-cache. Immutable shards have a **64-file / 64 MiB / 30-day unused** optional disk
+`landing-loader.ts` keeps core's validated JSON loading and scoped plugin file
+cache for legacy feeds only. Immutable shards have a **64-file / 64 MiB / 30-day unused** optional disk
 budget; identity includes the digest, compressed/raw sizes, total/per-tier counts,
 bounds and decoder version. Cached browsing can work offline but does not add verified regional
-save coverage. A failed manifest load or missing shard never means clear land.
+save coverage. Packaged glide uses the verified regional storage described above.
+A failed manifest load or missing shard never means clear land.
 Before publication the panel reports that data is unavailable, and Retry landing
-areas revalidates it without resetting airport/ownship calculations. Manifest reads
+areas retries acquisition without resetting airport/ownship calculations. Legacy manifest reads
 try the network first with a validated saved fallback. Eligible queries after
 camera movement or resume recheck the manifest once the previous check is at least
 five minutes old; Retry and reconnect request revalidation on the next eligible
 query. A missing manifest retries on subsequent demand after a one-minute failure
 backoff, which explicit revalidation bypasses. No background interval polls this
-feed, and no requests run while the feature is off or has neither a route nor a calculated range. The manifest
-is independent of FAA cycles.
+feed. Catalog discovery probes the small optional packaged root independently of
+layer activation; its accepted identity stays pinned until catalog refresh/update.
+The landing worker acquires no coverage, indexes or blocks while the feature is off
+or has neither a route nor a calculated range. Both feeds are independent of FAA cycles.
 
 ### Geometry, caching and lifecycle
 
@@ -242,21 +285,17 @@ ownship/selected-point ranges are eligible; the national inventory is never fetc
 as a batch. Route removal clears shading while retaining independent range detail.
 GPS loss, point clearing and changed planning inputs clear the corresponding detail.
 
-The route prototype derives an immutable tier raster from each existing validated
-polygon file, using worker `OffscreenCanvas` with even-odd holes. Each raster is at
-most **512 × 512 bytes**, approximately 153 m cells at the equator before the size
-cap. Preferred cells win over overlapping fallback polygons. Raster cells sample
-generalized area coverage and can omit narrow openings; inspection always uses
-the original decoded records. No publisher artifacts or schemas change.
+Packaged route views choose the published overview zoom nearest the output cell
+size. Each query acquires **two overview blocks concurrently**, then publishes before
+the next pair. At most **32 blocks per view** and **64 resident grids** are retained.
+Shared blocks appearing in overlapping regional indexes are deduplicated. Repeated
+queries reuse the selected descriptors and decoded grids. Density fractions remain
+numeric through composition; they are not converted to binary candidate pixels.
 
-Each route query acquires **two summaries concurrently**, then publishes before
-requesting the next pair. At most **32 files per view** and **64 resident summaries**
-are retained. Core's plugin file cache stores up to **128 derived summaries / 16 MiB**
-under `landing-shading`, keyed by algorithm version, schema and full shard identity.
-A first visit still transfers and decodes the original gzip files. Repeat visits
-can read small summaries without decoding polygon arrays. Reducing first-visit
-transfer size requires a future publisher overview artifact; this prototype does
-not claim that saving or measured mobile battery improvements.
+Legacy feeds derive an immutable tier raster from each validated polygon file with
+worker `OffscreenCanvas` and even-odd holes, capped at 512 × 512 bytes. Their scoped
+`landing-shading` cache retains up to 128 derived summaries / 16 MiB. Only that
+compatibility path needs a polygon transfer/decode on its first route visit.
 
 The worker composites union coverage samples into a geographically aligned image:
 roughly **4–8 screen pixels per density cell**, bounded to 385 cells on either
@@ -264,16 +303,20 @@ axis. Zoom changes the geographic resolution; overlapping source grids cannot
 inflate density. Nearest-neighbor filtering keeps cell edges crisp, with conservative
 cell admission inside the route corridor. Each cell samples only overlapping source
 grids: each grid visits its output extent with precomputed sample rows/columns.
-Two 16-bit masks per output cell accumulate the same 4×4 covered/preferred samples;
-preferred samples skip later sources and shared corner checks admit cells once.
-Frame-sized scratch buffers remain bounded (under 0.9 MiB at the maximum dimensions)
-and are released after composition. Empty or missing data stays transparent
+Two 16-bit masks preserve the legacy 4×4 union samples; two float arrays accumulate
+published covered/preferred fractions. Shared corner checks admit cells once.
+Frame scratch arrays stay below 2 MiB and are released after composition. Region
+boundaries reuse the chart ownership geometry and per-row spans, avoiding a full
+state-polygon walk for every sample. Uniform interior tiles skip boundary work. Empty or missing data stays transparent
 and failed/unprepared coverage remains labeled. Route shading never performs
 polygon clipping/unions of candidate areas or exposes an inspection hit target.
 
 Detailed geometry keeps the independent **24-shard / 24 MiB source raw JSON /
 300,000-vertex** accounting budget. These are retained-input limits, not total JS
-heap limits. Only polygons intersecting the visible calculated range are selected,
+heap limits. An explicitly oversized singleton may raise the vertex allowance to
+its advertised vertices plus ring closures (at most 589,824); other retained geometry
+counts against that allowance. If a whole record cannot fit, status remains limited;
+it is never truncated. Only polygons intersecting the visible calculated range are selected,
 nearest the view center first, preserving whole polygons and their holes. Dense
 files can supply useful detail even when all their off-screen geometry would exceed
 the budget. Partial file selections are refreshed from verified source cache when
@@ -319,7 +362,12 @@ inspection coverage. `test/e2e/glide-landings.spec.ts` exercises the real worker
 image source, raster holes, zoom resolution, cached revisits, independent selected
 and ownship ranges, GPS loss, acquisition during movement, inspection/arrival,
 selection identity across refresh/remount and unpublished-feed recovery.
-These verify software behavior; landing suitability is not validated.
+`test/glide-packages.test.ts` decodes the complete publisher conformance fixture,
+checks original IDs/holes, corruption and inflate limits, numeric-only route reads,
+region-local indexes, shared-file retention and cache-only eviction detection.
+`test/e2e/glide-packages.spec.ts` covers real worker rendering, inspection, offline
+reload and service-worker regional downloads/removal/eviction. These verify software
+behavior; landing suitability is not validated.
 
 For repeatable worker CPU diagnostics, run
 `node --import=tsx tools/benchmark-glide-landings.ts`. It uses 32 synthetic numeric

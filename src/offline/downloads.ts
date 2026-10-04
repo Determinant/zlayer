@@ -11,7 +11,7 @@ export type OfflineFile = {
   sha256: string;
   kind: 'chart' | 'pdf';
 } | {
-  url: string; byteLength: number; sha256: string; kind: 'terrain';
+  url: string; byteLength: number; sha256: string; kind: 'terrain' | 'glide';
 } | {
   // FAA individual-only plates have a cycle/export URL, but no published size/hash.
   // Their actual size and local integrity receipt live with the verified cached PDF.
@@ -34,6 +34,7 @@ export type DownloadPlan = {
   catalog?: CatalogResponse;
   snapshotId?: string;
   terrain?: boolean;
+  glide?: boolean;
   completedAt?: number;
   // Keep the last selection usable while its replacement is incomplete.
   previous?: DownloadPlan;
@@ -162,7 +163,8 @@ export class RegionDownloads {
     let complete = plan.files.length > 0 && completedFiles === plan.files.length && snapshotFilesIncluded(plan);
     signal?.throwIfAborted();
     if (complete && !options.filesOnly) {
-      const key = JSON.stringify([plan.revision, plan.references, plan.terrain ? [plan.snapshotId, plan.bounds, plan.files] : null]);
+      const key = JSON.stringify([plan.revision, plan.references, (plan.terrain || plan.glide)
+        ? [plan.terrain === true, plan.glide === true, plan.glide ? plan.regionId : null, plan.snapshotId, plan.catalog?.glide, plan.bounds, plan.files] : null]);
       if (!references.has(key)) references.set(key, this.backend.referencesReady(plan, references, signal));
       complete = await read(references.get(key)!);
     }
@@ -254,7 +256,7 @@ export class RegionDownloads {
             }
           }));
         };
-        await transfer(plan.files.filter(file => file.kind === 'chart' || file.kind === 'terrain'), 3);
+        await transfer(plan.files.filter(file => file.kind === 'chart' || file.kind === 'terrain' || file.kind === 'glide'), 3);
         // A PDF book can be hundreds of MiB: hash and persist one at a time on phones.
         await transfer(plan.files.filter(file => file.kind === 'pdf' || file.kind === 'faa-pdf'), 1);
         if (failure) throw failure;

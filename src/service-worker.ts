@@ -86,7 +86,10 @@ worker.addEventListener('fetch', (event) => {
   };
   const onChartFeed = isOnChartFeed(url, `${worker.location.origin}/`);
 
-  if (onChartFeed && /\.(mbtiles|dem|terrain)$/.test(url.pathname) && ['GET', 'HEAD'].includes(event.request.method)) {
+  const archive = /\.(mbtiles|dem|terrain|gld|glo)$/.test(url.pathname);
+  const glideMetadata = /\/glide\/(indexes|coverage|provenance|regions|dependencies)\/[a-f0-9]{64}\.json$/.test(url.pathname)
+    && url.searchParams.has('sha256');
+  if (onChartFeed && (archive || glideMetadata) && ['GET', 'HEAD'].includes(event.request.method)) {
     event.waitUntil(trackWork(noteCacheAccess(CHART_CACHE, event.request.url)));
     respond(chartArchiveResponse(event.request));
     return;

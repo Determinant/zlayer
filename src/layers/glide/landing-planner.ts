@@ -7,9 +7,12 @@ import { boundsViewport, localRouteSegments, routeMask } from './coverage';
 import { emptyLandings, landingBoundsOverlap, landingSourceKey, type LandingArea, type LandingCollection,
   type LandingManifest, type LandingShard, type LandingStatus, type LandingSelection } from './landing-data';
 import { loadLandingManifest, loadLandingShard } from './landing-loader';
+import { landingShards } from './landing-inventory';
+import { scopedLandingMask, scopeIntersects } from './landing-scope';
+import type { LandingSources } from './landing-sources';
 import type { GlideAreas } from './types';
 
-export type LandingQuery = { id: number; manifestUrl: string; bounds: Bounds; segments: Segment[];
+export type LandingQuery = { id: number; sources?: LandingSources | undefined; manifestUrl: string; bounds: Bounds; segments: Segment[];
   discover: boolean; revalidate?: boolean; renderedKey?: string; ranges?: GlideAreas };
 export type LandingResult = { status: LandingStatus; renderKey: string; collection?: LandingCollection };
 export type LandingWorker = {
@@ -104,7 +107,7 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
     const polygons: [Polygon[], Polygon[]] = [[], []], flags = [0, 0];
     for (const entry of entries.values()) {
       if (!entry.clipped) {
-        const mask = maskFor(entry.shard.bounds, segments);
+        const mask = scopedLandingMask(maskFor(entry.shard.bounds, segments), entry.shard.scope);
         const prepared = prepareLandingMask(mask);
         entry.clipped = [[], []]; entry.flags = [0, 0];
         if (mask.length) for (const area of entry.areas) {
@@ -183,7 +186,7 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
           if (request.revalidate || !manifestFailure || age < 0 || age >= 60_000) {
             lastAttempt = now;
             try {
-              const next = await loadManifest(url, signal);
+              const next = await loadManifest(url, signal, request.sources);
               signal.throwIfAborted();
               acceptManifest(next);
             } catch (error) {
@@ -203,15 +206,20 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
           const bounds = localBounds(shard.bounds, view), point = project([(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2]);
           return Math.hypot(point[0] - center[0], point[1] - center[1]);
         };
-        const visible = request.discover ? manifest.shards.filter(shard => {
+        let inventory: Awaited<ReturnType<typeof landingShards>> = { shards: [], limited: false }, indexFailed = false;
+        if (request.discover) {
+          try { inventory = await landingShards(manifest, 'detail', view, 0, signal); }
+          catch { signal.throwIfAborted(); indexFailed = true; }
+        }
+        const visible = request.discover ? inventory.shards.filter(shard => {
           if (!landingBoundsOverlap(shard.bounds, view)) return false;
           const bounds = localBounds(shard.bounds, view);
           const overlap: Bounds = [Math.max(view[0], bounds[0]), Math.max(view[1], bounds[1]), Math.min(view[2], bounds[2]), Math.min(view[3], bounds[3])];
-          return overlap[0] < overlap[2] && overlap[1] < overlap[3] && maskFor(overlap, request.segments).length > 0;
+          return overlap[0] < overlap[2] && overlap[1] < overlap[3] && scopedLandingMask(maskFor(overlap, request.segments), shard.scope).length > 0;
         }).sort((a, b) => distance(a) - distance(b) || a.id.localeCompare(b.id)) : [];
         const wanted = new Set(visible.map(shard => shard.file));
         const viewBounds = polygonBounds(viewMask);
-        let failed = false, limited = false;
+        let failed = indexFailed || !!inventory.failed || !!manifest.unavailableScopes?.some(scope => scopeIntersects(request.bounds, scope)), limited = inventory.limited;
         for (const shard of visible) {
           signal.throwIfAborted();
           const prior = entries.get(shard.file);
@@ -225,20 +233,24 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
           if (attempted.has(shard.file)) { limited ||= attempted.get(shard.file)!; continue; }
           // Make useful progress in dense views without reading files we cannot retain.
           const retained = () => [...entries.values()].filter(entry => entry !== prior);
+          // One explicitly advertised large record may exceed the ordinary budget;
+          // its supplied geometry stays whole and other detail waits for room.
+          const vertexLimit = shard.package?.block.oversized
+            ? Math.max(MAX_VERTICES, shard.package.block.vertices + shard.package.block.rings) : MAX_VERTICES;
           for (const [key] of entries) {
             const others = retained();
             if (others.length < MAX_SHARDS && others.reduce((n, e) => n + e.shard.rawBytes, shard.rawBytes) <= MAX_RAW_BYTES
-              && others.reduce((n, e) => n + e.vertices, 0) < MAX_VERTICES) break;
+              && others.reduce((n, e) => n + e.vertices, 0) < vertexLimit) break;
             if (!wanted.has(key)) entries.delete(key);
           }
-          const others = retained(), budget = MAX_VERTICES - others.reduce((n, e) => n + e.vertices, 0);
+          const others = retained(), budget = vertexLimit - others.reduce((n, e) => n + e.vertices, 0);
           if (others.length >= MAX_SHARDS || others.reduce((n, e) => n + e.shard.rawBytes, shard.rawBytes) > MAX_RAW_BYTES || budget <= 0) {
             limited = true; continue;
           }
           try {
             const areas = await loadShard(url, shard, signal, manifest.schemaVersion);
             signal.throwIfAborted();
-            const selected = selectAreas(areas, viewMask, center, budget, prior?.areas);
+            const selected = selectAreas(areas, scopedLandingMask(viewMask, shard.scope), center, budget, prior?.areas);
             limited ||= selected.limited; attempted.set(shard.file, selected.limited);
             const priorIds = new Set(prior?.areas.map(area => area.id));
             const unchanged = prior && selected.areas.length === prior.areas.length
@@ -260,7 +272,7 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
         const visibleRoute = maskFor(view, request.segments);
         if (!visibleRoute.length) return reply('outside');
         // Coverage describes selected preparation bounds, not proof every source pixel was known.
-        const covered = manifest.coverage.flatMap(({ bounds: [west, south, east, north] }) => {
+        const covered = manifest.coverage.flatMap(({ bounds: [west, south, east, north], scope }) => {
           if (south > view[3] || north < view[1]) return [];
           // Compare in the route's longitude copy. Wide coverage can intersect
           // both sides of the date line, so retain every overlapping copy.
@@ -270,7 +282,7 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
             const ring = boundsViewport([west + copy * 360, south, east + copy * 360, north]);
             polygons.push([[...ring, ring[0]!]]);
           }
-          return polygons;
+          return scopedLandingMask(polygons, scope);
         });
         const coverage = union(covered);
         if (!coverage.length || !clipping.intersection(visibleRoute, coverage).length) return reply('outside');

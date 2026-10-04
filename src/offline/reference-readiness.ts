@@ -4,13 +4,14 @@ import { referenceGuard } from '../core/data/references';
 import { snapshotFilesIncluded } from './plan-records';
 import { DATA_CACHE } from '../core/storage/cache-names';
 import type { DownloadPlan } from './downloads';
+import { glideFilesIncluded } from './glide';
 import { terrainFilesIncluded } from './terrain';
 
 export async function regionReferencesReady(plan: DownloadPlan,
   verified = new Map<string, Promise<boolean>>(), signal?: AbortSignal): Promise<boolean> {
   signal?.throwIfAborted();
   if (!snapshotFilesIncluded(plan)) return false;
-  if (!await terrainFilesIncluded(plan, signal)) return false;
+  if (!await terrainFilesIncluded(plan, signal) || !await glideFilesIncluded(plan, signal)) return false;
   signal?.throwIfAborted();
   const cache = await caches.open(DATA_CACHE);
   for (const resource of plan.references) {

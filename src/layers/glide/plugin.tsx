@@ -42,7 +42,7 @@ export function createGlidePlugin() {
     ...(site ? { pointElevationFt: site.elevationM / .3048 } : {}) }));
   const mapInput = combineLayerStores(flightInput, pointInput, (state, point) => ({ ...state, ...point }));
   const landingInput = combineLayerStores(combineLayerStores(combineLayerStores(selectLayerStore(input, state =>
-    !!state?.glideEnabled && !!state?.glideLandingsEnabled), segments, (enabled, segments) => ({ enabled, segments })),
+    ({ enabled: !!state?.glideEnabled && !!state?.glideLandingsEnabled, catalog: state?.catalog })), segments, (state, segments) => ({ ...state, segments })),
     landingRevision, (state, retry) => ({ ...state, retry })), landingRanges, (state, ranges) => ({ ...state, ranges }));
   function Panel() {
     const state = useLayerSnapshot(input), current = useLayerSnapshot(status), point = useLayerSnapshot(selectedPoint);

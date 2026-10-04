@@ -1,10 +1,12 @@
 import type { Bounds } from '@zlayer/contracts';
 import { project, unproject, type Segment } from '../../core/geo/route-corridor';
 import { inRouteCorridor } from './coverage';
+import type { LandingScope } from './landing-sources';
+import { prepareHeatScope } from './landing-scope';
 import type { LandingArea, LandingShard } from './landing-data';
 
 /** A small, immutable raster of screened ground, independent of routes and cameras. */
-export type LandingHeat = { extent: Bounds; width: number; height: number; cells: Uint8Array; flags: number };
+export type LandingHeat = { density?: boolean; scope?: LandingScope | undefined; extent: Bounds; width: number; height: number; cells: Uint8Array; flags: number };
 export type LandingHeatImage = { bounds: Bounds; width: number; height: number; rgba: Uint8ClampedArray; shadedCells: number };
 const MAX_SIZE = 512, HEADER = 48;
 
@@ -69,6 +71,7 @@ export function landingHeatImage(heats: LandingHeat[], bounds: Bounds, zoom: num
   // Each bit is one of the existing 4×4 union samples. Scatter only over each
   // source's extent, instead of searching every source for every output cell.
   const coveredSamples = new Uint16Array(width * height), preferredSamples = new Uint16Array(width * height);
+  const densities = new Float32Array(width * height), preferredDensities = new Float32Array(width * height);
   // Adjacent cells share corner checks. Zero means unchecked, not outside.
   const corners = new Uint8Array((width + 1) * (height + 1)), admitted = new Uint8Array(width * height);
   const inside = (x: number, y: number) => {
@@ -77,6 +80,7 @@ export function landingHeatImage(heats: LandingHeat[], bounds: Bounds, zoom: num
     return corners[index] === 2;
   };
   for (const heat of heats) {
+    const inScope = prepareHeatScope(heat.scope, heat.extent);
     const [w, n, e, s] = heat.extent, shift = Math.round(center - (w + e) / 2);
     const xStart = Math.max(0, Math.floor((w + shift - left) / step)), xEnd = Math.min(width, Math.ceil((e + shift - left) / step));
     const yStart = Math.max(0, Math.floor((n - top) / step)), yEnd = Math.min(height, Math.ceil((s - top) / step));
@@ -105,6 +109,13 @@ export function landingHeatImage(heats: LandingHeat[], bounds: Bounds, zoom: num
           if (preferred & bit) continue;
           const px = columns[(x - xStart) * 4 + sx]!;
           if (px < 0 || px >= heat.width) continue;
+          if (inScope && !inScope(left + (x + (sx + .5) / 4) * step, top + (y + (sy + .5) / 4) * step)) continue;
+          if (heat.density) {
+            const i = (py * heat.width + px) * 3;
+            preferredDensities[index]! += heat.cells[i]! / (255 * 16);
+            densities[index]! += (heat.cells[i]! + heat.cells[i + 1]!) / (255 * 16);
+            continue;
+          }
           const tier = heat.cells[py * heat.width + px]!;
           if (tier) covered |= bit;
           if (tier === 2) preferred |= bit;
@@ -116,12 +127,13 @@ export function landingHeatImage(heats: LandingHeat[], bounds: Bounds, zoom: num
   let shadedCells = 0;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const index = y * width + x, samples = coveredSamples[index]!;
-    if (!samples) continue;
-    const covered = sampleCount(samples), preferred = sampleCount(preferredSamples[index]!);
+    if (!samples && !densities[index]) continue;
+    const covered = Math.min(1, sampleCount(samples) / 16 + densities[index]!);
+    const preferred = Math.min(covered, sampleCount(preferredSamples[index]!) / 16 + preferredDensities[index]!);
     const green = preferred > covered / 2, i = index * 4;
     // Preserve tier identity: blending complementary hues produces a gray wash on charts.
     rgba[i] = green ? 83 : 162; rgba[i + 1] = green ? 229 : 59; rgba[i + 2] = green ? 45 : 255;
-    rgba[i + 3] = Math.round(64 + 160 * Math.sqrt(covered / 16)); shadedCells++;
+    rgba[i + 3] = Math.round(64 + 160 * Math.sqrt(covered)); shadedCells++;
   }
   const a = unproject([left, top]), b = unproject([left + width * step, top + height * step]);
   return { bounds: [a[0], b[1], b[0], a[1]], width, height, rgba, shadedCells };

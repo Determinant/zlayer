@@ -59,7 +59,7 @@ export default function Settings({ catalog: browsing, open }: {
         await new Promise<void>(resolve => setTimeout(resolve, 0));
         if (cancelled) return;
         try {
-          const complete = { ...plan, ...(catalog.terrain ? { terrain: true } : {}) };
+          const complete = { ...plan, ...(catalog.terrain ? { terrain: true } : {}), ...(catalog.glide ? { glide: true } : {}) };
           plans.push({ plan: withRegionPlates(complete, region, plateIndex, catalog, location.href), problem: undefined });
         } catch (error) {
           plans.push({ plan, problem: error instanceof Error ? error.message : 'Plate coverage unavailable' });
@@ -130,7 +130,7 @@ export default function Settings({ catalog: browsing, open }: {
     const candidate = region && chartRegionPlans(current, location.href, [region])
       .find(({ plan: next }) => regionKey(next) === regionKey(plan));
     if (!candidate) throw new Error('This region is not available in the latest feed. The saved edition is kept.');
-    const complete = withRegionPlates({ ...candidate.plan, ...(current.terrain ? { terrain: true } : {}) },
+    const complete = withRegionPlates({ ...candidate.plan, ...(current.terrain ? { terrain: true } : {}), ...(current.glide ? { glide: true } : {}) },
       candidate.region, index, current, location.href);
     await refreshStorage(true);
     await downloads.start(complete);
@@ -241,7 +241,7 @@ export default function Settings({ catalog: browsing, open }: {
           <p>Saved means the region’s files and required data are available offline.
             The final check confirms storage availability, not whether the FAA cycle is current. Basemap tiles
             are saved only as viewed and are not included. Cached weather may be outdated;
-            check its timestamp.</p>
+            check its timestamp. Saved glide data covers the publisher’s prepared areas; a download does not add missing coverage.</p>
         </PersistentDetails>
         {!catalog.terrain && <p role="status">Terrain downloads are not available from this feed. These downloads include charts and plates;
           use Update to latest to add terrain after it becomes available.</p>}

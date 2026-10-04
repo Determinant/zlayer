@@ -607,16 +607,19 @@ owns selection and expiration rules.
 
 ## Off-airport landing candidates
 
-Glide consumes the publisher's schema-9 (legacy schemas 4/5/6/7/8 supported) feed-wide landing-area manifest and
-bounded, hash-verified polygon shards. The [Glide consumer contract](../../src/layers/glide/README.md#delivery-and-validation)
-owns tuple decoding, tier/flag meaning, geometry validation and cache identity.
-The national inventory has no local-cache-sized aggregate cap; per-shard limits
-and the consumer's bounded local memory/disk budgets remain independent.
-ZLayer derives and caches compact density rasters for the visible 20 NM route
-corridor from the existing files, with zoom-dependent shading and two-file
-progressive acquisition. First visits still transfer the source polygon files.
-Detailed polygons are limited to calculated ownship/selected-point ranges,
-independently of route presence; the feed and publisher artifacts are unchanged.
-Selecting a detailed candidate preserves its qualification metadata and requests a
-terrain-aware arrival range on demand. Neither the feed nor cached browsing is
-part of verified regional offline completeness.
+Glide consumes delivery schema 1 (`product: glide-packages`) with independently
+compressed detail blocks and published numeric overview tiles. The complete root,
+including engine and record schema, is captured in `CatalogResponse.glide`; the
+catalog snapshot pins saved regions without duplicating a mutable discovery file.
+Regional plans enumerate inventories, dependency/local-index pages, archives,
+coverage and provenance, sharing the verified whole-file cache with browsing.
+Readiness validates closure membership and retained receipts, including after eviction.
+The [Glide consumer contract](../../src/layers/glide/README.md#delivery-and-validation)
+owns block decoding, strict bounds, tier/flag meaning, source identity and legacy
+schema-4–9 compatibility. The publisher's active release must be under 5 GB;
+per-block and resident-memory limits are independent of that national limit.
+Route shading consumes preferred/best-effort/prepared fractions without polygon
+rasterization. Exact supplied detail remains limited to calculated ownship and
+selected-point ranges. Inspection retains original source-digest/record IDs and
+qualification metadata for on-demand terrain-aware arrival calculation. Legacy
+polygon-only feeds retain bounded browsing caches but are not regional glide packs.

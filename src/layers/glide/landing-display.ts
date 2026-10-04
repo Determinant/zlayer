@@ -7,6 +7,10 @@ import { emptyLandings, landingBoundsOverlap, landingSourceKey, type LandingMani
 import { landingHeatFrame, landingHeatImage, type LandingHeat, type LandingHeatImage } from './landing-heat';
 import { loadLandingHeat, loadLandingManifest, loadLandingShard } from './landing-loader';
 import { createLandingWorker, type LandingQuery, type LandingResult } from './landing-planner';
+import { landingShards } from './landing-inventory';
+import { scopedLandingMask, scopeIntersects } from './landing-scope';
+import { jsonIdentity } from '../../core/data/json-identity';
+import type { LandingShard } from './landing-data';
 import { emptyAreas } from './types';
 
 export type LandingDisplayQuery = LandingQuery & { zoom: number };
@@ -15,10 +19,10 @@ const MAX_VISIBLE = 32, MAX_CACHED = 64;
 
 /** Progressive, two-file acquisition; route browsing retains only compact density grids. */
 export function createLandingDisplayWorker(loadManifest = loadLandingManifest, loadHeat = loadLandingHeat, loadDetail = loadLandingShard) {
-  let manifest: LandingManifest | undefined, source = '', identity = '', heatKey = '', heatRevision = 0;
+  let manifest: LandingManifest | undefined, source = '', identity = '', heatKey = '', heatRevision = 0, sourcesKey = '';
   let lastHeat: LandingHeatImage | null = null, lastAttempt = -Infinity, manifestFailure: 'unavailable' | 'error' | undefined;
   let job: { id: number; controller: AbortController } | undefined;
-  const grids = new Map<string, LandingHeat>(), failed = new Set<string>();
+  const grids = new Map<string, LandingHeat>(), knownHeat = new Map<string, LandingShard>(), failed = new Set<string>();
   const details = createLandingWorker(loadManifest, loadDetail);
   return {
     inspect: details.inspect,
@@ -27,8 +31,10 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
       const task = { id: request.id, controller: new AbortController() }; job = task;
       const signal = task.controller.signal, ranges = request.ranges ?? emptyAreas();
       try {
-        if (source !== request.manifestUrl) {
-          source = request.manifestUrl; manifest = undefined; identity = ''; grids.clear(); failed.clear(); heatKey = ''; lastAttempt = -Infinity; manifestFailure = undefined;
+        const nextSources = request.sources ? jsonIdentity(request.sources) : '';
+        if (source !== request.manifestUrl || nextSources !== sourcesKey) {
+          sourcesKey = nextSources;
+          source = request.manifestUrl; manifest = undefined; identity = ''; grids.clear(); knownHeat.clear(); failed.clear(); heatKey = ''; lastAttempt = -Infinity; manifestFailure = undefined;
         }
         if (!request.segments.length && !ranges.features.length) {
           await details.query({ ...request, ranges }, manifest);
@@ -37,9 +43,9 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         if (request.discover && (!manifest || request.revalidate) && (request.revalidate || !manifestFailure || Date.now() - lastAttempt >= 60_000)) {
           lastAttempt = Date.now();
           try {
-            const next = await loadManifest(source, signal); signal.throwIfAborted();
+            const next = await loadManifest(source, signal, request.sources); signal.throwIfAborted();
             const key = landingSourceKey(source, next);
-            if (key !== identity) { grids.clear(); failed.clear(); heatKey = ''; }
+            if (key !== identity) { grids.clear(); knownHeat.clear(); failed.clear(); heatKey = ''; }
             manifest = next; identity = key; manifestFailure = undefined;
             if (request.revalidate) failed.clear();
           } catch (error) {
@@ -52,11 +58,17 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         const view: Bounds = [request.bounds[0], request.bounds[1], east, request.bounds[3]];
         const viewport = boundsViewport(view), segments = localRouteSegments(request.segments, viewport), mask = routeMask(segments, viewport);
         const center = project([(view[0] + view[2]) / 2, (view[1] + view[3]) / 2]);
-        const visible = manifest.shards.flatMap(shard => {
+        let inventory: Awaited<ReturnType<typeof landingShards>> = { shards: [], limited: false }, indexFailed = false;
+        if (request.discover && mask.length) {
+          const frame = landingHeatFrame(request.bounds, request.zoom), zoom = Math.max(0, Math.floor(Math.log2(1 / (256 * frame.step))));
+          try { inventory = await landingShards(manifest, 'overview', request.bounds, zoom, signal); }
+          catch { signal.throwIfAborted(); indexFailed = true; }
+        } else if (!request.discover) inventory.shards = manifest.packages ? [...knownHeat.values()] : manifest.shards;
+        const visible = inventory.shards.flatMap(shard => {
           if (!mask.length || !landingBoundsOverlap(shard.bounds, request.bounds)) return [];
           const box = boundsViewport(shard.bounds), shift = Math.round(center[0] - (box[0]![0] + box[2]![0]) / 2);
           const ring = box.map(([x, y]) => [x + shift, y] as Point); ring.push(ring[0]!);
-          if (!clipping.intersection(mask, [ring]).length) return [];
+          if (!scopedLandingMask(clipping.intersection(mask, [ring]), shard.scope).length) return [];
           return [{ shard, distance: Math.hypot((ring[0]![0] + ring[2]![0]) / 2 - center[0], (ring[0]![1] + ring[2]![1]) / 2 - center[1]) }];
         }).sort((a, b) => a.distance - b.distance || a.shard.id.localeCompare(b.shard.id));
         const wanted = visible.slice(0, MAX_VISIBLE).map(({ shard }) => shard), wantedFiles = new Set(wanted.map(shard => shard.file));
@@ -64,7 +76,7 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         // Each result reaches the map before the next pair starts, keeping cold views responsive.
         const results = await Promise.allSettled(pending.slice(0, 2).map(async shard => {
           const heat = await loadHeat(source, shard, signal, manifest!.schemaVersion); signal.throwIfAborted();
-          grids.set(shard.file, heat);
+          grids.set(shard.file, { ...heat, scope: shard.scope }); knownHeat.set(shard.file, shard);
         }));
         signal.throwIfAborted();
         results.forEach((result, i) => { if (result.status === 'rejected') failed.add(pending[i]!.file); });
@@ -74,7 +86,7 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         }
         for (const [key] of grids) {
           if (grids.size <= MAX_CACHED) break;
-          if (!wantedFiles.has(key)) grids.delete(key);
+          if (!wantedFiles.has(key)) { grids.delete(key); knownHeat.delete(key); }
         }
         const available = wanted.filter(shard => grids.has(shard.file));
         const nextHeat = JSON.stringify([landingHeatFrame(request.bounds, request.zoom), request.segments, available.map(shard => shard.file)]);
@@ -88,7 +100,7 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         signal.throwIfAborted();
         const more = request.discover && wanted.some(shard => !grids.has(shard.file) && !failed.has(shard.file));
         const flags = available.reduce((flags, shard) => flags | grids.get(shard.file)!.flags, 0);
-        const covered = manifest.coverage.flatMap(({ bounds: [west, south, east, north] }) => {
+        const covered = manifest.coverage.flatMap(({ bounds: [west, south, east, north], scope }) => {
           if (south > view[3] || north < view[1]) return [];
           // A wide preparation region can cover both longitude copies at the date line.
           const polygons: Polygon[] = [];
@@ -96,17 +108,17 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
             const ring = boundsViewport([west + copy * 360, south, east + copy * 360, north]);
             polygons.push([[...ring, ring[0]!]]);
           }
-          return polygons;
+          return scopedLandingMask(polygons, scope);
         });
         const coverage = covered.length ? clipping.union(covered[0]!, ...covered.slice(1)) : [];
         const routeOutside = mask.length > 0 && (!coverage.length || !clipping.intersection(mask, coverage).length);
         const routePartial = mask.length > 0 && (!coverage.length || !!clipping.difference(mask, coverage).length);
-        const incomplete = !!manifestFailure || wanted.some(shard => failed.has(shard.file))
+        const incomplete = indexFailed || !!inventory.failed || !!manifest.unavailableScopes?.some(scope => scopeIntersects(request.bounds, scope)) || !!manifestFailure || wanted.some(shard => failed.has(shard.file))
           || !!ranges.features.length && (['error', 'partial', 'unavailable'].includes(detail.status.state)
             || !!mask.length && detail.status.state === 'outside');
         const outside = !ranges.features.length ? routeOutside || !mask.length : !mask.length && detail.status.state === 'outside';
         const state: LandingStatus['state'] = !request.discover ? 'zoom' : more ? 'loading' : incomplete ? 'partial'
-          : visible.length > MAX_VISIBLE || detail.status.state === 'limited' ? 'limited' : outside ? 'outside' : routePartial ? 'partial' : 'ready';
+          : inventory.limited || visible.length > MAX_VISIBLE || detail.status.state === 'limited' ? 'limited' : outside ? 'outside' : routePartial ? 'partial' : 'ready';
         return { ...detail, ...(previous?.[0] !== String(heatRevision) ? { heat: lastHeat } : {}),
           renderKey: `${heatRevision}/${detail.renderKey}`, more,
           status: { ...detail.status, state, generatedAt: manifest.generatedAt, densityCells: lastHeat?.shadedCells ?? 0,

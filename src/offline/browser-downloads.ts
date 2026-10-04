@@ -12,6 +12,7 @@ import { CHART_CACHE, DATA_CACHE, PDF_CACHE } from '../core/storage/cache-names'
 import { cachedFileBytes, fileCache, storageStatus, formatBytes } from './storage';
 import { httpResourceError, isResourceErrorCode, ResourceError } from '../core/data/errors';
 import { discardResponseBody } from '../core/storage/response';
+import { prepareRegionGlide } from './glide';
 import { prepareRegionTerrain } from './terrain';
 import { openFileCache } from '../core/storage/download-file';
 import { activeFileUrls } from './active-catalogs';
@@ -61,6 +62,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       if (!await preparePwa()) throw new Error('Offline service worker unavailable. Reload online and retry.');
       signal.throwIfAborted();
       plan = await prepareRegionTerrain(plan, signal);
+      plan = await prepareRegionGlide(plan, signal);
       const storage = await storageStatus();
       signal.throwIfAborted();
       if (storage.quota !== undefined && storage.usage !== undefined) {
@@ -96,7 +98,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       return withReferenceSnapshot(plan, references);
     },
     download: async file => {
-      if (file.kind !== 'chart' && file.kind !== 'terrain') {
+      if (file.kind !== 'chart' && file.kind !== 'terrain' && file.kind !== 'glide') {
         await downloadPdf(file);
         return;
       }

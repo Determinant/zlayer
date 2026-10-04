@@ -8,6 +8,7 @@ import type {
   NavigationLayerRecord,
 } from '@zlayer/contracts';
 import { isRouteHistoryResource, type RouteHistoryResource, isChartPackageIndex, type ChartPackageIndex } from '@zlayer/contracts';
+import { fetchGlideSource } from '../../layers/glide/data';
 import { chartRoot } from './feed';
 import { isTerrainManifest, isNavigationManifest, isSha256, type NavigationManifest, type NavigationProduct } from '@zlayer/contracts';
 import { matchesJsonIdentity } from '../../core/data/references';
@@ -18,7 +19,7 @@ import { JsonResponseError } from '../../core/data/errors';
 import { isRecord, isNonEmptyString, isNonNegativeInteger as isCount, isIsoDate,
   isStrictBounds as isBounds, hasUniqueStrings } from '@zlayer/contracts';
 
-export type CatalogIssue = { product: 'charts' | 'navigation' | 'procedures' | 'route-history' | 'terrain'; message: string };
+export type CatalogIssue = { product: 'charts' | 'navigation' | 'procedures' | 'route-history' | 'terrain' | 'glide'; message: string };
 export type ChartCatalog = CatalogResponse & { issues: CatalogIssue[] };
 
 const PUBLISHED_CHART_KINDS = new Set<Exclude<ChartKind, 'unknown'>>([
@@ -159,7 +160,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
   const procedureRequest = load('procedures', async () => inCycle(await fetchDocument(
     `${revisionRoot}/tpp/manifest.json`, isProcedureManifest, 'FAA procedure manifest', revision, signal, undefined, options.requireFresh,
   )));
-  const [charts, navigation, procedures, terrain] = await Promise.all([
+  const [charts, navigation, procedures, terrain, glide] = await Promise.all([
     load('charts', async () => {
       try { return await fetchChartManifest(revisionRoot, revision, signal, options.requireFresh); }
       catch (error) {
@@ -190,6 +191,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
         throw error;
       }
     }),
+    load('glide', () => fetchGlideSource(`${chartRoot()}/glide`, signal, options.requireFresh)),
   ]);
   signal?.throwIfAborted();
   const chartManifest = charts?.manifest;
@@ -219,6 +221,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
       procedures?.generatedAt,
     ].filter((value): value is string => value !== undefined)),
     revision,
+    ...(glide ? { glide } : {}),
     ...(terrain ? { terrain: { ...terrain, root: `${chartRoot()}/terrain` } } : {}),
     charts: (chartManifest?.charts ?? []).map((chart): ChartRecord => ({
       id: chart.id,
