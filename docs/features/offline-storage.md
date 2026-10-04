@@ -24,6 +24,17 @@ archive cache used by the terrain renderer. Regional verification checks require
 index membership as well as retained file receipts. Terrain is independent of FAA
 cycles; unchanged archives are shared across regions and cycles.
 
+When `charts/glide/manifest.json` publishes glide-packages schema 1, new selections
+also save its prepared landing-area detail and numeric overview archives at every
+published zoom. Preparation resolves the region's inventory and dependency pages
+before quota preflight. The exact root is retained in the shared catalog snapshot;
+local index pages, coverage and provenance join the same verified file cache as
+charts/terrain. Overlapping regions share content-addressed files, and removal
+protects files needed by active, staged and previous selections. Readiness checks
+both dependency membership and retained receipts without network repair. Published
+coverage can be partial or unavailable; saving a region does not create missing
+candidate coverage. Calculated glide ranges remain transient.
+
 Existing selections retain their original scope until **Update to latest**, which
 adds newly supported chart families, including IFR high, only after verification.
 Existing snapshots are not silently expanded. Settings
@@ -371,9 +382,11 @@ Regional saves include published elevation terrain; they do **not** bulk-downloa
 the background basemap or promise current weather.
 
 [Prepared off-airport landing areas](../../src/layers/glide/README.md#delivery-and-validation)
-use a separate, bounded cache populated while browsing. They are excluded from
-regional download plans and completeness checks; saved regions do not guarantee
-landing-area availability. Calculated glide ranges remain in memory only.
+in the packaged feed share the region's verified archive cache and are required for
+completeness when the selection includes glide. The legacy polygon-only feed still
+uses a separate bounded browsing cache and cannot establish regional availability.
+Existing selections without glide keep that scope until **Update to latest**;
+Settings labels this omission. Calculated glide ranges remain in memory only.
 
 [AWC Weather](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
 keeps original source times and cached/unverified labels; Now still expires

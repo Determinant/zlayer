@@ -1,13 +1,17 @@
 import type { Map as MapLibreMap, GeoJSONSource, ImageSource, ExpressionSpecification } from 'maplibre-gl';
 import { WorkerClient } from '../../core/data/worker-client';
 import { WEATHER_LAYER_ANCHOR, removeLayerResources, type MapLayerModule } from '../../core/map/layer';
+import { jsonIdentity } from '../../core/data/json-identity';
+import { landingSources } from './landing-sources';
+import type { CatalogReadSource } from '../../workspace/read-context';
+import { observeOfflineInventory } from '../../offline/inventory-events';
 import { chartRoot } from '../../workspace/catalog/feed';
 import type { Segment, Point } from '../../core/geo/route-corridor';
 import { emptyLandings, type LandingStatus, type LandingSelection } from './landing-data';
 import type { LandingDisplayWorker } from './landing-display';
 import { emptyAreas, type GlideAreas } from './types';
 
-export type LandingInput = { enabled: boolean; segments: Segment[]; ranges: GlideAreas; retry: number };
+export type LandingInput = { catalog?: CatalogReadSource | undefined; enabled: boolean; segments: Segment[]; ranges: GlideAreas; retry: number };
 const HEAT = 'glide-landing-shading';
 const SOURCE = 'glide-landing-areas', LAYERS = ['glide-landing-fill', 'glide-landing-trim', 'glide-landing-outline'];
 const colors: ExpressionSpecification = ['match', ['get', 'tier'], 2, '#53e52d', '#a23bff'];
@@ -17,7 +21,8 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   let input: LandingInput = { enabled: false, segments: [], ranges: emptyAreas(), retry: 0 }, routeKey = '', rangeKey = '', revision = 0, renderedKey: string | undefined;
   let followingGps = false;
   let running: { revision: number } | undefined, queued = false, revalidate = true, lastCheck = -Infinity;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
+  let sources = landingSources(undefined, "http://localhost/"), sourceIdentity = "";
   let lastStatus: LandingStatus = { state: 'idle' };
   const status = (next: LandingStatus) => { lastStatus = next; onStatus(next); };
   const clearDetail = () => {
@@ -48,7 +53,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         renderedKey = undefined;
       }
       const result = await client.call(worker => worker.query({ id: job.revision,
-        manifestUrl: new URL(`${chartRoot()}/glide/manifest.json`, location.href).href,
+        sources, manifestUrl: new URL(`${chartRoot()}/glide/manifest.json`, location.href).href,
         bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], segments: input.segments, ranges: input.ranges, zoom,
         discover, revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
       }));
@@ -121,26 +126,35 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         paint: { 'line-color': colors, 'line-width': 0.75 } }, before);
       map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', visibility);
+      stopInventory = observeOfflineInventory(recover);
       schedule();
     },
     update(next) {
       const nextRoute = JSON.stringify(next.segments), nextRanges = JSON.stringify(next.ranges);
       const routeChanged = nextRoute !== routeKey, rangeChanged = nextRanges !== rangeKey, toggle = next.enabled !== input.enabled;
       const retry = next.retry !== input.retry;
+      let sourceChanged = false;
+      if (next.catalog !== input.catalog) {
+        const nextSources = landingSources(next.catalog, globalThis.location?.href ?? 'http://localhost/');
+        const key = nextSources ? jsonIdentity(nextSources) : '';
+        sourceChanged = key !== sourceIdentity; sourceIdentity = key; sources = nextSources;
+      }
       input = next; routeKey = nextRoute; rangeKey = nextRanges;
-      if (!routeChanged && !rangeChanged && !toggle && !retry) return;
+      if (!routeChanged && !rangeChanged && !toggle && !retry && !sourceChanged) return;
       // Moving ranges invalidate publication, but let shared file acquisition finish.
       // The queued query clips those cached records to the latest range. Removing
       // all ranges, manual route changes and teardown still cancel obsolete demand.
-      if (routeChanged || toggle || retry || !next.ranges.features.length) cancel();
+      if (sourceChanged || routeChanged || toggle || retry || !next.ranges.features.length) cancel();
       else revision++;
-      if (rangeChanged || toggle) clearDetail();
-      if (routeChanged || toggle) clearHeat();
-      if (retry) revalidate = true;
+      if (sourceChanged || rangeChanged || toggle) clearDetail();
+      if (sourceChanged || routeChanged || toggle) clearHeat();
+      if (retry || sourceChanged) revalidate = true;
+      if (sourceChanged && lastStatus.sourceKey) status({ state: 'loading', sourceKey: `pending:${sourceIdentity}` });
       schedule();
     },
     unmount() {
       cancel(); clearTimeout(timer); timer = undefined; release();
+      stopInventory?.(); stopInventory = undefined;
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', visibility);
       if (map) {
         map.off('movestart', moving); map.off('moveend', moved); map.off('resize', schedule);

@@ -796,3 +796,16 @@ test('a failed verification displays the staged plan without inheriting its prio
   assert.equal(job.completedAt, undefined);
   assert.equal(job.previous?.completedAt, active.completedAt);
 });
+
+
+test('regional readiness does not borrow a terrain-only result for a selection requiring glide', async () => {
+  const f = fixture();
+  for (const file of files) f.cached.add(file.url);
+  f.saved.set('terrain', { ...plan, id: 'terrain', terrain: true });
+  f.saved.set('glide', { ...plan, id: 'glide', terrain: true, glide: true });
+  let checks = 0;
+  f.backend.referencesReady = async selection => { checks++; return !selection.glide; };
+  await f.manager.restore();
+  assert.equal(checks, 2);
+  assert.deepEqual(f.manager.snapshot().map(job => job.state), ['complete', 'paused']);
+});

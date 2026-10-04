@@ -6,7 +6,7 @@ import { verificationReceipt } from '../core/storage/verification-receipt';
 import { openFileCache } from '../core/storage/download-file';
 import { InvalidDataError } from '../core/data/errors';
 
-export const fileCache = (file: OfflineFile) => file.kind === 'chart' || file.kind === 'terrain' ? CHART_CACHE : PDF_CACHE;
+export const fileCache = (file: OfflineFile) => file.kind === 'chart' || file.kind === 'terrain' || file.kind === 'glide' ? CHART_CACHE : PDF_CACHE;
 
 export async function cachedFileBytes(file: OfflineFile): Promise<number | undefined> {
   let response: Response | undefined;

@@ -1,4 +1,5 @@
 import type { JsonReferenceIdentity } from './json-reference.js';
+import type { GlideSource } from './glide.js';
 import type { TerrainSource } from './terrain.js';
 import type { RouteHistoryResource } from './route-history.js';
 import type { ChartPackageIndex } from './chart-packages.js';
@@ -238,6 +239,7 @@ export type WeatherProductRecord = {
 
 export type CatalogResponse = {
   terrain?: TerrainSource;
+  glide?: GlideSource;
   schemaVersion: 1;
   generatedAt: string;
   revision: string;

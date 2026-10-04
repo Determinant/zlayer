@@ -61,11 +61,12 @@ export function RegionDownloadRow({ region, details, pending, error, busy, canUp
       <p>{view.progress.message}</p>
     </div>}
     {message && <p className="settings-error" role="alert">{message}</p>}
+    {job && !job.glide && <p>Prepared landing areas are not included. Update to latest to include available glide data.</p>}
     {job && !job.terrain && <p>Terrain is not included in this download. Update to latest to include available terrain.</p>}
   </article>;
 }
 
 function downloadSize(plan: DownloadPlan): string {
-  return `${plan.files.some(file => file.kind === 'faa-pdf') || (plan.terrain && !plan.files.some(file => file.kind === 'terrain'))
+  return `${plan.files.some(file => file.kind === 'faa-pdf') || (plan.terrain && !plan.files.some(file => file.kind === 'terrain')) || (plan.glide && !plan.files.some(file => file.kind === 'glide'))
     ? 'At least ' : ''}${formatBytes(downloadBytes(plan))}`;
 }

@@ -1,14 +1,16 @@
 import { isRecord, type Bounds } from '@zlayer/contracts';
+import type { LandingPackage } from './landing-packages';
+import type { LandingPackageSource, LandingScope } from './landing-sources';
 import type { Polygon } from 'polygon-clipping';
 import { InvalidDataError } from '../../core/data/errors';
 import { jsonIdentity } from '../../core/data/json-identity';
 import { project, type Point } from '../../core/geo/route-corridor';
 
-export type LandingShard = { id: string; file: string; sha256: string; bytes: number; rawBytes: number;
+export type LandingShard = { recordSchema?: 4 | 5 | 6 | 7 | 8 | 9; package?: LandingPackage; scope?: LandingScope | undefined; id: string; file: string; sha256: string; bytes: number; rawBytes: number;
   bounds: Bounds; count: number; tiers: [number, number] };
-export type LandingManifest = { schemaVersion: 4 | 5 | 6 | 7 | 8 | 9; builderVersion: number; generatedAt: string; inputSha256: string;
+export type LandingManifest = { packages?: LandingPackageSource[]; unavailableScopes?: LandingScope[]; schemaVersion: 4 | 5 | 6 | 7 | 8 | 9; builderVersion: number; generatedAt: string; inputSha256: string;
   status: 'experimental-candidates'; geometryMeaning: 'generalized-candidate-area';
-  coverage: { id: string; bounds: Bounds; shrubEvidenceMissing?: boolean }[]; shards: LandingShard[] };
+  coverage: { scope?: LandingScope; id: string; bounds: Bounds; shrubEvidenceMissing?: boolean }[]; shards: LandingShard[] };
 export type LandingSite = { id: string; tier: 1 | 2; flags: number;
   start: Point; end: Point; widthFt: number; lengthFt: number; elevationM: number; alongGradePercent?: number; crossGradePercent?: number };
 export type LandingSelection = LandingSite & { sourceKey: string };
@@ -24,7 +26,7 @@ const manifestKeys = new WeakMap<LandingManifest, string>();
 export function landingSourceKey(url: string, manifest: LandingManifest): string {
   let key = manifestKeys.get(manifest);
   if (!key) {
-    key = jsonIdentity([manifest.schemaVersion, manifest.builderVersion, manifest.inputSha256, manifest.shards, manifest.coverage]);
+    key = jsonIdentity([manifest.schemaVersion, manifest.builderVersion, manifest.inputSha256, manifest.shards, manifest.coverage, manifest.packages]);
     manifestKeys.set(manifest, key);
   }
   return JSON.stringify([url, key]);
@@ -67,12 +69,12 @@ export function decodeLandingAreas(value: unknown, shard: LandingShard, schemaVe
       || !record[0].every(Number.isSafeInteger) || !Array.isArray(record[1]) || !record[1].length
       || !integer(record[2], 0, schemaVersion >= 9 ? 2047 : schemaVersion >= 7 ? 1023 : schemaVersion === 6 ? 255 : schemaVersion === 5 ? 127 : 15) || ((record[2] & 4) !== 0 && (record[2] & 2) === 0)
       || (schemaVersion < 7 && (record[2] & 8) !== 0 && (record[2] & 6) !== 6)) throw new InvalidDataError('Invalid landing-area record');
-    const [witness, rings, flags] = record, tier = witness[7] as 1 | 2;
+    const [witness, rings, flags] = record, tier = witness[7] as 1 | 2, latitudeLimit = shard.package ? 85 : 80;
     const minimumWidth = tier === 2 || schemaVersion < 7 ? 200 : schemaVersion === 7 ? 100 : 60;
     const minimumLength = tier === 2 ? schemaVersion === 4 ? 3000 : 2000 : schemaVersion >= 8 ? 600 : 1500;
     const constrained = tier === 1 && (witness[4] < (schemaVersion >= 8 ? 100 : 200) || witness[5] < 1500);
     if (![1, 2].includes(tier) || (tier === 2 && (flags & ~1) !== 0) || Math.abs(witness[0]) > 180e6 || Math.abs(witness[2]) > 180e6
-      || Math.abs(witness[1]) > 80e6 || Math.abs(witness[3]) > 80e6
+      || Math.abs(witness[1]) > latitudeLimit * 1e6 || Math.abs(witness[3]) > latitudeLimit * 1e6
       || witness[4] < minimumWidth || witness[5] < minimumLength
       || (schemaVersion >= 7 && constrained && !(flags & 256)) || witness[6] < -1000 || witness[6] > 10000
       || (schemaVersion >= 9 && (!integer(witness[8], -1000, 1000) || !integer(witness[9], -1000, 1000)))) {
@@ -87,7 +89,7 @@ export function decodeLandingAreas(value: unknown, shard: LandingShard, schemaVe
       for (let i = 0; i < ring.length; i += 2) {
         lon += ring[i]; lat += ring[i + 1];
         const x = lon / 1e6, y = lat / 1e6;
-        if (!Number.isSafeInteger(lon) || !Number.isSafeInteger(lat) || Math.abs(x) > 180 || Math.abs(y) > 80
+        if (!Number.isSafeInteger(lon) || !Number.isSafeInteger(lat) || Math.abs(x) > 180 || Math.abs(y) > latitudeLimit
           || x < shard.bounds[0] - 1e-6 || x > shard.bounds[2] + 1e-6 || y < shard.bounds[1] - 1e-6 || y > shard.bounds[3] + 1e-6) {
           throw new InvalidDataError('Landing-area geometry exceeds its bounds');
         }

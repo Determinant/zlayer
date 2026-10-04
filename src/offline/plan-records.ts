@@ -8,7 +8,7 @@ export function isDownloadPlan(value: unknown): value is DownloadPlan {
   if (!value || typeof value !== 'object') return false;
   const plan = value as DownloadPlan;
   if (plan.supplementTargets !== undefined && (!Array.isArray(plan.supplementTargets) || !plan.supplementTargets.every(isSupplementTarget))) return false;
-  return (plan.terrain === undefined || typeof plan.terrain === 'boolean') && typeof plan.id === 'string' && typeof plan.title === 'string' && typeof plan.regionId === 'string' &&
+  return (plan.glide === undefined || typeof plan.glide === 'boolean') && (plan.terrain === undefined || typeof plan.terrain === 'boolean') && typeof plan.id === 'string' && typeof plan.title === 'string' && typeof plan.regionId === 'string' &&
     (plan.bounds === undefined || (Array.isArray(plan.bounds) && plan.bounds.length > 0 && plan.bounds.every(isStrictBounds))) &&
     (plan.catalog === undefined || (isCatalogResponse(plan.catalog) && plan.catalog.revision === plan.revision)) &&
     (plan.snapshotId === undefined || /^[a-f0-9]{64}$/.test(plan.snapshotId)) &&
@@ -21,7 +21,7 @@ export function isDownloadPlan(value: unknown): value is DownloadPlan {
       file.kind === 'faa-pdf'
         ? /^https:\/\/aeronav\.faa\.gov\/d-tpp\/\d{4}\/[-\w]+\.pdf\?v=[^#]+$/i.test(file.url) &&
           file.byteLength === undefined && file.sha256 === undefined
-        : ['chart', 'terrain', 'pdf'].includes(file.kind) && Number.isSafeInteger(file.byteLength) && file.byteLength > 0 &&
+        : ['chart', 'terrain', 'glide', 'pdf'].includes(file.kind) && Number.isSafeInteger(file.byteLength) && file.byteLength > 0 &&
           typeof file.sha256 === 'string' && /^[a-f0-9]{64}$/.test(file.sha256)));
 }
 

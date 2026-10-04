@@ -63,6 +63,12 @@ for (const [directory, route] of [['terrain', 'terrain-fixture'], ['terrain-geog
   }
 }
 
+const glideFixtureRoot = new URL('../fixtures/glide-delivery-v1/charts/glide/', import.meta.url);
+for (const entry of await readdir(glideFixtureRoot, { recursive: true, withFileTypes: true })) {
+  if (!entry.isFile()) continue;
+  const file = resolve(entry.parentPath, entry.name), relative = file.slice(new URL(glideFixtureRoot).pathname.length);
+  fixtures.set(`/chart-data/glide-fixture/glide/${relative}`, { body: await readFile(file), type: 'application/octet-stream' });
+}
 const originalFixtures = new Map(fixtures);
 const identificationNavaids = JSON.parse(await readFile(new URL('../fixtures/id-navaids.json', import.meta.url), 'utf8'));
 const publishedApproaches = JSON.parse(await readFile(new URL('../fixtures/route-approach-published.json', import.meta.url), 'utf8'));
@@ -184,6 +190,10 @@ const server = createServer(async (request, response) => {
       appInstallGate = releaseAppInstall = undefined;
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
+    } else if (path === '/__test/glide-packages') {
+      for (const [key, value] of originalFixtures) if (key.startsWith('/chart-data/glide-fixture/glide/')) {
+        fixtures.set(key.replace('/glide-fixture/glide/', '/glide/'), value);
+      }
     } else if (path === '/__test/available-cycles') {
       let body = ''; for await (const chunk of request) body += chunk;
       const { cycles } = JSON.parse(body);

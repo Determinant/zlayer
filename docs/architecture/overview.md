@@ -217,8 +217,10 @@ records, not duplicate chart or PDF blobs. StorageManager reports quota
 and persistence, and Web Locks coordinate windows. Viewed basemap tiles use a separate,
 bounded one-day temporary cache and never count toward saved regions;
 weather remains time-stamped and visibly stale. Obstruction data and
-prepared off-airport landing areas are cached on demand and excluded from regional
-completeness. See
+legacy off-airport landing files are cached on demand and excluded from regional
+completeness. The glide-packages feed instead supplies numeric overviews and exact
+detail blocks in shared immutable archives, included in new regional selections
+and pinned with their catalog snapshot. See
 [offline storage](../features/offline-storage.md) for guarantees, limits, and release checks.
 Committed regional snapshots retain their edition online and offline; staged updates
 activate only after verification. Settings groups editions by publisher/region;
