@@ -4,6 +4,23 @@ import { TerrainVectorCache, type TerrainVectors } from '../src/layers/terrain/v
 
 const vectors = (): TerrainVectors => ({ labels: [], lines: [] });
 
+test('byte pressure evicts offscreen vectors, preserves visible coverage and accounts for replacement', () => {
+  const cache = new TerrainVectorCache(128, 2048);
+  const dense = (): TerrainVectors => ({ labels: [], lines: [{ elevation: 500, opacity: 1,
+    coordinates: [Array.from({ length: 32 }, (_, i) => [i, 0])] }] });
+  cache.setVisible(['visible']);
+  cache.put('visible', dense());
+  assert.ok(cache.estimatedBytes > cache.byteLimit, 'visible geometry may exceed the background budget');
+  cache.put('offscreen', dense());
+  assert.equal(cache.has('visible'), true); assert.equal(cache.has('offscreen'), false);
+  cache.put('visible', vectors());
+  assert.ok(cache.estimatedBytes < cache.byteLimit, 'replacement releases the previous weight');
+  cache.put('small', vectors());
+  cache.setVisible(['small']); cache.put('large', dense());
+  assert.deepEqual(cache.visible(), [vectors()]); assert.ok(cache.estimatedBytes <= cache.byteLimit);
+  cache.clear(); assert.equal(cache.estimatedBytes, 0);
+});
+
 test('visible terrain survives cache pressure and revisits promote it without changing draw order', () => {
   const cache = new TerrainVectorCache(3), first = vectors(), second = vectors();
   cache.setVisible(['first', 'second']);

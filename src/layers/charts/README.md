@@ -7,6 +7,11 @@ caching, chart status and its offline-planning/service-worker adapters. It contr
 to the existing workspace map. Chart selection preserves the camera; an absent
 chart tile leaves the continuous basemap visible.
 
+Each attachment scopes its readers, recovery listeners and map resources using
+core's `LayerScope`. Catalog replacement owns a separate resource scope; teardown
+continues through independent disposers if a map cleanup throws, including the
+last-reader release. Source identity and whole-file acquisition remain unchanged.
+
 ## Chart selection
 
 **Chart base** offers VFR sectionals, IFR low enroute and IFR high enroute when the

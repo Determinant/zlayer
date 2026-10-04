@@ -9,7 +9,7 @@ import type { Bounds, GeoPointFeature } from '@zlayer/contracts';
 import type { MapCallbacks, MapAttachment } from './inputs';
 import { loadMapContribution, type MapContribution, type MapContributionContext } from '../../core/map/contribution';
 import type { MapLayerModule } from '../../core/map/layer';
-import { occupiedMapRegions } from './occupied-regions';
+import { occupiedMapRegions, observeOccupiedMapRegions } from './occupied-regions';
 import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
@@ -105,6 +105,7 @@ export class MapRuntime {
         map: this.#map,
         interactiveLayerIds: () => this.#layerHost.interactiveLayerIds(),
         occupiedRects: () => occupiedMapRegions(options.container),
+        observeOccupiedRects: changed => observeOccupiedMapRegions(options.container, changed),
         targetBearing: () => this.#navigation.getTargetBearing(),
         run: (id, action) => this.#layerHost.run(id, action),
         reportError: error => this.#onError(error instanceof Error ? error.message : 'Layer unavailable', resourceErrorCode(error)),

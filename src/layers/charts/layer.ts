@@ -5,7 +5,8 @@ import { observeChartFailures, registerMbtilesArchives, retainChartReaders } fro
 import { observeOfflineInventory } from '../../offline/inventory-events';
 import { chartSourceKey } from './source-key';
 import { NO_CHARTS, type ChartFamilyDefinition, type ChartSelection } from './overlays';
-import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
+import type { MapLayerModule } from '../../core/map/layer';
+import { LayerScope } from '../../core/layers/scope';
 
 export type ChartLayerInput = { catalog: CatalogReadSource; selection: ChartSelection };
 
@@ -15,30 +16,40 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
   let selection: ChartSelection = NO_CHARTS;
   let sourceKey = chartSourceKey(catalog, definition.id);
   let failed = false;
-  let releaseReaders: (() => void) | undefined;
-  let stopObservingFailures: (() => void) | undefined;
-  let stopObservingInventory: (() => void) | undefined;
+  let scope: LayerScope | undefined, resources: LayerScope | undefined;
+  const install = () => {
+    if (!map) return;
+    const target = map, ids = chartResourceIds(catalog, definition.id);
+    resources = new LayerScope();
+    for (const id of ids) resources.add(() => { if (target.getSource(id)) target.removeSource(id); });
+    for (const id of ids) resources.add(() => { if (target.getLayer(id)) target.removeLayer(id); });
+    installChartLayers(target, catalog, selection, definition.id);
+  };
   const sync = () => { if (map) syncChartSelection(map, catalog, selection, definition.id); };
   const retry = () => {
     if (!map || !failed) return;
     failed = false;
-    const ids = chartResourceIds(catalog, definition.id);
-    removeLayerResources(map, ids, ids);
-    installChartLayers(map, catalog, selection, definition.id);
+    resources?.dispose();
+    install();
     sync();
   };
   return {
     id: definition.id, slot: 'charts',
     mount(target) {
       map = target;
-      releaseReaders = retainChartReaders();
-      installChartLayers(map, catalog, selection, definition.id);
+      scope = new LayerScope();
+      scope.add(() => { map = undefined; resources = undefined; failed = false; });
+      scope.add(retainChartReaders());
+      scope.add(() => resources?.dispose());
+      install();
+      scope.add(() => target.off('move', sync));
       map.on('move', sync);
-      stopObservingFailures = observeChartFailures(chartId => {
+      scope.add(observeChartFailures(chartId => {
         if (chartId === `@${definition.id}` || catalog.charts.some(chart =>
           chart.id === chartId && chart.kind === definition.id)) failed = true;
-      });
-      stopObservingInventory = observeOfflineInventory(retry);
+      }));
+      scope.add(observeOfflineInventory(retry));
+      scope.add(() => window.removeEventListener('online', retry));
       window.addEventListener('online', retry);
     },
     update(value) {
@@ -48,33 +59,19 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
         const changed = nextKey !== sourceKey;
         if (changed) failed = false;
         if (map && changed) {
-          const ids = chartResourceIds(catalog, definition.id);
-          removeLayerResources(map, ids, ids);
+          resources?.dispose();
         }
         catalog = value.catalog;
         sourceKey = nextKey;
         if (map) {
           registerMbtilesArchives(catalog);
-          if (changed) installChartLayers(map, catalog, selection, definition.id);
+          if (changed) install();
         }
       }
       sync();
     },
     unmount() {
-      stopObservingFailures?.(); stopObservingFailures = undefined;
-      stopObservingInventory?.(); stopObservingInventory = undefined;
-      window.removeEventListener('online', retry);
-      failed = false;
-      try {
-        if (map) {
-          map.off('move', sync);
-          const ids = chartResourceIds(catalog, definition.id);
-          removeLayerResources(map, ids, ids);
-        }
-      } finally {
-        map = undefined;
-        releaseReaders?.(); releaseReaders = undefined;
-      }
+      scope?.dispose(); scope = undefined;
     },
   };
 }

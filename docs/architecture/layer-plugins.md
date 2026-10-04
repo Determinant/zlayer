@@ -613,6 +613,11 @@ identities and cleanup without an exhaustive proxy API. Attachment cancellation
 must prevent stale asynchronous work from mutating a replacement attachment.
 Style/map replacement rebuilds rendering while retaining feature intent.
 
+Map contributions may subscribe to `observeOccupiedRects` alongside the
+`occupiedRects` provider. The workspace owns shell selectors, layout observation
+and frame coalescing; tools own the returned subscription and refresh their cached
+rectangles when notified. Ruler subscribes only while its tool is open.
+
 `core/graphics/frame-task.ts` coalesces event-driven work into one requested frame,
 with explicit cancellation and immediate flushing. Ownship, terrain palettes,
 ruler dragging and the visible viewport share it. Plugins retain their input and
@@ -621,10 +626,14 @@ This primitive creates no idle animation loop; AHRS owns its separate continuous
 display cadence and Routes starts drag-source work immediately.
 
 `core/map/source-submission.ts` owns GeoJSON acceptance, source-error invalidation
-and late-completion checks for Navigation identification and weather renderers.
+and late-completion checks for plugin map adapters.
 Plugins own geometry, visibility, recovery resources and admission policy;
-Navigation still permits only one pending submission and uses the latest camera
-for its successor.
+Navigation identification still permits only one pending submission and uses the
+latest camera for its successor. Acceptance does not certify on-screen tile
+readiness; Routes retains its expected-feature reveal check. The helper does not
+schedule retries or hide layers. Adapters retain prepared data/identities and own
+bounded recovery, immediate hiding on clears/failure, and teardown cancellation;
+their guides specify retry triggers and stale-data policy.
 
 `core/data/task-limiter.ts` supplies one bounded, cancellable admission queue.
 `TaskLimiter.run` waits for active work and cleanup before settling, as terrain

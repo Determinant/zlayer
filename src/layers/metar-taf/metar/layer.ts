@@ -11,6 +11,8 @@ import { metarReportSummary } from './summary';
 import { OnDemandRefresh } from '../../../core/layers/on-demand-refresh';
 import { visibleMetarStationIds } from './visible-stations';
 import { hasCurrentReport } from '../nearby-stations';
+import { createSourceSubmission } from '../../../core/map/source-submission';
+import { withMapLabelKeys } from '../../../core/map/label';
 
 export type MetarLoadState = {
   status: 'idle' | 'loading' | 'current' | 'stale' | 'error';
@@ -44,6 +46,10 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   let following = false;
   let displayTimer: ReturnType<typeof setTimeout> | undefined;
   let display: { input: MetarInput; reports: MetarSnapshot['metars']['features']; currentStations: ReadonlySet<string> } | undefined;
+  let submission: ReturnType<typeof createSourceSubmission> | undefined;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined, retried = false;
+  // Suppression survives repeat callbacks until the current nonempty upload is accepted.
+  let suppressed = true;
   const store = createLayerStore<MetarLayerSnapshot>({
     ...cache, state: { status: 'idle' }, visibleStationIds: [], weatherAirportCount: 0,
   });
@@ -91,7 +97,21 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
     const unchanged = display && display.input.airports === input.airports && display.input.enabled === input.enabled &&
       reports.length === display.reports.length && reports.every((report, index) => report === display!.reports[index]) &&
       currentStations.size === display.currentStations.size && [...currentStations].every(id => display!.currentStations.has(id));
-    syncMetarMap(map, unchanged ? undefined : mapData(currentStations), input.airportsVisible);
+    const active = submission;
+    if (!unchanged && active) {
+      retried = false; clearTimeout(retryTimer); retryTimer = undefined;
+    }
+    if (active && (!unchanged || active.failed)) {
+      const version = active.begin();
+      const data = mapData(currentStations);
+      if (!data.features.length || !input.enabled) { suppressed = true; syncMetarMap(map, undefined, false); }
+      void active.submit(version, withMapLabelKeys(data)).then(accepted => {
+        if (accepted && map) {
+          suppressed = !data.features.length;
+          syncMetarMap(map, undefined, input.airportsVisible && !suppressed);
+        }
+      }).catch(error => active.reject(version, error));
+    } else syncMetarMap(map, undefined, input.airportsVisible && !suppressed);
     // Keep identities and freshness, not a second joined GeoJSON collection.
     display = { input, reports, currentStations };
     // Observation age changes without cache updates, including while offline.
@@ -135,9 +155,22 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       map = target;
       following = false;
       scopeDirty = true;
+      retried = false;
       cache = client.snapshot();
+      submission = createSourceSubmission(map, METAR_SOURCE_ID, () => {
+        suppressed = true;
+        if (map) syncMetarMap(map, undefined, false);
+        if (!retried) {
+          retried = true;
+          retryTimer = setTimeout(() => { retryTimer = undefined; render(); }, 100);
+        }
+      });
+      // Observe the initial addSource load without uploading the same join twice.
+      submission.begin();
       const currentStations = currentStationIds();
-      installMetarLayers(map, mapData(currentStations));
+      const initial = mapData(currentStations);
+      suppressed = !initial.features.length;
+      installMetarLayers(map, initial);
       display = { input, reports: cache.metars.features, currentStations };
       unsubscribe = client.subscribe(() => {
         cache = client.snapshot();
@@ -178,6 +211,9 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
       }
     },
     unmount() {
+      clearTimeout(retryTimer); retryTimer = undefined;
+      submission?.destroy(); submission = undefined;
+      suppressed = true;
       unsubscribe?.();
       unsubscribe = undefined;
       refresh?.destroy();

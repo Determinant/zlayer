@@ -6,6 +6,57 @@ import { createMetarLayer, featureWithMetar } from '../src/layers/metar-taf/meta
 import { MetarClient } from '../src/layers/metar-taf/metar/client';
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+test('pending empty and category-disabled replacements stay hidden through repeated environment callbacks', async t => {
+  let cleanup = () => {};
+  // Release map listeners while the document/window fixtures still exist.
+  t.after(() => cleanup());
+  const now = Date.parse('2026-09-15T17:00:00Z');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now });
+  for (const [name, value] of Object.entries({ document: Object.assign(new EventTarget(), { visibilityState: 'visible' }),
+    window: new EventTarget(), navigator: { onLine: false } })) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => original ? Object.defineProperty(globalThis, name, original) : Reflect.deleteProperty(globalThis, name));
+  }
+  const report: MetarFeature = { type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { id: 'KSFO', obsTime: now / 1000, fltcat: 'IFR', rawOb: 'METAR KSFO TEST' } };
+  const client = new MetarClient(new URL('https://example.test/weather'), {
+    storage: { getItem: () => JSON.stringify({ type: 'FeatureCollection', features: [report] }), setItem() {} },
+  });
+  const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
+    meta: { revision: 'test', layer: 'airports', returned: 1, truncated: false },
+    features: [{ ...report, properties: { kind: 'airport', icaoId: 'KSFO' } }] };
+  const layers = new Set<string>(), visibility = new Map<string, unknown>();
+  const uploads: { data: FeatureCollectionResponse; accept: () => void }[] = [];
+  const map = {
+    addSource() {}, removeSource() {}, addLayer: ({ id }: { id: string }) => layers.add(id),
+    getLayer: (id: string) => layers.has(id), removeLayer: (id: string) => layers.delete(id),
+    getSource: () => ({ setData: (data: FeatureCollectionResponse) => new Promise<void>(accept => uploads.push({ data, accept })) }),
+    getLayoutProperty: (id: string) => visibility.get(id),
+    setLayoutProperty: (id: string, _key: string, value: unknown) => visibility.set(id, value),
+    isMoving: () => false, queryRenderedFeatures: () => [], on() {}, off() {},
+  } as unknown as MapLibreMap;
+  const product = createMetarLayer(client);
+  product.map.update({ airports, enabled: true, airportsVisible: true }); product.map.mount(map);
+  cleanup = () => product.map.unmount();
+  const visible = () => visibility.get('airports-weather-points');
+  product.map.update({ airports: undefined, enabled: true, airportsVisible: true });
+  document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('offline'));
+  assert.equal(visible(), 'none'); assert.equal(uploads.length, 1);
+  uploads[0]!.accept(); await flush();
+  document.dispatchEvent(new Event('visibilitychange')); assert.equal(visible(), 'none');
+  product.map.update({ airports, enabled: true, airportsVisible: true });
+  uploads[1]!.accept(); await flush(); assert.equal(visible(), 'visible');
+  product.map.update({ airports, enabled: false, airportsVisible: true });
+  document.dispatchEvent(new Event('visibilitychange')); assert.equal(visible(), 'none');
+  assert.equal(uploads[2]!.data.features[0]!.properties.displayFlightCategory, 'N/A');
+  uploads[2]!.accept(); await flush(); assert.equal(visible(), 'visible', 'accepted gray points remain useful');
+  product.map.update({ airports: undefined, enabled: false, airportsVisible: true });
+  product.map.update({ airports, enabled: true, airportsVisible: true });
+  uploads[3]!.accept(); await flush(); assert.equal(visible(), 'none', 'obsolete clear completion cannot release suppression');
+  product.map.unmount(); uploads[4]!.accept(); await flush(); assert.equal(layers.size, 0);
+});
+
 test('METAR map colors expire offline while local reports remain available', async t => {
   const now = Date.parse('2026-09-15T17:00:00Z');
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now });

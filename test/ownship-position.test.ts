@@ -75,6 +75,19 @@ test('GPS time retains acquisition age and tolerates small clock rounding withou
     'a normalized observation cannot move backward even when its epoch timestamp increases');
 });
 
+test('turn inference and display damping depend on normalized acquisition time, not epoch rounding', () => {
+  const history = Array.from({ length: 6 }, (_, index) => readGpsFix(
+    position({ heading: 90 + index, speed: 60 }, now - 6000 + index * 1000), null, clock)!);
+  const fix = readGpsFix(position({ heading: 96, speed: 60 }), null, clock)!;
+  const rounded = history.map((sample, index) => ({ ...sample, timestamp: sample.timestamp + (index % 2) * 500 }));
+  const rate = estimateTurnRate(fix, history);
+  assert.ok(rate !== null && rate > .9);
+  assert.equal(estimateTurnRate({ ...fix, timestamp: fix.timestamp + 500 }, rounded), rate);
+  const previous = { fix: history.at(-1)!, displayTrack: 94, turnRate: .5 };
+  assert.deepEqual(smoothMotion({ ...fix, timestamp: fix.timestamp + 500 }, previous, rate),
+    smoothMotion(fix, previous, rate));
+});
+
 test('shared GPS retains altitude in meters, including sea level and below, without inventing missing height', () => {
   for (const altitude of [0, -120, 3048]) {
     const fix = readGpsFix(position({ altitude, altitudeAccuracy: 10 }), null, clock)!;
@@ -112,21 +125,40 @@ test('turn estimates unwrap north and stay consistent with irregular, frequent G
   }
 });
 
+test('fractional acquisition clocks preserve turn timing boundaries without admitting short baselines or long gaps', () => {
+  const origin = readGpsFix(position({ heading: 90, speed: 60 }), null, clock)!;
+  for (const start of [.1, 100.1, 86_400.1]) {
+    const sample = (seconds: number): GpsFix => ({ ...origin, time: start + seconds,
+      timestamp: now + seconds * 1000, track: 90 + seconds });
+    const history = [0, .1, 1, 2].map(sample);
+    assert.equal(estimateTurnRate(sample(2.999), history), null, 'a baseline one millisecond short is still too short');
+    assert.ok(Math.abs(estimateTurnRate(sample(3), history)! - 1) < 1e-9,
+      'retain the 100 ms sample boundary and acquire the turn at exactly three seconds');
+
+    const beforeGap = [0, .5, 1].map(sample);
+    assert.ok(Math.abs(estimateTurnRate(sample(3.5), beforeGap)! - 1) < 1e-9, 'a 2.5 second gap preserves continuity');
+    assert.equal(estimateTurnRate(sample(3.501), beforeGap), null, 'a gap one millisecond too long resets the estimate');
+    const previous = { fix: sample(1), displayTrack: 91, turnRate: .5 };
+    assert.ok(smoothMotion(sample(3.5), previous, 1).turnRate! > .5);
+    assert.equal(smoothMotion(sample(3.501), previous, 1).turnRate, null);
+  }
+});
+
 test('turn estimates reject discontinuities and unavailable motion, and suppress small track jitter', () => {
   const origin = readGpsFix(position({ heading: 90, speed: 60 }, now - 2000), null, clock)!;
   const current = readGpsFix(position({ heading: 92, speed: 60 }), null, clock)!;
   assert.equal(estimateTurnRate(current, []), null);
   for (const change of [{ track: null }, { speed: null }, { speed: 0 }, { accuracy: 101 }, { estimated: true },
-    { timestamp: now - 2600 }, { track: 180 }]) {
+    { timestamp: now - 2600, time: 97.4 }, { track: 180 }]) {
     assert.equal(estimateTurnRate(current, [{ ...origin, ...change }]), null);
   }
   for (const change of [{ track: null }, { speed: null }, { speed: 0 }, { accuracy: 101 }]) {
     assert.equal(estimateTurnRate({ ...current, ...change }, [origin]), null);
   }
-  const missing = { ...origin, timestamp: now - 500, track: null };
+  const missing = { ...origin, timestamp: now - 500, time: 99.5, track: null };
   assert.equal(estimateTurnRate(current, [origin, missing]), null, 'do not bridge an interruption in usable tracks');
   assert.equal(estimateTurnRate({ ...current, track: 90.05 }, [
-    { ...origin, timestamp: now - 4000 }, origin,
+    { ...origin, timestamp: now - 4000, time: 96 }, origin,
   ]), 0);
 });
 
@@ -254,7 +286,7 @@ for (const hz of [1, 5, 10]) {
       history.push(fix); previous = { ...motion, fix }; lastEnd = end;
     }
     for (const change of [{ track: null }, { speed: 0, track: null }, { accuracy: 101, track: null },
-      { estimated: true }, { timestamp: previous.fix!.timestamp + 3000 }]) {
+      { estimated: true }, { timestamp: previous.fix!.timestamp + 3000, time: previous.fix!.time + 3 }]) {
       const fix = { ...previous.fix!, ...change };
       const motion = smoothMotion(fix, previous, 3);
       assert.equal(motion.turnRate, null, 'invalid or discontinuous motion clears curvature immediately');

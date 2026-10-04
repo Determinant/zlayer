@@ -37,6 +37,8 @@ export type GlideResult = {
 };
 export type GlideRequest = {
   id: number;
+  /** Airport plan accepted by both map sources in this worker session. */
+  acceptedPlanKey?: string;
   /** Overview views may reconcile cached coverage, but must not acquire new origins. */
   discover?: boolean;
   airports: GlideAirport[];
@@ -55,6 +57,11 @@ export type GlideRequest = {
   base: string;
   tileUrl: string;
 };
-export type GlideWorker = { calculate(request: GlideRequest): Promise<GlideResult>; cancel(id: number): void };
+export type GlideResponse = Omit<GlideResult, 'areas' | 'airports'> & {
+  planKey: string;
+  airportCount: number;
+  plan?: Pick<GlideResult, 'areas' | 'airports'>;
+};
+export type GlideWorker = { calculate(request: GlideRequest): Promise<GlideResponse>; cancel(id: number): void };
 export const emptyAreas = (): GlideAreas => ({ type: 'FeatureCollection', features: [] });
 export const emptyLines = (): GlideLines => ({ type: 'FeatureCollection', features: [] });

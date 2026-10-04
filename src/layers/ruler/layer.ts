@@ -1,4 +1,4 @@
-import { createLayerStore } from '../../core/layers/store';
+import { combineLayerStores, createLayerStore } from '../../core/layers/store';
 import { normalizeCoordinate, type Coordinate } from './measurement';
 
 export type RulerEndpoint = 'start' | 'end';
@@ -16,6 +16,8 @@ export function createRulerLayer() {
   const store = createLayerStore<RulerSnapshot>({
     active: false, start: null, end: null, provisional: false, touch: false, session: 0,
   });
+  const attached = createLayerStore(false);
+  const active = combineLayerStores(store, attached, (state, available) => state.active && available);
   const reset = (active: boolean) => store.publish({
     active, start: null, end: null, provisional: false, touch: false,
     session: store.getSnapshot().session + 1,
@@ -24,6 +26,8 @@ export function createRulerLayer() {
     definition: { id: 'ruler', title: 'Ruler' },
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
+    attached,
+    active,
     open: () => reset(true),
     close: () => reset(false),
     restart: () => reset(true),

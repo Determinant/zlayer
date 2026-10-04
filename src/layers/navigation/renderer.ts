@@ -165,11 +165,13 @@ export function installNavigationLayers(map: MapLibreMap): void {
   });
 }
 
-export function syncNavigationData(map: MapLibreMap, data: NavigationData, previous?: NavigationData): void {
+export function syncNavigationData(map: MapLibreMap, data: NavigationData, previous?: NavigationData,
+  submit = (id: string, collection: FeatureCollectionResponse) => {
+    (map.getSource(id) as GeoJSONSource | undefined)?.setData(collection);
+  }): void {
   for (const layer of NAVIGATION_LAYERS) {
     if (previous && previous[layer.id] === data[layer.id]) continue;
-    const source = map.getSource(navigationSourceId(layer.id)) as GeoJSONSource | undefined;
-    source?.setData(withMapLabelKeys(data[layer.id] ?? emptyFor(layer.id)));
+    submit(navigationSourceId(layer.id), withMapLabelKeys(data[layer.id] ?? emptyFor(layer.id)));
   }
 }
 

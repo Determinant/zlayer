@@ -43,6 +43,18 @@ Unmounting removes the error listener and invalidates pending completions.
 Geographic connections and projected label placement retain their existing meaning
 through camera movement.
 
+Background navigation and priority-fix sources track acceptance separately from
+their prepared feature identities. A source-processing failure hides only that
+source and retries its retained collection once after 100 ms. Later camera
+settles, visibility changes or changed data can retry again. Clears hide
+immediately, and recovery respects current background toggles while priority
+context remains independent. Unmount cancels retries and late completions.
+
+Waypoint inspection applies the same bounded recovery to its selected point.
+The formatted label belongs to the feature, so asynchronous geometry processing
+cannot pair a new label with the previous coordinate. Clears and failures hide
+immediately; an obsolete completion cannot restore them.
+
 ## Airport frequencies
 
 Info leads with elevation and longest runway, then groups radio services in this

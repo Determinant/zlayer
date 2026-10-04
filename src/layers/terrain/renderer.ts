@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap, GeoJSONSource, ExpressionSpecification } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
 import type { TerrainLabel } from './contours';
 import type { TerrainIsoline } from './isolines';
 import { terrainColor, TERRAIN_FILL_OPACITY, TERRAIN_LINE_COLOR, TERRAIN_LINE_OPACITY } from './palette';
@@ -104,19 +105,23 @@ export function syncTerrainAltitude(map: MapLibreMap, altitude: number | null, i
     '\n', {}, ['get', 'label'], {}]);
 }
 
-export function syncTerrainContours(map: MapLibreMap, lines: readonly TerrainIsoline[]): void {
-  (map.getSource(TERRAIN_CONTOUR_SOURCE) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
+const writeSource = (map: MapLibreMap) => (id: string, data: FeatureCollection) => {
+  (map.getSource(id) as GeoJSONSource | undefined)?.setData(data);
+};
+
+export function syncTerrainContours(map: MapLibreMap, lines: readonly TerrainIsoline[], submit = writeSource(map)): void {
+  submit(TERRAIN_CONTOUR_SOURCE, { type: 'FeatureCollection',
     features: lines.map(line => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: line.coordinates },
       properties: { elevation: line.elevation, opacity: line.opacity } })),
   });
 }
 
-export function syncTerrainCorridor(map: MapLibreMap, corridor: TerrainCorridor): void {
-  (map.getSource(TERRAIN_CORRIDOR_SOURCE) as GeoJSONSource | undefined)?.setData(corridor);
+export function syncTerrainCorridor(map: MapLibreMap, corridor: TerrainCorridor, submit = writeSource(map)): void {
+  submit(TERRAIN_CORRIDOR_SOURCE, corridor);
 }
 
-export function syncTerrainLabels(map: MapLibreMap, labels: readonly TerrainLabel[]): void {
-  (map.getSource(TERRAIN_LABEL_SOURCE) as GeoJSONSource | undefined)?.setData({
+export function syncTerrainLabels(map: MapLibreMap, labels: readonly TerrainLabel[], submit = writeSource(map)): void {
+  submit(TERRAIN_LABEL_SOURCE, {
     type: 'FeatureCollection', features: labels.map(label => ({ type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: label.coordinate },
       properties: { ...label, displayElevation: displayElevation(label.elevation, label.peak), label: label.peak

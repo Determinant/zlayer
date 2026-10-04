@@ -2,6 +2,10 @@
 
 [Documentation](../../../docs/README.md) / Plugins / ownship
 
+The map attachment scopes its GPS demand, subscription, pending frame, source
+listener and map resources independently. Teardown releases GPS and queued work
+even if removal of a map layer or image throws.
+
 Open the left-side **GPS** tab to toggle **GPS aircraft** and allow device location.
 The compact core switch matches Terrain and AWC Weather, without a separate On/Off
 label, and stays available when GPS is off. GPS starts enabled when
@@ -95,6 +99,12 @@ demand. It suppresses small or reversing GPS errors at the cost of a few seconds
 of turn-onset and level-out lag, and attenuates uncertain shallow turns. These are
 display heuristics, not a confidence or integrity estimate; correlated GPS drift
 can still resemble a real turn.
+Motion history, continuity checks and filter gains use core's normalized monotonic
+acquisition `time` in seconds. The original epoch `timestamp` remains provenance;
+accepted timestamp rounding cannot change these elapsed-time calculations.
+Sampling and continuity boundaries tolerate one nanosecond of floating-point
+roundoff so exact intervals retain their samples and full turn baseline; fixes
+and filter gains remain unrounded.
 Gaps longer than 2.5 seconds, missing motion,
 changes between reported and estimated velocity, or track jumps above 12°/s
 restart the continuous sampling window. The rate calculation uses samples at
@@ -113,7 +123,8 @@ exceed the fixes' combined accuracy and 5 meters. Estimated values are labeled
 **Est.** The baseline expires when stationary and resets after a reported stop,
 poor accuracy, an acquisition error, or suspension. Motion exceeding 1,500 m/s
 is rejected as implausible for this aviation display, including provider position
-jumps; it cannot generate an unbounded projection. Movement below 1 m/s,
+jumps. The accepted position remains available as a dot with unknown velocity;
+it cannot generate an unbounded projection. Movement below 1 m/s,
 unknown track, or accuracy worse than 100 meters uses a position dot. Missing
 speed suppresses the projection. A fix that has not updated for 10 seconds becomes
 a gray last-position dot with **GPS fix stale**; the projection is removed.

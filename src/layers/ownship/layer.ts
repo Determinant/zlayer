@@ -1,7 +1,7 @@
 import { createLayerStore } from '../../core/layers/store';
 import type { GpsService, GpsState } from '../../core/gps/service';
 import { GPS_MOTION_ACCURACY_METERS, GPS_MOTION_SAMPLE_MS, GPS_STALE_MS, type GpsFix } from '../../core/gps/position';
-import { estimateTurnRate, smoothMotion, type DisplayMotion } from './position';
+import { estimateTurnRate, MOTION_TIME_EPSILON_SECONDS, smoothMotion, type DisplayMotion } from './position';
 
 export type OwnshipState = GpsState;
 export type OwnshipSnapshot = DisplayMotion & {
@@ -15,26 +15,26 @@ export function createOwnshipLayer(gps: GpsService) {
   let releaseGps: (() => void) | undefined, unsubscribe: (() => void) | undefined;
   let motionHistory: GpsFix[] = [];
   let turnHistoryStart = -Infinity;
+  const resetMotionHistory = () => { motionHistory = []; turnHistoryStart = -Infinity; };
 
   const observeGps = () => {
     if (!attached || !store.getSnapshot().enabled) return;
     const { state, fix } = gps.getSnapshot(), previous = store.getSnapshot();
     let { turnRate, displayTrack, centerRequest } = previous;
     if (state !== 'tracking' || !fix) {
-      motionHistory = [];
-      turnHistoryStart = -Infinity;
+      resetMotionHistory();
       turnRate = null;
       displayTrack = null;
     } else if (fix !== previous.fix) {
       // Retain continuity breaks even between the sampled track observations.
       if (fix.track === null || fix.speed === null || (previous.fix && fix.estimated !== previous.fix.estimated)) {
-        turnHistoryStart = fix.timestamp;
+        turnHistoryStart = fix.time;
       }
       ({ turnRate, displayTrack } = smoothMotion(fix, previous,
-        estimateTurnRate(fix, motionHistory.filter(sample => sample.timestamp >= turnHistoryStart))));
-      motionHistory = motionHistory.filter(sample => fix.timestamp - sample.timestamp <= GPS_STALE_MS);
+        estimateTurnRate(fix, motionHistory.filter(sample => sample.time >= turnHistoryStart))));
+      motionHistory = motionHistory.filter(sample => fix.time - sample.time <= GPS_STALE_MS / 1000 + MOTION_TIME_EPSILON_SECONDS);
       if ((fix.speed !== null && fix.speed < 1) || fix.accuracy > GPS_MOTION_ACCURACY_METERS) motionHistory = [];
-      if (!motionHistory.length || fix.timestamp - motionHistory.at(-1)!.timestamp >= GPS_MOTION_SAMPLE_MS) motionHistory.push(fix);
+      if (!motionHistory.length || fix.time - motionHistory.at(-1)!.time >= GPS_MOTION_SAMPLE_MS / 1000 - MOTION_TIME_EPSILON_SECONDS) motionHistory.push(fix);
       if (centerOnFix && fix.accuracy <= GPS_MOTION_ACCURACY_METERS) { centerRequest++; centerOnFix = false; }
     }
     if (state !== previous.state || fix !== previous.fix || turnRate !== previous.turnRate || centerRequest !== previous.centerRequest) {
@@ -45,8 +45,7 @@ export function createOwnshipLayer(gps: GpsService) {
     const needed = attached && store.getSnapshot().enabled;
     if (!needed) {
       unsubscribe?.(); unsubscribe = undefined;
-      motionHistory = [];
-      turnHistoryStart = -Infinity;
+      resetMotionHistory();
     }
     if (needed) unsubscribe ??= gps.subscribe(observeGps);
     if (needed && !releaseGps && !acquiringGps) {
@@ -72,7 +71,7 @@ export function createOwnshipLayer(gps: GpsService) {
     setEnabled(enabled: boolean) {
       if (enabled === store.getSnapshot().enabled) return;
       centerOnFix = true;
-      if (!enabled) { motionHistory = []; turnHistoryStart = -Infinity; }
+      if (!enabled) resetMotionHistory();
       store.publish({ ...store.getSnapshot(), enabled, ...(!enabled && { state: 'off' as const, fix: null, turnRate: null, displayTrack: null }) });
       syncDemand();
     },
@@ -87,8 +86,7 @@ export function createOwnshipLayer(gps: GpsService) {
       attached = false;
       unsubscribe?.(); unsubscribe = undefined;
       syncDemand();
-      motionHistory = [];
-      turnHistoryStart = -Infinity;
+      resetMotionHistory();
       store.publish({ ...store.getSnapshot(), state: 'off', fix: null, turnRate: null, displayTrack: null });
     },
     retry: gps.retry,

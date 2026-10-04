@@ -1,5 +1,6 @@
 import type { Map, ExpressionSpecification } from 'maplibre-gl';
 import { createSourceSubmission } from '../../core/map/source-submission';
+import { LayerScope } from '../../core/layers/scope';
 import { WEATHER_LAYER_ANCHOR, type MapLayerModule } from '../../core/map/layer';
 import { shadedGrid, type WeatherState, type WeatherController } from './controller';
 import { mountGridMap } from './grids/map';
@@ -22,6 +23,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
   let inputs: WeatherState | undefined;
   let previous = '', retry = -1;
   let submission: ReturnType<typeof createSourceSubmission> | undefined;
+  let scope: LayerScope | undefined;
   let attempted: ReturnType<WeatherController['getSnapshot']>['products'] | undefined;
   let grids: ReturnType<typeof mountGridMap> | undefined;
   let winds: ReturnType<typeof mountWindMap> | undefined;
@@ -96,6 +98,15 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     subscribeInputs: controller.subscribe,
     mount(next) {
       map = next;
+      scope = new LayerScope();
+      scope.add(() => controller.setAdvisoryDisplay({ loading: false, ids: [] }));
+      scope.add(() => {
+        submission = undefined; grids = undefined; winds = undefined; radar = undefined;
+        motion = undefined; coverage = undefined; progs = undefined;
+        inputs = undefined; previous = ''; attempted = undefined; retry = -1;
+      });
+      scope.add(() => { if (next.getSource(SOURCE)) next.removeSource(SOURCE); });
+      for (const id of ADVISORY_LAYERS) scope.add(() => { if (next.getLayer(id)) next.removeLayer(id); });
       map.addSource(SOURCE, { type: 'geojson', attribution: 'NOAA / Aviation Weather Center',
         data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({ id: ADVISORY_LAYERS[0]!, type: 'fill', source: SOURCE,
@@ -108,15 +119,23 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': colors, 'line-width': lineWidth, 'line-opacity': 1 } }, WEATHER_LAYER_ANCHOR);
       submission = createSourceSubmission(map, SOURCE, fail);
+      scope.add(submission.destroy);
+      scope.add(() => controller.detach());
       controller.attach();
       grids = mountGridMap(map, controller, ADVISORY_LAYERS[0]!);
+      scope.add(grids.destroy);
       // Both overlays mount lazily. Resolve the first Progs layer when radar
       // actually appears; Progs added later goes above it at the weather anchor.
       radar = mountRadarMap(map, controller, () => [...MOTION_LAYERS, ...SURFACE_LAYERS].find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
+      scope.add(radar.destroy);
       motion = mountRadarMotionMap(map, controller, () => SURFACE_LAYERS.find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
+      scope.add(motion.destroy);
       winds = mountWindMap(map, controller, ADVISORY_LAYERS[1]!);
+      scope.add(winds.destroy);
       coverage = mountProgsCoverageMap(map, controller, ADVISORY_LAYERS[0]!);
+      scope.add(coverage.destroy);
       progs = mountProgsMap(map, controller, WEATHER_LAYER_ANCHOR);
+      scope.add(progs.destroy);
       controller.setPicker(point => {
         if (!map || !controller.getSnapshot().preferences.awcEnabled) return [];
         return [...new Set(map.queryRenderedFeatures([[point.x - 4, point.y - 4], [point.x + 4, point.y + 4]],
@@ -126,20 +145,9 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     },
     update,
     unmount() {
-      submission?.destroy(); submission = undefined;
-      grids?.destroy(); grids = undefined;
-      winds?.destroy(); winds = undefined;
-      radar?.destroy(); radar = undefined;
-      motion?.destroy(); motion = undefined;
-      coverage?.destroy(); coverage = undefined;
-      progs?.destroy(); progs = undefined;
-      controller.detach();
-      if (map) {
-        for (const id of [...ADVISORY_LAYERS].reverse()) if (map.getLayer(id)) map.removeLayer(id);
-        if (map.getSource(SOURCE)) map.removeSource(SOURCE);
-      }
-      map = undefined; inputs = undefined; previous = ''; attempted = undefined; retry = -1;
-      controller.setAdvisoryDisplay({ loading: false, ids: [] });
+      // Child cleanup can publish status synchronously; revoke parent updates first.
+      map = undefined;
+      scope?.dispose(); scope = undefined;
     },
   };
 }

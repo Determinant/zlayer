@@ -1,5 +1,7 @@
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
 import type { LayerScope } from '../../core/layers/scope';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import { REFERENCE_LINE_HALO, REFERENCE_LINE_PAINT } from '../../core/map/reference-line';
 import { gripPosition, type ScreenPoint, type ScreenRect } from './handles';
 import { rulerPath, type Coordinate } from './measurement';
@@ -44,20 +46,47 @@ export function createRulerRenderer(map: MapLibreMap, scope: LayerScope) {
   });
   map.getContainer().append(root);
   let previousStart: Coordinate | null = null, previousEnd: Coordinate | null = null;
+  let data: FeatureCollection = { type: 'FeatureCollection', features: [] };
+  let visible = false, retried = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  const visibility = (show: boolean) => {
+    const value = show ? 'visible' : 'none';
+    for (const id of LAYERS) if (map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== value) map.setLayoutProperty(id, 'visibility', value);
+  };
+  const submission = createSourceSubmission(map, SOURCE, () => {
+    visibility(false);
+    if (!retried) {
+      retried = true;
+      retryTimer = setTimeout(() => { retryTimer = undefined; publish(); }, 100);
+    }
+  });
+  const publish = () => {
+    const version = submission.begin();
+    void submission.submit(version, data).then(accepted => {
+      if (accepted) visibility(visible && data.features.length > 0);
+    }).catch(error => submission.reject(version, error));
+  };
+  scope.add(() => { clearTimeout(retryTimer); submission.destroy(); });
   const project = (coordinate: Coordinate) => map.project([
     coordinate[0] + 360 * Math.round((map.getCenter().lng - coordinate[0]) / 360), coordinate[1],
   ]);
   return {
     root, handles, project,
+    retry() { if (visible && submission.failed && retryTimer === undefined) publish(); },
     draw(state: RulerSnapshot, obstacles: ScreenRect[], locked?: { endpoint: RulerEndpoint; offset: ScreenPoint }) {
       root.hidden = !state.active;
       root.classList.toggle('is-touch', state.touch);
       const start = state.active ? state.start : null, end = state.active ? state.end : null;
+      const show = !!start && !!end;
+      if (visible && !show) visibility(false);
+      visible = show;
       if (start !== previousStart || end !== previousEnd) {
         const coordinates = start && end ? rulerPath(start, end) : [];
-        (map.getSource(SOURCE) as GeoJSONSource).setData({ type: 'FeatureCollection', features: coordinates.length > 1
-          ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }] : [] });
+        data = { type: 'FeatureCollection', features: coordinates.length > 1
+          ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }] : [] };
+        retried = false; clearTimeout(retryTimer); retryTimer = undefined;
         previousStart = start; previousEnd = end;
+        publish();
       }
       if (!state.active) return;
       const width = map.getContainer().clientWidth, height = map.getContainer().clientHeight;

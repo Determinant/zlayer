@@ -102,7 +102,10 @@ reader gestures, saved view state and map placement actions:
   page, keeping the selected page and fullscreen mode.
 - Two-finger pinch and trackpad gestures change viewer zoom from 50–400%, anchored
   at the gesture. The current bitmap previews the movement; PDF.js redraws after
-  release. Compact zoom controls leave room for **Rotate 90° clockwise**, which
+  release. Ctrl/Meta-wheel uses the same anchored bitmap preview; a burst ends
+  after 150 ms without a zoom change. Ordinary wheel scrolling stays native, and
+  modified wheel events suppress browser zoom inside the loaded viewer.
+  Compact zoom controls leave room for **Rotate 90° clockwise**, which
   turns the page in quarter turns and refits it at the selected zoom, starting at
   the top of the rotated page. The PDF's original orientation is preserved as the
   starting point. Selection, page, zoom, rotation, fullscreen and scroll position restore locally.

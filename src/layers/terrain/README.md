@@ -373,9 +373,12 @@ geometry; disabling cancels pending publication, and unmount releases the outlin
 
 ## Cache recovery and source identity
 
-The vector cache normally holds 128 tiles, retaining current screen coverage even
-if it exceeds that budget, then shrinking as coverage leaves. Eviction uses recent
-visibility; cache access preserves insertion order and label placement. Warm pans
+The vector cache retains at most 128 tiles or 32 MiB of estimated vector storage,
+retaining current screen coverage even if it exceeds either budget, then shrinking
+as coverage leaves. The estimate counts coordinate arrays, labels and border
+buffers; it is an eviction weight, not a measured browser-heap cap. Dense offscreen
+tiles leave sooner than small ones. Eviction uses recent visibility; cache access
+preserves insertion order and label placement. Warm pans
 publish changed cached coverage immediately without rewriting unchanged sources;
 new worker results use a 100 ms coalescing window.
 
@@ -386,6 +389,13 @@ reject stale route/source generations and wait for explicit retry after failure.
 Viewport-only shading does not request route-vector recovery. Stable foreground
 anchors preserve route-label/ownship order through source replacement and remounts.
 Terrain-source errors request a completion frame even without `sourcedata`.
+
+GeoJSON label, contour and corridor submissions track acceptance independently
+of computed vector/corridor caches. A failed source hides its layers, reports
+incomplete terrain and retries the retained collection once after 100 ms, without
+another DEM or corridor job. Later camera settles or normal recovery demand can
+retry again. Empty updates hide immediately. Source replacement and teardown
+cancel retries and invalidate old completions; raster policies remain separate.
 
 Effective terrain identity uses the first eligible source per shard, including
 saved-region precedence, archive URLs, hashes and lengths. Catalog timestamps,

@@ -58,6 +58,14 @@ unmount releases the worker. Each request covers at most four viewport areas bef
 clipping; local density determines feature count. Navigation still retains complete
 reference data and an eligible render collection; it does not stream by viewport.
 
+Map-source processing failures are separate from worker/download failures. They
+hide the failed display, report an error and retry the retained collection once
+after 100 ms without another worker query. Later camera settles or new results
+can retry again. Empty updates hide immediately; accepted submissions restore the
+current visibility. Status is reconciled against current viewport coverage: an
+old buffer's acceptance cannot mark a distant pending refill ready. Unmount
+cancels retries and late completions.
+
 ## Symbols
 
 Shapes follow the [FAA Aeronautical Chart Users' Guide, July 9, 2026, page 33](https://aeronav.faa.gov/user_guide/cug-complete_20260709.pdf):

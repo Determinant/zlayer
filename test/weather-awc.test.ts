@@ -744,7 +744,13 @@ test('advisory source failures clear shown counts and recover unchanged IDs with
   assert.equal(writes.length, 2);
   fail(); controller.retryAdvisories(); writes[2]!.reject(new Error('Source rejected')); await flush();
   assert.match(controller.getSnapshot().advisoryDisplay.error!, /Source rejected/);
-  controller.retryAdvisories(); host.unmount(); writes[3]!.resolve(); await flush();
+  controller.retryAdvisories();
+  const detached = t.mock.method(controller, 'detach');
+  const cleanupErrors = t.mock.method(console, 'error', () => {});
+  t.mock.method(controller, 'setCoverageDisplay', () => { throw new Error('Coverage cleanup failed'); });
+  host.unmount(); writes[3]!.resolve(); await flush();
+  assert.equal(detached.mock.callCount(), 1, 'one child cleanup exception cannot retain the controller');
+  assert.equal(cleanupErrors.mock.callCount(), 1);
   assert.deepEqual(controller.getSnapshot().advisoryDisplay, { loading: false, ids: [] });
   assert.equal(handlers.size, 0); assert.equal(sources.size, 0);
 });

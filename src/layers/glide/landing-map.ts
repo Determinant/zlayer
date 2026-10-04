@@ -1,4 +1,6 @@
-import type { Map as MapLibreMap, GeoJSONSource, ImageSource, ExpressionSpecification } from 'maplibre-gl';
+import type { Map as MapLibreMap, ImageSource, ExpressionSpecification } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import { WorkerClient } from '../../core/data/worker-client';
 import { WEATHER_LAYER_ANCHOR, removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { jsonIdentity } from '../../core/data/json-identity';
@@ -27,9 +29,35 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   let sources = landingSources(undefined, "http://localhost/"), sourceIdentity = "";
   let lastStatus: LandingStatus = { state: 'idle' };
   const status = (next: LandingStatus) => { lastStatus = next; onStatus(next); };
+  let submission: ReturnType<typeof createSourceSubmission> | undefined;
+  let collection: FeatureCollection = emptyLandings(), retried = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingKey: { key: string; revision: number; status: LandingStatus } | undefined;
+  const vectorVisibility = (visible: boolean) => {
+    const value = visible ? 'visible' : 'none';
+    for (const id of LAYERS) if (map?.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== value) map.setLayoutProperty(id, 'visibility', value);
+  };
+  const renderCollection = async (data: FeatureCollection, retry = false) => {
+    collection = data;
+    if (!retry) { retried = false; pendingKey = undefined; clearTimeout(retryTimer); retryTimer = undefined; }
+    if (!data.features.length) vectorVisibility(false);
+    const active = submission;
+    if (!active) return false;
+    const version = active.begin();
+    try {
+      const accepted = await active.submit(version, data);
+      if (accepted) {
+        vectorVisibility(data.features.length > 0);
+        if (retry && pendingKey?.revision === revision) {
+          renderedKey = pendingKey.key; status(pendingKey.status); pendingKey = undefined;
+        }
+      }
+      return accepted;
+    } catch (error) { active.reject(version, error); return false; }
+  };
   const clearDetail = () => {
     renderedKey = `${renderedKey?.split('/')[0] ?? ''}/`;
-    map?.getSource<GeoJSONSource>(SOURCE)?.setData(emptyLandings());
+    void renderCollection(emptyLandings());
     detailImage = null;
     if (map?.getLayer(RASTER)) map.setLayoutProperty(RASTER, 'visibility', 'none');
   };
@@ -62,7 +90,10 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         discover, revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
       }));
       if (!map || job.revision !== revision) return;
-      if (result.collection) map.getSource<GeoJSONSource>(SOURCE)?.setData(result.collection);
+      const submitted = result.collection ? renderCollection(result.collection) : undefined;
+      // Retain the receipt before awaiting MapLibre: an error event can schedule
+      // a successful retry while the original upload promise is still pending.
+      const receipt = pendingKey = { key: result.renderKey, revision, status: result.status };
       if (result.raster !== undefined) {
         detailImage = result.raster;
         if (detailImage) {
@@ -83,7 +114,12 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         }
         map.setLayoutProperty(HEAT, 'visibility', heat?.shadedCells ? 'visible' : 'none');
       }
-      renderedKey = result.renderKey; status(result.status);
+      const accepted = submitted ? await submitted : !submission?.failed;
+      if (!map || job.revision !== revision) return;
+      if (accepted) { renderedKey = result.renderKey; status(result.status); pendingKey = undefined; }
+      else if (pendingKey === receipt) {
+        status({ ...result.status, state: 'error' });
+      }
       if (result.more) queued = true;
     } catch {
       if (map && job.revision === revision) status({ ...lastStatus, state: 'error' });
@@ -109,7 +145,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     if (followingGps) return;
     clearTimeout(timer); timer = undefined; queued = false; cancel();
   };
-  const moved = () => { followingGps = false; schedule(); };
+  const moved = () => { followingGps = false; if (submission?.failed && retryTimer === undefined) void renderCollection(collection, true); schedule(); };
   const visibility = () => { if (document.hidden) moving({ type: 'visibilitychange' }); else schedule(); };
   const recover = () => { revalidate = true; cancel(); schedule(); };
   return {
@@ -152,6 +188,15 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         paint: { 'line-color': '#242333', 'line-width': 1.5, 'line-opacity': 0.75 } }, before);
       map.addLayer({ id: LAYERS[2]!, type: 'line', source: SOURCE,
         paint: { 'line-color': colors, 'line-width': 0.75 } }, before);
+      submission = createSourceSubmission(map, SOURCE, () => {
+        if (!pendingKey && renderedKey !== undefined) pendingKey = { key: renderedKey, revision, status: lastStatus };
+        renderedKey = undefined; vectorVisibility(false);
+        if (input.enabled) status({ ...lastStatus, state: 'error' });
+        if (!retried) {
+          retried = true;
+          retryTimer = setTimeout(() => { retryTimer = undefined; void renderCollection(collection, true); }, 100);
+        }
+      });
       map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', visibility);
       stopInventory = observeOfflineInventory(recover);
@@ -181,6 +226,8 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       schedule();
     },
     unmount() {
+      clearTimeout(retryTimer); retryTimer = undefined;
+      submission?.destroy(); submission = undefined; pendingKey = undefined; collection = emptyLandings();
       cancel(); clearTimeout(timer); timer = undefined; release();
       stopInventory?.(); stopInventory = undefined;
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', visibility);

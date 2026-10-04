@@ -61,11 +61,16 @@ export function rangeTransition(from: LocatedRange, to: LocatedRange): ((progres
 
 /** A bounded transition per new result, with backpressure from MapLibre's
  * source workers. No terrain calculations, recurring timers or idle frames. */
-export function createRangeAnimation(write: (range: GlideRange) => Promise<unknown>) {
+export function createRangeAnimation(write: (range: GlideRange) => Promise<boolean | void>) {
   let displayed: LocatedRange | undefined;
+  let target: LocatedRange | undefined;
   let animation: { target: LocatedRange; sample: (t: number) => GlideRange; start: number } | undefined;
   let frame: number | undefined, busy = false, revision = 0, lastFrame = -Infinity;
   const cancelFrame = () => { if (frame !== undefined) cancelAnimationFrame(frame); frame = undefined; };
+  const fail = () => {
+    revision++; cancelFrame(); animation = undefined; displayed = undefined;
+    return target?.range;
+  };
   const schedule = () => { if (animation && !busy) frame ??= requestAnimationFrame(draw); };
   const draw = () => {
     frame = undefined;
@@ -76,14 +81,15 @@ export function createRangeAnimation(write: (range: GlideRange) => Promise<unkno
     displayed = { ...animation.target, range };
     if (progress === 1) animation = undefined;
     lastFrame = time; busy = true;
-    void write(range).catch(() => {
-      if (version === revision) { animation = undefined; displayed = undefined; }
-    }).finally(() => { busy = false; schedule(); });
+    void write(range).then(accepted => {
+      if (accepted === false && version === revision) fail();
+    }).catch(() => { if (version === revision) fail(); })
+      .finally(() => { busy = false; schedule(); });
   };
   return {
     set(range: GlideRange, origin: Point, animate: boolean) {
       revision++; cancelFrame();
-      const target = { range, origin };
+      target = { range, origin };
       const sample = animate && displayed ? rangeTransition(displayed, target) : undefined;
       animation = { target, sample: sample ?? (() => range), start: performance.now() - (sample ? 0 : DURATION_MS) };
       draw();
@@ -92,6 +98,9 @@ export function createRangeAnimation(write: (range: GlideRange) => Promise<unkno
       if (!animation) return;
       cancelFrame(); animation.start = performance.now() - DURATION_MS; draw();
     },
-    reset() { revision++; cancelFrame(); animation = undefined; displayed = undefined; },
+    // Source errors can arrive after worker acceptance. Keep the complete target
+    // for the adapter's bounded recovery, never just the last interpolated frame.
+    fail,
+    reset() { fail(); target = undefined; },
   };
 }

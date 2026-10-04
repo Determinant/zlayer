@@ -10,6 +10,7 @@ import './styles.css';
 
 export function RulerTool({ layer, revision }: { layer: RulerLayer; revision?: string }) {
   const state = useLayerSnapshot(layer);
+  const attached = useLayerSnapshot(layer.attached);
   const model = useMagneticModel(revision, state.active, fetchMagneticModel);
   const root = useRef<HTMLDivElement>(null), toggle = useRef<HTMLButtonElement>(null);
   const id = useId();
@@ -28,11 +29,12 @@ export function RulerTool({ layer, revision }: { layer: RulerLayer; revision?: s
     return () => window.removeEventListener('keydown', escape);
   }, [state.active, layer]);
   const result = state.start && state.end ? measure(state.start, state.end, model) : null;
-  const prompt = !state.start ? 'Choose start point A' : !state.end ? 'Choose end point B'
+  const prompt = !attached ? 'Ruler unavailable' : !state.start ? 'Choose start point A' : !state.end ? 'Choose end point B'
     : state.provisional ? 'Drag B to measure' : 'Drag A or B to adjust';
   return <div className="ruler-tool" ref={root}>
     <button ref={toggle} type="button" className="map-tool-button ruler-toggle" aria-label="Measure distance and bearing"
       title="Measure distance and bearing" aria-pressed={state.active} aria-controls={state.active ? id : undefined}
+      disabled={!attached && !state.active}
       onClick={() => state.active ? close() : layer.open()}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 16 13-13 5 5-13 13Z" />
         <path d="m7 12 2 2m1-5 3 3m0-6 2 2" /></svg>
@@ -51,9 +53,9 @@ export function RulerTool({ layer, revision }: { layer: RulerLayer; revision?: s
       <p className="ruler-prompt" role="status">{prompt}</p>
       {result && !result.magnetic && result.trueBearing !== null && <p className="ruler-reference">Magnetic bearing unavailable</p>}
       <div className="ruler-actions">
-        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.reverse()} disabled={!result || state.provisional} aria-label="Reverse ruler direction">
+        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.reverse()} disabled={!attached || !result || state.provisional} aria-label="Reverse ruler direction">
           <span aria-hidden="true">⇄</span> Reverse</button>
-        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.restart()} aria-label="New measurement">New</button>
+        <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={() => layer.restart()} disabled={!attached} aria-label="New measurement">New</button>
         <button className="ui-button ui-button--quiet ui-button--compact" type="button" onClick={close} aria-label="Close ruler">Close</button>
       </div>
     </section>}

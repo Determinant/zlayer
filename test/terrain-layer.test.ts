@@ -75,6 +75,7 @@ function fixture(t: test.TestContext, options: { deferCorridors?: boolean; zoom?
     t.after(() => previous ? Object.defineProperty(globalThis, name, previous) : Reflect.deleteProperty(globalThis, name));
   }
   const sources = new Map<string, unknown>(), layers = [TERRAIN_LAYER_ANCHOR], writes: string[] = [];
+  const layerSources = new Map<string, string | undefined>(), visibility = new Map<string, string>();
   const listeners = new Map<string, Set<() => void>>();
   let covered = [tile(0)], loaded = true, zoom = options.zoom ?? 13, repaints = 0;
   const map = {
@@ -84,11 +85,16 @@ function fixture(t: test.TestContext, options: { deferCorridors?: boolean; zoom?
     off: (event: string, handler: () => void) => listeners.get(event)?.delete(handler),
     addSource: (id: string, source: { data?: unknown }) => sources.set(id, source.data),
     getSource: (id: string) => sources.has(id) ? { setData(data: unknown) { sources.set(id, data); writes.push(id); } } : undefined,
-    removeSource: (id: string) => sources.delete(id), getLayer: (id: string) => layers.includes(id),
-    addLayer(value: { id: string }, before?: string) { layers.splice(before ? layers.indexOf(before) : layers.length, 0, value.id); },
-    removeLayer(id: string) { layers.splice(layers.indexOf(id), 1); },
+    removeSource: (id: string) => sources.delete(id),
+    getLayer: (id: string) => layers.includes(id) ? { id, source: layerSources.get(id) } : undefined,
+    addLayer(value: { id: string; source?: string }, before?: string) {
+      layers.splice(before ? layers.indexOf(before) : layers.length, 0, value.id); layerSources.set(value.id, value.source);
+    },
+    removeLayer(id: string) { layers.splice(layers.indexOf(id), 1); layerSources.delete(id); },
     moveLayer(id: string, before?: string) { layers.splice(layers.indexOf(id), 1); layers.splice(before ? layers.indexOf(before) : layers.length, 0, id); },
-    setLayoutProperty() {}, setPaintProperty() {},
+    getLayoutProperty: (id: string) => visibility.get(id),
+    setLayoutProperty(id: string, key: string, value: string) { if (key === 'visibility') visibility.set(id, value); },
+    setPaintProperty() {},
   } as unknown as MapLibreMap;
   const layer = createTerrainLayer(status => statuses.push(status));
   layer.update({ enabled: true, routes: [route] }); layer.mount(map);
@@ -97,7 +103,7 @@ function fixture(t: test.TestContext, options: { deferCorridors?: boolean; zoom?
   const advance = async () => { t.mock.timers.tick(100); await settled(); };
   const finish = async (i: number) => { jobs[i]!.finish(); await settled(); await advance(); };
   cleanup = () => { layer.unmount(); workers.forEach(worker => worker.terminate()); };
-  return { layer, map, jobs, corridors, workers, statuses, closed, canceled, sources, listeners, writes, layers, fire, advance, finish,
+  return { layer, map, jobs, corridors, workers, statuses, closed, canceled, sources, listeners, writes, layers, visibility, fire, advance, finish,
     data: (id = TERRAIN_CONTOUR_SOURCE) => sources.get(id) as { features: { properties: { elevation: number } }[] },
     status: () => statuses.at(-1)!, repaints: () => repaints, loaded(value: boolean) { loaded = value; },
     move(tiles: Tile[]) { covered = tiles; fire('move'); },
@@ -105,6 +111,30 @@ function fixture(t: test.TestContext, options: { deferCorridors?: boolean; zoom?
     async render() { fire('render'); await settled(); },
   };
 }
+
+test('terrain source recovery reuses prepared contours without DEM or corridor work', async t => {
+  const f = fixture(t); await f.render(); await f.finish(0);
+  const data = f.data(), jobs = f.jobs.length, corridors = f.corridors.length;
+  const contourLayers = f.layers.filter(id => f.map.getLayer(id)?.source === TERRAIN_CONTOUR_SOURCE);
+  assert.ok(contourLayers.length);
+  f.writes.length = 0;
+  f.fire('error', { sourceId: TERRAIN_CONTOUR_SOURCE, error: new Error('Source failed') });
+  assert.equal(f.status().state, 'error');
+  for (const id of contourLayers) assert.equal(f.visibility.get(id), 'none');
+  f.fire('moveend');
+  assert.equal(f.writes.length, 0, 'camera demand must not duplicate the pending retry');
+  await f.advance();
+  assert.deepEqual(f.writes, [TERRAIN_CONTOUR_SOURCE]);
+  assert.equal(f.data(), data);
+  assert.equal(f.jobs.length, jobs); assert.equal(f.corridors.length, corridors);
+  for (const id of contourLayers) assert.equal(f.visibility.get(id), 'visible');
+  assert.equal(f.status().state, 'ready');
+  f.fire('error', { sourceId: TERRAIN_CONTOUR_SOURCE, error: new Error('Another failure') });
+  await f.advance();
+  assert.equal(f.writes.length, 1, 'the same geometry receives only one automatic retry');
+  f.fire('moveend'); await settled();
+  assert.equal(f.writes.length, 2);
+});
 
 test('warm terrain pans publish cached vectors before moveend and unchanged coverage does not rewrite sources', async t => {
   const f = fixture(t); await f.render(); await f.finish(0);

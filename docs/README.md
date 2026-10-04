@@ -127,6 +127,9 @@ current guide and should be linked from the affected ADR without erasing the ori
 
 - [Review consolidation map](reviews/README.md): canonical homes for earlier reviews
   and guidance for retaining future standalone investigations.
+- [Sequential plugin code review](reviews/2026-10-03-plugin-code-review.md): completed
+  static review of all 12 plugins, implemented fixes and assessed cleanup recommendations;
+  includes per-plugin scope and pending runtime verification.
 - [Evidence](evidence/README.md): retained audits and images, their purpose and retention rules.
 
 Resolved findings and lasting guidelines belong in the owning feature, architecture

@@ -130,6 +130,13 @@ consumes the resulting plan rather than interpreting route text again.
   one frame; cancellation restores the original without a source reload. Pointer
   moves during initial loading coalesce to the latest coordinate, keeping
   per-move geometry work independent of route length.
+  Source-processing failure hides the affected route, comparison or drag source
+  and retries its prepared collection once after 100 ms; a later camera settle
+  or changed input can retry again. Failed drag uploads restore the original leg.
+  Recovery still requires the expected preview feature in loaded tiles before
+  swapping paint state. Empty updates hide immediately; teardown cancels retries
+  and invalidates late completions. Independent scoped disposers release source
+  listeners, retries, map resources and label state even if one cleanup throws.
 - Snapping preserves the map's rendered label/icon hits in a box extending 24 CSS
   pixels around the pointer, ranked by anchor distance. A captured entity remains
   eligible while hit, within 36 pixels of its anchor, or within its captured

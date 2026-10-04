@@ -131,6 +131,15 @@ changes, including late tiles. Status-only updates and visibility changes avoid
 redundant GeoJSON writes. Cached input identities do not retain another joined
 collection.
 
+Map-source processing errors hide the weather source and invalidate visual reuse,
+including errors emitted before `setData` resolves. One retry follows after
+100 ms; later display/input/environment demand can retry again. Recovery rejoins
+the retained airport/report inputs without downloading reports or keeping a
+second joined collection. Clears and category-disabled replacements stay hidden
+through repeat callbacks until acceptance. Accepted empty sources remain hidden;
+accepted gray replacements follow current Airports visibility. Teardown cancels
+pending retries and completions.
+
 Airport runway metadata belongs to navigation. The METAR product contributes wind
 components to the runway panel, using the selected airport's own observation from
 the shared METAR cache. Renderer-independent component calculations live in the

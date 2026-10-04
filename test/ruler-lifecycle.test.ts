@@ -61,6 +61,7 @@ test('ruler unwinds partial renderer and interaction setup, then reloads without
     return () => { subscriptions--; unsubscribe(); };
   } });
   const assertReleased = () => {
+    assert.equal(product.attached.getSnapshot(), false);
     assert.equal(sources.size + layers.size + events.size + observers + subscriptions, 0);
     assert.equal(container.children.size, 0);
     assert.ok(elements.every(element => element.listeners.size === 0));
@@ -70,6 +71,9 @@ test('ruler unwinds partial renderer and interaction setup, then reloads without
   host.mount([adapter()]); host.unmount(); assertReleased();
   assert.equal(errors.length, 2);
   failObserver = false;
-  for (let i = 0; i < 30; i++) { host.mount([adapter()]); host.unmount(); assertReleased(); }
+  for (let i = 0; i < 30; i++) {
+    host.mount([adapter()]); assert.equal(product.attached.getSnapshot(), true);
+    host.unmount(); assertReleased();
+  }
   assert.equal(errors.length, 2);
 });

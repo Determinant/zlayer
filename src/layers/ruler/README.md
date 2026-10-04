@@ -32,6 +32,12 @@ zero ellipsoid height and the current date. Missing/expired coefficients or weak
 polar fields leave magnetic bearing empty while true bearing remains available.
 Coincident, antipodal, or geographic-pole starts do not produce an arbitrary bearing.
 
+Path subdivision checks projected quarter/midpoints against a 0.5 CSS-pixel
+target at the map's maximum zoom of 13. Initial segments span at most one angular
+degree; refinement stops at depth 12 or 8,192 vertices, retaining coarser segments
+when a limit is reached. Endpoints and antimeridian continuity are preserved.
+Geometry is reused until endpoints change, including during camera movement.
+
 `src/layers/ruler/` owns state, measurement, renderer, pointer interaction, grips,
 and the card. Workspace composition supplies the product and feed revision; the
 shell places the control. The shared gesture coordinator gates feature selection,
@@ -42,6 +48,18 @@ outside release cancels the preview. Grip movement publishes the latest position
 once per display frame. Pointer release commits its final position immediately;
 cancellation, session replacement and cleanup discard pending moves so they cannot
 restore a cancelled preview. Cleanup restores double-click zoom.
+
+Gesture ownership requires both an open tool and an attached renderer. Detach or
+failed attachment releases the claim; temporary measurement intent survives a
+remount. Unavailable controls show that state and allow closing an open tool.
+While open, workspace layout notifications refresh occupied rectangles after
+panel mutations, size changes and completed transitions, coalesced to a frame.
+The renderer does not scan the shell on every camera frame.
+
+A failed GeoJSON submission hides the line and retries the retained geometry once
+after 100 ms. A later camera settle or endpoint change can retry again. Closing
+hides the line immediately even if clearing its source fails; teardown cancels
+retries and invalidates late completions.
 
 `test/ruler.test.ts` checks geometry, magnetic reference, state transitions and
 grip placement. `test/e2e/ruler.spec.ts` exercises real map mouse/touch input,

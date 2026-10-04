@@ -1,4 +1,6 @@
-import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
+import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
 import { WorkerClient } from '../../core/data/worker-client';
 import { withAbort } from '../../core/data/abort';
@@ -12,7 +14,7 @@ import { insideViewport, localRouteSegments, unwrapPoint, viewportBounds, type G
 import { project, type Point, type Segment } from '../../core/geo/route-corridor';
 import { distanceMeters } from '../../core/gps/position';
 import { createRangeAnimation } from './range-animation';
-import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResult, type GlideRange, type GlideAreas } from './types';
+import { emptyLines, emptyAreas, type GlideStatus, type GlideWorker, type GlideResponse, type GlideRange, type GlideAreas } from './types';
 
 export type GlideMapInput = { enabled?: boolean; airportsEnabled?: boolean; ratio?: number; altitude?: number; catalog?: CatalogReadSource; retry: number; segments?: Segment[]; ownship?: Point | null; point?: Point | null; pointElevationFt?: number };
 const AREA = 'glide-areas', AIRPORTS = 'glide-airports', OWN = 'glide-ownship', OWN_AREA = 'glide-ownship-area';
@@ -41,7 +43,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   let airportData: { key: string; collection: FeatureCollectionResponse; partial: boolean } | undefined;
   let lastStatus: GlideStatus = { state: 'idle' };
   let rangeInputKey = '', airportInputKey = '', routeInputKey = '';
-  let publishedPlanRevision: number | undefined;
+  let publishedPlanKey: string | undefined, acceptedPlanKey: string | undefined, planSubmission = 0;
   // Recovery is a property of acquired data, not the transient loading/zoom UI.
   let recoveryNeeded = false;
   const publishedRanges = new Map<RangeName, { key: string; origin: Point }>();
@@ -49,11 +51,69 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   const publishRanges = () => onRanges({ type: 'FeatureCollection', features: [...rangeAreas.values()].flatMap(area => area.features) });
   let pinKey: string | undefined;
   let sources = terrainSources(undefined), sourceKey = '';
-  const status = (next: GlideStatus) => { lastStatus = next; onStatus(next); };
-  const source = (id: string) => map?.getSource<GeoJSONSource>(id);
+  type Source = { submission: ReturnType<typeof createSourceSubmission>; data?: FeatureCollection;
+    timer?: ReturnType<typeof setTimeout> | undefined; retried: boolean; failed: boolean };
+  const submissions = new Map<string, Source>();
+  let ownshipSubmission = 0;
+  const status = (next: GlideStatus) => {
+    lastStatus = next;
+    onStatus([...submissions.values()].some(source => source.failed) && input.enabled ? { ...next, state: 'error' } : next);
+  };
+  const visibility = (source: string, visible: boolean) => {
+    const value = visible ? 'visible' : 'none';
+    for (const id of LAYERS) if (map?.getLayer(id)?.source === source && map.getLayoutProperty(id, 'visibility') !== value) {
+      map.setLayoutProperty(id, 'visibility', value);
+    }
+  };
+  const write = async (id: string, data: FeatureCollection, retry = false) => {
+    const source = submissions.get(id);
+    if (!source) return false;
+    source.data = data;
+    if (!retry) { source.retried = false; clearTimeout(source.timer); source.timer = undefined; }
+    if (!data.features.length) visibility(id, false);
+    const version = source.submission.begin();
+    try {
+      const accepted = await source.submission.submit(version, data);
+      if (accepted) {
+        visibility(id, data.features.length > 0);
+        if (source.failed) { source.failed = false; status(lastStatus); }
+      }
+      return accepted;
+    } catch (error) { source.submission.reject(version, error); return false; }
+  };
+  const retrySubmissions = () => {
+    for (const [id, source] of submissions) if (source.failed && source.timer === undefined && source.data) void write(id, source.data, true);
+  };
   const ownshipAnimation = createRangeAnimation(async range => {
-    await Promise.all([source(OWN)?.setData(range.line), source(OWN_AREA)?.setData(range.area)]);
+    const version = ownshipSubmission;
+    const line = write(OWN, range.line);
+    // setData can emit an error synchronously. Do not replace the complete
+    // recovery target with its peer's obsolete animated frame in that case.
+    const area = version === ownshipSubmission ? write(OWN_AREA, range.area) : Promise.resolve(false);
+    const accepted = await Promise.all([line, area]);
+    return accepted.every(Boolean);
   });
+  const sourceFailed = (id: string) => {
+    if (id === AREA || id === AIRPORTS) {
+      planSubmission++; acceptedPlanKey = publishedPlanKey = undefined;
+    }
+    const ownship = id === OWN || id === OWN_AREA;
+    if (ownship) ownshipSubmission++;
+    const target = ownship ? ownshipAnimation.fail() : undefined;
+    // Fill and outline are one animated result. Invalidate the peer upload too,
+    // so its delayed completion cannot reveal an obsolete intermediate frame.
+    for (const failedId of ownship ? [OWN, OWN_AREA] : [id]) {
+      const source = submissions.get(failedId)!;
+      source.submission.invalidate();
+      if (target) source.data = failedId === OWN ? target.line : target.area;
+      source.failed = true; visibility(failedId, false);
+      if (!source.retried && source.data) {
+        source.retried = true;
+        source.timer = setTimeout(() => { source.timer = undefined; if (source.data) void write(failedId, source.data, true); }, 100);
+      }
+    }
+    status(lastStatus);
+  };
   const onScreen = (point: Point) => {
     if (!map) return false;
     const center = map.getCenter(), canvas = map.getCanvas();
@@ -67,7 +127,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     publishedRanges.delete(name);
     if (rangeAreas.delete(name)) publishRanges();
     const [line, area] = RANGE_SOURCES[name];
-    source(line)?.setData(emptyLines()); source(area)?.setData(emptyAreas());
+    void write(line, emptyLines()); void write(area, emptyAreas());
   };
   const showPin = () => {
     const point = input.enabled ? input.point : null, key = JSON.stringify([point ?? null, input.pointElevationFt]);
@@ -79,19 +139,19 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
       map.setPaintProperty('glide-point-fill', 'fill-color', color);
       map.setPaintProperty('glide-point-label', 'text-color', color);
     }
-    source(PIN)?.setData({ type: 'FeatureCollection', features: point ? [{
+    void write(PIN, { type: 'FeatureCollection', features: point ? [{
       type: 'Feature', properties: { label: input.pointElevationFt === undefined ? 'Glide from here' : 'Glide to selected area' }, geometry: { type: 'Point', coordinates: point },
     }] : [] });
   };
   const clearAirports = () => {
-    publishedPlanRevision = undefined;
-    source(AREA)?.setData(emptyAreas()); source(AIRPORTS)?.setData({ type: 'FeatureCollection', features: [] });
+    planSubmission++; acceptedPlanKey = publishedPlanKey = undefined;
+    void write(AREA, emptyAreas()); void write(AIRPORTS, { type: 'FeatureCollection', features: [] });
   };
   const clear = () => {
     clearAirports(); clearRange('ownship'); clearRange('point'); pinKey = undefined;
-    source(PIN)?.setData({ type: 'FeatureCollection', features: [] });
+    void write(PIN, { type: 'FeatureCollection', features: [] });
   };
-  const publish = (result: GlideResult, origins: { ownship: Point | null; point: Point | null }) => {
+  const publish = (result: GlideResponse, origins: { ownship: Point | null; point: Point | null }) => {
     for (const name of ['ownship', 'point'] as const) {
       const range = result[name], [line, area] = RANGE_SOURCES[name];
       const origin = origins[name];
@@ -99,16 +159,19 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
         || !(samePoint(origin, input[name]) || name === 'ownship' && nearbyOwnship(origin))) continue;
       if (name === 'ownship') ownshipAnimation.set(range, origin, !document.hidden
         && (!map?.isMoving() || followingGps) && !matchMedia('(prefers-reduced-motion: reduce)').matches);
-      else { source(line)?.setData(range.line); source(area)?.setData(range.area); }
+      else { void write(line, range.line); void write(area, range.area); }
       publishedRanges.set(name, { key: range.key, origin });
       rangeAreas.set(name, { ...range.area, features: range.area.features.map(feature => ({
         ...feature, properties: { ...feature.properties, glideOrigin: origin },
       })) }); publishRanges();
     }
-    if (result.planRevision !== publishedPlanRevision) {
-      source(AREA)?.setData(result.areas);
-      source(AIRPORTS)?.setData({ type: 'FeatureCollection', features: result.airports });
-      publishedPlanRevision = result.planRevision;
+    if (result.plan && result.planKey !== publishedPlanKey) {
+      const version = ++planSubmission;
+      acceptedPlanKey = undefined; publishedPlanKey = result.planKey;
+      void Promise.all([write(AREA, result.plan.areas),
+        write(AIRPORTS, { type: 'FeatureCollection', features: result.plan.airports })]).then(accepted => {
+        if (version === planSubmission && accepted.every(Boolean)) acceptedPlanKey = result.planKey;
+      });
     }
   };
   const cancel = () => {
@@ -171,22 +234,22 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
       }
       if (airports.length > 160) discover = false;
       recoveryNeeded ||= airportPartial;
-      let result: GlideResult | undefined;
+      let result: GlideResponse | undefined;
       if (client || discover && (airports.length || shipVisible || pointVisible)) {
         if (!client || client.retired) {
           client = new WorkerClient<GlideWorker>(new Worker(new URL('./glide.worker.ts', import.meta.url), { type: 'module' }), 'Glide calculation unavailable');
-          publishedPlanRevision = undefined; publishedRanges.clear();
+          planSubmission++; acceptedPlanKey = publishedPlanKey = undefined; publishedRanges.clear();
         }
         // Even an overview can reclip known footprints to an edited route. The
         // discovery gate forbids terrain acquisition, not reconciliation.
         result = await client.call(remote => remote.calculate({ id, discover, airports, airportsEnabled: input.airportsEnabled !== false, altitude, ratio, viewport, segments, ownship, point, ...(input.pointElevationFt === undefined ? {} : { pointElevationFt: input.pointElevationFt }), sources,
-          sourceKey, airportKey: airportInputKey, base: location.href,
+          sourceKey, airportKey: airportInputKey, ...(acceptedPlanKey === undefined ? {} : { acceptedPlanKey }), base: location.href,
           tileUrl: import.meta.env.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
         if (id !== generation || !map) return;
         publish(result, { ownship, point });
         recoveryNeeded ||= result.incomplete || !!result.ownship?.incomplete || !!result.point?.incomplete;
       }
-      status({ state: !discover ? 'zoom' : result?.incomplete || airportPartial ? 'partial' : 'ready', airports: result?.airports.length ?? 0, route: !!segments.length,
+      status({ state: !discover ? 'zoom' : result?.incomplete || airportPartial ? 'partial' : 'ready', airports: result?.airportCount ?? 0, route: !!segments.length,
         ownship: rangeStatus(input.ownship, ownship, shipVisible, result?.ownship) ?? 'unavailable',
         point: rangeStatus(input.point, point, pointVisible, result?.point), pointRouteNm: result?.pointRouteNm });
       if (!samePoint(ownship, input.ownship) || !samePoint(point, input.point)) queued = true;
@@ -212,6 +275,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     cancel(); if (input.enabled) status({ ...lastStatus, state: 'loading' });
   };
   const moved = (event: { type: string; gpsCamera?: boolean }) => {
+    retrySubmissions();
     followingGps = false;
     if (!event.gpsCamera) { schedule(); return; }
     // Following the aircraft does not invalidate camera-independent terrain work.
@@ -255,6 +319,11 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
       map.addLayer({ id: 'glide-point-label', type: 'symbol', source: PIN,
         layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 1] },
         paint: { 'text-color': FLIGHT_COLOR, 'text-halo-color': FLIGHT_DARK, 'text-halo-width': 2 } }, before);
+      for (const id of [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]) {
+        const source: Source = { retried: false, failed: false,
+          submission: createSourceSubmission(map, id, () => sourceFailed(id)) };
+        submissions.set(id, source);
+      }
       map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', schedule);
       stopInventory = observeOfflineInventory(inventory); clear(); schedule();
@@ -300,6 +369,9 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
       }
     },
     unmount() {
+      planSubmission++; acceptedPlanKey = publishedPlanKey = undefined;
+      for (const source of submissions.values()) { clearTimeout(source.timer); source.submission.destroy(); }
+      submissions.clear();
       rangeAreas.clear(); publishRanges();
       ownshipAnimation.reset();
       cancel(); release(); airportData = undefined; recoveryNeeded = false;

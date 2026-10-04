@@ -8,21 +8,27 @@ import { suggestedEnd, type ScreenPoint, type ScreenRect } from './handles';
 import type { Coordinate } from './measurement';
 
 /** Pointer events on the canvas only observe taps; native map pan/pinch remain in charge. */
-export function createRulerMapLayer(product: RulerLayer, occupiedRects: () => ScreenRect[] = () => []): MapLayerModule<void> {
+export function createRulerMapLayer(product: RulerLayer, occupiedRects: () => ScreenRect[] = () => [],
+  observeOccupiedRects?: (changed: () => void) => () => void): MapLayerModule<void> {
   let scope: LayerScope | undefined;
   return {
     id: 'ruler', slot: 'route', overlayLayerIds: RULER_LAYER_IDS,
     update() {},
     mount(map) {
       scope = new LayerScope();
-      try { attach(map, product, occupiedRects, scope); }
+      try {
+        attach(map, product, occupiedRects, scope, observeOccupiedRects);
+        scope.add(() => product.attached.publish(false));
+        product.attached.publish(true);
+      }
       catch (error) { scope.dispose(); throw error; }
     },
     unmount() { scope?.dispose(); scope = undefined; },
   };
 }
 
-function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => ScreenRect[], scope: LayerScope) {
+function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => ScreenRect[], scope: LayerScope,
+  observeOccupiedRects?: (changed: () => void) => () => void) {
   const view = createRulerRenderer(map, scope), canvas = map.getCanvas(), container = map.getContainer();
   type DomEvents = HTMLElementEventMap & WindowEventMap & DocumentEventMap;
   function listen<K extends keyof DomEvents>(target: EventTarget, type: K, handler: (event: DomEvents[K]) => void, options?: AddEventListenerOptions) {
@@ -47,6 +53,8 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
   let obstacles: ScreenRect[] = [];
   const findObstacles = () => { obstacles = occupiedRects(); };
   const draw = () => view.draw(product.getSnapshot(), obstacles, drag);
+  let stopObservingLayout: (() => void) | undefined;
+  scope.add(() => stopObservingLayout?.());
   let pendingPoint: ScreenPoint | undefined;
   const dragFrame = createFrameTask(() => {
     const latest = pendingPoint; pendingPoint = undefined;
@@ -88,7 +96,9 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
       doubleClickWasEnabled = map.doubleClickZoom.isEnabled();
       map.doubleClickZoom.disable();
       findObstacles();
+      stopObservingLayout = observeOccupiedRects?.(() => { findObstacles(); draw(); });
     } else if (!state.active && doubleClickWasEnabled !== undefined) {
+      stopObservingLayout?.(); stopObservingLayout = undefined;
       if (doubleClickWasEnabled) map.doubleClickZoom.enable();
       doubleClickWasEnabled = undefined;
       cancel();
@@ -180,6 +190,7 @@ function attach(map: MapLibreMap, product: RulerLayer, occupiedRects: () => Scre
   const resize = () => { cancel(); findObstacles(); draw(); };
   map.on('movestart', moving); scope.add(() => map.off('movestart', moving));
   map.on('move', draw); scope.add(() => map.off('move', draw));
+  map.on('moveend', view.retry); scope.add(() => map.off('moveend', view.retry));
   map.on('resize', resize); scope.add(() => map.off('resize', resize));
   const layout = new ResizeObserver(() => { findObstacles(); draw(); });
   scope.add(() => layout.disconnect());

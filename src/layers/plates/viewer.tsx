@@ -86,7 +86,8 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
     setPreparingMap(false);
   });
   const ready = Boolean(viewer.document && painted?.document === viewer.document && painted.pageIndex === pageIndex);
-  const pinching = usePinchZoom(stageRef, canvasRef, zoom, changeZoom, ready && painted?.rotation === rotation);
+  const pinching = usePinchZoom(stageRef, canvasRef, zoom, changeZoom,
+    ready && painted?.rotation === rotation, Boolean(viewer.document));
 
   useEffect(() => {
     const onVisibility = () => { if (document.visibilityState === 'hidden') saveView(); };
@@ -126,21 +127,6 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
       window.removeEventListener('resize', schedule);
     };
   }, []);
-
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const onWheel = (event: WheelEvent) => {
-      if ((!event.ctrlKey && !event.metaKey) || !viewer.document) return;
-      event.preventDefault();
-      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
-      changeZoom(value => value * Math.exp(-event.deltaY * unit * 0.01));
-    };
-    // React wheel handlers are passive: a trackpad pinch would also zoom the
-    // browser if preventDefault were called there.
-    stage.addEventListener('wheel', onWheel, { passive: false });
-    return () => stage.removeEventListener('wheel', onWheel);
-  }, [viewer.document, changeZoom]);
 
   useEffect(() => {
     const stage = stageRef.current;

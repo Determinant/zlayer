@@ -4,7 +4,7 @@ export const clampPlateZoom = (zoom: number) => Math.max(0.5, Math.min(4, zoom))
 
 /** Own gestures inside the PDF, preserving native one-finger scrolling elsewhere. */
 export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasRef: RefObject<HTMLCanvasElement | null>,
-  zoom: number, onZoom: (zoom: number) => void, enabled: boolean): boolean {
+  zoom: number, onZoom: (zoom: number) => void, enabled: boolean, canZoom = enabled): boolean {
   const [pinching, setPinching] = useState(false);
   const currentZoom = useRef(zoom);
   useLayoutEffect(() => { currentZoom.current = zoom; }, [zoom]);
@@ -12,8 +12,9 @@ export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasR
   useEffect(() => {
     setPinching(false);
     const stage = stageRef.current, canvas = canvasRef.current;
-    if (!enabled || !stage || !canvas) return;
-    let touchMode = false;
+    if (!canZoom || !stage || !canvas) return;
+    let touchMode = false, gestureMode = false;
+    let wheelTimer: ReturnType<typeof setTimeout> | undefined;
     let pan: { id: number; x: number; y: number } | undefined;
     let pinch: { zoom: number; width: number; height: number; x: number; y: number;
       distance: number; ids: number[] | undefined } | undefined;
@@ -40,12 +41,33 @@ export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasR
       currentZoom.current = next;
       onZoom(next);
     };
-    const finish = () => { pinch = undefined; pan = undefined; touchMode = false; setPinching(false); };
+    const finish = () => {
+      clearTimeout(wheelTimer); wheelTimer = undefined;
+      pinch = undefined; pan = undefined; touchMode = gestureMode = false; setPinching(false);
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      prevent(event);
+      if (touchMode || gestureMode) return;
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
+      const next = clampPlateZoom(currentZoom.current * Math.exp(-event.deltaY * unit * 0.01));
+      if (next === currentZoom.current) return;
+      if (!enabled) {
+        // Before the first bitmap (or while rotating), retain ordinary zoom intent.
+        currentZoom.current = next; onZoom(next); return;
+      }
+      const before = currentZoom.current;
+      start(event.clientX, event.clientY, 1);
+      move(event.clientX, event.clientY, next / before);
+      clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(finish, 150);
+    };
     const touches = (event: TouchEvent) => Array.from(event.touches)
       .filter(touch => touch.target instanceof Node && stage.contains(touch.target));
     const pair = (a: Touch, b: Touch) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2,
       distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) });
     const beginTouches = (points: Touch[]) => {
+      clearTimeout(wheelTimer); wheelTimer = undefined;
       touchMode = true;
       if (points.length !== 2) { pinch = undefined; return; }
       const [a, b] = points as [Touch, Touch], point = pair(a, b);
@@ -101,17 +123,25 @@ export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasR
       const y = gesture.clientY ?? rect.top + rect.height / 2;
       if (event.type === 'gestureend') finish();
       else if (Number.isFinite(gesture.scale) && gesture.scale > 0) {
-        if (event.type === 'gesturestart') start(x, y, gesture.scale);
+        if (event.type === 'gesturestart') {
+          clearTimeout(wheelTimer); wheelTimer = undefined; gestureMode = true;
+          start(x, y, gesture.scale);
+        }
         else move(x, y, gesture.scale);
       }
     };
-    stage.addEventListener('touchstart', onStart, { passive: false });
-    stage.addEventListener('touchmove', onMove, { passive: false });
-    stage.addEventListener('touchend', onEnd, { passive: false });
-    stage.addEventListener('touchcancel', finish);
-    for (const type of ['gesturestart', 'gesturechange', 'gestureend']) stage.addEventListener(type, onGesture, { passive: false });
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    if (enabled) {
+      stage.addEventListener('touchstart', onStart, { passive: false });
+      stage.addEventListener('touchmove', onMove, { passive: false });
+      stage.addEventListener('touchend', onEnd, { passive: false });
+      stage.addEventListener('touchcancel', finish);
+      for (const type of ['gesturestart', 'gesturechange', 'gestureend']) stage.addEventListener(type, onGesture, { passive: false });
+    }
     window.addEventListener('resize', finish);
     return () => {
+      clearTimeout(wheelTimer);
+      stage.removeEventListener('wheel', onWheel);
       stage.removeEventListener('touchstart', onStart);
       stage.removeEventListener('touchmove', onMove);
       stage.removeEventListener('touchend', onEnd);
@@ -119,6 +149,6 @@ export function usePinchZoom(stageRef: RefObject<HTMLDivElement | null>, canvasR
       for (const type of ['gesturestart', 'gesturechange', 'gestureend']) stage.removeEventListener(type, onGesture);
       window.removeEventListener('resize', finish);
     };
-  }, [stageRef, canvasRef, enabled, onZoom]);
+  }, [stageRef, canvasRef, enabled, canZoom, onZoom]);
   return pinching;
 }

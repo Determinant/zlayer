@@ -7,6 +7,9 @@ CWAs and freezing contours, CONUS cloud/freezing/icing/wind/temperature forecast
 WPC pressure charts and NDFD weather coverage through [Progs](progs/README.md), and current/recent
 [NEXRAD/TDWR radar](radar/README.md) with optional storm-motion tracks.
 Map weather starts off. METAR/TAF and navigation remain independent plugins.
+The parent map attachment uses core's `LayerScope` for independent child disposal,
+advisory resources and controller detachment. It revokes parent updates before
+cleanup; a child disposer that throws cannot skip the other products or controller.
 The [grid guide](grids/README.md) owns numeric meanings, preparation and offline
 budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs.
 The [weather server](../../../tools/weather-server/README.md) owns source acquisition

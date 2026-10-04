@@ -24,6 +24,28 @@ async function mouseDrag(page: Page, locator: Locator, dx: number, dy: number, r
   if (release) await page.mouse.up();
 }
 
+test('workspace layout changes reposition an obscured grip without changing endpoints or resizing the map', async ({ page }) => {
+  await page.goto('/'); await expect(toggle(page)).toBeEnabled(); await toggle(page).tap();
+  const map = (await page.getByLabel('Aviation chart map').boundingBox())!;
+  await page.touchscreen.tap(map.x + map.width * .5, map.y + map.height * .55);
+  const before = await center(grip(page, 'end'));
+  const anchors = await page.locator('.ruler-crosshair').evaluateAll(nodes => nodes.map(node => node.getAttribute('transform')));
+  await page.evaluate(({ x, y }) => {
+    const stage = document.querySelector('.map-stage')!, rect = stage.getBoundingClientRect();
+    const cover = document.createElement('div'); cover.id = 'ruler-layout-cover'; cover.dataset.mapOccupied = '';
+    Object.assign(cover.style, { position: 'absolute', pointerEvents: 'none', width: '60px', height: '60px',
+      left: `${x - rect.left - 30}px`, top: `${y - rect.top - 30}px` });
+    stage.append(cover);
+  }, before);
+  await expect.poll(async () => {
+    const next = await center(grip(page, 'end')); return Math.hypot(next.x - before.x, next.y - before.y);
+  }).toBeGreaterThan(40);
+  expect(await page.locator('.ruler-crosshair').evaluateAll(nodes => nodes.map(node => node.getAttribute('transform')))).toEqual(anchors);
+  expect(await page.getByLabel('Aviation chart map').boundingBox()).toEqual(map);
+  await page.locator('#ruler-layout-cover').evaluate(node => node.remove());
+  await expect.poll(() => center(grip(page, 'end'))).toEqual(before);
+});
+
 test('mouse uses two clicks, grips preserve offsets, and measurement owns route gestures', async ({ page }) => {
   await fixture(page);
   // Start exactly on a route waypoint, where ordinary input would edit/select the route.

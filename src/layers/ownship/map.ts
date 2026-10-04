@@ -1,5 +1,6 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
+import type { MapLayerModule } from '../../core/map/layer';
+import { LayerScope } from '../../core/layers/scope';
 import type { OwnshipLayer } from './layer';
 import { ownshipGeometry, sameOwnshipGeometry } from './geometry';
 import { createFrameTask } from '../../core/graphics/frame-task';
@@ -12,7 +13,7 @@ const BLUE = '#32b5ff';
 export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView = false): MapLayerModule<{ enabled: boolean }> {
   let map: MapLibreMap | undefined;
   let source: GeoJSONSource | undefined;
-  let unsubscribe: (() => void) | undefined;
+  let scope: LayerScope | undefined;
   let rendered: ReturnType<OwnshipLayer['getSnapshot']> | undefined;
   const sourceFailed = () => { rendered = undefined; };
   const frame = createFrameTask(() => {
@@ -37,11 +38,18 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
     id: 'ownship', slot: 'ownship', foregroundLayerIds: OWNSHIP_LAYERS,
     mount(target) {
       map = target;
+      scope = new LayerScope();
+      scope.add(() => { map = undefined; source = undefined; rendered = undefined; });
+      scope.add(() => { if (target.hasImage(ICON)) target.removeImage(ICON); });
       map.addImage(ICON, aircraftImage(), { pixelRatio: 2 });
       rendered = product.getSnapshot();
+      scope.add(() => { if (target.getSource(OWNSHIP_SOURCE)) target.removeSource(OWNSHIP_SOURCE); });
       map.addSource(OWNSHIP_SOURCE, { type: 'geojson', data: ownshipGeometry(rendered) });
       source = map.getSource(OWNSHIP_SOURCE) as GeoJSONSource;
+      const attachedSource = source;
+      scope.add(() => attachedSource.off('error', sourceFailed));
       source.on('error', sourceFailed);
+      for (const id of OWNSHIP_LAYERS) scope.add(() => { if (target.getLayer(id)) target.removeLayer(id); });
       map.addLayer({ id: 'ownship-accuracy', type: 'fill', source: OWNSHIP_SOURCE,
         filter: ['==', ['get', 'kind'], 'accuracy'],
         paint: { 'fill-color': ['case', ['get', 'live'], BLUE, '#8997a8'], 'fill-opacity': 0.1,
@@ -59,7 +67,9 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
         filter: ['all', ['==', ['get', 'kind'], 'aircraft'], ['!=', ['get', 'track'], null]],
         layout: { 'icon-image': ICON, 'icon-rotate': ['get', 'track'], 'icon-rotation-alignment': 'map',
           'icon-pitch-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-      unsubscribe = product.subscribe(schedule);
+      scope.add(() => product.detach());
+      scope.add(() => frame.cancel());
+      scope.add(product.subscribe(schedule));
       product.attach({ centerOnFix: !preserveInitialView });
       preserveInitialView = true;
       schedule();
@@ -69,18 +79,7 @@ export function createOwnshipMapLayer(product: OwnshipLayer, preserveInitialView
       product.setEnabled(enabled);
     },
     unmount() {
-      unsubscribe?.();
-      unsubscribe = undefined;
-      frame.cancel();
-      rendered = undefined;
-      source?.off('error', sourceFailed);
-      source = undefined;
-      product.detach();
-      if (map) {
-        removeLayerResources(map, OWNSHIP_LAYERS, [OWNSHIP_SOURCE]);
-        if (map.hasImage(ICON)) map.removeImage(ICON);
-      }
-      map = undefined;
+      scope?.dispose(); scope = undefined;
     },
   };
 }

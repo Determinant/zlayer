@@ -155,3 +155,25 @@ test('a minute of overlapping transitions keeps geometry bounded without periodi
   assert.equal(displayed, target, 'the last target finishes exactly');
   assert.equal(clock.frames.size, 0);
 });
+
+test('rejected interpolation stops frames and retains the complete target for recovery', async t => {
+  const clock = animationHarness(t), uploads: GlideRange[] = [];
+  let accept = true;
+  const animation = createRangeAnimation(async range => { uploads.push(range); return accept; });
+  t.after(animation.reset);
+  const from = circle([0, 0], 'old'), to = circle([.0005, 0], 'new');
+  animation.set(from, [0, 0], true); await clock.advance(1000);
+  accept = false;
+  animation.set(to, [.0005, 0], true); await clock.advance(16);
+  assert.notEqual(uploads.at(-1), to, 'the failed upload was an intermediate frame');
+  const count = uploads.length;
+  await clock.advance(1000);
+  assert.equal(uploads.length, count);
+  assert.equal(clock.frames.size, 0);
+  assert.equal(animation.fail(), to, 'recovery receives the exact complete calculation');
+  accept = true;
+  animation.set(from, [0, 0], true); await clock.advance(1000);
+  assert.equal(uploads.at(-1), from, 'a later result bypasses an invalid displayed snapshot');
+  animation.reset();
+  assert.equal(animation.fail(), undefined, 'clearing releases the retained target');
+});

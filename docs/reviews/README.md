@@ -1,7 +1,12 @@
 # Review archive and consolidation map
 
-No standalone active review is currently retained here. The table below locates
-material consolidated into owning guides; dated run records live in [evidence](../evidence/README.md).
+The [2026-10-03 sequential plugin code review](2026-10-03-plugin-code-review.md)
+records all 12 plugin reviews, six implemented findings, resolved follow-up gaps,
+explicit decisions on all 17 cleanup recommendations and scoped local profiling.
+Runtime/device verification remains unexecuted; no tests or full verify were run.
+
+The table below locates earlier material consolidated into owning guides; dated
+run records live in [evidence](../evidence/README.md).
 
 Keep dated reviews here while their investigation or unresolved findings still need
 a standalone evidence record. Move lasting behavior and engineering requirements

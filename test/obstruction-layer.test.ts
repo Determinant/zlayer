@@ -8,7 +8,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { Bounds } from '@zlayer/contracts';
 import { createObstructionLayer } from '../src/layers/obstructions/layer';
 import { ObstructionIndex } from '../src/layers/obstructions/data';
-import { OBSTRUCTION_SOURCE } from '../src/layers/obstructions/definitions';
+import { OBSTRUCTION_LAYER, OBSTRUCTION_SOURCE } from '../src/layers/obstructions/definitions';
 import { obstructionBoundsContain } from '../src/layers/obstructions/coverage';
 import type { ObstructionCollection, ObstructionRequest, ObstructionResult, ObstructionStatus } from '../src/layers/obstructions/types';
 import { createRouteRemovalResolver } from './helpers/route-removal';
@@ -53,8 +53,9 @@ function fixture(t: test.TestContext) {
     t.after(() => previous ? Object.defineProperty(globalThis, name, previous) : Reflect.deleteProperty(globalThis, name));
   }
   let bounds: Bounds = [-1, -1, 1, 1], zoom = 10;
-  const listeners = new Map<string, Set<() => void>>(), sources = new Map<string, ObstructionCollection>();
+  const listeners = new Map<string, Set<(event?: unknown) => void>>(), sources = new Map<string, ObstructionCollection>();
   const layers = new Set<string>(), images = new Set<string>();
+  const visibility = new Map<string, string>();
   const map = {
     getZoom: () => zoom, getBounds: () => ({ getWest: () => bounds[0], getSouth: () => bounds[1], getEast: () => bounds[2], getNorth: () => bounds[3] }),
     on(event: string, handler: () => void) { const set = listeners.get(event) ?? new Set(); set.add(handler); listeners.set(event, set); },
@@ -64,20 +65,46 @@ function fixture(t: test.TestContext) {
     removeSource: (id: string) => sources.delete(id),
     addLayer: (value: { id: string }) => layers.add(value.id), getLayer: (id: string) => layers.has(id), removeLayer: (id: string) => layers.delete(id),
     addImage: (id: string) => images.add(id), hasImage: (id: string) => images.has(id), removeImage: (id: string) => images.delete(id),
+    getLayoutProperty: (id: string) => visibility.get(id),
+    setLayoutProperty: (id: string, _key: string, value: string) => visibility.set(id, value),
   } as unknown as MapLibreMap;
   const layer = createObstructionLayer(status => statuses.push(status));
   layer.update({ enabled: true, routes: [] }); layer.mount(map);
-  const fire = (event: string) => listeners.get(event)?.forEach(handler => handler());
+  const fire = (event: string, value?: unknown) => listeners.get(event)?.forEach(handler => handler(value));
   const advance = async (ms = 80) => { t.mock.timers.tick(ms); await settled(); };
   const finish = async (i: number, result?: ObstructionResult) => { jobs[i]!.finish(result); await settled(); };
   cleanup = () => { layer.unmount(); workers.forEach(worker => worker.terminate()); };
-  return { layer, map, jobs, workers, statuses, writes, sources, listeners, advance, finish, fire,
+  return { layer, map, jobs, workers, statuses, writes, sources, listeners, visibility, advance, finish, fire,
     data: () => sources.get(OBSTRUCTION_SOURCE)!, status: () => statuses.at(-1)!,
     move(center: number, event = 'move') { bounds = [center - 1, -1, center + 1, 1]; fire(event); },
     zoom(value: number) { zoom = value; fire('move'); fire('moveend'); },
     resize(value: Bounds) { bounds = value; fire('resize'); },
   };
 }
+
+test('source failure retries the buffered collection without another worker query', async t => {
+  const f = fixture(t); await f.advance(); await f.finish(0);
+  const published = f.data(); f.writes.length = 0;
+  f.fire('error', { sourceId: OBSTRUCTION_SOURCE, error: new Error('Source failed') });
+  assert.equal(f.visibility.get(OBSTRUCTION_LAYER), 'none');
+  assert.equal(f.status().state, 'error');
+  f.fire('moveend');
+  assert.equal(f.writes.length, 0, 'camera demand must not duplicate the pending retry');
+  await f.advance(100);
+  assert.deepEqual(f.writes, [published]);
+  assert.equal(f.jobs.length, 1);
+  assert.equal(f.visibility.get(OBSTRUCTION_LAYER), 'visible');
+  assert.equal(f.status().state, 'ready');
+  f.fire('error', { sourceId: OBSTRUCTION_SOURCE, error: new Error('Source failed again') });
+  await f.advance(1000);
+  assert.equal(f.writes.length, 1, 'the same collection must not start an idle retry loop');
+  f.fire('moveend'); await settled();
+  assert.equal(f.writes.length, 2, 'later camera demand can retry');
+  f.layer.unmount();
+  f.fire('error', { sourceId: OBSTRUCTION_SOURCE, error: new Error('Late failure') });
+  await f.advance(1000);
+  assert.equal(f.writes.length, 2);
+});
 
 test('nearby panning reuses buffered points and only counts the actual view', async t => {
   const f = fixture(t); await f.advance(); await f.finish(0);
@@ -102,6 +129,19 @@ test('continuous pans refill before moveend without restarting the throttle or q
   await f.finish(1); await f.advance();
   assert.equal(f.jobs.length, 2); assert.equal(f.status().state, 'ready');
   assert.equal(f.status().count, 2);
+});
+
+test('source recovery does not mark a distant pending viewport ready', async t => {
+  const f = fixture(t); await f.advance(); await f.finish(0);
+  f.fire('error', { sourceId: OBSTRUCTION_SOURCE, error: new Error('Source failed') });
+  f.move(10, 'moveend'); await f.advance(80);
+  assert.equal(f.jobs.length, 2);
+  await f.advance(20);
+  assert.equal(f.status().state, 'loading', 'accepting the old buffer cannot satisfy the new view');
+  assert.equal(f.jobs.length, 2, 'reconciliation preserves the running refill');
+  await f.finish(1);
+  assert.equal(f.status().state, 'ready');
+  assert.equal(f.status().count, 0);
 });
 
 test('a slow initial query is discarded after a distant pan and only the latest view is queried next', async t => {

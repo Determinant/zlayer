@@ -11,7 +11,8 @@ import { notifyOfflineInventory } from '../src/offline/inventory-events';
 
 const registered: CatalogReadSource[] = [];
 const failures = new Set<(chartId: string) => void>();
-Object.assign(globalThis, { chartRegistrations: registered, chartFailures: failures });
+const readers = { count: 0 };
+Object.assign(globalThis, { chartRegistrations: registered, chartFailures: failures, chartReaders: readers });
 const restoreGlobals: Array<() => void> = [];
 test.beforeEach(() => {
   for (const [name, value] of Object.entries({ window: new EventTarget(), BroadcastChannel: undefined })) {
@@ -26,7 +27,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier === './mbtiles-protocol' && context.parentURL?.includes('/charts/')) return {
     shortCircuit: true, url: 'data:text/javascript,' + encodeURIComponent(`
       export const registerMbtilesArchives = catalog => globalThis.chartRegistrations.push(catalog);
-      export const retainChartReaders = () => () => {};
+      export const retainChartReaders = () => { globalThis.chartReaders.count++; return () => { globalThis.chartReaders.count--; }; };
       export const mbtilesTileUrl = id => 'mbtiles://' + id;
       export const observeChartFailures = listener => {
         globalThis.chartFailures.add(listener);
@@ -45,6 +46,18 @@ const chart: ChartRecord = { id: 'sectional', title: 'Sectional', kind: 'vfr-sec
 const catalog: CatalogResponse = { schemaVersion: 1, revision: chart.revision, generatedAt: '2026-09-16T00:00:00Z',
   charts: [chart], navigation: [], weather: [] };
 const sectionalOnly: ChartSelection = { base: 'vfr-sectional', overlay: '' };
+
+test('chart teardown releases readers and recovery subscriptions despite a map cleanup error', t => {
+  const { map } = mapFixture();
+  const baseline = readers.count;
+  const product = createChartLayer(catalog, CHART_FAMILIES[0]!);
+  product.mount(map); assert.equal(readers.count, baseline + 1);
+  t.mock.method(console, 'error', () => {});
+  t.mock.method(map, 'removeLayer', () => { throw new Error('Layer unavailable'); });
+  product.unmount();
+  assert.equal(readers.count, baseline); assert.equal(failures.size, 0);
+  product.unmount(); assert.equal(readers.count, baseline);
+});
 
 for (const event of ['inventory', 'online']) test(`${event} rebuilds only failed chart families and unmount releases recovery listeners`, () => {
   const { map, added, layers } = mapFixture();

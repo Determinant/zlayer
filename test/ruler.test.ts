@@ -47,6 +47,34 @@ test('ruler rendering follows the short great circle across the dateline', () =>
   assert.deepEqual(rulerPath([0, 0], [0, 0]), []);
 });
 
+test('a short high-latitude measurement retains its projected great-circle bow', () => {
+  const path = rulerPath([-1, 60], [1, 60]);
+  const radians = Math.PI / 180;
+  const expectedLatitude = Math.atan(Math.tan(60 * radians) / Math.cos(radians)) / radians;
+  const y = (latitude: number) => -Math.log(Math.tan(Math.PI / 4 + latitude * radians / 2)) / (2 * Math.PI);
+  const index = path.findIndex(point => point[0] >= 0);
+  const a = path[index - 1]!, b = path[index]!;
+  const drawnY = y(a[1]) + (y(b[1]) - y(a[1])) * -a[0] / (b[0] - a[0]);
+  assert.ok(Math.abs(drawnY - y(expectedLatitude)) * 512 * 2 ** 13 <= .5);
+  assert.deepEqual(path[0], [-1, 60]); assert.deepEqual(path.at(-1), [1, 60]);
+  for (const end of [[179, 80], [-179, -80], [0, 89.99]] as [number, number][]) {
+    const long = rulerPath([-122, 37], end);
+    assert.ok(long.length <= 8192 && long.flat().every(Number.isFinite));
+  }
+});
+
+test('ruler only claims map gestures while its renderer is attached, retaining measurement intent', () => {
+  const layer = createRulerLayer();
+  layer.open(); layer.place([1, 2]); layer.place([3, 4]);
+  const intent = layer.getSnapshot();
+  assert.equal(layer.active.getSnapshot(), false);
+  layer.attached.publish(true); assert.equal(layer.active.getSnapshot(), true);
+  layer.attached.publish(false); assert.equal(layer.active.getSnapshot(), false);
+  assert.equal(layer.getSnapshot(), intent);
+  layer.attached.publish(true); assert.equal(layer.active.getSnapshot(), true);
+  layer.close(); assert.equal(layer.active.getSnapshot(), false);
+});
+
 test('desktop placement, touch preview, cancellation and fresh sessions stay distinct', () => {
   const ruler = createRulerLayer();
   ruler.place([1, 2]);

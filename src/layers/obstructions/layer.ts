@@ -6,7 +6,8 @@ import { removeLayerResources, type MapLayerModule } from '../../core/map/layer'
 import { chartRoot } from '../../workspace/catalog/feed';
 import { routeSegments, type Segment } from '../../core/geo/route-corridor';
 import { OBSTRUCTION_SOURCE, OBSTRUCTION_LAYER, obstructionMinHeight, OBSTRUCTION_ICONS } from './definitions';
-import { emptyObstructions, installObstructions, syncObstructions } from './renderer';
+import { emptyObstructions, installObstructions } from './renderer';
+import { createSourceSubmission } from '../../core/map/source-submission';
 import { paddedObstructionBounds, obstructionBoundsContain, obstructionCountInView } from './coverage';
 import type { ObstructionCollection, ObstructionStatus, ObstructionWorker } from './types';
 
@@ -27,6 +28,25 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
   let previousStatus = '';
   let revalidate = false, lastCheck = -Infinity;
   let collection = emptyObstructions();
+  let submission: ReturnType<typeof createSourceSubmission> | undefined;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined, retried = false;
+  let renderFailed = false;
+  const setVisible = (visible: boolean) => {
+    const value = visible ? 'visible' : 'none';
+    if (map?.getLayer(OBSTRUCTION_LAYER) && map.getLayoutProperty(OBSTRUCTION_LAYER, 'visibility') !== value) map.setLayoutProperty(OBSTRUCTION_LAYER, 'visibility', value);
+  };
+  const render = () => {
+    const active = submission;
+    if (!active) return;
+    const version = active.begin();
+    void active.submit(version, collection).then(accepted => {
+      if (!accepted || !map) return;
+      const recovered = renderFailed;
+      renderFailed = false;
+      setVisible(input.enabled && collection.features.length > 0);
+      if (recovered) refreshView(true);
+    }).catch(error => active.reject(version, error));
+  };
   const view = (): Coverage => {
     const bounds = map!.getBounds();
     return { bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], zoom: map!.getZoom() };
@@ -39,12 +59,14 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     const key = JSON.stringify(next);
     if (key !== previousStatus) { previousStatus = key; onStatus(next); }
   };
-  const ready = (current: Coverage) => status({ state: 'ready', ...context(current.zoom),
+  const ready = (current: Coverage) => status({ state: renderFailed ? 'error' : 'ready', ...context(current.zoom),
     count: obstructionCountInView(collection, current.bounds, current.zoom),
     ...(coverage?.sourceDate ? { sourceDate: coverage.sourceDate } : {}) });
   const publish = (next: ObstructionCollection) => {
     collection = next;
-    if (map) syncObstructions(map, next);
+    retried = false; clearTimeout(retryTimer); retryTimer = undefined;
+    if (!next.features.length) setVisible(false);
+    render();
   };
   const release = () => { client?.dispose(); client = undefined; running = undefined; queryAgain = false; };
   const query = async (): Promise<void> => {
@@ -131,7 +153,7 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     if (timer === undefined) timer = setTimeout(() => { void query(); }, 80);
   };
   const moving = () => refreshView();
-  const moved = () => refreshView(true);
+  const moved = () => { if (submission?.failed && retryTimer === undefined) render(); refreshView(true); };
   const refresh = () => {
     revision++; coverage = undefined; clearTimeout(timer); timer = undefined;
     refreshView(true);
@@ -150,6 +172,15 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
     id: 'obstructions', slot: 'navigation', foregroundLayerIds: [OBSTRUCTION_LAYER],
     mount(target) {
       map = target; installObstructions(map);
+      submission = createSourceSubmission(map, OBSTRUCTION_SOURCE, () => {
+        renderFailed = true;
+        setVisible(false);
+        if (map && input.enabled) status({ state: 'error', ...context(map.getZoom()) });
+        if (!retried) {
+          retried = true;
+          retryTimer = setTimeout(() => { retryTimer = undefined; render(); }, 100);
+        }
+      });
       map.on('move', moving); map.on('moveend', moved); map.on('resize', moved);
       window.addEventListener('online', recover);
       document.addEventListener('visibilitychange', visibilityChanged); refresh();
@@ -175,6 +206,9 @@ export function createObstructionLayer(onStatus: (status: ObstructionStatus) => 
       }
     },
     unmount() {
+      clearTimeout(retryTimer); retryTimer = undefined;
+      submission?.destroy(); submission = undefined;
+      renderFailed = false;
       revision++; clearTimeout(timer); timer = undefined; release();
       window.removeEventListener('online', recover);
       document.removeEventListener('visibilitychange', visibilityChanged);

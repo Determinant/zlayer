@@ -72,6 +72,14 @@ test('map presentation smooths direction without changing the shared GPS observa
   assert.equal(layer.getSnapshot().displayTrack, null);
 });
 
+test('accepted future-rounded fixes retain the normal one-second display gain', t => {
+  const { layer, fix } = setup(t);
+  layer.setEnabled(true); layer.attach(); fix();
+  t.mock.timers.tick(1000); fix(undefined, 500, { heading: 94 });
+  assert.equal(layer.getSnapshot().fix!.time, 1);
+  assert.ok(Math.abs(layer.getSnapshot().displayTrack! - (90 + 4 * -Math.expm1(-.5))) < 1e-10);
+});
+
 test('detaching during initial GPS publication releases the pending lease', t => {
   const { layer, gps, active } = setup(t);
   const unsubscribe = layer.subscribe(() => {

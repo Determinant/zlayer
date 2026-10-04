@@ -2,12 +2,15 @@ import { GPS_MOTION_ACCURACY_METERS, GPS_MOTION_SAMPLE_MS, validSpeed, type GpsF
 
 const EARTH_RADIUS = 6_371_008.8;
 const RADIANS = Math.PI / 180;
-const TURN_WINDOW_MS = 6000;
-const TURN_MIN_SPAN_MS = 3000;
-const TURN_MAX_GAP_MS = 2500;
+const TURN_WINDOW_SECONDS = 6;
+const TURN_MIN_SPAN_SECONDS = 3;
+const TURN_MAX_GAP_SECONDS = 2.5;
 const MAX_TURN_RATE = 12; // degrees per second; reject track discontinuities
 const TRACK_VECTOR_SECONDS = 60;
 const TRACK_VECTOR_MAX_TURN = 90; // degrees
+// Subtracting fractional acquisition seconds can put an exact boundary just
+// below its threshold. Tolerate roundoff without rounding fixes or filter gains.
+export const MOTION_TIME_EPSILON_SECONDS = 1e-9;
 const wrap = (angle: number) => (angle % 360 + 360) % 360;
 const difference = (a: number, b: number) => wrap(a - b + 180) - 180;
 const fade = (value: number, low: number, high: number) => {
@@ -39,21 +42,21 @@ export function estimateTurnRate(fix: GpsFix, history: readonly GpsFix[]): numbe
   let newer = fix, angle = 0;
   for (let i = history.length - 1; i >= 0; i--) {
     const sample = history[i]!;
-    if (fix.timestamp - sample.timestamp > TURN_WINDOW_MS) break;
-    const elapsed = newer.timestamp - sample.timestamp;
+    if (fix.time - sample.time > TURN_WINDOW_SECONDS + MOTION_TIME_EPSILON_SECONDS) break;
+    const elapsed = newer.time - sample.time;
     if (elapsed <= 0) continue;
     // Do not bridge outages, stopped/unknown motion or changes of velocity source.
-    if (elapsed > TURN_MAX_GAP_MS || !usableMotion(sample) || sample.estimated !== fix.estimated) break;
+    if (elapsed > TURN_MAX_GAP_SECONDS + MOTION_TIME_EPSILON_SECONDS || !usableMotion(sample) || sample.estimated !== fix.estimated) break;
     // Match retained sample spacing: a rounded heading over a few milliseconds
     // must not look like an impossible turn. Still check continuity above.
-    if (elapsed < GPS_MOTION_SAMPLE_MS) continue;
+    if (elapsed < GPS_MOTION_SAMPLE_MS / 1000 - MOTION_TIME_EPSILON_SECONDS) continue;
     const change = ((newer.track - sample.track + 540) % 360) - 180;
-    if (Math.abs(change * 1000 / elapsed) > MAX_TURN_RATE) break;
+    if (Math.abs(change / elapsed) > MAX_TURN_RATE) break;
     angle -= change;
-    samples.push({ time: (sample.timestamp - fix.timestamp) / 1000, angle });
+    samples.push({ time: sample.time - fix.time, angle });
     newer = sample;
   }
-  if (fix.timestamp - newer.timestamp < TURN_MIN_SPAN_MS) return null;
+  if (fix.time - newer.time < TURN_MIN_SPAN_SECONDS - MOTION_TIME_EPSILON_SECONDS) return null;
   // Least-squares slope of unwrapped track against elapsed seconds.
   const meanTime = samples.reduce((sum, sample) => sum + sample.time, 0) / samples.length;
   const meanAngle = samples.reduce((sum, sample) => sum + sample.angle, 0) / samples.length;
@@ -75,7 +78,7 @@ export function estimateTurnRate(fix: GpsFix, history: readonly GpsFix[]): numbe
   // RMS (not standard error) avoids pretending high-rate callbacks are independent.
   const residual = Math.sqrt(samples.reduce((sum, sample) =>
     sum + (sample.angle - meanAngle - rate * (sample.time - meanTime)) ** 2, 0) / samples.length);
-  const travel = Math.abs(rate) * (fix.timestamp - newer.timestamp) / 1000;
+  const travel = Math.abs(rate) * (fix.time - newer.time);
   const direction = Math.sign(rate);
   const consistentTravel = Math.min(direction * (middleAngle - oldest.angle), direction * -middleAngle) * 2;
   const confidence = Math.min(fade(Math.abs(rate), .3, 1), fade(consistentTravel, 0, 3),
@@ -90,8 +93,8 @@ export type DisplayMotion = { displayTrack: number | null; turnRate: number | nu
 export function smoothMotion(fix: GpsFix, previous: DisplayMotion & { fix: GpsFix | null }, rate: number | null): DisplayMotion {
   const before = previous.fix;
   if (!usableMotion(fix)) return { displayTrack: fix.track, turnRate: null };
-  const seconds = before ? (fix.timestamp - before.timestamp) / 1000 : Infinity;
-  if (!before || !usableMotion(before) || before.estimated !== fix.estimated || seconds > TURN_MAX_GAP_MS / 1000
+  const seconds = before ? fix.time - before.time : Infinity;
+  if (!before || !usableMotion(before) || before.estimated !== fix.estimated || seconds > TURN_MAX_GAP_SECONDS + MOTION_TIME_EPSILON_SECONDS
     || seconds <= 0 || previous.displayTrack === null) return { displayTrack: fix.track, turnRate: null };
   const gain = -Math.expm1(-seconds / 2);
   return {

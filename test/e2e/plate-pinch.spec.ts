@@ -48,6 +48,51 @@ async function gesture(page: Page, type: string, scale: number) {
   }, { type, scale });
 }
 
+test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until gesture idle', async ({ page }) => {
+  await openPlate(page);
+  const result = await page.locator('.procedure-page-stage').evaluate(async stage => {
+    const canvas = stage.querySelector('canvas')!;
+    const before = canvas.getBoundingClientRect();
+    const x = before.left + before.width * .45, y = before.top + before.height * .35;
+    const width = canvas.width;
+    // The viewer allocates one detached 2D canvas immediately before page.render.
+    // Observe starts, including cancelled renders whose bitmap never reaches the DOM.
+    const original = HTMLCanvasElement.prototype.getContext;
+    let renderBuffers = 0;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: Parameters<typeof original>) {
+      if (args[0] === '2d' && !this.isConnected && this.width >= width) renderBuffers++;
+      return original.apply(this, args);
+    } as typeof original;
+    const previews = [];
+    try {
+      for (let i = 0; i < 4; i++) {
+        const event = new WheelEvent('wheel', { deltaY: -10, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true });
+        stage.dispatchEvent(event);
+        // React commits and renderer effects get separate frames between events.
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        const rect = canvas.getBoundingClientRect();
+        previews.push({ cancelled: event.defaultPrevented, width: canvas.width, renderBuffers,
+          x: rect.left + rect.width * .45, y: rect.top + rect.height * .35 });
+      }
+      await new Promise(resolve => setTimeout(resolve, 250));
+      return { width, x, y, previews, renderBuffers };
+    } finally {
+      HTMLCanvasElement.prototype.getContext = original;
+    }
+  });
+  for (const preview of result.previews) {
+    expect(preview.cancelled).toBe(true);
+    expect(preview.width).toBe(result.width);
+    expect(preview.renderBuffers).toBe(0);
+    expect(Math.abs(preview.x - result.x)).toBeLessThan(2);
+    expect(Math.abs(preview.y - result.y)).toBeLessThan(2);
+  }
+  expect(result.renderBuffers).toBe(1);
+  await ready(page);
+  await expect.poll(() => page.locator('.procedure-page-stage canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width)).toBeGreaterThan(result.width * 1.4);
+  expect(await page.evaluate(() => visualViewport?.scale)).toBe(1);
+});
+
 test('touch pinch changes PDF zoom around the fingers and redraws sharply after release', { tag: '@explicit-density' }, async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

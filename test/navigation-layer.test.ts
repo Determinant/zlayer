@@ -25,9 +25,16 @@ function mapFixture(t: test.TestContext) {
   const images = new Set<string>();
   const visibility = new Map<string, string>();
   const writes: string[] = [];
+  const failing = new Set<string>();
+  const handlers = new Map<string, Set<(event: unknown) => void>>();
+  const fire = (name: string, event: unknown) => handlers.get(name)?.forEach(handler => handler(event));
   const map = {
     addSource(id: string, source: { data: FeatureCollectionResponse }) { sources.set(id, source.data); },
-    getSource(id: string) { return sources.has(id) ? { setData(data: FeatureCollectionResponse) { sources.set(id, data); writes.push(id); } } : undefined; },
+    getSource(id: string) { return sources.has(id) ? { setData(data: FeatureCollectionResponse) {
+      writes.push(id);
+      if (failing.has(id)) queueMicrotask(() => fire('error', { sourceId: id, error: new Error('Source failed') }));
+      else sources.set(id, data);
+    } } : undefined; },
     removeSource(id: string) { sources.delete(id); },
     addLayer(layer: LayerSpecification, beforeId?: string) {
       const index = beforeId ? order.indexOf(beforeId) : order.length;
@@ -45,11 +52,42 @@ function mapFixture(t: test.TestContext) {
     addImage(id: string) { assert.ok(!images.has(id)); images.add(id); }, hasImage: (id: string) => images.has(id),
     removeImage(id: string) { images.delete(id); },
     setLayoutProperty(id: string, _key: string, value: string) { visibility.set(id, value); },
+    getLayoutProperty: (id: string) => visibility.get(id),
     setGlobalStateProperty() {},
-    on() {}, off() {},
+    on(name: string, handler: (event: unknown) => void) {
+      const listeners = handlers.get(name) ?? new Set(); listeners.add(handler); handlers.set(name, listeners);
+    },
+    off(name: string, handler: (event: unknown) => void) { handlers.get(name)?.delete(handler); },
   } as unknown as MapLibreMap;
-  return { map, sources, layers, images, visibility, writes, order };
+  return { map, sources, layers, images, visibility, writes, order, failing, fire };
 }
+
+for (const repair of [false, true]) test(`navigation retries retained geometry once after a source error (repair=${repair})`, async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = mapFixture(t), layer = createNavigationLayer();
+  t.after(() => layer.unmount());
+  const settle = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+  layer.mount(f.map); await settle(); f.writes.length = 0;
+  const airports: FeatureCollectionResponse = { type: 'FeatureCollection',
+    features: [{ type: 'Feature', id: 'airport:TEST', geometry: { type: 'Point', coordinates: [-120, 35] }, properties: { ident: 'TEST' } }],
+    meta: { revision: 'test', layer: 'airports', returned: 1, truncated: false } };
+  f.failing.add('nav-airports');
+  layer.update({ data: { airports }, visibility: DEFAULT_VISIBILITY }); await settle();
+  const airportLayer = NAVIGATION_LAYERS.find(value => value.id === 'airports')!.layerIds[0]!;
+  assert.equal(f.visibility.get(airportLayer), 'none');
+  assert.equal(f.sources.get('nav-airports')!.features.length, 0);
+  if (repair) f.failing.clear();
+  t.mock.timers.tick(100); await settle();
+  assert.equal(f.sources.get('nav-airports')!.features.length, repair ? 1 : 0);
+  assert.equal(f.visibility.get(airportLayer), repair ? 'visible' : 'none');
+  const count = f.writes.length;
+  t.mock.timers.tick(10_000); await settle();
+  assert.equal(f.writes.length, count, 'a persistent failure does not create a retry loop');
+  layer.unmount();
+  f.fire('error', { sourceId: 'nav-airports', error: new Error('Late failure') });
+  t.mock.timers.tick(10_000); await settle();
+  assert.equal(f.writes.length, count);
+});
 
 test('equivalent fix inputs skip source replacement while priority edits retain order and refreshed records', t => {
   const { map, sources, writes } = mapFixture(t);
@@ -120,7 +158,7 @@ test('route lines stay below markers and waypoint labels stay above circles acro
   assert.deepEqual(order, [CHART_LAYER_ANCHOR, ROUTE_LINE_ANCHOR]);
 });
 
-test('map-only filtering updates independently, honors context with the layer off, and survives remount', t => {
+test('map-only filtering updates independently, honors context with the layer off, and survives remount', async t => {
   const { map, sources, layers, images, visibility, writes } = mapFixture(t);
   const enroute: GeoPointFeature = { type: 'Feature', id: 'fix:ENRTE', geometry: { type: 'Point', coordinates: [-122, 37] },
     properties: { kind: 'fix', ident: 'ENRTE', charts: ['ENROUTE LOW'] } };
@@ -143,6 +181,7 @@ test('map-only filtering updates independently, honors context with the layer of
   product.update({ data, visibility: DEFAULT_VISIBILITY, fixDisplay: DEFAULT_FIX_DISPLAY, priorityFixes: [approach, enroute, approach] });
   assert.deepEqual(priority(), [approach.id, enroute.id]);
   assert.deepEqual(background(), []);
+  for (let i = 0; i < 3; i++) await Promise.resolve();
   assert.notEqual(visibility.get(PRIORITY_FIX_LAYER_ID), 'none', 'context bypasses the background toggle');
   product.unmount();
   assert.equal(sources.size + layers.size + images.size, 0);
@@ -151,6 +190,7 @@ test('map-only filtering updates independently, honors context with the layer of
   product.update({ data, visibility: { ...DEFAULT_VISIBILITY, fixes: true }, priorityFixes: [] });
   assert.deepEqual(priority(), []);
   assert.deepEqual(background(), [enroute.id]);
+  for (let i = 0; i < 3; i++) await Promise.resolve();
   assert.equal(visibility.get('fixes-icons'), 'visible');
   assert.deepEqual(data.fixes.features, [enroute, approach]);
   product.unmount();

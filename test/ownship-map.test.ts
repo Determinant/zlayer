@@ -21,7 +21,8 @@ function setup(t: test.TestContext) {
     t.after(() => { if (original) Object.defineProperty(globalThis, key, original); else Reflect.deleteProperty(globalThis, key); });
   }
   const gps = createLayerStore<GpsSnapshot>({ state: 'off', fix: null });
-  const product = createOwnshipLayer({ ...gps, acquire: () => () => {}, retry() {} });
+  let leases = 0;
+  const product = createOwnshipLayer({ ...gps, acquire: () => { leases++; return () => { leases--; }; }, retry() {} });
   const uploads: FeatureCollection[] = [], sources: FeatureCollection[] = [];
   const errors = new Set<() => void>();
   const source = {
@@ -43,7 +44,7 @@ function setup(t: test.TestContext) {
     track: 90, speed: 60, altitude: time, altitudeAccuracy: 5, estimated: false,
   } });
   const frame = () => { const pending = [...frames.values()]; frames.clear(); for (const callback of pending) callback(0); };
-  return { gps, product, adapter, mount, sources, uploads, fix, frame, sourceError: () => { for (const fn of errors) fn(); },
+  return { gps, product, adapter, mount, map, leases: () => leases, sources, uploads, fix, frame, sourceError: () => { for (const fn of errors) fn(); },
     errorListeners: () => errors.size, pending: () => frames.size };
 }
 
@@ -62,6 +63,20 @@ test('stationary fixes preserve freshness without rebuilding map geometry; disab
   assert.deepEqual(s.uploads.at(-1)!.features, []);
   for (let i = 0; i < 100; i++) { s.fix(); s.frame(); }
   assert.equal(s.uploads.length, baseline + 1);
+});
+
+test('a map cleanup exception cannot retain GPS, pending frames or later resources', t => {
+  const s = setup(t); s.adapter.update({ enabled: true }); s.fix();
+  assert.equal(s.leases(), 1);
+  const removed: string[] = [];
+  t.mock.method(console, 'error', () => {});
+  t.mock.method(s.map, 'removeLayer', () => { throw new Error('Layer already unavailable'); });
+  t.mock.method(s.map, 'removeSource', () => { removed.push('source'); });
+  t.mock.method(s.map, 'removeImage', () => { removed.push('image'); });
+  s.adapter.unmount();
+  assert.equal(s.leases(), 0); assert.equal(s.pending(), 0); assert.equal(s.errorListeners(), 0);
+  assert.deepEqual(removed, ['source', 'image']);
+  s.adapter.unmount(); assert.deepEqual(removed, ['source', 'image'], 'cleanup is idempotent');
 });
 
 test('bursts upload the latest position once; stale state cancels queued live geometry; remount rebuilds once', t => {

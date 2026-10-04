@@ -1,6 +1,7 @@
 import { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } from './map-contract';
 export { ROUTE_LEG_HIT_LAYER_ID, ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_SOURCE_ID } from './map-contract';
 import type { ExpressionSpecification, GeoJSONSource, LineLayerSpecification, Map as MapLibreMap } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
 
 import type { GeoPointFeature, NavigationLayerId, PointGeometry } from '@zlayer/contracts';
 import { greatCircleCoordinates, routeLegCoordinates, routePointLabel, type RouteLeg, type RoutePlan, type RouteWaypoint } from '@zlayer/domain';
@@ -348,6 +349,7 @@ export function syncRoute(
   preview?: RouteDragPreview,
   routePreview?: RoutePreview,
   previous?: RouteRenderState,
+  submit = (id: string, data: FeatureCollection) => { (map.getSource(id) as GeoJSONSource | undefined)?.setData(data); },
 ): RouteRenderState {
   const comparison = routePreview?.routes.length ? routePreview : undefined;
   const selected = comparison?.routes.find(route => route.key === comparison.selectedKey) ?? comparison?.routes[0];
@@ -370,12 +372,12 @@ export function syncRoute(
     ? sameDrag ? previous.drag : { id: routeLegId(dragLeg, displayed.revision)!, visible: false, submitted: preview }
     : undefined;
   if (!samePlan || previous.editable !== editable || !samePreview(previousWaypoint, waypointPreview)) {
-    (map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(routeData(displayed, waypointPreview, editable, pointKeys));
+    submit(ROUTE_SOURCE_ID, routeData(displayed, waypointPreview, editable, pointKeys));
   }
   // Let the first preview finish loading even during continuous pointer motion.
   // Once revealed, submit the latest coordinate and resume ordinary coalescing.
   if (!previous || previous.drag !== drag || drag?.visible && !samePreview(drag.submitted, preview)) {
-    (map.getSource(ROUTE_DRAG_SOURCE_ID) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
+    submit(ROUTE_DRAG_SOURCE_ID, { type: 'FeatureCollection',
       features: dragLeg && preview && drag ? [legFeature(dragLeg, displayed.revision, preview, false), {
         type: 'Feature', geometry: { type: 'Point', coordinates: preview.coordinate },
         properties: { routeKind: 'insert-preview', snapped: preview.snapped,
@@ -385,7 +387,7 @@ export function syncRoute(
   }
   const alternatives = comparison?.routes.filter(route => route !== selected).map(route => route.plan) ?? [];
   if (!sameItems(previous?.alternatives, alternatives)) {
-    (map.getSource(RECOMMENDATION_SOURCE_ID) as GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection',
+    submit(RECOMMENDATION_SOURCE_ID, { type: 'FeatureCollection',
       features: alternatives.flatMap(route => routeData(route, undefined, false).features.filter(feature => feature.geometry.type === 'LineString')) });
   }
   return { plan: displayed, preview, editable, alternatives, labelIds, pointKeys, dragLeg, drag };

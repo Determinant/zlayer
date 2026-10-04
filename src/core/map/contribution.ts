@@ -11,6 +11,7 @@ export type MapContributionContext = {
   preserveView: boolean;
   interactiveLayerIds(): string[];
   occupiedRects(): ScreenRect[];
+  observeOccupiedRects?(changed: () => void): () => void;
   targetBearing(): number;
   run(id: string, action: () => void): void;
   reportError(error: unknown): void;

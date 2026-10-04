@@ -635,8 +635,15 @@ the renderer is busy. Intermediate geometry uses the fixed mesh and latest terra
 mask and does no terrain work. Transitions stop at the exact new result, including
 all its original detail, and leave no idle animation loop.
 
-Each published airport union carries a revision; a completed-but-discarded response
-cannot make a later cached response skip an unpublished union. Each published
+A rejected fill or outline stops interpolation and hides both ownship sources.
+Recovery retains the complete calculated target, invalidates the peer upload and
+retries that target once; it cannot recover an obsolete intermediate frame.
+
+Each airport union carries a planner-generation/revision key. The map acknowledges
+it only after both airport sources accept it; the worker then omits that unchanged
+plan from later replies while retaining counts and independent origin results.
+Failure, clearing and worker replacement revoke the acknowledgment. A completed
+but discarded response cannot suppress an unpublished union. Each published
 selected-point result must match its current origin; late results cannot
 restore a moved or cleared point. Ownship results follow the bounded retention
 policy above. Old forward-origin profiles are replaced within
@@ -671,6 +678,18 @@ concurrently. Disable and unmount release the worker and all caches.
 The plugin owns every map source, layer, listener and timer. Optional typed bridge
 subscriptions to Routes and Ownship clear on provider removal and recover on return.
 
+GeoJSON ranges, airport coverage and landing vectors track source acceptance
+separately from prepared geometry. A processing failure hides the affected source,
+reports an error and retries its retained collection once after 100 ms. Later
+camera settles or new prepared data can retry again. This recovery needs no new
+terrain calculation or download. Empty updates hide immediately; teardown cancels
+timers and invalidates late completions. Landing queries acknowledge their render
+key only after vector submission succeeds, so a failed upload cannot suppress
+the replacement geometry. The current prepared receipt survives a retry that
+finishes before the failed upload settles; that late failure cannot overwrite
+the recovered status or acknowledgment. Image/raster acquisition retains its
+existing policy.
+
 Failures preserve unknown terrain, never distance-only circles. Partial airport
 or terrain coverage is labeled separately from ownship and selected-point status; Retry, reconnect
 and offline inventory recovery reload failed inputs. Navigation acquisition uses
@@ -685,6 +704,10 @@ the view never received. Inventory changes during active acquisition invalidate
 that attempt too.
 
 ## Verification
+
+`test/glide-landing-map.test.ts` covers a source error whose retry succeeds before
+the original upload settles, acknowledgment of the newest render key and teardown
+with an upload still pending.
 
 `test/glide-math.test.ts` compares both glide directions against an independent
 piecewise-path feasibility/bisection oracle, verifies distance bounds by numerical
@@ -765,10 +788,7 @@ aircraft performance or obstacle clearance. Useful next improvements, in order:
   peaks already lost upstream. This is a source-accuracy limit, and the fixed 200 ft
   buffer does not prove it is covered. DEMs also do not establish current obstacles,
   runway suitability, or consistent survey-level vertical datums.
-- **Worker transport and airport indexing.** Use the map's acknowledged union
-  revision to omit unchanged airport GeoJSON from worker responses. The map already
-  skips unchanged `setData`, but worker responses still clone the cached union.
-  A spatial index over the navigation collection can also avoid scanning every
+- **Airport indexing.** A spatial index over the navigation collection could avoid scanning every
   airport when only a small viewport is being explored.
 - **Adaptive angular work and incremental union.** Refine only angular sectors
   whose proven limits differ materially, and merge new footprints into spatially

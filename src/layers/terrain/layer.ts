@@ -15,6 +15,9 @@ import type { CatalogReadSource } from '../../workspace/read-context';
 import { terrainSources, terrainSourceKey, packagesForTerrainTile } from './sources';
 import { stitchTerrainContours } from './seams';
 import { TerrainCorridorJob } from './corridor-job';
+import type { FeatureCollection } from 'geojson';
+import { createSourceSubmission } from '../../core/map/source-submission';
+import { TERRAIN_LABEL_SOURCE, TERRAIN_CONTOUR_SOURCE, TERRAIN_CORRIDOR_SOURCE } from './renderer';
 
 type TerrainInput = { routes: readonly RoutePlan[]; enabled: boolean; altitude?: number | null; catalog?: CatalogReadSource; coverage?: TerrainCoverage };
 let nextProtocol = 0;
@@ -45,6 +48,52 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   let published: TerrainVectors[] | undefined;
   let vectorTimer: ReturnType<typeof setTimeout> | undefined;
   let appliedAltitude: number | null | undefined, appliedInterval: number | undefined;
+  type VectorSource = { submission: ReturnType<typeof createSourceSubmission>; data?: FeatureCollection;
+    timer?: ReturnType<typeof setTimeout> | undefined; retried: boolean; failed: boolean };
+  const vectorSources = new Map<string, VectorSource>();
+  const vectorVisibility = (source: string, visible: boolean) => {
+    const value = visible && enabled() ? 'visible' : 'none';
+    for (const id of TERRAIN_LAYERS) if (map?.getLayer(id)?.source === source && map.getLayoutProperty(id, 'visibility') !== value) {
+      map.setLayoutProperty(id, 'visibility', value);
+    }
+  };
+  const submit = (id: string, data: FeatureCollection, retry = false) => {
+    const source = vectorSources.get(id);
+    if (!source) return;
+    source.data = data;
+    if (!retry) { source.retried = false; clearTimeout(source.timer); source.timer = undefined; }
+    if (!data.features.length) vectorVisibility(id, false);
+    const version = source.submission.begin();
+    void source.submission.submit(version, data).then(accepted => {
+      if (accepted) {
+        vectorVisibility(id, data.features.length > 0);
+        if (source.failed) { source.failed = false; status(); }
+      }
+    }).catch(error => source.submission.reject(version, error));
+  };
+  const disposeVectorSources = () => {
+    for (const source of vectorSources.values()) { clearTimeout(source.timer); source.submission.destroy(); }
+    vectorSources.clear();
+  };
+  const installVectorSources = () => {
+    if (!map || mode() !== 'route') return;
+    for (const id of [TERRAIN_LABEL_SOURCE, TERRAIN_CONTOUR_SOURCE, TERRAIN_CORRIDOR_SOURCE]) {
+      const source: VectorSource = { retried: false, failed: false, submission: createSourceSubmission(map, id, () => {
+        source.failed = true; vectorVisibility(id, false); status();
+        if (!source.retried && source.data) {
+          source.retried = true;
+          source.timer = setTimeout(() => { source.timer = undefined; if (source.data) submit(id, source.data, true); }, 100);
+        }
+      }) };
+      vectorSources.set(id, source);
+    }
+    const source = vectorSources.get(TERRAIN_CORRIDOR_SOURCE)!;
+    const cached = corridor.data(corridorKey);
+    if (cached) { source.data = cached; source.submission.begin(); }
+  };
+  const retryVectorSources = () => {
+    for (const [id, source] of vectorSources) if (source.submission.failed && source.timer === undefined && source.data) submit(id, source.data, true);
+  };
   const tileUrl = import.meta.env?.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL;
   const url = () => `${protocol}://tiles/${revision}/{z}/{x}/{y}`;
   const mode = () => input.coverage ?? 'route';
@@ -85,13 +134,13 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     // identical geometry, including when an obsolete zoom's tile finishes loading.
     if (published?.length === visible.length && visible.every((tile, index) => tile === published![index])) return;
     published = visible;
-    syncTerrainLabels(map, visible.flatMap(tile => tile.labels));
-    syncTerrainContours(map, stitchTerrainContours(visible.flatMap(tile => tile.lines), visible.flatMap(tile => tile.borders ?? []), segments));
+    syncTerrainLabels(map, visible.flatMap(tile => tile.labels), submit);
+    syncTerrainContours(map, stitchTerrainContours(visible.flatMap(tile => tile.lines), visible.flatMap(tile => tile.borders ?? []), segments), submit);
   };
   const status = () => {
     const sourceLoading = TERRAIN_SOURCES.some(source => map?.getSource(source) && !map.isSourceLoaded(source));
     const state: TerrainStatus['state'] = !enabled() ? 'idle'
-      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() || corridor.failed ? 'error'
+      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() || corridor.failed || [...vectorSources.values()].some(source => source.failed) ? 'error'
         : pending || vectorTimer || sourceLoading || hasMissingVectors() || needsCorridor() ? 'loading' : 'ready';
     const overview = terrainTileZoom(map?.getZoom() ?? 0) < 10;
     const next = JSON.stringify([state, interval, overview, mode()]);
@@ -108,7 +157,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     if (!map || !needsCorridor() || map.getZoom() < minimumZoom()) return;
     const key = corridorKey;
     corridor.request(key, segments, () => key === corridorKey && !!map && enabled() && mode() === 'route',
-      data => syncTerrainCorridor(map!, data));
+      data => syncTerrainCorridor(map!, data, submit));
   };
   const refreshView = () => {
     const next = new Map(coveredTiles().map(tile => [`${tile.z}/${tile.x}/${tile.y}`, tile]));
@@ -143,7 +192,9 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       if (map) {
         // setTiles retains expired raster textures while replacements load. Drop
         // those textures so a previous route's corridor is never shown as current.
+        disposeVectorSources();
         removeLayerResources(map, TERRAIN_LAYERS, TERRAIN_SOURCES);
+        installVectorSources();
         installTerrain(map, url(), mode(), corridor.data(corridorKey));
         appliedAltitude = undefined; appliedInterval = undefined;
         for (const id of TERRAIN_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', enabled() ? 'visible' : 'none');
@@ -154,6 +205,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   // Repair also invalidates incomplete tiles outside the current view, so they
   // cannot reappear from MapLibre's raster cache after a later pan.
   const retry = () => {
+    retryVectorSources();
     if (failedTiles.size) { key = ''; refresh(); }
     else if (corridor.failed) { corridor.resetFailure(); workerError = undefined; refreshView(); }
   };
@@ -226,6 +278,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       map.on('move', refreshView);
       map.on('zoomend', refreshView);
       map.on('moveend', refreshView);
+      map.on('moveend', retryVectorSources);
       map.on('resize', refreshView);
       map.on('sourcedata', status);
       // Failed requests finish loading via an error event, not sourcedata.
@@ -250,6 +303,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       if (geometryChanged) refresh(); else syncColors();
     },
     unmount() {
+      disposeVectorSources();
       corridor.clear(); corridorKey = ''; workerError = undefined;
       revision++; cancel(); client?.dispose(); client = undefined;
       clearTimeout(vectorTimer); vectorTimer = undefined; tiles.clear(); coverage.clear(); coverageKey = ''; published = undefined;
@@ -259,6 +313,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
       if (map) {
         map.off('move', refreshView); map.off('zoomend', refreshView); map.off('moveend', refreshView); map.off('resize', refreshView); map.off('sourcedata', status);
         map.off('error', sourceError);
+        map.off('moveend', retryVectorSources);
         map.off('render', recoverVectors);
         removeLayerResources(map, TERRAIN_LAYERS, TERRAIN_SOURCES);
       }

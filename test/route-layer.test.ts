@@ -21,9 +21,11 @@ function fixture(t: test.TestContext) {
     t.after(() => original ? Object.defineProperty(globalThis, name, original) : Reflect.deleteProperty(globalThis, name));
   }
   const sources = new Map<string, FeatureCollection>();
-  const layers = new Set<string>(), images = new Set<string>();
+  const layers = new Map<string, { id: string; source?: string }>(), images = new Set<string>();
+  const visibility = new Map<string, string>();
   const writes: string[] = [], labels: unknown[] = [];
-  const handlers = new Map<string, () => void>();
+  const handlers = new Map<string, Set<(event?: unknown) => void>>();
+  const fire = (name: string, event?: unknown) => handlers.get(name)?.forEach(handler => handler(event));
   const state = new Map<string, unknown>(), hiddenLegs = new Set<string>();
   let dragLoaded = true, dragTiles: FeatureCollection | undefined;
   const map = {
@@ -32,8 +34,12 @@ function fixture(t: test.TestContext) {
       sources.set(id, data); writes.push(id);
       if (id === ROUTE_DRAG_SOURCE_ID && dragLoaded) dragTiles = data;
     } } : undefined,
-    on: (name: string, handler: () => void) => handlers.set(name, handler),
-    off: (name: string) => handlers.delete(name),
+    on(name: string, handler: (event?: unknown) => void) {
+      const listeners = handlers.get(name) ?? new Set(); listeners.add(handler); handlers.set(name, listeners);
+    },
+    off(name: string, handler: (event?: unknown) => void) {
+      const listeners = handlers.get(name); listeners?.delete(handler); if (!listeners?.size) handlers.delete(name);
+    },
     isSourceLoaded: () => dragLoaded,
     querySourceFeatures: (_id: string, options: { filter: unknown[] }) =>
       dragTiles?.features.filter(feature => feature.properties?.dragPreviewKey === options.filter[2]) ?? [],
@@ -42,7 +48,9 @@ function fixture(t: test.TestContext) {
       assert.ok(hiddenLegs.delete(id), 'pending previews have no feature state to remove');
     },
     removeSource: (id: string) => sources.delete(id),
-    addLayer: (layer: { id: string }) => layers.add(layer.id), getLayer: (id: string) => layers.has(id),
+    addLayer: (layer: { id: string; source?: string }) => layers.set(layer.id, layer), getLayer: (id: string) => layers.get(id),
+    getLayoutProperty: (id: string) => visibility.get(id),
+    setLayoutProperty: (id: string, _key: string, value: string) => visibility.set(id, value),
     removeLayer: (id: string) => layers.delete(id),
     addImage: (id: string) => images.add(id), hasImage: (id: string) => images.has(id), removeImage: (id: string) => images.delete(id),
     setGlobalStateProperty: (name: string, value: unknown) => {
@@ -53,7 +61,7 @@ function fixture(t: test.TestContext) {
   const layer = createRouteLayer();
   const flush = () => {
     const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(0));
-    handlers.get('render')?.();
+    fire('render');
   };
   const reset = () => { writes.length = 0; labels.length = 0; };
   const assertCurrent = (route: RoutePlan, preview?: RouteDragPreview, recommendations?: RoutePreview) => {
@@ -63,13 +71,25 @@ function fixture(t: test.TestContext) {
     assert.deepEqual(sources, expected, 'cached rendering must equal a fresh render of the latest input');
   };
   t.after(() => layer.unmount());
-  return { layer, map, sources, writes, labels, frames, flush, reset, assertCurrent, hiddenLegs, handlers,
+  return { layer, map, sources, writes, labels, frames, flush, reset, assertCurrent, hiddenLegs, handlers, fire,
     dragVisible: () => state.get('zlayer-route-drag-visible'),
     delayDrag: () => { dragLoaded = false; },
     completeDrag: () => { dragLoaded = true; dragTiles = sources.get(ROUTE_DRAG_SOURCE_ID); flush(); },
     failDrag: () => { dragLoaded = true; flush(); },
   };
 }
+
+test('route cleanup continues after a layer removal fails', async t => {
+  const f = fixture(t), route = createRouteRemovalResolver()('KSBA KSMX');
+  f.layer.update({ route }); f.layer.mount(f.map);
+  t.mock.method(console, 'error', () => {});
+  t.mock.method(f.map, 'removeLayer', () => { throw new Error('Layer unavailable'); });
+  f.layer.unmount();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(f.handlers.size, 0); assert.equal(f.sources.size, 0);
+  assert.deepEqual(f.labels.at(-1), []);
+  f.fire('moveend'); f.flush(); assert.equal(f.sources.size, 0);
+});
 
 test('drag previews submit immediately without resubmitting alternatives, labels, or identical snapped coordinates', t => {
   const f = fixture(t), route = createRouteRemovalResolver()('KSBA ENTRY EXIT KSMX');
@@ -210,6 +230,27 @@ test('an errored load retaining an old preview cannot replace the original leg',
   assert.equal(f.hiddenLegs.size, 0);
   f.completeDrag();
   assert.equal(f.dragVisible(), true);
+});
+
+test('a failed first drag submission retries without losing the original-leg fallback', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t), route = createRouteRemovalResolver()('KSBA ENTRY EXIT KSMX');
+  const preview: RouteDragPreview = { target: route.legs[0]!.edit!, revision: route.revision, coordinate: [-119, 35], snapped: false };
+  f.layer.update({ route }); f.layer.mount(f.map); f.delayDrag();
+  f.layer.update({ route, preview });
+  f.fire('error', { sourceId: ROUTE_DRAG_SOURCE_ID, error: new Error('Source processing failed') });
+  f.completeDrag();
+  assert.equal(f.hiddenLegs.size, 0, 'source failure must not reveal old preview tiles');
+  t.mock.timers.tick(100);
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  f.flush();
+  assert.equal(f.dragVisible(), true);
+  assert.equal(f.hiddenLegs.size, 1);
+  f.layer.update({ route });
+  assert.equal(f.hiddenLegs.size, 0);
+  const count = f.writes.length;
+  f.layer.unmount(); t.mock.timers.tick(1000);
+  assert.equal(f.writes.length, count);
 });
 
 for (const change of ['revision', 'comparison', 'target', 'detach'] as const) test(`a leg preview is cleared or replaced on ${change}`, t => {
