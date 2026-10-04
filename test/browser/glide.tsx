@@ -15,7 +15,9 @@ import { createLayerInput, createLayerStore } from '../../src/core/layers/store'
 import type { RoutesApi } from '../../src/layers/routes/public';
 import type { OwnshipApi } from '../../src/layers/ownship/public';
 import type { GpsSnapshot } from '../../src/core/gps/service';
-import type { Point } from '../../src/core/geo/route-corridor';
+import { project, type Point } from '../../src/core/geo/route-corridor';
+import { createLandingDisplayWorker } from '../../src/layers/glide/landing-display';
+import { createLandingRasterWorker } from '../../src/layers/glide/landing-raster';
 import type { GlideApi } from '../../src/layers/glide/public';
 import type { MapContextAction, MapSelectionInput, NearbyFeature } from '../../src/core/map/selection';
 import { createSelectionContribution } from '../../src/workspace/map/selection';
@@ -24,6 +26,9 @@ import '../../src/styles.css';
 import '../../src/shell/map-edge-tools.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 setWorkerUrl(workerUrl);
+const glideRasterAudit = { display: createLandingDisplayWorker, raster: createLandingRasterWorker, project };
+declare global { interface Window { glideRasterAudit: typeof glideRasterAudit } }
+window.glideRasterAudit = glideRasterAudit;
 const catalog: CatalogResponse = { schemaVersion: 1, revision: '2026-09-03', generatedAt: '2026-09-03T00:00:00Z', charts: [], weather: [],
   navigation: [{ id: 'airports', title: 'Airports', count: 3, sourceCount: 3, minZoom: 0, url: '/chart-data/2026-09-03/nav/airports.geojson' }] };
 declare global { interface Window { glideAudit: { map: Map; remount(): void; route(coordinates: Point[] | null): void; ownship(coordinates: Point | null, state?: GpsSnapshot['state']): void; provider(id: 'routes' | 'ownship', enabled: boolean): void } } }

@@ -441,3 +441,27 @@ test('schema 9 carries overall fit grades, cover disagreement and unavailable sh
   const legacy = [record(box)];
   assert.equal(decodeLandingAreas(legacy, shard('old', box, legacy), 8)[0]!.alongGradePercent, undefined);
 });
+
+
+test('vector limits admit nearby blocks and records from the range origin even when the camera favors outer ground', async () => {
+  const boxes: Bounds[] = [[-.4, -.04, -.3, .04], [-.05, -.04, .05, .04], [.3, -.04, .4, .04]];
+  const rows = boxes.map(box => [record(box)]);
+  const parts = rows.map((r, i) => ({ ...shard(String(i), boxes[i]!, r), rawBytes: 12 * 1024 * 1024 }));
+  const reads: string[] = [];
+  const worker = createLandingWorker(async () => manifest(parts), async (_url, part) => {
+    reads.push(part.id); return decodeLandingAreas(rows[parts.indexOf(part)]!, part);
+  });
+  const ranges = { type: 'FeatureCollection' as const, features: [{ type: 'Feature' as const, properties: { glideOrigin: [.35, 0] },
+    geometry: { type: 'MultiPolygon' as const, coordinates: [[rect([-.5, -.09, .5, .09]).concat([[-.5, -.09]])]] } }] };
+  const view = request({ bounds: [-.6, -.1, .45, .1], ranges });
+  const result = await worker.query(view);
+  assert.equal(result.status.state, 'limited'); assert.deepEqual(reads, ['2', '1']);
+  assert.ok(worker.inspect([.35, 0])); assert.ok(worker.inspect([0, 0])); assert.equal(worker.inspect([-.35, 0]), null);
+  const denseRows = [boxes[0]!, boxes[2]!].map(box => {
+    const row = record(box); row[1] = [encode(rect(box).flatMap(point => Array.from({ length: 40000 }, () => point)))]; return row;
+  });
+  const part = shard('dense', [-.4, -.04, .4, .04], denseRows);
+  const dense = createLandingWorker(async () => manifest([part]), async () => decodeLandingAreas(denseRows, part));
+  assert.equal((await dense.query(view)).status.state, 'limited');
+  assert.ok(dense.inspect([.35, 0])); assert.equal(dense.inspect([-.35, 0]), null);
+});

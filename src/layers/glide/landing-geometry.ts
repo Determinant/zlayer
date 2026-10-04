@@ -12,6 +12,23 @@ export function polygonBounds(polygons: MultiPolygon): Bounds {
   return bounds;
 }
 
+/** Rank projected bounds from the actual calculation origins, independent of
+ * camera position. Bounds are a conservative proxy until a block is decoded. */
+export function landingPriority(ranges: GlideAreas | undefined, fallback: Point): (bounds: Bounds) => number {
+  const origins = ranges?.features.flatMap(feature => {
+    const origin: unknown = feature.properties?.glideOrigin;
+    return Array.isArray(origin) && origin.length === 2 && origin.every(Number.isFinite)
+      ? [project(origin as Point)] : [];
+  }) ?? [];
+  if (!origins.length) origins.push(fallback);
+  const centers = origins.map(point => ({ point, scale: nmPerWorldUnit(point[1]) }));
+  return ([west, north, east, south]) => Math.min(...centers.map(({ point: [x, y], scale }) => {
+    const localX = x + Math.round((west + east) / 2 - x);
+    const dx = Math.max(west - localX, 0, localX - east), dy = Math.max(north - y, 0, y - south);
+    return Math.hypot(dx, dy) * scale;
+  }));
+}
+
 const overlaps = (a: Bounds, b: Bounds) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 
 /** Reuse mask bounds across candidate clips. A candidate box with no boundary
@@ -80,4 +97,19 @@ export function coveredRouteNm(segments: Segment[], coverage: GlideAreas): numbe
     }
   }
   return distance;
+}
+
+/** Even-odd spans at a pixel-center row, retaining holes in disjoint polygons. */
+export function landingRowSpans(mask: MultiPolygon, y: number): [number, number][] {
+  const spans: [number, number][] = [];
+  for (const polygon of mask) {
+    const cuts: number[] = [];
+    for (const ring of polygon) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[j]!, b = ring[i]!;
+      if ((a[1] > y) !== (b[1] > y)) cuts.push(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
+    }
+    cuts.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < cuts.length; i += 2) spans.push([cuts[i]!, cuts[i + 1]!]);
+  }
+  return spans;
 }

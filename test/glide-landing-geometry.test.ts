@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import clipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import { project, nmPerWorldUnit, type Point } from '../src/core/geo/route-corridor';
-import { containsPoint, coveredRouteNm, prepareLandingMask } from '../src/layers/glide/landing-geometry';
+import { containsPoint, coveredRouteNm, landingPriority, polygonBounds, prepareLandingMask } from '../src/layers/glide/landing-geometry';
 import type { GlideAreas } from '../src/layers/glide/types';
 const ring = (w: number, e: number) => [[w, -1], [e, -1], [e, 1], [w, 1], [w, -1]];
 test('route length uses polygon intersections, excludes holes, and avoids double counting overlaps', () => {
@@ -41,4 +41,21 @@ test('prepared candidate clipping matches exact intersections for concave ranges
   }
   assert.deepEqual(mask, before);
   assert.deepEqual(prepareLandingMask([]).clip(candidates[0]!), []);
+});
+
+
+test('landing priority follows calculation origins across pans, multiple ranges and longitude copies', () => {
+  const areas = (origins: Point[]): GlideAreas => ({ type: 'FeatureCollection', features: origins.map(glideOrigin => ({
+    type: 'Feature', properties: { glideOrigin }, geometry: { type: 'MultiPolygon', coordinates: [[ring(-.5, .5)]] },
+  })) });
+  const box = (lon: number) => polygonBounds([[ring(lon - .02, lon + .02).map(p => project(p as Point))]]);
+  const fromLeft = landingPriority(areas([[-.4, 0]]), project([.4, 0]));
+  assert.equal(fromLeft(box(-.4)), 0, 'the calculation origin wins over the camera center');
+  assert.ok(fromLeft(box(0)) < fromLeft(box(.4)), 'outer ground waits behind nearer ground');
+  const both = landingPriority(areas([[-.4, 0], [.4, 0]]), project([0, 0]));
+  assert.equal(both(box(-.4)), 0); assert.equal(both(box(.4)), 0); assert.ok(both(box(0)) > 0);
+  const wrapped = landingPriority(areas([[359.6, 0]]), project([0, 0]));
+  assert.ok(Math.abs(wrapped(box(0)) - fromLeft(box(0))) < 1e-8);
+  const fallback = landingPriority(undefined, project([.4, 0]));
+  assert.equal(fallback(box(.4)), 0); assert.ok(fallback(box(-.4)) > 0);
 });

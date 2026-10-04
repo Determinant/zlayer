@@ -255,3 +255,49 @@ for (const recovery of ['refresh', 'remount'] as const) test(`a replaced landing
   await expect(card.getByText('Fit elevation up to 1,640 ft MSL.', { exact: true })).toBeVisible();
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
+
+test('GPS loss during inspection discards the retired worker error and permits a fresh selection', async ({ page, context }) => {
+  await serve(context);
+  await page.addInitScript(() => {
+    const NativeWorker = Worker;
+    window.Worker = class extends NativeWorker {
+      readonly landing: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) { super(url, options); this.landing = String(url).includes('landing.worker'); }
+      override postMessage(message: unknown, options: Transferable[] | StructuredSerializeOptions = []) {
+        if (this.landing && (message as { path?: string[] }).path?.[0] === 'inspect'
+          && document.documentElement.dataset.holdLandingInspection === 'true') {
+          document.documentElement.dataset.pendingLandingInspection = 'true'; return;
+        }
+        if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
+      }
+    };
+  });
+  await page.goto('/test/browser/glide.html');
+  await page.waitForFunction(() => !!window.glideAudit);
+  await page.evaluate(() => { window.glideAudit.route(null); window.glideAudit.ownship([-119.81, 34.42]); });
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  const status = page.getByRole('status', { name: 'Landing areas status' });
+  await expect(status).toHaveText('2 candidate patches loaded');
+  const select = async () => {
+    await expect.poll(() => page.evaluate(() => window.glideAudit.map.queryRenderedFeatures({ layers: ['glide-landing-fill'] }).length)).toBeGreaterThan(0);
+    const pixel = await page.evaluate(() => { const p = window.glideAudit.map.project([-119.81, 34.42]); return { x: p.x, y: p.y }; });
+    await page.mouse.click(pixel.x, pixel.y, { button: 'right' });
+    await page.getByRole('menuitem', { name: 'Inspect landing area', exact: true }).click();
+  };
+  await page.evaluate(() => { document.documentElement.dataset.holdLandingInspection = 'true'; });
+  await select();
+  await expect(page.locator('html')).toHaveAttribute('data-pending-landing-inspection', 'true');
+  await page.evaluate(() => window.glideAudit.ownship(null, 'stale'));
+  await expect(status).toHaveText('Add a route or show a glide range to see landing candidates');
+  await expect(page.getByRole('button', { name: 'Retry landing areas' })).toHaveCount(0);
+  await expect(page.getByLabel('Selected glide point', { exact: true })).toHaveCount(0);
+  await page.evaluate(() => {
+    document.documentElement.dataset.holdLandingInspection = 'false';
+    window.glideAudit.ownship([-119.81, 34.42]);
+  });
+  await expect(status).toHaveText('2 candidate patches loaded');
+  await select();
+  await expect(page.getByLabel('Selected glide point', { exact: true })).toContainText('Glide to selected area');
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});

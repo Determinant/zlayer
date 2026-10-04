@@ -113,10 +113,10 @@ test('ownship/selected ranges admit and clip polygons without a route and clear 
   const first = await worker.query(request({ segments: [], ranges: ranges([-.04, -.04, .04, .04]) }));
   assert.equal(first.status.state, 'ready'); assert.equal(first.status.detail, true); assert.equal(summaries, 0); assert.equal(details, 1);
   assert.equal(first.collection?.features.length, 1);
-  assert.equal(worker.inspect([0, 0])?.id, 'area'); assert.equal(worker.inspect([.15, 0]), null);
+  assert.equal((await worker.inspect([0, 0]))?.id, 'area'); assert.equal((await worker.inspect([.15, 0])), null);
   for (const point of first.collection!.features[0]!.geometry.coordinates.flat(2)) assert.ok(Math.abs(point[0]!) <= .0400001);
   const removed = await worker.query(request({ segments: [], renderedKey: first.renderKey }));
-  assert.equal(removed.status.state, 'route'); assert.equal(removed.collection?.features.length, 0); assert.equal(worker.inspect([0, 0]), null);
+  assert.equal(removed.status.state, 'route'); assert.equal(removed.collection?.features.length, 0); assert.equal((await worker.inspect([0, 0])), null);
 });
 
 test('failed files and unprepared regions remain incomplete; retry refreshes summaries', async () => {
@@ -151,16 +151,16 @@ test('detail adopts a manifest refreshed during route-only browsing, even with u
     reads.push(shard.id); return [{ ...area, id: shard.id }];
   });
   const first = await worker.query(request({ ranges: ranges(box) }));
-  assert.equal(worker.inspect([0, 0])?.id, 'a');
-  assert.equal(worker.inspect([0, 0])?.sourceKey, first.status.sourceKey);
+  assert.equal((await worker.inspect([0, 0]))?.id, 'a');
+  assert.equal((await worker.inspect([0, 0]))?.sourceKey, first.status.sourceKey);
   current = manifest([parts[1]!]);
   const overview = await worker.query(request({ revalidate: true, renderedKey: first.renderKey }));
-  assert.equal(worker.inspect([0, 0]), null);
+  assert.equal((await worker.inspect([0, 0])), null);
   assert.notEqual(overview.status.sourceKey, first.status.sourceKey);
   const restored = await worker.query(request({ ranges: ranges(box), renderedKey: overview.renderKey }));
   assert.deepEqual(reads, ['a', 'b']);
-  assert.equal(worker.inspect([0, 0])?.id, 'b');
-  assert.equal(worker.inspect([0, 0])?.sourceKey, restored.status.sourceKey);
+  assert.equal((await worker.inspect([0, 0]))?.id, 'b');
+  assert.equal((await worker.inspect([0, 0]))?.sourceKey, restored.status.sourceKey);
   assert.equal(restored.status.sourceKey, overview.status.sourceKey);
   const warm = await worker.query(request({ ranges: ranges(box), renderedKey: restored.renderKey }));
   assert.equal(warm.collection, undefined); assert.deepEqual(reads, ['a', 'b']);
@@ -180,9 +180,9 @@ test('a cancelled refresh still synchronizes the accepted manifest before detail
   const pending = worker.query(request({ id: 2, ranges: ranges(box), revalidate: true }));
   await started; worker.cancel(2); finish(); await assert.rejects(pending, { name: 'AbortError' });
   const resumed = await worker.query(request({ id: 3, ranges: ranges(box), renderedKey: first.renderKey }));
-  assert.equal(worker.inspect([0, 0])?.id, 'b');
+  assert.equal((await worker.inspect([0, 0]))?.id, 'b');
   assert.notEqual(resumed.status.sourceKey, first.status.sourceKey);
-  assert.equal(worker.inspect([0, 0])?.sourceKey, resumed.status.sourceKey);
+  assert.equal((await worker.inspect([0, 0]))?.sourceKey, resumed.status.sourceKey);
 });
 
 

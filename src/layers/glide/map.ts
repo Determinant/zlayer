@@ -101,7 +101,9 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
         && (!map?.isMoving() || followingGps) && !matchMedia('(prefers-reduced-motion: reduce)').matches);
       else { source(line)?.setData(range.line); source(area)?.setData(range.area); }
       publishedRanges.set(name, { key: range.key, origin });
-      rangeAreas.set(name, range.area); publishRanges();
+      rangeAreas.set(name, { ...range.area, features: range.area.features.map(feature => ({
+        ...feature, properties: { ...feature.properties, glideOrigin: origin },
+      })) }); publishRanges();
     }
     if (result.planRevision !== publishedPlanRevision) {
       source(AREA)?.setData(result.areas);

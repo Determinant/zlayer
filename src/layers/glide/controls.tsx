@@ -24,9 +24,9 @@ export function landingSummary(status: LandingStatus): string {
     case 'loading': return status.totalFiles ? `Loading landing shading… ${status.loadedFiles ?? 0}/${status.totalFiles}` : 'Loading landing areas…';
     case 'unavailable': return 'Landing-area data has not been published yet';
     case 'error': return 'Landing-area data unavailable';
-    case 'partial': return `${status.detail ? `${status.count ?? 0} candidate patches loaded` : 'Landing shading'} · coverage incomplete`;
+    case 'partial': return `${status.detail ? (status.raster ? 'Candidate areas loaded' : `${status.count ?? 0} candidate patches loaded`) : 'Landing shading'} · coverage incomplete`;
     case 'limited': return status.detail && status.count ? `${status.count} candidate patches loaded · zoom in for more detail` : 'Overview limited · zoom in for more coverage';
-    case 'ready': return status.detail ? (status.count ? `${status.count} candidate patches loaded` : 'No prepared candidates within the glide range in this view')
+    case 'ready': return status.detail ? (status.count ? (status.raster ? 'Candidate areas loaded' : `${status.count} candidate patches loaded`) : 'No prepared candidates within the glide range in this view')
       : status.densityCells ? 'Landing-area density along your route' : 'No prepared candidates in this view';
   }
 }
@@ -114,7 +114,7 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
         {glideLandingsEnabled && <>
           <p className="glide-note" role="status" aria-label="Landing areas status">{glideEnabled ? landingSummary(landingStatus) : 'Glide coverage is off'}</p>
           {landingStatus.generatedAt && <small>Prepared {formatDate(landingStatus.generatedAt)}</small>}
-          {glideEnabled && ['unavailable', 'error', 'partial', 'limited'].includes(landingStatus.state)
+          {glideEnabled && ['unavailable', 'error', 'partial'].includes(landingStatus.state)
             && <button type="button" className="ui-button ui-button--compact" onClick={retryLandings}>Retry landing areas</button>}
         </>}
       </div>

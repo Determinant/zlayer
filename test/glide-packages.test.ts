@@ -130,8 +130,8 @@ test('route browsing reads only numeric overview; ranges acquire detail and pres
   assert.equal(warm.heat, undefined); assert.equal(cache.requests.length, fetched);
   const detailed = await worker.query({ ...request, ranges: ranges(request.bounds) });
   assert.ok(detailed.collection!.features.length); assert.ok(cache.requests.some(url => url.includes('.gld')));
-  assert.equal(worker.inspect([-120.001, 35])?.id, `${expected.source}:0`);
-  assert.equal(worker.inspect([-119.999, 35])?.id, `${expected.source}:1`, 'preferred hole retains best-effort identity');
+  assert.equal((await worker.inspect([-120.001, 35]))?.id, `${expected.source}:0`);
+  assert.equal((await worker.inspect([-119.999, 35]))?.id, `${expected.source}:1`, 'preferred hole retains best-effort identity');
 });
 
 test('numeric density fractions affect opacity and scopes choose the pinned edition independently of cache health', () => {
@@ -240,8 +240,8 @@ test('a missing neighboring edition keeps saved regional detail visible and does
   let result = await worker.query(request);
   for (let i = 0; result.more && i < 10; i++) result = await worker.query(request);
   assert.equal(result.status.state, 'partial'); assert.ok(result.collection?.features.length);
-  assert.equal(worker.inspect([-120.001, 35])?.id, `${expected.source}:0`);
-  assert.equal(worker.inspect([-119.995, 35]), null);
+  assert.equal((await worker.inspect([-120.001, 35]))?.id, `${expected.source}:0`);
+  assert.equal((await worker.inspect([-119.995, 35])), null);
 });
 
 

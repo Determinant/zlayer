@@ -18,7 +18,7 @@ export type LandingArea = LandingSite & { polygon: Polygon };
 export type LandingCollection = GeoJSON.FeatureCollection<GeoJSON.MultiPolygon, { tier: 1 | 2; flags: number }>;
 export type LandingStatus = { state: 'idle' | 'route' | 'outside' | 'zoom' | 'loading' | 'ready' | 'partial' | 'unavailable' | 'error' | 'limited';
   sourceKey?: string;
-  densityCells?: number; detail?: boolean; loadedFiles?: number; totalFiles?: number;
+  densityCells?: number; detail?: boolean; raster?: boolean; loadedFiles?: number; totalFiles?: number;
   count?: number; cultivated?: boolean; shrub?: boolean; canopyUncertain?: boolean; terrainFallback?: boolean; urban?: boolean; closeBuildings?: boolean; mixedOpen?: boolean; constrained?: boolean; obstacleUncertain?: boolean; coverUncertain?: boolean; shrubEvidenceMissing?: boolean; preferredLengthFt?: number; generatedAt?: string };
 export const emptyLandings = (): LandingCollection => ({ type: 'FeatureCollection', features: [] });
 const manifestKeys = new WeakMap<LandingManifest, string>();

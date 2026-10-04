@@ -311,30 +311,72 @@ state-polygon walk for every sample. Uniform interior tiles skip boundary work. 
 and failed/unprepared coverage remains labeled. Route shading never performs
 polygon clipping/unions of candidate areas or exposes an inspection hit target.
 
-Detailed geometry keeps the independent **24-shard / 24 MiB source raw JSON /
+Vector detail keeps the independent **24-block / 24 MiB source raw JSON /
 300,000-vertex** accounting budget. These are retained-input limits, not total JS
-heap limits. An explicitly oversized singleton may raise the vertex allowance to
+heap limits. Exceeding a detail budget switches the display to progressive images
+of the original polygons, so larger calculated ranges do not stop partway across
+their prepared candidate coverage. An explicitly oversized singleton may raise the vertex allowance to
 its advertised vertices plus ring closures (at most 589,824); other retained geometry
-counts against that allowance. If a whole record cannot fit, status remains limited;
-it is never truncated. Only polygons intersecting the visible calculated range are selected,
-nearest the view center first, preserving whole polygons and their holes. Dense
+counts against that allowance. Whole records are never truncated to fit a budget. Only polygons intersecting the visible calculated range are selected,
+nearest the ownship/selected-point calculation origins first, preserving whole polygons and their holes. Dense
 files can supply useful detail even when all their off-screen geometry would exceed
 the budget. Partial file selections are refreshed from verified source cache when
-the view changes. Original records remain available for inspection; render unions
+the view changes. Original records remain available for inspection in vector mode; render unions
 are clipped to the range and fused by tier, with preferred ground winning overlap.
 Candidate selection and rendering prepare range bounds and edge boxes once per
 mask. A candidate box with no possible boundary crossing is accepted or rejected
 by containment; cases near any exterior or hole boundary still use exact polygon
 clipping. This avoids rebuilding clipping sweeps for interior candidates without
 changing their boundaries, holes, flags or inspection records.
+
+Dense detail releases the vector cache and processes **two blocks per result,
+sequentially**, retaining one decoded block at a time. Pending blocks are ranked
+by distance from the published ownship and selected-point origins to their bounds,
+with stable ID ties; nearby blocks appear first and outer blocks follow. Origin
+metadata travels with each completed footprint, so an asymmetric terrain range or
+a pan does not shift priority to the map center. Both origins receive priority
+when two ranges are displayed, and completed blocks survive reprioritization.
+The vector path uses the same order for blocks and individual candidates. Callers
+without origin metadata use the view center. A worker canvas unions the
+original rings by tier, with even-odd holes and the same saved-region ownership
+masks as vector detail. Independent color channels preserve preferred dominance
+regardless of arrival order. No candidate simplification, fit recalculation or
+publisher changes are required. This image is polygon coverage at display
+resolution; route density remains a separate numeric overview.
+
+The canvas targets two samples per CSS pixel, capped at **1536 × 1536** including
+camera padding. Each RGBA image is at most 9 MiB, with a temporary tier array of
+at most 2.25 MiB; canvas storage, worker replies, map uploads and decoded source
+allocations are additional. These bounds replace retaining an entire dense
+range's coordinates, not a claim about total device memory. Camera padding keeps
+small GPS-follow moves and bearing changes in the same frame while the viewport
+still fits at the same zoom; rotated bounds do not invalidate its pixel scale.
+The canvas retains candidates before
+range clipping: new range positions/heights reuse completed blocks and apply a
+fresh even-odd row mask to the published pixels. Larger pans or resolution/source
+changes rebuild that bounded frame. Unchanged frames skip decoding and uploads.
+A thin inside casing separates candidates without painting across holes or the
+calculated range boundary.
+
+Dense-image inspection first checks a shaded pixel, then reads only completed
+blocks whose bounds contain the coordinate through the existing verified cache.
+It checks original polygons, region ownership and the current range, returns the
+original stable ID and individual fit/flags, and retains no polygon afterward.
+Range/frame replacement and worker teardown discard pending inspections as empty
+selections; actual read failures for current demand still report an error.
+Missing blocks remain visibly incomplete and retryable; cancellation preserves
+already completed blocks, while source changes discard them. A capacity limit
+alone does not offer Retry: retrying cannot enlarge the budget. Metadata discovery
+and overview limits still report that zooming in is required.
+
 Area fills use 62% opacity and saturated green/purple shared with the legend.
-Outlines retain a 0.75 px tier-colored stroke over a 1.5 px dark casing at 75%
+Vector outlines retain a 0.75 px tier-colored stroke over a 1.5 px dark casing at 75%
 opacity; contrast comes from color and opacity rather than thicker linework.
 Nonempty density cells use alpha `64 + 160 × sqrt(covered fraction)` (up to
 224/255), keeping sparse candidates visible over chart detail while empty cells
 stay transparent. The palette is presentation only, so cached numeric summaries
 remain reusable after color changes.
-MapLibre generates zoom-dependent vector tiles with 0.75-pixel simplification
+For vector detail, MapLibre generates zoom-dependent vector tiles with 0.75-pixel simplification
 tolerance and maximum source zoom 16, so lower zooms draw less boundary detail.
 
 Unchanged shading and geometry are omitted from worker replies and MapLibre
@@ -360,13 +402,18 @@ GPS/range loss, failures, cancellation and source invalidation. Existing landing
 contract/geometry tests retain polygon validation, tier unions and individual
 inspection coverage. `test/e2e/glide-landings.spec.ts` exercises the real worker,
 image source, raster holes, zoom resolution, cached revisits, independent selected
-and ownship ranges, GPS loss, acquisition during movement, inspection/arrival,
-selection identity across refresh/remount and unpublished-feed recovery.
+and ownship ranges, GPS loss during pending inspection, acquisition during movement,
+inspection/arrival, selection identity across refresh/remount and unpublished-feed recovery.
 `test/glide-packages.test.ts` decodes the complete publisher conformance fixture,
 checks original IDs/holes, corruption and inflate limits, numeric-only route reads,
 region-local indexes, shared-file retention and cache-only eviction detection.
 `test/e2e/glide-packages.spec.ts` covers real worker rendering, inspection, offline
-reload and service-worker regional downloads/removal/eviction. These verify software
+reload and service-worker regional downloads/removal/eviction.
+`test/e2e/glide-raster.spec.ts` covers whole-range completion beyond the vertex and
+block limits, original rings and holes, tier precedence, origin-based loading order, scoped ownership, world
+copies, inspection, offline reload, moving ranges/cameras, track-up rotation on
+phone/desktop viewports, cancelled inspections, combined limits/failures, retry
+and source replacement. These verify software
 behavior; landing suitability is not validated.
 
 For repeatable worker CPU diagnostics, run

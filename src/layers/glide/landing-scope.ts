@@ -2,9 +2,10 @@ import clipping, { type MultiPolygon, type Polygon } from 'polygon-clipping';
 import type { Bounds } from '@zlayer/contracts';
 import { regionCoverage, uniformRectangleCoverage } from '../../offline/region-coverage';
 import { project, type Point } from '../../core/geo/route-corridor';
-import { polygonBounds } from './landing-geometry';
+import { landingRowSpans, polygonBounds } from './landing-geometry';
 import { boundsViewport } from './coverage';
 import type { LandingRegion, LandingScope } from './landing-sources';
+import type { LandingManifest } from './landing-data';
 
 const extents = new WeakMap<Polygon, Bounds>();
 const extent = (p: Polygon) => { let b = extents.get(p); if (!b) { b = polygonBounds([p]); extents.set(p, b); } return b; };
@@ -55,18 +56,23 @@ export function prepareHeatScope(scope?: LandingScope, bounds: Bounds = [0, 0, 1
     x -= Math.round(x - (w + e) / 2);
     let spans = rows.get(y);
     if (!spans) {
-      spans = [];
-      for (const polygon of mask) {
-        const cuts: number[] = [];
-        for (const ring of polygon) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-          const a = ring[j]!, b = ring[i]!;
-          if ((a[1] > y) !== (b[1] > y)) cuts.push(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
-        }
-        cuts.sort((a, b) => a - b);
-        for (let i = 0; i + 1 < cuts.length; i += 2) spans.push([cuts[i]!, cuts[i + 1]!]);
-      }
+      spans = landingRowSpans(mask, y);
       rows.set(y, spans);
     }
     return spans.some(([left, right]) => x >= left && x < right);
   };
+}
+
+/** Preparation coverage shares the exact regional ownership mask with detail. */
+export function landingCoverageMask(manifest: LandingManifest, view: Bounds): MultiPolygon {
+  const covered = manifest.coverage.flatMap(({ bounds: [west, south, east, north], scope }) => {
+    if (south > view[3] || north < view[1]) return [];
+    const polygons: Polygon[] = [];
+    for (let copy = Math.ceil((view[0] - east) / 360); copy <= Math.floor((view[2] - west) / 360); copy++) {
+      const ring = boundsViewport([west + copy * 360, south, east + copy * 360, north]);
+      polygons.push([[...ring, ring[0]!]]);
+    }
+    return scopedLandingMask(polygons, scope);
+  });
+  return covered.length ? clipping.union(covered[0]!, ...covered.slice(1)) : [];
 }

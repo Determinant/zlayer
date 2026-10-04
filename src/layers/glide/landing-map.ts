@@ -6,13 +6,14 @@ import { landingSources } from './landing-sources';
 import type { CatalogReadSource } from '../../workspace/read-context';
 import { observeOfflineInventory } from '../../offline/inventory-events';
 import { chartRoot } from '../../workspace/catalog/feed';
-import type { Segment, Point } from '../../core/geo/route-corridor';
+import { project, type Segment, type Point } from '../../core/geo/route-corridor';
 import { emptyLandings, type LandingStatus, type LandingSelection } from './landing-data';
 import type { LandingDisplayWorker } from './landing-display';
 import { emptyAreas, type GlideAreas } from './types';
+import type { LandingHeatImage } from './landing-heat';
 
 export type LandingInput = { catalog?: CatalogReadSource | undefined; enabled: boolean; segments: Segment[]; ranges: GlideAreas; retry: number };
-const HEAT = 'glide-landing-shading';
+const HEAT = 'glide-landing-shading', RASTER = 'glide-landing-detail-image';
 const SOURCE = 'glide-landing-areas', LAYERS = ['glide-landing-fill', 'glide-landing-trim', 'glide-landing-outline'];
 const colors: ExpressionSpecification = ['match', ['get', 'tier'], 2, '#53e52d', '#a23bff'];
 
@@ -20,6 +21,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   let map: MapLibreMap | undefined, client: WorkerClient<LandingDisplayWorker> | undefined;
   let input: LandingInput = { enabled: false, segments: [], ranges: emptyAreas(), retry: 0 }, routeKey = '', rangeKey = '', revision = 0, renderedKey: string | undefined;
   let followingGps = false;
+  let detailImage: LandingHeatImage | null = null;
   let running: { revision: number } | undefined, queued = false, revalidate = true, lastCheck = -Infinity;
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let sources = landingSources(undefined, "http://localhost/"), sourceIdentity = "";
@@ -28,6 +30,8 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   const clearDetail = () => {
     renderedKey = `${renderedKey?.split('/')[0] ?? ''}/`;
     map?.getSource<GeoJSONSource>(SOURCE)?.setData(emptyLandings());
+    detailImage = null;
+    if (map?.getLayer(RASTER)) map.setLayoutProperty(RASTER, 'visibility', 'none');
   };
   const clearHeat = () => {
     renderedKey = `/${renderedKey?.split('/')[1] ?? ''}`;
@@ -36,7 +40,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   const clear = () => { clearDetail(); clearHeat(); };
   const hasTarget = () => input.segments.length > 0 || input.ranges.features.length > 0;
   const cancel = () => { revision++; const id = running?.revision; if (id !== undefined && client) void client.call(worker => worker.cancel(id)).catch(() => {}); };
-  const release = () => { client?.dispose(); client = undefined; running = undefined; queued = false; renderedKey = undefined; };
+  const release = () => { detailImage = null; client?.dispose(); client = undefined; running = undefined; queued = false; renderedKey = undefined; };
   const query = async () => {
     timer = undefined;
     if (!map || !input.enabled || !hasTarget() || document.hidden || map.isMoving() && !followingGps) return;
@@ -59,6 +63,17 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       }));
       if (!map || job.revision !== revision) return;
       if (result.collection) map.getSource<GeoJSONSource>(SOURCE)?.setData(result.collection);
+      if (result.raster !== undefined) {
+        detailImage = result.raster;
+        if (detailImage) {
+          const [west, south, east, north] = detailImage.bounds;
+          const pixels = new ImageData(new Uint8ClampedArray(detailImage.rgba), detailImage.width, detailImage.height);
+          detailImage.rgba = pixels.data; // Share the upload pixels with hit testing.
+          map.getSource<ImageSource>(RASTER)?.updateImage({ image: pixels,
+            coordinates: [[west, north], [east, north], [east, south], [west, south]] });
+        }
+        map.setLayoutProperty(RASTER, 'visibility', detailImage?.shadedCells ? 'visible' : 'none');
+      }
       if (result.heat !== undefined) {
         const heat = result.heat;
         if (heat) {
@@ -100,23 +115,36 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   return {
     id: 'glide-landings', slot: 'weather',
     inspectAt(point) {
-      if (!map || !client || !input.enabled || !hasTarget()
-        || !map.queryRenderedFeatures([point.x, point.y], { layers: [LAYERS[0]!] }).length) return;
-      const coordinate = map.unproject([point.x, point.y]), active = client, current = revision, sourceKey = lastStatus.sourceKey;
+      if (!map || !client || !input.enabled || !hasTarget()) return;
+      const coordinate = map.unproject([point.x, point.y]);
+      if (detailImage) {
+        const [w, s, e, n] = detailImage.bounds, nw = project([w, n]), se = project([e, s]);
+        const local = project([coordinate.lng, coordinate.lat]); local[0] += Math.round((nw[0] + se[0]) / 2 - local[0]);
+        const x = Math.floor((local[0] - nw[0]) / (se[0] - nw[0]) * detailImage.width);
+        const y = Math.floor((local[1] - nw[1]) / (se[1] - nw[1]) * detailImage.height);
+        if (x < 0 || y < 0 || x >= detailImage.width || y >= detailImage.height || !detailImage.rgba[(y * detailImage.width + x) * 4 + 3]) return;
+      } else if (!map.queryRenderedFeatures([point.x, point.y], { layers: [LAYERS[0]!] }).length) return;
+      const active = client, current = revision, sourceKey = lastStatus.sourceKey;
       return async () => {
-        const site = await active.call(worker => worker.inspect([coordinate.lng, coordinate.lat] as Point));
+        let site: LandingSelection | null;
+        try { site = await active.call(worker => worker.inspect([coordinate.lng, coordinate.lat] as Point)); }
+        catch (error) {
+          // Teardown or newer demand can reject a still-pending worker call.
+          if (active !== client || current !== revision) return null;
+          throw error;
+        }
         return active === client && current === revision && site?.sourceKey === sourceKey ? site : null;
       };
     },
     mount(target) {
       map = target;
-      map.addSource(HEAT, { type: 'image', coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
+      for (const id of [HEAT, RASTER]) map.addSource(id, { type: 'image', coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
       // MapLibre simplifies geometry at each tile zoom; close views retain the original boundaries.
       map.addSource(SOURCE, { type: 'geojson', data: emptyLandings(), maxzoom: 16, tolerance: 0.75,
         attribution: 'Landing candidates: USGS, USDA Forest Service, FAA, <a href="https://docs.overturemaps.org/attribution/">Overture Maps</a>; <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' });
       const before = map.getLayer('glide-outline-trim') ? 'glide-outline-trim'
         : map.getLayer(WEATHER_LAYER_ANCHOR) ? WEATHER_LAYER_ANCHOR : undefined;
-      map.addLayer({ id: HEAT, type: 'raster', source: HEAT, layout: { visibility: 'none' },
+      for (const id of [HEAT, RASTER]) map.addLayer({ id, type: 'raster', source: id, layout: { visibility: 'none' },
         paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, before);
       map.addLayer({ id: LAYERS[0]!, type: 'fill', source: SOURCE,
         paint: { 'fill-color': colors, 'fill-opacity': 0.62, 'fill-antialias': false } }, before);
@@ -158,7 +186,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', visibility);
       if (map) {
         map.off('movestart', moving); map.off('moveend', moved); map.off('resize', schedule);
-        removeLayerResources(map, [...LAYERS].reverse().concat(HEAT), [SOURCE, HEAT]);
+        removeLayerResources(map, [...LAYERS].reverse().concat(RASTER, HEAT), [SOURCE, RASTER, HEAT]);
       }
       followingGps = false; map = undefined; status({ state: 'idle' });
     },
