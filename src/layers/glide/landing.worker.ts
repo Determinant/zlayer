@@ -1,3 +1,3 @@
 import { expose } from 'comlink';
-import { createLandingWorker } from './landing-planner';
-expose(createLandingWorker());
+import { createLandingDisplayWorker } from './landing-display';
+expose(createLandingDisplayWorker());

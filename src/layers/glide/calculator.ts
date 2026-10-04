@@ -11,7 +11,7 @@ export type GlideOrigin = {
   viewport: GlideViewport;
   altitude: number;
   ratio: number;
-  /** Present for an airport-return calculation; absent for a forward glide. */
+  /** Present for an airport or selected-landing arrival calculation; absent for a forward glide. */
   elevationFt?: number;
 };
 

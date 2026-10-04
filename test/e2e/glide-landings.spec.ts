@@ -1,9 +1,10 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import type { GeoJSONSource } from 'maplibre-gl';
+import { terrainPng } from './terrain-fixture.mjs';
+import type { GeoJSONSource, ImageSource } from 'maplibre-gl';
 
-function fixture() {
+function fixture(elevationM = 50) {
   const ring = (west: number, south: number, east: number, north: number) => {
     let x = 0, y = 0;
     return [[west, south], [east, south], [east, north], [west, north]].flatMap(([lon, lat]) => {
@@ -11,7 +12,7 @@ function fixture() {
       x = nx; y = ny; return delta;
     });
   };
-  const fit = (tier: number) => [-119850000, 34420000, -119800000, 34420000, 200, tier === 2 ? 3000 : 1500, 50, tier];
+  const fit = (tier: number) => [-119850000, 34420000, -119800000, 34420000, 200, tier === 2 ? 3000 : 1500, elevationM, tier];
   const records = [
     [fit(2), [ring(-119.86, 34.40, -119.79, 34.46), ring(-119.838, 34.424, -119.826, 34.436)], 1],
     [fit(2), [ring(-119.79, 34.40, -119.74, 34.46)], 0],
@@ -26,6 +27,10 @@ function fixture() {
 }
 async function serve(context: BrowserContext, available: () => boolean = () => true) {
   const data = fixture(); let reads = 0;
+  await context.route('**/terrain/*/*/*.png', route => {
+    const match = /terrain\/(\d+)\/(\d+)\/(\d+)\.png/.exec(route.request().url())!;
+    return route.fulfill({ contentType: 'image/png', body: terrainPng(Number(match[1]), Number(match[2]), Number(match[3]), () => 0) });
+  });
   await context.route('**/glide/manifest.json', route => available()
     ? route.fulfill({ json: data.manifest }) : route.fulfill({ status: 404 }));
   await context.route('**/glide/*.glide.gz', route => {
@@ -34,7 +39,22 @@ async function serve(context: BrowserContext, available: () => boolean = () => t
   return () => reads;
 }
 
-test('prepared landing polygons have separate tiers, retain holes and survive pan/altitude changes without new acquisition', async ({ page, context }, testInfo) => {
+async function selectRange(page: Page) {
+  const pixel = await page.evaluate(() => { const p = window.glideAudit.map.project([-119.81, 34.42]); return { x: p.x, y: p.y }; });
+  await page.mouse.click(pixel.x, pixel.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Show glide range', exact: true }).click();
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
+}
+
+async function inspectArea(page: Page) {
+  await expect.poll(() => page.evaluate(() => window.glideAudit.map.queryRenderedFeatures({ layers: ['glide-landing-fill'] }).length)).toBeGreaterThan(0);
+  const pixel = await page.evaluate(() => { const p = window.glideAudit.map.project([-119.81, 34.42]); return { x: p.x, y: p.y }; });
+  await page.mouse.click(pixel.x, pixel.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Inspect landing area', exact: true }).click();
+  await expect(page.getByLabel('Selected point glide status')).toContainText('NM of route inside arrival range');
+}
+
+test('route density uses cached shading; selected-range details retain tiers and holes independently of the route', async ({ page, context }, testInfo) => {
   const reads = await serve(context);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/test/browser/glide.html');
@@ -44,38 +64,125 @@ test('prepared landing polygons have separate tiers, retain holes and survive pa
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   expect(reads()).toBe(0);
   await toggle.click();
-  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
+  const status = page.getByRole('status', { name: 'Landing areas status' });
+  await expect(status).toHaveText('Landing-area density along your route');
   const data = () => page.evaluate(async () => await window.glideAudit.map.getSource<GeoJSONSource>('glide-landing-areas')!.getData() as GeoJSON.FeatureCollection<GeoJSON.MultiPolygon>);
+  expect((await data()).features).toEqual([]);
+  expect(await page.evaluate(() => window.glideAudit.map.getLayoutProperty('glide-landing-shading', 'visibility'))).toBe('visible');
+  expect(reads()).toBe(1);
+  const assumptions = page.getByText('Planning assumptions', { exact: true });
+  const surfaceCaveat = page.getByText('Includes cultivated fields. Current crops, vegetation and ground conditions are unverified.', { exact: false });
+  await expect(surfaceCaveat).toBeHidden();
+  await assumptions.click();
+  await expect(surfaceCaveat).toBeVisible();
+  await expect(page.getByText('Screened candidates, not verified landing sites.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Unmarked ground may be unassessed or fail screening.', { exact: false })).toBeVisible();
+  await assumptions.click();
+  await expect(surfaceCaveat).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath('glide-landing-density.png') });
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.80, 34.43], zoom: 9.5 }));
+  await expect(status).toHaveText('Landing-area density along your route');
+  expect(reads()).toBe(1);
+  const resolution = () => page.evaluate(() => {
+    const source = window.glideAudit.map.getSource<ImageSource>('glide-landing-shading')!, image = source.image as ImageData;
+    return (source.coordinates[1]![0]! - source.coordinates[0]![0]!) / image.width;
+  });
+  const coarse = await resolution();
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.832, 34.43], zoom: 12 }));
+  await expect.poll(resolution).toBeLessThan(coarse);
+  const alpha = await page.evaluate(() => {
+    const source = window.glideAudit.map.getSource<ImageSource>('glide-landing-shading')!, image = source.image as ImageData;
+    const my = (lat: number) => (1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2;
+    const a = source.coordinates[0]!, b = source.coordinates[2]!;
+    const sample = (lon: number, lat: number) => {
+      const x = Math.floor((lon - a[0]!) / (b[0]! - a[0]!) * image.width);
+      const y = Math.floor((my(lat) - my(a[1]!)) / (my(b[1]!) - my(a[1]!)) * image.height);
+      return image.data[(y * image.width + x) * 4 + 3];
+    };
+    return { hole: sample(-119.832, 34.43), solid: sample(-119.81, 34.42) };
+  });
+  expect(alpha.hole).toBe(0); expect(alpha.solid).toBeGreaterThan(0); expect(reads()).toBe(1);
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.80, 34.43], zoom: 9.5 }));
+  await selectRange(page);
   const initial = await data();
   expect(initial.features.map(feature => feature.properties!.tier)).toEqual([1, 2]);
   expect(initial.features[1]!.geometry.coordinates[0]!.length).toBe(2);
-  expect(reads()).toBe(1);
-  await expect(page.getByText('Includes cultivated fields; current crop and surface conditions are unverified.')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.glideAudit.map.queryRenderedFeatures({ layers: ['glide-landing-fill'] }).length)).toBeGreaterThan(0);
-  await page.evaluate(() => {
-    const source = window.glideAudit.map.getSource<GeoJSONSource>('glide-landing-areas')!, original = source.setData.bind(source);
-    document.documentElement.dataset.landingPublishes = '0';
-    source.setData = (...args: Parameters<typeof source.setData>) => {
-      document.documentElement.dataset.landingPublishes = String(Number(document.documentElement.dataset.landingPublishes) + 1);
-      return original(...args);
-    };
-    window.glideAudit.map.jumpTo({ center: [-119.80, 34.43], zoom: 9.5 });
-  });
-  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
-  await page.getByRole('slider', { name: 'Glide start altitude' }).fill('9500');
-  expect(await data()).toEqual(initial); expect(reads()).toBe(1);
-  await expect(page.locator('html')).toHaveAttribute('data-landing-publishes', '0');
-  await page.screenshot({ path: testInfo.outputPath('glide-landing-areas.png') });
+  expect(reads(), 'detail reuses the already downloaded source file').toBe(1);
+  await page.screenshot({ path: testInfo.outputPath('glide-landing-details.png') });
   await page.evaluate(() => window.glideAudit.route(null));
-  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Add a route to see landing candidates');
+  await expect(status).toHaveText('2 candidate patches loaded');
+  expect(await data()).toEqual(initial);
+  await page.getByRole('button', { name: 'Clear selected glide point' }).click();
+  await expect(status).toHaveText('Add a route or show a glide range to see landing candidates');
   await expect.poll(async () => (await data()).features.length).toBe(0);
   await page.evaluate(() => window.glideAudit.route([[-120.1, 34.43], [-119.4, 34.43]]));
-  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
-  expect(reads(), 'restored route reuses core file cache').toBe(1);
+  await expect(status).toHaveText('Landing-area density along your route');
+  expect(reads(), 'restored route reuses derived summary cache').toBe(1);
   await toggle.click();
   await expect.poll(async () => (await data()).features.length).toBe(0);
   await page.reload(); await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByTestId('errors')).toBeEmpty(); expect(errors).toEqual([]);
+});
+
+test('ownship details work without a route and disappear on GPS loss', async ({ page, context }) => {
+  await serve(context);
+  await page.goto('/test/browser/glide.html');
+  await page.waitForFunction(() => !!window.glideAudit);
+  await page.evaluate(() => { window.glideAudit.route(null); window.glideAudit.ownship([-119.81, 34.42]); });
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
+  await page.evaluate(() => window.glideAudit.ownship(null, 'stale'));
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Add a route or show a glide range to see landing candidates');
+  await expect.poll(() => page.evaluate(async () => (await window.glideAudit.map.getSource<GeoJSONSource>('glide-landing-areas')!.getData() as GeoJSON.FeatureCollection).features.length)).toBe(0);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+for (const routeVisible of [false, true]) test(`moving ownship preserves a pending landing download ${routeVisible ? 'with route shading' : 'without a route'}`, async ({ page, context }) => {
+  await serve(context);
+  let reads = 0, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await context.route('**/glide/*.glide.gz', async route => { reads++; await gate; await route.fallback(); });
+  await page.addInitScript(() => {
+    const NativeWorker = Worker;
+    window.Worker = class extends NativeWorker {
+      readonly landing: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) { super(url, options); this.landing = String(url).includes('landing.worker'); }
+      override postMessage(message: unknown, options: Transferable[] | StructuredSerializeOptions = []) {
+        if (this.landing && (message as { path?: string[] }).path?.[0] === 'cancel') {
+          document.documentElement.dataset.landingCancellations = String(Number(document.documentElement.dataset.landingCancellations ?? 0) + 1);
+        }
+        if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
+      }
+    };
+  });
+  try {
+    await page.goto('/test/browser/glide.html');
+    await page.waitForFunction(() => !!window.glideAudit);
+    await page.evaluate(routeVisible => {
+      if (!routeVisible) window.glideAudit.route(null);
+      window.glideAudit.ownship([-119.81, 34.42]);
+    }, routeVisible);
+    await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+    await expect(page.getByLabel('Ownship glide status')).toContainText('live position');
+    await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+    await expect.poll(() => reads).toBe(1);
+    await page.evaluate(() => { document.documentElement.dataset.landingCancellations = '0'; });
+    for (const longitude of [-119.8094, -119.8088, -119.8082]) {
+      await page.evaluate(longitude => {
+        window.glideAudit.ownship([longitude, 34.42]);
+        window.glideAudit.map.jumpTo({ center: [longitude, 34.42] }, { gpsCamera: true });
+      }, longitude);
+      await expect(page.getByLabel('Ownship glide status')).toContainText('live position');
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-landing-cancellations', '0');
+    expect(reads).toBe(1);
+    release();
+    await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
+    expect(reads, 'new ranges reuse the completed download').toBe(1);
+    await expect(page.getByTestId('errors')).toBeEmpty();
+  } finally { release(); }
 });
 
 test('unpublished landing data is independent of glide ranges and retry discovers the completed feed', async ({ page, context }) => {
@@ -88,6 +195,63 @@ test('unpublished landing data is independent of glide ranges and retry discover
   await expect(page.getByRole('status', { name: 'Glide coverage status' })).toHaveText('Airport coverage is off');
   published = true;
   await page.getByRole('button', { name: 'Retry landing areas' }).click();
-  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('2 candidate patches loaded');
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+
+test('inspect landing area keeps individual flags and calculates a purple arrival range', async ({ page, context }, testInfo) => {
+  await serve(context);
+  await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
+  await selectRange(page);
+  await inspectArea(page);
+  const card = page.getByLabel('Selected glide point', { exact: true });
+  await expect(card.getByText('Glide to selected area', { exact: true })).toBeVisible();
+  await expect(card.getByText('Preferred · 3,000 × 200 ft fit', { exact: true })).toBeVisible();
+  await expect(card.getByText('Crop conditions unverified.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Selected point glide status')).toContainText('NM of route inside arrival range');
+  expect(await page.evaluate(() => window.glideAudit.map.getPaintProperty('glide-point-ring', 'line-color'))).toBe('#a23bff');
+  const data = () => page.evaluate(async () => await window.glideAudit.map.getSource<GeoJSONSource>('glide-point-area')!.getData());
+  const first = await data();
+  await page.evaluate(() => window.glideAudit.remount());
+  await expect(card.getByText('Glide to selected area', { exact: true })).toBeVisible();
+  await expect.poll(data).toEqual(first);
+  await page.getByRole('slider', { name: 'Glide start altitude' }).fill('9500');
+  await expect(page.getByLabel('Selected point glide status')).toContainText('NM of route inside arrival range');
+  await expect.poll(data).not.toEqual(first);
+  await page.screenshot({ path: testInfo.outputPath('landing-arrival.png') });
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+for (const recovery of ['refresh', 'remount'] as const) test(`a replaced landing source clears the selected site after ${recovery}`, async ({ page, context }) => {
+  await serve(context);
+  let current = fixture();
+  await context.route('**/glide/manifest.json', route => route.fulfill({ json: current.manifest }));
+  await context.route('**/glide/*.glide.gz', route => route.fulfill({ contentType: 'application/gzip', body: current.bytes }));
+  await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
+  await selectRange(page); await inspectArea(page);
+  const card = page.getByLabel('Selected glide point', { exact: true });
+  await expect(card.getByText('Fit elevation up to 164 ft MSL.', { exact: true })).toBeVisible();
+  current = fixture(500);
+  // Refresh deliberately preserves the timestamp and input digest. Remount also
+  // loses transient status, but must retain the selected record's source identity.
+  if (recovery === 'remount') current.manifest.generatedAt = '2026-10-03T00:00:00Z';
+  await page.evaluate(recovery => {
+    if (recovery === 'remount') window.glideAudit.remount();
+    else window.dispatchEvent(new Event('online'));
+  }, recovery);
+  await expect(card).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => (await window.glideAudit.map.getSource<GeoJSONSource>('glide-point-area')!.getData() as GeoJSON.FeatureCollection).features.length)).toBe(0);
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
+  await selectRange(page); await inspectArea(page);
+  await expect(card.getByText('Fit elevation up to 1,640 ft MSL.', { exact: true })).toBeVisible();
   await expect(page.getByTestId('errors')).toBeEmpty();
 });

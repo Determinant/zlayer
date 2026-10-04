@@ -607,8 +607,16 @@ owns selection and expiration rules.
 
 ## Off-airport landing candidates
 
-Glide consumes the publisher's schema-5 (legacy schema-4 supported) feed-wide landing-area manifest and
+Glide consumes the publisher's schema-9 (legacy schemas 4/5/6/7/8 supported) feed-wide landing-area manifest and
 bounded, hash-verified polygon shards. The [Glide consumer contract](../../src/layers/glide/README.md#delivery-and-validation)
 owns tuple decoding, tier/flag meaning, geometry validation and cache identity.
-These experimental generalized areas are separate from calculated glide ranges
-and are not part of verified regional offline completeness.
+The national inventory has no local-cache-sized aggregate cap; per-shard limits
+and the consumer's bounded local memory/disk budgets remain independent.
+ZLayer derives and caches compact density rasters for the visible 20 NM route
+corridor from the existing files, with zoom-dependent shading and two-file
+progressive acquisition. First visits still transfer the source polygon files.
+Detailed polygons are limited to calculated ownship/selected-point ranges,
+independently of route presence; the feed and publisher artifacts are unchanged.
+Selecting a detailed candidate preserves its qualification metadata and requests a
+terrain-aware arrival range on demand. Neither the feed nor cached browsing is
+part of verified regional offline completeness.

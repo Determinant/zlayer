@@ -169,3 +169,23 @@ test('unknown terrain and cancellation never enter the cache as successful cover
   const next = await planner.calculate(request({ airports: [] }), signal());
   assert.equal(next.airports.length, 0); assert.equal(next.areas.features.length, 0);
 });
+
+
+test('selected landing arrival uses field elevation and reserve, responds to altitude, and reuses terrain', async () => {
+  let reads = 0;
+  const planner = new GlidePlanner(async () => { reads++; return new Float32Array(65536); });
+  const base = request({ airports: [], ownship: null, point: [0, 0], pointElevationFt: 2000 });
+  const first = await planner.calculate(base, signal()), count = reads;
+  assert.ok(first.point); assert.ok(first.pointRouteNm! > 0);
+  const again = await planner.calculate(base, signal());
+  assert.strictEqual(again.point, first.point); assert.equal(reads, count);
+  const higherField = await planner.calculate({ ...base, pointElevationFt: 4000 }, signal());
+  assert.ok(higherField.pointRouteNm! < first.pointRouteNm!);
+  const low = await planner.calculate({ ...base, altitude: 2400 }, signal());
+  assert.equal(low.point!.area.features.length, 0); assert.equal(low.pointRouteNm, 0);
+  const { pointElevationFt: _elevation, ...forwardRequest } = base;
+  const forward = await planner.calculate(forwardRequest, signal());
+  assert.notEqual(forward.point!.key, first.point!.key); assert.equal(forward.pointRouteNm, undefined);
+  const movedRoute = await planner.calculate({ ...base, segments: [[project([1, 1]), project([2, 1])]] }, signal());
+  assert.equal(movedRoute.pointRouteNm, 0);
+});

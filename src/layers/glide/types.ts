@@ -7,13 +7,14 @@ type GlideRangeStatus = 'loading' | 'ready' | 'outside' | 'partial' | 'zoom';
 export type GlideStatus = {
   state: 'idle' | 'loading' | 'ready' | 'partial' | 'error' | 'zoom';
   point?: GlideRangeStatus | undefined;
+  pointRouteNm?: number | undefined;
   ownship?: GlideRangeStatus | 'unavailable';
   route?: boolean;
   airports?: number;
 };
 export type GlideAreas = GeoJSON.FeatureCollection<GeoJSON.MultiPolygon>;
 export type GlideLines = GeoJSON.FeatureCollection<GeoJSON.MultiLineString>;
-/** A completed forward calculation, including an empty or incomplete range.
+/** A completed ownship or selected-origin calculation, including an empty or incomplete range.
  * A null result means this origin has not been calculated. */
 export type GlideRange = { key: string; line: GlideLines; area: GlideAreas; incomplete: boolean };
 export type GlideResult = {
@@ -23,6 +24,7 @@ export type GlideResult = {
   incomplete: boolean;
   ownship: GlideRange | null;
   point: GlideRange | null;
+  pointRouteNm?: number;
   work: {
     terrainSourceCells: number;
     terrainCells: number;
@@ -38,12 +40,15 @@ export type GlideRequest = {
   /** Overview views may reconcile cached coverage, but must not acquire new origins. */
   discover?: boolean;
   airports: GlideAirport[];
+  airportsEnabled?: boolean;
   altitude: number;
   ratio: number;
   viewport: GlideViewport;
   segments: Segment[];
   ownship: Point | null;
   point?: Point | null;
+  /** A selected landing witness uses reverse arrival coverage instead of forward glide. */
+  pointElevationFt?: number;
   sources: TerrainSource[];
   sourceKey: string;
   airportKey?: string;
