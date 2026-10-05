@@ -139,6 +139,7 @@ test('offline staging notices keep one testing warning; stowing releases demand'
     window.dispatchEvent(new Event('offline'));
   });
   await expect(page.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Refresh NOTAMs' })).toBeDisabled();
   await page.clock.fastForward(7 * 60_000);
   await expect(page.getByText('Testing with FAA staging data. Notices may be incomplete. Do not use for flight planning.', { exact: true })).toHaveCount(1);
   await expect(page.getByText('2 of 2 retained notices', { exact: true })).toBeVisible();
@@ -233,6 +234,7 @@ test.describe('NOTAM reading layout', () => {
     failing = false;
     await refresh.click();
     await expect(airport.getByText('No retained notices.', { exact: true })).toBeVisible();
+    await expect(refresh).toBeEnabled();
     const airportStatusFont = await airport.locator('.notam-list-status').first().evaluate(element => getComputedStyle(element).font);
     await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     await page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).click();
@@ -292,7 +294,16 @@ test.describe('NOTAM reading layout', () => {
       expect(await page.evaluate(() => document.fonts.check('700 14px B612'))).toBe(true);
       await expect(airport.getByRole('heading', { level: 3 })).toHaveText(['Active 1', 'Check timing 1', 'Upcoming 1']);
       const summary = airport.getByText('Show raw', { exact: true }).first();
-      await airport.getByRole('searchbox', { name: 'Search' }).focus();
+      const search = airport.getByRole('searchbox', { name: 'Search' });
+      const refresh = airport.getByRole('button', { name: 'Refresh NOTAMs' });
+      const searchBox = (await search.boundingBox())!, refreshBox = (await refresh.boundingBox())!;
+      expect(refreshBox.x).toBeGreaterThanOrEqual(searchBox.x + searchBox.width);
+      expect(Math.abs(refreshBox.y + refreshBox.height - searchBox.y - searchBox.height)).toBeLessThan(1);
+      expect(refreshBox.width).toBeGreaterThanOrEqual(44);
+      expect(refreshBox.height).toBeGreaterThanOrEqual(44);
+      await search.focus();
+      await page.keyboard.press('Tab');
+      await expect(refresh).toBeFocused();
       await page.keyboard.press('Tab');
       await expect(summary).toBeFocused();
       await summary.press('Enter');
@@ -317,9 +328,9 @@ test.describe('NOTAM reading layout', () => {
       await toggle.click();
       const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
       await expect(plate.getByRole('heading', { level: 3 })).toHaveText(['Active 1', 'Check timing 1', 'Upcoming 1']);
-      const refreshBox = (await plate.getByRole('button', { name: 'Refresh NOTAMs' }).boundingBox())!;
+      const plateRefreshBox = (await plate.getByRole('button', { name: 'Refresh NOTAMs' }).boundingBox())!;
       const activeBox = (await plate.getByRole('heading', { name: 'Active 1', exact: true }).boundingBox())!;
-      expect(activeBox.y - refreshBox.y - refreshBox.height).toBeGreaterThanOrEqual(8);
+      expect(activeBox.y - plateRefreshBox.y - plateRefreshBox.height).toBeGreaterThanOrEqual(8);
       await plate.getByText('Show raw', { exact: true }).first().focus();
       await plate.getByText('Show raw', { exact: true }).first().press('Enter');
       await expect(plate.locator('.notam-raw[open] pre').first()).toHaveText(raw);

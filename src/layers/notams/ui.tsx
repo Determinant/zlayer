@@ -29,8 +29,7 @@ function useAirportNotams(api: NotamsApi, query: NotamAirportQuery | undefined, 
   const checked = snapshot?.feed.checkedAt;
   const fresh = checked !== null && checked !== undefined && state.now >= checked && state.now - checked < NOTAM_STALE_MS;
   const complete = snapshot?.feed.continuity === 'complete' && snapshot.associationCoverage === 'complete';
-  return { entry, snapshot, online, now: state.now, fresh, complete, staging: snapshot?.feed.environment === 'staging',
-    assured: fresh && complete && online && !entry?.error && snapshot?.feed.state === 'ready' };
+  return { entry, snapshot, online, now: state.now, fresh, complete, staging: snapshot?.feed.environment === 'staging' };
 }
 type View = ReturnType<typeof useAirportNotams>;
 const classification = (record: NotamRecord) => record.classification === 'DOMESTIC' || record.classification === 'DOM' ? 'D'
@@ -44,7 +43,16 @@ function currentRecords(records: readonly NotamRecord[], now: number) {
     Number(notamValidity(a, now) === 'upcoming') - Number(notamValidity(b, now) === 'upcoming') ||
     (b.issuedAt ?? b.updatedAt) - (a.issuedAt ?? a.updatedAt) || a.id.localeCompare(b.id));
 }
-function SourceStatus({ view, api }: { view: View; api: NotamsApi }) {
+function RefreshNotams({ view, api }: { view: View; api: NotamsApi }) {
+  return <button type="button" className="ui-button ui-button--icon" aria-label="Refresh NOTAMs" title="Refresh NOTAMs"
+    disabled={!view.online || view.entry?.loading} aria-busy={view.entry?.loading || undefined} onClick={() => api.retry()}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
+    </svg>
+  </button>;
+}
+function SourceStatus({ view }: { view: View }) {
   const { snapshot, entry, online, now, fresh, complete, staging } = view;
   return <div className="notam-source">
     {staging ? <>
@@ -54,8 +62,6 @@ function SourceStatus({ view, api }: { view: View; api: NotamsApi }) {
       {!online && ' · Offline'}{snapshot && !fresh && ' · Stale'}{snapshot && !complete && ' · Incomplete coverage'}</span>}
     {entry?.error && <span role="status">{entry.error}</span>}
     {!staging && snapshot?.feed.state === 'degraded' && <span>Feed update incomplete; retained notices are shown.</span>}
-    {online && (!view.assured || entry?.error) && <button type="button" className="ui-button ui-button--compact" disabled={entry?.loading}
-      onClick={() => api.retry()}>Refresh NOTAMs</button>}
   </div>;
 }
 function NotamEntry({ record, now, reason }: { record: NotamRecord; now: number; reason?: string }) {
@@ -123,14 +129,17 @@ export function AirportNotams({ api, query, active }: { api: NotamsApi; query: N
     : classification(record) === filter)) && (subject === 'all' || (parsed.subject ?? 'Other') === subject) &&
     `${parsed.body} ${record.number} ${record.translations.map(t => t.text).join(' ')}`.toUpperCase().includes(search.toUpperCase()));
   return <section className="airport-notams" aria-label="Airport NOTAMs">
-    <SourceStatus view={view} api={api} />
+    <SourceStatus view={view} />
     <div className="notam-filters">
       <label>Classification<select className="ui-input" aria-label="Classification" value={filter} onChange={e => setFilter(e.target.value)}>
         <option value="all">All</option><option value="D">D</option><option value="FDC">FDC</option><option value="other">Other / Unclassified</option>
       </select></label>
       <label>Subject<select className="ui-input" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)}>
         <option value="all">All subjects</option>{subjects.map(s => <option key={s}>{s}</option>)}</select></label>
-      <label className="notam-search">Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
+      <div className="notam-search-row">
+        <label>Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
+        <RefreshNotams view={view} api={api} />
+      </div>
     </div>
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
     {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices</p>}
@@ -167,7 +176,7 @@ export function PlateNotams({ api, context, active, retryCatalog }: {
           <button type="button" className="ui-button ui-button--compact" onClick={retryCatalog}>Retry plate catalog</button></div>
           : <p className="notam-list-status">This page’s airport and procedure could not be established from its edition. Reopen an indexed IAP, SID or STAR from Plates.</p> : <>
         <strong className="plate-notams-heading">{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
-        <SourceStatus view={view} api={api} />
+        <div className="notam-source-row"><SourceStatus view={view} /><RefreshNotams view={view} api={api} /></div>
         <NotamList entries={result.matches} now={view.now} />
         {!count && <p className="notam-list-status">No matches in the retained notices.</p>}
         {result.unresolved > 0 && <p className="notam-list-status">{result.unresolved} notice(s) have unresolved interpretation.</p>}

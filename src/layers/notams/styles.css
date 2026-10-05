@@ -10,7 +10,9 @@
 .notam-source, .notam-recovery { display: grid; gap: 8px; min-width: 0; }
 .notam-source { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-source > strong { color: var(--text-primary); }
-.notam-source > button, .notam-recovery > button { justify-self: start; }
+.notam-recovery > button { justify-self: start; }
+.notam-source-row, .notam-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
+.notam-source-row { align-items: start; }
 .notam-list-status { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-filters {
   display: grid;
@@ -19,7 +21,7 @@
 }
 .notam-filters label { display: grid; gap: 4px; min-width: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-filters .ui-input { width: 100%; min-width: 0; }
-.notam-search { grid-column: 1 / -1; }
+.notam-search-row { grid-column: 1 / -1; align-items: end; }
 
 /* Section spacing belongs to the list, independent of its airport/plate host. */
 .notam-list { display: grid; gap: 16px; min-width: 0; }
