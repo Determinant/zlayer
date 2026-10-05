@@ -20,8 +20,10 @@ owns the collector, local-query API and integration into this listener,
 build and deployment. Its [collection policy](../../src/layers/notams/README.md#collection-and-delivery)
 keeps a full local dataset and durable FAA quota history outside the weather cache.
 The cache warm/swap procedure must preserve that state and one active collector.
-Collection defaults to disabled. Staging full-load and delta paths were exercised;
-production enablement and combined weather/NMS capacity checks remain release work.
+Collection defaults to disabled for new deployments. Staging and production
+full-load and delta paths were exercised; see the NOTAM guide's
+[production verification](../../src/layers/notams/README.md#production-verification-october-5-2026).
+Sustained combined weather/NMS capacity checks remain release work.
 
 `GET`/`HEAD /api/notams/airports?faaId=…&icaoId=…` reads the local dataset, accepting
 at least one named selector. These requests never contact FAA. `/api/notams/healthz`
@@ -77,8 +79,8 @@ size bounds, recovery, staging evidence and remaining source qualifications.
 
 ## Run locally
 
-`npm run dev` forwards weather and NOTAM reads to `https://zlayer.tedyin.com`, reusing the backend’s shared
-prepared data through the HTTPS proxy. It starts no local backend. To develop this
+`npm run dev` forwards weather and NOTAM reads to `https://zlayer.tedyin.com`, reusing
+its prepared data over HTTPS. It starts no local backend. To develop this
 service, use Node 24+ and run `npm run info:serve` separately from the repository root. It listens on
 `127.0.0.1:8787` with `.cache/weather/`. Start the PWA with
 `INFO_API_ORIGIN=http://127.0.0.1:8787 npm run dev` to opt into that local backend.
@@ -228,17 +230,24 @@ meaning and PWA selection, rendering and recovery.
 
 ## Deployment
 
-Keep the info backend private behind the app’s HTTPS reverse proxy. For a
-separate backend host, nginx can forward `/api/weather/` and `/api/notams/` to
-proxy-host loopback port 8788; the [managed SSH tunnel](zlayer-info-tunnel.service)
-carries that connection to backend loopback port 8787. Browser requests stay
-same-origin, including local development through Vite. No public backend port
-or browser CORS setup is needed. Direct `/weather/` source proxies remain retired.
+Place the info backend behind the app's HTTPS reverse proxy, forwarding
+`/api/weather/` and `/api/notams/` to its private listener. Browser requests stay
+same-origin, including local development through Vite. No public backend port or
+browser CORS setup is needed. Direct `/weather/` source proxies remain retired.
+
+The [Docker web-host example](../../docs/development/deployment.md#docker-hosting-and-staged-migration)
+uses Caddy on the same Linux host to reach the backend's loopback listener directly.
+The backend can remain under systemd or run in a separate container with its port
+published only to loopback. For a separate backend host, the optional nginx example
+uses a [managed SSH tunnel](zlayer-info-tunnel.service) from proxy-host loopback
+port 8788 to backend loopback port 8787. Moving the web tier does not require a
+second collector or a weather/NOTAM state migration. Keep live host details in
+[private operations](../../docs/development/deployment.md#public-configuration-and-private-operations).
 
 ### Deployment readiness
 
-Use the same checks on the backend’s loopback service, through the tunnel before a
-proxy cutover, and through public HTTPS after activation:
+Use the same checks on the backend's loopback listener, through the candidate
+proxy or tunnel before cutover, and through public HTTPS after activation:
 
 - Require `healthz.forecasts.clouds`, `.icing` and `.winds`, both `healthz.progs`
   families, and `healthz.progsCoverage` to report `ready: true`.
@@ -288,10 +297,8 @@ lower CPU/I/O priority for other host services. Restart attempts remain enabled 
 session is required. Subsequent releases switch `current`, restart the unit, and
 must meet the [readiness checklist](#deployment-readiness).
 
-The former weather-only service repeatedly reached its 2 GiB cgroup limit during
-the October 5, 2026 deployment inspection, without an OOM kill. Two forecast
-workers reduce overlapping decoded-grid allocations; the 4 GiB allowance leaves
-room for independent radar/chart workers and resident NOTAM generations. This
+Two forecast workers reduce overlapping decoded-grid allocations; the 4 GiB
+allowance leaves room for independent radar/chart workers and resident NOTAM generations. This
 does not reduce grid or chart resolution. Check `MemoryCurrent`, `MemoryPeak` and
 the cgroup's `memory.events` across forecast replacement, radar backfill and a
 NOTAM full sync after rollout; a short local replay is not a production soak test.
@@ -301,15 +308,16 @@ loopback port/cache first, then stop both processes and move the prepared cache
 with the release pointer. Never let two processes write one cache directory.
 Rollback switches `current` back and restarts the same unit.
 
-On the proxy host, install `zlayer-info-tunnel.service`, a restricted SSH key at
-`/etc/zlayer-info-tunnel/id_ed25519`, verified backend host keys at
-`/etc/zlayer-info-tunnel/known_hosts`, and an environment file
+For a separate backend host, install `zlayer-info-tunnel.service` on the HTTPS
+proxy host, a restricted SSH key at `/etc/zlayer-info-tunnel/id_ed25519`, verified
+backend host keys at `/etc/zlayer-info-tunnel/known_hosts`, and an environment file
 `/etc/zlayer-info-tunnel.env` containing `INFO_SSH_TARGET=user@host`.
 The backend SSH account should allow forwarding only to `127.0.0.1:8787`.
-Enable the tunnel with systemd; it reconnects automatically and binds only to proxy-host
-loopback. Apply the [readiness checklist](#deployment-readiness) through
+Enable the tunnel with systemd; it reconnects automatically and binds only to the
+proxy host's loopback. Apply the [readiness checklist](#deployment-readiness) through
 `127.0.0.1:8788` before changing nginx. Keep the old backend available until that
-cutover succeeds, then disable it so only the selected backend performs background source updates.
+cutover succeeds, then disable it so only the selected backend performs background
+source updates.
 
 Add
 [info-api.nginx.conf](../../docs/development/info-api.nginx.conf) inside

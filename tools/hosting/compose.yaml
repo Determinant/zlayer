@@ -1,0 +1,66 @@
+name: zlayer-hosting
+
+services:
+  web:
+    # Resolve and pin the official image digest in the private environment file.
+    image: ${CADDY_IMAGE:?Set CADDY_IMAGE to a tested caddy image digest}
+    restart: unless-stopped
+    # Linux host networking reaches a loopback-only info service on the host.
+    # The backend has a separate lifecycle; only Caddy listens publicly.
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    cpus: 2
+    mem_limit: 512m
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      CHARTS_DOMAIN: ${CHARTS_DOMAIN:?Set CHARTS_DOMAIN}
+      INFO_UPSTREAM: ${INFO_UPSTREAM:-127.0.0.1:8787}
+      TLS_MODE: ${TLS_MODE:-bootstrap}
+    volumes:
+      - type: bind
+        source: .
+        target: /etc/caddy
+        read_only: true
+      - type: bind
+        source: ${APP_DATA_DIR:?Set APP_DATA_DIR}
+        target: /srv/app
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${FAA_DATA_DIR:?Set FAA_DATA_DIR}
+        target: /srv/faa
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TLS_BOOTSTRAP_DIR:?Set TLS_BOOTSTRAP_DIR}
+        target: /bootstrap
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CADDY_DATA_DIR:?Set CADDY_DATA_DIR}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CADDY_CONFIG_DIR:?Set CADDY_CONFIG_DIR}
+        target: /config
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:9080/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'

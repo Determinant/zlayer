@@ -45,8 +45,8 @@ npm run dev
 ```
 
 `npm run dev` proxies weather and NOTAM requests to `https://zlayer.tedyin.com`,
-sharing its prepared data. See [tools/info-server](tools/info-server/README.md) to opt into
-a local backend or deploy the service behind an HTTPS reverse proxy.
+sharing its prepared data. See [tools/info-server](tools/info-server/README.md) to
+opt into a local backend or deploy the service behind an HTTPS reverse proxy.
 
 Development proxies the dated FAA assets at `charts.tedyin.com` so the browser uses
 the same feed shape as production. All published chart coverage is discovered from

@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Populated service and Compose environment files belong in private operations.
+*.env
 .idea/
 .vscode/
 node_modules/

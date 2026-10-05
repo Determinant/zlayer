@@ -191,8 +191,8 @@ optional selected-and-adjacent-hours setting.
 ## Development and production delivery
 
 Both use same-origin `/api/weather/`. `npm run dev` proxies to
-`https://zlayer.tedyin.com`; it starts no private info backend. The HTTPS proxy forwards
-that public API through a private connection to the weather service. Direct AWC/NOAA proxy routes are removed,
+`https://zlayer.tedyin.com`; it starts no local info backend. Production forwards
+that API to the info service behind an HTTPS reverse proxy. Direct AWC/NOAA proxy routes are removed,
 and older apps must update for the native-pressure wind API.
 
 The server normalizes advisories and prepares native HRRR/IFI fields once through

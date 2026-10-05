@@ -13,6 +13,8 @@ import { EdgePanels } from '../../src/core/ui/edge-panels';
 import { PANEL_LAYOUT } from '../../src/workspace/panel-layout';
 import { createMetarClient } from '../../src/layers/metar-taf/metar/client';
 import { emptyRoutePlan } from '@zlayer/domain';
+import '@fontsource/b612/400.css';
+import '@fontsource/b612/700.css';
 import '../../src/styles.css';
 
 const registry = new PluginRegistry<WorkspacePluginApis>(), product = createNotamsPlugin();

@@ -87,17 +87,19 @@ for today's guarantees and [product budgets](brief.md) for performance targets.
 
 ## Airport and procedure NOTAMs
 
-Implemented locally: the [NOTAM plugin guide](../../src/layers/notams/README.md)
+Implemented with production collection enabled: the [NOTAM plugin guide](../../src/layers/notams/README.md)
 owns the long-term contract. **Info | Plates | NOTAM** shows D/FDC notices with
 conservative flairs and per-entry raw disclosures. Procedure rows and the expandable
 red reader bar share snapshots and matching for the actual catalog/page/edition.
 
 The existing info server maintains the full local NMS dataset under the guide's
 [collection policy](../../src/layers/notams/README.md#collection-and-delivery), with
-durable quotas and local-only browser queries. Staging authentication, a complete
-74,831-member load and global deltas were exercised. Production is not enabled.
-Remaining work includes FAA production onboarding, broader lifecycle/applicability
-and alias qualification, shared-weather capacity and installed-device checks.
+durable quotas and local-only browser queries. Staging and production authentication,
+full loads and global deltas were exercised; see the guide's
+[production verification](../../src/layers/notams/README.md#production-verification-october-5-2026).
+Production UI notes identify FAA NOTAMs with their source-check time and actual
+freshness/coverage state. Remaining work includes broader lifecycle/applicability
+and alias qualification, sustained shared-weather capacity and installed-device checks.
 
 ## Radial/distance route positions
 
@@ -134,8 +136,8 @@ The TypeScript AWC/NOMADS gateway is implemented with shared disk caching, bound
 refreshes, advisory normalization, numeric grid preparation and preserved source-check times.
 HRRR uses Google as the server’s upstream; the PWA reads native prepared fields
 and interpolates selected wind altitudes. The
-[server guide](../../tools/info-server/README.md#deployment) owns backend
-and HTTPS proxy deployment, including release checks.
+[server guide](../../tools/info-server/README.md#deployment) owns backend and
+HTTPS reverse-proxy deployment requirements, including release checks.
 Independent operational comparison and reference-device
 qualification remain outstanding; implementation is not flight validation.
 

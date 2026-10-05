@@ -53,6 +53,7 @@ The same engineering and feature contracts apply to human and AI contributors.
 - [Engineering guide](development/engineering.md): simplicity, ownership and recovery rules.
 - [Local development](development/local-development.md): setup, proxies, configuration and tests.
 - [Deployment](development/deployment.md): static-host contract, release gates and rollout checks.
+- [Docker hosting and staged migration](development/deployment.md#docker-hosting-and-staged-migration): Caddy, pre-cutover HTTPS checks, data continuity and renewal handoff.
 - [Info server](../tools/info-server/README.md): shared weather preparation, FAA NMS collection, source freshness and deployment.
 
 ## Architecture and design
@@ -147,6 +148,10 @@ with historical results. Scratch scans and intermediate downloads belong in igno
 - Keep shared application behavior in `docs/features/`, host architecture in
   `docs/architecture/`, shared formats and publisher boundaries in `docs/data/`,
   and cross-plugin/browser investigations in `docs/verification/`.
+- Keep deployment examples portable. Machine names, origin IPs, cloud accounts,
+  SSH targets, installed paths and live rollout records belong in the ignored
+  private operations checkout. Public guides own hosting contracts and reusable
+  configuration; see the [deployment boundary](development/deployment.md#public-configuration-and-private-operations).
 - Keep proposals visibly planned and update the roadmap when implementation status changes.
 - Remove routine test counts, rerun logs and obsolete status summaries once their
   useful lessons are in current guides or regression cases. Retain measured

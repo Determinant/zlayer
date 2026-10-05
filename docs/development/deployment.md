@@ -2,8 +2,10 @@
 
 [Documentation](../README.md) / Development
 
-ZLayer builds to a static `dist/` and deploys a small Node 24 weather cache gateway
-behind nginx. It has no dependency on a local `faa-regs` checkout. App code, lazy viewers, PDF.js/MapLibre/SQLite workers,
+ZLayer builds to a static `dist/` and deploys a small Node 24 info gateway
+behind an HTTPS reverse proxy. The [Docker hosting setup](#docker-hosting-and-staged-migration)
+uses Caddy; an nginx API snippet is also provided. It has no dependency on a local
+`faa-regs` checkout. App code, lazy viewers, PDF.js/MapLibre/SQLite workers,
 WASM, UI fonts and icons are bundled locally and precached by the production service worker.
 `tools/dev-proxy.ts` is development tooling, not part of the deployment.
 
@@ -36,11 +38,11 @@ uncached individual plates. Neither environment variables nor uploading `dist/`
 creates that proxy automatically.
 
 Install the [info backend](../../tools/info-server/README.md#deployment)
-and add the separate API [nginx location](info-api.nginx.conf)
-before deploying the frontend. Keep the backend listener private. A separate
-HTTPS proxy can forward same-origin requests through a managed SSH tunnel from
-proxy-host loopback port 8788 to backend loopback port 8787. The current PWA uses only
-`/api/weather/`; direct `/weather/` proxy routes are retired. The gateway handles metadata refreshes itself; no cron job
+and configure same-origin API forwarding before deploying the frontend. The Docker
+setup reaches a backend on the same host; the optional [nginx snippet](info-api.nginx.conf)
+supports a separate backend through a managed SSH tunnel. Keep the backend listener
+private in either arrangement. Weather uses `/api/weather/` and NOTAMs use
+`/api/notams/`; direct `/weather/` proxy routes are retired. The gateway handles metadata refreshes itself; no cron job
 or database is needed. `/api/weather/healthz` checks the process, not upstream availability.
 Fresh cache files survive restarts; user offline weather remains browser-owned.
 
@@ -67,6 +69,131 @@ Fresh cache files survive restarts; user offline weather remains browser-owned.
   About links to `/source/<zlayer-release>.tar.gz` for the exact running build.
   Publish that archive before switching the shell, exclude private operations,
   credentials and runtime caches, and retain older archives with hashed assets.
+
+## Docker hosting and staged migration
+
+[`tools/hosting/compose.yaml`](../../tools/hosting/compose.yaml) runs one
+digest-pinned official Caddy container for the app and chart domains. Its
+[`Caddyfile`](../../tools/hosting/Caddyfile) implements the static-host contract,
+same-origin `/chart-data/`, the bounded FAA PDF proxy, and the two info API prefixes.
+The chart domain retains a directory browser for the public `charts/`, `aim/` and
+`far/` trees, with CORS and Range support. Hidden work directories are denied.
+Neither host falls back to app HTML for missing resources.
+
+Keep the app's hidden-path and method guards ahead of every static and proxy
+handler inside one ordered `route` block. Caddy's default
+[directive order](https://caddyserver.com/docs/caddyfile/directives#directive-order)
+places `handle` before `respond`; guards outside the route can be bypassed even
+when they appear first in the file. GET and HEAD are the app's only allowed
+methods; the chart domain also allows OPTIONS for CORS.
+
+This Compose setup manages the web tier. The info service has its own lifecycle
+under systemd or a separate container, including its weather cache, NOTAM credentials,
+durable snapshots and quota journal. Linux host networking lets Caddy reach a
+same-host service at `INFO_UPSTREAM` (default `127.0.0.1:8787`); keep that listener
+loopback-only. A web-host migration can retain the backend and its state. Do not
+start a second collector or mount its state into another writer. A backend move
+must preserve single ownership and separately qualify its readiness.
+
+The app mount contains `current -> releases/<id>`, immutable release directories,
+shared `assets/`, and `source/`. Copy all of these when moving an existing origin;
+rebuilding is unnecessary for a hosting-only move. Publish assets and corresponding
+source before switching `current` atomically. Retain old assets, source archives
+and releases for existing tabs and rollback. The chart mount contains the complete
+published FAA root, including older editions and independently versioned products.
+Copy payloads before mutable manifests/catalogs and `cycles.json`; never use a
+deleting sync to make the destination match a partial local build.
+
+Install the Compose files together in a dedicated directory. Copy
+[`hosting.env.example`](../../tools/hosting/hosting.env.example) to a private path,
+set the domains and absolute bind-mount paths, and pin the tested Caddy digest.
+Create the bind directories explicitly; Compose refuses to silently create absent
+data directories. The app and FAA mounts are read-only inside Caddy. Keep certificate
+storage (`/data`), Caddy runtime configuration (`/config`), and bootstrap private keys
+on durable storage outside the served trees. Back up certificate state securely.
+If published data uses a local SSD, keep its authoritative publisher and a recovery
+copy elsewhere; VM stop/deletion or disk loss can require reseeding that data.
+
+Run these from the repository root, with installed paths supplied for the remote host:
+
+```bash
+docker compose --env-file /private/hosting.env -f tools/hosting/compose.yaml config --quiet
+docker compose --env-file /private/hosting.env -f tools/hosting/compose.yaml \
+  run --rm --no-deps web caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose --env-file /private/hosting.env -f tools/hosting/compose.yaml up -d
+```
+
+The container restarts automatically and rotates its logs. Its health check tests
+only the local Caddy listener, not chart completeness or backend readiness. The
+admin API uses a Unix socket; the health endpoint binds only to loopback port 9080.
+Only TCP ports 80 and 443 need public ingress. Host-specific networking, mount
+ordering, certificate inventory and deployment commands belong in the private
+operations checkout. Keep any other services and their firewall rules intact.
+
+### HTTPS before the DNS switch
+
+With `TLS_MODE=bootstrap`, install the existing trusted certificate and private key
+at `<TLS_BOOTSTRAP_DIR>/<domain>/fullchain.pem` and `privkey.pem` for each domain.
+This allows certificate-verified testing before DNS changes. These are imported
+certificates: Caddy does **not** renew them in bootstrap mode. Record their expiration
+dates and refresh them from the current host if staging lasts longer.
+
+After DNS and ingress reach the new origin, set `TLS_MODE=managed`, validate the
+configuration, and run Compose `up -d` to recreate the container with the new
+environment. Caddy obtains and renews Let's Encrypt certificates automatically.
+Allow for initial issuance, verify both domains and the certificate issuer/expiry,
+and keep the bootstrap keys until that check succeeds. Reverting to bootstrap mode
+is the immediate TLS rollback while those certificates remain valid. For unattended
+renewal before cutover, use a separately configured DNS challenge; the stock image
+in this setup does not include a Cloudflare DNS plugin. See Caddy's
+[automatic HTTPS](https://caddyserver.com/docs/automatic-https) and
+[TLS directive](https://caddyserver.com/docs/caddyfile/directives/tls) documentation.
+
+### Pre-cutover verification
+
+Run the isolated routing regression with the same Caddy version used for hosting:
+
+```bash
+python3 tools/hosting/test-routing.py --caddy /path/to/caddy
+```
+
+It adapts the real Caddyfile and runs its handlers on loopback with temporary
+static files and a recording upstream. It checks existing hidden files under
+every app mount, method rejection before the info/FAA proxies, allowed GET/HEAD
+routing and query preservation, cache headers, and chart CORS/Range delivery.
+Only fixture paths, upstream addresses, listeners and TLS are substituted; it
+does not contact production or FAA. HTTPS is checked separately below.
+
+[`tools/hosting/check.py`](../../tools/hosting/check.py) checks real HTTPS with the
+production hostnames and SNI while directing connections to the candidate address.
+It verifies redirects, MIME/cache headers, old-asset delivery, real 404s, restricted
+methods/PDF paths, chart CORS/discovery, and weather catalog readiness. Supply a real
+MBTiles path and current individual FAA PDF to also check their delivery:
+
+```bash
+python3 tools/hosting/check.py --address CANDIDATE_IP \
+  --app-domain zlayer.example.com --charts-domain charts.example.com \
+  --mbtiles /charts/EDITION/mbtiles/PACKAGE.mbtiles \
+  --pdf /faa-procedures/CYCLE/FILE.PDF
+```
+
+When ingress is intentionally closed, forward local ports 18443 and 18080 over SSH
+to the candidate's loopback ports 443 and 80, then use `--address 127.0.0.1
+--https-port 18443 --http-port 18080`. This still validates the real domain
+certificates; do not use `curl -k`. Run the full
+[info API readiness check](../../tools/info-server/README.md#deployment-readiness)
+separately. The hosting check reports NOTAM state without treating a pre-existing
+collector problem as a proxy failure.
+
+Before changing DNS, complete a fresh data/index sync and compare source/destination
+file hashes and frontend release identities. Arrange ongoing publisher delivery to
+the new host; a staged copy alone does not migrate the publisher. Verify public
+ingress and a reserved address, then update the Cloudflare A record and any obsolete
+AAAA record. Use [Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/)
+for proxied HTTPS and preserve the existing
+service-worker/API cache policy. Keep the old origin and tunnel until the new
+origin has passed live checks and publication/renewal have been verified. DNS rollback
+points back to the old origin; it does not roll back browser storage.
 
 ## Verification and remaining release gates
 
@@ -132,11 +259,13 @@ and automatic cycle migration remain outside the current contract; see
 
 ## Weather rollout
 
-The versioned [nginx snippet](info-api.nginx.conf) forwards `/api/weather/` and
-`/api/notams/` through the private connection to the info server. METAR/TAF retain their AWC queries and
+For nginx deployments, the versioned [snippet](info-api.nginx.conf) forwards
+`/api/weather/` and `/api/notams/` through a private connection to the info server.
+METAR/TAF retain their AWC queries and
 report behavior under this new prefix. AWC advisories and HRRR/IFI grids use normalized/prepared routes.
 Raw NOAA acquisition stays inside the server; it has no public raw-proxy routes.
-Install the location directly inside the TLS server block, or save it as `/etc/nginx/snippets/zlayer-info.conf`
+Install the location directly inside the TLS server block,
+or save it as `/etc/nginx/snippets/zlayer-info.conf`
 and include it there. Use only one copy of each location:
 
 ```nginx
@@ -155,13 +284,30 @@ all three forecast readiness flags before production cutover. See
 [nginx buffering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering).
 Connection buffers and network traffic remain server costs.
 
-nginx connects to the loopback SSH forward; Node verifies source TLS with its normal
-certificate trust. Keep upstream certificate verification enabled.
+The snippet uses a loopback SSH forward on port 8788; for a same-host backend,
+set its upstream to the backend's loopback listener (default port 8787).
+Node verifies source TLS with its normal certificate trust. Keep upstream
+certificate verification enabled.
 
 Deploy the weather service and verify its catalogs and representative slices,
 then deploy the static app with the METAR/TAF URLs and
 both AWC feed overrides blank. Validate and reload nginx as part of deployment.
 Metadata refresh runs inside this service; no Python/GDAL installation, separate publisher
-or database is required. Frontend assets alone do not install the server or snippet. Host-specific `ops/` configuration
-stays ignored; changes there alone are not a deployable repository artifact.
+or database is required. Frontend assets alone do not install the server or snippet.
 This contract does not establish that the live host has these routes installed.
+
+## Public configuration and private operations
+
+This repository owns portable Docker/Caddy/systemd/nginx examples, hosting contracts
+and verification tools. Use example domains and configurable paths. Keep actual
+machine names, origin addresses, cloud project/account IDs, SSH aliases/users,
+installed paths, certificate inventories and rollout observations in the ignored
+private `ops/` checkout. Deployment guides describe supported arrangements, not the
+topology or status of a particular live installation.
+
+Keep populated environment files, credentials, host-specific scripts and runbooks
+outside public Git, Docker build contexts and published source archives. Publish
+the corresponding application source and reusable build scripts as required by
+the [source contract](#static-host-contract). Public API domains used by the app
+remain documented; they do not require documenting the machines behind them.
+Changes confined to private operations are not part of a public repository release.

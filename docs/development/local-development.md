@@ -75,7 +75,7 @@ For preparation failures and retry behavior, see
 
 With blank weather URL settings, Vite forwards `/api/weather/` and `/api/notams/`
 to `https://zlayer.tedyin.com`, preserving paths and queries. Local development shares
-the backend's data through the same-origin HTTPS proxy; it starts no local backend or
+the backend's prepared data through the public API; it starts no local backend or
 separate source cache.
 
 To work on the [info backend](../../tools/info-server/README.md), run

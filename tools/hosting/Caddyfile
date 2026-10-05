@@ -1,0 +1,135 @@
+{
+	# A Unix socket keeps the reload API off the host network.
+	admin unix//config/admin.sock
+	servers {
+		protocols h1 h2
+	}
+}
+
+# Bootstrap uses the existing publicly trusted certificates before DNS moves.
+# Switch TLS_MODE to managed after cutover to enable automatic HTTPS renewal.
+(bootstrap) {
+	tls /bootstrap/{args[0]}/fullchain.pem /bootstrap/{args[0]}/privkey.pem
+}
+(managed) {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+}
+
+(static_types) {
+	@wasm path *.wasm
+	header @wasm Content-Type application/wasm
+	@module path *.mjs
+	header @module Content-Type text/javascript
+	@manifest path *.webmanifest
+	header @manifest Content-Type application/manifest+json
+}
+
+http://127.0.0.1:9080 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+	respond 404
+}
+
+{$APP_DOMAIN} {
+	import {$TLS_MODE:bootstrap} {$APP_DOMAIN}
+	import static_types
+	log
+
+	# Keep guards ahead of every static and proxy handler; Caddy otherwise reorders them.
+	route {
+		@hidden path_regexp hidden (^|/)\.
+		respond @hidden 404
+		@write not method GET HEAD
+		respond @write 405
+
+		@api path /api/weather/* /api/notams/*
+		handle @api {
+			reverse_proxy {$INFO_UPSTREAM:127.0.0.1:8787} {
+				flush_interval -1
+				transport http {
+					dial_timeout 3s
+					response_header_timeout 60s
+					compression off
+				}
+			}
+		}
+
+		# Only the existing four-digit-cycle PDF path may reach FAA.
+		@pdf path_regexp pdf ^/faa-procedures/([0-9]{4})/([-\w]+\.[pP][dD][fF])$
+		handle @pdf {
+			rewrite * /d-tpp/{re.pdf.1}/{re.pdf.2}
+			reverse_proxy https://aeronav.faa.gov {
+				header_up Host aeronav.faa.gov
+				transport http {
+					dial_timeout 15s
+					response_header_timeout 120s
+				}
+			}
+		}
+		handle /faa-procedures/* {
+			respond 404
+		}
+
+		handle_path /chart-data/* {
+			root * /srv/faa/charts
+			header Cache-Control no-cache
+			file_server
+		}
+		handle_path /assets/* {
+			root * /srv/app/assets
+			header Cache-Control "public, max-age=31536000, immutable" {
+				match status 2xx 304
+			}
+			file_server
+		}
+		handle_path /source/* {
+			root * /srv/app/source
+			header Cache-Control "public, max-age=31536000, immutable" {
+				match status 2xx 304
+			}
+			file_server
+		}
+		handle /sw.js {
+			root * /srv/app/current
+			header Cache-Control no-store
+			header Service-Worker-Allowed /
+			file_server
+		}
+		handle {
+			root * /srv/app/current
+			header Cache-Control no-cache
+			file_server
+		}
+	}
+}
+
+{$CHARTS_DOMAIN} {
+	import {$TLS_MODE:bootstrap} {$CHARTS_DOMAIN}
+	log
+	root * /srv/faa
+	header {
+		Access-Control-Allow-Origin *
+		Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+		Access-Control-Allow-Headers Range
+		Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag, Last-Modified"
+		Cache-Control no-cache
+	}
+	@hidden path_regexp hidden (^|/)\.
+	respond @hidden 404
+	@preflight method OPTIONS
+	respond @preflight 204
+	@write not method GET HEAD OPTIONS
+	respond @write 405
+	# Preserve the public chart/AIM/FAR directory browser, with private work hidden.
+	file_server {
+		hide .*
+		browse {
+			# Allow complete directory listings for large terrain tile sets.
+			file_limit 100000
+		}
+	}
+}

@@ -352,7 +352,7 @@ sent remotely. Image submission timing does not measure GPU completion.
 
 Leave both AWC feed overrides blank for the shared server in development and
 production. Forecasts are not bundled into `public/` or the offline shell.
-The [server guide](../../../../tools/info-server/README.md) owns service deployment and the HTTPS proxy.
+The [server guide](../../../../tools/info-server/README.md) owns backend deployment and HTTPS reverse-proxy requirements.
 
 `test/weather-grib.test.ts` and [captured GRIB fixtures](../../../../test/fixtures/awc-grib/README.md)
 compare numeric decoding/projection with independent GDAL hashes. Processing and

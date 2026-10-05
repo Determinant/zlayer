@@ -2,9 +2,9 @@
 
 [Documentation](../../../docs/README.md) / Plugins / notams
 
-**Status: implemented locally; staging exercised.** This is the long-term owning
+**Status: implemented; production feed enabled.** This is the long-term owning
 guide for the NOTAM plugin, collector, supported interpretation, and remaining
-qualification. Production collection is disabled by default. The
+qualification. Collection remains disabled by default for new deployments. The
 [roadmap](../../../docs/product/roadmap.md#airport-and-procedure-notams) tracks
 release work. Requirements below retain the intended scope; the implementation
 coverage and dated evidence distinguish supported behavior from remaining work.
@@ -40,8 +40,8 @@ graphs, broader regional applicability,
 multipart assembly and every publisher alias are not established. Simple daily
 and weekday/range UTC schedules with one time window are evaluated, including
 overnight windows. Other schedules remain **Check Schedule**. These limits cannot
-establish complete operational applicability. Production entitlement, deployment
-capacity alongside weather, device checks and broader source comparison remain
+establish complete operational applicability. Sustained deployment capacity
+alongside weather, device checks and broader source comparison remain
 release work.
 
 ## Contents
@@ -51,6 +51,7 @@ release work.
 - [Plate NOTAM bar](#plate-notam-bar)
 - [NMS source contract](#nms-source-contract)
 - [Staging evidence, October 4, 2026](#staging-evidence-october-4-2026)
+- [Production verification, October 5, 2026](#production-verification-october-5-2026)
 - [Collection and delivery](#collection-and-delivery)
 - [Airport query contract](#airport-query-contract)
 - [Info server integration](#info-server-integration)
@@ -156,13 +157,23 @@ history is separate and bounded. Do not infer severity from FDC versus D.
 | Source state | Environment-specific source status and retry above the list, as described below |
 | Raw disclosure | **Show raw** containing the complete original local-format text and any ICAO translation, separately labeled |
 
-Staging snapshots show one notice above each airport list or expanded plate list:
+Production snapshots show **FAA NOTAMs · Checked …** above each airport list or
+expanded plate list, using the actual source-check time. Offline, stale,
+incomplete-coverage, request-failure and degraded-feed states remain explicit when
+present; production access alone does not establish freshness or completeness.
+The snapshot's environment controls the note, including for saved data.
+Keep feed status in this source header. Counts describe retained notices and
+matches without repeating generic completeness or coverage qualifiers. Empty
+airport lists say **No retained notices.** Empty plate lists say **No matches in
+the retained notices.** These describe the saved results without a separate claim
+about current completeness.
+
+Staging snapshots retain one testing notice in the same position:
 **Testing with FAA staging data. Notices may be incomplete. Do not use for flight
-planning.** This replaces source-age, stale, incomplete and degraded-feed messages
-and repeated feed-coverage qualifiers on counts. Offline state, request failures,
-retry actions and procedure-specific interpretation/review qualifiers remain visible.
+planning.** This replaces source-age, stale, incomplete and degraded-feed messages.
+Offline state, request failures, retry actions and procedure-specific
+interpretation/review qualifiers remain visible.
 Empty staging results describe retained notices without implying current completeness.
-Production snapshots retain source-check time and freshness/coverage status.
 
 Raw text is selectable/copyable, retains line breaks, and wraps on narrow screens.
 Validity labels use the shared local-first timestamp pair, for example
@@ -177,11 +188,21 @@ an unbounded collection of persistent records. Material revisions must not inher
 an old read/dismissed state.
 
 Reuse `ui-button`, `ui-input`, `LoadingPlaceholder`, typography, focus treatment,
-and scrollbars. List counts, completeness qualifiers and empty-list messages use
-the compact 12 px secondary-text style, wrapping on narrow panels without extra
-paragraph margins. Flairs are feature presentation using semantic theme tokens;
-their text conveys meaning independently of color. Use native disclosures as
-Navigation does for frequency notes, without adding a UI library.
+and scrollbars. Both airport and plate lists use the same hierarchy: 14 px bold
+timing headings, 13 px notice identity/body text, 12 px source state, applicability,
+validity and list messages, and 11 px flairs. Use the bundled B612 regular/bold
+weights; raw source text uses the shared monospace stack at full text contrast.
+List counts, source status, errors and empty-list messages wrap without
+extra paragraph margins. Source state and filters have their own spacing above
+the list; timing-section spacing belongs to the shared list so both hosts agree.
+
+Filters stack when the available panel width cannot fit both fields. Long source
+numbers, translation labels, procedure titles, schedules and raw text must wrap
+without widening either scroller, including with expanded text spacing. Keep
+native controls at core's text-entry and touch sizes. **Show raw** is a native,
+keyboard-operable disclosure with a visible focus ring and at least a 32 px
+pointer / 44 px touch target. Flairs use semantic theme tokens; their text conveys
+meaning independently of color. Do not dim notice text in Upcoming sections.
 
 ## Plate NOTAM bar
 
@@ -201,22 +222,33 @@ airport list and semantic flair colors unchanged.
 
 The collapsed count includes displayed non-expired
 matches and review candidates; label the review count separately when present.
+Omit generic **Unconfirmed** and **Coverage limited** suffixes from the bar and
+procedure-row counts. Feed status belongs in the expanded source header;
+notice-specific interpretation and applicability reasons remain with the entries.
 Count each source notice once even if several clauses match. Multipart groups
 retain their individual parts' identities and counts.
 
 The expanded area has a maximum height based on available reader height and its
-own scrolling. Keep the collapse control, PDF controls, and some reading area
-reachable on short phones. The disclosure participates in layout rather than
-covering chart content. Scrolling it must not trigger PDF pan/zoom. The strip stays
+own scrolling, with a tighter cap in short readers. Keep the collapse control,
+PDF controls, and some reading area reachable on short phones. The disclosure
+participates in layout rather than covering chart content. Scrolling it must not
+trigger PDF pan/zoom. The strip stays
 reachable while its list or the PDF scrolls.
+Keep the source status and refresh action spaced apart from the plate title and
+the first timing-section heading so the controls and notice groups remain distinct.
+The title uses the shared 14 px heading scale. Empty, recovery and unavailable
+states use the same compact status typography as airport lists; catalog retry
+keeps its shared button styling. The bar label wraps beside a separate chevron,
+and procedure-row counts wrap within their existing metadata layout.
 
 | Data state | Bar behavior |
 | --- | --- |
 | Current matches or review candidates | Red strip with counts, timing qualifiers, and expandable entries |
 | Complete, fresh query with zero matches | Neutral `NOTAM · 0 matched`, limited to the supported scope |
 | Loading without a snapshot | Loading state, never a zero count |
-| Saved/stale snapshot | Retain known results and identify their age; zero must not imply a current check |
-| Partial feed, unresolved page, or failed query without data | Explicit incomplete/unavailable matching state with recovery |
+| Saved/stale snapshot | Retain match counts; identify age and offline state in the expanded source header |
+| Partial feed with a snapshot | Retain match counts; show feed status and recovery in the expanded list |
+| Unresolved page or failed query without data | Explicit unavailable matching state with recovery |
 
 The expanded strip shows notices for the displayed plate. The airport's NOTAM tab
 owns the full list; omit the **Show all airport NOTAMs** button and nested full-list
@@ -260,9 +292,10 @@ without replacing the PDF. No fallback silently adopts another edition.
 
 ## NMS source contract
 
-The supplied onboarding package was reviewed on 2026-10-04. It establishes staging
-onboarding, not production readiness. Use the dated OpenAPI specification and FAQ
-as the planning baseline, resolving the discrepancies below during qualification.
+The original staging onboarding package was reviewed on 2026-10-04. The subsequent
+production package contains the same OpenAPI specification and FAQ content, with
+production credentials and connection examples. Use the dated specification and
+FAQ as the source contract, resolving the discrepancies below during qualification.
 
 | Supplied material in local `nms/` | Evidence and limitations |
 | --- | --- |
@@ -321,6 +354,20 @@ were excluded from tracked files; regression fixtures use invented content.
   Some FDC records carry EST only in the original text's validity suffix; the
   adapter requires it to identify the same structured end time before applying
   the estimated qualifier.
+
+### Production verification, October 5, 2026
+
+Production credentials and environment selection enabled the existing collector
+without server-code changes. Authentication, an all-class initial load and its
+subsequent budgeted delta succeeded, publishing a production generation with
+`ready` state and complete continuity. The public API checker passed production
+airport reads and the existing weather products after restart. Staging state and
+its request-budget journal were preserved separately.
+
+This records the initial production rollout, not ongoing freshness, broader
+applicability or sustained capacity qualification. Host configuration, release
+identity and rollout results remain in private operations. UI status always follows
+the returned snapshot rather than assuming this rollout makes later data current.
 
 ### Authentication and environments
 
@@ -682,8 +729,9 @@ Include the feed-health summary as `notams` in existing `/api/weather/healthz`.
 - Add `/api/notams/` to `tools/dev-proxy.ts` with the same
   `INFO_API_ORIGIN` target as weather. Both products use one local/remote service.
 - Add a sibling location in `docs/development/info-api.nginx.conf` forwarding
-  to proxy-host loopback port 8788. Use an SSH tunnel to backend port 8787 and
-  the existing same-origin TLS boundary; no additional public listener is needed.
+  to the same backend as weather. The snippet's optional SSH tunnel uses loopback
+  port 8788; a same-host backend uses port 8787. Reuse the same-origin TLS boundary;
+  no additional public listener is needed.
 - Give `zlayer-info.service` a second persistent state directory,
   `/var/lib/zlayer-notams`, and configure `NOTAMS_STATE_DIR` there. Keep it stable
   across release symlinks and weather cache swaps. Mount a separate persistent
@@ -896,10 +944,10 @@ route packing remain future work.
 
 ## Implementation sequence
 
-The collector, parser/matcher and UI stages are implemented locally. Basic staging
-authentication, complete-load parsing and delta cancellation behavior were exercised
-as recorded above. The table retains acceptance targets: it does not imply every
-source variant, device or production deployment is qualified.
+The collector, parser/matcher and UI stages are implemented. Staging source behavior
+and the initial production collection were exercised as recorded above. The table
+retains acceptance targets: it does not imply every source variant, device or later
+production deployment is qualified.
 
 | Stage | Deliverable and acceptance |
 | --- | --- |
@@ -908,10 +956,11 @@ source variant, device or production deployment is qualified.
 | 3. Parser and matcher | Pure derivation with evidence and exact edition/page context; representative positive and negative catalog matches |
 | 4. Airport tab | Registration, Info/Plates/NOTAM composition and persistence compatibility, core UI, both classifications/raw text, and offline/failure behavior |
 | 5. Plate integration | Actual-page context, row counts and scrolling red disclosure; preserve PDF lifecycle and optional-provider cleanup |
-| 6. Release qualification | Full local checks, reference/device review, comparisons with matching source times/scope, production onboarding and deployment readiness |
+| 6. Release qualification | Full local checks, reference/device review, comparisons with matching source times/scope, and production deployment readiness |
 
 Stages 1 and 6 remain open for the source/operational questions below and the
-broader release matrix. No production collection is enabled by this implementation.
+broader release matrix. Production onboarding and initial collection are complete;
+new collector instances still require explicit enablement and credentials.
 
 Implementation homes are `plugin.ts`, `public.ts`, client/storage, pure parser/matcher,
 and entry/airport/plate UI under this directory. Create modules only for distinct
@@ -998,7 +1047,7 @@ Cover FAA-only, ICAO-only and paired selectors, non-`K` aliases, catalog-ID reje
 duplicate records across selectors, conflicting airport context and complete zero
 results for valid airports without notices. Query input never creates alias mappings.
 Run a combined bootstrap/forecast workload within the deployed CPU/memory limits
-before production enablement; normal unit passes do not establish that capacity.
+to qualify sustained production capacity; normal unit passes do not establish it.
 
 Browser regressions must cover timing-section order and counts, effective-time
 transitions, filtering across sections, theme contrast and wrapping, third-tab
@@ -1008,6 +1057,11 @@ disclosures, filters, stale/empty/error states, denied storage, reconnect and la
 results. Plate regressions cover paging across airports, continuations, ambiguous
 context, saved old editions, fullscreen, rotation, short/narrow viewports, enlarged
 text, touch scroll, focus, and unchanged PDF acquisition/worker/view state.
+The NOTAM browser fixture loads both bundled B612 weights. Its reading-layout
+cases exercise long identifiers and raw translations, loading/error/empty states,
+both themes, keyboard disclosure focus and touch sizing, and narrow/short layouts
+with expanded text spacing in the airport, plate-row, side-reader and fullscreen
+views. These exercise the real shared controls and list renderer.
 
 Use the [shared UI viewport matrix](../../../docs/features/shared-ui.md) and
 [local verification commands](../../../docs/development/local-development.md#verification).
@@ -1020,7 +1074,7 @@ edition/page, environment, effective time, source-check time and supported scope
 
 These are qualification work, not assumptions to hide in the UI:
 
-1. Confirm production entitlement, redistribution conditions, and how auth,
+1. Confirm redistribution conditions and how auth,
    content, checklist, location-series, diagnostics and failed calls consume the
    credential budget, including whether classification bulk limits aggregate.
 2. Confirm 24-hour lookback, location-series defaults, delta inclusivity, source

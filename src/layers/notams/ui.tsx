@@ -50,7 +50,7 @@ function SourceStatus({ view, api }: { view: View; api: NotamsApi }) {
     {staging ? <>
       <strong>Testing with FAA staging data. Notices may be incomplete. Do not use for flight planning.</strong>
       {!online && <span>Offline</span>}
-    </> : <span>{snapshot ? formatCheckedAt(snapshot.feed.checkedAt, now) : entry?.loading ? 'Checking NOTAMs…' : 'NOTAMs unavailable'}
+    </> : <span>{snapshot ? `FAA NOTAMs · ${formatCheckedAt(snapshot.feed.checkedAt, now)}` : entry?.loading ? 'Checking NOTAMs…' : 'NOTAMs unavailable'}
       {!online && ' · Offline'}{snapshot && !fresh && ' · Stale'}{snapshot && !complete && ' · Incomplete coverage'}</span>}
     {entry?.error && <span role="status">{entry.error}</span>}
     {!staging && snapshot?.feed.state === 'degraded' && <span>Feed update incomplete; retained notices are shown.</span>}
@@ -96,7 +96,9 @@ export function NotamList({ entries, now }: { entries: readonly NotamListEntry[]
   }
   const renderEntries = (items: readonly NotamListEntry[]) => items.map(({ record, reason }) =>
     <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={now} {...(reason ? { reason } : {})} />);
-  return <>{sections.filter(section => section.entries.length).map(section =>
+  const populated = sections.filter(section => section.entries.length);
+  if (!populated.length) return null;
+  return <div className="notam-list">{populated.map(section =>
     <section key={section.key} className={`notam-section notam-section--${section.key}`} aria-label={section.title}>
       <h3 className="notam-section-heading">{section.title}{' '}<span className="notam-section-count">{section.entries.length}</span></h3>
       {section.entries.some(entry => entry.outcome) ? (['applies', 'review'] as const).map(outcome => {
@@ -107,7 +109,7 @@ export function NotamList({ entries, now }: { entries: readonly NotamListEntry[]
           {renderEntries(group)}
         </div> : null;
       }) : renderEntries(section.entries)}
-    </section>)}</>;
+    </section>)}</div>;
 }
 export function AirportNotams({ api, query, active }: { api: NotamsApi; query: NotamAirportQuery; active: boolean }) {
   const view = useAirportNotams(api, query, active), [filter, setFilter] = useState('all'), [subject, setSubject] = useState('all'), [search, setSearch] = useState('');
@@ -131,10 +133,9 @@ export function AirportNotams({ api, query, active }: { api: NotamsApi; query: N
       <label className="notam-search">Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
     </div>
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
-    {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices{!view.staging && !view.assured && ' · Current completeness unconfirmed'}</p>}
+    {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices</p>}
     <NotamList entries={shown} now={view.now} />
-    {view.snapshot && !shown.length && <p className="notam-list-status">{records.length ? 'No notices match these filters.' : view.staging ? 'No retained notices.' : view.assured
-      ? 'No current or upcoming notices in the supported airport-location feed.' : 'No retained notices. Current coverage is unconfirmed.'}</p>}
+    {view.snapshot && !shown.length && <p className="notam-list-status">{records.length ? 'No notices match these filters.' : 'No retained notices.'}</p>}
   </section>;
 }
 export function PlateNotamCount({ api, context, active }: { api: NotamsApi; context: PlateNoticeContext; active: boolean }) {
@@ -143,7 +144,7 @@ export function PlateNotamCount({ api, context, active }: { api: NotamsApi; cont
   if (context.status !== 'resolved') return null;
   const count = result.matches.length;
   return <small className={`plate-notam-count${count ? ' has-notams' : ''}`}>NOTAM · {view.snapshot
-    ? `${count} matched${result.matches.some(m => m.outcome === 'review') ? ' · Review' : ''}${!view.staging && !view.assured || result.unresolved ? ' · Coverage limited' : ''}`
+    ? `${count} matched${result.matches.some(m => m.outcome === 'review') ? ' · Review' : ''}`
     : view.entry?.loading ? 'Checking…' : 'Unavailable'}</small>;
 }
 export function PlateNotams({ api, context, active, retryCatalog }: {
@@ -156,20 +157,20 @@ export function PlateNotams({ api, context, active, retryCatalog }: {
   if (context.status === 'not-procedure') return null;
   const count = result.matches.length, review = result.matches.filter(m => m.outcome === 'review');
   const label = context.status === 'loading' ? 'Loading plate context…' : !result.available ? 'Matching unavailable' : !view.snapshot ? view.entry?.loading ? 'Checking…' : 'Unavailable'
-    : `${count} matched${review.length ? ` · ${review.length} review` : ''}${!view.staging && !view.assured || result.unresolved ? ' · Unconfirmed' : ''}`;
+    : `${count} matched${review.length ? ` · ${review.length} review` : ''}`;
   return <section className={`plate-notams${count ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
     <button className="ui-button plate-notam-toggle" type="button" aria-expanded={open} aria-controls={id}
-      onClick={() => setOpenKey(open ? undefined : context.key)}>NOTAM · {label} <span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
+      onClick={() => setOpenKey(open ? undefined : context.key)}><span>NOTAM · {label}</span><span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
     {open && <div id={id} className="plate-notams-list panel-scroll" role="region" aria-label="Notices for displayed plate" tabIndex={0}>
       {!result.available ? context.status === 'loading' ? <LoadingPlaceholder label="Loading plate context…" rows={1} />
-        : retryCatalog ? <div><p>The plate catalog could not be loaded. Matching is unavailable.</p>
+        : retryCatalog ? <div className="notam-recovery"><p className="notam-list-status">The plate catalog could not be loaded. Matching is unavailable.</p>
           <button type="button" className="ui-button ui-button--compact" onClick={retryCatalog}>Retry plate catalog</button></div>
-          : <p>This page’s airport and procedure could not be established from its edition. Reopen an indexed IAP, SID or STAR from Plates.</p> : <>
-        <strong>{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
+          : <p className="notam-list-status">This page’s airport and procedure could not be established from its edition. Reopen an indexed IAP, SID or STAR from Plates.</p> : <>
+        <strong className="plate-notams-heading">{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
         <SourceStatus view={view} api={api} />
         <NotamList entries={result.matches} now={view.now} />
-        {!count && <p>{view.staging ? 'No matches in the retained notices.' : view.assured ? 'No established matches in the supported procedure and runway scope.' : 'Matching is unconfirmed.'}</p>}
-        {result.unresolved > 0 && <p>{result.unresolved} notice(s) have unresolved interpretation.</p>}
+        {!count && <p className="notam-list-status">No matches in the retained notices.</p>}
+        {result.unresolved > 0 && <p className="notam-list-status">{result.unresolved} notice(s) have unresolved interpretation.</p>}
       </>}
     </div>}
   </section>;
