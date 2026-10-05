@@ -101,6 +101,29 @@ test('representation tolerance still rejects changed notice content and bounds c
   const many = (start: number) => normalized(notice({ translations: Array.from({ length: 5 }, (_, i) => ({ type: `OTHER:${i + start}`, text: 'Raw source' })) }));
   assert.throws(() => mergeNotamRecords([many(0)], [many(5)]), /invalid-record/);
 });
+test('paired domestic and international renderings preserve raw variants without treating issue time as revision time', () => {
+  const local = { type: 'LOCAL_FORMAT', text: '!TST 10/042 TST RWY 09L CLSD 2610041159-2610051200' };
+  const suffix = 'A) KTST B) 2610041159 C) 2610051200 E) RWY 09L CLSD';
+  const icao = { type: 'OTHER:ICAO', text: `A0042/26 NOTAMN Q) KZZZ/QMRLC////000/999/3700N12100W005 ${suffix}` };
+  const previous = normalized(notice({ text: 'RWY 09L CLSD', translations: [local, icao] }));
+  const domestic = { type: icao.type, text: `10/042 NOTAMN\r\nQ) KZZZ/QMRLC/IV/NBO/A/000/999/3700N12100W005\r\n${suffix}` };
+  const next = normalized(notice({ ...previous, issuedAt: previous.issuedAt! - 120_000, translations: [local, domestic] }));
+  const merged = mergeNotamRecords([previous], [next]);
+  assert.equal(merged[0]?.issuedAt, next.issuedAt);
+  assert.equal(merged[0]?.updatedAt, previous.updatedAt);
+  assert.deepEqual(merged[0]?.translations, [...previous.translations, next.translations[1]]);
+  assert.equal(mergeNotamRecords(merged, [previous, next]), merged, 'repeated representations cannot grow the record');
+  const reversed = mergeNotamRecords([next], [previous]);
+  assert.equal(reversed[0]?.issuedAt, next.issuedAt);
+  assert.deepEqual(reversed[0]?.translations, [...next.translations, previous.translations[1]]);
+  for (const [from, to] of [['IV/NBO/A', 'I/NBO/A'], ['KZZZ', 'KYYY'], ['QMRLC', 'QMRXX'],
+    ['000/999', '000/100'], ['3700N12100W005', '3800N12100W005'], ['2610051200', '2610051300'],
+    ['09L', '09R'], ['NOTAMN', 'NOTAMR A0041/26']]) {
+    const conflicting = normalized(notice({ ...next, translations: [local, { ...domestic, text: domestic.text.replace(from!, to!) }] }));
+    assert.throws(() => mergeNotamRecords(merged, [conflicting]), NotamRevisionConflict,
+      'retained populated qualifiers must remain constraints even when another rendering omitted them');
+  }
+});
 test('observed FAA timestamp, translation, annotation and lifecycle variants normalize without losing meaning', () => {
   const base = aixm(notice({ text: 'IAP TEST.\nRNAV (GPS) RWY 9, AMDT 2...\n2610041159-2610051200EST' }));
   const source = base.replaceAll('2026-10-04T11:59:00.000Z', '2026-10-04T11:59:00.123456789Z')

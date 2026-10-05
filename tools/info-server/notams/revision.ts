@@ -25,10 +25,24 @@ function translationsByType(record: NotamRecord) {
   }
   return types;
 }
+function compatibleIcao(a: string, b: string): boolean {
+  if (a === b) return true;
+  // FAA can render a domestic NOTAM under either its local number or its paired
+  // international number. Only qualify NOTAMN: replacement/cancellation references
+  // and unrecognized layouts must still compare exactly.
+  const parse = (text: string) => /^(?:[A-Z]\d{4}\/\d{2}|\d{2}\/\d{3}) NOTAMN Q\) (\S+) (A\) .+)$/.exec(text);
+  const left = parse(a), right = parse(b);
+  if (!left || !right || left[2] !== right[2]) return false;
+  const before = left[1]!.split('/'), after = right[1]!.split('/');
+  // The paired rendering may omit traffic/purpose/scope. Preserve supplied values;
+  // two different nonempty values, FIR/code, altitude or geometry still conflict.
+  return before.length === 8 && after.length === 8 && before.every((value, i) => value === after[i] ||
+    i >= 2 && i <= 4 && (!value || !after[i]));
+}
 // Source ID/time spellings already participate in canonical matching/ordering.
 // Other operational fields remain exact, including body, lifecycle and timing.
 const contentFields = ['id', 'classification', 'number', 'series', 'year', 'locations', 'icaoLocations', 'accountability',
-  'issuedAt', 'updatedAt', 'canceledAt', 'referred', 'startsAt', 'endsAt', 'endKind', 'effectiveStart', 'effectiveEnd',
+  'updatedAt', 'canceledAt', 'referred', 'startsAt', 'endsAt', 'endKind', 'effectiveStart', 'effectiveEnd',
   'schedule', 'changeType', 'lifecycle', 'text', 'translations', 'sequence', 'correction'] as const satisfies readonly (keyof NotamRecord)[];
 export function notamContentDifferences(previous: NotamRecord, next: NotamRecord) {
   return contentFields.filter(field => {
@@ -39,9 +53,13 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
     }
     if (field === 'translations') {
       const before = translationsByType(previous), after = translationsByType(next);
-      // Translation availability is optional. Shared types must agree completely;
-      // a missing type is not a withdrawal or permission to discard retained text.
-      return [...before].some(([type, values]) => after.has(type) && !isDeepStrictEqual(values, after.get(type)));
+      // Missing types do not withdraw retained text. Shared types must agree,
+      // including every populated qualifier in compatible ICAO renderings.
+      return [...before].some(([type, values]) => {
+        const incoming = after.get(type);
+        if (!incoming || isDeepStrictEqual(values, incoming)) return false;
+        return type !== 'OTHER:ICAO' || [...values].some(a => [...incoming].some(b => !compatibleIcao(a, b)));
+      });
     }
     return !isDeepStrictEqual(previous[field], next[field]);
   });
@@ -50,11 +68,16 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
 export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
   const fields = notamContentDifferences(previous, next);
   if (fields.length) throw new NotamRevisionConflict(previous, next, fields);
-  const types = new Set(previous.translations.map(t => t.type));
-  const added = next.translations.filter(t => !types.has(t.type));
-  if (!added.length) return previous;
+  const types = translationsByType(previous);
+  const added = next.translations.filter(t => !types.get(t.type)?.has(translationContent(t.text)));
+  // Issue time is publication metadata, not the revision or effective boundary.
+  // Alternate FAA renderings can report it differently. Retain the earliest
+  // supplied issue time; never use this reconciliation to advance freshness.
+  const issued = [previous.issuedAt, next.issuedAt].filter((time): time is number => time !== null);
+  const issuedAt = issued.length ? Math.min(...issued) : null;
+  if (!added.length && issuedAt === previous.issuedAt) return previous;
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, translations: [...previous.translations, ...added] });
+  const merged = recordWithRevision({ ...facts, issuedAt, translations: [...previous.translations, ...added] });
   if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
   return merged;
 }

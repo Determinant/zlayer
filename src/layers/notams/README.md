@@ -489,13 +489,22 @@ remain an optional additional check after their request accounting is qualified.
    and referred numbers compare without leading zero padding; composite identifiers
    remain exact. Translations are optional representations grouped by type, not
    an ordered list of required fields. Shared types must have the same text after
-   whitespace normalization and removal of the observed literal `<pre>` wrapper;
-   arbitrary markup, case and punctuation are not discarded. Missing types do not
-   withdraw previously supplied translations. Retain the earlier raw spellings,
-   append newly supplied types within the existing record limits, and hash the
-   combined normalized record. Never carry old translations into a newer revision.
-   All other notice fields, including body, lifecycle and effective-time qualifiers,
-   remain exact. Real disagreements still invalidate continuity.
+   whitespace normalization and removal of the observed literal `<pre>` wrapper.
+   For recognized ICAO NOTAMN layouts only, paired domestic/international header
+   numbers may differ, and missing Q-line traffic/purpose/scope values may be
+   supplemented. All supplied values must agree; FIR, code, altitude, coordinates
+   and the complete A)-onward content remain exact. Unrecognized layouts and
+   replacement/cancellation references receive no such relaxation. Arbitrary
+   markup, case and punctuation are not discarded. Missing types do not withdraw
+   previously supplied translations. Retain earlier raw spellings and append new
+   types or compatible ICAO variants within the existing record limits. Every
+   retained variant constrains later comparisons, so an empty qualifier cannot
+   override a populated value. Alternate renderings can also differ in issue time;
+   retain the earliest supplied issue time without changing update ordering,
+   effective times or freshness. Hash the combined normalized record. Never carry
+   old translations into a newer revision. All other notice fields, including body,
+   lifecycle and effective-time qualifiers, remain exact. Real disagreements still
+   invalidate continuity.
    The current overlap is ten minutes, accommodating timestamp precision and
    delivery lag while remaining inside the 24-hour query window. It is not proof
    of an upper bound on FAA delivery latency.
