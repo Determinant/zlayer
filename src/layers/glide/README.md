@@ -2,7 +2,7 @@
 
 [Documentation](../../../docs/README.md) / Plugins / glide
 
-Glide is a planning overlay in `src/layers/glide/`. Its descending-aircraft tab
+Glide is a planning overlay in `src/layers/glide/`. Its parachute-icon tab
 sits immediately above AWC Weather. The inputs are an editable glide ratio
 (3–20:1) and a 0–18,000 ft **MSL** start-altitude slider in 100 ft steps. The default
 is 8:1 at 6,500 ft, with coverage initially off. These preferences persist in the
@@ -287,10 +287,17 @@ GPS loss, point clearing and changed planning inputs clear the corresponding det
 
 Packaged route views choose the published overview zoom nearest the output cell
 size. Each query acquires **two overview blocks concurrently**, then publishes before
-the next pair. At most **32 blocks per view** and **64 resident grids** are retained.
+the next pair. New camera demand waits 150 ms; progressive batches yield to the
+event loop and continue without repeating that delay. Completed and hidden views
+have no continuation timer. At most **32 blocks per view** and **64 resident grids** are retained.
 Shared blocks appearing in overlapping regional indexes are deduplicated. Repeated
 queries reuse the selected descriptors and decoded grids. Density fractions remain
 numeric through composition; they are not converted to binary candidate pixels.
+At overview scales that forbid discovery, resident parent tiles replace their
+cached descendants within the same source and ownership scope. Finer tiles remain
+eligible where no resident parent covers them. A visited location therefore
+contributes density once even after browsing several zoom levels, without dropping
+unrelated cached coverage or borrowing from another regional edition.
 
 Legacy feeds derive an immutable tier raster from each validated polygon file with
 worker `OffscreenCanvas` and even-odd holes, capped at 512 × 512 bytes. Their scoped
@@ -299,14 +306,28 @@ compatibility path needs a polygon transfer/decode on its first route visit.
 
 The worker composites union coverage samples into a geographically aligned image:
 roughly **4–8 screen pixels per density cell**, bounded to 385 cells on either
-axis. Zoom changes the geographic resolution; overlapping source grids cannot
+viewport axis. A margin of up to 32 cells per edge retains the same geographic
+resolution and caps the prepared image at **449 × 449**. Small pans, GPS-follow
+moves and bearing changes reuse that image while the viewport fits at the same
+cell scale and the contributing source set stays unchanged. Acquisition priority
+does not invalidate pixels when it merely reorders the same sources. Padding uses
+already eligible grids; it does not expand file discovery. Larger moves, changed
+source identities, route edits and changed cell scale rebuild the image.
+Zoom changes the geographic resolution; overlapping source grids cannot
 inflate density. Nearest-neighbor filtering keeps cell edges crisp, with conservative
 cell admission inside the route corridor. Each cell samples only overlapping source
 grids: each grid visits its output extent with precomputed sample rows/columns.
-Two 16-bit masks preserve the legacy 4×4 union samples; two float arrays accumulate
-published covered/preferred fractions. Shared corner checks admit cells once.
-Frame scratch arrays stay below 2 MiB and are released after composition. Region
-boundaries reuse the chart ownership geometry and per-row spans, avoiding a full
+Two 16-bit masks preserve the legacy 4×4 union samples; two 32-bit integer arrays
+accumulate published covered/preferred byte totals. Shared corner checks admit
+cells once. Published fractions normalize once, keeping tier ties exact.
+An interior cell whose samples all hit one source pixel reads its already
+summarized fraction once; scope boundaries and
+resampling retain the full 4×4 samples. Latitude scale is computed once per corner
+row. Frame scratch typed arrays stay below **3 MiB** and are released after composition;
+the retained RGBA image is below **0.8 MiB**. Worker-message copies, renderer storage
+and source grids are additional. The map uses the received heat pixels directly
+without another application-side copy. Region boundaries reuse the chart
+ownership geometry and per-row spans, avoiding a full
 state-polygon walk for every sample. Uniform interior tiles skip boundary work. Empty or missing data stays transparent
 and failed/unprepared coverage remains labeled. Route shading never performs
 polygon clipping/unions of candidate areas or exposes an inspection hit target.
@@ -380,7 +401,14 @@ For vector detail, MapLibre generates zoom-dependent vector tiles with 0.75-pixe
 tolerance and maximum source zoom 16, so lower zooms draw less boundary detail.
 
 Unchanged shading and geometry are omitted from worker replies and MapLibre
-uploads. Range changes preserve route shading; route changes preserve independent
+uploads. Ready heat is returned before starting detailed polygon acquisition or
+union; the immediate continuation prepares remaining summaries and then detail.
+Heat and detail have independent acknowledgments and publication validity. A
+nonempty range update cannot discard a still-valid heat result or its refresh
+receipt, and a failed vector upload does not invalidate accepted heat.
+Both image paths give `ImageData` the received RGBA array directly; detailed
+image hit testing shares those pixels without another application-side copy.
+Range changes preserve route shading; route changes preserve independent
 range polygons. Manual camera motion/hiding cancels obsolete work, while GPS-follow
 camera movement preserves active preparation. Nonempty range updates also let
 in-flight file acquisition finish, coalescing a query for the latest range without
@@ -388,9 +416,14 @@ restarting the admission timer. Old detail clears immediately and replies for an
 older range cannot publish; the next query clips cached records to the current
 range. Removing all ranges, route edits, retries, disable and teardown still cancel
 obsolete demand. Queries are serialized. The display worker supplies its accepted
-manifest to detail on every query, including route-only queries, so a refresh or
-cancelled refresh cannot leave detail using an older inventory. Manifest identity
-changes invalidate derived resident data.
+manifest whenever detail runs, including route-only clearing, so a refresh or
+cancelled refresh cannot leave the next detail query using an older inventory.
+Refresh requests are acknowledged only after a completed worker result confirms
+manifest acceptance. Cancellation leaves refresh demand pending; failed refreshes
+wait at least 60 seconds before later demand can retry, with no cooldown timer.
+Explicit Retry, reconnect and inventory changes bypass that cooldown. A refresh
+also remains pending for the raster detail stage when heat publishes first.
+Manifest identity changes invalidate derived resident data.
 Disabling or teardown releases the worker and map resources; optional disk caches
 remain reusable. Core admission bounds full-file acquisition/validation to two
 concurrent jobs. Completed camera-independent detail can remain off-screen within
@@ -398,12 +431,17 @@ the retained budget; the renderer clips drawing to the camera.
 
 `test/glide-landing-display.test.ts` covers density encoding, overlap, clipping,
 zoom resolution, progressive two-file admission, warm reuse, range-only demand,
-GPS/range loss, failures, cancellation and source invalidation. Existing landing
+GPS/range loss, failures, cancellation and source invalidation. It also compares
+numeric composition against independent point sampling across scopes, holes, tier
+ties and world copies, and checks bounded padding and small-pan reuse.
+`test/glide-landing-map.test.ts` verifies prompt continuation and that movement,
+hiding, completion and teardown stop scheduled work. Existing landing
 contract/geometry tests retain polygon validation, tier unions and individual
 inspection coverage. `test/e2e/glide-landings.spec.ts` exercises the real worker,
 image source, raster holes, zoom resolution, cached revisits, independent selected
 and ownship ranges, GPS loss during pending inspection, acquisition during movement,
 inspection/arrival, selection identity across refresh/remount and unpublished-feed recovery.
+Small-pan checks observe real worker replies and assert zero image-source uploads.
 `test/glide-packages.test.ts` decodes the complete publisher conformance fixture,
 checks original IDs/holes, corruption and inflate limits, numeric-only route reads,
 region-local indexes, shared-file retention and cache-only eviction detection.
@@ -417,10 +455,15 @@ and source replacement. These verify software
 behavior; landing suitability is not validated.
 
 For repeatable worker CPU diagnostics, run
-`node --import=tsx tools/benchmark-glide-landings.ts`. It uses 32 synthetic numeric
+`node --import=tsx tools/benchmark-glide-landings.ts`. It uses 32 synthetic tier
 grids and 768 detailed candidates, with holes and a 180-vertex range, and reports
 five-run medians after one warm-up plus output digests. Network acquisition,
 decoding, raster preparation, worker transport and map/GPU costs are excluded.
+The original grids use legacy binary tiers. A separate published-format workload
+uses four 256 × 256 × 3 numeric overviews at zoom 11, six measured runs after two
+warm-ups, and injected reads. It reports composition, full progressive preparation,
+unchanged views, small pans and revisits, including reads and image publications.
+Camera admission timers are excluded from these CPU measurements.
 
 A local Node 24.15.0 comparison on 2026-10-03 against `6689354`, with the same
 fixture and unchanged output digests, measured these CPU changes:
@@ -436,6 +479,24 @@ fixture and unchanged output digests, measured these CPU changes:
 The warm camera change remained about 1 ms, with no geometry upload or additional
 file read. These synthetic measurements describe the sample and implementation
 above, not device frame rates or real-feed loading times.
+
+A local Node 24.15.0 comparison on 2026-10-04 against `07cdf45`, using the four-overview workload,
+measured composition at **12.4 → 4.9 ms**, progressive preparation at
+**23.9 → 14.3 ms**, and a small pan at **12.7 → 0.2 ms**. Small pans and immediate
+revisits omitted the image upload; both versions read four grids. The unpadded
+numeric image digest and the existing legacy/geometry digests were unchanged.
+The padded image spends bounded extra preparation/storage to avoid recurring work.
+Both mobile and desktop use this same demand-driven algorithm and resolution;
+these CPU and upload reductions are not measurements of device battery life.
+
+Focused rendering checks on 2026-10-04 used the Playwright 1.63.0 Noble container:
+all 19 Chromium landing/detail/package cases passed, including phone and desktop
+track-up workloads. The new small-pan upload check also passed in WebKit. Two
+additional WebKit cache-restoration cases failed identically with this change and
+with the original Glide code from `07cdf45`: restoring a legacy route reread its
+source, and reloading packaged shading with data requests blocked did not restore
+the image. Those persistence findings remain unresolved; this run does not establish
+Safari offline readiness or physical-device power consumption.
 
 ## Airports and elevation
 
@@ -683,12 +744,22 @@ separately from prepared geometry. A processing failure hides the affected sourc
 reports an error and retries its retained collection once after 100 ms. Later
 camera settles or new prepared data can retry again. This recovery needs no new
 terrain calculation or download. Empty updates hide immediately; teardown cancels
-timers and invalidates late completions. Landing queries acknowledge their render
+timers and invalidates late completions. Landing queries acknowledge their detail
 key only after vector submission succeeds, so a failed upload cannot suppress
 the replacement geometry. The current prepared receipt survives a retry that
 finishes before the failed upload settles; that late failure cannot overwrite
 the recovered status or acknowledgment. Image/raster acquisition retains its
 existing policy.
+
+Both range and landing admission retain demand when movement outlasts their
+timers. Camera settle or map idle resumes that demand without another pan/zoom; idle events
+after completion do not start queries. Failed, replaced or torn-down GeoJSON
+uploads release their adapter's wait immediately, even if the old MapLibre promise
+has not settled. Camera cancellation also releases a pending landing upload.
+Ownship animation retires the failed/reset upload's backpressure independently of
+its eventual settlement; a late completion cannot release a newer upload early
+or keep later fixes stuck after recovery or remount. Recovery remains driven by
+events and the existing bounded retry, with no background polling.
 
 Failures preserve unknown terrain, never distance-only circles. Partial airport
 or terrain coverage is labeled separately from ownship and selected-point status; Retry, reconnect
@@ -707,7 +778,13 @@ that attempt too.
 
 `test/glide-landing-map.test.ts` covers a source error whose retry succeeds before
 the original upload settles, acknowledgment of the newest render key and teardown
-with an upload still pending.
+with an upload still pending, independently valid heat during range changes,
+canceled refreshes, failure cooldown and camera-idle recovery.
+`test/glide-map.test.ts` covers ownship source recovery with unresolved uploads,
+adapter remount and deferred range admission without repeated idle work.
+`test/glide-landing-display.test.ts` checks heat publication before slow detail
+and non-overlapping cached overview selection; `test/glide-packages.test.ts`
+compares overview pixels after warming one versus multiple published resolutions.
 
 `test/glide-math.test.ts` compares both glide directions against an independent
 piecewise-path feasibility/bisection oracle, verifies distance bounds by numerical

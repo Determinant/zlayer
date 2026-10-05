@@ -59,7 +59,7 @@ export function procedurePickerPlates(catalog: ProcedureCatalog | undefined, fea
   onOpenPlate: ProcedurePickerProps<unknown>['onOpenPlate']) {
   const airport = catalog && findProcedureAirport(catalog, feature);
   const openPlate = catalog && airport && resource && onOpenPlate ? (procedure: ProcedureRecord) => {
-    const selection = procedureSelection(catalog, airport, procedure, resource.url, window.location.href);
+    const selection = procedureSelection(catalog, airport, procedure, resource.url, window.location.href, resource);
     onClose(false);
     onOpenPlate(selection);
   } : undefined;

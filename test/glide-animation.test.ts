@@ -177,3 +177,23 @@ test('rejected interpolation stops frames and retains the complete target for re
   animation.reset();
   assert.equal(animation.fail(), undefined, 'clearing releases the retained target');
 });
+
+test('failed or reset uploads cannot block new targets or release a newer upload early', async t => {
+  const clock = animationHarness(t), uploads: { range: GlideRange; finish: () => void }[] = [];
+  const animation = createRangeAnimation(range => new Promise<void>(finish => uploads.push({ range, finish })));
+  t.after(animation.reset);
+  const first = circle([0, 0], 'first'), second = circle([0, 0], 'second'), third = circle([0, 0], 'third');
+  animation.set(first, [0, 0], false);
+  assert.equal(animation.fail(), first);
+  animation.set(second, [0, 0], false);
+  assert.equal(uploads.length, 2, 'failure releases an upload that never settles');
+  animation.set(third, [0, 0], false);
+  uploads[0]!.finish(); await clock.advance(1000); await clock.advance(1000);
+  assert.equal(uploads.length, 2, 'late old completion cannot release the second upload');
+  animation.reset(); animation.set(third, [0, 0], false);
+  assert.equal(uploads.length, 3, 'reset also releases backpressure for reuse after teardown');
+  uploads[1]!.finish(); await clock.advance(1000);
+  uploads[2]!.finish(); await clock.advance(1000);
+  assert.equal(uploads.at(-1)!.range, third);
+  assert.equal(clock.frames.size, 0);
+});

@@ -42,6 +42,12 @@ test('timestamps share date and 24-hour clock formats, with explicit UTC or loca
   assert.equal(formatTimestampPair('2026-09-23T00:30:00Z', local), 'Sep 23 · 00:30Z / Sep 22 · 17:30 PDT');
   assert.equal(formatTimestampPair('2026-11-01T09:30:00Z', local), 'Nov 1 · 09:30Z / 01:30 PST');
   assert.equal(formatTimestampPair('2027-01-01T00:30:00Z', local), 'Jan 1, 2027 · 00:30Z / Dec 31 · 16:30 PST');
+  const localFirst = { ...local, primary: 'local' as const };
+  assert.equal(formatTimestampPair('2026-09-23T16:49:00Z', localFirst), 'Sep 23 · 09:49 PDT (16:49Z)');
+  assert.equal(formatTimestampPair('2026-09-23T00:30:00Z', localFirst), 'Sep 22 · 17:30 PDT (Sep 23 · 00:30Z)');
+  assert.equal(formatTimestampPair('2026-11-01T08:30:00Z', localFirst), 'Nov 1 · 01:30 PDT (08:30Z)');
+  assert.equal(formatTimestampPair('2026-11-01T09:30:00Z', localFirst), 'Nov 1 · 01:30 PST (09:30Z)');
+  assert.equal(formatTimestampPair('2027-01-01T00:30:00Z', localFirst), 'Dec 31 · 16:30 PST (Jan 1, 2027 · 00:30Z)');
 });
 
 test('currency ages round down, suppress zero remainders, and distinguish checks from source age', () => {
@@ -61,6 +67,7 @@ test('invalid, missing and future times never become fresh-looking labels', () =
     assert.equal(formatDate(value, now), '—');
     assert.equal(formatTimestamp(value, { now }), '—');
     assert.equal(formatTimestampPair(value, { now }), '—');
+    assert.equal(formatTimestampPair(value, { now, primary: 'local' }), '—');
     assert.equal(formatDataAge(value, now), 'Age unknown');
     assert.equal(formatCheckedAt(value, now), 'Check time unknown');
   }

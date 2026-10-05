@@ -240,7 +240,7 @@ current forecasts before expired forecasts, then by distance, treating the
 airport's own report as zero distance. A manual selection survives refreshes.
 NIL observations and NIL/cancelled forecasts are excluded from station choices.
 
-Default METAR acquisition uses AWC through the shared weather gateway for map,
+Default METAR acquisition uses AWC through the shared info server for map,
 card and nearby queries. `X-Weather-Checked-At` preserves the upstream check time
 on cache hits; attempt time and observation time remain separate. Station batches,
 nearby area queries and card refreshes retain the original AWC semantics. Older

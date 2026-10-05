@@ -2,11 +2,12 @@
 // Run: node --import=tsx tools/benchmark-glide-landings.ts
 import { createHash } from 'node:crypto';
 import type { Bounds } from '@zlayer/contracts';
-import { project, type Point, type Segment } from '../src/core/geo/route-corridor';
+import { project, unproject, type Point, type Segment } from '../src/core/geo/route-corridor';
 import { landingHeatImage, type LandingHeat } from '../src/layers/glide/landing-heat';
 import { createLandingWorker, type LandingQuery } from '../src/layers/glide/landing-planner';
 import type { LandingArea, LandingManifest, LandingShard } from '../src/layers/glide/landing-data';
 import type { GlideAreas } from '../src/layers/glide/types';
+import { createLandingDisplayWorker, type LandingDisplayQuery } from '../src/layers/glide/landing-display';
 
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const median = (values: number[]) => +values.sort((a, b) => a - b)[Math.floor(values.length / 2)]!.toFixed(2);
@@ -60,5 +61,44 @@ for (let run = 0; run < 6; run++) {
     coldDigest: digest(JSON.stringify(cold.collection)), rangeDigest: digest(JSON.stringify(changed.collection)),
     coldPatches: cold.status.count, rangePatches: changed.status.count, reads, cameraUploaded: !!camera.collection };
 }
+// Four published-format z10 overviews at the actual z11 display cell scale.
+// Injected reads isolate composition/progression from acquisition and decoding.
+const overviewGrids: LandingHeat[] = Array.from({ length: 4 }, (_, i) => ({ density: true,
+  extent: [(164 + i % 2) / 1024, (405 + Math.floor(i / 2)) / 1024, (165 + i % 2) / 1024, (406 + Math.floor(i / 2)) / 1024],
+  width: 256, height: 256, flags: 0, cells: Uint8Array.from({ length: 256 * 256 * 3 }, (_, j) =>
+    j % 3 === 2 ? 255 : (Math.floor(j / 3) * (j % 3 === 0 ? 7 : 13)) % 128) }));
+const geographicBounds = ([w, n, e, s]: Bounds): Bounds => {
+  const a = unproject([w, n]), b = unproject([e, s]); return [a[0], b[1], b[0], a[1]];
+};
+const overviewBounds = geographicBounds([164.25 / 1024, 405.25 / 1024, 165.625 / 1024, 406.125 / 1024]);
+const overviewManifest: LandingManifest = { ...manifest, coverage: [{ id: 'numeric', bounds: [-124, 33, -120, 37] }],
+  shards: overviewGrids.map((grid, i) => ({ ...shard, id: String(i), file: String(i), bounds: geographicBounds(grid.extent), count: 0, tiers: [0, 0] })) };
+const latitude = (overviewBounds[1] + overviewBounds[3]) / 2;
+const overviewRequest: LandingDisplayQuery = { id: 1, manifestUrl: request.manifestUrl, bounds: overviewBounds, zoom: 11, discover: true,
+  segments: [[project([overviewBounds[0], latitude]), project([overviewBounds[2], latitude])]], ranges: { type: 'FeatureCollection', features: [] } };
+const overviewTimings = { compose: [] as number[], cold: [] as number[], warm: [] as number[], smallPan: [] as number[], revisit: [] as number[] };
+let overviewEvidence: object = {};
+for (let run = 0; run < 8; run++) {
+  let reads = 0, publications = 0;
+  const worker = createLandingDisplayWorker(async () => overviewManifest, async (_url, shard) => {
+    reads++; return overviewGrids[Number(shard.id)]!;
+  }, async () => { throw new Error('Overview must not acquire polygons'); });
+  const start = performance.now(), image = landingHeatImage(overviewGrids, overviewBounds, 11, overviewRequest.segments), composed = performance.now();
+  let result = await worker.query(overviewRequest);
+  publications += Number(!!result.heat);
+  while (result.more) { result = await worker.query({ ...overviewRequest, renderedKey: result.renderKey }); publications += Number(!!result.heat); }
+  const cold = performance.now();
+  const warm = await worker.query({ ...overviewRequest, renderedKey: result.renderKey }), warmed = performance.now();
+  const pan = await worker.query({ ...overviewRequest, bounds: overviewBounds.map((value, i) => i % 2 ? value : value + .01) as Bounds,
+    renderedKey: warm.renderKey }), panned = performance.now();
+  const revisit = await worker.query({ ...overviewRequest, renderedKey: pan.renderKey }), done = performance.now();
+  if (run >= 2) {
+    overviewTimings.compose.push(composed - start); overviewTimings.cold.push(cold - composed); overviewTimings.warm.push(warmed - cold);
+    overviewTimings.smallPan.push(panned - warmed); overviewTimings.revisit.push(done - panned);
+  }
+  overviewEvidence = { size: [image.width, image.height], digest: digest(new Uint8Array(image.rgba.buffer)), reads, publications,
+    warmUploaded: !!warm.heat, smallPanUploaded: !!pan.heat, revisitUploaded: !!revisit.heat };
+}
 console.log(JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch, grids: heats.length, polygons: areas.length,
-  medianMs: Object.fromEntries(Object.entries(timings).map(([key, values]) => [key, median(values)])), ...evidence }));
+  medianMs: Object.fromEntries(Object.entries(timings).map(([key, values]) => [key, median(values)])), ...evidence,
+  overview: { medianMs: Object.fromEntries(Object.entries(overviewTimings).map(([key, values]) => [key, median(values)])), ...overviewEvidence } }));

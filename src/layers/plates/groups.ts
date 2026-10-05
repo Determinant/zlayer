@@ -1,4 +1,4 @@
-import type { ChartSupplementCatalog, GeoPointFeature, ProcedureCatalog, ProcedureRecord } from '@zlayer/contracts';
+import type { ChartSupplementCatalog, GeoPointFeature, ProcedureCatalog, ProcedureRecord, ProcedureResourceRecord } from '@zlayer/contracts';
 import { findProcedureAirport, groupProcedures, procedureSelection, type ProcedureSelection } from './data';
 import { supplementSelections } from './supplements';
 
@@ -33,7 +33,7 @@ function listedProcedures(procedures: ProcedureRecord[]): Array<{ procedure: Pro
 
 export function airportPlateGroups(
   feature: GeoPointFeature,
-  procedures: { catalog: ProcedureCatalog; url: string } | undefined,
+  procedures: { catalog: ProcedureCatalog; url: string; resource?: ProcedureResourceRecord } | undefined,
   supplements: { catalog: ChartSupplementCatalog; url: string } | undefined,
   baseUrl: string,
 ): PlateGroup[] {
@@ -41,7 +41,7 @@ export function airportPlateGroups(
   const groups: PlateGroup[] = airport && procedures ? groupProcedures(airport).map(group => ({
     id: group.kind, title: group.title,
     plates: listedProcedures(group.procedures).map(({ procedure, pages }) => ({
-      selection: procedureSelection(procedures.catalog, airport, procedure, procedures.url, baseUrl),
+      selection: procedureSelection(procedures.catalog, airport, procedure, procedures.url, baseUrl, procedures.resource),
       detail: [procedure.source.chartCode,
         procedure.source.amendmentNumber && `Amdt ${procedure.source.amendmentNumber}`,
         procedure.source.userAction === 'C' && 'Changed', procedure.source.userAction === 'A' && 'Added',

@@ -7,7 +7,7 @@
 ```text
 src/                   React/Vite PWA: product layers, shared core, workspace shell
 public/                static app assets
-tools/weather-server/  Node TypeScript AWC/NOMADS cache gateway
+tools/info-server/     Node TypeScript weather preparation and FAA NMS service
 tools/theme/           build-time palette definitions and color derivation
 test/                  unit tests, browser fixtures and Playwright regressions
 tools/                 import checks, local proxies, offline shell and boundary builder
@@ -20,7 +20,7 @@ docs/                  contracts, decisions and verification guides
 The root package owns the application. Only the shared packages are npm workspaces;
 development tooling is not a second application. Production publishes static `dist/`
 and consumes the dated artifacts built by `faa-regs`.
-The small [weather server](../../tools/weather-server/README.md) shares AWC, NOMADS
+The small [info server](../../tools/info-server/README.md) shares AWC, NOMADS
 and Google HRRR acquisition, normalizes advisories, and prepares numeric grids in
 bounded Node workers using the existing TypeScript algorithms. The PWA validates
 and caches those artifacts through core, interpolates selected wind altitudes,
@@ -28,7 +28,9 @@ then renders and inspects numeric bands. One bounded server cache shares source
 reads and native grids across viewers. Background updates prepare complete native
 generations before publishing catalogs. HTTP forecast reads never acquire sources
 or perform conversion; wind altitude interpolation remains in the PWA.
-There is no weather database; user state stays in the PWA.
+Optional FAA NMS collection runs in the same service with separate durable snapshots,
+quota state and local airport-query indexes. There is no weather database; user state
+stays in the PWA.
 
 Each plugin's documentation starts at `src/layers/<plugin>/README.md`. Keep its
 behavior, algorithms, design rationale and validation beside its implementation;

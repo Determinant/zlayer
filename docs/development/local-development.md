@@ -2,8 +2,8 @@
 
 [Documentation](../README.md) / Development
 
-The root package owns the PWA and `tools/weather-server/`, a small Node 24 TypeScript
-cache gateway. Only `packages/contracts` and `packages/domain` are npm workspaces.
+The root package owns the PWA and `tools/info-server/`, a Node 24 TypeScript
+weather and NOTAM service. Only `packages/contracts` and `packages/domain` are npm workspaces.
 Vite's local forwarding rules live in `tools/dev-proxy.ts`.
 
 ## Contents
@@ -73,14 +73,14 @@ roots must follow the same cache and CORS contract.
 For preparation failures and retry behavior, see
 [chart-cache startup and recovery](../../src/layers/charts/README.md#startup-and-recovery).
 
-With blank weather URL settings, Vite forwards `/api/weather/` to
-`https://zlayer.tedyin.com`, preserving paths and queries. Local development shares
-the shared prepared weather data through the same-origin HTTPS proxy; it starts no weather
-backend or separate source cache.
+With blank weather URL settings, Vite forwards `/api/weather/` and `/api/notams/`
+to `https://zlayer.tedyin.com`, preserving paths and queries. Local development shares
+the backend's data through the same-origin HTTPS proxy; it starts no local backend or
+separate source cache.
 
-To work on the [weather backend](../../tools/weather-server/README.md), run
-`npm run weather:serve` in one terminal and
-`WEATHER_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. This explicit local
+To work on the [info backend](../../tools/info-server/README.md), run
+`npm run info:serve` in one terminal and
+`INFO_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. This explicit local
 backend uses `.cache/weather/` and must prepare its own data. This also sends
 Progs through that backend; `/api/weather/progs/{analysis,forecast}.json`
 serves only its prepared WPC snapshots. Check `healthz.progs` before using a newly
@@ -89,10 +89,16 @@ validated surface snapshots; it defaults to `/api/weather/progs/`. Radar also us
 this backend: `/api/weather/radar/latest.json` and immutable scan files. Inspect
 `healthz.radar` for readiness and unavailable stations.
 `VITE_ZLAYERS_RADAR_FEED_URL` overrides the prepared radar directory. Restart
-`npm run weather:serve` after backend edits; that command does not watch source files.
-`WEATHER_API_ORIGIN` is a shell setting, not a browser URL or a Vite `.env` variable. Report URL overrides
+`npm run info:serve` after backend edits; that command does not watch source files.
+`INFO_API_ORIGIN` is a shell setting, not a browser URL or a Vite `.env` variable. Report URL overrides
 must follow the AWC GeoJSON/JSON contracts; archived advisory/grid overrides remain
 available for fixtures.
+The development proxy accepts the former `WEATHER_API_ORIGIN` setting as a fallback;
+`INFO_API_ORIGIN` takes precedence when both are set.
+
+The same `INFO_API_ORIGIN` routes NOTAM requests. To enable local collection, use
+the server guide's [NOTAM settings](../../tools/info-server/README.md#notam-collection)
+and retain `.cache/notams/` independently of the disposable weather cache.
 
 Vite also forwards `/chart-data` to the FAA static feed and the qualified
 `/faa-procedures/<cycle>/<filename>.PDF` paths to FAA. Raw weather acquisition stays inside the server. Production must install the server and nginx routes
@@ -202,7 +208,7 @@ source-text assertions and incidental markup ordering.
 launch, saved-edition ownership, source recovery, responsive layout, routes, plates,
 TAF, terrain, GPS, AHRS, recordings and full reset. Its server builds into a temporary
 directory and supplies synthetic FAA/PDF/DEM/weather data without an external feed.
-Native weather samples are prepared once through the real weather server; resets
+Native weather samples are prepared once through the real info server; resets
 restore a pristine copy of that cache. Startup allows four minutes for preparation;
 ordinary browser assertions retain their shorter timeouts.
 It uses port 4197 by default (`ZLAYER_TEST_PORT` overrides it) and does not replace `dist/`.

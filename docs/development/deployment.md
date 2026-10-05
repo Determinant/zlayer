@@ -14,9 +14,10 @@ hosts must provide the following hosting contract:
 | --- | --- |
 | Chart, navigation, TPP and CS feed | Set `VITE_ZLAYERS_CHART_ROOT` to a readable chart feed. A same-origin `/chart-data` prefix needs a static mapping or proxy, including `cycles.json` for discovery. Cross-origin feeds need chart-host CORS. |
 | `/faa-procedures/<cycle>/<filename>.PDF` | Narrow proxy to `https://aeronav.faa.gov/d-tpp/<cycle>/<filename>.PDF`. Restrict cycles to four digits and filenames to the existing development rule; never expose an arbitrary URL relay. Preserve query parameters. |
-| `/api/weather/metars.geojson` and `/api/weather/tafs.json` | Forward to the [TypeScript gateway](../../tools/weather-server/README.md), which reads AWC and caches bounded station/area queries. These are the blank-setting defaults. |
+| `/api/weather/metars.geojson` and `/api/weather/tafs.json` | Forward to the [TypeScript gateway](../../tools/info-server/README.md), which reads AWC and caches bounded station/area queries. These are the blank-setting defaults. |
 | `/api/weather/advisories/` | Server-normalized SIGMET/CWA and complete five-frame G-AIRMET snapshots, including freezing contours. |
 | `/api/weather/grids/` | Server catalogs and prepared HRRR/IFI native numeric grids, including wind pressure levels and same-run terrain. Google is the server's HRRR upstream; the PWA interpolates wind altitudes. Preserve identity/checksum/source-check headers. |
+| `/api/notams/` | Forward to the same info server. FAA NMS credentials and collection stay server-side; airport queries read its retained dataset. See [NOTAM collection](../../tools/info-server/README.md#notam-collection) for enablement and durable state. |
 | Esri World Imagery basemap | External raster service; only viewed resources are cached. Regional downloads do not promise offline basemap coverage. Review provider terms before public release. |
 | Terrain elevation | Prefer the chart feed's `terrain/manifest.json` and versioned USGS 3DEP packages; regional saves include published packages at supported DEM zooms. Without a packaged source, use Mapzen Terrarium tiles on AWS or `VITE_ZLAYERS_TERRAIN_TILE_URL`; a replacement must provide readable 256px Terrarium PNG tiles. Elevation is independent of the basemap, and fallback PNG coverage is not a regional offline guarantee. See [terrain](../../src/layers/terrain/README.md). |
 | FAA obstructions | Optional chart-feed `obstacles/manifest.json` and its compressed Daily DOF export. Cached on demand, independently versioned, and outside regional offline completeness. See [obstructions](../../src/layers/obstructions/README.md). |
@@ -34,8 +35,8 @@ include them. A working FAA proxy is required to finish those downloads and to v
 uncached individual plates. Neither environment variables nor uploading `dist/`
 creates that proxy automatically.
 
-Install the [weather backend](../../tools/weather-server/README.md#deployment)
-and add the separate API [nginx location](weather-api.nginx.conf)
+Install the [info backend](../../tools/info-server/README.md#deployment)
+and add the separate API [nginx location](info-api.nginx.conf)
 before deploying the frontend. Keep the backend listener private. A separate
 HTTPS proxy can forward same-origin requests through a managed SSH tunnel from
 proxy-host loopback port 8788 to backend loopback port 8787. The current PWA uses only
@@ -131,24 +132,24 @@ and automatic cycle migration remain outside the current contract; see
 
 ## Weather rollout
 
-For both weather plugins, the versioned [nginx snippet](weather-api.nginx.conf)
-forwards `/api/weather/` through the private connection to the service. METAR/TAF retain their AWC queries and
+The versioned [nginx snippet](info-api.nginx.conf) forwards `/api/weather/` and
+`/api/notams/` through the private connection to the info server. METAR/TAF retain their AWC queries and
 report behavior under this new prefix. AWC advisories and HRRR/IFI grids use normalized/prepared routes.
 Raw NOAA acquisition stays inside the server; it has no public raw-proxy routes.
-Install the location directly inside the TLS server block, or save it as `/etc/nginx/snippets/zlayer-weather.conf`
-and include it there. Use only one copy of the location:
+Install the location directly inside the TLS server block, or save it as `/etc/nginx/snippets/zlayer-info.conf`
+and include it there. Use only one copy of each location:
 
 ```nginx
-include /etc/nginx/snippets/zlayer-weather.conf;
+include /etc/nginx/snippets/zlayer-info.conf;
 ```
 
-The current app only calls `/api/weather/`; obsolete direct `/weather/` proxies
+The current app calls `/api/weather/` and `/api/notams/`; obsolete direct `/weather/` proxies
 can be removed when installing this matching frontend/backend release. Existing
 tabs must accept the app update to use the native-pressure wind API. The API prefix
 preserves queries and identity headers with no nginx cache or response buffering;
 nginx handles TLS while the server validates and prepares weather. The backend
 restarts automatically under systemd. Its service file and rollback procedure are
-in the weather server guide. The updater prepares complete native generations
+in the info server guide. The updater prepares complete native generations
 before publishing catalogs; HTTP forecast requests only read saved files. Require
 all three forecast readiness flags before production cutover. See
 [nginx buffering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering).

@@ -32,7 +32,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P0 | US airports, runways, NAVAIDs, fixes, airways | FAA 28-day NASR subscription via `faa-regs` | search/detail + GeoJSON map features and route geometry | Cycle-aware navigation, decluttering and V/T airway expansion implemented; vector tiles remain an option for measured density needs |
 | P0 | Airport diagrams, approaches, departures, arrivals, and minima | FAA d-TPP XML/PDF via `faa-regs` | airport procedure catalog + selected PDFs | Exact-page books, individual FAA fallbacks, georeferenced IAP overlays and regional offline saves implemented |
 | P0 | Chart Supplements | FAA d-CS XML/books via `faa-regs` | airport/page catalog + whole PDF books | Exact-page viewer and saved regional targets implemented; independent supplement interval retained |
-| Planned | Airport and procedure D/FDC NOTAMs | FAA NMS-API through a shared authenticated server collector | AIXM ingestion and normalized airport JSON | [Owning guide and source constraints](../../src/layers/notams/README.md#nms-source-contract); staging onboarding materials reviewed, live qualification and implementation pending |
+| P0 | Airport and procedure D/FDC NOTAMs | FAA NMS-API through a shared authenticated server collector | AIXM ingestion and normalized airport JSON | [Owning guide and source constraints](../../src/layers/notams/README.md#nms-source-contract); implemented locally with staging full-load/delta evidence; production and broader applicability qualification pending |
 | P0 | Preferred/TEC routes and SID/STAR topology | FAA preferred-route and NASR exports via `faa-regs` | recommendations and compact route previews | Optional national references shared by route planning and regional saves |
 | P0 | Historical filed routes | Aeronautic AQ snapshot packaged by `faa-regs` | frequency-ranked recommendations | Gzip JSON decoded/indexed in a worker; source observation range retained |
 | P0 | METAR, TAF | AWC through the TypeScript cache gateway | colored airport pins + detail | Latest coded METAR and AWC TAF periods, normalized and cached in the browser |
@@ -42,13 +42,13 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
 | P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |
-| P0 | Domestic SIGMET, G-AIRMET, CWA | AWC through the TypeScript cache gateway | bounded GeoJSON | [Advisory timeline and server normalization](../../src/layers/weather-awc/README.md) implemented; [Weather service](../../tools/weather-server/README.md#deployment) |
+| P0 | Domestic SIGMET, G-AIRMET, CWA | AWC through the TypeScript cache gateway | bounded GeoJSON | [Advisory timeline and server normalization](../../src/layers/weather-awc/README.md) implemented; [Weather service](../../tools/info-server/README.md#deployment) |
 | P0 | Alaska AIRMET, international SIGMET | AWC API/cache files | bounded GeoJSON candidate | Coverage/source qualification remains |
 | P1 | Clouds, freezing height, icing probability/severity/SLD | NOAA HRRR and DAFS/IFI GRIB2 | immutable numeric grids; client shading and point values | [Server preparation and browser caching implemented](../../src/layers/weather-awc/grids/README.md); gateway behind an HTTPS reverse proxy, source caveats and reference-device validation remain |
 | P1 | Winds and temperature aloft | NOAA HRRR CONUS pressure-level GRIB2 | numeric vectors/temperature; zoom-spaced barbs and optional shading | [Browser-derived MSL slices below 18,000 ft and flight levels from FL180](../../src/layers/weather-awc/grids/winds.md), with core caching; reference-device qualification remains |
 | P0 | Station, airport, NAVAID, fix | AWC API; infrequent station cache | reference tiles/search | Approved for spike within published limits |
 | P0 | Surface pressure charts, fronts and ridges | AWC Progs catalog and WPC GeoJSON | server-prepared vectors | [Progs implemented](../../src/layers/weather-awc/progs/README.md); NOAA isobars/labels represent ridges; operational comparison remains outstanding |
-| P1 | NEXRAD composite and terminal radar | NOAA MRMS public S3 and FAA TDWR through the TypeScript weather server | prepared reflectivity contours | [Current radar and two-hour history implemented](../../src/layers/weather-awc/radar/README.md); operational comparison, automatic playback and physical-device qualification remain |
+| P1 | NEXRAD composite and terminal radar | NOAA MRMS public S3 and FAA TDWR through the TypeScript info server | prepared reflectivity contours | [Current radar and two-hour history implemented](../../src/layers/weather-awc/radar/README.md); operational comparison, automatic playback and physical-device qualification remain |
 | P1 | GOES visible/IR | NOAA GOES-R open object-store data or nowCOAST OGC service | COG/raster tiles | Preferred production path; benchmark both modes |
 | Reference only | COD NEXLAB satellite imagery | Link to NEXLAB with credit | outbound link | No automated retrieval without written permission |
 | P2 | NWS watches/warnings/advisories | NWS API/NOAA geospatial service | vector tiles | Separate aviation relevance and clutter spike |
@@ -231,7 +231,7 @@ G-AIRMET/AIRMET, CWA, TCF, station/airport/navigation, and related products.
   and daily for stations.
 - Valid empty queries may return HTTP 204 (except GeoJSON) and must not be treated as a source outage.
 
-ZLayer uses one [weather server](../../tools/weather-server/README.md) for AWC,
+ZLayer uses one [info server](../../tools/info-server/README.md) for AWC,
 NOMADS IFI and HRRR from Google's public NOAA mirror. It respects source rate limits,
 validates complete responses, normalizes advisory snapshots and prepares numeric
 native grids in bounded workers through a shared cache. The PWA validates compact
@@ -239,7 +239,7 @@ artifacts, interpolates selected wind altitudes, and keeps rendering, point
 inspection and durable offline caching. Valid empty responses and
 failed refreshes remain different states. Forecast catalogs are published only after all their files are saved; HTTP reads
 cannot start source acquisition or preparation. See the
-[server contract](../../tools/weather-server/README.md).
+[server contract](../../tools/info-server/README.md).
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
 owns station demand, freshness and forecast interpretation.
 
@@ -275,7 +275,7 @@ lineage and independent depiction checks remain in the
 WPC surface analysis and forecast charts reach Progs through the same catalog and
 GeoJSON products used by AWC's web view. The [owning guide](../../src/layers/weather-awc/progs/README.md)
 records exact source paths, chart identity, source bounds and the dependency on
-AWC's web-product interface rather than a documented stable API. The weather server
+AWC's web-product interface rather than a documented stable API. The info server
 prepares full pressure contours, source labels, H/L and tropical centers, distinct
 front/boundary types and frontogenesis/frontolysis qualifiers. Each chart's own
 reference cycle and absolute valid time are retained, including mixed-cycle
@@ -306,7 +306,7 @@ References:
 
 Implemented locally: [Radar](../../src/layers/weather-awc/radar/README.md) combines
 NOAA MRMS quality-controlled composite reflectivity with FAA TDWR product 180
-terminal detail. The weather server acquires numerical GRIB2/Level III observations,
+terminal detail. The info server acquires numerical GRIB2/Level III observations,
 prepares contours once, and publishes immutable files for all viewers. Current
 observations expire after 15 minutes. A rolling two-hour history supports timeline
 rewind: national scans backfill from NOAA S3, while terminal history accumulates as

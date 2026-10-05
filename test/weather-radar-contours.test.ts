@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { contours } from 'd3-contour';
-import { compactRadarRing, radarContours } from '../tools/weather-server/radar-contours';
-import { simplifyMrms, MRMS_SIMPLIFY_CELLS } from '../tools/weather-server/radar-simplify';
+import { compactRadarRing, radarContours } from '../tools/info-server/radar-contours';
+import { simplifyMrms, MRMS_SIMPLIFY_CELLS } from '../tools/info-server/radar-simplify';
 
 const area = (ring: number[][]) => ring.slice(1).reduce((sum, point, i) =>
   sum + ring[i]![1]! * point[0]! - ring[i]![0]! * point[1]!, 0);

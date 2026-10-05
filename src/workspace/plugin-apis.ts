@@ -9,6 +9,7 @@ import type { MetarApi } from '../layers/metar-taf/public';
 import type { TerrainApi } from '../layers/terrain/public';
 import type { ObstructionApi } from '../layers/obstructions/public';
 import type { WeatherAwcApi } from '../layers/weather-awc/public';
+import type { NotamsApi } from '../layers/notams/public';
 
 /** Compile-time catalog only; core never imports feature types or implementations. */
 export type WorkspacePluginApis = {
@@ -24,4 +25,5 @@ export type WorkspacePluginApis = {
   ahrs: AhrsApi;
   ownship: OwnshipApi;
   charts: object;
+  notams: NotamsApi;
 };

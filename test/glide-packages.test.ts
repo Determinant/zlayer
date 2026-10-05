@@ -128,7 +128,7 @@ test('route browsing reads only numeric overview; ranges acquire detail and pres
   const fetched = cache.requests.length;
   const warm = await worker.query({ ...request, renderedKey: result.renderKey });
   assert.equal(warm.heat, undefined); assert.equal(cache.requests.length, fetched);
-  const detailed = await worker.query({ ...request, ranges: ranges(request.bounds) });
+  const detailed = await worker.query({ ...request, ranges: ranges(request.bounds), renderedKey: warm.renderKey });
   assert.ok(detailed.collection!.features.length); assert.ok(cache.requests.some(url => url.includes('.gld')));
   assert.equal((await worker.inspect([-120.001, 35]))?.id, `${expected.source}:0`);
   assert.equal((await worker.inspect([-119.999, 35]))?.id, `${expected.source}:1`, 'preferred hole retains best-effort identity');
@@ -149,6 +149,24 @@ test('numeric density fractions affect opacity and scopes choose the pinned edit
   const point = project([-120.05, 35]);
   assert.equal(prepareHeatScope(sources.packages[0]!.scope)!(...point), true);
   assert.equal(prepareHeatScope(sources.packages[1]!.scope)!(...point), false);
+});
+
+test('zooming out over summaries cached at several resolutions does not inflate numeric density', async t => {
+  const cache = storage(t), glide = source('mixed-overview-levels');
+  const mixed = createLandingDisplayWorker(), single = createLandingDisplayWorker();
+  const request = { id: 1, manifestUrl: `${glide.root}/manifest.json`, sources: { packages: [{ source: glide, scope: { exclude: [] } }] },
+    bounds: [-120.01, 34.99, -119.99, 35.01] as Bounds, zoom: 12, discover: true,
+    segments: [[project([-120.03, 35]), project([-119.97, 35])]] as [Point, Point][] };
+  await mixed.query(request);
+  await mixed.query({ ...request, zoom: 11 });
+  await single.query({ ...request, zoom: 11 });
+  cache.offline();
+  const reads = cache.requests.length;
+  const overview = { ...request, zoom: 6, discover: false };
+  const actual = await mixed.query(overview), expected = await single.query(overview);
+  assert.ok(expected.heat?.shadedCells);
+  assert.deepEqual(actual.heat, expected.heat, 'warming a child tile must not add its density again over its resident parent');
+  assert.equal(cache.requests.length, reads, 'overview rendering uses only resident grids');
 });
 
 test('regional preparation includes all zooms and shared dependencies; cache-only readiness detects omitted or evicted metadata', async t => {
@@ -238,7 +256,7 @@ test('a missing neighboring edition keeps saved regional detail visible and does
   const request = { id: 1, manifestUrl: `${saved.root}/manifest.json`, sources: landingSources(context, 'https://glide.test/')!,
     bounds, zoom: 12, discover: true, segments: [[project([-120.03, 35]), project([-119.97, 35])]] as [Point, Point][], ranges: ranges(bounds) };
   let result = await worker.query(request);
-  for (let i = 0; result.more && i < 10; i++) result = await worker.query(request);
+  for (let i = 0; result.more && i < 10; i++) result = await worker.query({ ...request, renderedKey: result.renderKey });
   assert.equal(result.status.state, 'partial'); assert.ok(result.collection?.features.length);
   assert.equal((await worker.inspect([-120.001, 35]))?.id, `${expected.source}:0`);
   assert.equal((await worker.inspect([-119.995, 35])), null);

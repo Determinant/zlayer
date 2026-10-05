@@ -125,6 +125,81 @@ test('route density uses cached shading; selected-range details retain tiers and
   await expect(page.getByTestId('errors')).toBeEmpty(); expect(errors).toEqual([]);
 });
 
+test('small pans reuse the heat image through the real worker and map source', async ({ page, context }) => {
+  const reads = await serve(context);
+  await page.addInitScript(() => {
+    const NativeWorker = Worker;
+    window.Worker = class extends NativeWorker {
+      readonly queries = new Set<string>();
+      readonly landing: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options); this.landing = String(url).includes('landing.worker');
+        this.addEventListener('message', event => {
+          if (this.queries.delete(event.data.id)) document.documentElement.dataset.heatReplies =
+            String(Number(document.documentElement.dataset.heatReplies ?? 0) + 1);
+        });
+      }
+      override postMessage(message: unknown, options: Transferable[] | StructuredSerializeOptions = []) {
+        const rpc = message as { path?: string[]; id: string };
+        if (this.landing && rpc.path?.[0] === 'query') this.queries.add(rpc.id);
+        if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
+      }
+    };
+  });
+  await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
+  const center = await page.evaluate(() => {
+    const map = window.glideAudit.map, source = map.getSource<ImageSource>('glide-landing-shading')!;
+    const update = source.updateImage.bind(source);
+    document.documentElement.dataset.heatUploads = '0';
+    source.updateImage = options => {
+      document.documentElement.dataset.heatUploads = String(Number(document.documentElement.dataset.heatUploads) + 1);
+      return update(options);
+    };
+    return map.getCenter().toArray();
+  });
+  for (const dx of [.0005, -.0005, 0]) {
+    const replies = Number(await page.locator('html').getAttribute('data-heat-replies'));
+    await page.evaluate(({ center, dx }) => window.glideAudit.map.jumpTo({ center: [center[0]! + dx, center[1]!] }), { center, dx });
+    await expect.poll(async () => Number(await page.locator('html').getAttribute('data-heat-replies'))).toBeGreaterThan(replies);
+    await expect(page.locator('html')).toHaveAttribute('data-heat-uploads', '0');
+  }
+  expect(reads()).toBe(1);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
+
+test('a failed unsettled landing upload recovers and subsequent heat edits render without a zoom', async ({ page, context }) => {
+  const reads = await serve(context);
+  await page.goto('/test/browser/glide.html');
+  await page.getByRole('switch', { name: 'Show glide coverage' }).click();
+  await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
+  const status = page.getByRole('status', { name: 'Landing areas status' });
+  await expect(status).toHaveText('Landing-area density along your route');
+  const camera = await page.evaluate(() => {
+    const map = window.glideAudit.map, source = map.getSource<GeoJSONSource>('glide-landing-areas')!;
+    const original = source.setData.bind(source);
+    source.setData = data => {
+      if ((data as GeoJSON.FeatureCollection).features.length) {
+        source.setData = original;
+        queueMicrotask(() => map.fire('error', { sourceId: source.id, error: new Error('Injected unsettled landing upload') }));
+        return new Promise<void>(() => {});
+      }
+      return original(data);
+    };
+    return { zoom: map.getZoom(), center: map.getCenter().toArray() };
+  });
+  await selectRange(page);
+  await expect(page.getByTestId('errors')).toHaveText('Injected unsettled landing upload');
+  // Recovery must release the display job, not just restore the old collection.
+  await page.evaluate(() => window.glideAudit.route([[-120.1, 34.44], [-119.4, 34.44]]));
+  await expect.poll(() => page.evaluate(() => window.glideAudit.map.getLayoutProperty('glide-landing-shading', 'visibility'))).toBe('visible');
+  await expect(status).toHaveText('2 candidate patches loaded');
+  expect(await page.evaluate(() => ({ zoom: window.glideAudit.map.getZoom(), center: window.glideAudit.map.getCenter().toArray() }))).toEqual(camera);
+  expect(reads()).toBe(1);
+});
+
 test('ownship details work without a route and disappear on GPS loss', async ({ page, context }) => {
   await serve(context);
   await page.goto('/test/browser/glide.html');

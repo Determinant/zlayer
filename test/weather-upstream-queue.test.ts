@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { UpstreamQueue } from '../tools/weather-server/upstream-queue';
+import { UpstreamQueue } from '../tools/info-server/upstream-queue';
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 const gate = () => {

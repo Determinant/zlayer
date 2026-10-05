@@ -2,7 +2,7 @@ import type { PlatesApi } from './public';
 import { createLayerEvents } from '../../core/layers/events';
 import type { PluginExports } from '../../core/layers/bridge';
 import { pluginStorage } from './storage';
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type ComponentType } from 'react';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { createPlatesController, type PlatesController } from './layer';
@@ -10,12 +10,13 @@ import { ProcedureDialog, ProcedureLoading } from './viewer-dialog';
 import type { PlateMapImage } from './map-image';
 import { retainActiveFiles } from '../../offline/active-catalogs';
 import { formatDateRange } from '../../core/format/time';
+import type { PlateNoticeProps } from './notice-context';
 
-export function createPlatesLayer() {
+export function createPlatesLayer(Notice?: ComponentType<PlateNoticeProps>) {
   const controller = createPlatesController(true);
   const opened = createLayerEvents<Parameters<PlatesApi['open']>[0]>();
   const open: PlatesApi['open'] = selection => { controller.open(selection); opened.emit(selection); };
-  const Panel = () => <PlatesPanel layer={controller} />;
+  const Panel = () => <PlatesPanel layer={controller} {...(Notice ? { Notice } : {})} />;
   const MapControl = () => <PlateMapControl layer={controller} />;
   let imageAt: ((point: { x: number; y: number }) => PlateMapImage | undefined) | undefined;
   return {
@@ -48,7 +49,7 @@ export function createPlatesLayer() {
   } satisfies LayerPlugin & PluginExports<PlatesApi>;
 }
 
-function PlatesPanel({ layer }: { layer: PlatesController }) {
+function PlatesPanel({ layer, Notice }: { layer: PlatesController; Notice?: ComponentType<PlateNoticeProps> }) {
   // Remounting clears React's lazy rejection. A browser-cached module failure
   // needs the panel error screen's Reload app action.
   const [ProcedureViewer] = useState(() => lazy(() => import('./viewer')));
@@ -58,7 +59,7 @@ function PlatesPanel({ layer }: { layer: PlatesController }) {
   return (
     <ProcedureDialog key={requestId} selection={selection} onClose={close}>
       <Suspense fallback={<ProcedureLoading source={selection.document} />}>
-        <ProcedureViewer selection={selection} onShowOnMap={image => layer.showOnMap(image, requestId)} />
+        <ProcedureViewer selection={selection} onShowOnMap={image => layer.showOnMap(image, requestId)} {...(Notice ? { Notice } : {})} />
       </Suspense>
     </ProcedureDialog>
   );

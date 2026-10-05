@@ -17,10 +17,19 @@ cycle migration below remain planned.
 Offline is a product capability, not an accidental HTTP-cache hit. Browsing an opened
 plate and verifying every dependency of a saved region are different promises.
 
-Planned: the [NOTAM plugin](../notams/README.md#plate-notam-bar) contributes an
-expandable, scrollable red bar for notices relevant to the displayed plate. Plates
-will supply exact page/procedure/edition context and retain PDF lifecycle ownership;
-the NOTAM guide owns parsing, applicability and source freshness.
+The optional [NOTAM plugin](../notams/README.md#plate-notam-bar) contributes an
+expandable, scrollable red bar and procedure-row counts. Workspace composition
+obtains its data API through the bridge; Plates retains PDF lifecycle ownership.
+New `ProcedureSelection` values pin the catalog resource. `page-context.ts` resolves
+the displayed book page through that exact catalog, URL/hash and page index, carrying
+airport FAA/ICAO IDs and procedure/amendment metadata. Missing or ambiguous targets
+report matching unavailable. Legacy selections still open their PDF; reopening from
+the catalog supplies the missing pin. No newer edition is silently substituted.
+While the pinned catalog loads, the bar reports loading. A failed fetch exposes
+**Retry plate catalog** and retries on reconnect or reader reactivation, without
+reopening the PDF. Obsolete loads cannot replace the displayed selection's context.
+The NOTAM guide owns parsing, applicability and source freshness. Expanding or
+refreshing notices leaves the reader, PDF worker and view state mounted.
 
 ## Contents
 

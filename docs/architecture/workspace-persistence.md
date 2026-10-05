@@ -22,7 +22,8 @@ download, live sensor, route resolution, or render is still valid.
 | Route stash | Named structured route snapshots, stable save IDs and list order; loading replaces the active draft | `layers/routes/stash.ts`; `zlayer-plugin:routes:stash`, record version 1 |
 | Recommendations | Open state, aircraft filter, selection scoped to airport pair/data edition/filter, expanded conditions and row limits | `layers/routes`; UI `recommendation-*` / `recommendations-open` |
 | Edge panels | Selected left toolbox or stowed state; selected right panel or stowed state | `shell/map-edge-tools.tsx` / `workspace/use-selection.ts`; UI `edge-tool` / `side-panel` |
-| Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates tab, navaid identification overlay | `workspace/use-selection.ts` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
+| Feature details | Feature snapshot and edition identity, selected route entry, Info/Plates/NOTAM tab, navaid identification overlay | `workspace/use-selection.ts` / `workspace/feature-details-panel.tsx`; UI `selected-feature`, `selected-route-entry`, `feature-tab:*`, `identification-open` |
+| NOTAM snapshots | Validated bounded airport snapshots with original source times; optional offline fallback, separate from PDF saves | `layers/notams`; `zlayer-plugin:notams:airport-snapshots`, schema 1 per snapshot, 2 MiB record cap |
 | Plate reader | Selected document/approach/edition; original target; actual reader page, zoom, rotation, scroll and fullscreen preference | `layers/plates`; UI `plate-selection`, `plate-view:*` |
 | On-map IAP | Exact document URL, optional integrity metadata, edition and original approach target, independently of the reader | `layers/plates/layer.ts`; UI `plate-on-map` |
 | Shell | Layers, Settings and its General/Offline/Plugins/Notifications tab, region query/filter/storage details, About and welcome acknowledgement | `shell`; corresponding UI records, including `settings-tab` |
@@ -69,6 +70,11 @@ describes isolation and the compatibility reads from former global keys.
   stowing releases native modality without erasing that preference. Presentation
   changes keep the same mounted reader/instruments; the primitive creates no new
   persistence keys and does not clear feature selection when disabled.
+- New plate selections retain their exact catalog resource for displayed-page NOTAM
+  context. Missing legacy context does not block the PDF or substitute a new edition.
+  NOTAM filters, raw disclosures and the reader bar's expansion are session state;
+  disabling the provider withdraws demand without changing the PDF view. A saved
+  NOTAM tab falls back to Info while unavailable and restores when re-enabled.
 - Plugin activation saves at action time without changing feature visibility
   preferences. The existing `plugins-unloaded` key retains disabled identities for
   compatibility. New built-ins default to enabled; stored disabled identities are

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { register } from 'tsx/esm/api';
 register();
-const { fixtureWeather } = await import('../fixtures/weather-server.ts');
+const { fixtureWeather } = await import('../fixtures/info-server.ts');
 import { createHash } from 'node:crypto';
 import { readFile, readdir, mkdtemp, rm, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

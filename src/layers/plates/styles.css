@@ -147,7 +147,7 @@
 .procedure-window[open] { display: block; }
 
 .procedure-viewer {
-  container: plate-reader / inline-size;
+  container: plate-reader / size;
   display: grid;
   width: 100%;
   height: 100%;
@@ -171,6 +171,7 @@
   padding-right: max(17px, env(safe-area-inset-right));
   padding-left: max(17px, env(safe-area-inset-left));
 }
+.procedure-viewer:has(> .plate-notams) { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 
 .procedure-heading {
   min-width: 0;

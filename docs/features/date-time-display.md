@@ -14,6 +14,7 @@ raw METAR/TAF text, exports, and HTML `dateTime` values retain their original fo
 | UTC timestamp | `Sep 18 · 14:32Z` |
 | Device-local timestamp | `Sep 18 · 07:32 PDT` |
 | Paired Zulu / local timestamp | `Sep 18 · 14:32Z / 07:32 PDT` |
+| Local first with Zulu in parentheses (NOTAM validity) | `Sep 18 · 07:32 PDT (14:32Z)` |
 | Same-day time interval | `Sep 18 · 14:00–20:00Z` |
 | Source age | `<1m old`, `15m old`, `1h 30m old`, `30d old` |
 | Last successful check | `Checked now`, `Checked 5m ago` |
@@ -27,6 +28,9 @@ a 24-hour clock, with `Z` for UTC and an explicit zone for device-local times.
 Local annotations account for daylight-saving time at the displayed instant.
 Paired timestamps share the date only when both clocks fall on the same calendar
 day; otherwise each clock keeps its own date, including any required year.
+`formatTimestampPair` accepts `primary: 'local'` for local-first parentheses;
+the default remains Zulu first. Local means the device's time zone, labeled at
+the displayed instant, rather than an inferred airport time zone.
 
 Age uses completed elapsed units and never rounds up. Below one day, retain hours
 and nonzero minutes; from one day onward use whole days. Seconds remain appropriate

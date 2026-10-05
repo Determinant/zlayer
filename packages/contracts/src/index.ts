@@ -21,3 +21,4 @@ export * from './progs-coverage.js';
 export * from './radar-weather.js';
 export * from './radar-motion.js';
 export * from './glide.js';
+export * from './notams.js';

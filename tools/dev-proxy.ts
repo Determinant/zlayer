@@ -1,10 +1,16 @@
 import type { ProxyOptions } from 'vite';
 
+// Preserve the selected backend in dev sessions started before the server rename.
+const infoOrigin = process.env.INFO_API_ORIGIN || process.env.WEATHER_API_ORIGIN || 'https://zlayer.tedyin.com';
+
 // Local development only; production publishes the static app in dist/.
 export const developmentProxy = {
   // Reuse production's prepared data. Override only when developing the backend.
   '/api/weather/': {
-    target: process.env.WEATHER_API_ORIGIN || 'https://zlayer.tedyin.com', changeOrigin: true, proxyTimeout: 60_000,
+    target: infoOrigin, changeOrigin: true, proxyTimeout: 60_000,
+  },
+  '/api/notams/': {
+    target: infoOrigin, changeOrigin: true, proxyTimeout: 60_000,
   },
   // Narrow FAA-only fallback for PDF.js: FAA's PDF host does not allow CORS.
   '^/faa-procedures/\\d{4}/[-\\w]+\\.[pP][dD][fF](?:\\?.*)?$': {

@@ -14,6 +14,8 @@ import { RouteIdentificationChoices } from '../layers/routes/identification-pick
 import { routePointForFeature } from '../layers/routes/selection';
 import { WaypointElevation } from '../layers/terrain/waypoint-elevation';
 import type { ReportStatusListener } from '../layers/metar-taf/station-weather';
+import type { NotamsApi } from '../layers/notams/public';
+import { AirportNotams, airportNotamQuery, PlateNotamCount } from '../layers/notams/ui';
 
 type FeatureDetailsPanelProps = {
   feature: GeoPointFeature;
@@ -29,14 +31,16 @@ type FeatureDetailsPanelProps = {
   route: FeatureRoute;
   onClose: () => void;
   onOpenProcedure: (selection: ProcedureSelection) => void;
+  notamsApi?: NotamsApi | undefined;
   features?: { routes: boolean; weather: boolean; terrain: boolean; plates: boolean };
 };
 
 /** Explicit detail composition; each feature owns its presentation and data demand. */
 export function FeatureDetailsPanel({ feature, catalog, metarClient, onWeatherStatus, procedureResource, revision, savedSupplement,
-  editionUnavailable = false, identification, onIdentificationChange, route, onClose, onOpenProcedure,
+  editionUnavailable = false, identification, onIdentificationChange, route, onClose, onOpenProcedure, notamsApi,
   features = { routes: true, weather: true, terrain: true, plates: true } }: FeatureDetailsPanelProps) {
   const ident = featureIdent(feature);
+  const notamQuery = hasAirportPlates(feature) ? airportNotamQuery(feature.properties) : undefined;
   const point = features.routes ? routePointForFeature(route.plan, feature, route.pointId) : undefined;
   const entry = point && route.plan.entries.find(value => value.id === point.source.entryId);
   const radial = point?.identification?.kind === 'radial' ? point.identification
@@ -65,8 +69,11 @@ export function FeatureDetailsPanel({ feature, catalog, metarClient, onWeatherSt
     runways={features.weather ? active => <AirportRunwayWeather feature={feature} revision={revision} active={active}>
       {weather => <AirportRunways feature={feature} weather={weather} />}
     </AirportRunwayWeather> : undefined}
-    plates={features.plates && hasAirportPlates(feature) ? () => editionUnavailable
+    notams={notamsApi && notamQuery ? active => <AirportNotams key={`${notamQuery.faaId}:${notamQuery.icaoId}`}
+      api={notamsApi} query={notamQuery} active={active} /> : undefined}
+    plates={features.plates && hasAirportPlates(feature) ? active => editionUnavailable
       ? <p className="procedure-state is-error">This feature’s source edition is unavailable. Select it again after its navigation data reloads.</p>
       : <AirportPlates feature={feature} resource={procedureResource} revision={revision}
+          noticeCount={notamsApi ? context => <PlateNotamCount api={notamsApi} context={context} active={active} /> : undefined}
           savedSupplement={savedSupplement} onOpen={onOpenProcedure} /> : undefined} />;
 }

@@ -18,7 +18,7 @@ original measurements and limitations intact.
 | [Coded-bulletin evaluation](2026-09-24-coded-bulletins/README.md) | Superseded WPC inputs, preserved with source hashes outside the current test fixtures. |
 
 The [grid guide](../grids/README.md), [Progs guide](../progs/README.md),
-[radar guide](../radar/README.md) and [server guide](../../../../tools/weather-server/README.md)
+[radar guide](../radar/README.md) and [server guide](../../../../tools/info-server/README.md)
 own current contracts. Executable regressions use the source captures and independent
 references under `test/fixtures/`; [local verification](../../../../docs/development/local-development.md#verification)
 owns how those regressions run.

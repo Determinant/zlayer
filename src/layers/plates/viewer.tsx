@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentType,
 } from 'react';
 
 import type { ProcedureSelection } from './data';
@@ -15,13 +16,17 @@ import { usePluginState } from '../../core/ui/use-persistent-state';
 import { plateViewKey } from './persistence';
 import { isRecord } from '@zlayer/contracts';
 import type { PlateMapImage } from './map-image';
+import type { PlateNoticeProps } from './notice-context';
+import { useEdgePanel } from '../../core/ui/edge-panels';
 
 type ProcedureViewerProps = {
   selection: ProcedureSelection;
   onShowOnMap?: (image: PlateMapImage) => void;
+  Notice?: ComponentType<PlateNoticeProps>;
 };
 
-export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureViewerProps) {
+export default function ProcedureViewer({ selection, onShowOnMap, Notice }: ProcedureViewerProps) {
+  const panel = useEdgePanel('plate');
   const key = plateViewKey(selection);
   const [savedPage, setPageIndex] = usePluginState<number | null>(pluginStorage, `${key}:page`, null,
     (value): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0));
@@ -207,6 +212,7 @@ export default function ProcedureViewer({ selection, onShowOnMap }: ProcedureVie
           </svg>
         </button>
       </ProcedureHeaderAction>}
+    {Notice && <Notice selection={selection} pageIndex={pageIndex} active={panel.open} />}
     <div ref={stageRef} className={`procedure-page-stage${ready ? ' is-ready' : ''}`}
       onScroll={event => {
         if (!ready || restoreScroll.current) return;

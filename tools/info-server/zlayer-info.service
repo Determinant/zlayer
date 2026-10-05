@@ -1,0 +1,34 @@
+[Unit]
+Description=ZLayer weather and NOTAM info server
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+DynamicUser=yes
+WorkingDirectory=/opt/zlayer-info/current
+ExecStart=/opt/zlayer-info/node/bin/node /opt/zlayer-info/current/main.js
+Environment=NODE_ENV=production
+Environment=WEATHER_CACHE_DIR=/var/lib/zlayer-weather
+Environment=NOTAMS_STATE_DIR=/var/lib/zlayer-notams
+EnvironmentFile=-/etc/zlayer-info.env
+StateDirectory=zlayer-weather zlayer-notams
+StateDirectoryMode=0750
+UMask=0027
+# Leave CPU and memory available to other services on the host.
+CPUQuota=400%
+CPUWeight=10
+IOWeight=10
+Nice=10
+MemoryMax=4G
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,8 @@
 import { RADAR_LEVELS, type RadarCatalog, type RadarContours } from '@zlayer/contracts';
-import { digest } from '../../tools/weather-server/upstream';
-import { PUBLISHED_RADAR, tdwrUrl } from '../../tools/weather-server/radar';
-import { resourceFor } from '../../tools/weather-server/routes';
-import type { WeatherCache } from '../../tools/weather-server/cache';
+import { digest } from '../../tools/info-server/upstream';
+import { PUBLISHED_RADAR, tdwrUrl } from '../../tools/info-server/radar';
+import { resourceFor } from '../../tools/info-server/routes';
+import type { WeatherCache } from '../../tools/info-server/cache';
 import { WEATHER_NOW } from './awc-advisories';
 
 export function radarFixture(now = WEATHER_NOW, history = false) {

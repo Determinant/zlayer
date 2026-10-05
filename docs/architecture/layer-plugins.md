@@ -143,6 +143,7 @@ capabilities for every plugin.
 | [metar-taf/](../../src/layers/metar-taf/README.md) | Report clients/caches, station selection, refresh, weather details, runway wind and METAR map rendering |
 | [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory and surface-analysis/Progs vectors, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
+| [notams/](../../src/layers/notams/README.md) | Shared airport snapshot demand, D/FDC interpretation, plate applicability, raw entries and source freshness; optional workspace composition with Navigation and Plates |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
 | [glide/](../../src/layers/glide/README.md) | Terrain-aware airport, ownship and selected-point ranges; cached origin profiles; prepared off-airport candidate areas and controls |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
@@ -881,7 +882,8 @@ antimeridian-crossing chart bounds intentionally use different guards.
 1. Debounce a changed demand set for 250 ms by default; airport cards use zero delay.
 2. Keep one refresh active, cancelling obsolete work and waiting for it to settle.
 3. Refresh after the previous refresh completes at the product's interval;
-   an optional retry interval shortens recovery after a failed refresh.
+   a successful round may return a delay until its next product-owned deadline
+   instead. An optional retry interval shortens recovery after a failed refresh.
 4. Stop when demand is empty or disabled; destroy cancels timers and active work.
 
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#demand-refresh-and-recovery)

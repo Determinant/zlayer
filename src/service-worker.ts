@@ -96,7 +96,7 @@ worker.addEventListener('fetch', (event) => {
   }
   // Weather products own their persistent caches and must see actual refresh failures,
   // including when browser cache settings override the request's cache mode.
-  if (event.request.cache === 'no-store' || sameOrigin && url.pathname.startsWith('/api/weather/')) return;
+  if (event.request.cache === 'no-store' || sameOrigin && (url.pathname.startsWith('/api/weather/') || url.pathname.startsWith('/api/notams/'))) return;
 
   // The page validates/revalidates navigation manifests and owns their offline
   // fallback. Cache-mode overrides must not replay an older same-cycle build.

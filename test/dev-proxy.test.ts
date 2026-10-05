@@ -3,12 +3,16 @@ import test from 'node:test';
 import type { ProxyOptions } from 'vite';
 import { developmentProxy } from '../tools/dev-proxy';
 
-test('weather API requests reach the shared server without changing paths or queries', () => {
-  const proxy: ProxyOptions = developmentProxy['/api/weather/'];
-  assert.equal(proxy.target, process.env.WEATHER_API_ORIGIN || 'https://zlayer.tedyin.com');
-  for (const path of ['/api/weather/grids/clouds.json', '/api/weather/advisories/gairmet.json',
-    '/api/weather/metars.geojson?ids=KHWD&format=geojson']) {
-    assert.equal(proxy.rewrite?.(path) ?? path, path);
+test('weather and NOTAM requests reach the shared server without changing paths or queries', () => {
+  const target = process.env.INFO_API_ORIGIN || process.env.WEATHER_API_ORIGIN || 'https://zlayer.tedyin.com';
+  for (const [prefix, paths] of [
+    ['/api/weather/', ['/api/weather/grids/clouds.json', '/api/weather/advisories/gairmet.json',
+      '/api/weather/metars.geojson?ids=KHWD&format=geojson']],
+    ['/api/notams/', ['/api/notams/healthz', '/api/notams/airports?faaId=OAK&icaoId=KOAK']],
+  ] as const) {
+    const proxy: ProxyOptions = developmentProxy[prefix];
+    assert.equal(proxy.target, target);
+    for (const path of paths) assert.equal(proxy.rewrite?.(path) ?? path, path);
   }
 });
 

@@ -178,7 +178,30 @@ curve when required, then normalizes/splits date-line crossings at ±180° for b
 contours and fronts. A global line can cross the date line more than twenty times;
 its segments are partitioned into features with at most twenty line parts each,
 preserving every position, source property and source-record identity with a part
-suffix. This keeps the existing client geometry bounds without dropping a chart.
+suffix. Long smoothed lines also split at 5,000 positions with a shared endpoint
+at each join. Source lines allow up to 5,000 control points; the sixteen-fold
+expansion must not be mistaken for that delivery limit. A captured October 4
+forecast contains a 400-control isobar (6,385 smoothed positions before date-line
+splits), which previously rejected the entire forecast family. Partitioning
+retains the full spline, direction and existing client geometry bounds. The
+processing revision stays `wpc-cardinal-v2`: accepted curve coordinates and the
+client format are unchanged; formerly rejected long curves now fit bounded parts.
+Some NOAA boundary records contain a single coordinate, including a trough in the
+October 4 F168 chart. Preserve such records as a zero-length `LineString` with two
+identical coordinates, retaining their source properties and original raw document.
+This supplies no drawable line extent or direction; never connect it to another
+record, invent a second location, or discard the record. Empty lines, invalid
+coordinates, unsupported geometry and unknown front codes still reject replacement.
+Line-shape errors identify the chart filename and source feature ordinal.
+
+NOAA also publishes type-15 points with the literal code `unk`, including the
+October 3, 2026 F120 chart. Preserve these at the supplied coordinates as a neutral
+`?` label. Inspection identifies an **Unclassified NOAA symbol** and exposes its
+original properties; no pressure-center or tropical-system meaning is inferred.
+This uses the existing label format and processing revision. Other unsupported
+point codes still reject replacement, with the chart filename and record ordinal
+in the error. Never silently omit a symbol to make a chart publish.
+
 Native MapLibre line patterns preserve
 symbol sides and alternate stationary-front colors. Forming fronts have dashed
 strokes; weakening fronts also have wider symbol spacing. Isobars are thin gray
@@ -197,7 +220,7 @@ to `/api/weather/progs/{analysis,forecast}/<sha256>.json` chart artifacts;
 `SurfaceSnapshot` version 2 remains the assembled client representation.
 Independent background family updates share one cached catalog acquisition, then prepare every listed chart in their
 family before atomic publication. Forecast acquisition is sequential through the
-server's [shared AWC queue](../../../../tools/weather-server/README.md#source-and-cache-contract).
+server's [shared AWC queue](../../../../tools/info-server/README.md#source-and-cache-contract).
 Successful updates check sources every five minutes; unchanged chart URL/hash and
 reference/valid times reuse the already normalized geometry. Changed bytes are
 parsed, smoothed, validated and serialized in bounded Node worker jobs, including
@@ -267,14 +290,16 @@ weather completeness.
 ## Development and validation
 
 Plain `npm run dev` runs Vite and proxies weather to the deployed server. For local
-backend changes, run `npm run weather:serve` in one terminal and
-`WEATHER_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. See the
-[weather-server guide](../../../../tools/weather-server/README.md).
+backend changes, run `npm run info:serve` in one terminal and
+`INFO_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. See the
+[info-server guide](../../../../tools/info-server/README.md).
 
 `test/weather-progs.test.ts` checks every chart in a captured AWC catalog, including
 mixed cycles and seven-day pressure fields, metadata identity, source labels,
-front direction and contour/front date-line splits, closed contours, captured AWC
-spline output, prepared-cache migration, complete-horizon file restoration,
+front direction and contour/front date-line splits (including a crossing at a full
+5,000-position part), long curves through worker publication, aggregate position
+limits, closed contours, captured AWC
+spline output, single-coordinate source boundaries, prepared-cache migration, complete-horizon file restoration,
 malformed replacements, interval frame selection,
 independent acquisition failures, read-only HTTP, restart, rollback/corrections,
 cache retention and optional browser storage. [Fixture provenance](../../../../test/fixtures/wpc/README.md)

@@ -6,6 +6,7 @@ import type {
   ProcedureCatalog,
   ProcedureKind,
   ProcedureRecord,
+  ProcedureResourceRecord,
   ChartSupplementVolume,
 } from '@zlayer/contracts';
 
@@ -33,6 +34,8 @@ export type ProcedureSelection = {
   cycle: string;
   effectiveDate: string;
   expirationDate: string;
+  /** Exact catalog used to resolve arbitrary pages in a combined volume. */
+  catalog?: ProcedureResourceRecord;
 };
 
 const GROUPS: Array<[ProcedureKind, string]> = [
@@ -78,9 +81,10 @@ export function groupProcedures(airport: ProcedureAirport): ProcedureGroup[] {
 
 /** Readers and route pickers share document targeting and edition identity. */
 export function procedureSelection(catalog: ProcedureCatalog, airport: ProcedureAirport,
-  procedure: ProcedureRecord, catalogUrl: string, baseUrl: string): ProcedureSelection {
+  procedure: ProcedureRecord, catalogUrl: string, baseUrl: string, resource?: ProcedureResourceRecord): ProcedureSelection {
   return { airport, procedure, document: procedureDocument(catalog, procedure, catalogUrl, baseUrl),
-    cycle: catalog.cycle, effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate };
+    cycle: catalog.cycle, effectiveDate: catalog.effectiveDate, expirationDate: catalog.expirationDate,
+    ...(resource ? { catalog: { ...resource, url: new URL(resource.url, baseUrl).href } } : {}) };
 }
 
 export function procedureDocument(

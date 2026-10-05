@@ -19,4 +19,4 @@ dated host measurements, not mobile-browser performance guarantees.
 The larger [qualification record](../../../src/layers/weather-awc/validation/2026-09-23-browser-grib.json)
 also includes cloud top and the lowest freezing diagnostic. These are fixtures
 for validation only; production retrieves selected source ranges and prepares
-numeric slices in the TypeScript weather server worker.
+numeric slices in the TypeScript info server worker.

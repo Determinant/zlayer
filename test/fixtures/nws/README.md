@@ -2,7 +2,7 @@
 
 Captured September 23, 2026 from public NOAA/NWS services. These are dated source
 samples retained from the retired direct METAR/TAF experiment, not current weather.
-Current clients read AWC through the weather gateway; these fixtures retain the
+Current clients read AWC through the info server; these fixtures retain the
 source-comparison evidence.
 The [source choices](../../../docs/data/sources.md#source-choices-and-unresolved-alternatives)
 explain the freshness, bulletin and coverage limits. These historical samples are

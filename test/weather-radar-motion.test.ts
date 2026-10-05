@@ -4,11 +4,11 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isRadarMotionCatalog, isRadarMotionSnapshot, RADAR_HISTORY_MS, RADAR_MAX_AGE, RADAR_MOTION_ROOT, type RadarMotionCatalog } from '@zlayer/contracts';
-import { decodeStormTracks } from '../tools/weather-server/radar-motion-decode';
-import { createRadarMotionWarming } from '../tools/weather-server/radar-motion';
-import { WeatherCache } from '../tools/weather-server/cache';
-import { digest } from '../tools/weather-server/upstream';
-import { resourceFor } from '../tools/weather-server/routes';
+import { decodeStormTracks } from '../tools/info-server/radar-motion-decode';
+import { createRadarMotionWarming } from '../tools/info-server/radar-motion';
+import { WeatherCache } from '../tools/info-server/cache';
+import { digest } from '../tools/info-server/upstream';
+import { resourceFor } from '../tools/info-server/routes';
 import { motionFile, motionScans } from '../src/layers/weather-awc/radar/motion-time';
 
 const capture = (name: string) => readFile(new URL(`./fixtures/radar/${name}`, import.meta.url));

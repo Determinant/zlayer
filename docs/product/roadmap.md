@@ -87,17 +87,17 @@ for today's guarantees and [product budgets](brief.md) for performance targets.
 
 ## Airport and procedure NOTAMs
 
-Planned: the [NOTAM plugin guide](../../src/layers/notams/README.md) owns the
-long-term design and implementation sequence. Add an **Info | Plates | NOTAM**
-airport tab showing D and FDC notices with source-backed flairs and per-entry raw
-text disclosures. Add an expandable, scrollable red NOTAM bar for relevant plate
-amendments and restrictions, keyed to the actual displayed procedure and edition.
+Implemented locally: the [NOTAM plugin guide](../../src/layers/notams/README.md)
+owns the long-term contract. **Info | Plates | NOTAM** shows D/FDC notices with
+conservative flairs and per-entry raw disclosures. Procedure rows and the expandable
+red reader bar share snapshots and matching for the actual catalog/page/edition.
 
-Onboarding materials are reviewed; live qualification and all implementation remain
-pending. The existing weather server will maintain the full local NMS dataset under
-the guide's [collection policy](../../src/layers/notams/README.md#collection-and-delivery).
-Acceptance requires source continuity, conservative matching, visible freshness/
-uncertainty, shared core UI, preserved PDF lifecycle and production qualification.
+The existing info server maintains the full local NMS dataset under the guide's
+[collection policy](../../src/layers/notams/README.md#collection-and-delivery), with
+durable quotas and local-only browser queries. Staging authentication, a complete
+74,831-member load and global deltas were exercised. Production is not enabled.
+Remaining work includes FAA production onboarding, broader lifecycle/applicability
+and alias qualification, shared-weather capacity and installed-device checks.
 
 ## Radial/distance route positions
 
@@ -134,7 +134,7 @@ The TypeScript AWC/NOMADS gateway is implemented with shared disk caching, bound
 refreshes, advisory normalization, numeric grid preparation and preserved source-check times.
 HRRR uses Google as the server’s upstream; the PWA reads native prepared fields
 and interpolates selected wind altitudes. The
-[server guide](../../tools/weather-server/README.md#deployment) owns backend
+[server guide](../../tools/info-server/README.md#deployment) owns backend
 and HTTPS proxy deployment, including release checks.
 Independent operational comparison and reference-device
 qualification remain outstanding; implementation is not flight validation.
@@ -185,7 +185,7 @@ delivery checks for each release.
 
 - Implemented locally: [Progs](../../src/layers/weather-awc/progs/README.md) adds
   AWC/WPC analysis and forecast isobars, source labels, fronts, distinct boundaries and H/L centers,
-  prepared/cached independently by the weather server. Captured source fixtures,
+  prepared/cached independently by the info server. Captured source fixtures,
   native-time selection, optional offline snapshots and independent slim controls
   accompany the feature. Deploy the matching server and app to make the new
   endpoints available. Ridges use NOAA pressure contours and chart labels.

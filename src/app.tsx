@@ -24,6 +24,7 @@ import {
   RouteBar, useRouteController, DirectToDialog,
 } from './layers/routes';
 import { createWorkspaceLayers } from './workspace/products';
+import { useNotamsApi } from './workspace/notams';
 import { LayerMenu } from './shell/layer-menu';
 import { SettingsLauncher } from './shell/settings-launcher';
 import { useMapPreferences } from './workspace/use-map-preferences';
@@ -67,6 +68,7 @@ export function App() {
       ? 'Chart feed refresh failed; saved regions remain available.' : 'Checking for chart updates.'}`
     : cycleNotice;
   const [workspaceLayers] = useState(createWorkspaceLayers);
+  const notamsApi = useNotamsApi(workspaceLayers.registry);
   const [mapPreferences, setMapPreferences] = useMapPreferences(workspaceLayers.plugins);
   const [mapView, setMapView] = useMapView();
   const plugins = usePlugins(workspaceLayers.plugins);
@@ -261,6 +263,7 @@ export function App() {
                 feature={featureSelection.feature ?? selected}
                 catalog={context}
                 metarClient={metarLayer.client}
+                notamsApi={notamsApi}
                 onWeatherStatus={metarLayer.setReportStatus}
                 features={{ routes: !!loaded.routes, weather: !!loaded.metar, terrain: !!loaded.terrain, plates: !!loaded.plates }}
                 procedureResource={featureSelection.catalog?.procedures}

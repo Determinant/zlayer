@@ -11,8 +11,8 @@
     "packages/*"
   ],
   "scripts": {
-    "weather:serve": "node --import=tsx tools/weather-server/main.ts",
-    "weather:build": "node tools/weather-server/build.mjs",
+    "info:serve": "node --import=tsx tools/info-server/main.ts",
+    "info:build": "node tools/info-server/build.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "check": "npm run check:theme && npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",
@@ -43,7 +43,8 @@
     "proj4": "2.22.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "seek-bzip": "2.0.0",
+    "saxes": "6.0.0",
+    "seek-bzip": "file:tools/info-server/vendor/seek-bzip",
     "sql.js": "^1.14.2",
     "sql.js-httpvfs": "^0.8.12",
     "topojson-client": "3.1.0"

@@ -149,7 +149,7 @@ domain package; the runway component adds no request loop beyond map/card demand
 
 Blank `VITE_ZLAYERS_METAR_URL` and `VITE_ZLAYERS_TAF_URL` use the same-origin
 `/api/weather/metars.geojson` and `/api/weather/tafs.json` routes. The
-[TypeScript weather gateway](../../../tools/weather-server/README.md) reads AWC, shares
+[TypeScript info server](../../../tools/info-server/README.md) reads AWC, shares
 queries across viewers and keeps requested reports warm. Map, card and nearby
 requests use the same AWC source. The gateway preserves full coded reports and
 source fields; clients still validate and normalize the reports before display.

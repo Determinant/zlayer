@@ -7,7 +7,9 @@ type Position = [number, number];
  */
 export function surfaceLineCurve(coordinates: readonly Position[]): Position[] {
   const segments = 16;
-  if (coordinates.length < 2 || (coordinates.length - 1) * segments + 1 > 5000) throw new Error('Surface curve exceeds its position limit');
+  // Bound source controls here; delivery splits the expanded curve into lines
+  // of at most 5,000 positions without changing its shape or resolution.
+  if (coordinates.length < 2 || coordinates.length > 5000) throw new Error('Surface curve exceeds its position limit');
   // Work continuously across ±180° before wrapping/splitting the finished curve.
   const points: Position[] = [];
   for (const [longitude, latitude] of coordinates) {

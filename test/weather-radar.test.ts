@@ -5,11 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { isRadarCatalog, isRadarContours, RADAR_MAX_AGE, RADAR_HISTORY_MS } from '@zlayer/contracts';
-import { decodeMrms, decodeTdwr, prepareRadar } from '../tools/weather-server/radar-decode';
-import { digest } from '../tools/weather-server/upstream';
-import { radarKey, radarKeys, radarHistory, tdwrUrl } from '../tools/weather-server/radar';
-import { createWeatherServer } from '../tools/weather-server/server';
-import { resourceFor } from '../tools/weather-server/routes';
+import { decodeMrms, decodeTdwr, prepareRadar } from '../tools/info-server/radar-decode';
+import { digest } from '../tools/info-server/upstream';
+import { radarKey, radarKeys, radarHistory, tdwrUrl } from '../tools/info-server/radar';
+import { createInfoServer } from '../tools/info-server/server';
+import { resourceFor } from '../tools/info-server/routes';
 import { currentRadar, radarTimes } from '../src/layers/weather-awc/radar/time';
 import { forecastStops, HOUR } from '../src/layers/weather-awc/time';
 import { weatherTimeScale } from '../src/layers/weather-awc/time-scale';
@@ -72,6 +72,18 @@ test('TDWR reads physical gates and missing codes, preserves partial sweeps, and
   assert.equal(partial.height, 361, '358 measured radials, an explicit missing sector, and two seam rows');
   assert.throws(() => decodeTdwr(raw, 'TATL'));
   assert.throws(() => decodeTdwr(raw.subarray(0, 1000), 'TOKC'));
+  const compressed = raw.indexOf('BZh');
+  assert.ok(compressed > 120);
+  const badChecksum = Buffer.from(raw);
+  badChecksum[compressed + 10] = badChecksum[compressed + 10]! ^ 1;
+  assert.throws(() => decodeTdwr(badChecksum, 'TOKC'), /invalid NOAA radar/);
+  // Product-description length is 18 bytes before the compressed block. The
+  // bounded output callback rejects both overflow and incomplete output.
+  for (const difference of [-1, 1]) {
+    const wrongLength = Buffer.from(raw), offset = compressed - 18;
+    wrongLength.writeUInt32BE(raw.readUInt32BE(offset) + difference, offset);
+    assert.throws(() => decodeTdwr(wrongLength, 'TOKC'), /invalid NOAA radar/);
+  }
 });
 
 test('radar catalog validates source identity and bounds; stale live scans and future selections clear radar', () => {
@@ -140,13 +152,13 @@ test('restoring missing history preserves current radar and the original source-
   let now = fixture.catalog.checkedAt;
   const options = { directory, startUpdates: false, now: () => now,
     fetch: (async () => { throw new Error('Restore must not acquire source data'); }) as typeof fetch };
-  let app = await createWeatherServer(options);
+  let app = await createInfoServer(options);
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   await seedRadar(app.cache);
   const missing = fixture.catalog.history![0]!;
   await app.cache.discard(resourceFor(`/api/weather/radar/${missing.path}`));
   await app.close(); now += 60_000;
-  app = await createWeatherServer(options);
+  app = await createInfoServer(options);
   assert.equal(app.radar.status.ready, true);
   const payload = await app.cache.read(resourceFor('/api/weather/radar/latest.json'));
   const catalog = JSON.parse(payload!.body.toString());
@@ -175,7 +187,7 @@ test('radar HTTP only reads prepared files; refresh reuses scans, failed sites s
       if (url === tdwrUrl('TOKC')) return new Response(Uint8Array.from(terminal));
       return new Response(null, { status: 404 });
     }) as typeof fetch };
-  let app = await createWeatherServer(options);
+  let app = await createInfoServer(options);
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   const listen = async () => { await new Promise<void>(r => app.server.listen(0, '127.0.0.1', r)); const address = app.server.address(); assert.ok(address && typeof address !== 'string'); return `http://127.0.0.1:${address.port}`; };
   let origin = await listen();
@@ -199,7 +211,7 @@ test('radar HTTP only reads prepared files; refresh reuses scans, failed sites s
   assert.deepEqual(refreshed.files, catalog.files, 'same raw hash reuses immutable prepared scans');
   assert.deepEqual(refreshed.history, catalog.history, 'unchanged history reuses prepared files');
   assert.ok(refreshed.checkedAt > catalog.checkedAt);
-  await app.close(); app = await createWeatherServer(options); origin = await listen();
+  await app.close(); app = await createInfoServer(options); origin = await listen();
   assert.equal(app.radar.status.ready, true);
   assert.equal(app.radar.status.historyScans, catalog.history!.length);
   offline = true; now += 61_000; app.radar.refresh(); await app.radar.close();

@@ -105,9 +105,12 @@ export function ProgsControls({ controller }: { controller: WeatherController })
 
 export function SurfaceDetails({ feature, controller }: { feature: SurfaceFeature; controller: WeatherController }) {
   const selection = controller.surfaceSelection();
-  return <article className="awc-advisory-card" aria-label={SURFACE_LABELS[feature.kind]}>
-    <h3>{SURFACE_LABELS[feature.kind]}</h3>
-    {'text' in feature && <p>{feature.text}{isSurfacePressureLabel(feature) ? ' hPa' : ''}</p>}
+  const unknown = feature.sourceProperties.type === 15 && feature.sourceProperties.code === 'unk';
+  const title = unknown ? 'Unclassified NOAA symbol' : SURFACE_LABELS[feature.kind];
+  return <article className="awc-advisory-card" aria-label={title}>
+    <h3>{title}</h3>
+    {unknown ? <p>NOAA supplies code “unk” at this location without a weather classification.</p>
+      : 'text' in feature && <p>{feature.text}{isSurfacePressureLabel(feature) ? ' hPa' : ''}</p>}
     {'phase' in feature && feature.phase !== 'normal' && <p>{feature.phase === 'forming' ? 'Frontogenesis (forming)' : 'Frontolysis (weakening)'}</p>}
     <p>{selection.product === 'analysis' ? 'WPC surface analysis' : 'WPC surface forecast'}</p>
     {selection.frame && <p>Valid {formatTimestamp(selection.frame.validTime)}</p>}

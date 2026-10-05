@@ -12,7 +12,7 @@ advisory resources and controller detachment. It revokes parent updates before
 cleanup; a child disposer that throws cannot skip the other products or controller.
 The [grid guide](grids/README.md) owns numeric meanings, preparation and offline
 budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs.
-The [weather server](../../../tools/weather-server/README.md) owns source acquisition
+The [info server](../../../tools/info-server/README.md) owns source acquisition
 and shared prepared data.
 
 `controller.ts` owns shared preferences, selection and display receipts.
@@ -191,7 +191,7 @@ optional selected-and-adjacent-hours setting.
 ## Development and production delivery
 
 Both use same-origin `/api/weather/`. `npm run dev` proxies to
-`https://zlayer.tedyin.com`; it starts no private weather backend. The HTTPS proxy forwards
+`https://zlayer.tedyin.com`; it starts no private info backend. The HTTPS proxy forwards
 that public API through a private connection to the weather service. Direct AWC/NOAA proxy routes are removed,
 and older apps must update for the native-pressure wind API.
 
@@ -200,7 +200,7 @@ its shared cache. The PWA validates, interpolates wind altitude, renders, inspec
 and saves offline using core APIs. Catalogs are published only after every listed artifact is saved. HTTP forecast
 reads never acquire sources or run conversion. Feed overrides remain
 for archived data and fixtures. See [local development](../../../docs/development/local-development.md#data-and-proxies)
-and the [server deployment guide](../../../tools/weather-server/README.md#deployment).
+and the [server deployment guide](../../../tools/info-server/README.md#deployment).
 
 [Historical validation records](validation/README.md) retain source investigations
 and measurements from earlier implementations. Current behavior belongs in these

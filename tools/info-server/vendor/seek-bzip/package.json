@@ -1,0 +1,13 @@
+{
+  "name": "seek-bzip",
+  "version": "2.0.0-zlayer.1",
+  "private": true,
+  "type": "commonjs",
+  "description": "seek-bzip 2.0.0 runtime with explicit Buffer allocation",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ]
+}

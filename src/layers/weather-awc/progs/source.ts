@@ -39,14 +39,18 @@ function position(value: unknown): [number, number] {
   return [longitude < -180 ? longitude + 360 : longitude >= 180 ? longitude - 360 : longitude, value[1] as number];
 }
 function lineGeometry(coordinates: [number, number][]): Extract<SurfaceFeature, { kind: 'ISOBAR' }>['geometry'] {
+  // Partition after smoothing so length boundaries retain the original spline
+  // tangents. Each length split shares a point; date-line splits share latitude.
   const lines: [number, number][][] = [[coordinates[0]!]];
   for (let i = 1; i < coordinates.length; i++) {
     const a = coordinates[i - 1]!, b = coordinates[i]!;
     if (Math.abs(b[0] - a[0]) > 180) {
       const longitude = b[0] > a[0] ? b[0] - 360 : b[0] + 360, edge = b[0] > a[0] ? -180 : 180;
       const latitude = a[1] + (b[1] - a[1]) * (edge - a[0]) / (longitude - a[0]);
+      if (lines.at(-1)!.length === 5000) lines.push([a]);
       lines[lines.length - 1]!.push([edge, latitude]); lines.push([[-edge, latitude]]);
     }
+    if (lines.at(-1)!.length === 5000) lines.push([lines.at(-1)!.at(-1)!]);
     lines[lines.length - 1]!.push(b);
   }
   return lines.length === 1 ? { type: 'LineString', coordinates } : { type: 'MultiLineString', coordinates: lines };
@@ -67,7 +71,7 @@ const FRONT_CODES: Record<number, SurfaceBoundary> = {
   720: 'DRYLINE', 840: 'TROF', 920: 'SQUALL', 940: 'SQUALL',
 };
 const CENTERS = { high: 'HIGH', low: 'LOW', 'tropical storm': 'TROPICAL_STORM', hurricane: 'HURRICANE' } as const;
-/** Preserve every source record; unsupported weather symbols reject a replacement.
+/** Preserve every source record; unrecognized weather symbols reject a replacement.
  * Pressure labels are independent source points, not guessed center/isobar values. */
 export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: number, sourceHash: string): SurfaceFrame {
   if (text.length > 512 * 1024) throw new Error('NOAA chart exceeds its size limit');
@@ -87,9 +91,13 @@ export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: 
     const common = { id: `${sourceHash}:${index}`, sourceProperties: { ...p } as Record<string, string | number> };
     const g = record.geometry;
     if (p.type === 1 || p.type === 2) {
-      if (g.type !== 'LineString' || !Array.isArray(g.coordinates) || g.coordinates.length < 2 || g.coordinates.length > 5000) throw new Error('Invalid NOAA chart line');
+      if (g.type !== 'LineString' || !Array.isArray(g.coordinates) || g.coordinates.length < 1 || g.coordinates.length > 5000) {
+        throw new Error(`Invalid NOAA chart line (${chart.file}, feature ${index})`);
+      }
       const controls = g.coordinates.map(position);
-      const coordinates = surfaceLineCurve(controls);
+      // NOAA occasionally supplies a one-point boundary. Retain its location as
+      // a zero-length line, plus the unchanged source record; never invent extent.
+      const coordinates = controls.length === 1 ? [controls[0]!, controls[0]!] : surfaceLineCurve(controls);
       if (p.type === 1) appendLine(features, { ...common, kind: 'ISOBAR', geometry: lineGeometry(coordinates) });
       else {
         const kind = typeof p.fcode === 'number' ? FRONT_CODES[p.fcode] : undefined;
@@ -107,7 +115,11 @@ export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: 
         features.push({ ...common, kind: 'LABEL', text: label, geometry });
       } else if (p.type === 15 && typeof p.code === 'string' && Object.hasOwn(CENTERS, p.code)) {
         features.push({ ...common, kind: CENTERS[p.code as keyof typeof CENTERS], geometry });
-      } else throw new Error(`Unsupported NOAA point: ${p.code ?? p.text}`);
+      } else if (p.type === 15 && p.code === 'unk') {
+        // NOAA explicitly supplies this unclassified symbol. Keep its location
+        // visible and its properties inspectable without guessing weather meaning.
+        features.push({ ...common, kind: 'LABEL', text: '?', geometry });
+      } else throw new Error(`Unsupported NOAA point: ${p.code ?? p.text} (${chart.file}, feature ${index})`);
     } else throw new Error(`Unsupported NOAA chart feature: ${p.type}`);
   }
   if (!metadata || !features.some(f => f.kind === 'ISOBAR')) throw new Error('Incomplete NOAA pressure chart');

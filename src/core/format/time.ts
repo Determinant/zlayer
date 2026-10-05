@@ -66,10 +66,12 @@ export function formatTimestamp(value: TimeValue, options: TimeOptions = {}): st
   return parts ? `${parts.date} · ${parts.time}${parts.zone}` : unknown;
 }
 
-/** One date for Zulu and local clocks, unless their calendar days differ. */
-export function formatTimestampPair(value: TimeValue, { now = Date.now(), timeZone = 'local' }: TimeOptions = {}): string {
+/** Share the date unless the clocks differ; local-first shows Zulu in parentheses. */
+export function formatTimestampPair(value: TimeValue, { now = Date.now(), timeZone = 'local', primary = 'zulu' }:
+  TimeOptions & { primary?: 'zulu' | 'local' } = {}): string {
   const utc = timestampParts(value, { now }), local = timestampParts(value, { now, timeZone });
   if (!utc || !local) return unknown;
+  if (primary === 'local') return `${local.date} · ${local.time}${local.zone} (${local.date === utc.date ? '' : `${utc.date} · `}${utc.time}${utc.zone})`;
   return `${utc.date} · ${utc.time}${utc.zone} / ${local.date === utc.date ? '' : `${local.date} · `}${local.time}${local.zone}`;
 }
 

@@ -65,26 +65,31 @@ export function createRangeAnimation(write: (range: GlideRange) => Promise<boole
   let displayed: LocatedRange | undefined;
   let target: LocatedRange | undefined;
   let animation: { target: LocatedRange; sample: (t: number) => GlideRange; start: number } | undefined;
-  let frame: number | undefined, busy = false, revision = 0, lastFrame = -Infinity;
+  let frame: number | undefined, pending: object | undefined, revision = 0, lastFrame = -Infinity;
   const cancelFrame = () => { if (frame !== undefined) cancelAnimationFrame(frame); frame = undefined; };
   const fail = () => {
-    revision++; cancelFrame(); animation = undefined; displayed = undefined;
+    revision++; cancelFrame(); animation = undefined; displayed = undefined; pending = undefined;
     return target?.range;
   };
-  const schedule = () => { if (animation && !busy) frame ??= requestAnimationFrame(draw); };
+  const schedule = () => { if (animation && !pending) frame ??= requestAnimationFrame(draw); };
   const draw = () => {
     frame = undefined;
-    if (!animation || busy) return;
+    if (!animation || pending) return;
     const time = performance.now(), progress = Math.min(1, (time - animation.start) / DURATION_MS);
     if (progress < 1 && time - lastFrame < FRAME_MS) { schedule(); return; }
     const range = animation.sample(progress), version = revision;
     displayed = { ...animation.target, range };
     if (progress === 1) animation = undefined;
-    lastFrame = time; busy = true;
+    lastFrame = time;
+    const upload = pending = {};
     void write(range).then(accepted => {
       if (accepted === false && version === revision) fail();
     }).catch(() => { if (version === revision) fail(); })
-      .finally(() => { busy = false; schedule(); });
+      .finally(() => {
+        // Failure/reset retires this upload even if setData never settles. Its
+        // eventual completion must not release a newer upload's backpressure.
+        if (pending === upload) { pending = undefined; schedule(); }
+      });
   };
   return {
     set(range: GlideRange, origin: Point, animate: boolean) {

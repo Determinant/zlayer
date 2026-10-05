@@ -36,6 +36,8 @@ export default defineConfig(({ command }) => ({
       }
     : {}),
   server: {
+    // Onboarding files and server-only state must never be development assets.
+    fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/nms/**', '**/.cache/**'] },
     port: 4173,
     strictPort: true,
     headers: { 'Service-Worker-Allowed': '/' },

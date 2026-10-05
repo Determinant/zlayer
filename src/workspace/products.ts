@@ -17,6 +17,10 @@ import { createWeatherAwcPlugin } from '../layers/weather-awc/plugin';
 import { layerPlugins } from '../core/layers/plugin';
 import type { MapContribution } from '../core/map/contribution';
 import { createGpsService } from '../core/gps/service';
+import { createElement } from 'react';
+import { createNotamsPlugin } from '../layers/notams/plugin';
+import type { PlateNoticeProps } from '../layers/plates/notice-context';
+import { WorkspacePlateNotices } from './notams';
 
 // App retains these controllers in state. Fast Refresh would otherwise keep
 // instances and map callbacks from the previous modules after a code change.
@@ -26,6 +30,7 @@ if (import.meta.hot) {
 
 /** Explicit typed composition. Feature lifetimes outlive map and panel attachments. */
 export function createWorkspaceLayers() {
+  const registry = new PluginRegistry<WorkspacePluginApis>();
   const charts = createChartsPlugin();
   const terrain = createTerrainPlugin();
   const glide = createGlidePlugin();
@@ -33,13 +38,15 @@ export function createWorkspaceLayers() {
   const navigation = createNavigationPlugin();
   const metar = createMetarPlugin();
   const weatherAwc = createWeatherAwcPlugin();
-  const plates = createPlatesLayer();
+  const notams = createNotamsPlugin();
+  const plates = createPlatesLayer((props: PlateNoticeProps) => createElement(WorkspacePlateNotices, {
+    ...props, registry,
+  }));
   const gps = createGpsService();
   const ownship = createOwnshipPlugin(gps);
   const ahrs = createAhrsPlugin(gps);
   const ruler = createRulerPlugin();
   const routes = createRoutesPlugin();
-  const registry = new PluginRegistry<WorkspacePluginApis>();
   const selectionInput = createLayerInput<MapSelectionInput>();
   const selectionContribution: MapContribution = { id: 'workspace-selection', async load(context) {
     const { createSelectionContribution } = await import('./map/selection');
@@ -50,6 +57,7 @@ export function createWorkspaceLayers() {
     { ...glide, communication: registry.registration('glide', glide) },
     { ...terrain, communication: registry.registration('terrain', terrain) },
     { ...plates, communication: registry.registration('plates', plates) },
+    { ...notams, communication: registry.registration('notams', notams) },
     { ...obstructions, communication: registry.registration('obstructions', obstructions) },
     { ...navigation, communication: registry.registration('navigation', navigation) },
     { ...metar, communication: registry.registration('metar', metar) },
@@ -59,5 +67,5 @@ export function createWorkspaceLayers() {
     { ...ownship, communication: registry.registration('ownship', ownship) },
     { ...ahrs, communication: registry.registration('ahrs', ahrs) },
   ] as const);
-  return { charts, terrain, glide, obstructions, navigation, metar, weatherAwc, plates, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
+  return { charts, terrain, glide, obstructions, navigation, metar, weatherAwc, plates, notams, gps, ownship, ahrs, ruler, routes, plugins, registry, selectionInput, selectionContribution };
 }

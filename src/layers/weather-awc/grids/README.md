@@ -76,7 +76,7 @@ physical-device/flight qualification remain outstanding.
 ## Browser source and cache contract
 
 The default endpoints are `/api/weather/grids/{clouds,icing,winds}.json`. The
-[weather server](../../../../tools/weather-server/README.md#source-and-cache-contract)
+[info server](../../../../tools/info-server/README.md#source-and-cache-contract)
 owns complete-cycle discovery, pinned acquisition, projection and native-field
 preparation. Catalogs describe complete prepared generations. Background updates retain the
 previous catalog until every replacement artifact is saved; HTTP reads never start
@@ -352,7 +352,7 @@ sent remotely. Image submission timing does not measure GPU completion.
 
 Leave both AWC feed overrides blank for the shared server in development and
 production. Forecasts are not bundled into `public/` or the offline shell.
-The [server guide](../../../../tools/weather-server/README.md) owns service deployment and the HTTPS proxy.
+The [server guide](../../../../tools/info-server/README.md) owns service deployment and the HTTPS proxy.
 
 `test/weather-grib.test.ts` and [captured GRIB fixtures](../../../../test/fixtures/awc-grib/README.md)
 compare numeric decoding/projection with independent GDAL hashes. Processing and

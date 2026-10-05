@@ -3,9 +3,9 @@
 import { readFile } from 'node:fs/promises';
 import { contours } from 'd3-contour';
 import { RADAR_LEVELS } from '@zlayer/contracts';
-import { decodeMrms, decodeTdwr } from './weather-server/radar-decode';
-import { radarContours } from './weather-server/radar-contours';
-import { simplifyMrms } from './weather-server/radar-simplify';
+import { decodeMrms, decodeTdwr } from './info-server/radar-decode';
+import { radarContours } from './info-server/radar-contours';
+import { simplifyMrms } from './info-server/radar-simplify';
 
 for (const [site, filename] of [['CONUS', '20260924-202439-mrms.grib2.gz'], ['TOKC', '20260924-202234-tokc.level3'], ['TATL', '20260924-202301-tatl.level3']]) {
   const raw = await readFile(`test/fixtures/radar/${filename}`);

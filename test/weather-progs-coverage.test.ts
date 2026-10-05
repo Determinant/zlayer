@@ -4,10 +4,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isProgsCoverageCatalog, progsCoverageImageSize, progsCoverageSource, PROGS_COVERAGE_SOURCE, type ProgsCoverageCatalog } from '@zlayer/contracts';
-import { createWeatherServer } from '../tools/weather-server/server';
-import { digest } from '../tools/weather-server/upstream';
-import { resourceFor } from '../tools/weather-server/routes';
-import { workerJob } from '../tools/weather-server/worker-job';
+import { createInfoServer } from '../tools/info-server/server';
+import { digest } from '../tools/info-server/upstream';
+import { resourceFor } from '../tools/info-server/routes';
+import { workerJob } from '../tools/info-server/worker-job';
 import { ProgsCoverageClient } from '../src/layers/weather-awc/progs/coverage-client';
 import { progsCoverageFrame } from '../src/layers/weather-awc/progs/coverage-time';
 import { surfaceCatalog } from './fixtures/wpc';
@@ -62,7 +62,7 @@ test('coverage identity is pinned to native chart times and missing images break
 test('captured AWC NDFD PNG validates without resampling; corrupt chunks and unsupported dimensions fail', async () => {
   const bytes = await readFile(new URL('./fixtures/ndfd/20260925_03_F000_ndfd_sfc_wx_m.png', import.meta.url));
   assert.deepEqual(progsCoverageImageSize(bytes), { width: 1800, height: 1200 });
-  const worker = new URL('../tools/weather-server/progs-coverage-worker.ts', import.meta.url);
+  const worker = new URL('../tools/info-server/progs-coverage-worker.ts', import.meta.url);
   assert.equal(await workerJob(worker, [bytes, coveragePng()], signal()), true);
   const corrupt = Buffer.from(bytes); corrupt[corrupt.length - 20] = corrupt[corrupt.length - 20]! ^ 1;
   await assert.rejects(workerJob(worker, [corrupt], signal()), /CRC|checksum|data|stream|length/i);
@@ -84,7 +84,7 @@ test('server publishes validated coverage independently, preserves prior data on
     return new Response(mode === 'malformed' ? Uint8Array.from([1, 2, 3]) : png, { headers: { 'content-type': 'image/png' } });
   };
   const options = { directory, startUpdates: false, spacing: 0, now: () => now, fetch: fetcher };
-  const app = await createWeatherServer(options); t.after(() => app.close());
+  const app = await createInfoServer(options); t.after(() => app.close());
   await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const address = app.server.address() as { port: number }, origin = `http://127.0.0.1:${address.port}`;
   assert.equal((await fetch(`${origin}/api/weather/progs/coverage.json`)).status, 503);
@@ -115,7 +115,7 @@ test('server publishes validated coverage independently, preserves prior data on
   assert.equal(corrected.frames[0]!.chartReferenceTime, first.frames[0]!.chartReferenceTime);
   assert.equal((await fetch(origin + path)).status, 200, 'preceding readers retain their immutable files');
   await app.close();
-  const beforeRestart = reads, restarted = await createWeatherServer(options); t.after(() => restarted.close());
+  const beforeRestart = reads, restarted = await createInfoServer(options); t.after(() => restarted.close());
   assert.equal(restarted.coverage.status.ready, true);
   restarted.coverage.refresh(); await restarted.coverage.close();
   assert.equal(reads, beforeRestart);
@@ -133,7 +133,7 @@ test('server publishes validated coverage independently, preserves prior data on
   await restarted.close();
   const bytes = await readFile(repaired.entry.file); bytes[repaired.offset] = bytes[repaired.offset]! ^ 1;
   await writeFile(repaired.entry.file, bytes);
-  const damaged = await createWeatherServer(options); t.after(() => damaged.close());
+  const damaged = await createInfoServer(options); t.after(() => damaged.close());
   assert.equal(damaged.coverage.status.ready, false, 'restart authenticates referenced image bodies');
 });
 

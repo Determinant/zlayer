@@ -48,8 +48,10 @@ export function createGlidePlugin() {
     const state = useLayerSnapshot(input), current = useLayerSnapshot(status), point = useLayerSnapshot(selectedPoint);
     const landings = useLayerSnapshot(landingStatus), site = useLayerSnapshot(selectedSite);
     return state ? <ToolPanel className="map-edge-glide" icon={
-      <path transform="rotate(135 12 12)"
-        d="M10 3a2 2 0 0 1 4 0v5l8 5v3l-8-3v5l3 2v2l-5-1-5 1v-2l3-2v-5l-8 3v-3l8-5Z" />
+      <>
+        <path d="M3 11a9 9 0 0 1 18 0ZM12 2c-2.5 2.5-3 5.5-3 9m3-9c2.5 2.5 3 5.5 3 9M3 11l7 8m11-8-7 8" />
+        <rect x="10" y="19" width="4" height="3" rx=".5" />
+      </>
     }>{(visible, panel) => <GlideControls {...state} status={current} retry={retry} point={point}
       site={site} landingStatus={landings} retryLandings={retryLandings} clearPoint={clearPoint} reveal={panel.setOpen} visible={visible} />}</ToolPanel> : null;
   }

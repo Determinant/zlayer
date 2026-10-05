@@ -1,5 +1,5 @@
 import { pluginStorage } from './storage';
-import { isRecord } from '@zlayer/contracts';
+import { isRecord, isProcedureResourceRecord } from '@zlayer/contracts';
 import type { ProcedureSelection } from './data';
 
 export function isProcedureSelection(value: unknown): value is ProcedureSelection | null {
@@ -7,6 +7,7 @@ export function isProcedureSelection(value: unknown): value is ProcedureSelectio
   if (!isRecord(value) || !isRecord(value.airport) || !isRecord(value.procedure) || !isRecord(value.document)) return false;
   const document = value.document;
   return typeof value.airport.id === 'string' && typeof value.procedure.id === 'string' && typeof value.procedure.name === 'string'
+    && (value.catalog === undefined || isProcedureResourceRecord(value.catalog))
     && typeof value.cycle === 'string' && [value.effectiveDate, value.expirationDate].every(date =>
       typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)))
     && [document.url, document.nativeUrl].every(url => typeof url === 'string' && /^https?:\/\//.test(url))

@@ -8,11 +8,11 @@ import { isNativeManifest, type NativeManifest, type NativeFrame } from '../src/
 import { gridKey, gridCell } from '../src/layers/weather-awc/grids/format';
 import { inflatePacked, unpackGrid, readBand } from '../src/layers/weather-awc/grids/packed';
 import { GRID_BELOW_GROUND, isAwcAdvisorySnapshot } from '@zlayer/contracts';
-import { digest } from '../tools/weather-server/upstream';
+import { digest } from '../tools/info-server/upstream';
 
 // Query-bearing tsx module URLs must still select the TypeScript CPU worker
 // rather than a nonexistent built entry.
-const { fixtureWeather } = await tsImport(new URL('./fixtures/weather-server.ts', import.meta.url).href, import.meta.url) as typeof import('./fixtures/weather-server');
+const { fixtureWeather } = await tsImport(new URL('./fixtures/info-server.ts', import.meta.url).href, import.meta.url) as typeof import('./fixtures/info-server');
 
 const artifact = (manifest: NativeManifest, frame: NativeFrame) => {
   const level = frame.pressureHpa ? `p${frame.pressureHpa}` : frame.altitudeFtMsl ?? 0;

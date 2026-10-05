@@ -2,17 +2,19 @@
 
 [Documentation](../README.md) / Architecture
 
-ZLayer is a static TypeScript PWA with a small shared weather cache gateway.
+ZLayer is a static TypeScript PWA with a shared weather and NOTAM info server.
 Browsers read versioned files from a CDN; local user state lives in browser storage.
-The gateway stores disposable source responses and prepared numeric grids, with no database, account
-service or per-user backend.
+The server stores disposable weather responses and prepared numeric grids, plus
+durable FAA NMS snapshots and request quota state. It has no account service or
+per-user backend.
 
 ```text
 FAA sources ──► faa-regs builder ──► dated static files ──► charts.tedyin.com ──► PWA
-AWC reports / advisories ────────────────────► TypeScript weather gateway ──────────┘
-AWC/WPC analysis / forecast GeoJSON ─────────► TypeScript weather gateway ──────────┘
-NOAA IFI on NOMADS ──────────────────────────► TypeScript weather gateway ──────────┘
-NOAA HRRR on Google Cloud ───────────────────► TypeScript weather gateway ──────────┘
+AWC reports / advisories ────────────────────► TypeScript info server ──────────┘
+AWC/WPC analysis / forecast GeoJSON ─────────► TypeScript info server ──────────┘
+NOAA IFI on NOMADS ──────────────────────────► TypeScript info server ──────────┘
+NOAA HRRR on Google Cloud ───────────────────► TypeScript info server ──────────┘
+FAA NMS ────────────────────────────────────► TypeScript info server ──────────┘
 USGS 3DEP / FAA Daily DOF ──► packaged static feed ──► terrain / obstruction workers ┘
 Terrarium elevation tiles ───────────────────► terrain fallback worker ─────────────┘
 Device Geolocation API ──────────────────────► shared GPS source ─► map / AHRS ──────┘
@@ -36,12 +38,13 @@ Device Motion API ────────────────────�
   complete d-TPP catalog, and combined electronic paper TPPs. Optional exports include
   preferred/TEC routes, terminal/approach geometry, route history and magnetic-model
   coefficients. Feed-wide terrain and obstruction products have independent versions.
-- The [weather server](../../tools/weather-server/README.md) shares AWC report/advisory
+- The [info server](../../tools/info-server/README.md) shares AWC report/advisory
   reads, NOMADS IFI and Google HRRR indexes/ranges. It validates source catalogs,
   normalizes advisories and prepares native forecast fields in bounded Node
   workers using TypeScript decoding, projection and wind rotation. The PWA caches
   compact numeric artifacts through core and owns altitude interpolation,
-  rendering, point inspection and user offline storage.
+  rendering, point inspection and user offline storage. Optional FAA NMS collection
+  maintains a local NOTAM dataset; airport queries never contact FAA directly.
 - Publishers validate schemas, bounds, cycles, checksums, and source freshness once
   for all clients.
 
@@ -151,7 +154,7 @@ charts/<cycle>/
     └── manifest.json
 ```
 
-All default weather requests use the same-origin TypeScript weather server. It
+All default weather requests use the same-origin TypeScript info server. It
 preserves source-check times and rejects expired live responses; user state and
 browser offline storage remain independent. The [AWC Weather plugin](../../src/layers/weather-awc/README.md)
 reads normalized snapshots and [prepared numeric grids](../../src/layers/weather-awc/grids/README.md).
@@ -164,13 +167,14 @@ One bounded disk cache shares source responses and processed forecasts across
 viewers. Background updates prepare complete native generations before replacing
 their catalogs. HTTP forecast reads only serve saved output; report/advisory
 queries share their own cached acquisition. The
-[server guide](../../tools/weather-server/README.md) owns update and storage limits.
+[server guide](../../tools/info-server/README.md) owns update and storage limits.
 
-Planned: [FAA NMS collection](../../src/layers/notams/README.md#weather-server-integration)
-will run in that same weather process and expose read-only `/api/notams/` routes.
+[FAA NMS collection](../../src/layers/notams/README.md#info-server-integration)
+runs optionally in that same info server process and exposes read-only `/api/notams/` routes.
 Its credentials, request admission and durable dataset/quota state are owned by a
 separate NMS module, outside weather cache eviction and release cache swaps.
-The NOTAM guide owns the design; this is not part of the implemented baseline.
+The NOTAM guide owns the contract and staging evidence. Production enablement
+and deployment capacity qualification remain separate release work.
 
 Per-sheet MBTiles, receipts, and work files stay in the publisher's local
 `dist/mbtiles/<cycle>/` cache alongside `dist/zips/`, outside the publishable `charts/`

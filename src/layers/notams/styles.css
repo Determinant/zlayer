@@ -1,0 +1,26 @@
+.airport-notams, .notam-source { display: grid; gap: 8px; min-width: 0; }
+.notam-source { color: var(--text-secondary); font-size: 12px; }
+.notam-source > button { justify-self: start; }
+.notam-list-status { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.notam-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.notam-filters label { display: grid; gap: 4px; min-width: 0; font-size: 12px; }
+.notam-filters .ui-input { width: 100%; min-width: 0; }
+.notam-search { grid-column: 1 / -1; }
+.notam-entry { padding: 10px 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
+.notam-entry-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; font-size: 13px; }
+.notam-flairs { display: flex; flex-wrap: wrap; gap: 4px; margin-block: 6px; }
+.notam-flairs > span { max-width: 100%; padding: 3px 7px; border-radius: 4px; background: var(--surface-control); color: var(--text-secondary); font-size: 11px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.notam-flairs > .notam-flair--info { background: var(--surface-tag-info); color: var(--text-tag-info); }
+.notam-flairs > .notam-flair--procedure { background: var(--surface-tag-procedure); color: var(--text-tag-procedure); }
+.notam-flairs > .notam-flair--caution { background: var(--surface-tag-caution); color: var(--text-tag-caution); }
+.notam-flairs > .notam-flair--danger { background: var(--surface-tag-danger); color: var(--text-tag-danger); }
+.notam-text, .notam-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-block: 8px; font-size: 13px; line-height: 1.55; }
+.notam-validity, .notam-match-reason, .notam-raw { font-size: 12px; color: var(--text-secondary); }
+.notam-raw summary { cursor: pointer; min-height: var(--touch-target); align-content: center; }
+.notam-raw pre { user-select: text; font-family: var(--font-mono); }
+.plate-notams { min-width: 0; background: var(--surface-panel); }
+.plate-notam-toggle { width: 100%; border-radius: 0; justify-content: center; white-space: normal; }
+.has-notams > .plate-notam-toggle { background: var(--surface-60343b); color: var(--text-ffd0ca); border-color: var(--border-a45656); }
+.plate-notams-list { max-height: min(30cqh, 18rem); overflow: auto; overscroll-behavior: contain; padding: 8px 12px; }
+.plate-notams-list h3 { font-size: 14px; }
+.plate-notam-count.has-notams { color: var(--text-ffb2b8); }

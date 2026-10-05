@@ -41,3 +41,29 @@ rounding precision. It tests spatial presentation, not forecast interpolation.
 The unused coded-bulletin captures are archived with their
 [historical source evaluation](../../../src/layers/weather-awc/validation/2026-09-24-coded-bulletins/README.md),
 outside the active test fixtures. The current adapter consumes the chart GeoJSON above.
+
+`20261004_12_F072-isobar-excerpt.geojson` is a reserialized excerpt from the
+October 4, 2026 12Z F072 chart, recovered from the deployed server cache on
+October 5 UTC. It retains metadata record 0 and isobar record 210, whose 400
+controls expand to 6,385 curve positions before date-line splitting. Original URL:
+`https://aviationweather.gov/data/products/wpc/20261004/20261004_12_F072_wpc.geojson`. Original SHA-256: `140df7548ebe0a2ca1ae8e4a8a5378c65ebcc1d5fd03c8ac5a0bae51d139f07b`. The regression preserves the full curve while respecting existing client line limits.
+
+`20261004_12_F168-single-point-trough.geojson` is a reserialized excerpt recovered
+from the local info-server cache on October 5 UTC. It retains metadata record 0,
+isobar record 1 and trough record 130 from
+`https://aviationweather.gov/data/products/wpc/20261004/20261004_12_F168_wpc.geojson`.
+The trough supplies just one coordinate, `[-100.37, 29.39]`; no line extent can be
+recovered from it. Original SHA-256:
+`9aa91e2b112e17c41c7cc390aca5c076da04d2a8dbc32d984c6f131c0ad5fb08`.
+Excerpt SHA-256:
+`78d2a25389e8c4f411259cd8d126ed6994fae6a0af4aec1a6fa0da2a95d9d6b0`.
+
+`20261003_12_F120-unknown-point.geojson` is a reserialized excerpt downloaded
+from AWC on October 5 UTC after the deployment log reported `Unsupported NOAA
+point: unk`. It retains metadata record 0, isobar record 1 and point record 184
+from `https://aviationweather.gov/data/products/wpc/20261003/20261003_12_F120_wpc.geojson`.
+The point at `[-125.5, 22.7]` supplies only `type: 15, code: "unk"`; there is no
+source classification to infer. Original SHA-256:
+`ee59747390a7804aa60bd8e8665f1b8f9c48dd8b7520b4092fb517d41d9391a5`.
+Excerpt SHA-256:
+`fb7eca3cd29041c555a2eaf1992a968e2d6dd11b2499805b09991b943c44ef2d`.

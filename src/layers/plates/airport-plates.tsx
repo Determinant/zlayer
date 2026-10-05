@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { SavedSupplement } from '../../workspace/read-context';
 
 import type { ChartSupplementCatalog, GeoPointFeature, ProcedureCatalog, ProcedureResourceRecord } from '@zlayer/contracts';
@@ -7,6 +7,7 @@ import type { ProcedureSelection } from './data';
 import { airportPlateGroups } from './groups';
 import { fetchAirportSupplements, supplementCatalogUrl } from './supplements';
 import { LoadingPlaceholder } from '../../core/ui/loading-placeholder';
+import { resolvePlateNoticeContext, type PlateNoticeContext } from './page-context';
 
 type AirportPlatesProps = {
   feature: GeoPointFeature;
@@ -14,9 +15,10 @@ type AirportPlatesProps = {
   revision: string;
   savedSupplement?: SavedSupplement | undefined;
   onOpen: (selection: ProcedureSelection) => void;
+  noticeCount?: ((context: PlateNoticeContext) => ReactNode) | undefined;
 };
 
-type CatalogSource = Omit<AirportPlatesProps, 'onOpen'>;
+type CatalogSource = Omit<AirportPlatesProps, 'onOpen' | 'noticeCount'>;
 type CatalogState<T> = { source: CatalogSource; catalog?: T; loading: boolean; error?: string };
 
 export function AirportPlates({
@@ -25,6 +27,7 @@ export function AirportPlates({
   revision,
   savedSupplement,
   onOpen,
+  noticeCount,
 }: AirportPlatesProps) {
   const source = useMemo(() => ({ feature, resource, revision, savedSupplement }),
     [feature, resource, revision, savedSupplement?.catalog, savedSupplement?.url]);
@@ -60,7 +63,7 @@ export function AirportPlates({
   }, [source]);
 
   const groups = airportPlateGroups(feature,
-    procedures.catalog && resource ? { catalog: procedures.catalog, url: resource.url } : undefined,
+    procedures.catalog && resource ? { catalog: procedures.catalog, url: resource.url, resource } : undefined,
     supplements.catalog ? { catalog: supplements.catalog, url: savedSupplement?.url ?? supplementCatalogUrl(revision) } : undefined,
     window.location.href);
 
@@ -81,6 +84,7 @@ export function AirportPlates({
               <span>
                 <strong>{selection.procedure.name}</strong>
                 <small>{detail}</small>
+                {noticeCount?.(resolvePlateNoticeContext(selection, selection.document.pageIndex, procedures.catalog))}
               </span>
               <i aria-hidden="true">›</i>
             </button>

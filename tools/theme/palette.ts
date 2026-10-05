@@ -4,6 +4,14 @@ import { lightColor, type ColorRole } from './color';
  * shades without silently consolidating their appearance. Prefer named roles for new UI.
  * Light colors are always derived, never separately hand-maintained. */
 export const seeds: Record<string, { role: ColorRole; dark: string }> = {
+  'surface-tag-info': { role: 'surface', dark: '#173e60' },
+  'text-tag-info': { role: 'text', dark: '#b9dfff' },
+  'surface-tag-procedure': { role: 'surface', dark: '#3e2e60' },
+  'text-tag-procedure': { role: 'text', dark: '#ddc9ff' },
+  'surface-tag-caution': { role: 'surface', dark: '#513b16' },
+  'text-tag-caution': { role: 'text', dark: '#ffdc91' },
+  'surface-tag-danger': { role: 'surface', dark: '#602c34' },
+  'text-tag-danger': { role: 'text', dark: '#ffc5c9' },
   'brand-canvas': { role: 'fixed', dark: '#08111f' },
   'accent-51e0af': { role: 'accent', dark: '#51e0af' },
   'accent-61bfff': { role: 'accent', dark: '#61bfff' },

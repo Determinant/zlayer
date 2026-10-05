@@ -8,11 +8,11 @@ import { parseSurfaceCatalog, parseSurfaceChart, SURFACE_CATALOG } from '../src/
 import { surfaceFrame, surfaceStatus } from '../src/layers/weather-awc/progs/time';
 import { surfaceLineCurve } from '../src/layers/weather-awc/progs/curves';
 import { ProgsClient } from '../src/layers/weather-awc/progs/client';
-import { digest } from '../tools/weather-server/upstream';
-import { createWeatherServer } from '../tools/weather-server/server';
-import { WeatherCache } from '../tools/weather-server/cache';
-import { resourceFor } from '../tools/weather-server/routes';
-import { progsResource } from '../tools/weather-server/progs';
+import { digest } from '../tools/info-server/upstream';
+import { createInfoServer } from '../tools/info-server/server';
+import { WeatherCache } from '../tools/info-server/cache';
+import { resourceFor } from '../tools/info-server/routes';
+import { progsResource } from '../tools/info-server/progs';
 import { surfaceCatalog, surfaceChart } from './fixtures/wpc';
 import { WEATHER_NOW } from './fixtures/awc-advisories';
 import { cacheFixture } from './helpers/cache';
@@ -129,13 +129,138 @@ test('surface curves reproduce the captured AWC spline, preserve control points 
     'AWC reference output agrees to half the stored coordinate precision')));
   reference.controls.forEach((point: [number, number], index: number) => assert.deepEqual(curve[index * 16], point));
   assert.deepEqual(surfaceLineCurve([[0, 0], [0, 0], [0, 0]]), Array.from({ length: 33 }, () => [0, 0]));
-  assert.throws(() => surfaceLineCurve(Array.from({ length: 314 }, () => [0, 0])), /position limit/);
+  assert.throws(() => surfaceLineCurve(Array.from({ length: 5001 }, () => [0, 0])), /position limit/);
   // Closed NOAA contours use the same duplicated endpoints as AWC, not a
   // different cyclic spline. The source's closing point stays exact.
   const closed = [[-120, 40], [-118, 42], [-116, 40], [-118, 38], [-120, 40]] as [number, number][];
   const ring = surfaceLineCurve(closed);
   assert.deepEqual(ring[0], ring.at(-1));
   closed.forEach((point, i) => assert.deepEqual(ring[i * 16], point));
+});
+
+test('long source lines preserve full curves and front direction within existing client limits', () => {
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  const doc = surfaceChart(chart.file);
+  const controls: [number, number][] = Array.from({ length: 400 }, (_, i) => [-120 + i / 100, 40 + Math.sin(i / 20)]);
+  doc.features.find(f => f.properties.type === 1)!.geometry = { type: 'LineString', coordinates: controls };
+  const cold = doc.features.find(f => f.properties.fcode === 420)!;
+  cold.properties.fpipdr = 2; cold.geometry = { type: 'LineString', coordinates: controls };
+  const text = JSON.stringify(doc), frame = parseSurfaceChart(text, chart, WEATHER_NOW, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }));
+  for (const kind of ['ISOBAR', 'COLD']) {
+    const feature = frame.features.find(f => f.kind === kind)!;
+    assert.equal(feature.geometry.type, 'MultiLineString');
+    if (feature.geometry.type !== 'MultiLineString') throw new Error('Expected bounded curve parts');
+    const lines = feature.geometry.coordinates;
+    assert.deepEqual(lines.map(line => line.length), [5000, 1386]);
+    assert.deepEqual(lines[0]!.at(-1), lines[1]![0], 'adjacent parts share the join');
+    const joined = [...lines[0]!, ...lines[1]!.slice(1)];
+    const expected = surfaceLineCurve(controls);
+    assert.deepEqual(joined, kind === 'COLD' ? expected.reverse() : expected);
+  }
+});
+
+test('the captured October long isobar no longer rejects its whole forecast family', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20261004_12_F072-isobar-excerpt.geojson', import.meta.url), 'utf8');
+  const frame = parseSurfaceChart(text, { file: '20261004_12_F072_wpc.geojson', forecastHour: 72,
+    referenceTime: Date.parse('2026-10-04T12:00:00Z'), validTime: Date.parse('2026-10-07T12:00:00Z'),
+    source: 'https://aviationweather.gov/data/products/wpc/20261004/20261004_12_F072_wpc.geojson',
+  }, Date.parse('2026-10-05T00:20:00Z'), hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'forecast', frame }));
+  assert.ok(surfacePositions(frame) >= 6385, 'all 399 sixteen-part source segments survive');
+  assert.equal(frame.sourceDocument, text);
+});
+
+test('a captured one-point trough retains its source and location without inventing a line extent', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20261004_12_F168-single-point-trough.geojson', import.meta.url), 'utf8');
+  const frame = parseSurfaceChart(text, { file: '20261004_12_F168_wpc.geojson', forecastHour: 168,
+    referenceTime: Date.parse('2026-10-04T12:00:00Z'), validTime: Date.parse('2026-10-11T12:00:00Z'),
+    source: 'https://aviationweather.gov/data/products/wpc/20261004/20261004_12_F168_wpc.geojson',
+  }, Date.parse('2026-10-05T00:20:00Z'), hash(text));
+  const raw = JSON.parse(text);
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'forecast', frame }));
+  assert.equal(frame.features.length, raw.features.length - 1, 'the degenerate source record is retained');
+  const trough = frame.features.find(feature => feature.kind === 'TROF')!;
+  assert.equal(trough.id, `${hash(text)}:2`);
+  assert.deepEqual(trough.sourceProperties, raw.features[2].properties);
+  assert.deepEqual(trough.geometry, { type: 'LineString', coordinates: [[-100.37, 29.39], [-100.37, 29.39]] });
+  assert.equal(frame.sourceDocument, text, 'the original single coordinate remains in the raw document');
+});
+
+test('a captured unclassified NOAA point stays visible and retains its exact source information', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20261003_12_F120-unknown-point.geojson', import.meta.url), 'utf8');
+  const chart = { file: '20261003_12_F120_wpc.geojson', forecastHour: 120,
+    referenceTime: Date.parse('2026-10-03T12:00:00Z'), validTime: Date.parse('2026-10-08T12:00:00Z'),
+    source: 'https://aviationweather.gov/data/products/wpc/20261003/20261003_12_F120_wpc.geojson' };
+  const checkedAt = Date.parse('2026-10-04T12:00:00Z');
+  const frame = parseSurfaceChart(text, chart, checkedAt, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'forecast', frame }));
+  assert.equal(frame.features.length, 2);
+  assert.equal(frame.sourceDocument, text);
+  const point = frame.features[1]!;
+  assert.deepEqual(point, { id: `${hash(text)}:2`, kind: 'LABEL', text: '?',
+    geometry: { type: 'Point', coordinates: [-125.5, 22.7] }, sourceProperties: { type: 15, code: 'unk' } });
+  const invalid = JSON.parse(text);
+  invalid.features[2].properties.code = 'new-unsupported-code';
+  const unsupported = JSON.stringify(invalid);
+  assert.throws(() => parseSurfaceChart(unsupported, chart, checkedAt, hash(unsupported)), /Unsupported NOAA point.*20261003_12_F120.*feature 2/);
+  invalid.features[2].properties.code = 'unk'; invalid.features[2].geometry.coordinates = [-125.5, 91];
+  assert.throws(() => parseSurfaceChart(JSON.stringify(invalid), chart, checkedAt, hash(text)), /Invalid NOAA chart coordinate/);
+});
+
+test('one-point line support still rejects empty, invalid and unsupported source geometry', () => {
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  for (const geometry of [
+    { type: 'LineString', coordinates: [] },
+    { type: 'LineString', coordinates: [[-100, 91]] },
+    { type: 'Point', coordinates: [-100, 29] },
+    { type: 'LineString', coordinates: Array.from({ length: 5001 }, () => [-100, 29]) },
+  ]) {
+    const doc = surfaceChart(chart.file);
+    doc.features.find(feature => feature.properties.fcode === 840)!.geometry = geometry;
+    const text = JSON.stringify(doc);
+    assert.throws(() => parseSurfaceChart(text, chart, WEATHER_NOW, hash(text)), /Invalid NOAA chart (line|coordinate)/);
+  }
+  const doc = surfaceChart(chart.file), trough = doc.features.find(feature => feature.properties.fcode === 840)!;
+  trough.geometry = { type: 'LineString', coordinates: [[-100, 29]] }; trough.properties.fcode = 999;
+  const text = JSON.stringify(doc);
+  assert.throws(() => parseSurfaceChart(text, chart, WEATHER_NOW, hash(text)), /Unsupported NOAA front/);
+});
+
+test('a full curve part can cross the date line without overflowing or dropping its join', () => {
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  const doc = surfaceChart(chart.file);
+  // The crossing falls between prepared positions 4,999 and 5,000, when the
+  // first delivery part is already full and still needs its date-line endpoint.
+  const controls: [number, number][] = Array.from({ length: 400 }, (_, i) => [180 - 4999.5 / 16000 + i / 1000, 40]);
+  doc.features.find(f => f.properties.type === 1)!.geometry = { type: 'LineString', coordinates: controls };
+  const text = JSON.stringify(doc), frame = parseSurfaceChart(text, chart, WEATHER_NOW, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }));
+  const geometry = frame.features.find(f => f.kind === 'ISOBAR')!.geometry;
+  if (geometry.type !== 'MultiLineString') throw new Error('Expected bounded curve parts');
+  const [first, edge, last] = geometry.coordinates;
+  assert.deepEqual(geometry.coordinates.map(line => line.length), [5000, 2, 1386]);
+  assert.deepEqual(first!.at(-1), edge![0]);
+  assert.deepEqual(edge!.at(-1), [180, 40]); assert.deepEqual(last![0], [-180, 40]);
+  assert.equal(first!.length + last!.length - 1, (controls.length - 1) * 16 + 1, 'every spline position remains');
+  for (const line of geometry.coordinates) for (let i = 1; i < line.length; i++) {
+    assert.ok(Math.abs(line[i]![0] - line[i - 1]![0]) <= 180, 'no segment spans the map');
+  }
+});
+
+test('accepting long source curves does not bypass the overall prepared position budget', () => {
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  const doc = surfaceChart(chart.file);
+  const controls: [number, number][] = Array.from({ length: 5000 }, (_, i) => [-120 + i / 1000, 40]);
+  const isobar = { type: 'Feature', properties: { type: 1 }, geometry: { type: 'LineString', coordinates: controls } };
+  doc.features = [doc.features[0]!, isobar];
+  let text = JSON.stringify(doc), frame = parseSurfaceChart(text, chart, WEATHER_NOW, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }));
+  assert.equal(surfacePositions(frame), 79985 + 15, 'all subdivisions and the fifteen shared joins remain');
+  doc.features.push(...Array.from({ length: 5 }, () => isobar));
+  text = JSON.stringify(doc); frame = parseSurfaceChart(text, chart, WEATHER_NOW, hash(text));
+  assert.ok(surfacePositions(frame) > 400_000);
+  assert.equal(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }), false);
 });
 
 test('source labels remain independent; directed fronts reverse their pips and split at the date line', () => {
@@ -237,9 +362,16 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
       if (failForecast && file.includes('F168')) return new Response(null, { status: 404 });
       if (failAnalysis && file.includes('F000')) doc.features[1]!.properties.type = 999;
       if (correction && file.includes('F000')) doc.features[2]!.properties.text = '1025';
+      if (file.includes('F072')) doc.features.find(f => f.properties.type === 1)!.geometry = {
+        type: 'LineString', coordinates: Array.from({ length: 400 }, (_, i) => [-120 + i / 100, 40]),
+      };
+      if (file.includes('F168')) doc.features.find(f => f.properties.fcode === 840)!.geometry = {
+        type: 'LineString', coordinates: [[-100.37, 29.39]],
+      };
+      if (file.includes('F120')) doc.features.find(f => f.properties.type === 15)!.properties.code = 'unk';
       return Response.json(doc);
     }) as typeof fetch };
-  const app = await createWeatherServer(options);
+  const app = await createInfoServer(options);
   t.after(() => app.close());
   await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
   const address = app.server.address(); assert.ok(address && typeof address === 'object');
@@ -248,6 +380,8 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   app.progs.refresh(); await app.progs.close();
   const initialCalls = surfaceCatalog().prog.length + 1;
   assert.equal(calls, initialCalls, 'both families share one catalog acquisition');
+  assert.equal(app.progs.status.forecast!.ready, true, 'long curves, a one-point trough and an unclassified symbol publish a complete forecast');
+  assert.equal(app.progs.status.forecast!.error, undefined);
   const first = await fetch(url);
   let text = await first.text();
   assert.equal(first.headers.get('x-weather-cache'), 'HIT');
@@ -276,7 +410,7 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   const latest = (await app.cache.read(progsResource('analysis')))!.body.toString();
   assert.equal(app.progs.status.analysis!.checkedAt, now);
   await app.close();
-  const beforeRestart = calls, restarted = await createWeatherServer(options); t.after(() => restarted.close());
+  const beforeRestart = calls, restarted = await createInfoServer(options); t.after(() => restarted.close());
   assert.equal((await restarted.cache.read(progsResource('analysis')))?.body.toString(), latest);
   assert.equal(restarted.progs.status.analysis!.ready, true); assert.equal(calls, beforeRestart);
   now += 6 * 60_000; rollback = true; failForecast = false;
@@ -291,7 +425,7 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   const correctedChart = JSON.parse((await restarted.cache.read(resourceFor(`/api/weather/progs/${corrected.frames[0].path}`)))!.body.toString());
   assert.equal(correctedChart.frame.features[1].text, '1025');
   await restarted.close();
-  const afterCorrection = calls, freshRestart = await createWeatherServer(options); t.after(() => freshRestart.close());
+  const afterCorrection = calls, freshRestart = await createInfoServer(options); t.after(() => freshRestart.close());
   freshRestart.progs.refresh(); await freshRestart.progs.close();
   assert.equal(calls, afterCorrection, 'fresh prepared families survive a restart without immediate source acquisition');
   assert.equal(freshRestart.progs.status.forecast!.ready, true);
@@ -303,7 +437,7 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   await freshRestart.cache.put(resource, { ...prepared, body: legacyBody, sha256: digest(legacyBody),
     headers: { ...prepared.headers, 'x-weather-catalog': 'wpc-surface-v2-cardinal-v1' } });
   await freshRestart.close();
-  const migrated = await createWeatherServer(options); t.after(() => migrated.close());
+  const migrated = await createInfoServer(options); t.after(() => migrated.close());
   assert.equal(migrated.progs.status.analysis!.ready, false, 'charts with straight isobars cannot masquerade as the new processor output');
   assert.equal(migrated.progs.status.forecast!.ready, true);
   migrated.progs.refresh(); await migrated.progs.close();
@@ -323,7 +457,7 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   await migrated.cache.discard(repairedArtifact);
   assert.equal(migrated.progs.status.analysis!.ready, false, 'a catalog alone is not a ready chart family');
   await migrated.close();
-  const incomplete = await createWeatherServer(options); t.after(() => incomplete.close());
+  const incomplete = await createInfoServer(options); t.after(() => incomplete.close());
   assert.equal(incomplete.progs.status.analysis!.ready, false);
 });
 

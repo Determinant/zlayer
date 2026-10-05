@@ -1,0 +1,17 @@
+# The info-server build needs only these sources. Keep local caches and FAA
+# credentials out of the build context.
+**
+!package.json
+!package-lock.json
+!tsconfig*.json
+!packages/
+!packages/**
+packages/*/node_modules
+packages/*/dist
+!src/
+!src/**
+!tools/
+!tools/check-info-api.ts
+!tools/info-server/
+!tools/info-server/**
+tools/info-server/dist

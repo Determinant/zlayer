@@ -19,7 +19,7 @@ and physical-device performance qualification remain future work.
 
 ## Preparation and display
 
-`tools/weather-server/radar.ts` checks the NOAA MRMS public S3 bucket and 45 TDWR
+`tools/info-server/radar.ts` checks the NOAA MRMS public S3 bucket and 45 TDWR
 `tgftp.nws.noaa.gov` latest-product files in the background. Two isolated Node
 worker slots decode and contour changed scans; a 60-second deadline bounds each job.
 National checks have one slot; terminal checks use the other and publish partial
@@ -196,7 +196,7 @@ national preparation retries after 30 seconds. Terminal rounds wait 60 seconds
 after completion before repeating. Source checks share a two-request,
 250 ms spacing queue with overload backoff.
 
-The shared weather-server disk ceiling includes radar. History uses at most one
+The shared info-server disk ceiling includes radar. History uses at most one
 quarter of the configured disk ceiling, capped at 1 GiB, counting both saved HTTP
 encodings. National history receives
 priority; newer terminal samples use the remaining allowance. Small budgets and

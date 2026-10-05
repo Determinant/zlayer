@@ -38,7 +38,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   let map: MapLibreMap | undefined, input: GlideMapInput = { retry: 0 }, generation = 0;
   let client: WorkerClient<GlideWorker> | undefined;
   let running: { id: number; controller: AbortController } | undefined, queued = false;
-  let followingGps = false;
+  let followingGps = false, waitingForCamera = false;
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let airportData: { key: string; collection: FeatureCollectionResponse; partial: boolean } | undefined;
   let lastStatus: GlideStatus = { state: 'idle' };
@@ -52,7 +52,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   let pinKey: string | undefined;
   let sources = terrainSources(undefined), sourceKey = '';
   type Source = { submission: ReturnType<typeof createSourceSubmission>; data?: FeatureCollection;
-    timer?: ReturnType<typeof setTimeout> | undefined; retried: boolean; failed: boolean };
+    upload?: AbortController | undefined; timer?: ReturnType<typeof setTimeout> | undefined; retried: boolean; failed: boolean };
   const submissions = new Map<string, Source>();
   let ownshipSubmission = 0;
   const status = (next: GlideStatus) => {
@@ -71,15 +71,18 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     source.data = data;
     if (!retry) { source.retried = false; clearTimeout(source.timer); source.timer = undefined; }
     if (!data.features.length) visibility(id, false);
+    source.upload?.abort();
+    const upload = source.upload = new AbortController();
     const version = source.submission.begin();
     try {
-      const accepted = await source.submission.submit(version, data);
+      const accepted = await withAbort(source.submission.submit(version, data), upload.signal);
       if (accepted) {
         visibility(id, data.features.length > 0);
         if (source.failed) { source.failed = false; status(lastStatus); }
       }
       return accepted;
     } catch (error) { source.submission.reject(version, error); return false; }
+    finally { if (source.upload === upload) source.upload = undefined; }
   };
   const retrySubmissions = () => {
     for (const [id, source] of submissions) if (source.failed && source.timer === undefined && source.data) void write(id, source.data, true);
@@ -105,6 +108,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     for (const failedId of ownship ? [OWN, OWN_AREA] : [id]) {
       const source = submissions.get(failedId)!;
       source.submission.invalidate();
+      source.upload?.abort();
       if (target) source.data = failedId === OWN ? target.line : target.area;
       source.failed = true; visibility(failedId, false);
       if (!source.retried && source.data) {
@@ -188,14 +192,16 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   const release = () => { running?.controller.abort(); client?.dispose(); client = undefined; running = undefined; };
   const schedule = () => {
     cancel();
-    if (!map || !input.enabled || !input.catalog) { clear(); release(); recoveryNeeded = false; status({ state: 'idle' }); return; }
+    if (!map || !input.enabled || !input.catalog) { waitingForCamera = false; clear(); release(); recoveryNeeded = false; status({ state: 'idle' }); return; }
     showPin();
     if (document.hidden) { ownshipAnimation.finish(); return; }
     status({ ...lastStatus, state: map.getZoom() < 7 ? 'zoom' : 'loading' });
     timer = setTimeout(() => { timer = undefined; void calculate(); }, 180);
   };
   async function calculate() {
-    if (!map || !input.enabled || !input.catalog || document.hidden || map.isMoving() && !followingGps) return;
+    if (!map || !input.enabled || !input.catalog || document.hidden) return;
+    if (map.isMoving() && !followingGps) { waitingForCamera = true; return; }
+    waitingForCamera = false;
     if (running !== undefined) { queued = true; return; }
     const id = generation, catalog = input.catalog, ratio = input.ratio!, altitude = input.altitude!;
     const job = { id, controller: new AbortController() };
@@ -244,7 +250,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
         // discovery gate forbids terrain acquisition, not reconciliation.
         result = await client.call(remote => remote.calculate({ id, discover, airports, airportsEnabled: input.airportsEnabled !== false, altitude, ratio, viewport, segments, ownship, point, ...(input.pointElevationFt === undefined ? {} : { pointElevationFt: input.pointElevationFt }), sources,
           sourceKey, airportKey: airportInputKey, ...(acceptedPlanKey === undefined ? {} : { acceptedPlanKey }), base: location.href,
-          tileUrl: import.meta.env.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
+          tileUrl: import.meta.env?.VITE_ZLAYERS_TERRAIN_TILE_URL?.trim() || DEFAULT_ELEVATION_URL }));
         if (id !== generation || !map) return;
         publish(result, { ownship, point });
         recoveryNeeded ||= result.incomplete || !!result.ownship?.incomplete || !!result.point?.incomplete;
@@ -271,6 +277,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
   const moving = (event: { type: string; gpsCamera?: boolean }) => {
     followingGps = event.gpsCamera === true;
     if (followingGps) return;
+    waitingForCamera = true;
     ownshipAnimation.finish();
     cancel(); if (input.enabled) status({ ...lastStatus, state: 'loading' });
   };
@@ -283,6 +290,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     if (running) queued = true;
     else if (timer === undefined && input.enabled) timer = setTimeout(() => { timer = undefined; void calculate(); }, 180);
   };
+  const idle = () => { if (waitingForCamera && map && !map.isMoving() && timer === undefined) schedule(); };
   return { id: 'glide', slot: 'weather',
     coordinateAt(point) {
       if (!map || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -324,7 +332,7 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
           submission: createSourceSubmission(map, id, () => sourceFailed(id)) };
         submissions.set(id, source);
       }
-      map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule);
+      map.on('movestart', moving); map.on('moveend', moved); map.on('resize', schedule); map.on('idle', idle);
       window.addEventListener('online', recover); document.addEventListener('visibilitychange', schedule);
       stopInventory = observeOfflineInventory(inventory); clear(); schedule();
     },
@@ -370,15 +378,15 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     },
     unmount() {
       planSubmission++; acceptedPlanKey = publishedPlanKey = undefined;
-      for (const source of submissions.values()) { clearTimeout(source.timer); source.submission.destroy(); }
+      for (const source of submissions.values()) { clearTimeout(source.timer); source.submission.destroy(); source.upload?.abort(); }
       submissions.clear();
       rangeAreas.clear(); publishRanges();
       ownshipAnimation.reset();
       cancel(); release(); airportData = undefined; recoveryNeeded = false;
       stopInventory?.(); stopInventory = undefined;
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', schedule);
-      if (map) { map.off('movestart', moving); map.off('moveend', moved); map.off('resize', schedule); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
-      followingGps = false;
+      if (map) { map.off('movestart', moving); map.off('moveend', moved); map.off('resize', schedule); map.off('idle', idle); removeLayerResources(map, [...LAYERS].reverse(), [AREA, AIRPORTS, OWN, OWN_AREA, POINT, POINT_AREA, PIN]); }
+      followingGps = waitingForCamera = false;
       map = undefined; status({ state: 'idle' });
     },
   };

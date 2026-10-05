@@ -3,12 +3,12 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { WeatherCache } from '../tools/weather-server/cache';
-import { discover } from '../tools/weather-server/discovery';
-import { forecastResource } from '../tools/weather-server/processing';
-import { HttpError, InvalidForecastSourceError, resourceFor } from '../tools/weather-server/routes';
-import { digest, type Payload } from '../tools/weather-server/upstream';
-import { createForecastWarming, PUBLISHED_CATALOG } from '../tools/weather-server/warming';
+import { WeatherCache } from '../tools/info-server/cache';
+import { discover } from '../tools/info-server/discovery';
+import { forecastResource } from '../tools/info-server/processing';
+import { HttpError, InvalidForecastSourceError, resourceFor } from '../tools/info-server/routes';
+import { digest, type Payload } from '../tools/info-server/upstream';
+import { createForecastWarming, PUBLISHED_CATALOG } from '../tools/info-server/warming';
 import type { NativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
 

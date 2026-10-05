@@ -3,6 +3,28 @@ import test from 'node:test';
 import { OnDemandRefresh } from '../src/core/layers/on-demand-refresh';
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
+test('a product deadline overrides one interval, then default and failure intervals resume', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let calls = 0;
+  const refresh = new OnDemandRefresh({ intervalMs: 60_000, retryIntervalMs: 10_000, debounceMs: 0,
+    refresh: async () => {
+      calls++;
+      if (calls === 1) return 1000;
+      if (calls === 3) throw new Error('Refresh failed');
+      return undefined;
+    }, onState() {}, onError() {},
+  });
+  t.after(() => refresh.destroy());
+  const advance = async (ms: number) => { t.mock.timers.tick(ms); await flush(); };
+  refresh.setDemand(['airport'], true); await advance(0);
+  await advance(999); assert.equal(calls, 1);
+  await advance(1); assert.equal(calls, 2);
+  await advance(59_999); assert.equal(calls, 2);
+  await advance(1); assert.equal(calls, 3);
+  await advance(9999); assert.equal(calls, 3);
+  await advance(1); assert.equal(calls, 4);
+});
+
 test('failures use the optional retry interval; success restores normal polling and disabling cancels retries', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let calls = 0, fail = true;
