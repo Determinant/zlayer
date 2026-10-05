@@ -2,7 +2,7 @@ import type { NotamRecord } from '@zlayer/contracts';
 import type { PlateNoticeContext } from '../plates/public';
 import { normalizeRunway, parseNotam, type ParsedNotam } from './parser';
 
-export const NOTAM_MATCHER_VERSION = 3;
+export const NOTAM_MATCHER_VERSION = 4;
 export type PlateNotamMatch = { record: NotamRecord; parsed: ParsedNotam; outcome: 'applies' | 'review'; reason: string };
 const numbers = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
   'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY'];
@@ -22,8 +22,8 @@ function procedureAliases(title: string, named: boolean): string[] {
 }
 
 export function matchPlateNotams(records: readonly NotamRecord[], context: PlateNoticeContext) {
-  const matches: PlateNotamMatch[] = []; let unresolved = 0;
-  if (context.status !== 'resolved' || !context.procedure || !context.airport) return { matches, unresolved, available: false };
+  const matches: PlateNotamMatch[] = [], unresolvedNotices: NotamRecord[] = [];
+  if (context.status !== 'resolved' || !context.procedure || !context.airport) return { matches, unresolved: 0, unresolvedNotices, available: false };
   const plate = context.procedure, named = plate.kind !== 'approach';
   const titles = procedureAliases(plate.name, named);
   const runway = /\bRWY\s+(\d{1,2}[LRC]?)\b/i.exec(plate.name)?.[1];
@@ -35,13 +35,13 @@ export function matchPlateNotams(records: readonly NotamRecord[], context: Plate
     if (!(context.airport.faaId && record.locations.includes(context.airport.faaId)) &&
         !(context.airport.icaoId && record.icaoLocations.includes(context.airport.icaoId))) continue;
     const parsed = parseNotam(record);
+    if (parsed.unresolved) unresolvedNotices.push(record);
     const kind = parsed.subject === 'IAP' ? 'approach' : parsed.subject === 'SID' || parsed.subject === 'ODP' ? 'departure'
       : parsed.subject === 'STAR' ? 'arrival' : undefined;
     const target = parsed.targets.find(t => procedureAliases(t.title, named).some(v => titles.includes(v)));
     if (kind === plate.kind && (target || parsed.broad && plate.kind === 'approach')) {
       const amendment = target?.amendment, displayed = plate.source.amendmentNumber;
       const differs = !!amendment && (!displayed || amendment.replace(/^AMDT\s*/i, '') !== displayed.replace(/^AMDT\s*/i, ''));
-      if (parsed.broadRestricted) unresolved++;
       matches.push({ record, parsed, outcome: differs || parsed.broadRestricted ? 'review' : 'applies', reason: parsed.broadRestricted
         ? 'Addresses all approaches with an exclusion or condition. Review applicability to this plate.' : differs
         ? `Procedure matches; notice amendment ${amendment}, displayed plate ${displayed ?? 'unknown'}. Review applicability.`
@@ -53,15 +53,13 @@ export function matchPlateNotams(records: readonly NotamRecord[], context: Plate
       if (supported && usesFacility) matches.push({ record, parsed, outcome: 'applies',
         reason: `Explicit ${facility} outage for runway ${runway} used by this procedure. Read the stated effect and exceptions.` });
       else if (!supported) {
-        unresolved++;
         matches.push({ record, parsed, outcome: 'review', reason: `Runway ${runway} matches; the ${facility} dependency is unconfirmed.` });
       }
     } else if (runway && parsed.runwayTargets.includes(normalizeRunway(runway))) {
       matches.push({ record, parsed, outcome: 'applies', reason: `Addresses runway ${runway} used by this procedure. Read the stated effect and exceptions.` });
     } else if (parsed.procedureNotice && kind === plate.kind && parsed.unresolved) {
-      unresolved++;
       matches.push({ record, parsed, outcome: 'review', reason: 'Airport procedure notice; its target could not be resolved. Review applicability.' });
-    } else if (parsed.unresolved) unresolved++;
+    }
   }
-  return { matches, unresolved, available: true };
+  return { matches, unresolved: unresolvedNotices.length, unresolvedNotices, available: true };
 }

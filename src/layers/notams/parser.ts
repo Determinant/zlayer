@@ -1,6 +1,7 @@
 import type { NotamRecord } from '@zlayer/contracts';
+import { qualifiedFdcLocalText } from './source-text';
 
-export const NOTAM_PARSER_VERSION = 5;
+export const NOTAM_PARSER_VERSION = 7;
 const subjects: Record<string, string> = { RWY: 'Runway', TWY: 'Taxiway', APRON: 'Apron', AD: 'Aerodrome',
   OBST: 'Obstruction', NAV: 'Navigation', COM: 'Communications', SVC: 'Services', AIRSPACE: 'Airspace',
   ODP: 'Departure', SID: 'Departure', STAR: 'Arrival', CHART: 'Chart', DATA: 'Data', DVA: 'Vector Area',
@@ -25,22 +26,54 @@ export function localNotamContent(body: string, record?: Pick<NotamRecord, 'loca
 const approachTitle = /(?:HI\s*-\s*)?(?:COPTER\s+)?(?:ILS(?:\s+[XYZ])?\s+OR\s+LOC(?:\/DME)?|ILS(?:\/DME)?|LOC(?:\/DME)?(?:\s+BC)?|RNAV\s*\((?:GPS|RNP)\)|RNAV|VOR(?:\/DME)?(?:\s+OR\s+TACAN)?|TACAN|NDB(?:\/DME)?|LDA(?:\/DME)?|SDF|GLS)(?:\s+[XYZ])?(?:\s+RWY\s+\d{1,2}[LRC]?|-[A-Z])\s*$/i;
 const incidentalHeading = /\b(?:MISSED|EXC|EXCEPT|OBST|CRANE|NOTE|TRANSITION|CIRCLING|SEE|SPECIAL)\b/i;
 const headingPrefix = (prefix: string) => !incidentalHeading.test(prefix) && (!prefix.trim() || /[.,]\s*$/.test(prefix));
+// A later quoted or conditional procedure name is not another affected heading.
+const headingNarrative = /\b(?:MISSED|EXC|EXCEPT|EXCLUDING|OBST|CRANE|NOTES?|TRANSITIONS?|CIRCLING|SEE|DISREGARD|DELETE|ADD|CHANGE|IF|WHEN|UNLESS|PROVIDED)\b/i;
+const amendmentSuffix = /,\s*(?:AMDT\s+([A-Z0-9-]+)|ORIG(?:INAL)?(?:-([A-Z0-9]+))?)\s*$/i;
 
 function procedureTargets(content: string, subject: string | undefined, body: string, header: number) {
   const targets: NotamTarget[] = []; let limited = false;
+  const namedHeadingStop = Math.min(incidentalHeading.exec(content)?.index ?? content.length,
+    /\b(?:DISREGARD|DELETE|ADD|CHANGE|IF|WHEN|UNLESS)\b/i.exec(content)?.index ?? content.length);
   const add = (title: string, start: number, amendment?: string) => {
     if (targets.some(t => t.title === title && t.amendment === amendment)) return;
     if (targets.length >= MAX_TARGETS) { limited = true; return; }
     targets.push({ title, ...(amendment ? { amendment } : {}), evidence: evidence(body, header + start, title.length) });
   };
+  if (subject === 'IAP') {
+    // Parse each heading independently, with or without an amendment. One valid
+    // heading does not establish coverage of the rest of a multi-procedure notice.
+    const stop = headingNarrative.exec(content)?.index ?? content.length;
+    for (const clause of content.slice(0, stop).matchAll(/[^.\n;]+/g)) {
+      const source = clause[0], offset = clause.index;
+      if (source.length > MAX_HEADING_LENGTH) { limited = true; continue; }
+      const amendment = amendmentSuffix.exec(source);
+      const heading = (amendment ? source.slice(0, amendment.index) : source).replace(/^\s*IAP\s+/, '');
+      const match = approachTitle.exec(heading);
+      if (match && !heading.slice(0, match.index).trim()) {
+        const title = match[0].trim();
+        add(title, offset + source.indexOf(title), amendment ? amendment[1] ?? (amendment[2] ? `ORIG-${amendment[2]}` : 'ORIG') : undefined);
+      } else if (match || amendment || /\bRWY\s+\d{1,2}[LRC]?\s*$/i.test(heading)) {
+        // Preserve unsupported prefixes and compound headings as uncertainty;
+        // never rescue a familiar suffix and claim the whole target was parsed.
+        limited = true;
+      }
+    }
+    return { targets, limited };
+  }
   // Scan delimiters once, then apply title grammar only to a bounded prefix.
   // An unanchored "anything before AMDT" expression retries every suffix of a long line.
   for (const line of content.matchAll(/[^\n;]+/g)) {
     const text = line[0], offset = line.index!;
-    if ((subject === 'SID' || subject === 'STAR') && text.length <= MAX_HEADING_LENGTH) {
-      const named = /^\s*([A-Z][A-Z0-9 '-]{1,100}?)\s+(DEPARTURE|ARRIVAL)(?:\s*,\s*AMDT\s+([A-Z0-9-]+))?\s*\.{2,}/i.exec(text);
-      if (named && (subject === 'SID') === (named[2]!.toUpperCase() === 'DEPARTURE')) {
-        const title = named[1]!.trim(); add(title, offset + named[0].indexOf(title), named[3]);
+    if (subject === 'SID' || subject === 'STAR') {
+      // Publisher line wrapping is not a heading boundary. Flat local renderings
+      // can put the airport and several complete procedure headings on one line.
+      for (const clause of text.matchAll(/[^.]+/g)) {
+        if (offset + clause.index + clause[0].length > namedHeadingStop || clause[0].length > MAX_HEADING_LENGTH ||
+          !text.startsWith('..', clause.index + clause[0].length)) continue;
+        const named = /^\s*([A-Z][A-Z0-9 '-]{1,100}?)\s+(DEPARTURE|ARRIVAL)(?:\s*,\s*AMDT\s+([A-Z0-9-]+))?\s*$/i.exec(clause[0]);
+        if (named && (subject === 'SID') === (named[2]!.toUpperCase() === 'DEPARTURE')) {
+          const title = named[1]!.trim(); add(title, offset + clause.index + named[0].indexOf(title), named[3]);
+        }
       }
     }
     let start = 0;
@@ -56,33 +89,22 @@ function procedureTargets(content: string, subject: string | undefined, body: st
       add(title, offset + prefixStart + prefix.lastIndexOf(title), marker[1] ?? (marker[2] ? `ORIG-${marker[2]}` : 'ORIG'));
     }
   }
-  if (!targets.length && subject === 'IAP') {
-    const first = content.split(/[\n;]/, 1)[0] ?? '';
-    if (first.length <= MAX_HEADING_LENGTH) {
-      // Match complete heading clauses, so an unsupported qualifier cannot be
-      // discarded by starting again at the ILS/LOC suffix.
-      for (const clause of first.matchAll(/[^.]+/g)) {
-        const match = approachTitle.exec(clause[0]);
-        if (match && headingPrefix(first.slice(0, clause.index! + match.index))) {
-          add(match[0].trim(), clause.index! + match.index);
-        }
-      }
-    }
-  }
   return { targets, limited };
 }
 
 /** Derive only supported clauses; retain the full body for presentation and source evidence. */
 export function parseNotam(record: NotamRecord): ParsedNotam {
   const cached = parsedRecords.get(record); if (cached) return cached;
-  const body = record.text || record.translations.find(t => t.type === 'LOCAL_FORMAT')?.text || record.translations[0]?.text || '';
+  let body = record.text || record.translations.find(t => t.type === 'LOCAL_FORMAT')?.text || record.translations[0]?.text || '';
+  const keyword = /^\s*([A-Z]+)\b/i.exec(localNotamContent(body, record))?.[1]?.toUpperCase();
+  if (!keyword || !subjects[keyword]) body = qualifiedFdcLocalText(record) ?? body;
   // Local-format headers identify the notice; a SEE FDC pointer never changes its class.
   const header = body.length - localNotamContent(body, record).length;
   const content = body.slice(header, header + MAX_PARSE_LENGTH), subjectMatch = /^\s*([A-Z]+)\b/i.exec(content);
-  const keyword = subjectMatch?.[1]?.toUpperCase(), subject = keyword && subjects[keyword] ? keyword : undefined;
+  const subjectKeyword = subjectMatch?.[1]?.toUpperCase(), subject = subjectKeyword && subjects[subjectKeyword] ? subjectKeyword : undefined;
   const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP'].includes(subject ?? '');
   const broad = subject === 'IAP' && /^\s*ALL\s+(?:IAPS|INSTRUMENT\s+APPROACH\s+PROCEDURES)\b/i.test(content.slice(subjectMatch?.[0].length ?? 0));
-  const broadRestricted = broad && /\b(?:EXC|EXCEPT|EXCLUDING|OTHER\s+THAN|ONLY|WHEN|UNLESS)\b/i.test(content);
+  const broadRestricted = broad && /\b(?:EXC|EXCEPT|EXCLUDING|OTHER\s+THAN|ONLY|IF|WHEN|UNLESS|PROVIDED)\b/i.test(content);
   const { targets, limited } = procedureNotice ? procedureTargets(content, subject, body, header) : { targets: [], limited: false };
   const flairs: NotamFlair[] = [];
   let flairLimit = false;

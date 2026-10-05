@@ -244,13 +244,30 @@ export function AirportNotams({ api, query, active }: { api: NotamsApi; query: N
     {view.snapshot && !shown.length && <p className="notam-list-status">{records.length ? 'No notices match these filters.' : 'No retained notices.'}</p>}
   </section>;
 }
+/** Rows and the collapsed reader use exactly the same assurance qualifiers. */
+function plateMatchLabel(view: View, result: ReturnType<typeof matchPlateNotams>): string {
+  if (!view.snapshot) return view.entry?.loading ? 'Checking…' : 'Unavailable';
+  const review = result.matches.filter(m => m.outcome === 'review').length;
+  const labels = [`${result.matches.length} matched`];
+  if (review) labels.push(`${review} review`);
+  if (result.unresolved) labels.push('Interpretation limited');
+  if (view.snapshot.issues?.length) labels.push('Source data needs review');
+  else if (!view.complete) labels.push('Coverage incomplete');
+  if (!view.online) labels.push('Offline');
+  if (view.entry?.error) labels.push('Refresh failed');
+  if (!view.staging) {
+    if (!view.fresh) labels.push('Stale');
+    if (view.snapshot.feed.state === 'degraded' && view.snapshot.feed.error !== 'unresolved-records') labels.push('Feed degraded');
+  }
+  return labels.join(' · ');
+}
 export function PlateNotamCount({ api, context, active }: { api: NotamsApi; context: PlateNoticeContext; active: boolean }) {
   const view = useAirportNotams(api, context.status === 'resolved' ? context.airport : undefined, active);
   const result = useMemo(() => matchPlateNotams(currentRecords(view.snapshot?.records ?? [], view.now), context), [view.snapshot, view.now, context]);
   if (context.status !== 'resolved') return null;
   const count = result.matches.length, sourceIssues = view.snapshot?.issues?.length ?? 0;
-  return <small className={`plate-notam-count${count || sourceIssues ? ' has-notams' : ''}`}>NOTAM · {view.snapshot
-    ? `${count} matched${result.matches.some(m => m.outcome === 'review') ? ' · Review' : ''}${sourceIssues ? ' · Source data needs review' : !view.complete ? ' · Coverage incomplete' : ''}`
+  return <small className={`plate-notam-count${count || sourceIssues || result.unresolved ? ' has-notams' : ''}`}>NOTAM · {view.snapshot
+    ? plateMatchLabel(view, result)
     : view.entry?.loading ? 'Checking…' : 'Unavailable'}</small>;
 }
 export function PlateNotams({ api, context, active, retryCatalog }: {
@@ -262,10 +279,12 @@ export function PlateNotams({ api, context, active, retryCatalog }: {
   const result = useMemo(() => matchPlateNotams(currentRecords(view.snapshot?.records ?? [], view.now), context), [view.snapshot, view.now, context]);
   const charted = useChartPreview(api, result.matches, active && open && view.visiblePage && context.status !== 'not-procedure');
   if (context.status === 'not-procedure') return null;
-  const count = result.matches.length, review = result.matches.filter(m => m.outcome === 'review'), sourceIssues = view.snapshot?.issues?.length ?? 0;
+  const count = result.matches.length, sourceIssues = view.snapshot?.issues?.length ?? 0;
+  const matchedIds = new Set(result.matches.map(m => m.record.id));
+  const unmatched = result.unresolvedNotices.filter(record => !matchedIds.has(record.id));
   const label = context.status === 'loading' ? 'Loading plate context…' : !result.available ? 'Matching unavailable' : !view.snapshot ? view.entry?.loading ? 'Checking…' : 'Unavailable'
-    : `${count} matched${review.length ? ` · ${review.length} review` : ''}${sourceIssues ? ' · Source data needs review' : !view.complete ? ' · Coverage incomplete' : ''}`;
-  return <section className={`plate-notams${count || sourceIssues ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
+    : plateMatchLabel(view, result);
+  return <section className={`plate-notams${count || sourceIssues || result.unresolved ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
     <button className="ui-button plate-notam-toggle" type="button" aria-expanded={open} aria-controls={id}
       onClick={() => setOpenKey(open ? undefined : context.key)}><span>NOTAM · {label}</span><span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
     {open && <div id={id} className="plate-notams-list panel-scroll" role="region" aria-label="Notices for displayed plate" tabIndex={0}>
@@ -279,6 +298,10 @@ export function PlateNotams({ api, context, active, retryCatalog }: {
         <NotamList entries={result.matches} now={view.now} charted={charted} />
         {!count && <p className="notam-list-status">No matches in the retained notices.</p>}
         {result.unresolved > 0 && <p className="notam-list-status">{result.unresolved} notice(s) have unresolved interpretation.</p>}
+        {unmatched.length > 0 && <details className="notam-raw"><summary>Review unmatched notices ({unmatched.length})</summary>
+          <p className="notam-list-status">Applicability to this plate could not be established. Review the retained source before relying on the match count.</p>
+          <NotamList entries={unmatched.map(record => ({ record }))} now={view.now} />
+        </details>}
       </>}
     </div>}
   </section>;

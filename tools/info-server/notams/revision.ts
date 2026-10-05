@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { isNotamRecord, type NotamRecord } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
+import { fdcBodyForms } from '../../../src/layers/notams/source-text';
 import { notamTime } from '../../../src/layers/notams/validity';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
@@ -42,21 +43,6 @@ function compatibleIcao(a: string, b: string): boolean {
   // two different nonempty values, FIR/code, altitude or geometry still conflict.
   return before.length === 8 && after.length === 8 && before.every((value, i) => value === after[i] ||
     i >= 2 && i <= 4 && (!value || !after[i]));
-}
-function fdcBodyForms(record: NotamRecord, translation: string): Set<string> | undefined {
-  // Prove each optional body wrapper against the complete shared LOCAL_FORMAT,
-  // including its source identity and actual interval. A substring match or an
-  // unrelated ICAO rendering (which may carry old dates) is not sufficient.
-  const match = /^!FDC (\d)\/(\d{4}) ([A-Z0-9]{3,5}) (IAP|SID|STAR|ODP) (.+) (\d{10})-(\d{10})(EST)?$/.exec(translation);
-  if (!match || record.classification !== 'FDC' || record.series || !/^\d{4}$/.test(record.year) ||
-    !record.year.endsWith(match[1]!) || numberContent(record.number) !== numberContent(match[2]!) ||
-    !record.locations.includes(match[3]!)) return;
-  const compact = (time: number | null) => time !== null && time % 60_000 === 0
-    ? new Date(time).toISOString().replace(/\D/g, '').slice(2, 12) : undefined;
-  if (compact(record.startsAt) !== match[6] || compact(record.endsAt) !== match[7] ||
-    record.endKind !== (match[8] ? 'estimated' : 'fixed')) return;
-  const subject = match[4]!, body = match[5]!, interval = `${match[6]}-${match[7]}${match[8] ?? ''}`;
-  return new Set([body, `${subject} ${body}`, `${body} ${interval}`, `${subject} ${body} ${interval}`]);
 }
 function equivalentBody(previous: NotamRecord, next: NotamRecord): string | undefined {
   if (previous.text === next.text) return previous.text;

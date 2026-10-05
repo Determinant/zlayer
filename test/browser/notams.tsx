@@ -29,6 +29,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 const registry = new PluginRegistry<WorkspacePluginApis>(), product = createNotamsPlugin();
 const plates = createPlatesLayer(props => <WorkspacePlateNotices {...props} registry={registry} />);
 const registration = registry.registration('notams', product);
+const TfrStatus = product.footer[0]!.Component;
 const metarClient = createMetarClient();
 const resource = (window as unknown as { notamFixtureResource: ProcedureResourceRecord }).notamFixtureResource;
 const savedSelection = (window as unknown as { notamFixtureSelection: ProcedureSelection }).notamFixtureSelection;
@@ -98,6 +99,10 @@ function Fixture() {
       <button onClick={() => { plates.open(savedSelection); setActive('plate'); }}>Open saved plate</button>
       {new URLSearchParams(location.search).has('map') && <button onClick={() => setChartEnabled(value => !value)}>{chartEnabled ? 'Detach NOTAM chart' : 'Attach NOTAM chart'}</button>}
     </div>
+    {enabled && new URLSearchParams(location.search).has('tfr-status') && <div className="layer-popover"
+      style={{ position: 'absolute', left: 12, bottom: 48, width: 260, maxHeight: '45vh', zIndex: 20 }}>
+      <div className="layer-popover-content panel-scroll"><TfrStatus /></div>
+    </div>}
     <EdgePanels side="right" active={active} onActiveChange={setActive} className="side-panels">
       <FeatureDetailsPanel key={airport.faaId} feature={{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
         properties: { kind: 'airport', ...airport, name: 'Invented fixture airport' } }} revision="2026-10-01" metarClient={metarClient}

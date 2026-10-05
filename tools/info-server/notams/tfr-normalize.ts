@@ -1,8 +1,8 @@
 import { SaxesParser } from 'saxes';
 import { greatCircleCoordinates } from '@zlayer/domain';
-import { isTfrNotice, TFR_MAX_NOTICES, type TfrArea, type TfrNotice, type TfrWindow } from '@zlayer/contracts';
+import { isTfrNotice, isTfrIndexEntry, TFR_MAX_NOTICES, type TfrArea, type TfrNotice, type TfrWindow, type TfrIndexEntry } from '@zlayer/contracts';
 
-export type TfrIndexEntry = { id: string; modifiedAt: number; title: string; type: string; facility: string; state: string };
+export type { TfrIndexEntry } from '@zlayer/contracts';
 /** FAA XML date fields are UTC; codeTimeZone controls the website's local display.
  * The supplied USNS UTC validity footer independently checks that interpretation. */
 function utc(value: string): number {
@@ -20,6 +20,7 @@ export function parseTfrIndex(value: unknown): TfrIndexEntry[] {
     return { id: v.notam_id, modifiedAt: utc(`${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)}T${t.slice(8,10)}:${t.slice(10,12)}:00`),
       title: v.description, type: v.type, facility: v.facility, state: v.state };
   });
+  if (!result.every(isTfrIndexEntry)) throw new Error('Invalid TFR index metadata');
   if (new Set(result.map(v => v.id)).size !== result.length) throw new Error('Duplicate TFR index entry');
   return result;
 }

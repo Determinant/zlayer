@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import { mkdir, open, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
-import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot, type TfrNotice } from '@zlayer/contracts';
+import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
 import { atomicNotamFile } from './store';
 import { acquireNotamLock } from './lock';
 import { parseTfrDetail, parseTfrIndex } from './tfr-normalize';
 import { retryAfterAt } from '../retry-after';
+import { tfrDetailFresh } from '../../../src/layers/notams/tfr-time';
 
 const INDEX = 'https://tfr.faa.gov/tfrapi/getTfrList';
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -38,7 +39,9 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       const saved: unknown = JSON.parse(await handle.readFile('utf8'));
       if (!isRecord(saved) || typeof saved.data !== 'string' || Buffer.byteLength(saved.data) > TFR_MAX_BYTES || digest(saved.data) !== saved.sha256) throw new Error('TFR cache checksum');
       const value: unknown = JSON.parse(saved.data);
-      if (!isTfrSnapshot(value) || value.checkedAt > now() + 30_000 || value.notices.some(n => n.modifiedAt > value.checkedAt + 60_000)) throw new Error('TFR cache invalid');
+      if (!isTfrSnapshot(value) || value.checkedAt > now() + 30_000 ||
+        value.notices.some(n => n.detailCheckedAt !== undefined && n.detailCheckedAt > now() + 30_000) ||
+        [...value.notices, ...(value.issues ?? [])].some(n => n.modifiedAt > value.checkedAt + 60_000)) throw new Error('TFR cache invalid');
       return value;
     } finally { await handle.close(); }
   }
@@ -80,7 +83,11 @@ export function createTfrService(options: { directory: string; signal: AbortSign
         if (budget?.failed) error = 'refresh-failed';
         try {
           const partial = await savedSnapshot(join(directory, 'details.json'));
-          for (const notice of partial.notices) if (notice.modifiedAt >= (details.get(notice.id)?.modifiedAt ?? 0)) details.set(notice.id, notice);
+          for (const notice of partial.notices) {
+            const published = details.get(notice.id);
+            if (!published || notice.modifiedAt > published.modifiedAt || notice.modifiedAt === published.modifiedAt &&
+              (notice.detailCheckedAt ?? 0) > (published.detailCheckedAt ?? 0)) details.set(notice.id, notice);
+          }
         } catch { /* Optional progress cache cannot reset admission or discredit published data. */ }
         restored = true;
       } catch {
@@ -88,7 +95,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       }
     })();
   }
-  async function download(url: string, maxBytes: number): Promise<string> {
+  async function download(url: string, maxBytes: number): Promise<{ text: string; checkedAt: number }> {
     held(); if (!budget || now() < budget.backoffAt) throw new Error('TFR source backing off');
     const spacing = requestAt - now();
     if (spacing > 0) await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
@@ -100,7 +107,8 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     let response: Response | undefined;
     try {
       response = await fetcher(url, { signal: requestSignal, redirect: 'error', headers: {
-        Accept: 'application/json, application/xml, text/xml', 'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1' } });
+        Accept: 'application/json, application/xml, text/xml', 'Cache-Control': 'no-cache',
+        'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1' } });
       if (response.status === 429 || response.status === 503) {
         const time = now();
         const backoffAt = Math.max(time + 300_000, retryAfterAt(response.headers.get('retry-after'), time) ?? 0);
@@ -117,7 +125,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       }
       requestSignal.throwIfAborted();
       if (!response.headers.get('content-encoding') && length !== null && Number(length) !== bytes) throw new Error('TFR source truncated');
-      return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+      return { text: new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)), checkedAt: started };
     } finally {
       await response?.body?.cancel().catch(() => {});
       requestAt = Math.max(started, now()) + 1000;
@@ -126,23 +134,39 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     }
   }
   async function collect() {
-    const checkedAt = now(), index = parseTfrIndex(JSON.parse(await download(INDEX, 1024 * 1024)));
+    const checkedAt = now(), index = parseTfrIndex(JSON.parse((await download(INDEX, 1024 * 1024)).text));
     if (index.some(n => n.modifiedAt > checkedAt + 60_000)) throw new Error('TFR index from future');
     const present = new Set(index.map(n => n.id));
     for (const id of details.keys()) if (!present.has(id)) details.delete(id);
-    const notices: TfrNotice[] = [];
+    const notices: TfrNotice[] = [], issues: TfrSourceIssue[] = [];
+    const published = new Map(snapshot?.notices.map(n => [n.id, n]));
     for (const entry of index) {
       held(); const saved = details.get(entry.id);
-      const record = saved?.modifiedAt === entry.modifiedAt ? { ...saved, ...entry }
-        : parseTfrDetail(await download(`https://tfr.faa.gov/download/detail_${entry.id.replace('/', '_')}.xml`, 2 * 1024 * 1024), entry);
+      let record: TfrNotice, downloaded = false, reason: TfrSourceIssue['reason'] = 'detail-unavailable';
+      try {
+        if (saved?.modifiedAt === entry.modifiedAt && tfrDetailFresh(saved, now())) record = { ...saved, ...entry };
+        else {
+          const detail = await download(`https://tfr.faa.gov/download/detail_${entry.id.replace('/', '_')}.xml`, 2 * 1024 * 1024);
+          reason = 'detail-invalid'; record = { ...parseTfrDetail(detail.text, entry), detailCheckedAt: detail.checkedAt }; downloaded = true;
+        }
+      } catch (cause) {
+        // Cancellation, lost ownership and uncertain admission writes still abort
+        // publication. Source/detail failures qualify just this index member.
+        held(); if (!budget) throw cause;
+        const retained = published.get(entry.id);
+        issues.push({ ...entry, reason, retainedCheckedAt: retained?.detailCheckedAt ?? null });
+        if (retained) notices.push(retained);
+        continue;
+      }
       // This private cache preserves completed work after another detail fails.
       // It is never served as a complete national snapshot.
-      if (saved?.modifiedAt !== entry.modifiedAt) await saveSnapshot(join(directory, 'details.json'),
+      if (downloaded) await saveSnapshot(join(directory, 'details.json'),
         { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices: [...details.values()].filter(n => n.id !== entry.id).concat(record) });
       details.set(entry.id, record); notices.push(record);
     }
     notices.sort((a,b) => a.id.localeCompare(b.id));
-    const candidate: TfrSnapshot = { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices };
+    const candidate: TfrSnapshot = { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices, issues,
+      ...(issues.length ? { error: 'incomplete-details' } : {}) };
     await saveSnapshot(file, candidate);
     await saveBudget({ ...budget!, failed: false, nextAt: now() + TFR_REFRESH_MS });
     snapshot = candidate; error = undefined;
@@ -156,9 +180,14 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     }).finally(() => { pending = undefined; });
     return pending;
   }
+  const sourceError = () => error ?? snapshot?.error ??
+    (snapshot?.notices.some(notice => !tfrDetailFresh(notice, now())) ? 'detail-recheck-due' : undefined);
   return { restore, refresh,
     close: async () => { stopped = true; lifetime.abort(); await restoring; await pending; await lock?.release(); lock = undefined; },
-    read: (): TfrSnapshot | undefined => snapshot ? { ...snapshot, ...(error ? { error } : {}) } : undefined,
-    get status() { return { ready: !!snapshot, checkedAt: snapshot?.checkedAt ?? null, loading: !!pending, error: error ?? null,
+    read: (): TfrSnapshot | undefined => {
+      const error = sourceError();
+      return snapshot ? { ...snapshot, ...(error ? { error } : {}) } : undefined;
+    },
+    get status() { return { ready: !!snapshot, checkedAt: snapshot?.checkedAt ?? null, loading: !!pending, error: sourceError() ?? null, unresolvedRecords: snapshot?.issues?.length ?? 0,
       nextAttemptAt: budget ? Math.max(budget.nextAt, budget.backoffAt) : null }; } };
 }

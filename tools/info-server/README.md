@@ -38,9 +38,11 @@ text. Its next round waits at least three minutes and it persists a bounded,
 checksummed snapshot and partial-detail cache under `<NOTAMS_STATE_DIR>/tfrs/`.
 A separate writer lock and checksummed admission journal preserve restart cooldowns
 and `Retry-After`. Detail downloads run sequentially with one-second spacing;
-already completed details survive a failed round. HTTP performs no upstream work
+already completed details survive a failed round. A validated index publishes
+independent updates and withdrawals despite failed details, with explicit issues
+and any previously published detail at its original check time. HTTP performs no upstream work
 and shares the current JSON/gzip representation. Cold reads
-return 503, failed updates preserve original check times, and the shared weather
+return 503, failed index checks preserve the previous snapshot's check time, and the shared weather
 health response exposes `tfrs` status. See the owning
 [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart) for
 source limits, timing, geometry, retention and local validation evidence.
@@ -115,6 +117,15 @@ TFR collector exists, one candidate may prepare its initial snapshot. Stop/drain
 that candidate before handing its whole `tfrs/` directory, including admission
 and provisioning files, to production. Preserve that journal on later rollouts;
 copying only the snapshot would lose the source cooldown.
+
+TFR index checks and XML detail acquisition have separate ages. The collector
+revalidates unchanged details after 15 minutes and preserves `detailCheckedAt`
+through reuse, failure and restart. Saved schema-1 details without that timestamp
+remain readable with unknown age and are reacquired at the next admitted round.
+`detail-recheck-due` qualifies overdue/unknown detail even between index checks;
+per-notice failures retain their original detail time and do not block other
+validated index updates. See the [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart)
+for the wire and PWA review behavior.
 
 Airport HTTP delivery uses a 128-entry/32 MiB bounded cache for JSON and shared
 gzip output, invalidated on any source-status change. The 16 MiB response limit

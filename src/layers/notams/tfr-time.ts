@@ -1,4 +1,8 @@
-import type { TfrArea, TfrNotice, TfrWindow } from '@zlayer/contracts';
+import { TFR_DETAIL_REFRESH_MS, type TfrArea, type TfrNotice, type TfrWindow } from '@zlayer/contracts';
+
+export function tfrDetailFresh(notice: TfrNotice, now: number): boolean {
+  return notice.detailCheckedAt !== undefined && now >= notice.detailCheckedAt && now - notice.detailCheckedAt < TFR_DETAIL_REFRESH_MS;
+}
 
 const DAY = 86_400_000;
 /** Published UTC windows, including recurring windows crossing midnight. */

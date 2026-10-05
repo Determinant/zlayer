@@ -3,7 +3,7 @@ import type { FeatureCollection, Polygon } from 'geojson';
 import type { MapLayerModule } from '../../core/map/layer';
 import { createSourceSubmission } from '../../core/map/source-submission';
 import { LayerScope } from '../../core/layers/scope';
-import { tfrTiming } from './tfr-time';
+import { tfrDetailFresh, tfrTiming } from './tfr-time';
 import type { TfrState } from './tfr-client';
 import type { TfrAreaSelection } from './tfr-selection';
 
@@ -13,11 +13,13 @@ const ACTIVE = '#ff4d55', UPCOMING = '#ffd54a';
 type Collection = FeatureCollection<Polygon, { noticeId: string; areaId: string; status: string; color: string }>;
 export function tfrFeatures(state: TfrState): Collection {
   const features: Collection['features'] = [];
+  const unresolved = new Set(state.snapshot?.issues?.map(issue => issue.id));
   for (const n of state.snapshot?.notices ?? []) for (const a of n.areas) {
     const timing = tfrTiming(n,a,state.now);
     if (!timing || !a.geometry) continue;
+    const status = unresolved.has(n.id) || !tfrDetailFresh(n, state.now) ? 'unknown' : timing.status;
     features.push({ type: 'Feature', id: `${n.id}:${a.id}`, geometry: a.geometry,
-      properties: { noticeId: n.id, areaId: a.id, status: timing.status, color: timing.status === 'upcoming' ? UPCOMING : ACTIVE } });
+      properties: { noticeId: n.id, areaId: a.id, status, color: status === 'upcoming' ? UPCOMING : ACTIVE } });
   }
   return { type: 'FeatureCollection', features };
 }

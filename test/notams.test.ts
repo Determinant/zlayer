@@ -85,6 +85,30 @@ test('bounded heading parsing keeps multiple targets and preserves oversized sou
 });
 const selection = procedureSelection(testCatalog, testAirport, testProcedure, testResource.url, 'https://example.test/', testResource);
 const context = procedureNoticeContext(selection, testAirport, testProcedure);
+test('partial approach headings preserve supported matches and expose every remaining interpretation gap', () => {
+  const first = 'RNAV (GPS) Y RWY 09L, AMDT 2...', second = 'ILS RWY 18...';
+  const plate = (name: string) => ({ ...context, procedure: { ...testProcedure, name } });
+  for (const separator of [' ', '\n', '; ']) for (const headings of [[first, second], [second, first]]) {
+    const record = notice({ classification: 'FDC', text: `IAP TEST, CA. ${headings.join(separator)} PROCEDURES NA.` });
+    for (const title of ['RNAV (GPS) Y RWY 09L', 'ILS RWY 18']) {
+      const result = matchPlateNotams([record], plate(title));
+      assert.equal(result.matches[0]?.outcome, 'applies'); assert.equal(result.unresolved, 0);
+      for (const target of result.matches[0]!.parsed.targets) assert.equal(record.text.slice(target.evidence.start, target.evidence.end), target.title);
+    }
+  }
+  for (const unsupported of ['SPECIAL ILS RWY 18, AMDT 3...', 'SPECIAL ASR RWY 18...', 'UNRECOGNIZED PROCEDURE, AMDT 3...',
+    'ILS RWY 18, RNAV (GPS) RWY 27, AMDT 3...']) {
+    const record = notice({ classification: 'FDC', text: `IAP TEST, CA. ${first} ${unsupported}` });
+    assert.equal(matchPlateNotams([record], plate('RNAV (GPS) Y RWY 09L')).matches[0]?.outcome, 'applies');
+    const result = matchPlateNotams([record], plate('ILS RWY 18'));
+    assert.equal(result.unresolved, 1); assert.equal(result.matches[0]?.outcome, 'review');
+  }
+  for (const narrative of ['MISSED APPROACH:', 'CHANGE NOTE TO READ:', 'IF', 'EXCEPT', 'SEE']) {
+    const record = notice({ classification: 'FDC', text: `IAP TEST, CA. ${first} ${narrative}\n${second}` });
+    assert.deepEqual(parseNotam(record).targets.map(target => target.title), ['RNAV (GPS) Y RWY 09L']);
+    assert.equal(matchPlateNotams([record], plate('ILS RWY 18')).matches.length, 0);
+  }
+});
 test('matching preserves runway side, Y/Z, GPS/RNP and amendment identity', () => {
   const fdc = notice({ classification: 'FDC', text: 'IAP TEST AIRPORT, CA. RNAV (GPS) Y RWY 09L, AMDT 2...\nCIRCLING NA EXC CAT A.' });
   const match = matchPlateNotams([fdc], context).matches[0]!;
@@ -290,4 +314,46 @@ test('a late client response cannot replace an airport or resurrect an unloaded 
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(client.state.getSnapshot().airports[notamAirportKey({ faaId: 'TST' })]?.snapshot, undefined);
   client.stop();
+});
+
+test('captured equivalent FDC renderings retain procedure matches through collection and presentation', async () => {
+  const { default: corpus } = await import('./fixtures/notams-fdc-renderings.json', { with: { type: 'json' } });
+  const { recordWithRevision } = await import('../tools/info-server/notams/normalize');
+  const { mergeNotamRecords } = await import('../tools/info-server/notams/revision');
+  const { presentNotam } = await import('../src/layers/notams/presentation');
+  for (const pair of corpus.pairs) {
+    const previous = recordWithRevision(pair.previous as Parameters<typeof recordWithRevision>[0]);
+    const next = recordWithRevision(pair.next as Parameters<typeof recordWithRevision>[0]);
+    const context = { status: 'resolved' as const, key: 'fixture', cycle: '2610', effectiveDate: '', expirationDate: '',
+      airport: { faaId: previous.locations[0]!, icaoId: previous.icaoLocations[0]! },
+      procedure: { ...testProcedure, kind: 'departure' as const, name: 'ROCHESTER ONE' } };
+    for (const record of [previous, next, ...mergeNotamRecords([previous], [next]), ...mergeNotamRecords([next], [previous])]) {
+      const before = JSON.stringify(record), parsed = parseNotam(record);
+      assert.equal(parsed.subject, 'SID');
+      assert.deepEqual(parsed.targets.map(t => t.title), ['ROCHESTER ONE']);
+      for (const value of [...parsed.targets, ...parsed.flairs]) assert.equal(parsed.body.slice(value.evidence.start, value.evidence.end), value.evidence.text);
+      const matches = matchPlateNotams([record], context);
+      assert.equal(matches.matches.length, 1); assert.equal(matches.matches[0]!.outcome, 'applies');
+      assert.equal(matches.unresolved, 0);
+      assert.match(presentNotam(record).searchText.toUpperCase(), /WATERLOO TRANSITION NA EXCEPT/);
+      assert.equal(JSON.stringify(record), before, 'derived interpretation never rewrites source evidence');
+    }
+    for (const [from, to] of [['FCM SID', 'ANE SID'], ['6/7442', '6/7449'], ['2610062200EST', '2610062300EST'], ['NA EXCEPT', 'NA']]) {
+      if (!previous.translations[0]!.text.includes(from!)) continue;
+      const changed = { ...previous, translations: previous.translations.map(t => ({ ...t, text: t.text.replace(from!, to!) })) };
+      assert.equal(parseNotam(changed).subject, undefined, 'unproven local text cannot supply a subject');
+    }
+    const conflicting = { ...previous, translations: [...previous.translations,
+      { ...previous.translations[0]!, text: previous.translations[0]!.text.replace(' SID ', ' STAR ') }] };
+    assert.equal(parseNotam(conflicting).subject, undefined);
+  }
+});
+
+test('flat named headings are recognized without promoting quoted or conditional procedure names', () => {
+  const source = 'SID TEST AIRPORT, CA. ROCHESTER ONE DEPARTURE... GARLAND SIX DEPARTURE... WEST TRANSITION NA EXCEPT GPS.';
+  assert.deepEqual(parseNotam(notice({ text: source })).targets.map(t => t.title), ['ROCHESTER ONE', 'GARLAND SIX']);
+  for (const prefix of ['NOTE: ', 'DISREGARD ', 'EXCEPT ', 'MISSED APPROACH: ']) {
+    const record = notice({ text: `SID TEST AIRPORT, CA. ${prefix}ROCHESTER ONE DEPARTURE...` });
+    assert.equal(parseNotam(record).targets.length, 0, prefix);
+  }
 });

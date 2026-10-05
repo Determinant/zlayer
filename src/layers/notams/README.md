@@ -311,8 +311,10 @@ Implemented locally; deployment and sustained live qualification are separate.
 Enabling the NOTAM plugin starts a national TFR client independently of airport
 selection, search, open readers or stowed panels. Disabling it aborts requests,
 stops clocks and removes the map resources, context-menu action and details panel. Map reattachment
-uses the current snapshot. Active areas use solid red outlines with translucent
-red fill; upcoming areas use yellow. Neither uses hatching. Temporary reader
+uses the current snapshot. Active areas and areas with unconfirmed timing or
+retained older detail use solid red outlines with translucent red fill; confirmed
+upcoming areas use yellow. The key reads **Red: active or unconfirmed · Yellow:
+upcoming**. Neither uses hatching. Temporary reader
 geometry excludes explicit TFR text so it cannot add a second, hatched TFR shape.
 Areas have no map labels. A left click or tap inside a published area opens the
 shared right-side detail panel with its identity, altitude limits, current/next
@@ -329,8 +331,15 @@ freshness metadata, with the shared panel heading. Each explicit inspection reop
 it; source/clock updates refresh its contents without reopening a stowed panel.
 Selection is session-only and resolves current source
 identities, so expired/removed areas are not presented as current restrictions.
-The Layers footer reports source age and missing geometry or schedules. The footer
-and details panel retain stale-source qualifications.
+The Layers footer uses a compact TFR heading and FAA index link, followed by the
+index-check age and a short source-review count when geometry, schedules,
+altitudes or detail freshness are unconfirmed. It uses the shared 12px heading
+and 11px metadata scale with sentence case and natural spacing. The count expands
+into individual notices with reasons, FAA detail links and any retained raw text.
+This includes successfully downloaded notices with no usable boundary or no
+published areas, independently of map selection or activation. The red/yellow
+color key lives in the TFR details panel,
+not the Layers footer. Both surfaces retain stale-source qualifications.
 
 The info server prepares `GET`/`HEAD /api/notams/tfrs`, a schema-1 `TfrSnapshot`
 from `packages/contracts/src/tfrs.ts`. It uses the FAA public
@@ -359,12 +368,18 @@ An unsupported schedule remains explicit as **Check source schedule**; its area
 uses conservative red inside overall validity. It is never described as known
 active. The client clock updates at boundaries and at least every 30 seconds.
 
-The collector checks the index at least three minutes after the preceding round,
-reuses details only with the same FAA ID/modification time and fetches changed
-details sequentially, with at least one second after the preceding response body,
+The collector checks the index at least three minutes after the preceding round.
+It reuses details only with the same FAA ID/modification time and a known
+`detailCheckedAt` less than 15 minutes old. Changed, overdue or legacy details
+are acquired again with `Cache-Control: no-cache`; the independent 15-minute
+interval bounds reuse when index/XML updates propagate separately without
+redownloading every unchanged document on each index check. `detailCheckedAt`
+records successful detail acquisition start, not index-check time; failed
+acquisitions never renew it. Details are fetched sequentially, with at least one
+second after the preceding response body,
 30-second deadlines and durable overload backoff. Index/XML
 inputs are bounded to 1/2 MiB; XML rejects DTDs and has node/depth limits. A fully
-validated replacement is bounded to 8 MiB/1,000 notices and atomically saved with
+validated replacement is bounded to 8 MiB/1,000 distinct notice/issue IDs and atomically saved with
 a checksum at `<NOTAMS_STATE_DIR>/tfrs/snapshot.json`, outside weather eviction.
 One kernel lock owns that directory. A separate checksummed `admission.json`
 reserves the restart cooldown before every request, including a bounded dispatch
@@ -379,8 +394,33 @@ after a retry or restart. The progress cache never becomes a national HTTP resul
 Snapshot and progress writes are atomic and synchronized. Invalid UTF-8, truncated
 responses and cache corruption cannot silently change source text. Closing the
 collector aborts its own transport and drains writes before releasing ownership.
-Failed acquisition retains the preceding snapshot and its original `checkedAt`,
-with an explicit error. Only a successful index replacement removes absent IDs.
+An invalid or unavailable index retains the preceding snapshot and its original
+`checkedAt`, with an explicit error. Once the complete index validates, a failing
+detail becomes an explicit `issues` entry, including the current index identity
+and a `detail-unavailable` or `detail-invalid` reason. Other updates and index
+withdrawals can publish in the same round. Failed details may retain only their
+previously published notice, with `retainedCheckedAt` equal to its original
+`detailCheckedAt`; repeated failures and restarts never renew that time. Rechecks
+can fail with unchanged index metadata too. Legacy snapshots without a detail
+timestamp retain unknown age (null in an issue), never inferred from `checkedAt`.
+A new notice without usable detail has an issue and FAA link, but no invented
+boundary. All affected notices remain
+available for source review in the Layers footer; retained areas show their older
+detail age and unconfirmed status in the details panel. Their old validity still
+limits rendering and does not establish the changed notice's timing or geometry.
+
+`checkedAt` identifies the successful national index check. Any nonempty issue
+list also carries `error: incomplete-details`, so schema-1 clients without issue
+support still qualify the snapshot. Reads and health status expose
+`detail-recheck-due` when any detail age is unknown or overdue and there is no
+other source error, even between collector rounds. The PWA independently
+qualifies old/unknown detail on its live clock, uses red for its drawable areas,
+and avoids an active/upcoming claim. Detail age appears separately from index
+age in the details panel and source-review disclosure. Source overload stops
+further requests under
+the durable backoff; remaining uncached members are accounted for as issues.
+Cancellation, lost ownership, admission-write uncertainty and snapshot/progress
+storage failures still abort publication. Only a validated index removes absent IDs.
 HTTP reads never contact FAA; a cold cache returns 503. `/api/weather/healthz`
 includes independent `tfrs` readiness, check time, failure state and next attempt.
 HTTP serialization and gzip are shared for the current check-time/error boundary;
@@ -423,8 +463,13 @@ Omit generic **Unconfirmed** and **Coverage limited** suffixes from the bar and
 procedure-row counts. An actual unresolved source record adds **Source data needs
 review**; otherwise detected incomplete content or association coverage adds
 **Coverage incomplete**, so a zero match count cannot imply complete coverage.
-Detailed feed status belongs in the expanded source header; notice-specific
-interpretation and applicability reasons remain with the entries.
+Any unresolved interpretation adds **Interpretation limited**, including when
+that notice could not be matched to the plate. Both collapsed bar and procedure
+rows share the same qualifiers: **Offline**, **Refresh failed**, and, for
+production, **Stale** or **Feed degraded** when applicable. Unrelated source-record
+issues do not degrade an otherwise complete airport query. Detailed feed status
+belongs in the expanded source header; notice-specific interpretation and
+applicability reasons remain with the entries.
 Count each source notice once even if several clauses match. Multipart groups
 retain their individual parts' identities and counts.
 
@@ -446,13 +491,17 @@ and procedure-row counts wrap within their existing metadata layout.
 | Current matches or review candidates | Red strip with counts, timing qualifiers, and expandable entries |
 | Complete, fresh query with zero matches | Neutral `NOTAM · 0 matched`, limited to the supported scope |
 | Loading without a snapshot | Loading state, never a zero count |
-| Saved/stale snapshot | Retain match counts; identify age and offline state in the expanded source header |
-| Partial feed with a snapshot | Retain match counts; show feed status and recovery in the expanded list |
+| Saved/stale snapshot | Retain match counts with collapsed freshness, offline and failure qualifiers; show source age in the expanded header |
+| Partial feed with a snapshot | Qualify counts with detected coverage/source issues; show feed status and recovery in the expanded list |
+| Unresolved interpretation | Qualify counts, alert even with zero matches, and make unmatched source notices available for review |
 | Unresolved page or failed query without data | Explicit unavailable matching state with recovery |
 
 The expanded strip shows notices for the displayed plate. The airport's NOTAM tab
 owns the full list; omit the **Show all airport NOTAMs** button and nested full-list
-fallback. Apply the staging presentation above; production keeps source freshness
+fallback. A targeted **Review unmatched notices** disclosure contains only
+unresolved notices not already in the plate list, with an explicit statement that
+applicability could not be established. It does not create plate matches or chart
+overlays. Apply the staging presentation above; production keeps source freshness
 and actual incomplete states visible. Unresolved interpretation remains explicit in
 both environments, without repeating general regional/route-scope explanations.
 Counts beside IAP/SID/STAR rows in the Plates list use the same airport snapshot
@@ -1334,11 +1383,16 @@ Illustrative fixtures, not live NOTAMs:
 | `SEE FDC …` | Pointer with a reference when resolvable; unresolved pointers stay visible |
 
 Parsing is bounded to 64 KiB of body text, 320-character heading prefixes, 16
-procedure targets and 20 deduplicated flairs. Scan amendment delimiters before
-applying the bounded heading grammar. If limits are reached, retain the entire
-body/raw text and flag **Interpretation Limited**. Derived results are cached by
+procedure targets and 20 deduplicated flairs. Scan delimiters before applying
+the bounded heading grammar. Each IAP heading is checked independently, with or
+without an amendment; one supported heading cannot suppress another heading or
+an unsupported heading's interpretation warning. Familiar suffixes inside
+unsupported prefixes/compound headings do not establish a target. Scanning
+stops before narrative notes, exceptions and conditional procedure references.
+If limits are reached, retain the entire body/raw text and flag
+**Interpretation Limited**. Derived results are cached by
 record identity for repeated airport-list and plate matching; replacement records
-are parsed anew. Parser version 5 owns these derivations, not the wire schema.
+are parsed anew. Parser version 7 owns these derivations, not the wire schema.
 An exact associated FAA/ICAO prefix may precede a subject; unrelated prefixes
 remain unrecognized. Obstacle lighting includes plural objects and wind turbines,
 with negations and conditions preventing an unconditional outage/lighting claim.
@@ -1367,7 +1421,15 @@ one record, not additional independent notices.
 
 ## Procedure matching
 
-Matcher version 3 is a pure function of validated notices and exact plate context. Return
+The parser can recover a missing FDC subject from a retained `LOCAL_FORMAT`
+only when its identity, validity and complete body satisfy the same equivalence
+proof used by the server's revision reconciliation (`source-text.ts`). Conflicting
+translations or substantive differences prevent recovery. Both source strings
+remain unchanged, and evidence offsets address the chosen original string.
+SID/STAR procedure headings may follow airport context on the same line; bounded
+sentence recognition stops before note, exception and incidental narrative.
+
+Matcher version 4 is a pure function of validated notices and exact plate context. Return
 source ID, applicability outcome, affected clauses, and an explainable reason.
 Avoid numerical confidence scores suggesting unmeasured accuracy.
 
@@ -1492,7 +1554,18 @@ time limitations. This README remains the canonical guide after implementation.
   content corruption verifies that the audit detects lost clauses and changed facts.
 - `test/notams.test.ts` covers conservative flairs, supported schedules and validity,
   procedure identity and ILS/LOC aliases, exact page context, saved/offline state,
-  refresh deadlines and cancellation across activations.
+  refresh deadlines and cancellation across activations. Captured FDC rendering
+  pairs cover collection-to-parser-to-plate matching in both arrival orders,
+  unchanged raw text/evidence spans and rejection of conflicting translations.
+  Mixed IAP headings cover independent targets and unsupported target warnings.
+- `test/notams-tfr-server.test.ts` covers isolated detail failures, independent
+  publication and withdrawals, original retained-detail ages through restart,
+  unchanged-index revalidation, legacy unknown ages, complete recovery and durable
+  backoff without a request per failed member.
+  `test/notams-tfr.test.ts` validates partial snapshots and unconfirmed map/detail
+  state, including the live detail-age deadline. Browser regressions cover
+  stale/offline/failed collapsed plate counts, unmatched-source review, recovery,
+  unknown schedules and individual source access for unavailable/unmappable TFRs.
 - `test/notams-ui.test.ts` checks rendered Active/Check timing/Upcoming sections,
   effective-start transitions, removal of the Upcoming flair, and plate grouping
   that keeps upcoming matches after current review candidates and prioritizes FDC

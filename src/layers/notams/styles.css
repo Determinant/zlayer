@@ -146,6 +146,11 @@
 .notam-tfr-detail h3 { margin: 0; font-size: 14px; }
 .notam-tfr-detail section + section { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 12px; }
 .notam-tfr-detail p { margin: 6px 0; }
-.notam-tfr-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.notam-tfr-detail pre, .notam-tfr-status pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .notam-tfr-detail small { display: block; margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
-.notam-tfr-detail a, .notam-tfr-status a { color: var(--text-primary); }
+.notam-tfr-detail .notam-tfr-legend { margin: 0 0 12px; font-size: 11px; color: var(--text-secondary); }
+.notam-tfr-detail a, .notam-tfr-status a { color: var(--text-action); }
+.notam-tfr-status { font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.notam-tfr-status section + section { border-top: 1px solid var(--border-subtle); margin-top: 8px; padding-top: 8px; }
+.notam-tfr-status-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.panel-footer.notam-tfr-status small { letter-spacing: normal; text-transform: none; }

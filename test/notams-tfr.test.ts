@@ -3,19 +3,20 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isTfrSnapshot, TFR_REFRESH_MS, type TfrSnapshot } from '@zlayer/contracts';
+import { isTfrSnapshot, TFR_DETAIL_REFRESH_MS, TFR_REFRESH_MS, type TfrSnapshot } from '@zlayer/contracts';
 import corpus from './fixtures/tfrs.json' with { type: 'json' };
 import { parseTfrDetail, parseTfrIndex } from '../tools/info-server/notams/tfr-normalize';
 import { createTfrService } from '../tools/info-server/notams/tfr-service';
 import { createInfoServer } from '../tools/info-server/server';
-import { tfrTiming } from '../src/layers/notams/tfr-time';
+import { tfrDetailFresh, tfrTiming } from '../src/layers/notams/tfr-time';
 import { tfrFeatures } from '../src/layers/notams/tfr-map';
 import { createTfrClient } from '../src/layers/notams/tfr-client';
-import { selectedTfrAreas } from '../src/layers/notams/tfr-selection';
+import { selectedTfrAreas, tfrReviewNotices } from '../src/layers/notams/tfr-selection';
 
 const at = Date.parse;
 const examples = corpus.cases.map(c => parseTfrDetail(c.xml,parseTfrIndex([c.index])[0]!));
-const snapshot = (): TfrSnapshot => ({ schemaVersion: 1, source: 'FAA-TFR', checkedAt: at('2026-10-05T21:00Z'), notices: structuredClone(examples) });
+const snapshot = (): TfrSnapshot => ({ schemaVersion: 1, source: 'FAA-TFR', checkedAt: at('2026-10-05T21:00Z'),
+  notices: structuredClone(examples).map(notice => ({ ...notice, detailCheckedAt: at('2026-10-05T21:00Z') })) });
 
 test('FAA TFR source identity, UTC times, altitude datums and merged geometry are retained', () => {
   const fire = examples[0]!, sf = examples[1]!;
@@ -95,6 +96,57 @@ test('TFR inspection resolves overlapping selections once against current source
   assert.equal(selectedTfrAreas(state, selected).length, 0);
 });
 
+test('unmappable and partially interpreted TFRs have individual source review independent of map selection or expiry', () => {
+  const data = snapshot(); data.notices = data.notices.slice(0, 4);
+  data.notices[0]!.areas.forEach(a => { a.geometry = null; });
+  data.notices[1]!.areas = [];
+  data.notices[2]!.areas[0]!.windows = null;
+  data.notices[3]!.areas[0]!.upper = 'Check altitude';
+  const reviews = tfrReviewNotices({ snapshot: data, now: data.checkedAt, loading: false });
+  assert.equal(reviews.length, 4);
+  for (const notice of data.notices) assert.equal(reviews.find(r => r.id === notice.id)!.notice!.text, notice.text);
+  assert.ok(reviews.find(r => r.id === data.notices[0]!.id)!.reasons.includes('Boundary unavailable'));
+  assert.ok(reviews.find(r => r.id === data.notices[1]!.id)!.reasons.includes('Boundary unavailable'));
+  assert.ok(reviews.find(r => r.id === data.notices[2]!.id)!.reasons.includes('Schedule unconfirmed'));
+  assert.ok(reviews.find(r => r.id === data.notices[3]!.id)!.reasons.includes('Altitude unconfirmed'));
+  assert.equal(tfrReviewNotices({ snapshot: data, now: at('2027-01-01T00:00Z'), loading: false }).length, 4);
+});
+
+test('unknown or old TFR detail age qualifies timing even with a fresh national index', () => {
+  const data = snapshot(); data.notices = data.notices.slice(1, 2);
+  const notice = data.notices[0]!, now = data.checkedAt;
+  const state = { snapshot: data, now, loading: false };
+  assert.equal(tfrFeatures(state).features[0]!.properties.status, 'upcoming');
+  assert.equal(tfrDetailFresh(notice, now + TFR_DETAIL_REFRESH_MS - 1), true);
+  for (const detailCheckedAt of [undefined, now - TFR_DETAIL_REFRESH_MS, now + 1]) {
+    if (detailCheckedAt === undefined) delete notice.detailCheckedAt; else notice.detailCheckedAt = detailCheckedAt;
+    assert.ok(isTfrSnapshot(data)); assert.equal(tfrDetailFresh(notice, now), false);
+    assert.equal(tfrFeatures(state).features[0]!.properties.status, 'unknown');
+    assert.equal(tfrReviewNotices(state).length, 1);
+  }
+  notice.detailCheckedAt = -1; assert.equal(isTfrSnapshot(data), false);
+});
+
+test('the live TFR clock qualifies detail age at its deadline without another response', async t => {
+  const data = snapshot(), now = data.checkedAt;
+  data.notices = data.notices.slice(1, 2); data.notices[0]!.detailCheckedAt = now - TFR_DETAIL_REFRESH_MS + 1000;
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
+  const client = createTfrClient({ debounceMs: 0, storage: { read: () => data, write() {} }, load: async () => data });
+  t.after(() => client.stop()); client.start(); t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'upcoming');
+  t.mock.timers.tick(1000);
+  assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'unknown');
+  assert.equal(tfrReviewNotices(client.state.getSnapshot())[0]!.reasons[0], 'Detail needs recheck');
+});
+
+test('TFR clients reject future detail acquisition times from storage and HTTP', async t => {
+  const data = snapshot(), now = data.checkedAt; data.notices[0]!.detailCheckedAt = now + 30_001;
+  const client = createTfrClient({ now: () => now, debounceMs: 0, storage: { read: () => data, write() { assert.fail('invalid data cannot persist'); } }, load: async () => data });
+  t.after(() => client.stop()); client.start(); await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(client.state.getSnapshot().snapshot, undefined);
+  assert.equal(client.state.getSnapshot().error, 'Unable to refresh TFRs');
+});
+
 test('background TFR collection reuses unchanged details, retains failures, restores and removes absent notices', async t => {
   const directory = await mkdtemp(join(tmpdir(),'zlayer-tfr-')); t.after(()=>rm(directory,{recursive:true,force:true}));
   const controller = new AbortController(); t.after(()=>controller.abort());
@@ -156,4 +208,27 @@ test('the live clock changes TFR colors at activation and removes expired areas 
   assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status,'active');
   t.mock.timers.tick(4000);
   assert.equal(tfrFeatures(client.state.getSnapshot()).features.length,0); assert.equal(requests,1);
+});
+
+test('TFR issue guards require honest retained-detail identity, freshness and legacy error qualification', () => {
+  const data = snapshot(), notice = data.notices[0]!;
+  notice.detailCheckedAt = data.checkedAt - 60_000;
+  data.issues = [{ id: notice.id, modifiedAt: notice.modifiedAt + 60_000, title: notice.title,
+    type: notice.type, facility: notice.facility, state: notice.state, reason: 'detail-invalid', retainedCheckedAt: data.checkedAt - 60_000 }];
+  data.error = 'incomplete-details';
+  assert.ok(isTfrSnapshot(data));
+  const state = { snapshot: data, now: data.checkedAt, loading: false };
+  assert.equal(tfrFeatures(state).features.find(f => f.properties.noticeId === notice.id)!.properties.status, 'unknown');
+  assert.equal(selectedTfrAreas(state, [{ noticeId: notice.id, areaId: notice.areas[0]!.id }])[0]!.issue?.retainedCheckedAt, data.checkedAt - 60_000);
+  assert.ok(isTfrSnapshot({ ...data, issues: [{ ...data.issues[0], modifiedAt: notice.modifiedAt }] }), 'a periodic recheck can fail with unchanged index metadata');
+  for (const overrides of [{ retainedCheckedAt: null }, { retainedCheckedAt: data.checkedAt + 1 },
+    { reason: ['detail-invalid'] }]) {
+    assert.equal(isTfrSnapshot({ ...data, issues: [{ ...data.issues[0], ...overrides }] }), false);
+  }
+  assert.equal(isTfrSnapshot({ ...data, error: undefined }), false, 'legacy readers must still receive degraded status');
+  assert.equal(isTfrSnapshot({ ...data, issues: [data.issues[0], data.issues[0]] }), false);
+  const absent = { ...data.issues[0]!, id: '6/9999', retainedCheckedAt: null };
+  assert.ok(isTfrSnapshot({ ...data, issues: [absent] }));
+  delete notice.detailCheckedAt;
+  assert.ok(isTfrSnapshot({ ...data, issues: [{ ...data.issues[0], retainedCheckedAt: null }] }), 'legacy retained detail has unknown age');
 });

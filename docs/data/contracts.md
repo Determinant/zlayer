@@ -374,11 +374,24 @@ owns backend generation migration and quota preservation.
 ## TFR chart snapshots
 
 `TfrSnapshot` in `packages/contracts/src/tfrs.ts` owns schema 1 for
-`/api/notams/tfrs`: FAA provenance, original check time, source NOTAM identity/raw
+`/api/notams/tfrs`: FAA provenance, national index check time, source NOTAM identity/raw
 text, altitude labels, per-area polygon geometry and UTC activation windows.
 The server prepares this independently of airport NOTAM queries. Null geometry
 or windows explicitly retain an interpretation gap; errors qualify retained
-snapshots. Longitudes may unwrap across the date line within a local interval
+snapshots. Optional `issues` account for unavailable/invalid details using the
+current index identity. A retained notice keeps its previous contents and the
+issue's `retainedCheckedAt` equals the notice's `detailCheckedAt`, the start of
+its last successful XML acquisition. Index checks do not renew detail age.
+`detailCheckedAt` is optional for legacy schema-1 snapshots; missing age remains
+unknown, and an issue without known retained detail age uses null. A periodic
+detail recheck can fail even when the index modification time is unchanged.
+Details are revalidated independently after 15 minutes; overdue or unknown age
+qualifies the HTTP snapshot and PWA timing claims until successful acquisition.
+Notice and issue IDs are unique within each list, with at most 1,000 distinct IDs
+across both. Nonempty issues require an error so older schema-1 clients also
+qualify partial data. A validated index can publish independent updates and
+withdrawals despite failed details; an invalid index cannot advance its check time.
+Longitudes may unwrap across the date line within a local interval
 less than 180 degrees wide. The
 [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart) owns
 source semantics, bounds, recurrence, freshness and plugin lifetime.

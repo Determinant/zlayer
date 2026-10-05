@@ -202,7 +202,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await page.setViewportSize({ width: 1280, height: 900 });
     const now = Date.now();
     await page.clock.install({ time: now });
-    const records = [-122.03,-122.017,-122.005].map((lon,i) => ({ id: `6/900${i}`, modifiedAt: now-1000,
+    const records = [-122.03,-122.017,-122.005].map((lon,i) => ({ id: `6/900${i}`, modifiedAt: now-1000, detailCheckedAt: now,
       title: ['Active fixture TFR','Upcoming fixture TFR','Expired fixture TFR'][i], type: 'HAZARDS', facility: 'TST', state: 'CA',
       startsAt: i === 1 ? now+3600_000 : now-3600_000, endsAt: i === 2 ? now-1000 : now+7200_000,
       text: 'Invented TFR for browser verification. No operational use.',
@@ -778,7 +778,7 @@ test.describe('NOTAM reading layout', () => {
       }
       await page.getByRole('tab', { name: 'Plates', exact: true }).click();
       const row = page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ });
-      await expect(row.locator('.plate-notam-count')).toHaveText('NOTAM · 3 matched · Review · Coverage incomplete');
+      await expect(row.locator('.plate-notam-count')).toHaveText('NOTAM · 3 matched · 1 review · Coverage incomplete');
       await containedText(row);
       await row.click();
       const canvas = page.getByLabel('PDF page 1');
@@ -811,4 +811,117 @@ test.describe('NOTAM reading layout', () => {
       await expect(canvas).toHaveAttribute('data-layout-marker', 'retained');
     });
   }
+});
+
+for (const width of [393, 1280]) test(`plate counts expose interpretation, stale data and refresh failures before expansion at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const now = Date.now(); let failed = false, fresh = false;
+  await page.route('**/api/notams/airports?**', route => {
+    if (failed) return route.fulfill({ status: 503, json: { error: 'unavailable' } });
+    const query = Object.fromEntries(new URL(route.request().url()).searchParams);
+    const snapshot = notamSnapshot([notice({ text: 'NAV ILS U/S', startsAt: now - 60_000, endsAt: now + 86_400_000 })], { query });
+    snapshot.feed = { ...snapshot.feed, environment: 'production', checkedAt: fresh ? Date.now() : now - 600_000 };
+    return route.fulfill({ json: snapshot });
+  });
+  await page.reload();
+  await page.getByRole('tab', { name: 'Plates', exact: true }).click();
+  const row = page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).locator('.plate-notam-count');
+  await expect(row).toHaveText('NOTAM · 0 matched · Interpretation limited · Stale');
+  await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
+  const toggle = page.locator('.plate-notam-toggle');
+  await expect(toggle).toContainText('NOTAM · 0 matched · Interpretation limited · Stale');
+  await toggle.click();
+  const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
+  await plate.getByText('Review unmatched notices (1)', { exact: true }).click();
+  await expect(plate.getByText('ILS Unavailable', { exact: true })).toBeVisible();
+  await expect(plate.getByText(/Applicability to this plate could not be established/)).toBeVisible();
+  failed = true;
+  await plate.getByRole('button', { name: 'Refresh NOTAMs', exact: true }).click();
+  await expect(toggle).toContainText('Refresh failed · Stale');
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); window.dispatchEvent(new Event('offline'));
+  });
+  await expect(toggle).toContainText('Offline');
+  await toggle.click();
+  await expect(toggle).toContainText('Interpretation limited · Offline · Refresh failed · Stale');
+  await page.screenshot({ path: testInfo.outputPath('collapsed-uncertainty.png') });
+  failed = false; fresh = true;
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true }); window.dispatchEvent(new Event('online'));
+  });
+  await expect(toggle).toHaveText('NOTAM · 0 matched · Interpretation limited▾');
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect(row).toHaveText('NOTAM · 0 matched · Interpretation limited');
+});
+
+test('a supported approach heading cannot hide a second unsupported heading in plate counts', async ({ page }) => {
+  const now = Date.now();
+  const record = notice({ classification: 'FDC', text: 'IAP TEST, CA. RNAV (GPS) Y RWY 09L, AMDT 2... SPECIAL ILS RWY 18... PROCEDURES NA.',
+    startsAt: now - 60_000, endsAt: now + 86_400_000 });
+  await page.route('**/api/notams/airports?**', route => {
+    const query = Object.fromEntries(new URL(route.request().url()).searchParams);
+    const snapshot = notamSnapshot([record], { query });
+    snapshot.feed = { ...snapshot.feed, environment: 'production', checkedAt: now };
+    return route.fulfill({ json: snapshot });
+  });
+  await page.reload(); await page.getByRole('tab', { name: 'Plates', exact: true }).click();
+  await expect(page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).locator('.plate-notam-count'))
+    .toHaveText('NOTAM · 1 matched · Interpretation limited');
+  await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
+  await expect(page.locator('.plate-notam-toggle')).toContainText('1 matched · Interpretation limited');
+});
+
+for (const width of [393, 1280]) test(`TFR source review includes retained, unknown and unmappable details at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const now = Date.now(), startsAt = now - 3600_000, endsAt = now + 86_400_000;
+  const retained = { id: '6/9000', modifiedAt: startsAt, detailCheckedAt: startsAt, title: 'Retained fixture boundary', type: 'HAZARDS', facility: 'TST', state: 'CA',
+    startsAt, endsAt, text: 'Original source evidence.', areas: [{ id: 'A', name: 'Area A', lower: 'SFC', upper: '3000 ft MSL',
+      geometry: { type: 'Polygon', coordinates: [[[-122.035,37],[-122.025,37],[-122.025,37.01],[-122.035,37.01],[-122.035,37]]] },
+      windows: [{ startsAt, endsAt }] }] };
+  const unknown = { ...retained, id: '6/9001', detailCheckedAt: now, title: 'Unknown schedule', areas: [{ ...retained.areas[0]!, windows: null }] };
+  const unmappable = { ...retained, id: '6/9003', detailCheckedAt: now, title: 'Unmappable source notice',
+    text: 'Complete retained raw text for the notice without a drawable boundary.', areas: [{ ...retained.areas[0]!, geometry: null }] };
+  const noAreas = { ...unmappable, id: '6/9004', title: 'Notice without published areas', areas: [] };
+  const identity = { modifiedAt: now - 1000, title: 'Updated fixture detail', type: 'HAZARDS', facility: 'TST', state: 'CA', reason: 'detail-unavailable' };
+  await page.route('**/api/notams/tfrs', route => route.fulfill({ json: { schemaVersion: 1, source: 'FAA-TFR', checkedAt: now,
+    notices: [retained, unknown, unmappable, noAreas], error: 'incomplete-details', issues: [
+      { ...identity, id: retained.id, retainedCheckedAt: startsAt }, { ...identity, id: '6/9002', retainedCheckedAt: null },
+    ] } }));
+  await page.goto(`${origin}/test/browser/notams.html?map&tfr-status`);
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  const footer = page.locator('.notam-tfr-status');
+  await expect(footer).not.toContainText('Red:');
+  await expect(footer).toContainText('5 need source review');
+  await footer.screenshot({ animations: 'disabled', path: testInfo.outputPath('tfr-footer.png') });
+  await footer.getByText('5 need source review', { exact: true }).click();
+  await expect(footer).toContainText('No retained detail');
+  await expect(footer).toContainText('Retained detail');
+  await expect(footer.getByRole('link', { name: '6/9002 · Updated fixture detail' })).toHaveAttribute('href', 'https://tfr.faa.gov/tfr3/?page=detail_6_9002');
+  for (const record of [unmappable, noAreas]) {
+    const entry = footer.locator('section').filter({ has: page.getByRole('link', { name: `${record.id} · ${record.title}`, exact: true }) });
+    await expect(entry).toContainText('Boundary unavailable');
+    await expect(entry.getByRole('link')).toHaveAttribute('href', `https://tfr.faa.gov/tfr3/?page=detail_${record.id.replace('/', '_')}`);
+    await entry.getByText('Show raw', { exact: true }).click();
+    await expect(entry.locator('pre')).toBeVisible(); await expect(entry.locator('pre')).toHaveText(record.text);
+    expect(await entry.locator('pre').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  await footer.locator('..').screenshot({ animations: 'disabled', path: testInfo.outputPath('tfr-source-review.png') });
+  await footer.getByText('5 need source review', { exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
+    return map?.getLayer('notam-tfr-fill') ? [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-fill'] }).map(f => f.properties.status))] : [];
+  })).toEqual(['unknown']);
+  const point = await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-122.03,37.004] });
+    const p = map.project([-122.03,37.004]); return { x:p.x,y:p.y };
+  });
+  await page.mouse.click(point.x, point.y);
+  const details = page.getByRole('region', { name: 'TFR details', exact: true });
+  await expect(details).toContainText('Red: active or unconfirmed · Yellow: upcoming');
+  await expect(details).toContainText('FAA detail refresh failed. Showing retained detail.');
+  await expect(details).toContainText('Check source schedule');
+  await expect(details.getByText('Active', { exact: true })).toHaveCount(0);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('tfr-unresolved-details.png') });
 });
