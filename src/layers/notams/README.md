@@ -484,14 +484,29 @@ remain an optional additional check after their request accounting is qualified.
    ID and qualified revision/update metadata.
    Compare the source timestamp through nanoseconds, then sequence and correction.
    The raw record digest includes original spellings; it is not a semantic revision
-   number. At equal ordering, the demonstrated `NMS_ID_` alias and equivalent
+   number. Equal source ordering does not establish byte-identical FAA renderings.
+
+   Reconciliation first distinguishes active records from inactive lifecycle state.
+   At equal ordering, the same source ID and the same `cancelled` or `cancellation`
+   lifecycle are an idempotent inactive observation: retain the earlier raw record
+   without comparing its presentation or other inactive metadata. These records
+   are excluded from the active airport index; their text may shrink to a terse
+   cancellation rendering without affecting active coverage. A cancellation
+   message is distinct from an original-ID tombstone. Their references never
+   remove another source ID, and an equal-order active/inactive disagreement still
+   fails. Newer source revisions follow the usual ordering. Envelope, source-ID,
+   record-bound and lifecycle validation always precede reconciliation.
+
+   Active records retain stricter content checks. At equal ordering, the
+   demonstrated `NMS_ID_` alias and equivalent
    update-time fractional-zero spellings do not make a conflict. Decimal notice
    and referred numbers compare without leading zero padding; composite identifiers
    remain exact. Translations are optional representations grouped by type, not
    an ordered list of required fields. Shared types must have the same text after
    whitespace normalization and removal of the observed literal `<pre>` wrapper.
    For recognized ICAO NOTAMN layouts only, paired domestic/international header
-   numbers may differ, and missing Q-line traffic/purpose/scope values may be
+   numbers may differ across those two formats; different numbers, series or years
+   within one format are conflicts. Missing Q-line traffic/purpose/scope values may be
    supplemented. All supplied values must agree; FIR, code, altitude, coordinates
    and the complete A)-onward content remain exact. Unrecognized layouts and
    replacement/cancellation references receive no such relaxation. Arbitrary
@@ -509,7 +524,9 @@ remain an optional additional check after their request accounting is qualified.
    metadata may be supplemented; two supplied references must agree. References
    never identify another source ID for deletion. All other notice fields, including
    lifecycle and effective-time qualifiers, remain exact. Real disagreements still
-   invalidate continuity.
+   invalidate continuity for active records. This separation keeps collection
+   coverage dependent on the active dataset and lifecycle evidence, rather than
+   on the formatting of excluded historical messages.
    The current overlap is ten minutes, accommodating timestamp precision and
    delivery lag while remaining inside the 24-hour query window. It is not proof
    of an upper bound on FAA delivery latency.
@@ -552,6 +569,14 @@ clear the failure only after the entire replay validates; never set an incomplet
 checkpoint complete merely because code changed or the server restarted. Missing,
 corrupt, incomplete or expired recovery prefixes require the next permitted bulk
 load. Replays consume the normal global delta allowance.
+
+A due full reconciliation takes priority over replay or an old candidate bridge.
+A failing replay must not hold the feed incomplete until its lookback expires
+when a fresh baseline is already permitted. Keep a usable candidate until the
+replacement bulk validates and is durably saved. If the bulk attempt fails, its
+daily allowance remains consumed and the next budgeted round can retry the retained
+candidate; neither retry nor restart resets quotas. A successful bulk remains a
+candidate until its complete delta bridge validates.
 
 Persist the original incomplete reason in the checkpoint and keep it visible
 through recovery waits and restarts. `delta-window-exceeded` describes an actual

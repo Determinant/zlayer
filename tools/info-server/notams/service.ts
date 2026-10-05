@@ -159,6 +159,17 @@ export function createNotamService(options: NotamOptions | undefined,
   async function round() {
     validSignal();
     if (candidate && !inDeltaWindow(candidate)) await discardCandidate();
+    // A repeatedly failing replay must not starve an available full rebase.
+    // Keep any usable candidate until a new bulk has validated and been saved,
+    // so a failed bulk attempt still permits ordinary budgeted replay afterward.
+    if (now() >= store!.nextBulkAt) {
+      const bulk = await acquire('bulk'); validSignal();
+      const records = mergeNotamRecords([], bulk.records);
+      candidate = await store!.publish({ schemaVersion: 1, environment: environment!, records,
+        checkedAt: bulk.snapshotAt, watermark: bulk.snapshotAt, baselineAt: bulk.snapshotAt,
+        fullSyncAt: bulk.requestedAt, complete: false }, true);
+      error = null; return;
+    }
     if (!candidate && current && !current.complete && !recoveryAttempted) {
       recoveryAttempted = true;
       const previous = await store!.restorePrevious(); validSignal();
@@ -174,14 +185,6 @@ export function createNotamService(options: NotamOptions | undefined,
         throw cause;
       }
       return;
-    }
-    if (now() >= store!.nextBulkAt) {
-      const bulk = await acquire('bulk'); validSignal();
-      const records = mergeNotamRecords([], bulk.records);
-      candidate = await store!.publish({ schemaVersion: 1, environment: environment!, records,
-        checkedAt: bulk.snapshotAt, watermark: bulk.snapshotAt, baselineAt: bulk.snapshotAt,
-        fullSyncAt: bulk.requestedAt, complete: false }, true);
-      error = null; return;
     }
     try {
       if (!current || !current.complete) throw new NotamError(current?.incompleteReason ?? error ?? 'incomplete-checkpoint', store!.nextBulkAt);

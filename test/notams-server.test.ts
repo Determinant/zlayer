@@ -118,16 +118,22 @@ test('paired domestic and international renderings preserve raw variants without
   assert.deepEqual(reversed[0]?.translations, [...next.translations, previous.translations[1]]);
   for (const [from, to] of [['IV/NBO/A', 'I/NBO/A'], ['KZZZ', 'KYYY'], ['QMRLC', 'QMRXX'],
     ['000/999', '000/100'], ['3700N12100W005', '3800N12100W005'], ['2610051200', '2610051300'],
-    ['09L', '09R'], ['NOTAMN', 'NOTAMR A0041/26']]) {
+    ['09L', '09R'], ['NOTAMN', 'NOTAMR A0041/26'], ['10/042', '10/043']]) {
     const conflicting = normalized(notice({ ...next, translations: [local, { ...domestic, text: domestic.text.replace(from!, to!) }] }));
     assert.throws(() => mergeNotamRecords(merged, [conflicting]), NotamRevisionConflict,
       'retained populated qualifiers must remain constraints even when another rendering omitted them');
   }
+  for (const header of ['A0043/26', 'B0042/26', 'A0042/27']) {
+    const conflicting = normalized(notice({ ...previous,
+      translations: [local, { ...icao, text: icao.text.replace('A0042/26', header) }] }));
+    assert.throws(() => mergeNotamRecords([previous], [conflicting]), NotamRevisionConflict);
+    assert.throws(() => mergeNotamRecords([conflicting], [previous]), NotamRevisionConflict);
+  }
 });
 test('full ICAO bodies reconcile only with an identical retained translation and preserve optional references', () => {
-  const text = 'RWY 09L CLSD\nCANCELED';
-  const icao = `A0043/26 NOTAMC A0042/26 Q) KZZZ/QMRLC////000/999/3700N12100W005 A) KTST B) 2610041159 E) ${text}`;
-  const previous = normalized(notice({ number: '0043', series: 'A', text, changeType: 'C',
+  const text = 'RWY 09L CLSD\nEXC EMERG ACFT';
+  const icao = `A0043/26 NOTAMR A0042/26 Q) KZZZ/QMRLC////000/999/3700N12100W005 A) KTST B) 2610041159 E) ${text}`;
+  const previous = normalized(notice({ number: '0043', series: 'A', text, changeType: 'R',
     referred: { series: 'A', number: '0042', year: '2026' }, translations: [{ type: 'OTHER:ICAO', text: icao }] }));
   const next = normalized(notice({ ...previous, number: '43', referred: null, text: icao,
     translations: [{ type: 'OTHER:ICAO', text: `<pre>\n${icao}\n</pre>` }] }));
@@ -135,13 +141,30 @@ test('full ICAO bodies reconcile only with an identical retained translation and
   assert.equal(mergeNotamRecords(saved, [next]), saved);
   const reversed = mergeNotamRecords([next], saved);
   assert.equal(reversed[0]?.text, text); assert.deepEqual(reversed[0]?.referred, previous.referred);
-  assert.equal(reversed[0]?.lifecycle, 'cancellation');
+  assert.equal(reversed[0]?.lifecycle, 'active');
   assert.equal(mergeNotamRecords(reversed, [previous, next]), reversed);
   for (const overrides of [
     { referred: { series: 'A', number: '0041', year: '2026' } },
     { translations: [] }, { text: icao.replace('09L', '09R') }, { changeType: 'N' },
     { translations: [{ type: 'OTHER:ICAO', text: icao.replace('A0042/26', 'A0041/26') }] },
   ]) assert.throws(() => mergeNotamRecords(saved, [normalized(notice({ ...next, ...overrides }))]), NotamRevisionConflict);
+});
+test('duplicate inactive records do not depend on presentation or cancel other source IDs', () => {
+  for (const lifecycle of ['cancelled', 'cancellation'] as const) {
+    const previous = normalized(notice({ lifecycle, changeType: lifecycle === 'cancellation' ? 'C' : 'N' }));
+    const next = normalized(notice({ ...previous, text: 'M0042/26 NOTAMC M0041/26\nA) KTST',
+      translations: [{ type: 'LOCAL_FORMAT', text: 'M0042/26 NOTAMC M0041/26' }],
+      referred: { series: 'M', number: '0041', year: '2026' } }));
+    const saved = [previous];
+    assert.equal(mergeNotamRecords(saved, [next]), saved, 'retain the raw inactive record already held');
+    assert.equal(mergeNotamRecords([next], saved)[0], next, 'either representation proves the same inactive state');
+    const active = normalized(notice({ id: '1757600000000002', sourceId: '1757600000000002' }));
+    assert.ok(mergeNotamRecords([previous, active], [next]).includes(active), 'references never delete another source ID');
+    assert.throws(() => mergeNotamRecords(saved, [normalized(notice())]), NotamRevisionConflict,
+      'same-revision active data cannot resurrect a tombstone or cancellation message');
+    assert.throws(() => mergeNotamRecords([normalized(notice())], [next]), NotamRevisionConflict,
+      'an ambiguous same-revision lifecycle change must still fail');
+  }
 });
 test('failed batches capture bounded conflict evidence without changing the input generation', async () => {
   const previous = Array.from({ length: 40 }, (_, i) => notice({ id: String(i).padStart(16, '0'), sourceId: String(i).padStart(16, '0') }));
@@ -461,6 +484,82 @@ test('a saved representation conflict recovers by full replay and stays healthy 
     assert.ok(calls.every(url => !url.pathname.endsWith('/il')));
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('inactive rendering conflicts recover the complete feed and stay excluded across restart', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-inactive-recovery-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const cancelledMessage = normalized(notice({ changeType: 'C', text: 'ARFF CAPABILITY DOWNGRADED\nCANCELED' }));
+  const active = normalized(notice({ id: '1757600000000002', sourceId: '1757600000000002' }));
+  const added = normalized(notice({ id: '1757600000000003', sourceId: '1757600000000003', text: 'RWY 09L CLSD' }));
+  const sparse = notice({ ...cancelledMessage, text: 'M0042/26 NOTAMC M0041/26\nA) KTST',
+    translations: [{ type: 'LOCAL_FORMAT', text: 'M0042/26 NOTAMC M0041/26' }] });
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([cancelledMessage, active]));
+  await seed.invalidate('revision-conflict'); await seed.close();
+  const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
+  time += 6 * 3600_000;
+  const calls: URL[] = [];
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); calls.push(url); time += 1001;
+      return url.pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: [aixm(sparse), aixm(added)] } });
+    } });
+  let service = create();
+  try {
+    await service.restore(); service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete');
+    assert.equal(service.status.error, null); assert.equal(service.status.recordCount, 3);
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records.map(r => r.id).sort(), [active.id, added.id]);
+    const recovered = service.status.checkedAt!;
+    assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 600_000);
+    await service.close(); service = create(); await service.restore();
+    const attempts = calls.length; service.refresh(); await service.settled(); assert.equal(calls.length, attempts);
+    time += 180_000; service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.ok(service.status.checkedAt! > recovered);
+    assert.equal(service.readAirport({ faaId: 'TST' })?.records.length, 2);
+    assert.equal(JSON.parse(await readFile(budgetPath, 'utf8')).bulkAt, budget.bulkAt);
+    assert.ok(calls.every(url => !url.pathname.endsWith('/il')));
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+for (const bulkFails of [false, true]) {
+  test(`due full reconciliation supersedes failing replay; bulk failure=${bulkFails} retains its fallback`, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'notam-due-bulk-')), controller = new AbortController();
+    let time = NOTAM_NOW - 23 * 3600_000, conflicting = true;
+    const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+    await seed.restore(); await seed.reserve('bulk'); const due = seed.nextBulkAt;
+    time = NOTAM_NOW;
+    const original = normalized(notice());
+    await seed.publish(generation([original])); await seed.invalidate('revision-conflict'); await seed.close();
+    const calls: URL[] = [];
+    const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+      { now: () => time, signal: controller.signal, fetch: async input => {
+        const url = new URL(String(input)); calls.push(url); time += 1001;
+        if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' });
+        if (url.pathname.endsWith('/il')) return bulkFails ? new Response('', { status: 500 })
+          : Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
+        if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([notice({ text: 'Fresh baseline' })], time)));
+        return Response.json({ status: 'Success', data: { aixm: conflicting ? [aixm(notice({ text: 'Conflicting old rendering' }))] : [] } });
+      } });
+    try {
+      await service.restore(); service.refresh(); await service.settled(); assert.equal(service.status.error, 'revision-conflict');
+      const before = calls.length;
+      time = due + 1000; service.refresh(); await service.settled();
+      assert.ok(calls.slice(before).some(url => url.pathname.endsWith('/il')), 'full rebase must run while the replay prefix is still within 24 hours');
+      assert.ok(!calls.slice(before).some(url => url.searchParams.has('lastUpdatedDate')));
+      assert.equal(service.status.continuity, 'incomplete', 'bulk alone cannot claim a bridged generation');
+      const bridgeFrom = bulkFails ? NOTAM_NOW : JSON.parse(await readFile(join(directory, 'staging', 'candidate.json'), 'utf8')).watermark;
+      conflicting = false; time += 180_000; service.refresh(); await service.settled();
+      assert.equal(service.status.state, 'ready'); assert.equal(service.status.error, null);
+      assert.equal(service.readAirport({ faaId: 'TST' })?.records[0]?.text, bulkFails ? original.text : 'Fresh baseline');
+      const delta = calls.at(-1)!;
+      assert.equal(Date.parse(delta.searchParams.get('lastUpdatedDate')!), Math.floor((bridgeFrom - 600_000) / 1000) * 1000);
+      assert.equal(calls.filter(url => url.pathname.endsWith('/il')).length, 1, 'a failed bulk still consumes the daily allowance');
+    } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+  });
+}
 
 test('unrecoverable continuity keeps its original cause while waiting for the durable bulk allowance', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-expired-replay-')), controller = new AbortController();

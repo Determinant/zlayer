@@ -30,10 +30,13 @@ function compatibleIcao(a: string, b: string): boolean {
   // FAA can render a domestic NOTAM under either its local number or its paired
   // international number. Only qualify NOTAMN: replacement/cancellation references
   // and unrecognized layouts must still compare exactly.
-  const parse = (text: string) => /^(?:[A-Z]\d{4}\/\d{2}|\d{2}\/\d{3}) NOTAMN Q\) (\S+) (A\) .+)$/.exec(text);
+  const parse = (text: string) => /^([A-Z]\d{4}\/\d{2}|\d{2}\/\d{3}) NOTAMN Q\) (\S+) (A\) .+)$/.exec(text);
   const left = parse(a), right = parse(b);
-  if (!left || !right || left[2] !== right[2]) return false;
-  const before = left[1]!.split('/'), after = right[1]!.split('/');
+  if (!left || !right || left[3] !== right[3]) return false;
+  // A different header is allowed only across the observed domestic/international
+  // formats. Two international (or two domestic) numbers are not aliases.
+  if (left[1] !== right[1] && /^[A-Z]/.test(left[1]!) === /^[A-Z]/.test(right[1]!)) return false;
+  const before = left[2]!.split('/'), after = right[2]!.split('/');
   // The paired rendering may omit traffic/purpose/scope. Preserve supplied values;
   // two different nonempty values, FIR/code, altitude or geometry still conflict.
   return before.length === 8 && after.length === 8 && before.every((value, i) => value === after[i] ||
@@ -84,6 +87,12 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
 }
 
 export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
+  // These records have no active-airport membership. NMS can replace their text
+  // with a terse cancellation rendering at the same source revision. Preserve
+  // the retained raw record; presentation differences cannot break continuity.
+  // A NOTAMC message and an original-ID tombstone remain distinct lifecycle kinds.
+  if (previous.id === next.id && previous.lifecycle === next.lifecycle &&
+    (previous.lifecycle === 'cancelled' || previous.lifecycle === 'cancellation')) return previous;
   const fields = notamContentDifferences(previous, next);
   if (fields.length) throw new NotamRevisionConflict(previous, next, fields);
   const types = translationsByType(previous);
