@@ -18,7 +18,8 @@ services:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
       CHARTS_DOMAIN: ${CHARTS_DOMAIN:?Set CHARTS_DOMAIN}
       INFO_UPSTREAM: ${INFO_UPSTREAM:-127.0.0.1:8787}
-      TLS_MODE: ${TLS_MODE:-bootstrap}
+      APP_TLS_MODE: ${APP_TLS_MODE:-${TLS_MODE:-bootstrap}}
+      CHARTS_TLS_MODE: ${CHARTS_TLS_MODE:-${TLS_MODE:-bootstrap}}
     volumes:
       - type: bind
         source: .

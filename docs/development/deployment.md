@@ -140,7 +140,15 @@ dates and refresh them from the current host if staging lasts longer.
 
 After DNS and ingress reach the new origin, set `TLS_MODE=managed`, validate the
 configuration, and run Compose `up -d` to recreate the container with the new
-environment. Caddy obtains and renews Let's Encrypt certificates automatically.
+environment. Caddy obtains and renews Let's Encrypt certificates automatically
+using the HTTP challenge on port 80, including behind a TLS-terminating proxy.
+Keep the public `/.well-known/acme-challenge/` path reachable through that proxy.
+Compose uses `TLS_MODE` as the default for both hosts. To move one domain first,
+override `APP_TLS_MODE` and `CHARTS_TLS_MODE` independently. For a chart-only
+cutover, keep `APP_TLS_MODE=bootstrap` and set `CHARTS_TLS_MODE=managed` after the
+chart domain reaches the new origin. Move the app to managed mode only after its
+own DNS cutover. When invoking Caddy directly instead of through Compose, supply
+the two per-host variables; each defaults to `bootstrap` when absent.
 Allow for initial issuance, verify both domains and the certificate issuer/expiry,
 and keep the bootstrap keys until that check succeeds. Reverting to bootstrap mode
 is the immediate TLS rollback while those certificates remain valid. For unattended

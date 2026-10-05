@@ -61,7 +61,8 @@ class Routing(unittest.TestCase):
                 path.write_bytes(b'fixture bytes')
         (root / 'app/current/sw.js').write_text('// worker fixture\n')
 
-        env = dict(os.environ, APP_DOMAIN=APP, CHARTS_DOMAIN=CHARTS, TLS_MODE='managed',
+        env = dict(os.environ, APP_DOMAIN=APP, CHARTS_DOMAIN=CHARTS,
+                   APP_TLS_MODE='managed', CHARTS_TLS_MODE='managed',
                    XDG_DATA_HOME=str(root / 'data'), XDG_CONFIG_HOME=str(root / 'config'))
         result = subprocess.run([args.caddy, 'adapt', '--config', str(args.config),
                                  '--adapter', 'caddyfile'], env=env, capture_output=True, text=True)
