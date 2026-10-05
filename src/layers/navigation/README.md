@@ -17,10 +17,16 @@ background map visibility. Weather observations belong to the
 belong to [Routes](../routes/README.md).
 
 [NOTAMs](../notams/README.md#airport-detail-tab) adds the third airport-detail tab
-to the right of Plates, independently of plate availability. That guide owns notice
-parsing, freshness and display. Navigation owns the tab host and saved selection;
-the validator accepts `info`, `plates` and `notams`. An unavailable provider falls
-back to Info without erasing its saved tab. Stowing releases visible NOTAM demand.
+to the right of Plates, independently of plate availability. Navigation has no
+required dependency on NOTAMs. The workspace discovers the enabled NOTAM provider
+through core's scoped plugin bridge and supplies its view as an optional detail
+body; Navigation imports no NOTAM implementation. Disabling NOTAMs removes its tab
+and releases notice demand while keeping Navigation usable.
+
+The NOTAM guide owns notice parsing, freshness and display. Navigation owns the
+tab host and saved selection; the validator accepts `info`, `plates` and `notams`.
+An unavailable provider falls back to Info without erasing its saved tab, which
+can resume when the provider is enabled again. Stowing releases visible NOTAM demand.
 
 ## Source entry points
 

@@ -6,7 +6,7 @@ import { formatCheckedAt, formatTimestamp, formatTimestampPair } from '../../cor
 import { LoadingPlaceholder } from '../../core/ui/loading-placeholder';
 import type { NotamsApi } from './public';
 import type { PlateNoticeContext } from '../plates/public';
-import { matchPlateNotams } from './matcher';
+import { matchPlateNotams, type PlateNotamMatch } from './matcher';
 import { parseNotam } from './parser';
 import { notamEndKind, notamValidity } from './validity';
 import './styles.css';
@@ -67,7 +67,7 @@ function NotamEntry({ record, now, reason }: { record: NotamRecord; now: number;
       <span>{record.locations.join(', ') || record.icaoLocations.join(', ')}</span></div>
     <div className="notam-flairs">{parsed.flairs.map(flair => <span key={flair.label} className={`notam-flair--${flair.tone}`} title={flair.evidence.text}>{flair.label}</span>)}
       {parsed.unresolved && <span className="notam-flair--caution">Interpretation Limited</span>}
-      {validity !== 'within interval' && <span className={validity.startsWith('check') ? 'notam-flair--caution' : 'notam-flair--neutral'}>
+      {validity !== 'within interval' && validity !== 'upcoming' && <span className={validity.startsWith('check') ? 'notam-flair--caution' : 'notam-flair--neutral'}>
         {validity.replace(/\b[a-z]/g, letter => letter.toUpperCase())}</span>}</div>
     {reason && <p className="notam-match-reason">{reason}</p>}
     <p className="notam-text">{parsed.body || 'No text supplied.'}</p>
@@ -82,6 +82,32 @@ function NotamEntry({ record, now, reason }: { record: NotamRecord; now: number;
       <p>Source ID {record.sourceId} · Updated {formatTimestamp(record.updatedAt)}</p>
     </details>
   </article>;
+}
+type NotamListEntry = { record: NotamRecord; reason?: string; outcome?: PlateNotamMatch['outcome'] };
+export function NotamList({ entries, now }: { entries: readonly NotamListEntry[]; now: number }) {
+  const sections: { key: string; title: string; entries: NotamListEntry[] }[] = [
+    { key: 'active', title: 'Active', entries: [] },
+    { key: 'check', title: 'Check timing', entries: [] },
+    { key: 'upcoming', title: 'Upcoming', entries: [] },
+  ];
+  for (const entry of entries) {
+    const validity = notamValidity(entry.record, now);
+    sections[validity === 'upcoming' ? 2 : validity === 'within interval' ? 0 : 1]!.entries.push(entry);
+  }
+  const renderEntries = (items: readonly NotamListEntry[]) => items.map(({ record, reason }) =>
+    <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={now} {...(reason ? { reason } : {})} />);
+  return <>{sections.filter(section => section.entries.length).map(section =>
+    <section key={section.key} className={`notam-section notam-section--${section.key}`} aria-label={section.title}>
+      <h3 className="notam-section-heading">{section.title}{' '}<span className="notam-section-count">{section.entries.length}</span></h3>
+      {section.entries.some(entry => entry.outcome) ? (['applies', 'review'] as const).map(outcome => {
+        const group = section.entries.filter(entry => entry.outcome === outcome)
+          .sort((a, b) => Number(b.record.classification === 'FDC') - Number(a.record.classification === 'FDC'));
+        return group.length ? <div key={outcome}>
+          <h4 className="notam-match-heading">{outcome === 'applies' ? 'Applies to this plate' : 'Review applicability'}</h4>
+          {renderEntries(group)}
+        </div> : null;
+      }) : renderEntries(section.entries)}
+    </section>)}</>;
 }
 export function AirportNotams({ api, query, active }: { api: NotamsApi; query: NotamAirportQuery; active: boolean }) {
   const view = useAirportNotams(api, query, active), [filter, setFilter] = useState('all'), [subject, setSubject] = useState('all'), [search, setSearch] = useState('');
@@ -106,7 +132,7 @@ export function AirportNotams({ api, query, active }: { api: NotamsApi; query: N
     </div>
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
     {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices{!view.staging && !view.assured && ' · Current completeness unconfirmed'}</p>}
-    {shown.map(({ record }) => <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={view.now} />)}
+    <NotamList entries={shown} now={view.now} />
     {view.snapshot && !shown.length && <p className="notam-list-status">{records.length ? 'No notices match these filters.' : view.staging ? 'No retained notices.' : view.assured
       ? 'No current or upcoming notices in the supported airport-location feed.' : 'No retained notices. Current coverage is unconfirmed.'}</p>}
   </section>;
@@ -141,11 +167,7 @@ export function PlateNotams({ api, context, active, retryCatalog }: {
           : <p>This page’s airport and procedure could not be established from its edition. Reopen an indexed IAP, SID or STAR from Plates.</p> : <>
         <strong>{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
         <SourceStatus view={view} api={api} />
-        {(['applies', 'review'] as const).map(outcome => {
-          const group = result.matches.filter(m => m.outcome === outcome);
-          return group.length ? <section key={outcome}><h3>{outcome === 'applies' ? 'Applies to this plate' : 'Review applicability'}</h3>
-            {group.map(match => <NotamEntry key={`${match.record.id}:${match.record.revision}`} record={match.record} now={view.now} reason={match.reason} />)}</section> : null;
-        })}
+        <NotamList entries={result.matches} now={view.now} />
         {!count && <p>{view.staging ? 'No matches in the retained notices.' : view.assured ? 'No established matches in the supported procedure and runway scope.' : 'Matching is unconfirmed.'}</p>}
         {result.unresolved > 0 && <p>{result.unresolved} notice(s) have unresolved interpretation.</p>}
       </>}

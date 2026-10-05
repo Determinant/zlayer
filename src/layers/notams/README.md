@@ -9,7 +9,7 @@ qualification. Production collection is disabled by default. The
 release work. Requirements below retain the intended scope; the implementation
 coverage and dated evidence distinguish supported behavior from remaining work.
 
-The plugin shows both domestic NOTAMs (D) and Flight Data Center NOTAMs (FDC)
+The plugin shows NOTAM (D) and Flight Data Center NOTAMs (FDC)
 in a third airport-detail tab, with concise flairs and a **Show raw** disclosure
 for every entry. Relevant notices also appear in an expandable red **NOTAM**
 bar in the plate reader, especially amendments to IAPs, SIDs, and STARs.
@@ -30,7 +30,7 @@ Implemented in this tree:
 - Plates pins the catalog resource in new selections and resolves each book page
   by exact URL/hash/index. Legacy selections without that resource remain readable
   but report matching unavailable; reopening from the catalog supplies the pin.
-- The existing weather process owns OAuth, all-class full sync, global deltas,
+- The shared info server owns OAuth, all-class full sync, global deltas,
   durable quota admission, checksummed generations, local reads and feed health.
 
 Current interpretation limits: explicit IAP headings, named SID/STAR headings,
@@ -67,7 +67,13 @@ release work.
 
 The first release covers airport-associated D and FDC notices, procedure
 amendments and restrictions, and runway/facility notices whose relevance can be
-established. FDC is a classification, not a synonym for an approach amendment:
+established. **D means distant dissemination**; NMS calls the API classification
+`DOMESTIC`, and the normalizer maps its `DOM` payload code to that value. The UI
+displays it as **D**. The NMS API also defines `INTERNATIONAL`, `MILITARY` and
+`LOCAL_MILITARY`; retain source classifications even when interpretation is outside
+the supported D/FDC scope. Airport/ARTCC association is separate from classification.
+
+FDC is a classification, not a synonym for an approach amendment:
 retain its other subjects when associated with that airport. Classification and
 subject keyword remain separate throughout the UI. The ICAO series letter is not
 the NOTAM classification and must not determine the D/FDC flair.
@@ -93,11 +99,15 @@ Ownership follows the [plugin contract](../../../docs/architecture/layer-plugins
 
 Use the stable plugin ID `notams`. Expose a small data-only `NotamsApi` through
 `workspace/plugin-apis.ts` and register one instance in `workspace/products.ts`.
-The public surface needs scoped airport demand, observable snapshots, and typed
-match results. Keep React components out of the public contract. Integrate with
-Plates through the optional bridge and Navigation through explicit workspace body
-props. Disconnect releases demand and clears derived results without closing the
-PDF or removing the selected airport.
+The public surface exposes scoped airport demand, observable snapshots and an
+explicit retry command. The shared UI derives typed match results locally from
+those snapshots and exact plate context. Keep React components out of the public
+contract. The workspace discovers the enabled provider through core's scoped
+plugin bridge in `workspace/notams.tsx`, then composes the Navigation detail body
+and Plates notice views through explicit props. Neither Navigation nor Plates
+requires NOTAMs or imports its implementation. Disabling NOTAMs removes its tab,
+counts and plate bar, releases demand and clears derived results without closing
+the PDF or removing the selected airport. Re-enabling reconnects those optional views.
 
 The [info server integration](#info-server-integration) uses the existing
 `tools/info-server/` process and deployment. Collection and query contracts
@@ -122,9 +132,17 @@ imperfect parsing never hides a notice. Show filtered and total counts, and rese
 transient search/filter restrictions on a different airport. These filters do not
 affect the plate bar's results or counts.
 
-Include current and published upcoming notices, with future notices marked.
-Order current notices before upcoming ones, then newest issued first with a stable
-ID tie-breaker. Unknown timing stays visible in a labeled group. Expired/cancelled
+Group notices into **Active**, **Check timing**, and **Upcoming** sections, omitting
+empty sections. Active contains notices within their effective interval and any
+supported schedule; uncertain validity/schedules and notices outside their schedule
+stay under Check timing with their existing qualifiers. Upcoming always appears last,
+with a muted heading and subtle dashed leading border using existing theme tokens;
+it is a section, not a flair. Keep notice text and semantic flair colors at full contrast.
+Within each airport section, order newest issued first with a stable ID tie-breaker;
+the plate list additionally prioritizes FDC notices as described below.
+The clock reevaluates timing every 30 seconds while
+demanded and immediately when demand resumes, moving notices between sections as
+their effective times change. Expired/cancelled
 notices leave the current list only on validated lifecycle/time evidence; retained
 history is separate and bounded. Do not infer severity from FDC versus D.
 
@@ -172,8 +190,16 @@ centered **NOTAM** text, a count, and an expand/collapse chevron. This is the mi
 bar in the reader layout, not a mark drawn onto the source PDF.
 
 When relevant notices exist, the strip is red. Clicking expands the shared entry
-list inline. Separate **Applies to this plate** from **Review applicability**, and
-distinguish upcoming notices. The collapsed count includes displayed non-expired
+list inline. Use the same timing sections as the airport list, separating
+**Applies to this plate** from **Review applicability** within each section. This
+keeps every upcoming notice after active and timing-review notices, regardless of
+its matching outcome. Within each applicability group, put **FDC** notices first
+so procedure amendments precede other notices; preserve newest-issued order and
+the stable ID tie-breaker within FDC and other notices. Use source classification,
+not mentions of FDC in a D notice's text. This plate-specific ordering leaves the
+airport list and semantic flair colors unchanged.
+
+The collapsed count includes displayed non-expired
 matches and review candidates; label the review count separately when present.
 Count each source notice once even if several clauses match. Multipart groups
 retain their individual parts' identities and counts.
@@ -224,12 +250,13 @@ target. Shared minimums documents require airport-specific context. Unresolved o
 ambiguous pages show matching unavailable; never carry a previous airport's
 confirmed notices onto another page.
 
-The context retains airport FAA/ICAO IDs, procedure kind/name, publisher procedure
-ID/computer code, amendment metadata, and catalog resource identity. The current
-selection type promises only airport ID and procedure ID/name/kind, despite richer
-catalog records. Extend and validate it deliberately, including saved-selection
-compatibility. Legacy selections may recover context from their exact catalog;
-they must not silently adopt another edition.
+New selections pin the catalog resource alongside their document and procedure
+identity. The page resolver reads that exact catalog to obtain airport FAA/ICAO IDs,
+the full procedure record and amendment metadata, checking the displayed edition
+and published page target. Legacy selections without the catalog pin remain
+readable but cannot establish matching context; reopen the procedure from its
+catalog. A failed pinned-catalog read can recover through Retry or reconnect
+without replacing the PDF. No fallback silently adopts another edition.
 
 ## NMS source contract
 
@@ -511,11 +538,11 @@ and NOTAM source ID are not airport-query identifiers.
 The client owns the airport-to-alias relationship:
 
 - Navigation supplies `faaId` and `icaoId` from one published airport feature.
-  Reuse `airportIdentifiers` for normalization/deduplication while retaining the
-  originating field's namespace; it is not an alias lookup service.
+  `airportNotamQuery` trims and uppercases them while retaining the originating
+  field's namespace; it is not an alias lookup service.
 - Plates supplies those fields from the actual page's `ProcedureAirport`, together
-  with catalog identity. Recover legacy selections through that exact catalog as
-  described under [displayed page identity](#displayed-page-identity).
+  with pinned catalog identity, as described under
+  [displayed page identity](#displayed-page-identity).
 - Send both published IDs when available, including non-`K` ICAO codes. Never
   invent an alias, use a display ID as fallback, or combine IDs from different
   airport records. Missing/conflicting context produces matching unavailable.
@@ -617,7 +644,7 @@ The 60-second worker deadline handled the measured staging load, but needs
 deployment headroom qualification.
 
 Measure weather latency and preparation during bootstrap, deltas and NMS failure.
-The systemd budget is shared: four CPUs' worth of time and 2 GiB across the process
+The systemd budget is shared: four CPUs' worth of time and 4 GiB across the process
 and workers. Set the [storage/resource limits](#storage-and-query-indexes) within
 measured headroom; adding a worker does not add memory capacity.
 
@@ -738,7 +765,7 @@ Color expresses the kind of information, independently of D/FDC classification:
 | Purple | Procedure identity | Approach, Departure, RNAV (RNP) Z RWY 30L |
 | Amber | Restriction, amendment, outage, activity or uncertainty | Minima Amended, ILS Unavailable, UAS Activity, Check Schedule |
 | Red | Explicit closure of the identified facility | Runway Closed, Taxilane Closed |
-| Neutral | Supporting information or timing | Flagged and Lighted, Surface to 300 ft AGL, Upcoming |
+| Neutral | Supporting information or timing | Flagged and Lighted, Surface to 300 ft AGL, Outside Schedule |
 
 Use the shared `surface-tag-*` / `text-tag-*` theme roles; the light palette is
 generated from the dark seeds. Labels convey the meaning without color and wrap
@@ -899,42 +926,40 @@ time limitations. This README remains the canonical guide after implementation.
 
 ## Verification
 
+### Regression coverage
+
+- `test/notams.test.ts` covers conservative flairs, supported schedules and validity,
+  procedure identity and ILS/LOC aliases, exact page context, saved/offline state,
+  refresh deadlines and cancellation across activations.
+- `test/notams-ui.test.ts` checks rendered Active/Check timing/Upcoming sections,
+  effective-start transitions, removal of the Upcoming flair, and plate grouping
+  that keeps upcoming matches after current review candidates and prioritizes FDC
+  within each applicability group without changing airport order. These are markup
+  and timing checks; browser layout remains part of the release matrix.
+- `test/notams-server.test.ts` covers AIXM variants, durable admission, generation
+  restoration, bulk-to-delta publication, cancellations, failed replacement recovery,
+  candidate cleanup, unchanged-delta reuse and weather HTTP isolation.
+- `test/e2e/notams.spec.ts` covers airport filters/raw disclosure, optional providers,
+  shared requests, actual-page changes and catalog recovery without PDF reacquisition,
+  the single staging notice, offline/stowed demand, narrow scrolling/collapse,
+  semantic flair colors and contrast in both themes.
+
 ### Local implementation evidence — 2026-10-04
 
-- `node --import=tsx --import=./test/helpers/assets.ts --test test/notams.test.ts test/notams-server.test.ts`:
-  15 tests passed at the initial implementation baseline. Coverage includes observed AIXM variants, conservative flairs,
-  procedure identity, schedules, actual-page context, client lifetime, durable
-  admission/recovery, bulk-to-delta publication and weather HTTP isolation.
-- Parser version 2 follow-up: 11 NOTAM unit tests and three theme tests passed.
-  Fixtures cover KSJC-style minima, lighting/navaid outages, obstacle/UAS notices,
-  closure scope, conditional lighting notes, bounded headings and NMS daily schedules.
-  Replaying the saved KSJC staging airport response derived specific tags for all
-  30 D/FDC records; this checks source forms, not operational completeness.
-- `test/e2e/notams.spec.ts`: five Chromium tests passed in the existing Playwright
-  container. They exercised the third tab and filters/raw disclosure, optional
-  providers, shared requests, page changes without PDF reacquisition, offline
-  freshness, stowed demand and the narrow scrolling bar/expand-collapse interaction, plus
-  distinct flair colors and at least 4.5:1 text contrast in both themes on a phone.
-  These use invented notices and a synthetic three-page PDF.
-- `npx tsc --noEmit`, `npm run check:imports`, `npm run build`, and
-  `npm run info:build` passed. Import checking covered 578 source modules.
-- Parser version 3 / matcher version 2 review fixes: 29 focused NOTAM tests passed,
-  covering translated/multipart estimated ends, saved-record migration and revision
-  reconciliation, `HI-` identity, explicit navigation outages, qualified broad
-  scopes, live recovery after failed replacement syncs, candidate cleanup and
-  unchanged-delta file reuse. Seven NOTAM Chromium tests passed in the matching
-  Playwright container, including catalog retry/reconnect without replacing the PDF.
-  TypeScript, import boundaries (579 modules), and the info-server build passed.
-  These runs used fixture source responses; they did not spend FAA quota or change
-  the live collector's state. The host browser lacked its GLib dependency, so the
-  browser run used the already installed container image with networking disabled.
+- Replaying the saved KSJC staging airport response derived specific tags for all
+  30 D/FDC records. These observed source forms informed the grammar and synthetic
+  fixtures; the replay did not establish operational completeness.
+- Focused Chromium checks used invented notices and a synthetic three-page PDF.
+  The host browser lacked its GLib dependency, so they used the matching Playwright
+  container with networking disabled. Fixture runs did not spend FAA quota or change
+  the live collector's state. Earlier browser passes predate the simplified staging
+  notice and timing sections and do not validate those later presentation changes.
 - Live staging full-load and delta evidence is recorded in the source qualification
   section above. Production was not enabled, and temporary plaintext credential
   copies used for this exercise were removed; durable admission state is retained.
 
-The full verification suite was not run, following the implementation request to
-avoid unrelated tests/full verification. These results do not complete the broader
-release matrix below or qualify shared deployment capacity.
+The full browser verification gate was not completed. These historical results do
+not complete the broader release matrix below or qualify shared deployment capacity.
 
 ### Release qualification matrix
 
@@ -975,8 +1000,10 @@ results for valid airports without notices. Query input never creates alias mapp
 Run a combined bootstrap/forecast workload within the deployed CPU/memory limits
 before production enablement; normal unit passes do not establish that capacity.
 
-Browser regressions must cover third-tab keyboard order, airports without plates,
-saved-tab compatibility, disabled providers, simultaneous airport contexts, raw
+Browser regressions must cover timing-section order and counts, effective-time
+transitions, filtering across sections, theme contrast and wrapping, third-tab
+keyboard order, airports without plates, saved-tab compatibility, disabled providers,
+simultaneous airport contexts, raw
 disclosures, filters, stale/empty/error states, denied storage, reconnect and late
 results. Plate regressions cover paging across airports, continuations, ambiguous
 context, saved old editions, fullscreen, rotation, short/narrow viewports, enlarged
@@ -1013,6 +1040,8 @@ These are qualification work, not assumptions to hide in the UI:
   requiring credential-bearing files to be published with this guide.
 - [FAA AIM, NOTAM classifications and keywords](https://www.faa.gov/air_traffic/publications/ATpubs/AIM_html/chap5_section_1.html)
   supplies terminology/examples; interpretation still needs qualified NMS fixtures.
+- [FAA NOTAM definitions](https://www.faa.gov/about/initiatives/notam/what_is_a_notam)
+  distinguishes distant dissemination in NOTAM (D) from the domestic classification name.
 - [ForeFlight FDC NOTAM display](https://support.foreflight.com/hc/en-us/articles/203329009-Where-can-FDC-NOTAMs-be-viewed-in-ForeFlight-Mobile)
   describes airport lists, the red plate alert, and access to all airport notices.
 - [ForeFlight 17.8](https://www.foreflight.com/releases/17-8) describes relevant

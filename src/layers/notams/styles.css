@@ -6,6 +6,13 @@
 .notam-filters label { display: grid; gap: 4px; min-width: 0; font-size: 12px; }
 .notam-filters .ui-input { width: 100%; min-width: 0; }
 .notam-search { grid-column: 1 / -1; }
+.notam-section { min-width: 0; }
+.notam-section + .notam-section { margin-top: 12px; }
+.notam-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 6px; font-size: 14px; line-height: 1.5; }
+.notam-section-count { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
+.notam-section--upcoming { padding-inline-start: 10px; border-inline-start: 2px dashed var(--border-subtle); }
+.notam-section--upcoming > .notam-section-heading { color: var(--text-secondary); }
+.notam-match-heading { margin: 8px 0 4px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-entry { padding: 10px 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
 .notam-entry-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; font-size: 13px; }
 .notam-flairs { display: flex; flex-wrap: wrap; gap: 4px; margin-block: 6px; }
@@ -22,5 +29,4 @@
 .plate-notam-toggle { width: 100%; border-radius: 0; justify-content: center; white-space: normal; }
 .has-notams > .plate-notam-toggle { background: var(--surface-60343b); color: var(--text-ffd0ca); border-color: var(--border-a45656); }
 .plate-notams-list { max-height: min(30cqh, 18rem); overflow: auto; overscroll-behavior: contain; padding: 8px 12px; }
-.plate-notams-list h3 { font-size: 14px; }
 .plate-notam-count.has-notams { color: var(--text-ffb2b8); }
