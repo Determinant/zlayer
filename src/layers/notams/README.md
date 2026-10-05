@@ -457,6 +457,7 @@ at a verified source boundary; operational applicability follows the narrower
 | Initial full sync | One all-classification initial load when no usable baseline exists and the durable bulk budget permits |
 | Incremental sync | Target one global delta every three minutes; include created, updated and cancelled records, with overlap |
 | Scheduled full reconciliation | Target one all-classification full sync per rolling 24 hours, never sooner than 24 hours after the preceding bulk attempt; rebuild and reconcile even when deltas appear healthy |
+| Recovery replay | Replay from a verified complete previous checkpoint within the delta window, using the ordinary delta allowance; publish only after complete validation |
 | Recovery full sync | Use the same bulk allowance after lost continuity or invalid state; no separate emergency quota or restart allowance |
 | Browser query | Local indexed read only, including new airports and query-result cache misses |
 
@@ -481,6 +482,12 @@ remain an optional additional check after their request accounting is qualified.
 4. Pull deltas at most every three minutes, with a conservative overlapping lower
    bound for timestamp precision/repeated delivery. Merge idempotently by source
    ID and qualified revision/update metadata.
+   Compare the source timestamp through nanoseconds, then sequence and correction.
+   The raw record digest includes original spellings; it is not a semantic revision
+   number. At equal ordering, the demonstrated `NMS_ID_` alias and equivalent
+   update-time fractional-zero spellings do not make a conflict. Retain the saved
+   raw record for these equivalent duplicates. All other notice fields, including
+   text, translations, lifecycle and effective-time qualifiers, remain exact.
    The current overlap is ten minutes, accommodating timestamp precision and
    delivery lag while remaining inside the 24-hour query window. It is not proof
    of an upper bound on FAA delivery latency.
@@ -513,7 +520,27 @@ When a replacement bridge fails and the live generation remains eligible for del
 discard that candidate and resume the live feed at the next allowed attempt. A
 bootstrap candidate without a usable live baseline remains available for bridge
 retry within the lookback window. Only a continuity failure in the live delta path
-invalidates its checkpoint; replacement failures do not change that checkpoint.
+marks its current checkpoint incomplete; replacement failures do not change that checkpoint.
+Before that invalidation, retain the exact verified prefix as the previous
+generation. A rejected delta has not changed its records or watermark. Recovery
+can replay every delta from that authenticated prefix when its boundary plus
+overlap is still inside the source window. It can also recover an older invalidated
+checkpoint from a separately verified complete previous generation. Publish and
+clear the failure only after the entire replay validates; never set an incomplete
+checkpoint complete merely because code changed or the server restarted. Missing,
+corrupt, incomplete or expired recovery prefixes require the next permitted bulk
+load. Replays consume the normal global delta allowance.
+
+Persist the original incomplete reason in the checkpoint and keep it visible
+through recovery waits and restarts. `delta-window-exceeded` describes an actual
+window failure; it must not replace a revision conflict merely because that
+conflict disabled live deltas. Legacy incomplete checkpoints without a reason
+report `incomplete-checkpoint` until a successful replay or a diagnosed failure.
+On a conflict, log only the source ID and changed field names. A single private
+`conflict.json` retains the two normalized records and their digests for diagnosis,
+bounded to 8 MiB; larger diagnostics retain metadata with `recordsOmitted: true`.
+Diagnostic storage failure cannot erase the feed failure or advance its watermark.
+The file is not served by the API or included in public source releases.
 Honor 429/503 backoff and `Retry-After`; retries consume budget.
 
 Follow same-origin allowlisted content routes; never forward credentials to an
@@ -987,7 +1014,9 @@ time limitations. This README remains the canonical guide after implementation.
   and timing checks; browser layout remains part of the release matrix.
 - `test/notams-server.test.ts` covers AIXM variants, durable admission, generation
   restoration, bulk-to-delta publication, cancellations, failed replacement recovery,
-  candidate cleanup, unchanged-delta reuse and weather HTTP isolation.
+  equivalent raw representations, retained conflict diagnostics and causes, verified
+  replay across restarts, legacy incomplete-checkpoint recovery, candidate cleanup,
+  unchanged-delta reuse and weather HTTP isolation.
 - `test/e2e/notams.spec.ts` covers airport filters/raw disclosure, optional providers,
   shared requests, actual-page changes and catalog recovery without PDF reacquisition,
   the single staging notice, offline/stowed demand, narrow scrolling/collapse,

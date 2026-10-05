@@ -9,14 +9,15 @@ import { createNotamXmlParser } from '../tools/info-server/notams/normalize';
 import { notamTime } from '../src/layers/notams/validity';
 import { NotamStore, NOTAM_DAY_MS, type NotamGeneration } from '../tools/info-server/notams/store';
 import { createNotamService, mergeNotamRecords } from '../tools/info-server/notams/service';
+import { NotamRevisionConflict } from '../tools/info-server/notams/revision';
 import { notamResponse } from '../tools/info-server/notams/routes';
 import { createInfoServer } from '../tools/info-server/server';
 import { aixm, bulkXml, notice, NOTAM_NOW } from './fixtures/notams';
 import type { NotamRecord } from '@zlayer/contracts';
 
-function normalized(record: NotamRecord) {
+function normalized(record: NotamRecord, xml = aixm(record)) {
   const records: NotamRecord[] = [], parser = createNotamXmlParser(r => records.push(r), { count: 1, snapshotAt: NOTAM_NOW });
-  parser.write(aixm(record)); parser.finish(); return records[0]!;
+  parser.write(xml); parser.finish(); return records[0]!;
 }
 function generation(records: readonly NotamRecord[], time = NOTAM_NOW): Omit<NotamGeneration, 'generation'> {
   return { schemaVersion: 1, environment: 'staging', records, complete: true,
@@ -43,9 +44,29 @@ test('bounded AIXM parser uses namespaces, rejects truncated counts and retains 
 test('revision ordering rejects conflicts and unsupported lifecycle without advancing state', () => {
   const previous = notice(), newer = notice({ updatedAt: NOTAM_NOW, revision: 'b'.repeat(64) });
   assert.equal(mergeNotamRecords([newer], [previous])[0], newer);
-  assert.throws(() => mergeNotamRecords([previous], [{ ...previous, revision: newer.revision }]), /revision-conflict/);
+  assert.throws(() => mergeNotamRecords([previous], [{ ...previous, text: 'RWY 09L CLSD', revision: newer.revision }]), /revision-conflict/);
   assert.throws(() => mergeNotamRecords([previous], [notice({ lifecycle: 'unknown', changeType: 'UNSUPPORTED' })]), /unsupported-lifecycle/);
   assert.equal(mergeNotamRecords([previous], [{ ...newer, lifecycle: 'cancelled' }])[0]?.lifecycle, 'cancelled');
+});
+test('equivalent source IDs and timestamp spellings do not conflict or replace retained raw records', () => {
+  const old = normalized(notice()), previous = [old];
+  for (const overrides of [
+    { sourceId: old.id },
+    { sourceUpdatedAt: old.sourceUpdatedAt.replace('.000Z', 'Z') },
+    { sourceUpdatedAt: old.sourceUpdatedAt.replace('.000Z', '.000000000Z') },
+  ]) {
+    const record = notice(overrides);
+    const next = normalized(record, aixm(record).replace(/<f:lastUpdated>[^<]+/, `<f:lastUpdated>${record.sourceUpdatedAt}`));
+    assert.notEqual(old.revision, next.revision);
+    assert.equal(mergeNotamRecords(previous, [next]), previous);
+    assert.equal(mergeNotamRecords([next], previous)[0], next);
+  }
+  const nano = normalized(notice(), aixm().replace('.000Z</f:lastUpdated>', '.000000001Z</f:lastUpdated>'));
+  assert.equal(mergeNotamRecords(previous, [nano])[0], nano);
+  assert.equal(mergeNotamRecords([nano], previous)[0], nano);
+  const conflict = normalized(notice({ sourceId: old.id, text: 'RWY 09L CLSD' }));
+  assert.throws(() => mergeNotamRecords(previous, [conflict]), error => error instanceof NotamRevisionConflict &&
+    error.fields.length === 1 && error.fields[0] === 'text' && error.previous === old && error.next === conflict);
 });
 test('observed FAA timestamp, translation, annotation and lifecycle variants normalize without losing meaning', () => {
   const base = aixm(notice({ text: 'IAP TEST.\nRNAV (GPS) RWY 9, AMDT 2...\n2610041159-2610051200EST' }));
@@ -243,23 +264,99 @@ for (const failure of ['bulk-lifecycle', 'bridge-conflict', 'bridge-transport'] 
     } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
   });
 }
-test('a semantic failure in the live delta still durably invalidates continuity', async () => {
+test('a live conflict preserves diagnostics and its cause across restart, then recovers by verified replay', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-live-failure-')), controller = new AbortController();
-  let time = NOTAM_NOW;
+  let time = NOTAM_NOW, conflict = true;
+  const requests: string[] = [], logs: string[] = [];
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
   await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice())])); await seed.close();
   time += 180_000;
-  const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async input => {
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, signal: controller.signal, log: value => logs.push(value), fetch: async input => {
+      requests.push(String(input));
       time += 1001;
       return new URL(String(input)).pathname === '/v1/auth/token'
         ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
-        : Response.json({ status: 'Success', data: { aixm: [aixm(notice({ text: 'Conflicting source revision' }))] } });
+        : Response.json({ status: 'Success', data: { aixm: [aixm(notice(conflict ? { text: 'Conflicting source revision' }
+          : { updatedAt: time - 1000, text: 'Resolved source revision' }))] } });
     } });
+  let service = create();
   try {
     await service.restore(); service.refresh(); await service.settled();
     assert.equal(service.status.error, 'revision-conflict'); assert.equal(service.status.continuity, 'incomplete');
-    assert.equal(JSON.parse(await readFile(join(directory, 'staging', 'current.json'), 'utf8')).complete, false);
+    const manifest = JSON.parse(await readFile(join(directory, 'staging', 'current.json'), 'utf8'));
+    assert.equal(manifest.complete, false); assert.equal(manifest.incompleteReason, 'revision-conflict');
+    assert.equal(manifest.watermark, NOTAM_NOW);
+    const diagnosticPath = join(directory, 'staging', 'conflict.json');
+    const diagnostic = JSON.parse(await readFile(diagnosticPath, 'utf8'));
+    assert.equal(diagnostic.id, notice().id); assert.deepEqual(diagnostic.fields, ['text']);
+    assert.equal(diagnostic.previous.text, notice().text); assert.equal(diagnostic.next.text, 'Conflicting source revision');
+    assert.equal((await stat(diagnosticPath)).mode & 0o777, 0o600);
+    assert.ok(logs.some(log => log.includes(`id=${notice().id} fields=text`)));
+    assert.ok(logs.every(log => !log.includes('Conflicting source revision')));
+    const budget = await readFile(join(directory, 'staging', 'budget.json'), 'utf8');
+    await service.close(); service = create(); await service.restore();
+    assert.equal(service.status.error, 'revision-conflict');
+    assert.equal(await readFile(join(directory, 'staging', 'budget.json'), 'utf8'), budget);
+    const before = requests.length; service.refresh(); await service.settled(); assert.equal(requests.length, before);
+    time += 180_000; service.refresh(); await service.settled();
+    assert.equal(service.status.error, 'revision-conflict'); assert.equal(service.status.watermark, NOTAM_NOW);
+    assert.ok(requests.every(url => !url.includes('/il')));
+    const replay = new URL(requests.at(-1)!);
+    assert.equal(Date.parse(replay.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 600_000);
+    conflict = false; time += 180_000; service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete'); assert.equal(service.status.error, null);
+    assert.equal(service.readAirport({ faaId: 'TST' })?.records[0]?.text, 'Resolved source revision');
+    assert.equal(JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8')).bulkAt, JSON.parse(budget).bulkAt);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('legacy incomplete checkpoints recover from an older verified generation without resetting the bulk allowance', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-legacy-replay-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  const old = normalized(notice()), added = normalized(notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002' }));
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([old], time - 180_000));
+  await seed.publish(generation([old, added])); await seed.close();
+  const path = join(directory, 'staging', 'current.json'), manifest = JSON.parse(await readFile(path, 'utf8'));
+  await writeFile(path, JSON.stringify({ ...manifest, complete: false }));
+  const budget = JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8'));
+  time += 180_000;
+  const calls: URL[] = [];
+  const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); calls.push(url); time += 1001;
+      return url.pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: [aixm({ ...old, sourceId: old.id }), aixm(added)] } });
+    } });
+  try {
+    await service.restore(); assert.equal(service.status.error, 'incomplete-checkpoint');
+    service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.recordCount, 2);
+    assert.ok(service.status.watermark! > manifest.watermark);
+    assert.equal(calls.length, 2); assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 780_000);
+    assert.equal(JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8')).bulkAt, budget.bulkAt);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('unrecoverable continuity keeps its original cause while waiting for the durable bulk allowance', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-expired-replay-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk');
+  await seed.publish(generation([normalized(notice())], time - NOTAM_DAY_MS));
+  await seed.invalidate('revision-conflict'); await seed.close();
+  time += 180_001;
+  let requests = 0;
+  const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, signal: controller.signal, fetch: async () => { requests++; throw new Error('Unexpected source request'); } });
+  try {
+    await service.restore(); service.refresh(); await service.settled();
+    assert.equal(requests, 0); assert.equal(service.status.error, 'revision-conflict');
+    assert.equal(service.status.nextAttemptAt, NOTAM_NOW + NOTAM_DAY_MS);
+    time += 180_000; service.refresh(); await service.settled();
+    assert.equal(requests, 0); assert.equal(service.status.error, 'revision-conflict');
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 test('disabled or misconfigured NOTAMs leave weather HTTP working; GET/HEAD and health are local', async () => {

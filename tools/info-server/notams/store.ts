@@ -7,11 +7,13 @@ import { isRecord, isNotamRecord, type NotamRecord, type NotamEnvironment, NOTAM
 import { acquireNotamLock } from './lock';
 import { NotamError } from './error';
 import { upgradeNotamRecord } from './normalize';
+import type { NotamRevisionConflict } from './revision';
 
 export const NOTAM_DAY_MS = 86_400_000;
 export const NOTAM_GENERATION_MAX_BYTES = 256 * 1024 * 1024;
 export type NotamGeneration = { schemaVersion: 1; environment: NotamEnvironment; generation: string;
-  checkedAt: number; watermark: number; fullSyncAt: number; baselineAt: number; complete: boolean; records: readonly NotamRecord[] };
+  checkedAt: number; watermark: number; fullSyncAt: number; baselineAt: number; complete: boolean;
+  incompleteReason?: string; records: readonly NotamRecord[] };
 type Manifest = Omit<NotamGeneration, 'records'> & { count: number; bytes: number };
 type Contents = Pick<Manifest, 'generation' | 'count' | 'bytes'>;
 type Journal = { schemaVersion: 1; environment: NotamEnvironment; lastAttemptAt: number; dataAt: number; bulkAt: number; anyAt: number; backoffAt: number };
@@ -119,16 +121,36 @@ export class NotamStore {
     await rm(join(this.directory, 'candidate.json'), { force: true });
     await this.prune();
   }
-  async invalidate() {
+  async restorePrevious(): Promise<NotamGeneration | undefined> {
+    try {
+      const value: unknown = JSON.parse(await readFile(join(this.directory, 'previous.json'), 'utf8'));
+      const previous = await this.readGeneration(value, 'previous.json');
+      return previous.complete ? previous : undefined;
+    } catch { return undefined; /* Only an authenticated complete checkpoint can seed replay. */ }
+  }
+  async recordConflict(conflict: NotamRevisionConflict) {
+    this.assertHeld();
+    const summary = { schemaVersion: 1, environment: this.environment, detectedAt: this.now(),
+      id: conflict.next.id, fields: conflict.fields, previousRevision: conflict.previous.revision, nextRevision: conflict.next.revision };
+    const details = JSON.stringify({ ...summary, previous: conflict.previous, next: conflict.next });
+    // One private diagnostic, never part of an airport response or a source archive.
+    await atomicNotamFile(join(this.directory, 'conflict.json'), Buffer.byteLength(details) <= 8 * 1024 * 1024
+      ? details : JSON.stringify({ ...summary, recordsOmitted: true }));
+  }
+  async invalidate(reason: string) {
     this.assertHeld();
     if (!this.manifest) return;
-    const manifest = { ...this.manifest, complete: false };
+    // The rejected delta never changed this verified prefix. Retain its exact
+    // boundary for a complete replay; the visible current state stays incomplete.
+    if (this.manifest.complete) await atomicNotamFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
+    const manifest = { ...this.manifest, complete: false, incompleteReason: reason };
     await atomicNotamFile(join(this.directory, 'current.json'), JSON.stringify(manifest));
     this.manifest = manifest;
   }
   private async readGeneration(value: unknown, name: string): Promise<NotamGeneration> {
     if (!isRecord(value) || value.schemaVersion !== 1 || value.environment !== this.environment ||
       typeof value.generation !== 'string' || !/^[a-f0-9]{64}$/.test(value.generation) || typeof value.complete !== 'boolean' ||
+      value.incompleteReason !== undefined && (typeof value.incompleteReason !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(value.incompleteReason)) ||
       !['checkedAt', 'watermark', 'fullSyncAt', 'baselineAt', 'bytes', 'count'].every(k => instant(value[k])) ||
       Number(value.bytes) > NOTAM_GENERATION_MAX_BYTES || Number(value.count) > 150_000 || Number(value.watermark) > this.now()) {
       throw new NotamError('invalid-checkpoint');
