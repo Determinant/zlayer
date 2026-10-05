@@ -31,6 +31,20 @@ reports NOTAM readiness; `/api/weather/healthz` includes the same `notams` summa
 Disabled/misconfigured collection or no bridged baseline returns 503 for airport
 queries. Retained snapshots return 200 with explicit source time and continuity.
 
+`GET`/`HEAD /api/notams/tfrs` reads a separately prepared national FAA graphical
+TFR snapshot. Its background adapter runs independently of NMS enablement and
+credentials, normalizing published boundaries, per-area UTC schedules and raw
+text. Its next round waits at least three minutes and it persists a bounded,
+checksummed snapshot and partial-detail cache under `<NOTAMS_STATE_DIR>/tfrs/`.
+A separate writer lock and checksummed admission journal preserve restart cooldowns
+and `Retry-After`. Detail downloads run sequentially with one-second spacing;
+already completed details survive a failed round. HTTP performs no upstream work
+and shares the current JSON/gzip representation. Cold reads
+return 503, failed updates preserve original check times, and the shared weather
+health response exposes `tfrs` status. See the owning
+[TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart) for
+source limits, timing, geometry, retention and local validation evidence.
+
 Enable only the chosen environment with `NOTAMS_ENABLED=true` and
 `NOTAMS_ENVIRONMENT=staging` (or qualified production). Set
 `NOTAMS_CLIENT_ID_FILE` and `NOTAMS_CLIENT_SECRET_FILE` to private readable files.
@@ -62,6 +76,18 @@ State is partitioned by environment. `budget.json` is a durable pre-request jour
 do not delete or roll it back to repair dataset files. A corrupt/missing journal
 blocks collection instead of replenishing quota. Checksummed NDJSON generations
 and current/previous/candidate manifests provide independent dataset recovery.
+Version 2 admission journals are checksummed, serialize reservation/completion/
+backoff writes and preserve token-request cooldowns across restart. Legacy version
+1 journals retain their existing deadlines and upgrade on the next write. An
+uncertain durable write prevents further source calls from stale in-memory state.
+Version 2 generations include resolved records and explicit unresolved source
+records in one checksum. Known-record disagreements do not stop independent
+updates; global health remains degraded, while airport responses identify relevant
+issues and separate collection continuity from content coverage. Version 1 is
+readable, but rollback after publication needs a version-2-capable backend; never
+restore an older quota journal or erase issues to start an old binary. The
+[collector contract](../../src/layers/notams/README.md#unresolved-source-records)
+owns evidence bounds, scope uncertainty and resolution rules.
 Unchanged deltas update only the manifest and reuse records/indexes. The lock owner
 collects unreferenced datasets at startup and after publication/candidate disposal;
 it retains the current dataset, the previous distinct dataset and one candidate.
@@ -72,10 +98,35 @@ preserve source times and the separate quota journal.
 Keep candidate-release warming at `NOTAMS_ENABLED=false`. Stop/drain the old
 collector before starting its replacement against the same state. A local kernel
 lock prevents concurrent writers on one host; enforce one credential owner across
-hosts as well. Data requests are at least three minutes apart, bulk attempts at
-least 24 hours apart; failed attempts consume their reserved slots. Browser refresh
+hosts and separate state directories as well. Data requests are at least three
+minutes apart, bulk attempts at least 24 hours apart; failed attempts consume their
+reserved slots. Token attempts also wait at least three minutes and all NMS
+requests have one-second spacing. Pre-request reservations include a bounded
+dispatch window, retained after interruption; successful completion durably
+anchors normal cooldowns to response headers. Numeric and HTTP-date `Retry-After`
+survive restart. Browser refresh
 and weather test spacing never change those allowances. See the owning guide for
 size bounds, recovery, staging evidence and remaining source qualifications.
+
+The graphical TFR collector is independent of `NOTAMS_ENABLED`. Candidate checks
+must also avoid a second TFR source owner: use the reusable server entry with
+`startUpdates: false` to restore and read an isolated saved snapshot. If no live
+TFR collector exists, one candidate may prepare its initial snapshot. Stop/drain
+that candidate before handing its whole `tfrs/` directory, including admission
+and provisioning files, to production. Preserve that journal on later rollouts;
+copying only the snapshot would lose the source cooldown.
+
+Airport HTTP delivery uses a 128-entry/32 MiB bounded cache for JSON and shared
+gzip output, invalidated on any source-status change. The 16 MiB response limit
+is enforced while constructing it. At most 16 NOTAM responses can be encoding or
+waiting on clients; excess demand returns local 503/`Retry-After: 1`. NOTAM health
+remains outside that delivery limit. Neither local overload nor an uncached query
+initiates FAA work.
+
+Weather delivery has its own limit of 32 responses, held through upstream misses,
+encoding and slow clients. Excess demand returns local 503/`Retry-After: 1`.
+Health checks bypass both delivery limits; the HTTP server accepts at most 512
+connections. Weather readers cannot occupy the NOTAM delivery slots.
 
 ## Run locally
 
@@ -196,8 +247,13 @@ forecast preparation and report/advisory misses, never to saved forecast reads.
 METAR/TAF preserve their query-based shared caching; they do not enter the numeric
 preparation workers.
 
+429/503 backoff honors the full numeric or HTTP-date `Retry-After`, without a
+five-minute ceiling. Numeric overflow saturates at the latest representable date
+instead of permitting an early retry. Weather queue backoff lasts for the process
+lifetime; the NMS and graphical TFR collectors persist their admission deadlines.
+
 `Cache-Control: no-store` prevents intermediary caches from extending freshness.
-Prepared JSON of at least 1 KiB stores a gzip representation beside the original
+Cached JSON of at least 1 KiB stores a gzip representation beside the original
 bytes during atomic publication (when smaller). Both encodings count toward the
 disk ceiling. HTTP streams the negotiated representation without buffering or
 recompressing it, and HEAD reads only metadata/stat information. Content digests
@@ -208,7 +264,10 @@ and change time remain unchanged, avoiding body reads and hashing every six minu
 Restarted or changed files authenticate both raw and gzip bytes before reuse;
 missing or damaged files return to preparation. Older saved
 files without a compressed representation stream unchanged until replaced.
-Query-based report/advisory JSON still uses negotiated gzip on response. Already compressed numeric
+Query-based reports and advisories use the same saved representations and streaming
+path. If optional cache persistence fails, coalesced readers share compression of
+the fetched body. Internal raw reads validate the stored file length before
+allocating a body buffer and reject truncated or appended files. Already compressed numeric
 slices are sent unchanged. Responses carry `X-Weather-Cache` and the decoded
 response payload's byte SHA-256; grids also carry their converter/source identity.
 HTTP forecasts always report HIT; query-based report/advisory misses can report MISS. No request bodies are logged.
@@ -263,7 +322,8 @@ The bundle includes a read-only check for these routes and authenticated artifac
 `node tools/info-server/dist/check-info-api.js https://your-app.example disabled`.
 Use `staging` or `production` instead of `disabled` when that NOTAM environment
 is enabled; the check requires a ready, complete feed and a valid local airport
-response. It also checks national radar and the storm-motion catalog. Run it on
+response. It also checks national radar, the storm-motion catalog and a valid,
+fresh national TFR snapshot, including when NMS is disabled. Run it on
 the candidate loopback listener before activation and on public HTTPS afterward.
 
 ### Service installation
@@ -279,7 +339,7 @@ Install a supported Node 24 runtime at `/opt/zlayer-info/node` (or adjust
 `ExecStart` in the supplied unit). Copy the complete `tools/info-server/dist/`
 contents to `/opt/zlayer-info/releases/<release>/` and atomically point
 `/opt/zlayer-info/current` at that directory. The build includes its module
-package metadata, the server entry, all worker entries and shared algorithms; production needs no npm
+package metadata, the process entry, reusable `server.js` entry, all worker entries and shared algorithms; production needs no npm
 installation. Keep previous releases for rollback.
 
 ```bash
@@ -361,6 +421,11 @@ cache metadata, temporary writes and separate durable NOTAM state. An explicit
 Replicas do not share caches or upstream quotas. The same [readiness checklist](#deployment-readiness)
 applies to either installation method.
 
+Failed startup drains every initialized producer and releases its writer locks.
+Shutdown stops accepting connections immediately, aborts upstream work and drains
+all producers and cache writes; remaining client connections close after five
+seconds. A cleanup failure is reported after the other owners have also stopped.
+
 ### Migrating the former weather-server name
 
 The shared process now lives in `tools/info-server/`, exports `createInfoServer`,
@@ -384,7 +449,10 @@ not migrate or restart a deployed installation.
 
 ## Verification and ownership
 
-Cache/expiry/range behavior is covered by `test/info-server.test.ts`; complete
+Cache/expiry/range and upstream backoff behavior is covered by
+`test/info-server.test.ts`; shared compression, slow-client admission and restart
+reuse by `info-server-delivery.test.ts`; failed startup and shutdown cleanup by
+`info-server-lifecycle.test.ts`; complete
 horizons and pinned identities by `weather-discovery.test.ts`; worker outputs and
 restart reuse by `weather-processing.test.ts`; atomic publication and recovery by
 `weather-warming.test.ts`. Captured GDAL fixtures provide

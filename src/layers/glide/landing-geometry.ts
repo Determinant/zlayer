@@ -113,3 +113,46 @@ export function landingRowSpans(mask: MultiPolygon, y: number): [number, number]
   }
   return spans;
 }
+
+/** The same even-odd spans for a sequence of north-to-south rows. Admit each
+ * edge once, then visit only edges crossing the current row. Complex ownership
+ * masks contribute many integration cuts; rescanning every boundary at each
+ * cut turns even a simple coastline into quadratic preparation work. */
+export function createLandingRowSweep(mask: MultiPolygon): (y: number) => Point[] {
+  type Edge = { a: Point; b: Point; north: number; south: number; part: number };
+  const edges: Edge[] = [];
+  for (let part = 0; part < mask.length; part++) for (const ring of mask[part]!) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[j]!, b = ring[i]!;
+      if (a[1] !== b[1]) edges.push({ a, b, north: Math.min(a[1], b[1]), south: Math.max(a[1], b[1]), part });
+    }
+  }
+  edges.sort((a, b) => a.north - b.north);
+  const active = new Map<number, Set<Edge>>();
+  let next = 0, previous = -Infinity;
+  return y => {
+    // Keep reuse correct if a caller starts another pass over the same mask.
+    if (y < previous) { next = 0; active.clear(); }
+    previous = y;
+    while (next < edges.length && edges[next]!.north <= y) {
+      const edge = edges[next++]!;
+      if (edge.south <= y) continue;
+      let part = active.get(edge.part);
+      if (!part) { part = new Set(); active.set(edge.part, part); }
+      part.add(edge);
+    }
+    const spans: Point[] = [];
+    for (const [part, crossing] of active) {
+      const cuts: number[] = [];
+      for (const edge of crossing) {
+        if (edge.south <= y) { crossing.delete(edge); continue; }
+        const { a, b } = edge;
+        cuts.push(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]));
+      }
+      if (!crossing.size) { active.delete(part); continue; }
+      cuts.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < cuts.length; i += 2) spans.push([cuts[i]!, cuts[i + 1]!]);
+    }
+    return spans;
+  };
+}

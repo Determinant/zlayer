@@ -89,10 +89,15 @@ Display scaling and browser chrome can change the available viewport.
   [AHRS lifecycle](../../src/layers/ahrs/README.md#integration).
 - A right-click, or a stationary long press on touch screens, queries a small map
   radius and opens a nearby-feature chooser when airport, navaid or fix points
-  overlap. Ordinary clicks keep selecting the nearest rendered point directly.
+  overlap. Ordinary clicks select a rendered point directly unless a TFR area
+  covers the position: a left click or tap there opens **TFR Details** in the
+  right-side panel, listing overlapping restrictions without map labels.
   Empty-space context gestures open a temporary GPS waypoint with coordinates and
   terrain elevation, without editing the route. When a plugin contributes actions,
   the shared map menu combines them with nearby features or that coordinate waypoint.
+  **Inspect TFRs** appears inside a published area while the NOTAM plugin is enabled
+  and opens the same panel; context gestures never open it directly. TFR details
+  have no dedicated edge tab; a map selection or that menu action reopens them.
   **Show glide range** selects a temporary planning point, enables Glide coverage
   and opens its altitude control. A labeled pin and dashed teal outline distinguish
   it from the solid teal ownship ring; the panel and menu can clear the selection.

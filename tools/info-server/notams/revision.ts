@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { isNotamRecord, type NotamRecord } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
+import { notamTime } from '../../../src/layers/notams/validity';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
 export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
@@ -42,8 +43,29 @@ function compatibleIcao(a: string, b: string): boolean {
   return before.length === 8 && after.length === 8 && before.every((value, i) => value === after[i] ||
     i >= 2 && i <= 4 && (!value || !after[i]));
 }
+function fdcBodyForms(record: NotamRecord, translation: string): Set<string> | undefined {
+  // Prove each optional body wrapper against the complete shared LOCAL_FORMAT,
+  // including its source identity and actual interval. A substring match or an
+  // unrelated ICAO rendering (which may carry old dates) is not sufficient.
+  const match = /^!FDC (\d)\/(\d{4}) ([A-Z0-9]{3,5}) (IAP|SID|STAR|ODP) (.+) (\d{10})-(\d{10})(EST)?$/.exec(translation);
+  if (!match || record.classification !== 'FDC' || record.series || !/^\d{4}$/.test(record.year) ||
+    !record.year.endsWith(match[1]!) || numberContent(record.number) !== numberContent(match[2]!) ||
+    !record.locations.includes(match[3]!)) return;
+  const compact = (time: number | null) => time !== null && time % 60_000 === 0
+    ? new Date(time).toISOString().replace(/\D/g, '').slice(2, 12) : undefined;
+  if (compact(record.startsAt) !== match[6] || compact(record.endsAt) !== match[7] ||
+    record.endKind !== (match[8] ? 'estimated' : 'fixed')) return;
+  const subject = match[4]!, body = match[5]!, interval = `${match[6]}-${match[7]}${match[8] ?? ''}`;
+  return new Set([body, `${subject} ${body}`, `${body} ${interval}`, `${subject} ${body} ${interval}`]);
+}
 function equivalentBody(previous: NotamRecord, next: NotamRecord): string | undefined {
   if (previous.text === next.text) return previous.text;
+  const localBefore = translationsByType(previous).get('LOCAL_FORMAT'), localAfter = translationsByType(next).get('LOCAL_FORMAT');
+  for (const translation of localBefore ?? []) {
+    if (!localAfter?.has(translation)) continue;
+    if (fdcBodyForms(previous, translation)?.has(previous.text.replace(/\s+/g, ' ').trim()) &&
+      fdcBodyForms(next, translation)?.has(next.text.replace(/\s+/g, ' ').trim())) return previous.text;
+  }
   const before = translationsByType(previous).get('OTHER:ICAO'), after = translationsByType(next).get('OTHER:ICAO');
   // Some source records put the entire ICAO translation into event:text. Only
   // reconcile it with an E)-only body when both records retain that exact complete
@@ -58,6 +80,13 @@ function equivalentBody(previous: NotamRecord, next: NotamRecord): string | unde
   }
   return undefined;
 }
+function effectiveEndContent(record: NotamRecord): string {
+  // EST can be encoded in effectiveEnd or in the retained source translation.
+  // Only a known estimated end at the same instant admits that spelling change.
+  return record.endKind === 'estimated' && record.endsAt !== null &&
+    /^\d{12}(?:EST)?$/.test(record.effectiveEnd) && notamTime(record.effectiveEnd) === record.endsAt
+    ? record.effectiveEnd.replace(/EST$/, '') : record.effectiveEnd;
+}
 // Source ID/time spellings already participate in canonical matching/ordering.
 // Other operational content remains exact, including lifecycle and timing.
 const contentFields = ['id', 'classification', 'number', 'series', 'year', 'locations', 'icaoLocations', 'accountability',
@@ -66,6 +95,7 @@ const contentFields = ['id', 'classification', 'number', 'series', 'year', 'loca
 export function notamContentDifferences(previous: NotamRecord, next: NotamRecord) {
   return contentFields.filter(field => {
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
+    if (field === 'effectiveEnd') return effectiveEndContent(previous) !== effectiveEndContent(next);
     if (field === 'text') return equivalentBody(previous, next) === undefined;
     if (field === 'referred') {
       if (!previous.referred || !next.referred) return false;
@@ -114,4 +144,33 @@ export class NotamRevisionConflict extends NotamError {
   readonly related: NotamRevisionConflict[] = [];
   constructor(readonly previous: NotamRecord, readonly next: NotamRecord,
     readonly fields: ReturnType<typeof notamContentDifferences>) { super('revision-conflict'); }
+}
+
+export function mergeNotamRecords(previous: readonly NotamRecord[], updates: readonly NotamRecord[]): readonly NotamRecord[] {
+  if (!updates.length) return previous;
+  const records = new Map(previous.map(record => [record.id, record]));
+  let changed = false;
+  let conflict: NotamRevisionConflict | undefined;
+  for (let next of updates) {
+    if (next.lifecycle === 'unknown') throw new NotamError('unsupported-lifecycle');
+    const old = records.get(next.id);
+    if (old) {
+      const order = compareNotamRevision(next, old);
+      if (order < 0) continue;
+      if (!order && next.revision !== old.revision) {
+        try { next = mergeSameNotamRevision(old, next); }
+        catch (cause) {
+          if (!(cause instanceof NotamRevisionConflict)) throw cause;
+          if (!conflict) conflict = cause;
+          else if (conflict.related.length < 31) conflict.related.push(cause);
+          continue;
+        }
+      }
+      if (next.revision === old.revision) continue;
+    }
+    records.set(next.id, next); changed = true;
+  }
+  if (conflict) throw conflict;
+  if (records.size > 150_000) throw new NotamError('record-limit');
+  return changed ? [...records.values()].sort((a, b) => a.id.localeCompare(b.id)) : previous;
 }

@@ -4,6 +4,7 @@ export const NOTAM_REFRESH_MS = 180_000;
 export const NOTAM_STALE_MS = 2 * NOTAM_REFRESH_MS;
 export const NOTAM_AIRPORT_MAX_RECORDS = 5000;
 export const NOTAM_AIRPORT_MAX_BYTES = 16 * 1024 * 1024;
+export const NOTAM_MAX_ISSUE_VARIANTS = 8;
 export type NotamEnvironment = 'staging' | 'production';
 export type NotamAirportQuery = { faaId?: string; icaoId?: string };
 export type NotamRecord = {
@@ -26,11 +27,28 @@ export type NotamFeedStatus = {
   generation: string | null; checkedAt: number | null; watermark: number | null;
   fullSyncAt: number | null; recordCount: number;
   continuity: 'complete' | 'incomplete'; error: string | null; nextAttemptAt: number | null;
+  /** Collection can advance while individual source records remain unresolved. */
+  collectionContinuity?: 'complete' | 'incomplete';
+  unresolvedRecords?: number;
+  unscopedRecords?: number;
+};
+export type NotamSourceIssue = {
+  id: string;
+  reason: 'revision-conflict' | 'unsupported-lifecycle' | 'representation-limit';
+  variants: NotamRecord[];
+  /** Bounded evidence samples; overflow remains unresolved until superseded. */
+  variantsTruncated: boolean;
+  locations: string[]; icaoLocations: string[];
+  /** Missing or over-limit associations must qualify every airport query. */
+  unscoped: boolean;
 };
 export type NotamAirportSnapshot = {
   schemaVersion: 1; query: NotamAirportQuery; feed: NotamFeedStatus;
   scope: 'airport-location'; associationCoverage: 'complete' | 'incomplete';
   records: NotamRecord[];
+  /** Added together; absence identifies a legacy snapshot. */
+  contentCoverage?: 'complete' | 'incomplete';
+  issues?: NotamSourceIssue[];
 };
 
 const text = (v: unknown, max = 256 * 1024): v is string => typeof v === 'string' && v.length <= max;
@@ -70,12 +88,34 @@ export function isNotamFeedStatus(v: unknown): v is NotamFeedStatus {
     (v.generation === null || isSha256(v.generation)) && optionalTime(v.checkedAt) &&
     optionalTime(v.watermark) && optionalTime(v.fullSyncAt) && integer(v.recordCount) &&
     (v.continuity === 'complete' || v.continuity === 'incomplete') &&
-    (v.error === null || typeof v.error === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(v.error)) && optionalTime(v.nextAttemptAt);
+    (v.error === null || typeof v.error === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(v.error)) && optionalTime(v.nextAttemptAt) &&
+    (v.collectionContinuity === undefined && v.unresolvedRecords === undefined && v.unscopedRecords === undefined ||
+      ['complete', 'incomplete'].includes(String(v.collectionContinuity)) && integer(v.unresolvedRecords) &&
+      integer(v.unscopedRecords) && v.unscopedRecords <= v.unresolvedRecords && v.unresolvedRecords <= v.recordCount &&
+      (v.continuity !== 'complete' || v.collectionContinuity === 'complete' && v.unresolvedRecords === 0));
+}
+export function isNotamSourceIssue(v: unknown): v is NotamSourceIssue {
+  return isRecord(v) && typeof v.id === 'string' && /^\d{16}$/.test(v.id) &&
+    ['revision-conflict', 'unsupported-lifecycle', 'representation-limit'].includes(String(v.reason)) &&
+    typeof v.variantsTruncated === 'boolean' && typeof v.unscoped === 'boolean' && codes(v.locations) && codes(v.icaoLocations) &&
+    Array.isArray(v.variants) && v.variants.length > 0 && v.variants.length <= NOTAM_MAX_ISSUE_VARIANTS &&
+    v.variants.every(r => isNotamRecord(r) && r.id === v.id &&
+      (v.unscoped || (r.locations.length > 0 || r.icaoLocations.length > 0) &&
+        r.locations.every(code => (v.locations as string[]).includes(code)) &&
+        r.icaoLocations.every(code => (v.icaoLocations as string[]).includes(code)))) &&
+    new Set(v.variants.map(r => r.revision)).size === v.variants.length;
 }
 export function isNotamAirportSnapshot(v: unknown): v is NotamAirportSnapshot {
   return isRecord(v) && v.schemaVersion === 1 && isNotamAirportQuery(v.query) &&
     isNotamFeedStatus(v.feed) && v.feed.generation !== null && v.feed.environment !== null &&
     v.scope === 'airport-location' && ['complete', 'incomplete'].includes(String(v.associationCoverage)) &&
     Array.isArray(v.records) && v.records.length <= NOTAM_AIRPORT_MAX_RECORDS && v.records.every(isNotamRecord) &&
-    new Set(v.records.map(r => r.id)).size === v.records.length;
+    new Set(v.records.map(r => r.id)).size === v.records.length &&
+    (v.contentCoverage === undefined && v.issues === undefined ||
+      ['complete', 'incomplete'].includes(String(v.contentCoverage)) && Array.isArray(v.issues) &&
+      v.records.length + v.issues.length <= NOTAM_AIRPORT_MAX_RECORDS && v.issues.every(isNotamSourceIssue) &&
+      new Set([...v.records, ...v.issues].map(r => r.id)).size === v.records.length + v.issues.length &&
+      v.feed.collectionContinuity !== undefined && (v.feed.unresolvedRecords ?? 0) >= v.issues.length &&
+      v.issues.filter(issue => issue.unscoped).length === v.feed.unscopedRecords &&
+      (v.contentCoverage !== 'complete' || v.feed.collectionContinuity === 'complete' && v.issues.length === 0));
 }

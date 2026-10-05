@@ -22,7 +22,7 @@ test('flairs keep the subject, effect, qualifications and evidence separate', ()
   assert.ok(lights.flairs.some(f => f.label === 'Lighting Unavailable'));
   assert.ok(!lights.flairs.some(f => f.label === 'Runway Closed'));
   const closure = parseNotam(notice({ text: 'RWY 9L/27R CLSD EXC EMERG ACFT' }));
-  assert.ok(closure.flairs.some(f => f.label === 'Runway Closed')); assert.match(closure.body, /EXC EMERG/);
+  assert.ok(closure.flairs.some(f => f.label === 'Runway Closure Restriction' && f.tone === 'caution')); assert.match(closure.body, /EXC EMERG/);
   const pointer = parseNotam(notice({ text: 'AD SEE FDC 6/1001 FOR IAP RESTRICTIONS' }));
   assert.equal(pointer.subject, 'AD'); assert.equal(pointer.procedureNotice, false);
   for (const f of [...lights.flairs, ...closure.flairs]) assert.equal(f.evidence.text.length, f.evidence.end - f.evidence.start);
@@ -54,7 +54,7 @@ test('KSJC-style D and FDC clauses expose scoped facilities, procedure changes a
   assert.ok(procedure!.flairs.some(f => f.label === 'Visibility Amended'));
   assert.ok(procedure!.flairs.some(f => f.label === 'Inoperative Lighting Note'));
   assert.ok(!procedure!.flairs.some(f => /unavailable|closed|outage/i.test(f.label)), 'a conditional lighting note is not an actual outage');
-  assert.equal(closure!.flairs.find(f => f.label === 'Runway Closed')?.tone, 'danger');
+  assert.equal(closure!.flairs.find(f => f.label === 'Runway Closure Restriction')?.tone, 'caution');
   assert.equal(nav!.flairs.find(f => f.label === 'RWY 30L')?.tone, 'info');
   assert.equal(nav!.flairs.find(f => f.label === 'ILS Unavailable')?.tone, 'caution');
   assert.match(obstruction!.flairs.find(f => f.label === 'Obstacle Light Outage')!.evidence.text, /LGT.*U\/S/);

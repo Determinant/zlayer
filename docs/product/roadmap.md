@@ -101,6 +101,24 @@ Production UI notes identify FAA NOTAMs with their source-check time and actual
 freshness/coverage state. Remaining work includes broader lifecycle/applicability
 and alias qualification, sustained shared-weather capacity and installed-device checks.
 
+The collector now implements per-record source issues, so unresolved representations
+can coexist with continuing updates for independent airports. Collection continuity
+and airport content coverage are separate, with raw versions retained and warnings
+in airport/plate views. The [issue contract](../../src/layers/notams/README.md#unresolved-source-records)
+owns this behavior. Local regression coverage includes a simulated daily cycle.
+The redesigned backend passed candidate/public API checks, two advancing live
+delta rounds and restart recovery with unchanged request-budget state. Sustained
+capacity and a complete live daily reconciliation remain separate qualifications;
+see the [reliability audit](../../src/layers/notams/README.md#server-reliability-audit--2026-10-05).
+
+The [persistent TFR chart](../../src/layers/notams/README.md#persistent-tfr-chart)
+has a deployed backend: a separate FAA graphical-source adapter prepares cached
+national geometry and area schedules with durable request admission. The chart UI
+is implemented locally, with solid red active/yellow upcoming areas throughout the
+NOTAM plugin's enabled lifetime. Missing source geometry and stale snapshots remain
+explicit. Frontend deployment and sustained live-source qualification remain
+separate from the backend rollout and local regression evidence.
+
 ## Radial/distance route positions
 
 Implemented locally: [station-relative input and name/GPS/radial point descriptions](../../src/layers/routes/radial-distance-plan.md),

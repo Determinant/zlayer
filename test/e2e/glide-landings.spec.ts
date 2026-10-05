@@ -2,7 +2,8 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { terrainPng } from './terrain-fixture.mjs';
-import type { GeoJSONSource, ImageSource } from 'maplibre-gl';
+import type { GeoJSONSource } from 'maplibre-gl';
+import { heatPixels } from './glide-heat';
 
 function fixture(elevationM = 50) {
   const ring = (west: number, south: number, east: number, north: number) => {
@@ -68,7 +69,7 @@ test('route density uses cached shading; selected-range details retain tiers and
   await expect(status).toHaveText('Landing-area density along your route');
   const data = () => page.evaluate(async () => await window.glideAudit.map.getSource<GeoJSONSource>('glide-landing-areas')!.getData() as GeoJSON.FeatureCollection<GeoJSON.MultiPolygon>);
   expect((await data()).features).toEqual([]);
-  expect(await page.evaluate(() => window.glideAudit.map.getLayoutProperty('glide-landing-shading', 'visibility'))).toBe('visible');
+  await expect.poll(() => heatPixels(page)).toBeGreaterThan(0);
   expect(reads()).toBe(1);
   const assumptions = page.getByText('Planning assumptions', { exact: true });
   const surfaceCaveat = page.getByText('Includes cultivated fields. Current crops, vegetation and ground conditions are unverified.', { exact: false });
@@ -83,25 +84,11 @@ test('route density uses cached shading; selected-range details retain tiers and
   await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.80, 34.43], zoom: 9.5 }));
   await expect(status).toHaveText('Landing-area density along your route');
   expect(reads()).toBe(1);
-  const resolution = () => page.evaluate(() => {
-    const source = window.glideAudit.map.getSource<ImageSource>('glide-landing-shading')!, image = source.image as ImageData;
-    return (source.coordinates[1]![0]! - source.coordinates[0]![0]!) / image.width;
-  });
-  const coarse = await resolution();
+  await expect.poll(() => heatPixels(page)).toBeGreaterThan(0);
   await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.832, 34.43], zoom: 12 }));
-  await expect.poll(resolution).toBeLessThan(coarse);
-  const alpha = await page.evaluate(() => {
-    const source = window.glideAudit.map.getSource<ImageSource>('glide-landing-shading')!, image = source.image as ImageData;
-    const my = (lat: number) => (1 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / Math.PI) / 2;
-    const a = source.coordinates[0]!, b = source.coordinates[2]!;
-    const sample = (lon: number, lat: number) => {
-      const x = Math.floor((lon - a[0]!) / (b[0]! - a[0]!) * image.width);
-      const y = Math.floor((my(lat) - my(a[1]!)) / (my(b[1]!) - my(a[1]!)) * image.height);
-      return image.data[(y * image.width + x) * 4 + 3];
-    };
-    return { hole: sample(-119.832, 34.43), solid: sample(-119.81, 34.42) };
-  });
-  expect(alpha.hole).toBe(0); expect(alpha.solid).toBeGreaterThan(0); expect(reads()).toBe(1);
+  await expect.poll(() => heatPixels(page, [-119.81, 34.42])).toBe(1);
+  expect(await heatPixels(page, [-119.832, 34.43])).toBe(0);
+  expect(reads()).toBe(1);
   await page.evaluate(() => window.glideAudit.map.jumpTo({ center: [-119.80, 34.43], zoom: 9.5 }));
   await selectRange(page);
   const initial = await data();
@@ -125,7 +112,7 @@ test('route density uses cached shading; selected-range details retain tiers and
   await expect(page.getByTestId('errors')).toBeEmpty(); expect(errors).toEqual([]);
 });
 
-test('small pans reuse the heat image through the real worker and map source', async ({ page, context }) => {
+test('pans, off-screen visits and zoom changes retain geographic heat tiles through the real worker', async ({ page, context }) => {
   const reads = await serve(context);
   await page.addInitScript(() => {
     const NativeWorker = Worker;
@@ -135,8 +122,11 @@ test('small pans reuse the heat image through the real worker and map source', a
       constructor(url: string | URL, options?: WorkerOptions) {
         super(url, options); this.landing = String(url).includes('landing.worker');
         this.addEventListener('message', event => {
-          if (this.queries.delete(event.data.id)) document.documentElement.dataset.heatReplies =
-            String(Number(document.documentElement.dataset.heatReplies ?? 0) + 1);
+          if (this.queries.delete(event.data.id)) {
+            document.documentElement.dataset.heatReplies = String(Number(document.documentElement.dataset.heatReplies ?? 0) + 1);
+            if (event.data.value?.heat !== undefined) document.documentElement.dataset.heatUploads =
+              String(Number(document.documentElement.dataset.heatUploads ?? 0) + 1);
+          }
         });
       }
       override postMessage(message: unknown, options: Transferable[] | StructuredSerializeOptions = []) {
@@ -151,21 +141,16 @@ test('small pans reuse the heat image through the real worker and map source', a
   await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
   await expect(page.getByRole('status', { name: 'Landing areas status' })).toHaveText('Landing-area density along your route');
   const center = await page.evaluate(() => {
-    const map = window.glideAudit.map, source = map.getSource<ImageSource>('glide-landing-shading')!;
-    const update = source.updateImage.bind(source);
     document.documentElement.dataset.heatUploads = '0';
-    source.updateImage = options => {
-      document.documentElement.dataset.heatUploads = String(Number(document.documentElement.dataset.heatUploads) + 1);
-      return update(options);
-    };
-    return map.getCenter().toArray();
+    return window.glideAudit.map.getCenter().toArray();
   });
-  for (const dx of [.0005, -.0005, 0]) {
+  for (const [dx, zoom] of [[.0005, 9], [20, 9], [0, 6], [0, 12], [0, 9]] as [number, number][]) {
     const replies = Number(await page.locator('html').getAttribute('data-heat-replies'));
-    await page.evaluate(({ center, dx }) => window.glideAudit.map.jumpTo({ center: [center[0]! + dx, center[1]!] }), { center, dx });
+    await page.evaluate(({ center, dx, zoom }) => window.glideAudit.map.jumpTo({ center: [center[0]! + dx, center[1]!], zoom }), { center, dx, zoom });
     await expect.poll(async () => Number(await page.locator('html').getAttribute('data-heat-replies'))).toBeGreaterThan(replies);
     await expect(page.locator('html')).toHaveAttribute('data-heat-uploads', '0');
   }
+  await expect.poll(() => heatPixels(page)).toBeGreaterThan(0);
   expect(reads()).toBe(1);
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
@@ -194,7 +179,7 @@ test('a failed unsettled landing upload recovers and subsequent heat edits rende
   await expect(page.getByTestId('errors')).toHaveText('Injected unsettled landing upload');
   // Recovery must release the display job, not just restore the old collection.
   await page.evaluate(() => window.glideAudit.route([[-120.1, 34.44], [-119.4, 34.44]]));
-  await expect.poll(() => page.evaluate(() => window.glideAudit.map.getLayoutProperty('glide-landing-shading', 'visibility'))).toBe('visible');
+  await expect.poll(() => heatPixels(page)).toBeGreaterThan(0);
   await expect(status).toHaveText('2 candidate patches loaded');
   expect(await page.evaluate(() => ({ zoom: window.glideAudit.map.getZoom(), center: window.glideAudit.map.getCenter().toArray() }))).toEqual(camera);
   expect(reads()).toBe(1);

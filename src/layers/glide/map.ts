@@ -159,7 +159,14 @@ export function createGlideLayer(onStatus: (status: GlideStatus) => void, onRang
     for (const name of ['ownship', 'point'] as const) {
       const range = result[name], [line, area] = RANGE_SOURCES[name];
       const origin = origins[name];
-      if (!range || !origin || publishedRanges.get(name)?.key === range.key
+      if (!range) {
+        // Nearby geometry is only a loading fallback. A completed request for
+        // the current origin must retire it when discovery cannot supply a
+        // replacement. An older origin's null reply cannot clear a newer range.
+        if (samePoint(origin, input[name]) && (publishedRanges.has(name) || rangeAreas.has(name))) clearRange(name);
+        continue;
+      }
+      if (!origin || publishedRanges.get(name)?.key === range.key
         || !(samePoint(origin, input[name]) || name === 'ownship' && nearbyOwnship(origin))) continue;
       if (name === 'ownship') ownshipAnimation.set(range, origin, !document.hidden
         && (!map?.isMoving() || followingGps) && !matchMedia('(prefers-reduced-motion: reduce)').matches);

@@ -7,7 +7,7 @@ import { useBackDismiss } from './pwa-back';
 export type PanelSide = 'left' | 'right';
 /** Slots count away from an edge; removing a panel never compacts other slots. */
 export type PanelTab = { edge: 'top' | 'bottom'; order: number };
-export type PanelPlacement = { side: PanelSide; tab: PanelTab; bodyFromEdge?: boolean };
+export type PanelPlacement = { side: PanelSide; tab: PanelTab | false; bodyFromEdge?: boolean };
 /** Return false to defer; call proceed after an optional feature-owned confirmation. */
 export type PanelStowGuard = (next: string | null, proceed: () => boolean) => boolean;
 type MountedPanel = { element: HTMLDivElement; beforeStow: PanelStowGuard };
@@ -100,11 +100,11 @@ export function EdgePanels({ side, active, onActiveChange, className = '', indiv
       const area = element.getBoundingClientRect();
       const bounds = panel?.getBoundingClientRect();
       if (individualTabs) for (const { element: frame } of mounted.current.values()) {
-        const width = frame.getBoundingClientRect().width - frame.querySelector('.map-edge-handle')!.getBoundingClientRect().width;
+        const width = frame.getBoundingClientRect().width - (frame.querySelector('.map-edge-handle')?.getBoundingClientRect().width ?? 0);
         frame.style.setProperty('--edge-own-offset', `${width}px`);
       }
       if (bounds) {
-        const offset = individualTabs ? bounds.width - panel!.querySelector('.map-edge-handle')!.getBoundingClientRect().width
+        const offset = individualTabs ? bounds.width - (panel!.querySelector('.map-edge-handle')?.getBoundingClientRect().width ?? 0)
           : side === 'right' ? area.right - bounds.left : bounds.right - area.left;
         element.style.setProperty('--edge-panel-offset', `${offset}px`);
       }
@@ -144,11 +144,17 @@ export function useEdgePanel(name: string, options: {
   const defaults = useContext(PanelDefaults);
   const root = useRef<HTMLDivElement>(null);
   const handle = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const id = useId();
   const [standaloneOpen, setStandaloneOpen] = useState(options.initialOpen ?? true);
   const selected = panels ? panels.active === name : standaloneOpen;
   const presented = panels ? panels.presented === name : standaloneOpen;
   const open = panels ? presented && panels.open : standaloneOpen;
+  useLayoutEffect(() => {
+    if (!selected || !root.current || handle.current) return;
+    const element = document.activeElement;
+    if (element instanceof HTMLElement && !root.current.contains(element)) opener.current = element;
+  }, [selected, presented]);
   const latest = useRef({ panels, options });
   const standaloneRequest = useRef(0);
   latest.current = { panels, options };
@@ -187,13 +193,20 @@ export function useEdgePanel(name: string, options: {
     };
     return !next && options.beforeStow?.(null, proceed) === false ? false : proceed();
   }, [name]);
+  const returnFocus = () => requestAnimationFrame(() => {
+    const target = handle.current ?? opener.current;
+    if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true });
+  });
   const stow = () => setOpen(false, () => {
     // Let a field's Escape handler discard its draft before blur commits it.
-    requestAnimationFrame(() => handle.current?.focus({ preventScroll: true }));
+    returnFocus();
   });
   return { name, id, ref, root, handle, selected, presented, open, setOpen, stow,
     side: panels?.side ?? defaults?.side ?? options.side ?? 'right',
-    close: (onClose: () => void) => { setOpen(false, () => setOnStowed(() => onClose)); },
+    close: (onClose: () => void) => { setOpen(false, () => setOnStowed(() => () => {
+      if (!handle.current) returnFocus();
+      onClose();
+    })); },
     bodyProps: { id, inert: !open, 'aria-hidden': !open },
   };
 }
@@ -211,10 +224,11 @@ type PanelController = ReturnType<typeof useEdgePanel>;
 
 /** Custom bodies (including native dialogs) share the same tab and Escape behavior. */
 export function EdgePanelFrame({ panel, label, icon, tab, className = '', style, children }: {
-  panel: PanelController; label: string; icon: ReactNode; tab?: PanelTab;
+  panel: PanelController; label: string; icon: ReactNode; tab?: PanelTab | false;
   className?: string; style?: CSSProperties | undefined; children: ReactNode;
 }) {
   const defaults = useContext(PanelDefaults);
+  const position = defaults?.tab ?? tab ?? { edge: 'top', order: 0 };
   useBackDismiss(panel.selected, panel.root, panel.stow, 0);
   return <div ref={panel.ref} style={style}
     className={`edge-panel ${className}${panel.open ? ' is-open' : ''}${panel.presented ? ' is-presented' : ''}`}
@@ -228,21 +242,21 @@ export function EdgePanelFrame({ panel, label, icon, tab, className = '', style,
       event.preventDefault();
       panel.stow();
     }}>
-    <EdgePanelTab name={panel.name} tab={defaults?.tab ?? tab ?? { edge: 'top', order: 0 }}>
+    {position !== false && <EdgePanelTab name={panel.name} tab={position}>
       <EdgeHandle ref={panel.handle} controls={panel.id} open={panel.selected} label={label} side={panel.side}
         onClick={() => panel.selected ? panel.stow() : panel.setOpen(true, () => {
           // WebKit does not focus pointer-activated buttons by default. Keep
           // the requested body in front on touch as well as keyboard activation.
           panel.handle.current?.focus({ preventScroll: true });
         })}>{icon}</EdgeHandle>
-    </EdgePanelTab>
+    </EdgePanelTab>}
     {children}
   </div>;
 }
 
 /** A layer can render this inside its registered Panel contribution on either edge. */
 export function EdgePanel({ name, label, icon, tab, autoOpen = true, beforeStow, className = '', children }: {
-  name?: string; label?: string; icon: ReactNode; tab?: PanelTab; autoOpen?: boolean;
+  name?: string; label?: string; icon: ReactNode; tab?: PanelTab | false; autoOpen?: boolean;
   beforeStow?: PanelStowGuard; className?: string;
   children: ReactNode | ((panel: PanelController) => ReactNode);
 }) {
@@ -255,7 +269,7 @@ export function EdgePanel({ name, label, icon, tab, autoOpen = true, beforeStow,
   useLayoutEffect(() => { if (autoOpen) panel.setOpen(true); }, [autoOpen, panel.setOpen]);
   return <EdgePanelFrame panel={panel} label={label ?? defaults?.label ?? panelName} icon={icon} tab={position}
     className={`edge-panel-window ${className}`}
-    style={group?.individualTabs ? { [position.edge]: position.order * 48,
+    style={group?.individualTabs && position !== false ? { [position.edge]: position.order * 48,
       ...(position.edge === 'bottom' ? { top: 'auto', alignItems: 'flex-end' } : {}) } : undefined}>
     <div {...panel.bodyProps} tabIndex={-1} className="edge-panel-content edge-panel-body">
       {typeof children === 'function' ? children(panel) : children}

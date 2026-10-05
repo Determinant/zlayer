@@ -5,15 +5,17 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { createNotamXmlParser } from '../tools/info-server/notams/normalize';
+import { createNotamXmlParser, recordWithRevision } from '../tools/info-server/notams/normalize';
 import { notamTime } from '../src/layers/notams/validity';
 import { NotamStore, NOTAM_DAY_MS, type NotamGeneration } from '../tools/info-server/notams/store';
-import { createNotamService, mergeNotamRecords } from '../tools/info-server/notams/service';
-import { NotamRevisionConflict } from '../tools/info-server/notams/revision';
-import { notamResponse } from '../tools/info-server/notams/routes';
+import { createNotamService } from '../tools/info-server/notams/service';
+import { mergeNotamRecords, NotamRevisionConflict } from '../tools/info-server/notams/revision';
+import { collectNotamRecords } from '../tools/info-server/notams/collection';
+import { NotamError } from '../tools/info-server/notams/error';
+import { createNotamResponder } from '../tools/info-server/notams/routes';
 import { createInfoServer } from '../tools/info-server/server';
 import { aixm, bulkXml, notice, NOTAM_NOW } from './fixtures/notams';
-import type { NotamRecord } from '@zlayer/contracts';
+import { isNotamRecord, isNotamAirportSnapshot, type NotamRecord } from '@zlayer/contracts';
 
 function normalized(record: NotamRecord, xml = aixm(record)) {
   const records: NotamRecord[] = [], parser = createNotamXmlParser(r => records.push(r), { count: 1, snapshotAt: NOTAM_NOW });
@@ -30,6 +32,11 @@ function representationPair() {
   const next = normalized(notice({ number: '42', text: previous.text,
     translations: [{ ...icao, text: `<pre>\n${icao.text.replaceAll(' ', '\n')}\n</pre>` }] }));
   return { previous, next };
+}
+async function fdcRenderingPairs(): Promise<{ previous: NotamRecord; next: NotamRecord }[]> {
+  const { pairs } = JSON.parse(await readFile(new URL('./fixtures/notams-fdc-renderings.json', import.meta.url), 'utf8'));
+  for (const pair of pairs) { assert.ok(isNotamRecord(pair.previous)); assert.ok(isNotamRecord(pair.next)); }
+  return pairs;
 }
 
 test('bounded AIXM parser uses namespaces, rejects truncated counts and retains source facts', () => {
@@ -149,6 +156,58 @@ test('full ICAO bodies reconcile only with an identical retained translation and
     { translations: [{ type: 'OTHER:ICAO', text: icao.replace('A0042/26', 'A0041/26') }] },
   ]) assert.throws(() => mergeNotamRecords(saved, [normalized(notice({ ...next, ...overrides }))]), NotamRevisionConflict);
 });
+test('captured FDC bodies and estimated-end spellings reconcile through their shared local rendering', async () => {
+  for (const pair of await fdcRenderingPairs()) {
+    for (const [previous, next] of [[pair.previous, pair.next], [pair.next, pair.previous]] as const) {
+      const merged = mergeNotamRecords([previous], [next]), record = merged[0]!;
+      assert.equal(record.text, previous.text, 'retain the first raw body spelling');
+      assert.equal(record.effectiveEnd, previous.effectiveEnd);
+      assert.equal(record.endKind, 'estimated');
+      assert.equal(record.startsAt, previous.startsAt); assert.equal(record.endsAt, previous.endsAt);
+      assert.equal(record.updatedAt, previous.updatedAt); assert.equal(record.sourceUpdatedAt, previous.sourceUpdatedAt);
+      assert.equal(record.translations.length, 2, 'retain the optional ICAO rendering without using its old dates as equivalence evidence');
+      assert.equal(mergeNotamRecords(merged, [previous, next]), merged);
+    }
+    for (const subject of ['SID', 'IAP', 'STAR', 'ODP']) {
+      const previous = recordWithRevision({ ...pair.previous,
+        translations: pair.previous.translations.map(t => ({ ...t, text: t.text.replace(' SID ', ` ${subject} `) })) });
+      const interval = '2610061800-2610062200EST';
+      for (const text of [previous.text, `${subject} ${previous.text}`, `${previous.text} ${interval}`, `${subject} ${previous.text} ${interval}`]) {
+        const next = recordWithRevision({ ...previous, text, effectiveEnd: pair.next.effectiveEnd });
+        assert.equal(mergeNotamRecords([previous], [next])[0], previous);
+      }
+    }
+  }
+});
+test('FDC rendering equivalence requires matching identity, complete local text and valid time qualifiers', async () => {
+  const { previous, next } = (await fdcRenderingPairs())[0]!;
+  const replaceLocal = (from: string, to: string) => next.translations.map(t => t.type === 'LOCAL_FORMAT'
+    ? { ...t, text: t.text.replace(from, to) } : t);
+  for (const changes of [
+    { text: next.text.replace('NA EXCEPT', 'NA') },
+    { text: next.text.replace('GPS', 'DME/DME') },
+    { text: next.text.replace('SID', 'IAP') },
+    { text: next.text.replace('2200EST', '2300EST') },
+    { translations: [] },
+    { translations: replaceLocal('GPS', 'DME/DME') },
+    { effectiveEnd: '202610062300', endsAt: next.endsAt! + 3600_000 },
+    { effectiveEnd: 'PERM', endsAt: null, endKind: 'permanent' as const },
+    { lifecycle: 'cancelled' as const },
+  ]) assert.throws(() => mergeNotamRecords([previous], [recordWithRevision({ ...next, ...changes })]), NotamRevisionConflict);
+  for (const [from, to] of [['6/7442', '6/7449'], ['6/7442', '5/7442'], ['FCM SID', 'ANE SID'],
+    ['2610061800', '2610061700'], ['2610062200EST', '2610062300EST']]) {
+    const translations = replaceLocal(from!, to!);
+    assert.throws(() => mergeNotamRecords([recordWithRevision({ ...previous, translations })],
+      [recordWithRevision({ ...next, translations })]), NotamRevisionConflict,
+    'a shared translation for a different identity or interval cannot establish body equivalence');
+  }
+  const fixed = recordWithRevision({ ...previous, effectiveEnd: next.effectiveEnd, endKind: 'fixed',
+    translations: previous.translations.map(t => ({ ...t, text: t.text.replace('2200EST', '2200') })) });
+  assert.equal(fixed.endKind, 'fixed');
+  assert.throws(() => mergeNotamRecords([previous], [fixed]), NotamRevisionConflict);
+  const unknown = { ...next, endKind: 'unknown' as const, revision: 'f'.repeat(64) };
+  assert.throws(() => mergeNotamRecords([{ ...previous, endKind: 'unknown' }], [unknown]), NotamRevisionConflict);
+});
 test('duplicate inactive records do not depend on presentation or cancel other source IDs', () => {
   for (const lifecycle of ['cancelled', 'cancellation'] as const) {
     const previous = normalized(notice({ lifecycle, changeType: lifecycle === 'cancellation' ? 'C' : 'N' }));
@@ -166,20 +225,24 @@ test('duplicate inactive records do not depend on presentation or cancel other s
       'an ambiguous same-revision lifecycle change must still fail');
   }
 });
-test('failed batches capture bounded conflict evidence without changing the input generation', async () => {
-  const previous = Array.from({ length: 40 }, (_, i) => notice({ id: String(i).padStart(16, '0'), sourceId: String(i).padStart(16, '0') }));
+test('unresolved records and independent updates commit atomically and survive checksummed restoration', async () => {
+  const previous = Array.from({ length: 40 }, (_, i) => normalized(notice({ id: String(i).padStart(16, '0'), sourceId: String(i).padStart(16, '0') })));
   const original = structuredClone(previous);
-  let conflict: NotamRevisionConflict | undefined;
-  try { mergeNotamRecords(previous, previous.map(r => ({ ...r, revision: 'b'.repeat(64), text: 'Changed restriction' }))); }
-  catch (cause) { assert.ok(cause instanceof NotamRevisionConflict); conflict = cause; }
-  assert.ok(conflict); assert.equal(conflict.related.length, 31); assert.deepEqual(previous, original);
-  const directory = await mkdtemp(join(tmpdir(), 'notam-batch-conflicts-'));
-  const store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+  const collection = collectNotamRecords({ records: previous }, previous.map(r => normalized(notice({ ...r, text: 'Changed restriction' }))));
+  assert.equal(collection.records.length, 0); assert.equal(collection.issues?.length, 40);
+  assert.deepEqual(previous, original);
+  const directory = await mkdtemp(join(tmpdir(), 'notam-source-issues-'));
+  let store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
   try {
-    await store.restore(); await store.recordConflict(conflict);
-    const saved = JSON.parse(await readFile(join(directory, 'conflict.json'), 'utf8'));
-    assert.equal(saved.related.length, 31); assert.equal(saved.related[0].previous.id, previous[1]?.id);
-    assert.equal(saved.related[0].next.text, 'Changed restriction');
+    await store.restore(); const published = await store.publish({ ...generation(collection.records), issues: collection.issues! });
+    assert.equal(JSON.parse(await readFile(join(directory, 'current.json'), 'utf8')).issueCount, 40);
+    await store.close(); store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+    const restored = await store.restore(); assert.equal(restored?.generation, published.generation);
+    assert.deepEqual(restored?.issues, collection.issues); assert.equal(restored?.complete, true);
+    const path = join(directory, `${published.generation}.ndjson`);
+    await store.close(); await writeFile(path, (await readFile(path, 'utf8')).replace('Changed restriction', 'Changed Restriction'));
+    store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+    assert.equal(await store.restore(), undefined); assert.equal(store.recoveryError, 'invalid-checkpoint');
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 test('observed FAA timestamp, translation, annotation and lifecycle variants normalize without losing meaning', () => {
@@ -235,6 +298,23 @@ test('checksummed snapshots recover the previous generation without resetting qu
       const result = await restored.restore(); assert.equal(result?.generation, first.generation); assert.equal(result?.complete, false);
       assert.equal(restored.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS);
     } finally { await restored.close(); }
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+test('bounded multi-version evidence survives JSON expansion and restart', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-escaped-evidence-'));
+  let store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+  const { revision: _revision, ...facts } = normalized(notice());
+  const translations = Array.from({ length: 7 }, (_, i) => ({ type: `OTHER:${i}`, text: '"\n'.repeat(125_000) }));
+  const variants = Array.from({ length: 8 }, (_, i) => recordWithRevision({ ...facts, text: `Source version ${i}`, translations }));
+  assert.ok(variants.every(isNotamRecord));
+  const collection = collectNotamRecords({ records: [] }, variants);
+  try {
+    await store.restore(); const saved = await store.publish({ ...generation([]), ...collection });
+    assert.ok((await stat(join(directory, `${saved.generation}.ndjson`))).size > 24 * 1024 * 1024);
+    await store.close(); store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+    const restored = await store.restore();
+    assert.equal(restored?.generation, saved.generation); assert.equal(store.recoveryError, undefined);
+    assert.deepEqual(restored?.issues, collection.issues);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 test('unchanged deltas advance freshness without rewriting data or replacing distinct history', async () => {
@@ -309,7 +389,7 @@ test('bulk bridge, deltas and local airport reads share one collector; failures 
   let time = NOTAM_NOW, updates: NotamRecord[] = [], invalid = false;
   const calls: string[] = [];
   const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async input => {
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
       const url = new URL(String(input)); calls.push(url.pathname); time += 1001;
       if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture-bearer', expires_in: '1799', token_type: 'BearerToken' });
       if (url.pathname.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
@@ -323,13 +403,14 @@ test('bulk bridge, deltas and local airport reads share one collector; failures 
     assert.equal(service.readAirport({ faaId: 'TST' }), undefined, 'bulk is a candidate until bridged');
     time += 180_000; service.refresh(); await service.settled(); assert.equal(service.status.state, 'ready');
     const generation = service.status.generation;
-    for (let i = 0; i < 100; i++) assert.equal(notamResponse('/api/notams/airports?faaId=tst&icaoId=KTST', undefined, service).status, 200);
+    const responses = createNotamResponder(service);
+    for (let i = 0; i < 100; i++) assert.equal(responses.read('/api/notams/airports?faaId=tst&icaoId=KTST', undefined).status, 200);
     assert.equal(calls.length, 4, 'airport reads never spend quota');
     assert.equal(service.readAirport({ faaId: 'TST', icaoId: 'KTST' })?.records.length, 1, 'alias union deduplicates');
     assert.equal(service.readAirport({ faaId: 'ZZZ' })?.records.length, 0, 'accountability is not airport location');
     assert.equal(service.readAirport({ icaoId: 'KTST' })?.associationCoverage, 'incomplete');
     for (const query of ['id=KTST', 'faaId=TST&faaId=TST', 'faaId=', 'faaId=TST&url=x']) {
-      assert.equal(notamResponse(`/api/notams/airports?${query}`, undefined, service).status, 400);
+      assert.equal(responses.read(`/api/notams/airports?${query}`, undefined).status, 400);
     }
     time += 180_000; invalid = true; service.refresh(); await service.settled();
     assert.equal(service.status.state, 'degraded'); assert.equal(service.status.generation, generation);
@@ -339,7 +420,7 @@ test('bulk bridge, deltas and local airport reads share one collector; failures 
     assert.ok(journal.bulkAt >= NOTAM_NOW + NOTAM_DAY_MS);
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
-for (const failure of ['bulk-lifecycle', 'bridge-conflict', 'bridge-transport'] as const) {
+for (const failure of ['bulk-invalid', 'bridge-transport'] as const) {
   test(`failed replacement ${failure} preserves live continuity and resumes budgeted deltas`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'notam-replacement-')), controller = new AbortController();
     let time = NOTAM_NOW - NOTAM_DAY_MS, fail = true, deltas = 0;
@@ -347,20 +428,20 @@ for (const failure of ['bulk-lifecycle', 'bridge-conflict', 'bridge-transport'] 
     await seed.restore(); await seed.reserve('bulk'); time = NOTAM_NOW;
     const original = await seed.publish(generation([normalized(notice())], time - 180_000)); await seed.close();
     const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-      { now: () => time, signal: controller.signal, fetch: async input => {
+      { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
         const url = new URL(String(input)); time += 1001;
         if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' });
         if (url.pathname.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
         if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([
-          notice(failure === 'bulk-lifecycle' ? { changeType: 'UNSUPPORTED' } : { text: 'RWY 09L CLSD' }),
-        ], time)));
+          notice(),
+        ], time, failure === 'bulk-invalid' ? 2 : 1)));
         deltas++;
         if (fail && failure === 'bridge-transport') return new Response('', { status: 503 });
-        return Response.json({ status: 'Success', data: { aixm: fail && failure === 'bridge-conflict' ? [aixm(notice())] : [] } });
+        return Response.json({ status: 'Success', data: { aixm: [] } });
       } });
     try {
       await service.restore(); service.refresh(); await service.settled();
-      if (failure !== 'bulk-lifecycle') {
+      if (failure !== 'bulk-invalid') {
         time += 180_000; service.refresh(); await service.settled();
       }
       assert.equal(service.status.state, 'degraded');
@@ -378,50 +459,53 @@ for (const failure of ['bulk-lifecycle', 'bridge-conflict', 'bridge-transport'] 
     } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
   });
 }
-test('a live conflict preserves diagnostics and its cause across restart, then recovers by verified replay', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'notam-live-failure-')), controller = new AbortController();
+test('an unfamiliar conflict stays explicit while other airports advance across restart and later resolution', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-live-issue-')), controller = new AbortController();
   let time = NOTAM_NOW, conflict = true;
   const requests: string[] = [], logs: string[] = [];
+  const other = notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002', locations: ['AUX'], icaoLocations: ['KAUX'] });
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice())])); await seed.close();
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(other)])); await seed.close();
   time += 180_000;
   const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, log: value => logs.push(value), fetch: async input => {
-      requests.push(String(input));
-      time += 1001;
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, log: value => logs.push(value), fetch: async input => {
+      requests.push(String(input)); time += 1001;
       return new URL(String(input)).pathname === '/v1/auth/token'
         ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
-        : Response.json({ status: 'Success', data: { aixm: [aixm(notice(conflict ? { text: 'Conflicting source revision' }
-          : { updatedAt: time - 1000, text: 'Resolved source revision' }))] } });
+        : Response.json({ status: 'Success', data: { aixm: [aixm(notice(conflict ? { text: 'Unfamiliar conflicting representation' }
+          : { updatedAt: time - 1000, text: 'Resolved source revision' })), aixm(notice({ ...other, updatedAt: time - 1000, text: `Independent update ${time}` }))] } });
     } });
   let service = create();
   try {
     await service.restore(); service.refresh(); await service.settled();
-    assert.equal(service.status.error, 'revision-conflict'); assert.equal(service.status.continuity, 'incomplete');
+    assert.equal(service.status.error, 'unresolved-records'); assert.equal(service.status.continuity, 'incomplete');
+    assert.equal(service.status.collectionContinuity, 'complete'); assert.equal(service.status.unresolvedRecords, 1);
+    const affected = service.readAirport({ faaId: 'TST' })!, unaffected = service.readAirport({ faaId: 'AUX' })!;
+    assert.ok(isNotamAirportSnapshot(affected)); assert.ok(isNotamAirportSnapshot(unaffected));
+    assert.equal(affected.contentCoverage, 'incomplete'); assert.equal(affected.records.length, 0);
+    assert.equal(affected.issues?.[0]?.variants.length, 2);
+    assert.equal(unaffected.contentCoverage, 'complete'); assert.equal(unaffected.issues?.length, 0);
+    assert.match(unaffected.records[0]!.text, /Independent update/);
     const manifest = JSON.parse(await readFile(join(directory, 'staging', 'current.json'), 'utf8'));
-    assert.equal(manifest.complete, false); assert.equal(manifest.incompleteReason, 'revision-conflict');
-    assert.equal(manifest.watermark, NOTAM_NOW);
-    const diagnosticPath = join(directory, 'staging', 'conflict.json');
-    const diagnostic = JSON.parse(await readFile(diagnosticPath, 'utf8'));
-    assert.equal(diagnostic.id, notice().id); assert.deepEqual(diagnostic.fields, ['text']);
-    assert.equal(diagnostic.previous.text, notice().text); assert.equal(diagnostic.next.text, 'Conflicting source revision');
-    assert.equal((await stat(diagnosticPath)).mode & 0o777, 0o600);
-    assert.ok(logs.some(log => log.includes(`id=${notice().id} fields=text`)));
-    assert.ok(logs.every(log => !log.includes('Conflicting source revision')));
+    assert.equal(manifest.complete, true); assert.equal(manifest.schemaVersion, 2); assert.equal(manifest.issueCount, 1);
+    assert.ok(manifest.watermark > NOTAM_NOW);
+    assert.ok(logs.every(log => !log.includes('Unfamiliar conflicting representation')));
     const budget = await readFile(join(directory, 'staging', 'budget.json'), 'utf8');
     await service.close(); service = create(); await service.restore();
-    assert.equal(service.status.error, 'revision-conflict');
+    assert.equal(service.status.error, 'unresolved-records');
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.issues, affected.issues);
     assert.equal(await readFile(join(directory, 'staging', 'budget.json'), 'utf8'), budget);
     const before = requests.length; service.refresh(); await service.settled(); assert.equal(requests.length, before);
     time += 180_000; service.refresh(); await service.settled();
-    assert.equal(service.status.error, 'revision-conflict'); assert.equal(service.status.watermark, NOTAM_NOW);
-    assert.ok(requests.every(url => !url.includes('/il')));
-    const replay = new URL(requests.at(-1)!);
-    assert.equal(Date.parse(replay.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 600_000);
+    assert.ok(service.status.watermark! > manifest.watermark);
+    assert.equal(service.status.unresolvedRecords, 1);
+    assert.notEqual(service.readAirport({ faaId: 'AUX' })?.records[0]?.text, unaffected.records[0]!.text);
+    assert.equal(Date.parse(new URL(requests.at(-1)!).searchParams.get('lastUpdatedDate')!), Math.floor((manifest.watermark - 600_000) / 1000) * 1000);
     conflict = false; time += 180_000; service.refresh(); await service.settled();
-    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete'); assert.equal(service.status.error, null);
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete'); assert.equal(service.status.unresolvedRecords, 0);
     assert.equal(service.readAirport({ faaId: 'TST' })?.records[0]?.text, 'Resolved source revision');
     assert.equal(JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8')).bulkAt, JSON.parse(budget).bulkAt);
+    assert.ok(requests.every(url => !url.includes('/il')));
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -433,12 +517,13 @@ test('legacy incomplete checkpoints recover from an older verified generation wi
   await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([old], time - 180_000));
   await seed.publish(generation([old, added])); await seed.close();
   const path = join(directory, 'staging', 'current.json'), manifest = JSON.parse(await readFile(path, 'utf8'));
-  await writeFile(path, JSON.stringify({ ...manifest, complete: false }));
+  const { sha256: _sha256, issueCount: _issueCount, ...legacyManifest } = manifest;
+  await writeFile(path, JSON.stringify({ ...legacyManifest, schemaVersion: 1, complete: false }));
   const budget = JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8'));
   time += 180_000;
   const calls: URL[] = [];
   const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async input => {
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
       const url = new URL(String(input)); calls.push(url); time += 1001;
       return url.pathname === '/v1/auth/token'
         ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
@@ -454,6 +539,66 @@ test('legacy incomplete checkpoints recover from an older verified generation wi
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('failed publication cannot advance collection time or expose partial issue updates', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-publication-failure-')), controller = new AbortController();
+  let time = NOTAM_NOW, blocked = true;
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); const original = await seed.publish(generation([normalized(notice())])); await seed.close();
+  const publish = NotamStore.prototype.publish;
+  t.mock.method(NotamStore.prototype, 'publish', async function(this: NotamStore, ...args: Parameters<typeof publish>) {
+    if (blocked) throw new NotamError('storage-unavailable');
+    return publish.apply(this, args);
+  });
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
+      time += 1001;
+      return new URL(String(input)).pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: [aixm(notice({ text: 'Unfamiliar source version' }))] } });
+    } });
+  let service = create();
+  try {
+    time += 180_000; await service.restore(); service.refresh(); await service.settled();
+    assert.equal(service.status.error, 'storage-unavailable'); assert.equal(service.status.watermark, original.watermark);
+    assert.equal(service.status.unresolvedRecords, 0); assert.equal(service.status.generation, original.generation);
+    await service.close(); service = create(); await service.restore();
+    assert.equal(service.status.watermark, original.watermark);
+    blocked = false; time += 180_000; service.refresh(); await service.settled();
+    assert.ok(service.status.watermark! > original.watermark); assert.equal(service.status.unresolvedRecords, 1);
+    assert.equal(service.readAirport({ faaId: 'TST' })?.records.length, 0);
+    assert.equal(service.readAirport({ faaId: 'TST' })?.issues?.length, 1);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('version-1 snapshots migrate without erasing quota and unscoped issues qualify every airport', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-legacy-schema-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const stateDirectory = join(directory, 'staging'), seed = new NotamStore(stateDirectory, 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice())])); await seed.close();
+  const manifest = JSON.parse(await readFile(join(stateDirectory, 'current.json'), 'utf8'));
+  manifest.schemaVersion = 1; delete manifest.issueCount; delete manifest.sha256;
+  await writeFile(join(stateDirectory, 'current.json'), JSON.stringify(manifest));
+  const budget = JSON.parse(await readFile(join(stateDirectory, 'budget.json'), 'utf8'));
+  const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
+      time += 1001;
+      return new URL(String(input)).pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: [aixm(notice({ locations: [], icaoLocations: [], changeType: 'UNSUPPORTED' }))] } });
+    } });
+  try {
+    await service.restore(); assert.equal(service.status.watermark, manifest.watermark);
+    time += 180_000; service.refresh(); await service.settled();
+    assert.equal(service.status.collectionContinuity, 'complete'); assert.equal(service.status.unscopedRecords, 1);
+    for (const query of [{ faaId: 'TST', icaoId: 'KTST' }, { faaId: 'AUX' }, { icaoId: 'PANC' }]) {
+      const snapshot = service.readAirport(query)!; assert.ok(isNotamAirportSnapshot(snapshot));
+      assert.equal(snapshot.issues?.length, 1); assert.equal(snapshot.contentCoverage, 'incomplete');
+    }
+    assert.equal(JSON.parse(await readFile(join(stateDirectory, 'current.json'), 'utf8')).schemaVersion, 2);
+    assert.equal(JSON.parse(await readFile(join(stateDirectory, 'budget.json'), 'utf8')).bulkAt, budget.bulkAt);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('a saved representation conflict recovers by full replay and stays healthy on the next delta', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-representation-replay-')), controller = new AbortController();
   let time = NOTAM_NOW;
@@ -465,7 +610,7 @@ test('a saved representation conflict recovers by full replay and stays healthy 
   time += 3 * 60 * 60_000;
   const calls: URL[] = [];
   const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async input => {
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
       const url = new URL(String(input)); calls.push(url); time += 1001;
       return url.pathname === '/v1/auth/token'
         ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
@@ -485,6 +630,49 @@ test('a saved representation conflict recovers by full replay and stays healthy 
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('captured FDC conflicts recover every airport, survive restart and advance subsequent deltas without new bulk quota', async () => {
+  const pairs = await fdcRenderingPairs(), previous = pairs.map(pair => pair.previous);
+  const directory = await mkdtemp(join(tmpdir(), 'notam-fdc-replay-')), controller = new AbortController();
+  const baseline = previous[0]!.updatedAt + 60_000;
+  let time = baseline;
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation(previous, baseline));
+  await seed.invalidate('revision-conflict'); await seed.close();
+  const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
+  time += 90 * 60_000;
+  const calls: URL[] = [];
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); calls.push(url); time += 1001;
+      return url.pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: pairs.flatMap(pair => [aixm(pair.previous), aixm(pair.next)]) } });
+    } });
+  let service = create();
+  try {
+    await service.restore(); assert.equal(service.status.continuity, 'incomplete');
+    service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete');
+    assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), baseline - 600_000);
+    for (const { previous } of pairs) {
+      const record = service.readAirport({ faaId: previous.locations[0]! })?.records[0];
+      assert.equal(record?.id, previous.id); assert.equal(record?.text, previous.text);
+      assert.equal(record?.translations.length, 2); assert.equal(record?.endKind, 'estimated');
+    }
+    let checkedAt = service.status.checkedAt!;
+    await service.close(); service = create(); await service.restore();
+    const attempts = calls.length; service.refresh(); await service.settled(); assert.equal(calls.length, attempts);
+    for (let round = 0; round < 3; round++) {
+      time += 180_000; service.refresh(); await service.settled();
+      assert.equal(service.status.state, 'ready'); assert.equal(service.status.error, null);
+      assert.ok(service.status.checkedAt! > checkedAt); checkedAt = service.status.checkedAt!;
+      assert.equal(service.status.recordCount, 3);
+    }
+    assert.equal(JSON.parse(await readFile(budgetPath, 'utf8')).bulkAt, budget.bulkAt);
+    assert.ok(calls.every(url => !url.pathname.endsWith('/il')));
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('inactive rendering conflicts recover the complete feed and stay excluded across restart', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-inactive-recovery-')), controller = new AbortController();
   let time = NOTAM_NOW;
@@ -500,7 +688,7 @@ test('inactive rendering conflicts recover the complete feed and stay excluded a
   time += 6 * 3600_000;
   const calls: URL[] = [];
   const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async input => {
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
       const url = new URL(String(input)); calls.push(url); time += 1001;
       return url.pathname === '/v1/auth/token'
         ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
@@ -525,7 +713,7 @@ test('inactive rendering conflicts recover the complete feed and stay excluded a
 });
 
 for (const bulkFails of [false, true]) {
-  test(`due full reconciliation supersedes failing replay; bulk failure=${bulkFails} retains its fallback`, async () => {
+  test(`daily reconciliation runs with unresolved data; bulk failure=${bulkFails} preserves ongoing collection`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'notam-due-bulk-')), controller = new AbortController();
     let time = NOTAM_NOW - 23 * 3600_000, conflicting = true;
     const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
@@ -535,25 +723,26 @@ for (const bulkFails of [false, true]) {
     await seed.publish(generation([original])); await seed.invalidate('revision-conflict'); await seed.close();
     const calls: URL[] = [];
     const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-      { now: () => time, signal: controller.signal, fetch: async input => {
+      { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
         const url = new URL(String(input)); calls.push(url); time += 1001;
         if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' });
         if (url.pathname.endsWith('/il')) return bulkFails ? new Response('', { status: 500 })
           : Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
-        if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([notice({ text: 'Fresh baseline' })], time)));
-        return Response.json({ status: 'Success', data: { aixm: conflicting ? [aixm(notice({ text: 'Conflicting old rendering' }))] : [] } });
+        if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([notice({ updatedAt: time - 1000, text: 'Fresh baseline' })], time)));
+        return Response.json({ status: 'Success', data: { aixm: conflicting ? [aixm(notice({ text: 'Conflicting old rendering' }))] : bulkFails ? [aixm(notice({ updatedAt: time - 1000, text: 'Resolved source' }))] : [] } });
       } });
     try {
-      await service.restore(); service.refresh(); await service.settled(); assert.equal(service.status.error, 'revision-conflict');
+      await service.restore(); service.refresh(); await service.settled(); assert.equal(service.status.error, 'unresolved-records');
+      const collectedAt = service.status.watermark!;
       const before = calls.length;
       time = due + 1000; service.refresh(); await service.settled();
       assert.ok(calls.slice(before).some(url => url.pathname.endsWith('/il')), 'full rebase must run while the replay prefix is still within 24 hours');
       assert.ok(!calls.slice(before).some(url => url.searchParams.has('lastUpdatedDate')));
       assert.equal(service.status.continuity, 'incomplete', 'bulk alone cannot claim a bridged generation');
-      const bridgeFrom = bulkFails ? NOTAM_NOW : JSON.parse(await readFile(join(directory, 'staging', 'candidate.json'), 'utf8')).watermark;
+      const bridgeFrom = bulkFails ? collectedAt : JSON.parse(await readFile(join(directory, 'staging', 'candidate.json'), 'utf8')).watermark;
       conflicting = false; time += 180_000; service.refresh(); await service.settled();
       assert.equal(service.status.state, 'ready'); assert.equal(service.status.error, null);
-      assert.equal(service.readAirport({ faaId: 'TST' })?.records[0]?.text, bulkFails ? original.text : 'Fresh baseline');
+      assert.equal(service.readAirport({ faaId: 'TST' })?.records[0]?.text, bulkFails ? 'Resolved source' : 'Fresh baseline');
       const delta = calls.at(-1)!;
       assert.equal(Date.parse(delta.searchParams.get('lastUpdatedDate')!), Math.floor((bridgeFrom - 600_000) / 1000) * 1000);
       assert.equal(calls.filter(url => url.pathname.endsWith('/il')).length, 1, 'a failed bulk still consumes the daily allowance');
@@ -571,13 +760,61 @@ test('unrecoverable continuity keeps its original cause while waiting for the du
   time += 180_001;
   let requests = 0;
   const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
-    { now: () => time, signal: controller.signal, fetch: async () => { requests++; throw new Error('Unexpected source request'); } });
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async () => { requests++; throw new Error('Unexpected source request'); } });
   try {
     await service.restore(); service.refresh(); await service.settled();
     assert.equal(requests, 0); assert.equal(service.status.error, 'revision-conflict');
     assert.equal(service.status.nextAttemptAt, NOTAM_NOW + NOTAM_DAY_MS);
     time += 180_000; service.refresh(); await service.settled();
     assert.equal(requests, 0); assert.equal(service.status.error, 'revision-conflict');
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+test('26 hours of collection preserve a persistent conflict through restarts, transient failures and daily reconciliation', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-soak-')), controller = new AbortController();
+  let time = NOTAM_NOW, pulls = 0, bulkPulls = 0;
+  const independent = notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002', locations: ['AUX'], icaoLocations: ['KAUX'] });
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(independent)])); await seed.close();
+  const dataTimes: number[] = [];
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); time += 1001;
+      if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' });
+      if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([notice(), notice({ ...independent, updatedAt: time - 1000 })], time)));
+      dataTimes.push(time);
+      if (url.pathname.endsWith('/il')) { bulkPulls++; return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } }); }
+      pulls++;
+      if (pulls === 150) return new Response('', { status: 503 });
+      if (pulls === 250) return new Response('{"status":"Success","data":', { status: 200 });
+      return Response.json({ status: 'Success', data: { aixm: [aixm(notice({ text: 'An unresolved source restriction' })),
+        aixm(notice({ ...independent, updatedAt: time - 1000, text: `Independent observation ${pulls}` }))] } });
+    } });
+  let service = create();
+  try {
+    await service.restore();
+    for (let round = 0; round < 520; round++) {
+      time += 180_001;
+      const before = service.status.watermark!;
+      service.refresh(); await service.settled();
+      assert.ok(service.status.watermark! >= before);
+      assert.equal(service.status.collectionContinuity, 'complete');
+      assert.equal(service.readAirport({ faaId: 'TST' })?.issues?.length, 1);
+      assert.equal(service.readAirport({ faaId: 'AUX' })?.contentCoverage, 'complete');
+      if (round === 160 || round === 360) {
+        const checkpoint = service.status;
+        await service.close(); service = create(); await service.restore();
+        assert.equal(service.status.watermark, checkpoint.watermark); assert.equal(service.status.unresolvedRecords, 1);
+        const count = dataTimes.length; service.refresh(); await service.settled(); assert.equal(dataTimes.length, count);
+      }
+    }
+    assert.equal(bulkPulls, 1); assert.ok(pulls >= 510);
+    assert.ok(dataTimes.every((at, i) => !i || at - dataTimes[i - 1]! >= 180_000));
+    assert.ok(service.status.checkedAt! > NOTAM_NOW + 26 * 3600_000);
+    assert.ok(service.status.fullSyncAt! >= NOTAM_NOW + NOTAM_DAY_MS);
+    assert.equal(service.status.error, 'unresolved-records');
+    assert.match(service.readAirport({ faaId: 'AUX' })?.records[0]?.text ?? '', new RegExp(`observation ${pulls}$`));
+    const files = await readdir(join(directory, 'staging'));
+    assert.ok(files.filter(name => name.endsWith('.ndjson')).length <= 3);
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 test('disabled or misconfigured NOTAMs leave weather HTTP working; GET/HEAD and health are local', async () => {

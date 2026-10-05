@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import type { GeoJSONSource, ImageSource } from 'maplibre-gl';
+import type { GeoJSONSource } from 'maplibre-gl';
+import { heatPixels } from './glide-heat';
 import { terrainPng } from './terrain-fixture.mjs';
 
 async function focusFixture(page: Page) {
@@ -22,11 +23,8 @@ test('published glide overview renders without detail downloads; detail retains 
   await page.goto('/test/browser/glide.html'); await focusFixture(page);
   await page.getByRole('switch', { name: 'Show glide coverage' }).click();
   await page.getByRole('switch', { name: 'Show off-field coverage' }).click();
-  const shaded = () => page.evaluate(() => {
-    const source = window.glideAudit.map.getSource<ImageSource>('glide-landing-shading');
-    return source?.image instanceof ImageData && source.image.data.some((n, i) => i % 4 === 3 && n > 0);
-  });
-  await expect.poll(shaded).toBe(true); expect(detailRequests).toHaveLength(0);
+  const shaded = () => heatPixels(page);
+  await expect.poll(shaded).toBeGreaterThan(0); expect(detailRequests).toHaveLength(0);
   await page.screenshot({ path: testInfo.outputPath('packaged-glide-density.png') });
   await page.evaluate(() => window.glideAudit.ownship([-120, 35]));
   const detail = () => page.evaluate(async () => (await window.glideAudit.map.getSource<GeoJSONSource>('glide-landing-areas')!.getData()) as GeoJSON.FeatureCollection<GeoJSON.MultiPolygon>);
@@ -43,7 +41,7 @@ test('published glide overview renders without detail downloads; detail retains 
   // Keep the fixture shell online, but reject every data request after a fresh worker.
   await context.route('**/chart-data/glide/**', route => route.abort('internetdisconnected'));
   await page.reload(); await focusFixture(page);
-  await expect.poll(shaded).toBe(true);
+  await expect.poll(shaded).toBeGreaterThan(0);
   await page.evaluate(() => window.glideAudit.ownship([-120, 35]));
   await expect.poll(async () => (await detail()).features.length).toBe(2);
   await expect(page.getByTestId('errors')).toBeEmpty();

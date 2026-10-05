@@ -7,7 +7,7 @@ export function ToolPanel({ icon, beforeStow, children, className = '' }: {
   children: ReactNode | ((visible: boolean, panel: ReturnType<typeof useEdgePanel>) => ReactNode); className?: string;
 }) {
   const placement = useContext(PanelDefaults);
-  if (!placement) throw new Error('Tool panel requires a host placement');
+  if (!placement || placement.tab === false) throw new Error('Tool panel requires a host placement with a tab');
   const panel = useEdgePanel(placement.name, { ...(beforeStow ? { beforeStow } : {}) });
   const offset = placement.tab.order * 48;
   const bottom = placement.tab.edge === 'bottom';

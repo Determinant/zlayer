@@ -121,6 +121,13 @@ test('more than 24 detail blocks finish on the map, remain inspectable and reloa
   expect(reads).toBe(26);
   expect([...readOrder.slice(0, 2)].sort((a, b) => a - b), 'the map publishes the calculation origin, independent of the panned camera').toEqual([2, 15]);
   await page.screenshot({ path: testInfo.outputPath('complete-dense-glide-range.png') });
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ zoom: 6 }));
+  await expect(status).toHaveText('Zoom in to load more landing areas');
+  expect((await samples()).every(([hole, solid]) => hole === 0 && solid! > 0), 'cached detail survives the discovery cutoff').toBe(true);
+  expect(await page.evaluate(() => window.glideAudit.map.getLayoutProperty('glide-landing-detail-image', 'visibility'))).toBe('visible');
+  expect(reads).toBe(26);
+  await page.evaluate(() => window.glideAudit.map.jumpTo({ zoom: 11 }));
+  await expect(status).toHaveText('Candidate areas loaded');
   const target = centers[25]!;
   const point = await page.evaluate(([lon, lat]) => { const p = window.glideAudit.map.project([lon!, lat! + .006]); return { x: p.x, y: p.y }; }, target);
   await page.mouse.click(point.x, point.y, { button: 'right' });

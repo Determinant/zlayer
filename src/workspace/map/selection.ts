@@ -9,10 +9,11 @@ import type { RoutesApi, RouteMapEditing, RouteEditingActions } from '../../laye
 import type { RulerApi } from '../../layers/ruler/public';
 import type { PlatesApi } from '../../layers/plates/public';
 import type { WeatherAwcApi } from '../../layers/weather-awc/public';
+import type { NotamsApi } from '../../layers/notams/public';
 import type { LayerScope } from '../../core/layers/scope';
 import { MapGestures } from '../../layers/routes/map-gestures';
 
-type SelectionBridge = PluginBridge<{ routes: RoutesApi; ruler: RulerApi; plates: PlatesApi; glide: GlideApi; 'weather-awc': WeatherAwcApi }>;
+type SelectionBridge = PluginBridge<{ routes: RoutesApi; ruler: RulerApi; plates: PlatesApi; glide: GlideApi; 'weather-awc': WeatherAwcApi; notams: NotamsApi }>;
 
 /** One selection lifetime per map, independent of any optional renderer. */
 export function createSelectionContribution(input: ReturnType<typeof createLayerInput<MapSelectionInput>>,
@@ -35,7 +36,9 @@ export function createSelectionContribution(input: ReturnType<typeof createLayer
         resolveFeature: feature => input.require().resolveFeature(feature),
         preview: value => editing?.(value),
         onSelect: (feature, pointId) => input.require().onSelect(feature, pointId),
-        contextActions: point => [...bridge.get('weather-awc')?.contextActions(point) ?? [],
+        primaryAction: point => bridge.get('notams')?.contextActions(point)[0],
+        contextActions: point => [...bridge.get('notams')?.contextActions(point) ?? [],
+          ...bridge.get('weather-awc')?.contextActions(point) ?? [],
           ...bridge.get('glide')?.contextActions(point) ?? [],
           ...bridge.get('plates')?.contextActions(point) ?? []],
         onChooseNearby: (features, point, actions) => input.require().onChooseNearby(features, point, actions),

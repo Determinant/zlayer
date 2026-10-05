@@ -11,6 +11,30 @@ export function notice(overrides: Partial<NotamRecord> = {}): NotamRecord {
     text: 'RWY 09L RWY END ID LGT U/S', translations: [{ type: 'LOCAL_FORMAT', text: '!TST 10/001 TST RWY 09L RWY END ID LGT U/S 2610041159-2610051200' }],
     sequence: 1, correction: 0, ...overrides };
 }
+/** Invented departure notice with separate runway minima and conditional alternatives. */
+export function departureNotice(): NotamRecord {
+  const text = 'ODP TEST MUNICIPAL, TEST CITY, CA.\n' +
+    'TAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT 1...\n' +
+    'TAKE-OFF MINIMUMS RWY 13, STANDARD WITH MINIMUM CLIMB OF 412 FT/NM TO 3500, OR 3100-3 FOR CLIMB IN VISUAL CONDITIONS.\n' +
+    'TAKE-OFF MINIMUMS RWY 31, STANDARD WITH MINIMUM CLIMB OF 210 FT/NM TO 2300, OR 3100-3 FOR CLIMB IN VISUAL CONDITIONS.\n' +
+    'ALL OTHER DATA REMAINS AS PUBLISHED. 2610041159-2710042359EST';
+  return notice({ classification: 'FDC', text, endKind: 'estimated', effectiveEnd: '202710042359',
+    endsAt: Date.parse('2027-10-04T23:59:00Z'),
+    translations: [{ type: 'LOCAL_FORMAT', text: `!FDC 6/1001 TST ${text}` }] });
+}
+/** Invented approach amendment spanning distinct minima categories and note actions. */
+export function approachAmendmentNotice(): NotamRecord {
+  const text = 'IAP TEST AIRPORT, TEST CITY, CA.\nRNAV (GPS) Y RWY 09L, AMDT 2...\n' +
+    'LNAV/VNAV DA 780/HAT 360 ALL CATS, VIS ALL CATS RVR 4000.\n' +
+    'LNAV MDA 880/HAT 460 ALL CATS, VIS CATS C/D 1 1/4.\n' +
+    'CIRCLING CAT A/B MDA 960/HAA 548, CAT C MDA 1060/HAA 648, VIS CAT C 1 3/4.\n' +
+    'CHANGE NOTE TO READ: FOR INOP MALSR, INCREASE LNAV/VNAV ALL CATS VISIBILITY TO 1 1/2 SM AND LNAV CATS C/D VISIBILITY TO 2 SM.\n' +
+    'DISREGARD NOTE: RVR 1800 AUTHORIZED WITH USE OF FD OR AP OR HUD TO DA.\n' +
+    'MISSED APPROACH: CLIMB TO 520, THEN CLIMBING RIGHT TURN TO 2000 DIRECT WHITE AND ON TRACK 015 TO CROSS AND HOLD.\n' +
+    'TEMPORARY CRANE 640 MSL 4200FT EAST OF RWY 09L.';
+  return notice({ classification: 'FDC', text, effectiveEnd: '202710042359', endsAt: Date.parse('2027-10-04T23:59:00Z'),
+    translations: [{ type: 'LOCAL_FORMAT', text: `!FDC 6/1001 TST ${text} 2610041159-2710042359` }] });
+}
 /** Invented notices using clause forms observed in the KSJC staging snapshot. */
 export function detailedNotices(): NotamRecord[] {
   return [

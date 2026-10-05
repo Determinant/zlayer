@@ -108,7 +108,7 @@ export function createNotamXmlParser(onRecord: (record: NotamRecord) => void,
       memberBytes = 0; nodes = 0;
     } else if (!stack.length) return;
     if (++nodes > 30_000) throw new NotamError('member-limit');
-    memberBytes += Object.values(tag.attributes).reduce((n, a) => n + a.value.length, tag.name.length);
+    memberBytes += Object.values(tag.attributes).reduce((n, a) => n + Buffer.byteLength(a.value), Buffer.byteLength(tag.name));
     if (memberBytes > MAX_MEMBER_BYTES) throw new NotamError('member-limit');
     const node: Element = { uri: tag.uri, name: tag.local, attributes: tag.attributes, text: '', children: [], parts: [] };
     stack.at(-1)?.children.push(node); stack.at(-1)?.parts.push(node); stack.push(node);
@@ -116,7 +116,7 @@ export function createNotamXmlParser(onRecord: (record: NotamRecord) => void,
   const append = (text: string) => {
     progress = parser.position;
     if (!stack.length) return;
-    memberBytes += text.length;
+    memberBytes += Buffer.byteLength(text);
     if (memberBytes > MAX_MEMBER_BYTES) throw new NotamError('member-limit');
     stack.at(-1)!.text += text;
     const parts = stack.at(-1)!.parts, last = parts.length - 1;

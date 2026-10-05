@@ -1,4 +1,4 @@
-import { mkdir, open, readdir, readFile, rename, unlink, type FileHandle } from 'node:fs/promises';
+import { mkdir, open, readdir, rename, unlink, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { gzip } from 'node:zlib';
@@ -105,19 +105,25 @@ export class WeatherCache {
   }
 
   async read(resource: Resource, maxAgeMs = resource.ttl): Promise<Payload | undefined> {
-    const entry = this.has(resource, maxAgeMs) ? this.entries.get(resource.key) : undefined;
-    if (entry) {
-      entry.used = (this.options.now ?? Date.now)();
-      try {
-        const body = (await readFile(entry.file)).subarray(entry.offset, entry.offset + entry.bytes);
-        if (body.length !== entry.bytes || digest(body) !== entry.sha256) throw new Error('Damaged cache body');
-        return { body, status: entry.status, headers: entry.headers, checkedAt: entry.checkedAt, sha256: entry.sha256 };
-      } catch {
-        if (this.entries.get(resource.key) !== entry) return this.read(resource, maxAgeMs);
-        await this.remove(entry);
+    if (!this.has(resource, maxAgeMs)) return undefined;
+    // Stat and bound the file before allocating. Background consumers need only
+    // the raw representation, not an extra copy of the saved gzip bytes.
+    const saved = await this.open(resource, false, false);
+    if (!saved) return undefined;
+    const { entry, handle, offset, length } = saved;
+    try {
+      const body = Buffer.alloc(length);
+      for (let at = 0; at < length;) {
+        const { bytesRead } = await handle.read(body, at, length - at, offset + at);
+        if (!bytesRead) throw new Error('Truncated cache body');
+        at += bytesRead;
       }
-    }
-    return undefined;
+      if (digest(body) !== entry.sha256) throw new Error('Damaged cache body');
+      return { body, status: entry.status, headers: entry.headers, checkedAt: entry.checkedAt, sha256: entry.sha256 };
+    } catch {
+      if (this.entries.get(resource.key) !== entry) return this.read(resource, maxAgeMs);
+      await this.remove(entry); return undefined;
+    } finally { await handle.close(); }
   }
 
   /** Authenticate an immutable file once after restart, with bounded read buffers.
@@ -138,7 +144,7 @@ export class WeatherCache {
     await entry.verification;
   }
 
-  /** HTTP prepared reads stream saved bytes; they never enter the producer. */
+  /** HTTP reads stream saved bytes; opening a cache entry never enters its producer. */
   async open(resource: Resource, gzipAccepted = false, verify = true): Promise<{ entry: Entry; handle: FileHandle; offset: number; length: number; gzip: boolean } | undefined> {
     const entry = this.has(resource) ? this.entries.get(resource.key) : undefined;
     if (!entry) return undefined;
@@ -240,8 +246,8 @@ export class WeatherCache {
   private async save(resource: Resource, payload: Payload): Promise<void> {
     if (payload.body.length > resource.maxBytes || digest(payload.body) !== payload.sha256) throw new Error('Invalid weather cache payload');
     if (payload.body.length > this.options.maxBytes) throw new HttpError(507, 'Weather file exceeds the cache budget');
-    // Prepared JSON is compressed once during publication, never per viewer.
-    const compressed = resource.kind === 'prepared' && payload.body.length >= 1024 && payload.headers['content-type']?.startsWith('application/json')
+    // JSON is compressed once during publication, never per viewer.
+    const compressed = payload.body.length >= 1024 && payload.headers['content-type']?.startsWith('application/json')
       ? await compress(payload.body) : undefined;
     const encoded = compressed && compressed.length < payload.body.length ? compressed : undefined;
     const encoding = encoded ? { gzipBytes: encoded.length, gzipHash: digest(encoded) } : {};

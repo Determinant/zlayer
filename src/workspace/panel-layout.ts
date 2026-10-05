@@ -11,6 +11,7 @@ export const PANEL_LAYOUT = {
   plate: { side: 'right', tab: { edge: 'bottom', order: 0 } },
   details: { side: 'right', tab: { edge: 'bottom', order: 1 } },
   'weather-awc-details': { side: 'right', tab: { edge: 'bottom', order: 2 } },
+  'notams-tfr-details': { side: 'right', tab: false },
 } as const satisfies PanelLayout;
 
 validatePanelLayout(PANEL_LAYOUT);

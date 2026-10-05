@@ -43,7 +43,7 @@ function harness(t: TestContext, more = (_batch: number) => false,
   const uploads: (() => void)[] = [], statuses: LandingStatus[] = [], images: { id: string; image: ImageData }[] = [];
   let moving = false;
   const map = {
-    getZoom: () => 12, isMoving: () => moving,
+    getZoom: () => 12, isMoving: () => moving, triggerRepaint: () => {},
     getBounds: () => ({ getWest: () => -1, getEast: () => 1, getSouth: () => -1, getNorth: () => 1 }),
     addSource: (id: string) => sources.add(id), removeSource: (id: string) => sources.delete(id),
     getSource: (id: string) => ({ setData: () => new Promise<void>(resolve => uploads.push(resolve)),
@@ -152,13 +152,13 @@ test('range changes retain ready heat and continue with the newest detail demand
   h.update({ ranges: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: {
     type: 'MultiPolygon', coordinates: [[[[0, 0], [.1, 0], [.1, .1], [0, .1], [0, 0]]]],
   } }] } });
-  replies[0]!({ renderKey: 'ready-heat/', heat: { width: 1, height: 1, bounds: [-1, -1, 1, 1], shadedCells: 1,
-    rgba: new Uint8ClampedArray([83, 229, 45, 200]) }, collection: emptyLandings(), more: true, refreshed: true, status: { state: 'loading' } });
+  replies[0]!({ renderKey: 'ready-heat/', heat: [{ key: 'tile', extent: [.49, .49, .51, .51], vertices: new Float32Array([0, 0, 1, 0, 0, 1]),
+    levels: [{ width: 1, height: 1, shadedCells: 1, rgba: new Uint8ClampedArray([83, 229, 45, 200]) }] }], collection: emptyLandings(), more: true, refreshed: true, status: { state: 'loading' } });
   await h.settle();
-  assert.equal(h.images.length, 1, 'a moving range cannot discard independently valid route imagery');
   await h.advance(0);
   assert.equal(h.requests.length, 2);
   assert.equal(h.requests[1]!.renderedKey, 'ready-heat/');
+  assert.deepEqual(h.requests[1]!.heatTiles, ['tile'], 'a moving range retains the accepted route tile');
   assert.equal(h.requests[1]!.revalidate, false, 'the completed refresh is acknowledged with the heat');
   assert.equal(h.requests[1]!.ranges?.features.length, 1);
   assert.equal(h.uploads.length, 1, 'only the range-clear upload precedes the new detail result');
@@ -197,17 +197,17 @@ test('camera cancellation releases a pending upload without treating it as a sou
 test('route changes reject old heat while accepted heat survives later vector failures', async t => {
   const replies: ((result: LandingDisplayResult) => void)[] = [];
   const h = harness(t, () => false, () => new Promise(resolve => replies.push(resolve)));
-  const result: LandingDisplayResult = { renderKey: 'heat/detail', heat: { width: 1, height: 1, bounds: [-1, -1, 1, 1],
-    shadedCells: 1, rgba: new Uint8ClampedArray([83, 229, 45, 200]) }, collection: emptyLandings(),
+  const result: LandingDisplayResult = { renderKey: 'heat/detail', heat: [{ key: 'tile', extent: [.49, .49, .51, .51], vertices: new Float32Array([0, 0, 1, 0, 0, 1]),
+    levels: [{ width: 1, height: 1, shadedCells: 1, rgba: new Uint8ClampedArray([83, 229, 45, 200]) }] }], collection: emptyLandings(),
     status: { state: 'ready' }, more: false, refreshed: true };
   await h.advance(150);
   h.update({ segments: [[[.5, .5], [.7, .7]]] });
   replies[0]!(result); await h.settle();
-  assert.equal(h.images.length, 0, 'route changes invalidate heat, unlike range changes');
   await h.advance(150);
+  assert.deepEqual(h.requests[1]!.heatTiles, [], 'obsolete route replies cannot populate retained tiles');
   replies[1]!(result); await h.settle();
-  assert.equal(h.images.length, 1);
   h.fire('error', { sourceId: 'glide-landing-areas', error: new Error('Vector processing failed') });
   await h.settle(); h.fire('moveend'); await h.advance(150);
+  assert.deepEqual(h.requests[2]!.heatTiles, ['tile']);
   assert.equal(h.requests[2]!.renderedKey, 'heat/', 'vector recovery only revokes the detail acknowledgment');
 });

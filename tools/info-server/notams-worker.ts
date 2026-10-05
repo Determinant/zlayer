@@ -13,7 +13,12 @@ parentPort!.once('message', async (input: { path: string; output: string; kind: 
     const emit: Parameters<typeof createNotamXmlParser>[0] = record => {
       const line = JSON.stringify(record) + '\n'; bytes += Buffer.byteLength(line);
       if (bytes > NOTAM_GENERATION_MAX_BYTES) throw new NotamError('dataset-size-limit');
-      writeSync(file, line);
+      const buffer = Buffer.from(line);
+      for (let offset = 0; offset < buffer.length;) {
+        const written = writeSync(file, buffer, offset, buffer.length - offset);
+        if (!written) throw new NotamError('storage-unavailable');
+        offset += written;
+      }
     };
     let summary: { snapshotAt: number; count: number };
     if (input.kind === 'bulk') {
@@ -28,7 +33,9 @@ parentPort!.once('message', async (input: { path: string; output: string; kind: 
         parser.write(decoder.decode()); summary = parser.finish();
       } finally { stream.destroy(); source.destroy(); }
     } else {
-      const envelope: unknown = JSON.parse(await readFile(input.path, 'utf8'));
+      let envelope: unknown;
+      try { envelope = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readFile(input.path))); }
+      catch { throw new NotamError('invalid-envelope'); }
       if (!isRecord(envelope) || envelope.status !== 'Success' ||
         envelope.errors !== undefined && (!Array.isArray(envelope.errors) || envelope.errors.length > 0) ||
         !isRecord(envelope.data) || !Array.isArray(envelope.data.aixm) || envelope.data.aixm.length > 150_000 ||

@@ -19,6 +19,8 @@ type GestureOptions = {
   preview: (input: { route: RoutePlan; preview?: RouteDragPreview }) => void;
   onSelect: SelectFeature;
   contextActions?: (point: { x: number; y: number }) => MapContextAction[];
+  /** Optional area inspection shares click suppression with selection and route/tool gestures. */
+  primaryAction?: (point: { x: number; y: number }) => MapContextAction | undefined;
   onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }, actions?: MapContextAction[]) => void;
   onCloseNearby?: () => void;
   onRouteLegInsert: (afterEntryId: string, feature: GeoPointFeature) => void;
@@ -130,8 +132,15 @@ export class MapGestures {
 
   #selectFeature(event: MapMouseEvent): void {
     if (this.options.toolActive?.()) return;
+    if ((event.originalEvent?.button ?? 0) !== 0) return;
     if (this.#suppressClick) {
       this.#clearClickSuppression();
+      return;
+    }
+    const action = this.options.primaryAction?.(event.point);
+    if (action) {
+      this.options.onCloseNearby?.();
+      action.select();
       return;
     }
     const features = this.#map.queryRenderedFeatures(event.point, {

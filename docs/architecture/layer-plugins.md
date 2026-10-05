@@ -394,8 +394,17 @@ and individual capabilities have their own state. Routes exposes its plan, previ
 and scoped edit commands while an observable `editing` capability is present only
 for a healthy map attachment. Its public editing types do not depend on the renderer.
 Renderer failure revokes editing without disconnecting core selection.
-Ruler exposes its active-tool state; Plates and AWC Weather expose applicable map context actions.
+Ruler exposes its active-tool state; Plates, AWC Weather, Glide and NOTAMs expose
+applicable map context actions through the core `MapContextAction` contract.
 Selection watches these through the registry for its own map lifetime.
+The workspace composes enabled providers in `workspace/map/selection.ts` and owns
+the shared right-click/long-press menu (`nearby-feature-picker.tsx`). Plugin-owned
+actions open their contributed panels or perform their own commands; the menu is
+available without Routes. Shared gestures currently live in Routes' `map-gestures.ts`
+and are instantiated by workspace selection independently of that plugin's enablement.
+An optional primary action uses the same tool/drag/long-press suppression as point
+selection. The workspace uses NOTAMs' TFR inspection action for a click/tap inside
+an area, while context gestures only offer it in the menu.
 
 Terrain and obstructions discover Routes and observe its displayed plans, including
 recommendation previews. AHRS observes the committed plan. METAR discovers Navigation
@@ -682,7 +691,14 @@ during that exit; reopening cancels the pending close.
 `workspace/panel-layout.ts` assigns every tab its side, anchor and slot. Core validates
 missing placements and collisions before mounting; a registered frame uses the host
 placement. `LayerPanels` renders the same contribution list under both side groups,
-mounting each on its assigned side. A plugin supplies identity and content:
+mounting each on its assigned side.
+
+Selection-only panels can set `tab: false` in their placement to omit an edge tab
+and its slot reservation. They retain the shared slide, Close, Escape and Back
+lifecycle, restore focus to their opener, and reopen through an explicit feature
+action. NOTAMs uses this for TFR details.
+
+A plugin supplies identity and content:
 
 ```tsx
 import { EdgePanel } from '../../core/ui/edge-panels';

@@ -1,27 +1,93 @@
-import { isNotamAirportQuery, NOTAM_AIRPORT_MAX_BYTES, type NotamAirportQuery } from '@zlayer/contracts';
+import { gzip } from 'node:zlib';
+import { promisify } from 'node:util';
+import { isNotamAirportQuery, notamAirportKey, NOTAM_AIRPORT_MAX_BYTES, type NotamAirportQuery, type NotamAirportSnapshot } from '@zlayer/contracts';
 import { NotamError } from './error';
 import type { createNotamService } from './service';
 
-/** Pure local reads. There is deliberately no refresh/acquisition entry point here. */
-export function notamResponse(raw: string, range: string | undefined, service: ReturnType<typeof createNotamService>) {
-  const result = (status: number, value: unknown, retryAfter?: number) => ({ status, body: Buffer.from(JSON.stringify(value)), retryAfter });
-  if (raw.length > 256 || range !== undefined) return result(400, { error: 'invalid-request' });
-  const url = new URL(raw, 'http://localhost');
-  if (url.hash || url.pathname !== raw.split('?', 1)[0]) return result(400, { error: 'invalid-request' });
-  if (url.pathname === '/api/notams/healthz' && !url.search) return result(200, service.status);
-  if (url.pathname !== '/api/notams/airports') return result(404, { error: 'not-found' });
-  const query: NotamAirportQuery = {};
-  for (const [key, value] of url.searchParams) {
-    if ((key !== 'faaId' && key !== 'icaoId') || key in query) return result(400, { error: 'invalid-airport-query' });
-    query[key] = value.trim().toUpperCase();
+const compress = promisify(gzip);
+const MAX_CACHE_BYTES = 32 * 1024 * 1024, MAX_CACHE_ENTRIES = 128;
+type Payload = { status: number; body: Buffer; retryAfter?: number };
+type Entry = { payload: Payload; bytes: number; encoded?: Promise<Buffer> };
+
+/** Bound construction before joining the full response. An issue may contain
+ * several large variants, so serialize each validated record independently. */
+function airportBytes(snapshot: NotamAirportSnapshot): Buffer {
+  const chunks: Buffer[] = []; let size = 0;
+  const append = (text: string) => {
+    size += Buffer.byteLength(text);
+    if (size > NOTAM_AIRPORT_MAX_BYTES) throw new NotamError('airport-size-limit');
+    chunks.push(Buffer.from(text));
+  };
+  const array = <T>(items: readonly T[], write: (item: T) => void) => {
+    append('['); items.forEach((item, i) => { if (i) append(','); write(item); }); append(']');
+  };
+  const { records, issues, ...metadata } = snapshot;
+  append(JSON.stringify(metadata).slice(0, -1)); append(',"records":');
+  array(records, record => append(JSON.stringify(record)));
+  if (issues) {
+    append(',"issues":');
+    array(issues, ({ variants, ...issue }) => {
+      append(JSON.stringify(issue).slice(0, -1)); append(',"variants":');
+      array(variants, record => append(JSON.stringify(record))); append('}');
+    });
   }
-  if (!isNotamAirportQuery(query)) return result(400, { error: 'invalid-airport-query' });
-  try {
-    const snapshot = service.readAirport(query);
-    if (!snapshot) return result(503, { error: service.status.enabled ? 'notams-unavailable' : 'notams-disabled', feed: service.status }, 180);
-    const response = result(200, snapshot);
-    return response.body.length <= NOTAM_AIRPORT_MAX_BYTES ? response : result(503, { error: 'airport-size-limit' }, 180);
-  } catch (cause) {
-    return result(503, { error: cause instanceof NotamError ? cause.code : 'notams-unavailable' }, 180);
+  append('}'); return Buffer.concat(chunks, size);
+}
+
+/** Read-only capability: HTTP has no collection or source-request entry point.
+ * Cache both encodings by query and complete feed status, with bounded retention.
+ * Freshness/backoff transitions invalidate replies even on unchanged datasets. */
+export function createNotamResponder(service: Pick<ReturnType<typeof createNotamService>, 'status' | 'readAirport'>,
+  encode: (body: Buffer) => Promise<Buffer> = compress) {
+  const cache = new Map<string, Entry>(), entries = new WeakMap<Payload, Entry>();
+  let boundary = '', bytes = 0;
+  const result = (status: number, value: unknown, retryAfter?: number): Payload => ({ status, body: Buffer.from(JSON.stringify(value)),
+    ...(retryAfter === undefined ? {} : { retryAfter }) });
+  function trim() {
+    while (bytes > MAX_CACHE_BYTES || cache.size > MAX_CACHE_ENTRIES) {
+      const key = cache.keys().next().value!; bytes -= cache.get(key)!.bytes; cache.delete(key);
+    }
   }
+  function remember(key: string, payload: Payload): Payload {
+    const entry = { payload, bytes: payload.body.length };
+    cache.set(key, entry); entries.set(payload, entry); bytes += entry.bytes; trim();
+    return payload;
+  }
+  function read(raw: string, range: string | undefined): Payload {
+    if (raw.length > 256 || range !== undefined) return result(400, { error: 'invalid-request' });
+    const url = new URL(raw, 'http://localhost');
+    if (url.hash || url.pathname !== raw.split('?', 1)[0]) return result(400, { error: 'invalid-request' });
+    if (url.pathname === '/api/notams/healthz' && !url.search) return result(200, service.status);
+    if (url.pathname !== '/api/notams/airports') return result(404, { error: 'not-found' });
+    const query: NotamAirportQuery = {};
+    for (const [key, value] of url.searchParams) {
+      if ((key !== 'faaId' && key !== 'icaoId') || key in query) return result(400, { error: 'invalid-airport-query' });
+      query[key] = value.trim().toUpperCase();
+    }
+    if (!isNotamAirportQuery(query)) return result(400, { error: 'invalid-airport-query' });
+    try {
+      const status = JSON.stringify(service.status);
+      if (status !== boundary) { cache.clear(); bytes = 0; boundary = status; }
+      const key = notamAirportKey(query), saved = cache.get(key);
+      if (saved) { cache.delete(key); cache.set(key, saved); return saved.payload; }
+      const snapshot = service.readAirport(query);
+      if (!snapshot) return result(503, { error: service.status.enabled ? 'notams-unavailable' : 'notams-disabled', feed: service.status }, 180);
+      return remember(key, { status: 200, body: airportBytes(snapshot) });
+    } catch (cause) {
+      const payload = result(503, { error: cause instanceof NotamError ? cause.code : 'notams-unavailable' }, 180);
+      return cause instanceof NotamError && cause.code === 'airport-size-limit' ? remember(notamAirportKey(query), payload) : payload;
+    }
+  }
+  return { read,
+    async encoded(payload: Payload): Promise<Buffer> {
+      const entry = entries.get(payload);
+      if (!entry) return encode(payload.body);
+      return entry.encoded ??= encode(payload.body).then(body => {
+        entry.bytes += body.length;
+        if ([...cache.values()].includes(entry)) { bytes += body.length; trim(); }
+        return body;
+      }).catch(cause => { delete entry.encoded; throw cause; });
+    },
+    get stats() { return { entries: cache.size, bytes }; },
+  };
 }

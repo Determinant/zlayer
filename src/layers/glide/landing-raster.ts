@@ -24,7 +24,9 @@ export function createLandingRasterWorker(loadShard = loadLandingShard) {
   let shards: LandingShard[] = [], current: LandingManifest | undefined, url = '';
   let job: { id: number; controller: AbortController } | undefined;
   let inspection = new AbortController();
-  const done = new Set<string>(), failed = new Set<string>();
+  // Inspection follows the pixels retained in this frame, independently of
+  // the current acquisition list (which can shrink during a partial refresh).
+  const done = new Map<string, LandingShard>(), failed = new Set<string>();
   const reset = () => {
     inspection.abort(); inspection = new AbortController();
     if (canvas) canvas.width = canvas.height = 1;
@@ -74,8 +76,8 @@ export function createLandingRasterWorker(loadShard = loadLandingShard) {
       if (!mask.some(polygon => containsPoint(point, polygon))) return null;
       try {
         let best: Omit<LandingArea, 'polygon'> | undefined;
-        for (const shard of shards) {
-          if (!done.has(shard.file) || !landingBoundsOverlap(shard.bounds, [coordinate[0], coordinate[1], coordinate[0], coordinate[1]])
+        for (const shard of [...done.values()]) {
+          if (!landingBoundsOverlap(shard.bounds, [coordinate[0], coordinate[1], coordinate[0], coordinate[1]])
             || !scopedLandingMask(mask, shard.scope).some(polygon => containsPoint(point, polygon))) continue;
           const areas = await loadShard(url, shard, signal, accepted.schemaVersion); signal.throwIfAborted();
           const local: Point = [point[0] + Math.round(project([(shard.bounds[0] + shard.bounds[2]) / 2, 0])[0] - point[0]), point[1]];
@@ -105,9 +107,9 @@ export function createLandingRasterWorker(loadShard = loadLandingShard) {
         const step = Math.max(1 / (1024 * 2 ** request.zoom), (se[0] - nw[0]) / 1280, (se[1] - nw[1]) / 1280);
         const sourceKey = landingSourceKey(request.manifestUrl, manifest);
         // Bearing changes the viewport envelope, but not the existing pixel scale.
-        const reusable = key === sourceKey && frame && Math.abs(frame.zoom - request.zoom) < 1e-6
+        const reusable = key === sourceKey && frame && (!request.discover || Math.abs(frame.zoom - request.zoom) < 1e-6
           && nw[0] >= frame.left && nw[1] >= frame.top
-          && se[0] <= frame.left + frame.width * frame.step && se[1] <= frame.top + frame.height * frame.step;
+          && se[0] <= frame.left + frame.width * frame.step && se[1] <= frame.top + frame.height * frame.step);
         if (!reusable) {
           reset(); key = sourceKey; revision++; current = manifest; manifestKey = sourceKey; url = request.manifestUrl;
           const left = (Math.floor(nw[0] / step / 128) * 128 - 64) * step;
@@ -164,7 +166,7 @@ export function createLandingRasterWorker(loadShard = loadLandingShard) {
                 count++; flags |= area.flags;
               }
             } finally { context!.restore(); }
-            done.add(shard.file); revision++;
+            done.set(shard.file, shard); revision++;
           } catch { signal.throwIfAborted(); failed.add(shard.file); }
         }
         const more = request.discover && shards.some(shard => !done.has(shard.file) && !failed.has(shard.file));

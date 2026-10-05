@@ -7,7 +7,7 @@ import { boundsViewport, localRouteSegments, routeMask } from './coverage';
 import { emptyLandings, landingBoundsOverlap, landingSourceKey, type LandingArea, type LandingCollection,
   type LandingManifest, type LandingShard, type LandingStatus, type LandingSelection } from './landing-data';
 import { loadLandingManifest, loadLandingShard } from './landing-loader';
-import { landingShards } from './landing-inventory';
+import { invalidateLandingInventory, landingShards } from './landing-inventory';
 import { landingCoverageMask, scopedLandingMask, scopeIntersects } from './landing-scope';
 import type { LandingSources } from './landing-sources';
 import type { GlideAreas } from './types';
@@ -188,6 +188,7 @@ export function createLandingWorker(loadManifest = loadLandingManifest, loadShar
             try {
               const next = await loadManifest(url, signal, request.sources);
               signal.throwIfAborted();
+              if (request.revalidate) invalidateLandingInventory(next);
               acceptManifest(next);
             } catch (error) {
               signal.throwIfAborted();

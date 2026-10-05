@@ -6,7 +6,9 @@ export type PanelLayout = Readonly<Record<string, PanelPlacement>>;
 export function validatePanelLayout(layout: PanelLayout): void {
   const slots = new Map<string, string>();
   for (const [id, { side, tab }] of Object.entries(layout)) {
-    if (!['left', 'right'].includes(side) || !['top', 'bottom'].includes(tab.edge)
+    if (!['left', 'right'].includes(side)) throw new Error(`Invalid panel placement: ${id}`);
+    if (tab === false) continue;
+    if (!['top', 'bottom'].includes(tab.edge)
       || !Number.isSafeInteger(tab.order) || tab.order < 0) throw new Error(`Invalid panel placement: ${id}`);
     const key = `${side}:${tab.edge}:${tab.order}`;
     const previous = slots.get(key);

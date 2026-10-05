@@ -285,52 +285,146 @@ ownship/selected-point ranges are eligible; the national inventory is never fetc
 as a batch. Route removal clears shading while retaining independent range detail.
 GPS loss, point clearing and changed planning inputs clear the corresponding detail.
 
-Packaged route views choose the published overview zoom nearest the output cell
-size. Each query acquires **two overview blocks concurrently**, then publishes before
+The landing display separates acquisition, preparation and drawing:
+
+- `landing-display.ts` accepts one source identity, coordinates overview/detail
+  results and their independent publication acknowledgments, and owns recovery.
+- `landing-overview.ts` owns overview acquisition, bounded resident grids, source
+  ownership across zooms and residency. Acquisition limits never select which
+  already resident grids may draw.
+- `landing-heat-composition.ts` integrates the resident raster field into display
+  cells. It does not fetch data or choose which files to retain.
+- `landing-heat-tiles.ts` retains geographic textures, their complete zoom pyramids
+  and route/source clipping meshes. `landing-heat-layer.ts` owns GPU residency and
+  drawing. Vector and dense raster detail keep their separate geometry and
+  inspection lifecycles.
+
+Packaged route views request overview zoom `floor(mapZoom) - 1`, capped by the
+source’s published maximum. Each query acquires **two overview blocks concurrently**, then publishes before
 the next pair. New camera demand waits 150 ms; progressive batches yield to the
 event loop and continue without repeating that delay. Completed and hidden views
-have no continuation timer. At most **32 blocks per view** and **64 resident grids** are retained.
+have no continuation timer. At most **32 blocks per view are selected for acquisition**;
+the independent cache retains **64 grids**, including during cancellation. All
+resident grids remain eligible to draw, even when discovery is disabled
+or more than 32 cached blocks intersect the view. Loading progress counts the
+requested blocks, not cached fallback inputs. Failure records are also bounded to 64.
 Shared blocks appearing in overlapping regional indexes are deduplicated. Repeated
-queries reuse the selected descriptors and decoded grids. Density fractions remain
+queries reuse the selected descriptors and decoded grids. Each manifest retains
+one regional metadata selection and up to 32 decoded index pages per kind. Pans
+within the same page set and overview zoom changes reuse that metadata without
+storage reads, receipt checks or parsing. Overview inventories contain all blocks
+at the requested level in the selected pages; exact viewport, corridor and scope
+filtering still determine acquisition. Detail selection continues to use polygon
+bounds. Refresh discards metadata failures, and canceled reads cannot poison later
+requests. This live cache is independent of offline-save verification.
+
+An unchanged route and viewport also reuse the coverage mask, shard eligibility
+and ordered acquisition plan across progressive batches and range updates. Only
+the remaining downloads and resident status need updating. Density fractions remain
 numeric through composition; they are not converted to binary candidate pixels.
-At overview scales that forbid discovery, resident parent tiles replace their
-cached descendants within the same source and ownership scope. Finer tiles remain
-eligible where no resident parent covers them. A visited location therefore
-contributes density once even after browsing several zoom levels, without dropping
-unrelated cached coverage or borrowing from another regional edition.
+Within each release and regional ownership scope, the finest resident tile owns
+its whole rectangle, including known zero-density pixels. Coarser parents supply
+only the remainder. This preserves fine observations when coarse publication has
+rounded a small fraction to zero, counts each location once, and keeps unrelated
+cached coverage. Cached tiles remain usable while a requested level loads or fails.
+Fallback never crosses source ownership into another regional edition. Genuine
+cache eviction, changed source identity and changed route demand can still remove
+coverage. Leaving the viewport and zooming alone never evict prepared assets.
+Loading new blocks can eventually evict the least recently used inputs once the
+64-grid budget is full; this is a bounded session cache, not an offline-save claim.
 
 Legacy feeds derive an immutable tier raster from each validated polygon file with
 worker `OffscreenCanvas` and even-odd holes, capped at 512 × 512 bytes. Their scoped
 `landing-shading` cache retains up to 128 derived summaries / 16 MiB. Only that
 compatibility path needs a polygon transfer/decode on its first route visit.
 
-The worker composites union coverage samples into a geographically aligned image:
-roughly **4–8 screen pixels per density cell**, bounded to 385 cells on either
-viewport axis. A margin of up to 32 cells per edge retains the same geographic
-resolution and caps the prepared image at **449 × 449**. Small pans, GPS-follow
-moves and bearing changes reuse that image while the viewport fits at the same
-cell scale and the contributing source set stays unchanged. Acquisition priority
-does not invalidate pixels when it merely reorders the same sources. Padding uses
-already eligible grids; it does not expand file discovery. Larger moves, changed
-source identities, route edits and changed cell scale rebuild the image.
-Zoom changes the geographic resolution; overlapping source grids cannot
-inflate density. Nearest-neighbor filtering keeps cell edges crisp, with conservative
-cell admission inside the route corridor. Each cell samples only overlapping source
-grids: each grid visits its output extent with precomputed sample rows/columns.
-Two 16-bit masks preserve the legacy 4×4 union samples; two 32-bit integer arrays
-accumulate published covered/preferred byte totals. Shared corner checks admit
-cells once. Published fractions normalize once, keeping tier ties exact.
-An interior cell whose samples all hit one source pixel reads its already
-summarized fraction once; scope boundaries and
-resampling retain the full 4×4 samples. Latitude scale is computed once per corner
-row. Frame scratch typed arrays stay below **3 MiB** and are released after composition;
-the retained RGBA image is below **0.8 MiB**. Worker-message copies, renderer storage
-and source grids are additional. The map uses the received heat pixels directly
-without another application-side copy. Region boundaries reuse the chart
-ownership geometry and per-row spans, avoiding a full
-state-polygon walk for every sample. Uniform interior tiles skip boundary work. Empty or missing data stays transparent
-and failed/unprepared coverage remains labeled. Route shading never performs
-polygon clipping/unions of candidate areas or exposes an inspection hit target.
+The worker prepares each resident geography once, independently of the camera.
+A render tile has power-of-two dimensions up to **256 × 256**, with every mip level
+prepared through **1 × 1**. Each level averages numeric covered/preferred fractions
+before applying the palette. This retains sparse candidates when zooming out and
+avoids blending tier colors into a third color. The map chooses an existing level
+for roughly 2–4 CSS pixels per density cell (or the finest available source level).
+No viewport bitmap, screen-cell probing or padding cache remains in route shading.
+
+Preparation keys contain the intersecting immutable input identities and only the
+route segments near that tile, clipped in its fixed geographic coordinates. Editing
+a leg invalidates nearby tiles; unrelated legs, camera bounds, zoom, bearing, GPS
+ranges and acquisition priority do not invalidate their pixels or meshes. New
+intersecting source data and eviction rebuild affected tiles. A source identity
+change resets all overview assets. This gives leg-local reuse without storing a
+second copy of the shading for each overlapping leg. The source dependency graph
+is built only when resident inputs change. Warm queries with an unchanged route
+return the prepared tile set before graph construction or local-leg clipping;
+route edits reuse the graph and rebuild only affected tiles. Scope geometry is
+cached per immutable input. Eviction immediately releases graph references to
+removed grids, even if the current acquisition batch is canceled before preparation.
+
+All prepared tiles remain attached to one plugin-owned Mercator WebGL layer while
+off screen. Camera changes cull draws, update tile-local projection matrices and
+select a cached mip; they do not recompose, transfer or upload retained textures.
+Individual content keys let the map acknowledge retained assets. A new snapshot
+transfers pixel pyramids and meshes only for keys the map does not already own;
+retained assets are represented by their keys alone. After the first successful
+visible upload, the main thread releases the CPU pixel and vertex arrays. The
+worker owns the recovery copy; the renderer retains GPU resources and small draw metadata,
+including precalculated tile coordinates and mip-selection scale. Source/route
+revision guards reject obsolete replies. Route edits hide old shading until the
+new snapshot arrives, while retaining reusable assets. Disable, worker replacement,
+source replacement and teardown release residency. The workspace's `style.load`
+lifecycle remounts the plugin after context restoration.
+Removing the custom layer also clears its keys, so a replacement renderer cannot
+acknowledge textures that belonged to a lost context.
+
+Buffer and mip uploads commit together. Allocation errors, including GPU memory
+exhaustion without context loss, discard the new GPU resources and retain the CPU
+body. Such a key still acknowledges a reproducible asset, not a successful draw;
+the map reports the render failure independently of worker readiness. Each asset
+gets one automatic retry after 100 ms. Later camera settles, resizing, foreground
+return or explicit recovery permit another attempt. Ordinary redraws and repeated
+worker snapshots cannot restart failed uploads. Hiding or teardown cancels the
+retry timer, and a hidden document does no retry work. Successful upload or removal
+of the failed asset clears its error. GPU error checks run only around new uploads.
+
+Clipping geometry is independent of mip resolution: every level uses the same
+20 NM corridor and regional ownership mesh, including holes. Smaller resident
+source rectangles own overlapping draw geometry, and each tile integrates all its
+local contributing grids, so legacy overlaps draw once. Earcut triangulates each
+clipped polygon with explicit hole offsets and spatial indexing for larger rings.
+Triangulation uses double-precision tile-local coordinates before packing float
+vertices. A polygon with N boundary vertices and H holes needs at most N + 2H - 2
+triangles; storage is allocated from that bound. The mesh does not split every
+edge at every other vertex's height or simplify the geographic mask.
+The shader consumes straight RGBA bytes and emits premultiplied color.
+The current workspace uses Mercator; this custom layer does not implement globe
+projection or terrain draping.
+
+Composition integrates source-pixel area instead of probing a few sample points.
+Disjoint inputs integrate directly; overlapping fields use scan-line unions, so
+legacy overlap cannot inflate density. Green wins overlapping binary tiers; the
+predominant integrated tier determines the cell color, with purple on a tie.
+This is an approximation of the published Mercator raster, not new landing
+qualification. Source/scope/corridor boundaries split integration strips; sloping
+edges use their strip-midpoint crossings. Each source mask prepares an edge sweep:
+successive rows admit edges once and visit only edges still crossing that row,
+rather than rescanning the whole boundary at every integration cut. Per-polygon
+even-odd pairing retains holes and separate components. Exact clipping meshes keep
+even coarse mips inside the requested geographic mask. Density aggregation can fill small
+candidate holes at overview scales; fine levels retain their source resolution.
+
+At 64 full 256² tiles, RGBA pyramids total less than **21.4 MiB** in the worker and
+another **21.4 MiB** on the map side, where each asset holds either pending CPU
+pixels or its uploaded GPU texture. Uploads temporarily overlap those copies;
+uploaded pixels are not retained on the main thread. Immutable input grids,
+clipping meshes, metadata, protocol copies and composition scratch space are
+additional. Composition
+uses two 256² float grids plus row accumulators; pyramid reduction releases numeric
+intermediates after color preparation. These are allocation bounds, not device
+memory, frame-rate or battery measurements. Warm route shading has no polling or
+animation loop; off-screen assets have no draw calls. Cold acquisition, affected
+route edits and new source data still require worker computation and uploads.
+Missing data stays transparent and failed or
+unprepared coverage remains labeled. Route shading never unions candidate polygon
+records or exposes an inspection hit target.
 
 Vector detail keeps the independent **24-block / 24 MiB source raw JSON /
 300,000-vertex** accounting budget. These are retained-input limits, not total JS
@@ -376,6 +470,17 @@ The canvas retains candidates before
 range clipping: new range positions/heights reuse completed blocks and apply a
 fresh even-odd row mask to the published pixels. Larger pans or resolution/source
 changes rebuild that bounded frame. Unchanged frames skip decoding and uploads.
+Completed blocks retain their immutable descriptors alongside the canvas, so
+inspection follows all retained pixels even if a later metadata refresh returns
+only part of the acquisition inventory. These descriptors contain no decoded
+candidate geometry and clear with the frame or source. Inspection snapshots that
+completed set; changing the frame or range cancels an obsolete selection.
+Once detail exceeds the vector budget, raster mode owns subsequent camera/frame
+changes until the ranges clear or source identity changes; zoom does not restart
+vector selection. When discovery is disabled, the existing frame and completed
+blocks remain available at their original geographic coordinates. Range changes
+still reclip that frame; unvisited ground remains empty. Returning to an eligible
+view resumes frame preparation when necessary.
 A thin inside casing separates candidates without painting across holes or the
 calculated range boundary.
 
@@ -406,8 +511,8 @@ union; the immediate continuation prepares remaining summaries and then detail.
 Heat and detail have independent acknowledgments and publication validity. A
 nonempty range update cannot discard a still-valid heat result or its refresh
 receipt, and a failed vector upload does not invalidate accepted heat.
-Both image paths give `ImageData` the received RGBA array directly; detailed
-image hit testing shares those pixels without another application-side copy.
+Route textures upload the received arrays directly. Dense detail gives `ImageData`
+the received RGBA array directly and shares it with image hit testing.
 Range changes preserve route shading; route changes preserve independent
 range polygons. Manual camera motion/hiding cancels obsolete work, while GPS-follow
 camera movement preserves active preparation. Nonempty range updates also let
@@ -429,19 +534,20 @@ remain reusable. Core admission bounds full-file acquisition/validation to two
 concurrent jobs. Completed camera-independent detail can remain off-screen within
 the retained budget; the renderer clips drawing to the camera.
 
-`test/glide-landing-display.test.ts` covers density encoding, overlap, clipping,
-zoom resolution, progressive two-file admission, warm reuse, range-only demand,
-GPS/range loss, failures, cancellation and source invalidation. It also compares
-numeric composition against independent point sampling across scopes, holes, tier
-ties and world copies, and checks bounded padding and small-pan reuse.
-`test/glide-landing-map.test.ts` verifies prompt continuation and that movement,
-hiding, completion and teardown stop scheduled work. Existing landing
-contract/geometry tests retain polygon validation, tier unions and individual
-inspection coverage. `test/e2e/glide-landings.spec.ts` exercises the real worker,
-image source, raster holes, zoom resolution, cached revisits, independent selected
-and ownship ranges, GPS loss during pending inspection, acquisition during movement,
-inspection/arrival, selection identity across refresh/remount and unpublished-feed recovery.
-Small-pan checks observe real worker replies and assert zero image-source uploads.
+`test/glide-landing-display.test.ts` covers density encoding, progressive two-file
+admission, retained tiles across pans/zoom/revisits, range-only demand, GPS/range
+loss, failures, cancellation and source invalidation. `test/glide-heat.test.ts`
+compares area composition against an independent geometric-union oracle, including
+numeric fractions, overlaps, scopes, holes, world copies and sparse pixels through
+the full zoom pyramid. `test/glide-overview.test.ts` covers mosaics, zero-valued
+child ownership, more than 32 resident blocks, bounded eviction, failed-level
+fallback and reuse after an unrelated leg edit. `test/glide-landing-map.test.ts`
+covers independent heat/detail acknowledgments, continuation, movement, hiding and
+teardown. Existing contract/geometry tests retain candidate validation and inspection.
+`test/e2e/glide-landings.spec.ts` reads rendered framebuffer colors and exercises
+cached revisits and zoom changes through the real worker, independent ranges,
+GPS loss during inspection, selection identity and unpublished-feed recovery.
+Camera-reuse cases observe worker replies for redundant tile publication.
 `test/glide-packages.test.ts` decodes the complete publisher conformance fixture,
 checks original IDs/holes, corruption and inflate limits, numeric-only route reads,
 region-local indexes, shared-file retention and cache-only eviction detection.
@@ -451,7 +557,8 @@ reload and service-worker regional downloads/removal/eviction.
 block limits, original rings and holes, tier precedence, origin-based loading order, scoped ownership, world
 copies, inspection, offline reload, moving ranges/cameras, track-up rotation on
 phone/desktop viewports, cancelled inspections, combined limits/failures, retry
-and source replacement. These verify software
+and source replacement. Dense map detail also retains its original holes and
+completed blocks through zooming below the discovery cutoff and back. These verify software
 behavior; landing suitability is not validated.
 
 For repeatable worker CPU diagnostics, run
@@ -464,6 +571,10 @@ uses four 256 × 256 × 3 numeric overviews at zoom 11, six measured runs after 
 warm-ups, and injected reads. It reports composition, full progressive preparation,
 unchanged views, small pans and revisits, including reads and image publications.
 Camera admission timers are excluded from these CPU measurements.
+
+The following measurements and browser results predate retained geographic
+textures and their zoom pyramids. They document the earlier viewport-image design;
+they do not establish performance or correctness of the current renderer.
 
 A local Node 24.15.0 comparison on 2026-10-03 against `6689354`, with the same
 fixture and unchanged output digests, measured these CPU changes:
@@ -485,8 +596,8 @@ measured composition at **12.4 → 4.9 ms**, progressive preparation at
 **23.9 → 14.3 ms**, and a small pan at **12.7 → 0.2 ms**. Small pans and immediate
 revisits omitted the image upload; both versions read four grids. The unpadded
 numeric image digest and the existing legacy/geometry digests were unchanged.
-The padded image spends bounded extra preparation/storage to avoid recurring work.
-Both mobile and desktop use this same demand-driven algorithm and resolution;
+That padded-image implementation spent bounded extra preparation/storage to avoid
+small-pan work. Both mobile and desktop used the same algorithm and resolution;
 these CPU and upload reductions are not measurements of device battery life.
 
 Focused rendering checks on 2026-10-04 used the Playwright 1.63.0 Noble container:
@@ -671,6 +782,10 @@ is limited to **0.1 NM from the published origin** and requires the new origin t
 on screen; larger jumps and changed off-screen origins clear it immediately.
 Nearby late results may replace the retained ring while the newest origin queues;
 status remains loading until the result matches the accepted origin. The retained
+fallback ends when a completed request for the current origin returns `null`,
+including when zoom prevents discovery: both the ring and its landing-detail mask
+are cleared. A late null reply for an older origin cannot clear a newer range.
+Repeated null replies do not submit another empty collection. The retained
 ring is a previous planning result, not a terrain-clearance guarantee from the
 moving aircraft's new position. Settings, source changes and GPS loss still clear
 obsolete ranges immediately. The displacement limits bound drift; this does not

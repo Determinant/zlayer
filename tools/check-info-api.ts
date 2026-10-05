@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, isRadarCatalog,
   isRadarContours, isRadarMotionCatalog, isRadarMotionSnapshot, isAwcAdvisorySnapshot,
-  isNotamFeedStatus, isNotamAirportSnapshot, isTafReport } from '@zlayer/contracts';
+  isNotamFeedStatus, isNotamAirportSnapshot, isTafReport, isTfrSnapshot, TFR_STALE_MS } from '@zlayer/contracts';
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../src/layers/weather-awc/grids/model-terrain';
@@ -69,6 +69,9 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   for (const product of ['gairmet', 'sigmet', 'cwa']) assert.ok(isAwcAdvisorySnapshot((await read(`/api/weather/advisories/${product}.json`)).json()));
   const reports = (await read('/api/weather/metars.geojson?ids=KSFO')).json(); assert.ok(isRecord(reports) && reports.type === 'FeatureCollection');
   const tafs = (await read('/api/weather/tafs.json?ids=KSFO')).json(); assert.ok(Array.isArray(tafs) && tafs.every(isTafReport));
+  const tfrs = (await read('/api/notams/tfrs')).json();
+  assert.ok(isTfrSnapshot(tfrs) && !tfrs.error, 'TFR snapshot unavailable or degraded');
+  assert.ok(tfrs.checkedAt <= Date.now() + 30_000 && Date.now() - tfrs.checkedAt < TFR_STALE_MS, 'TFR source check is stale or in the future');
   const feed = (await read('/api/notams/healthz')).json(); assert.ok(isNotamFeedStatus(feed));
   if (notams === 'disabled') {
     assert.equal(feed.state, 'disabled'); assert.equal(feed.enabled, false);

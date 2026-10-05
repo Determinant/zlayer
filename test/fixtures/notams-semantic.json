@@ -1,0 +1,1082 @@
+{
+  "capturedAt": "2026-10-05T20:39:41.886Z",
+  "source": "Prepared FAA NMS airport API; degraded retained generation, not a complete fresh feed",
+  "cases": [
+    {
+      "airport": "KMDW",
+      "record": {
+        "id": "2465416608987363",
+        "sourceId": "NMS_ID_2465416608987363",
+        "classification": "DOMESTIC",
+        "number": "060",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "MDW"
+        ],
+        "icaoLocations": [
+          "KMDW"
+        ],
+        "accountability": "MDW",
+        "issuedAt": 1788520560000,
+        "updatedAt": 1788520560000,
+        "sourceUpdatedAt": "2026-09-04T11:16:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788520500000,
+        "endsAt": 1795398600000,
+        "effectiveStart": "202609041115",
+        "effectiveEnd": "202611230150",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST WIND TURBINE LGT (ASN 2017-AGL-1194-OE) 414553N0874421W (1.4NM SSE MDW) 703FT (86FT AGL) U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!MDW 09/060 MDW OBST WIND TURBINE LGT (ASN 2017-AGL-1194-OE) 414553N0874421W (1.4NM SSE MDW) 703FT (86FT AGL) U/S 2609041115-2611230150"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e386b652fbeffd2b464b26ab9ac039cf4108bb8cfbc6018f4f2e314ab90ea789"
+      },
+      "expected": {
+        "subject": "OBST",
+        "flairs": [
+          "Obstacle Light Outage"
+        ],
+        "mapped": true,
+        "label": "Wind turbine\n703 (86)"
+      }
+    },
+    {
+      "airport": "KSAT",
+      "record": {
+        "id": "1770823259757965",
+        "sourceId": "NMS_ID_1770823259757965",
+        "classification": "INTL",
+        "number": "157",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "SAT"
+        ],
+        "icaoLocations": [
+          "KSAT"
+        ],
+        "accountability": "KSAT",
+        "issuedAt": 1770823200000,
+        "updatedAt": 1770823260000,
+        "sourceUpdatedAt": "2026-02-11T15:21:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1770822840000,
+        "endsAt": 1811894340000,
+        "effectiveStart": "202602111514",
+        "effectiveEnd": "202706012359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SAT OBST CRANE LGT (ASN 2025-ASW-2006-NRA) 293143N0982824W (0.4NM\nSW SAT) 988FT (200FT AGL) U/S",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA0157/26 NOTAMN\nQ) KZHU/QOBCE/IV/M/AE/000/999/2932N09828W005\nA) KSAT\nB) 2602111514\nC) 2706012359\nE) SAT OBST CRANE LGT (ASN 2025-ASW-2006-NRA) 293143N0982824W (0.4NM\nSW SAT) 988FT (200FT AGL) U/S\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "93b40b81ec7c23912ef57a4d9f16bd43c25bfcd9d8fc2fe060d4cc8c381df480"
+      },
+      "expected": {
+        "subject": "OBST",
+        "flairs": [
+          "Obstacle Light Outage"
+        ],
+        "mapped": true,
+        "label": "Crane\n988 (200)"
+      }
+    },
+    {
+      "airport": "PHOG",
+      "record": {
+        "id": "5906411899768713",
+        "sourceId": "NMS_ID_5906411899768713",
+        "classification": "DOMESTIC",
+        "number": "049",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OGG"
+        ],
+        "icaoLocations": [
+          "PHOG"
+        ],
+        "accountability": "OGG",
+        "issuedAt": 1790379480000,
+        "updatedAt": 1790379480000,
+        "sourceUpdatedAt": "2026-09-25T23:38:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790379240000,
+        "endsAt": 1793059140000,
+        "effectiveStart": "202609252334",
+        "effectiveEnd": "202610262359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST WIND TURBINE LGT (ASN 2012-WTW-3608-OE) 204810N1563222W (7.6NM SW OGG) 2157FT (328FT AGL) U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!OGG 09/049 OGG OBST WIND TURBINE LGT (ASN 2012-WTW-3608-OE) 204810N1563222W (7.6NM SW OGG) 2157FT (328FT AGL) U/S 2609252334-2610262359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "139a8e95fb41030f7bee3ea2a37dcf35e0edd4aeb18686521f7d3c9327dc3672"
+      },
+      "expected": {
+        "subject": "OBST",
+        "flairs": [
+          "Obstacle Light Outage"
+        ],
+        "mapped": true,
+        "label": "Wind turbine\n2157 (328)"
+      }
+    },
+    {
+      "airport": "PHOG",
+      "record": {
+        "id": "7995646675216804",
+        "sourceId": "NMS_ID_7995646675216804",
+        "classification": "DOMESTIC",
+        "number": "58",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OGG"
+        ],
+        "icaoLocations": [
+          "PHOG"
+        ],
+        "accountability": "OGG",
+        "issuedAt": 1790725140000,
+        "updatedAt": 1790725140000,
+        "sourceUpdatedAt": "2026-09-29T23:39:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790724960000,
+        "endsAt": 1793059140000,
+        "effectiveStart": "202609292336",
+        "effectiveEnd": "202610262359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST WIND TURBINE LGT (ASN 2004-AWP-5316-OE) 204929N1563322W (7.5NM WSW OGG) 3473FT (298FT AGL) U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!OGG 09/058 OGG OBST WIND TURBINE LGT (ASN 2004-AWP-5316-OE) 204929N1563322W (7.5NM WSW OGG) 3473FT (298FT AGL) U/S 2609292336-2610262359"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/058 NOTAMN<BR>\r\n<B>Q) </B>PHZH/QOLAS/IV/M/E/000/035/2053N15625W005<BR>\r\n<B>A) </B>PHOG<BR>\r\n<B>B) </B>2609292336<BR>\r\n<B>C) </B>2610262359<BR> \r\n<B>E) </B> WIND TURBINE LGT (ASN 2004-AWP-5316-OE) 204929N1563322W (7.5NM WSW OGG) 3473FT (298FT AGL) U/S<BR>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e563b03b93ee65f5a25f974e8f21621e7808a74a72954ecb595b1592f16c37ab"
+      },
+      "expected": {
+        "subject": "OBST",
+        "flairs": [
+          "Obstacle Light Outage"
+        ],
+        "mapped": true,
+        "label": "Wind turbine\n3473 (298)"
+      }
+    },
+    {
+      "airport": "KSAV",
+      "record": {
+        "id": "1765291047603478",
+        "sourceId": "NMS_ID_1765291047603478",
+        "classification": "INTL",
+        "number": "801",
+        "series": "A",
+        "year": "2025",
+        "locations": [
+          "SAV"
+        ],
+        "icaoLocations": [
+          "KSAV"
+        ],
+        "accountability": "KSAV",
+        "issuedAt": 1765290960000,
+        "updatedAt": 1765290960000,
+        "sourceUpdatedAt": "2025-12-09T14:36:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1765290600000,
+        "endsAt": 1804083840000,
+        "effectiveStart": "202512091430",
+        "effectiveEnd": "202703031424",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SAV OBST CRANE LGT (ASN 2025-ASO-11908-NRA) 320823N0811243W (0.9NM\nNW SAV) 236FT (208FT AGL) U/S",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA0801/25 NOTAMN\nQ) KZJX/QOBCE/IV/M/AE/000/999/3208N08112W005\nA) KSAV\nB) 2512091430\nC) 2703031424\nE) SAV OBST CRANE LGT (ASN 2025-ASO-11908-NRA) 320823N0811243W (0.9NM\nNW SAV) 236FT (208FT AGL) U/S\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "943075562535b9ac9bd2adcf40ffc319f9bfac8d5878b2ca03095f399a82158c"
+      },
+      "expected": {
+        "subject": "OBST",
+        "flairs": [
+          "Obstacle Light Outage"
+        ],
+        "mapped": true,
+        "label": "Crane\n236 (208)"
+      }
+    },
+    {
+      "airport": "KLAX",
+      "record": {
+        "id": "1787689898251613",
+        "sourceId": "NMS_ID_1787689898251613",
+        "classification": "INTL",
+        "number": "4719",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "LAX"
+        ],
+        "icaoLocations": [
+          "KLAX"
+        ],
+        "accountability": "KLAX",
+        "issuedAt": 1787689860000,
+        "updatedAt": 1787689920000,
+        "sourceUpdatedAt": "2026-08-25T20:32:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788159600000,
+        "endsAt": 1801234800000,
+        "effectiveStart": "202608310700",
+        "effectiveEnd": "202701291500",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN 2026-AWP-1905-NRA) 335640N1182434W (0.1NM NNW LAX) 315FT (195FT AGL) FLAGGED AND LGTD MON-FRI 0700-1500",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA4719/26 NOTAMN\nQ) KZLA/QOBCE/IV/M/AE/000/999/3356N11824W005\nA) KLAX\nB) 2608310700\nC) 2701291500\nE) OBST CRANE (ASN 2026-AWP-1905-NRA) 335640N1182434W (0.1NM NNW LAX) 315FT (195FT AGL) FLAGGED AND LGTD MON-FRI 0700-1500\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "376c397ed0949aad27d2ee8c8576ef835113173708e4fd93f277ee28e928675b"
+      },
+      "expected": {
+        "subject": "OBST",
+        "mapped": true,
+        "retained": [
+          "FLAGGED AND LGTD MON-FRI 0700-1500"
+        ]
+      }
+    },
+    {
+      "airport": "KLAX",
+      "record": {
+        "id": "2323576395664100",
+        "sourceId": "NMS_ID_2323576395664100",
+        "classification": "DOMESTIC",
+        "number": "21",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "LAX"
+        ],
+        "icaoLocations": [
+          "KLAX"
+        ],
+        "accountability": "LAX",
+        "issuedAt": 1791214320000,
+        "updatedAt": 1791214500000,
+        "sourceUpdatedAt": "2026-10-05T15:35:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791810000000,
+        "endsAt": 1792195140000,
+        "effectiveStart": "202610121300",
+        "effectiveEnd": "202610162359",
+        "endKind": "fixed",
+        "schedule": "Daily:1300-2359~DLY 1300-2359",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN 2026-AWP-1613-NRA) 335635N1182519W (0.7NM W LAX) 188FT (80FT AGL) FLAGGED AND LGTD DLY 1300-2359",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!LAX 10/021 LAX OBST CRANE (ASN 2026-AWP-1613-NRA) 335635N1182519W (0.7NM W LAX) 188FT (80FT AGL) FLAGGED AND LGTD DLY 1300-2359 2610121300-2610162359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6d63417c183c7c121603066275d468ba78dff91c1df0fa855c07542919eceec0"
+      },
+      "expected": {
+        "subject": "OBST",
+        "mapped": true,
+        "retained": [
+          "FLAGGED AND LGTD DLY 1300-2359"
+        ]
+      }
+    },
+    {
+      "airport": "KDEN",
+      "record": {
+        "id": "1107072991700667",
+        "sourceId": "NMS_ID_1107072991700667",
+        "classification": "DOMESTIC",
+        "number": "380",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DEN"
+        ],
+        "icaoLocations": [
+          "KDEN"
+        ],
+        "accountability": "DEN",
+        "issuedAt": 1789490220000,
+        "updatedAt": 1789490220000,
+        "sourceUpdatedAt": "2026-09-15T16:37:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1789992000000,
+        "endsAt": 1792799940000,
+        "effectiveStart": "202609211200",
+        "effectiveEnd": "202610232359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST RIG (ASN 2023-ANM-4819-NRA) 395022N1044036W (1.3NM S DEN) 5383FT (40FT AGL) FLAGGED DLY 1200-2359",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DEN 09/380 DEN OBST RIG (ASN 2023-ANM-4819-NRA) 395022N1044036W (1.3NM S DEN) 5383FT (40FT AGL) FLAGGED DLY 1200-2359 2609211200-2610232359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "f9146e04a59dca5b9ddb48c14402a15beb247993e0ba4554f24b420e8ab894ab"
+      },
+      "expected": {
+        "subject": "OBST",
+        "mapped": true,
+        "retained": [
+          "FLAGGED DLY 1200-2359"
+        ]
+      }
+    },
+    {
+      "airport": "KDEN",
+      "record": {
+        "id": "1758719952578875",
+        "sourceId": "NMS_ID_1758719952578875",
+        "classification": "DOMESTIC",
+        "number": "515",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "DEN"
+        ],
+        "icaoLocations": [
+          "KDEN"
+        ],
+        "accountability": "DEN",
+        "issuedAt": 1758118800000,
+        "updatedAt": 1758118800000,
+        "sourceUpdatedAt": "2025-09-17T14:20:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1758118800000,
+        "endsAt": 1793404740000,
+        "effectiveStart": "202509171420",
+        "effectiveEnd": "202610302359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST RIG (ASN 2025-ANM-114-NRA) 394952N1044211W (2.3NM SW DEN) 5476FT (100FT AGL) FLAGGED",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DEN 09/515 DEN OBST RIG (ASN 2025-ANM-114-NRA) 394952N1044211W (2.3NM SW DEN) 5476FT (100FT AGL) FLAGGED 2509171420-2610302359"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/515 NOTAMN \nQ) KZDV/QOBXX/IV/M//000//3951N10440W005 \nA) KDEN \nB) 2509171420 \nC) 2610302359 \nE) RIG (ASN 2025-ANM-114-NRA) 394952N1044211W (2.3NM SW DEN) 5476FT (100FT AGL) FLAGGED"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "52b35438f053c492e67ecf0920338a093605d8dca560b6b8d0b52dc85f03dcfd"
+      },
+      "expected": {
+        "subject": "OBST",
+        "mapped": true,
+        "retained": [
+          "FLAGGED"
+        ]
+      }
+    },
+    {
+      "airport": "KONT",
+      "record": {
+        "id": "1774308219271440",
+        "sourceId": "NMS_ID_1774308219271440",
+        "classification": "DOMESTIC",
+        "number": "128",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ONT"
+        ],
+        "icaoLocations": [
+          "KONT"
+        ],
+        "accountability": "ONT",
+        "issuedAt": 1774308180000,
+        "updatedAt": 1774308180000,
+        "sourceUpdatedAt": "2026-03-23T23:23:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1774308180000,
+        "endsAt": 1793491260000,
+        "effectiveStart": "202603232323",
+        "effectiveEnd": "202611010001",
+        "endKind": "fixed",
+        "schedule": "MON TUE WED THU FRI",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST RIG (ASN UNKNOWN) 340317N1173457W (0.04NM S ONT) \n 950FT (25FT AGL) FLAGGED MON-FRI SR-SS",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ONT 03/128 ONT OBST RIG (ASN UNKNOWN) 340317N1173457W (0.04NM S ONT) \n 950FT (25FT AGL) FLAGGED MON-FRI SR-SS 2603232323-2611010001"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "03/128 NOTAMN \nQ) KZLA//IV/M//000//3403N11736W005 \nA) KONT \nB) 2603232323 \nC) 2611010001 \n D) MON-FRI SR-SS \nE) RIG LGT (ASN UNKNOWN) 340317N1173457W ( 0.04NM S (ONTICAO))( 950FT) ( 25FT AGL) FLAGGED"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "54e973cb9565853c751c203fa679ae3060d41c58f3e9adfb6542dce9d9a232b5"
+      },
+      "expected": {
+        "subject": "OBST",
+        "mapped": true,
+        "retained": [
+          "FLAGGED MON-FRI SR-SS"
+        ]
+      }
+    },
+    {
+      "airport": "KLAS",
+      "record": {
+        "id": "2317175529287544",
+        "sourceId": "NMS_ID_2317175529287544",
+        "classification": "DOMESTIC",
+        "number": "125",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "LAS"
+        ],
+        "icaoLocations": [
+          "KLAS"
+        ],
+        "accountability": "LAS",
+        "issuedAt": 1790191800000,
+        "updatedAt": 1790191800000,
+        "sourceUpdatedAt": "2026-09-23T19:30:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790262000000,
+        "endsAt": null,
+        "effectiveStart": "202609241500",
+        "effectiveEnd": "PERM",
+        "endKind": "permanent",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "COM REMOTE COM OUTLET 122.4 U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!LAS 09/125 LAS COM REMOTE COM OUTLET 122.4 U/S 2609241500-PERM"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/125 NOTAMN \r\nQ) KZLA/QCAAS/IV/B/AE/000/999/3604N11509W025 \r\nA) KLAS \r\nB) 2609241500 \r\nC) PERM \r\n\r\nE) REMOTE COM OUTLET 122.4 U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "19dfad6d5a168dafb305a89e8dd864740d9c1962a38dd4f7215e4346074d625f"
+      },
+      "expected": {
+        "subject": "COM",
+        "mapped": false,
+        "retained": [
+          "REMOTE COM OUTLET 122.4 U/S"
+        ],
+        "forbidden": [
+          "Airport Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KDEN",
+      "record": {
+        "id": "1658981538813423",
+        "sourceId": "NMS_ID_1658981538813423",
+        "classification": "DOMESTIC",
+        "number": "040",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DEN"
+        ],
+        "icaoLocations": [
+          "KDEN"
+        ],
+        "accountability": "DEN",
+        "issuedAt": 1790953800000,
+        "updatedAt": 1790953800000,
+        "sourceUpdatedAt": "2026-10-02T15:10:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791345600000,
+        "endsAt": 1791370800000,
+        "effectiveStart": "202610070400",
+        "effectiveEnd": "202610071100",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SVC SMR U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DEN 10/040 DEN SVC SMR U/S 2610070400-2610071100"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "0baec29b7860ee810c920620f74d9f14fc8ca683b3f35799dbcc3530ec1894dc"
+      },
+      "expected": {
+        "subject": "SVC",
+        "mapped": false,
+        "retained": [
+          "SMR U/S"
+        ],
+        "forbidden": [
+          "Airport Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KORD",
+      "record": {
+        "id": "1766414669031423",
+        "sourceId": "NMS_ID_1766414669031423",
+        "classification": "DOMESTIC",
+        "number": "117",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "ORD"
+        ],
+        "icaoLocations": [
+          "KORD"
+        ],
+        "accountability": "ORD",
+        "issuedAt": 1766414640000,
+        "updatedAt": 1766415120000,
+        "sourceUpdatedAt": "2025-12-22T14:52:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1766414640000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202512221444",
+        "effectiveEnd": "202612312359EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 09R IM U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ORD 12/117 ORD NAV ILS RWY 09R IM U/S 2512221444-2612312359EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "12/117 NOTAMR \nQ) KZAU/QICAS/IV/NBO/A/000/999/4158N08754W025 \nA) KORD \nB) 2512221444 \nC) 2612312359EST \n\nE) ILS RWY 09R IM U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "9700e4948e66cc810a3521c59c4434b38aa5c130f522352865b4912a1d625c89"
+      },
+      "expected": {
+        "subject": "NAV",
+        "mapped": false,
+        "retained": [
+          "ILS RWY 09R IM U/S"
+        ],
+        "forbidden": [
+          "ILS Unavailable",
+          "Runway Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KORD",
+      "record": {
+        "id": "1540032184436038",
+        "sourceId": "NMS_ID_1540032184436038",
+        "classification": "DOMESTIC",
+        "number": "957",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ORD"
+        ],
+        "icaoLocations": [
+          "KORD"
+        ],
+        "accountability": "ORD",
+        "issuedAt": 1790741460000,
+        "updatedAt": 1790741520000,
+        "sourceUpdatedAt": "2026-09-30T04:12:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790741460000,
+        "endsAt": 1793444400000,
+        "effectiveStart": "202609300411",
+        "effectiveEnd": "202610311100",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TWY DD BTN TWY A AND TWY B CLSD TO ACFT WINGSPAN MORE THAN 118FT",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ORD 09/957 ORD TWY DD BTN TWY A AND TWY B CLSD TO ACFT WINGSPAN MORE THAN 118FT 2609300411-2610311100"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/957 NOTAMR \r\nQ) KZAU/QMXLC/IV/M/A/000/999/4158N08754W005 \r\nA) KORD \r\nB) 2609300411 \r\nC) 2610311100 \r\n\r\nE) TWY DD BTN TWY A AND TWY B CLSDTWY BRSTRCTN>0? TO| ACFT WINGSPAN MORE THAN 118FT"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "abfdd232cea52e9de6c9e9c1adc13ae48ed0c41cb4a8c9e87d511a30de42b14d"
+      },
+      "expected": {
+        "subject": "TWY",
+        "mapped": false,
+        "retained": [
+          "WINGSPAN MORE THAN 118FT"
+        ],
+        "flairs": [
+          "Taxiway Closure Restriction"
+        ],
+        "forbidden": [
+          "Taxiway Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KORD",
+      "record": {
+        "id": "1789730718967121",
+        "sourceId": "NMS_ID_1789730718967121",
+        "classification": "INTL",
+        "number": "9739",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "ORD"
+        ],
+        "icaoLocations": [
+          "KORD"
+        ],
+        "accountability": "KORD",
+        "issuedAt": 1789730700000,
+        "updatedAt": 1789730700000,
+        "sourceUpdatedAt": "2026-09-18T11:25:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1789730640000,
+        "endsAt": 1792335600000,
+        "effectiveStart": "202609181124",
+        "effectiveEnd": "202610181500",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "AD AP BIRD ACT INCREASED",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA9739/26 NOTAMN\nQ) KZAU/QXXXX////000/999/4158N08754W005\nA) KORD\nB) 2609181124\nC) 2610181500\nE) AD AP BIRD ACT INCREASED\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "ac620c1cfa4976c718bb628806604bb0178830f06500c2d8081cad1a5fad7920"
+      },
+      "expected": {
+        "subject": "AD",
+        "mapped": false,
+        "retained": [
+          "BIRD ACT INCREASED"
+        ],
+        "forbidden": [
+          "Airport Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KDEN",
+      "record": {
+        "id": "1758907194476230",
+        "sourceId": "NMS_ID_1758907194476230",
+        "classification": "FDC",
+        "number": "954",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "DEN"
+        ],
+        "icaoLocations": [
+          "KDEN"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1758907140000,
+        "updatedAt": 1758907200000,
+        "sourceUpdatedAt": "2025-09-26T17:20:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1758906000000,
+        "endsAt": 1822003140000,
+        "effectiveStart": "202509261700",
+        "effectiveEnd": "202709262359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR DENVER INTERNATIONAL AIRPORT, DENVER, CO. \nDANDD ONE ARRIVAL: INCREASE ALL MOCA VALUES TO 8300. ALL OTHER DATA\nREMAINS AS PUBLISHED",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/0954 DEN STAR DENVER INTERNATIONAL AIRPORT, DENVER, CO. \nDANDD ONE ARRIVAL: INCREASE ALL MOCA VALUES TO 8300. ALL OTHER DATA\nREMAINS AS PUBLISHED \n2509261700-2709262359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "0bdeaffa5fe8d4ac76ef8761785727e5c4767face0b3b2be53e2d5781721d423"
+      },
+      "expected": {
+        "subject": "STAR",
+        "mapped": false,
+        "retained": [
+          "INCREASE ALL MOCA VALUES TO 8300"
+        ],
+        "forbidden": [
+          "Minima Amended"
+        ]
+      }
+    },
+    {
+      "airport": "KMCO",
+      "record": {
+        "id": "1775732033245700",
+        "sourceId": "NMS_ID_1775732033245700",
+        "classification": "FDC",
+        "number": "138",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "MCO"
+        ],
+        "icaoLocations": [
+          "KMCO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1775731980000,
+        "updatedAt": 1775732100000,
+        "sourceUpdatedAt": "2026-04-09T10:55:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1775732400000,
+        "endsAt": 1807779600000,
+        "effectiveStart": "202604091100",
+        "effectiveEnd": "202704150900",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR ORLANDO INTL ARPT, ORLANDO, FL. GTOUT ONE RNAV\nARRIVAL..CROSS NICCK AT 12000 AND 250KT.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0138 MCO STAR ORLANDO INTL ARPT, ORLANDO, FL. GTOUT ONE RNAV\nARRIVAL..CROSS NICCK AT 12000 AND 250KT. 2604091100-2704150900"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "01bced20adf7a2034a8807f972ad206bb462fc2cc2f7adb3b0d8280625efc96d"
+      },
+      "expected": {
+        "subject": "STAR",
+        "mapped": false,
+        "retained": [
+          "CROSS NICCK AT 12000 AND 250KT"
+        ]
+      }
+    },
+    {
+      "airport": "KSFO",
+      "record": {
+        "id": "1768502732460248",
+        "sourceId": "NMS_ID_1768502732460248",
+        "classification": "FDC",
+        "number": "4080",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SFO"
+        ],
+        "icaoLocations": [
+          "KSFO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1768502640000,
+        "updatedAt": 1768505640000,
+        "sourceUpdatedAt": "2026-01-15T19:34:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1768502640000,
+        "endsAt": 1831574640000,
+        "effectiveStart": "202601151844",
+        "effectiveEnd": "202801151844EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "VFP SAN FRANCISCO INTL, SAN FRANCISCO, CA.\nTIPP TOE VISUAL RWY 28L/R, AMDT 2...\nPROCEDURE NA FOR ARRIVALS TO RWY 28R.\n2601151844-2801151844EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/4080 SFO VFP SAN FRANCISCO INTL, SAN FRANCISCO, CA.\nTIPP TOE VISUAL RWY 28L/R, AMDT 2...\nPROCEDURE NA FOR ARRIVALS TO RWY 28R.\n2601151844-2801151844EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZOA/QPKXX/V/NBO/A/000/999/3737N12222W005\nA) KSFO\nB) 2601151841\nC) 2608271841EST\nE) SFO SAN FRANCISCO INTL, SAN FRANCISCO, CA.\nTIPP TOE VISUAL RWY 28L/R, AMDT 2...\nPROCEDURE NA FOR ARRIVALS TO RWY 28R."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "8d6ef547e902a7d53c0b64895a09fcc99ea010c7ddb500f4ff7bb10c806e8a9f"
+      },
+      "expected": {
+        "subject": "VFP",
+        "mapped": false,
+        "retained": [
+          "PROCEDURE NA FOR ARRIVALS TO RWY 28R"
+        ],
+        "forbidden": [
+          "Runway Closed"
+        ]
+      }
+    },
+    {
+      "airport": "KCLT",
+      "record": {
+        "id": "1788523448827820",
+        "sourceId": "NMS_ID_1788523448827820",
+        "classification": "INTL",
+        "number": "7694",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "CLT"
+        ],
+        "icaoLocations": [
+          "KCLT"
+        ],
+        "accountability": "KCLT",
+        "issuedAt": 1788523440000,
+        "updatedAt": 1788523440000,
+        "sourceUpdatedAt": "2026-09-04T12:04:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788523260000,
+        "endsAt": null,
+        "effectiveStart": "202609041201",
+        "effectiveEnd": "PERM",
+        "endKind": "permanent",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "ROUTE IRVVV SID FOR JET AIRCRAFT ONLY",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/1020 CLT ROUTE IRVVV SID FOR JET AIRCRAFT ONLY 2609041201-PERM"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A7694/26 NOTAMN Q) KZTL/QARLT////000/999/3512N08057W005 A) KCLT B) 2609041201 C) PERM E) ROUTE IRVVV SID FOR JET AIRCRAFT ONLY"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "651b481ecb07b65106306240823e194c18bb1d5d72d0c01e280d020be2aa0a19"
+      },
+      "expected": {
+        "subject": "ROUTE",
+        "mapped": false,
+        "retained": [
+          "IRVVV SID FOR JET AIRCRAFT ONLY"
+        ]
+      }
+    },
+    {
+      "airport": "KABQ",
+      "record": {
+        "id": "1635344615489802",
+        "sourceId": "NMS_ID_1635344615489802",
+        "classification": "DOMESTIC",
+        "number": "378",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ABQ"
+        ],
+        "icaoLocations": [],
+        "accountability": "ABQ",
+        "issuedAt": 1787863080000,
+        "updatedAt": 1787863080000,
+        "sourceUpdatedAt": "2026-08-27T20:38:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1787863080000,
+        "endsAt": 1795816800000,
+        "effectiveStart": "202608272038",
+        "effectiveEnd": "202611272200",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "AIRSPACE UAS WI AN AREA DEFINED AS 7NM RADIUS OF 350816N1063310W (6.3NM NE ABQ) SFC-400FT AGL",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ABQ 08/378 ABQ AIRSPACE UAS WI AN AREA DEFINED AS 7NM RADIUS OF 350816N1063310W (6.3NM NE ABQ) SFC-400FT AGL 2608272038-2611272200"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "9dbc93a985accb59d62b5710c4e3005216c287a0a4ab3f18e9884b106e487f2f"
+      },
+      "expected": {
+        "subject": "AIRSPACE",
+        "mapped": true,
+        "flairs": [
+          "UAS Activity",
+          "Surface to 400 ft AGL"
+        ],
+        "retained": [
+          "SFC-400FT AGL"
+        ]
+      }
+    },
+    {
+      "airport": "KABQ",
+      "record": {
+        "id": "2823882610356699",
+        "sourceId": "NMS_ID_2823882610356699",
+        "classification": "DOMESTIC",
+        "number": "052",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ABQ"
+        ],
+        "icaoLocations": [
+          "KABQ"
+        ],
+        "accountability": "ABQ",
+        "issuedAt": 1791222180000,
+        "updatedAt": 1791222180000,
+        "sourceUpdatedAt": "2026-10-05T17:43:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791306000000,
+        "endsAt": 1791320400000,
+        "effectiveStart": "202610061700",
+        "effectiveEnd": "202610062100",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "AIRSPACE MIL AIRDROP WI AN AREA DEFINED AS 5NM RADIUS OF 345721N1063046W (7.4NM SE ABQ) SFC-6500FT AGL",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ABQ 10/052 ABQ AIRSPACE MIL AIRDROP WI AN AREA DEFINED AS 5NM RADIUS OF 345721N1063046W (7.4NM SE ABQ) SFC-6500FT AGL 2610061700-2610062100"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "90d017811efe873e92c29611a56476cb8092a414bd59bbe72ca205cd422772ef"
+      },
+      "expected": {
+        "subject": "AIRSPACE",
+        "mapped": true,
+        "retained": [
+          "MIL AIRDROP",
+          "SFC-6500FT AGL"
+        ],
+        "forbidden": [
+          "UAS Activity"
+        ]
+      }
+    }
+  ]
+}

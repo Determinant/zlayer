@@ -1,10 +1,10 @@
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { DEFAULT_WEATHER_CACHE_BYTES, WeatherCache } from './cache.ts';
 import { HttpError, resourceFor, routeFor, type PreparedFamily } from './routes.ts';
-import { createUpstream } from './upstream.ts';
+import { createUpstream, type Payload } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
 import { createProgsCoverageWarming, PUBLISHED_COVERAGE } from './progs-coverage';
@@ -12,7 +12,8 @@ import { createProgsWarming, PUBLISHED_PROGS } from './progs';
 import { createRadarWarming, PUBLISHED_RADAR } from './radar';
 import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
 import { createNotamService, type NotamOptions } from './notams/service';
-import { notamResponse } from './notams/routes';
+import { createNotamResponder } from './notams/routes';
+import { createTfrService } from './notams/tfr-service';
 const compress = promisify(gzip);
 const catalogMarkers: Record<PreparedFamily, string> = {
   forecast: PUBLISHED_CATALOG, progs: PUBLISHED_PROGS, coverage: PUBLISHED_COVERAGE, radar: PUBLISHED_RADAR, motion: PUBLISHED_MOTION,
@@ -28,26 +29,61 @@ function acceptsGzip(value: string | undefined): boolean {
 }
 
 export async function createInfoServer(options: { directory: string; maxBytes?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
+  notamWait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number; startUpdates?: boolean; log?: (message: string) => void }) {
   const shutdown = new AbortController();
-  const notams = createNotamService(options.notams, { ...options, signal: shutdown.signal });
+  const tfrs = createTfrService({ ...options, directory: options.notams?.directory ?? options.directory, signal: shutdown.signal });
+  await tfrs.restore();
+  const notams = createNotamService(options.notams, { ...options, ...(options.notamWait ? { wait: options.notamWait } : {}), signal: shutdown.signal });
+  const notamResponses = createNotamResponder(notams);
+  const deliveries = { weather: 0, notams: 0 };
+  function admit(kind: keyof typeof deliveries, response: ServerResponse): () => Promise<void> {
+    if (deliveries[kind] >= (kind === 'weather' ? 32 : 16)) throw new HttpError(503, 'Info delivery busy', 1);
+    deliveries[kind]++;
+    const closed = new Promise<void>(resolve => response.once('close', resolve));
+    // Encoding and disconnected clients still occupy capacity until work settles.
+    return async () => { await closed; deliveries[kind]--; };
+  }
+  // Optional disk persistence may fail. Concurrent readers of the same validated
+  // fallback body still share compression, without retaining a second body cache.
+  const encodings = new WeakMap<Buffer, Promise<Buffer>>();
+  function encode(body: Buffer): Promise<Buffer> {
+    let encoded = encodings.get(body);
+    if (!encoded) {
+      encoded = compress(body).catch(cause => { encodings.delete(body); throw cause; });
+      encodings.set(body, encoded);
+    }
+    return encoded;
+  }
+  let tfrResponse: { checkedAt: number; error: string | undefined; body: Buffer; encoded?: Promise<Buffer> } | undefined;
   void notams.restore();
   const upstream = createUpstream({ ...options, signal: shutdown.signal });
   const cache = new WeatherCache({ directory: options.directory, maxBytes: options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES, now: options.now, signal: shutdown.signal,
     load: (resource, signal) => resource.kind === 'prepared' ? processing.load(resource) : upstream(resource, signal),
     ...(options.log ? { log: options.log } : {}) });
   const processing = createProcessing(cache, shutdown.signal, options.now);
-  await cache.restore();
   const warming = createForecastWarming(cache, processing, shutdown.signal, options);
-  await warming.restore();
   const progs = createProgsWarming(cache, shutdown.signal, options);
-  await progs.restore();
   const coverage = createProgsCoverageWarming(cache, shutdown.signal, options);
-  await coverage.restore();
   const radar = createRadarWarming(cache, shutdown.signal, options);
-  await radar.restore();
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
-  await motion.restore();
+  async function stopProducers() {
+    shutdown.abort();
+    const results = await Promise.allSettled([tfrs.close(), notams.close(), processing.close(),
+      warming.close(), progs.close(), coverage.close(), radar.close(), motion.close()]);
+    // Producers have settled, so no new cache publications can join this drain.
+    results.push(...await Promise.allSettled([cache.drain()]));
+    const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+    if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
+  }
+  try {
+    await cache.restore();
+    await warming.restore(); await progs.restore(); await coverage.restore();
+    await radar.restore(); await motion.restore();
+  } catch (cause) {
+    await stopProducers().catch(error => options.log?.(String(error)));
+    throw cause;
+  }
   const server = createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -59,29 +95,55 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       response.setHeader('Access-Control-Allow-Headers', 'Range');
     }
     const demand = new AbortController();
+    let releaseDelivery: (() => Promise<void>) | undefined;
     response.once('close', () => demand.abort());
     try {
       if (shutdown.signal.aborted) throw new HttpError(503, 'Info server is stopping', 5);
       if (request.method === 'OPTIONS' && options.origin) { response.writeHead(204).end(); return; }
       if (request.method !== 'GET' && request.method !== 'HEAD') { response.setHeader('Allow', 'GET, HEAD'); throw new HttpError(405, 'GET or HEAD required'); }
+      if (request.url?.startsWith('/api/notams/') && request.url !== '/api/notams/healthz') {
+        releaseDelivery = admit('notams', response);
+      }
+      if (request.url === '/api/notams/tfrs' && request.headers.range === undefined) {
+        const snapshot = tfrs.read();
+        if (snapshot && (tfrResponse?.checkedAt !== snapshot.checkedAt || tfrResponse.error !== snapshot.error)) {
+          tfrResponse = { checkedAt: snapshot.checkedAt, error: snapshot.error, body: Buffer.from(JSON.stringify(snapshot)) };
+        }
+        const saved = snapshot ? tfrResponse : undefined;
+        const payload = saved?.body ?? Buffer.from(JSON.stringify({ error: 'tfrs-unavailable' }));
+        const compressed = payload.length >= 1024 && acceptsGzip(request.headers['accept-encoding']);
+        const body = compressed && saved ? await (saved.encoded ??= compress(payload).catch(cause => { delete saved.encoded; throw cause; })) : payload;
+        if (response.destroyed) return;
+        response.writeHead(snapshot ? 200 : 503, { 'Content-Type': 'application/json', 'Content-Length': body.length,
+          Vary: 'Accept-Encoding', ...(compressed ? { 'Content-Encoding': 'gzip' } : {}), ...(!snapshot ? { 'Retry-After': '30' } : {}) });
+        response.end(request.method === 'HEAD' ? undefined : body); return;
+      }
       if (request.url === '/api/weather/healthz') {
         response.setHeader('Content-Type', 'application/json');
-        response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status, radar: radar.status, radarMotion: motion.status, notams: notams.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
+        response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status, radar: radar.status, radarMotion: motion.status, notams: notams.status, tfrs: tfrs.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
       if (request.url?.startsWith('/api/notams/')) {
-        const payload = notamResponse(request.url, request.headers.range, notams);
+        const payload = notamResponses.read(request.url, request.headers.range);
         const compressed = payload.body.length >= 1024 && acceptsGzip(request.headers['accept-encoding']);
-        const body = compressed ? await compress(payload.body) : payload.body;
+        const body = compressed ? await notamResponses.encoded(payload) : payload.body;
+        if (response.destroyed) return;
         response.writeHead(payload.status, { 'Content-Type': 'application/json', 'Content-Length': body.length,
           Vary: 'Accept-Encoding', ...(compressed ? { 'Content-Encoding': 'gzip' } : {}),
           ...(payload.retryAfter ? { 'Retry-After': payload.retryAfter } : {}) });
         response.end(request.method === 'HEAD' ? undefined : body); return;
       }
       const route = routeFor(request.url ?? '', request.headers.range), { resource } = route;
-      if (route.type !== 'query') {
-        const saved = await cache.open(resource, acceptsGzip(request.headers['accept-encoding']), request.method !== 'HEAD');
-        if (!saved) throw new HttpError(route.type === 'artifact' ? 404 : 503,
-          'Prepared weather is not retained; refresh the catalog', 30);
+      releaseDelivery = admit('weather', response);
+      const gzipAccepted = acceptsGzip(request.headers['accept-encoding']);
+      let saved = await cache.open(resource, gzipAccepted, request.method !== 'HEAD');
+      let hit = !!saved, fallback: Payload | undefined;
+      if (!saved && route.type === 'query') {
+        const acquired = await cache.get(resource, undefined, demand.signal);
+        hit = acquired.hit;
+        saved = await cache.open(resource, gzipAccepted, request.method !== 'HEAD');
+        if (!saved) fallback = acquired;
+      }
+      if (saved) {
         const { entry, handle, offset, length, gzip } = saved;
         try {
           if (route.type === 'catalog' && entry.headers['x-weather-catalog'] !== catalogMarkers[route.family]) {
@@ -91,22 +153,24 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
           response.writeHead(entry.status, { ...entry.headers, 'Content-Length': length,
             ...(entry.headers['content-type']?.startsWith('application/json') ? { Vary: 'Accept-Encoding' } : {}),
             ...(gzip ? { 'Content-Encoding': 'gzip' } : {}),
-            'X-Weather-Checked-At': String(entry.checkedAt), 'X-Weather-Sha256': entry.sha256, 'X-Weather-Cache': 'HIT' });
-          if (request.method === 'HEAD') response.end();
+            'X-Weather-Checked-At': String(entry.checkedAt), 'X-Weather-Sha256': entry.sha256, 'X-Weather-Cache': hit ? 'HIT' : 'MISS' });
+          if (request.method === 'HEAD' || length === 0) response.end();
           else await pipeline(handle.createReadStream({ start: offset, end: offset + length - 1 }), response);
         } finally { await handle.close(); }
         return;
       }
-      const payload = await cache.get(resource, undefined, demand.signal);
+      if (!fallback) throw new HttpError(route.type === 'artifact' ? 404 : 503,
+        'Prepared weather is not retained; refresh the catalog', 30);
+      const payload = fallback;
       if (response.destroyed) return;
       const json = payload.headers['content-type']?.startsWith('application/json');
-      const compressed = json && payload.body.length >= 1024 && acceptsGzip(request.headers['accept-encoding']);
-      const body = compressed ? await compress(payload.body) : payload.body;
+      const compressed = json && payload.body.length >= 1024 && gzipAccepted;
+      const body = compressed ? await encode(payload.body) : payload.body;
       if (response.destroyed) return;
       response.writeHead(payload.status, { ...payload.headers, ...(json ? { Vary: 'Accept-Encoding' } : {}),
         ...(compressed ? { 'Content-Encoding': 'gzip' } : {}), 'Content-Length': body.length,
         'X-Weather-Checked-At': String(payload.checkedAt), 'X-Weather-Sha256': payload.sha256,
-        'X-Weather-Cache': payload.hit ? 'HIT' : 'MISS' });
+        'X-Weather-Cache': hit ? 'HIT' : 'MISS' });
       response.end(request.method === 'HEAD' ? undefined : body);
     } catch (cause) {
       if (demand.signal.aborted) return;
@@ -116,15 +180,17 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
         if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
         response.writeHead(error.status, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: error.message }));
       }
-    }
+    } finally { await releaseDelivery?.(); }
   });
   server.requestTimeout = 10_000;
   server.timeout = 60_000;
   server.headersTimeout = 10_000;
   server.keepAliveTimeout = 5000;
   server.maxRequestsPerSocket = 1000;
+  server.maxConnections = 512;
   const metadata = ['gairmet', 'sigmet', 'cwa'].map(product => `/api/weather/advisories/${product}.json`);
   const refresh = () => {
+    void tfrs.refresh();
     notams.refresh();
     warming.refresh();
     progs.refresh();
@@ -138,17 +204,13 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   let closing: Promise<void> | undefined;
   function close(): Promise<void> { return closing ??= (async () => {
     clearInterval(timer); shutdown.abort();
-    await notams.close();
-    await processing.close();
-    await warming.close();
-    await progs.close();
-    await coverage.close();
-    await radar.close();
-    await motion.close();
-    await cache.drain();
     const forced = setTimeout(() => server.closeAllConnections(), 5000).unref();
-    if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    clearTimeout(forced);
+    try {
+      const listener = server.listening ? new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) : Promise.resolve();
+      const results = await Promise.allSettled([listener, stopProducers()]);
+      const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+      if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
+    } finally { clearTimeout(forced); }
   })(); }
-  return { server, cache, processing, progs, coverage, radar, motion, notams, close };
+  return { server, cache, processing, progs, coverage, radar, motion, notams, tfrs, close };
 }

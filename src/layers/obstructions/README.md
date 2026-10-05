@@ -86,6 +86,11 @@ The magenta palette is adapted to the application's dark map. Unverified records
 remain eligible under the same height cutoffs. This point dataset does not provide
 wind-farm boundaries.
 
+The canvas glyph primitive lives in `core/graphics/obstruction-symbol.ts` and is also
+used by [temporary NOTAM obstacle previews](../notams/README.md#temporary-obstacle-map-context).
+DOF keeps its existing magenta symbols, data, visibility rules and resource IDs;
+NOTAMs owns a separate warm-colored overlay tied to its open readers.
+
 ## Source and lifecycle
 
 The module reads `${chartRoot()}/obstacles/manifest.json`, independently of the

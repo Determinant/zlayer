@@ -1,0 +1,846 @@
+{
+  "rankingSource": "https://www.faa.gov/airports/planning_capacity/passenger_allcargo_stats/passenger/arp-cy2025-all-enplanements.xlsx",
+  "rankingDate": "2026-09-24",
+  "airports": [
+    {
+      "rank": 1,
+      "faaId": "ATL",
+      "state": "GA",
+      "name": "Hartsfield/Jackson Atlanta International",
+      "enplanements": 51459786,
+      "icaoId": "KATL"
+    },
+    {
+      "rank": 2,
+      "faaId": "DFW",
+      "state": "TX",
+      "name": "Dallas-Fort Worth International",
+      "enplanements": 41297009,
+      "icaoId": "KDFW"
+    },
+    {
+      "rank": 3,
+      "faaId": "ORD",
+      "state": "IL",
+      "name": "Chicago O'Hare International",
+      "enplanements": 40680735,
+      "icaoId": "KORD"
+    },
+    {
+      "rank": 4,
+      "faaId": "DEN",
+      "state": "CO",
+      "name": "Denver International",
+      "enplanements": 39976695,
+      "icaoId": "KDEN"
+    },
+    {
+      "rank": 5,
+      "faaId": "LAX",
+      "state": "CA",
+      "name": "Los Angeles International",
+      "enplanements": 36497303,
+      "icaoId": "KLAX"
+    },
+    {
+      "rank": 6,
+      "faaId": "JFK",
+      "state": "NY",
+      "name": "John F Kennedy International",
+      "enplanements": 30792806,
+      "icaoId": "KJFK"
+    },
+    {
+      "rank": 7,
+      "faaId": "MCO",
+      "state": "FL",
+      "name": "Orlando International",
+      "enplanements": 27999709,
+      "icaoId": "KMCO"
+    },
+    {
+      "rank": 8,
+      "faaId": "LAS",
+      "state": "NV",
+      "name": "Harry Reid International",
+      "enplanements": 26531765,
+      "icaoId": "KLAS"
+    },
+    {
+      "rank": 9,
+      "faaId": "MIA",
+      "state": "FL",
+      "name": "Miami International",
+      "enplanements": 26450972,
+      "icaoId": "KMIA"
+    },
+    {
+      "rank": 10,
+      "faaId": "SFO",
+      "state": "CA",
+      "name": "San Francisco International",
+      "enplanements": 26251850,
+      "icaoId": "KSFO"
+    },
+    {
+      "rank": 11,
+      "faaId": "CLT",
+      "state": "NC",
+      "name": "Charlotte/Douglas International",
+      "enplanements": 25873555,
+      "icaoId": "KCLT"
+    },
+    {
+      "rank": 12,
+      "faaId": "SEA",
+      "state": "WA",
+      "name": "Seattle-Tacoma International",
+      "enplanements": 25417071,
+      "icaoId": "KSEA"
+    },
+    {
+      "rank": 13,
+      "faaId": "PHX",
+      "state": "AZ",
+      "name": "Phoenix Sky Harbor International",
+      "enplanements": 25094817,
+      "icaoId": "KPHX"
+    },
+    {
+      "rank": 14,
+      "faaId": "EWR",
+      "state": "NJ",
+      "name": "Newark Liberty International",
+      "enplanements": 23464492,
+      "icaoId": "KEWR"
+    },
+    {
+      "rank": 15,
+      "faaId": "IAH",
+      "state": "TX",
+      "name": "George Bush Intcntl/Houston",
+      "enplanements": 23265028,
+      "icaoId": "KIAH"
+    },
+    {
+      "rank": 16,
+      "faaId": "BOS",
+      "state": "MA",
+      "name": "General Edward Lawrence Logan International",
+      "enplanements": 21021153,
+      "icaoId": "KBOS"
+    },
+    {
+      "rank": 17,
+      "faaId": "MSP",
+      "state": "MN",
+      "name": "Minneapolis-St Paul International/Wold-Chamberlain",
+      "enplanements": 17488261,
+      "icaoId": "KMSP"
+    },
+    {
+      "rank": 18,
+      "faaId": "DTW",
+      "state": "MI",
+      "name": "Detroit Metro Wayne County",
+      "enplanements": 16294768,
+      "icaoId": "KDTW"
+    },
+    {
+      "rank": 19,
+      "faaId": "LGA",
+      "state": "NY",
+      "name": "Laguardia",
+      "enplanements": 16278532,
+      "icaoId": "KLGA"
+    },
+    {
+      "rank": 20,
+      "faaId": "FLL",
+      "state": "FL",
+      "name": "Fort Lauderdale/Hollywood International",
+      "enplanements": 15646752,
+      "icaoId": "KFLL"
+    },
+    {
+      "rank": 21,
+      "faaId": "PHL",
+      "state": "PA",
+      "name": "Philadelphia International",
+      "enplanements": 14779849,
+      "icaoId": "KPHL"
+    },
+    {
+      "rank": 22,
+      "faaId": "IAD",
+      "state": "VA",
+      "name": "Washington Dulles International",
+      "enplanements": 13859569,
+      "icaoId": "KIAD"
+    },
+    {
+      "rank": 23,
+      "faaId": "SLC",
+      "state": "UT",
+      "name": "Salt Lake City International",
+      "enplanements": 13429128,
+      "icaoId": "KSLC"
+    },
+    {
+      "rank": 24,
+      "faaId": "SAN",
+      "state": "CA",
+      "name": "San Diego International",
+      "enplanements": 12675684,
+      "icaoId": "KSAN"
+    },
+    {
+      "rank": 25,
+      "faaId": "BNA",
+      "state": "TN",
+      "name": "Nashville International",
+      "enplanements": 12549304,
+      "icaoId": "KBNA"
+    },
+    {
+      "rank": 26,
+      "faaId": "BWI",
+      "state": "MD",
+      "name": "Baltimore/Washington International Thurgood Marshall",
+      "enplanements": 12274134,
+      "icaoId": "KBWI"
+    },
+    {
+      "rank": 27,
+      "faaId": "TPA",
+      "state": "FL",
+      "name": "Tampa International",
+      "enplanements": 12110427,
+      "icaoId": "KTPA"
+    },
+    {
+      "rank": 28,
+      "faaId": "DCA",
+      "state": "VA",
+      "name": "Ronald Reagan Washington Ntl",
+      "enplanements": 12003594,
+      "icaoId": "KDCA"
+    },
+    {
+      "rank": 29,
+      "faaId": "AUS",
+      "state": "TX",
+      "name": "Austin-Bergstrom International",
+      "enplanements": 10651727,
+      "icaoId": "KAUS"
+    },
+    {
+      "rank": 30,
+      "faaId": "HNL",
+      "state": "HI",
+      "name": "Daniel K Inouye International",
+      "enplanements": 10430353,
+      "icaoId": "PHNL"
+    },
+    {
+      "rank": 31,
+      "faaId": "MDW",
+      "state": "IL",
+      "name": "Chicago Midway International",
+      "enplanements": 9367712,
+      "icaoId": "KMDW"
+    },
+    {
+      "rank": 32,
+      "faaId": "PDX",
+      "state": "OR",
+      "name": "Portland International",
+      "enplanements": 9054394,
+      "icaoId": "KPDX"
+    },
+    {
+      "rank": 33,
+      "faaId": "DAL",
+      "state": "TX",
+      "name": "Dallas Love Field",
+      "enplanements": 8151354,
+      "icaoId": "KDAL"
+    },
+    {
+      "rank": 34,
+      "faaId": "RDU",
+      "state": "NC",
+      "name": "Raleigh-Durham International",
+      "enplanements": 7670956,
+      "icaoId": "KRDU"
+    },
+    {
+      "rank": 35,
+      "faaId": "STL",
+      "state": "MO",
+      "name": "St Louis Lambert International",
+      "enplanements": 7483526,
+      "icaoId": "KSTL"
+    },
+    {
+      "rank": 36,
+      "faaId": "SMF",
+      "state": "CA",
+      "name": "Sacramento International",
+      "enplanements": 6805910,
+      "icaoId": "KSMF"
+    },
+    {
+      "rank": 37,
+      "faaId": "HOU",
+      "state": "TX",
+      "name": "William P Hobby",
+      "enplanements": 6790274,
+      "icaoId": "KHOU"
+    },
+    {
+      "rank": 38,
+      "faaId": "SJU",
+      "state": "PR",
+      "name": "Luis Munoz Marin International",
+      "enplanements": 6658037,
+      "icaoId": "TJSJ"
+    },
+    {
+      "rank": 39,
+      "faaId": "MSY",
+      "state": "LA",
+      "name": "Louis Armstrong New Orleans International",
+      "enplanements": 6221146,
+      "icaoId": "KMSY"
+    },
+    {
+      "rank": 40,
+      "faaId": "MCI",
+      "state": "MO",
+      "name": "Kansas City International",
+      "enplanements": 5613974,
+      "icaoId": "KMCI"
+    },
+    {
+      "rank": 41,
+      "faaId": "SNA",
+      "state": "CA",
+      "name": "John Wayne/Orange County",
+      "enplanements": 5521729,
+      "icaoId": "KSNA"
+    },
+    {
+      "rank": 42,
+      "faaId": "RSW",
+      "state": "FL",
+      "name": "Southwest Florida International",
+      "enplanements": 5504420,
+      "icaoId": "KRSW"
+    },
+    {
+      "rank": 43,
+      "faaId": "SJC",
+      "state": "CA",
+      "name": "Mineta San Jose International",
+      "enplanements": 5257421,
+      "icaoId": "KSJC"
+    },
+    {
+      "rank": 44,
+      "faaId": "SAT",
+      "state": "TX",
+      "name": "San Antonio International",
+      "enplanements": 5237816,
+      "icaoId": "KSAT"
+    },
+    {
+      "rank": 45,
+      "faaId": "IND",
+      "state": "IN",
+      "name": "Indianapolis International",
+      "enplanements": 5221447,
+      "icaoId": "KIND"
+    },
+    {
+      "rank": 46,
+      "faaId": "CLE",
+      "state": "OH",
+      "name": "Cleveland-Hopkins International",
+      "enplanements": 4855943,
+      "icaoId": "KCLE"
+    },
+    {
+      "rank": 47,
+      "faaId": "PIT",
+      "state": "PA",
+      "name": "Pittsburgh International",
+      "enplanements": 4792035,
+      "icaoId": "KPIT"
+    },
+    {
+      "rank": 48,
+      "faaId": "OAK",
+      "state": "CA",
+      "name": "Oakland San Francisco Bay",
+      "enplanements": 4532494,
+      "icaoId": "KOAK"
+    },
+    {
+      "rank": 49,
+      "faaId": "CMH",
+      "state": "OH",
+      "name": "John Glenn Columbus International",
+      "enplanements": 4396625,
+      "icaoId": "KCMH"
+    },
+    {
+      "rank": 50,
+      "faaId": "CVG",
+      "state": "KY",
+      "name": "Cincinnati/Northern Kentucky International",
+      "enplanements": 4366865,
+      "icaoId": "KCVG"
+    },
+    {
+      "rank": 51,
+      "faaId": "DJT",
+      "state": "FL",
+      "name": "President Donald J Trump International",
+      "enplanements": 4257185,
+      "icaoId": "KDJT"
+    },
+    {
+      "rank": 52,
+      "faaId": "JAX",
+      "state": "FL",
+      "name": "Jacksonville International",
+      "enplanements": 3719723,
+      "icaoId": "KJAX"
+    },
+    {
+      "rank": 53,
+      "faaId": "ONT",
+      "state": "CA",
+      "name": "Ontario International",
+      "enplanements": 3473874,
+      "icaoId": "KONT"
+    },
+    {
+      "rank": 54,
+      "faaId": "OGG",
+      "state": "HI",
+      "name": "Kahului",
+      "enplanements": 3450472,
+      "icaoId": "PHOG"
+    },
+    {
+      "rank": 55,
+      "faaId": "BDL",
+      "state": "CT",
+      "name": "Bradley International",
+      "enplanements": 3283397,
+      "icaoId": "KBDL"
+    },
+    {
+      "rank": 56,
+      "faaId": "BUR",
+      "state": "CA",
+      "name": "Hollywood Burbank",
+      "enplanements": 3218222,
+      "icaoId": "KBUR"
+    },
+    {
+      "rank": 57,
+      "faaId": "CHS",
+      "state": "SC",
+      "name": "Charleston AFB/International",
+      "enplanements": 3142402,
+      "icaoId": "KCHS"
+    },
+    {
+      "rank": 58,
+      "faaId": "MKE",
+      "state": "WI",
+      "name": "General Mitchell International",
+      "enplanements": 2889040,
+      "icaoId": "KMKE"
+    },
+    {
+      "rank": 59,
+      "faaId": "ANC",
+      "state": "AK",
+      "name": "Ted Stevens Anchorage International",
+      "enplanements": 2729285,
+      "icaoId": "PANC"
+    },
+    {
+      "rank": 60,
+      "faaId": "BOI",
+      "state": "ID",
+      "name": "Boise Air Trml/Gowen Field",
+      "enplanements": 2579647,
+      "icaoId": "KBOI"
+    },
+    {
+      "rank": 61,
+      "faaId": "OMA",
+      "state": "NE",
+      "name": "Eppley Airfield",
+      "enplanements": 2565135,
+      "icaoId": "KOMA"
+    },
+    {
+      "rank": 62,
+      "faaId": "ABQ",
+      "state": "NM",
+      "name": "Albuquerque International Sunport",
+      "enplanements": 2562028,
+      "icaoId": "KABQ"
+    },
+    {
+      "rank": 63,
+      "faaId": "BUF",
+      "state": "NY",
+      "name": "Buffalo Niagara International",
+      "enplanements": 2533180,
+      "icaoId": "KBUF"
+    },
+    {
+      "rank": 64,
+      "faaId": "RIC",
+      "state": "VA",
+      "name": "Richmond International",
+      "enplanements": 2481863,
+      "icaoId": "KRIC"
+    },
+    {
+      "rank": 65,
+      "faaId": "ORF",
+      "state": "VA",
+      "name": "Norfolk International",
+      "enplanements": 2466474,
+      "icaoId": "KORF"
+    },
+    {
+      "rank": 66,
+      "faaId": "RNO",
+      "state": "NV",
+      "name": "Reno/Tahoe International",
+      "enplanements": 2420373,
+      "icaoId": "KRNO"
+    },
+    {
+      "rank": 67,
+      "faaId": "MEM",
+      "state": "TN",
+      "name": "Frederick W Smith International/Memphis",
+      "enplanements": 2368014,
+      "icaoId": "KMEM"
+    },
+    {
+      "rank": 68,
+      "faaId": "OKC",
+      "state": "OK",
+      "name": "Okc Will Rogers International",
+      "enplanements": 2242888,
+      "icaoId": "KOKC"
+    },
+    {
+      "rank": 69,
+      "faaId": "SRQ",
+      "state": "FL",
+      "name": "Sarasota/Bradenton International",
+      "enplanements": 2242138,
+      "icaoId": "KSRQ"
+    },
+    {
+      "rank": 70,
+      "faaId": "SDF",
+      "state": "KY",
+      "name": "Louisville Muhammad Ali International",
+      "enplanements": 2237842,
+      "icaoId": "KSDF"
+    },
+    {
+      "rank": 71,
+      "faaId": "GRR",
+      "state": "MI",
+      "name": "Gerald R Ford International",
+      "enplanements": 2127668,
+      "icaoId": "KGRR"
+    },
+    {
+      "rank": 72,
+      "faaId": "PVD",
+      "state": "RI",
+      "name": "Rhode Island Tf Green International",
+      "enplanements": 2117401,
+      "icaoId": "KPVD"
+    },
+    {
+      "rank": 73,
+      "faaId": "GEG",
+      "state": "WA",
+      "name": "Spokane International",
+      "enplanements": 2106307,
+      "icaoId": "KGEG"
+    },
+    {
+      "rank": 74,
+      "faaId": "SAV",
+      "state": "GA",
+      "name": "Savannah/Hilton Head International",
+      "enplanements": 2064691,
+      "icaoId": "KSAV"
+    },
+    {
+      "rank": 75,
+      "faaId": "KOA",
+      "state": "HI",
+      "name": "Ellison Onizuka Kona International at Keahole",
+      "enplanements": 2034749,
+      "icaoId": "PHKO"
+    },
+    {
+      "rank": 76,
+      "faaId": "ELP",
+      "state": "TX",
+      "name": "El Paso International",
+      "enplanements": 1940314,
+      "icaoId": "KELP"
+    },
+    {
+      "rank": 77,
+      "faaId": "TUS",
+      "state": "AZ",
+      "name": "Tucson International",
+      "enplanements": 1891548,
+      "icaoId": "KTUS"
+    },
+    {
+      "rank": 78,
+      "faaId": "LGB",
+      "state": "CA",
+      "name": "Long Beach (Daugherty Field)",
+      "enplanements": 1867498,
+      "icaoId": "KLGB"
+    },
+    {
+      "rank": 79,
+      "faaId": "LIH",
+      "state": "HI",
+      "name": "Lihue",
+      "enplanements": 1822008,
+      "icaoId": "PHLI"
+    },
+    {
+      "rank": 80,
+      "faaId": "TYS",
+      "state": "TN",
+      "name": "McGhee Tyson",
+      "enplanements": 1786752,
+      "icaoId": "KTYS"
+    },
+    {
+      "rank": 81,
+      "faaId": "MYR",
+      "state": "SC",
+      "name": "Myrtle Beach International",
+      "enplanements": 1743132,
+      "icaoId": "KMYR"
+    },
+    {
+      "rank": 82,
+      "faaId": "PSP",
+      "state": "CA",
+      "name": "Palm Springs International",
+      "enplanements": 1654109,
+      "icaoId": "KPSP"
+    },
+    {
+      "rank": 83,
+      "faaId": "BHM",
+      "state": "AL",
+      "name": "Birmingham-Shuttlesworth International",
+      "enplanements": 1615940,
+      "icaoId": "KBHM"
+    },
+    {
+      "rank": 84,
+      "faaId": "TUL",
+      "state": "OK",
+      "name": "Tulsa International",
+      "enplanements": 1597865,
+      "icaoId": "KTUL"
+    },
+    {
+      "rank": 85,
+      "faaId": "DSM",
+      "state": "IA",
+      "name": "Des Moines International",
+      "enplanements": 1596784,
+      "icaoId": "KDSM"
+    },
+    {
+      "rank": 86,
+      "faaId": "ALB",
+      "state": "NY",
+      "name": "Albany International",
+      "enplanements": 1573771,
+      "icaoId": "KALB"
+    },
+    {
+      "rank": 87,
+      "faaId": "SFB",
+      "state": "FL",
+      "name": "Orlando Sanford International",
+      "enplanements": 1553711,
+      "icaoId": "KSFB"
+    },
+    {
+      "rank": 88,
+      "faaId": "PNS",
+      "state": "FL",
+      "name": "Pensacola International",
+      "enplanements": 1519799,
+      "icaoId": "KPNS"
+    },
+    {
+      "rank": 89,
+      "faaId": "GSP",
+      "state": "SC",
+      "name": "Greenville Spartanburg International",
+      "enplanements": 1499920,
+      "icaoId": "KGSP"
+    },
+    {
+      "rank": 90,
+      "faaId": "SYR",
+      "state": "NY",
+      "name": "Syracuse Hancock International",
+      "enplanements": 1415346,
+      "icaoId": "KSYR"
+    },
+    {
+      "rank": 91,
+      "faaId": "BZN",
+      "state": "MT",
+      "name": "Bozeman Yellowstone International",
+      "enplanements": 1406833,
+      "icaoId": "KBZN"
+    },
+    {
+      "rank": 92,
+      "faaId": "PIE",
+      "state": "FL",
+      "name": "St Pete-Clearwater International",
+      "enplanements": 1398845,
+      "icaoId": "KPIE"
+    },
+    {
+      "rank": 93,
+      "faaId": "FAT",
+      "state": "CA",
+      "name": "Fresno Yosemite International",
+      "enplanements": 1394397,
+      "icaoId": "KFAT"
+    },
+    {
+      "rank": 94,
+      "faaId": "ROC",
+      "state": "NY",
+      "name": "Frederick Douglass/Greater Rochester International",
+      "enplanements": 1385078,
+      "icaoId": "KROC"
+    },
+    {
+      "rank": 95,
+      "faaId": "PWM",
+      "state": "ME",
+      "name": "Portland International Jetport",
+      "enplanements": 1287041,
+      "icaoId": "KPWM"
+    },
+    {
+      "rank": 96,
+      "faaId": "XNA",
+      "state": "AR",
+      "name": "Northwest Arkansas Ntl",
+      "enplanements": 1234923,
+      "icaoId": "KXNA"
+    },
+    {
+      "rank": 97,
+      "faaId": "COS",
+      "state": "CO",
+      "name": "City of Colorado Springs Municipal",
+      "enplanements": 1230941,
+      "icaoId": "KCOS"
+    },
+    {
+      "rank": 98,
+      "faaId": "MSN",
+      "state": "WI",
+      "name": "Dane County Regional/Truax Field",
+      "enplanements": 1226462,
+      "icaoId": "KMSN"
+    },
+    {
+      "rank": 99,
+      "faaId": "VPS",
+      "state": "FL",
+      "name": "Eglin AFB/Destin-Ft Walton Beach",
+      "enplanements": 1221553,
+      "icaoId": "KVPS"
+    },
+    {
+      "rank": 100,
+      "faaId": "HPN",
+      "state": "NY",
+      "name": "Westchester County",
+      "enplanements": 1198585,
+      "icaoId": "KHPN"
+    },
+    {
+      "faaId": "APA",
+      "rank": null,
+      "icaoId": "KAPA"
+    },
+    {
+      "faaId": "CVH",
+      "rank": null,
+      "icaoId": "KCVH"
+    },
+    {
+      "faaId": "TEB",
+      "rank": null,
+      "icaoId": "KTEB"
+    },
+    {
+      "faaId": "SCK",
+      "rank": null,
+      "icaoId": "KSCK"
+    },
+    {
+      "faaId": "PAO",
+      "rank": null,
+      "icaoId": "KPAO"
+    },
+    {
+      "faaId": "VNY",
+      "rank": null,
+      "icaoId": "KVNY"
+    },
+    {
+      "faaId": "SDL",
+      "rank": null,
+      "icaoId": "KSDL"
+    },
+    {
+      "faaId": "FRG",
+      "rank": null,
+      "icaoId": "KFRG"
+    }
+  ]
+}

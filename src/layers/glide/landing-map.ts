@@ -14,6 +14,7 @@ import { emptyLandings, type LandingStatus, type LandingSelection } from './land
 import type { LandingDisplayWorker } from './landing-display';
 import { emptyAreas, type GlideAreas } from './types';
 import type { LandingHeatImage } from './landing-heat';
+import { createLandingHeatLayer } from './landing-heat-layer';
 
 export type LandingInput = { catalog?: CatalogReadSource | undefined; enabled: boolean; segments: Segment[]; ranges: GlideAreas; retry: number };
 const HEAT = 'glide-landing-shading', RASTER = 'glide-landing-detail-image';
@@ -21,6 +22,7 @@ const SOURCE = 'glide-landing-areas', LAYERS = ['glide-landing-fill', 'glide-lan
 const colors: ExpressionSpecification = ['match', ['get', 'tier'], 2, '#53e52d', '#a23bff'];
 
 export function createLandingLayer(onStatus: (status: LandingStatus) => void): MapLayerModule<LandingInput> & { inspectAt(point: { x: number; y: number }): (() => Promise<LandingSelection | null>) | undefined } {
+  const heatLayer = createLandingHeatLayer(HEAT, () => status(lastStatus));
   let map: MapLibreMap | undefined, client: WorkerClient<LandingDisplayWorker> | undefined;
   let input: LandingInput = { enabled: false, segments: [], ranges: emptyAreas(), retry: 0 }, routeKey = '', rangeKey = '', revision = 0, renderedKey: string | undefined;
   let followingGps = false, waitingForCamera = false, heatRevision = 0;
@@ -29,7 +31,10 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let sources = landingSources(undefined, "http://localhost/"), sourceIdentity = "";
   let lastStatus: LandingStatus = { state: 'idle' };
-  const status = (next: LandingStatus) => { lastStatus = next; onStatus(next); };
+  const status = (next: LandingStatus) => {
+    lastStatus = next;
+    onStatus(input.enabled && (heatLayer.failed || submission?.failed) ? { ...next, state: 'error' } : next);
+  };
   let submission: ReturnType<typeof createSourceSubmission> | undefined;
   let upload: AbortController | undefined;
   let collection: FeatureCollection = emptyLandings(), retried = false;
@@ -69,7 +74,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   };
   const clearHeat = () => {
     renderedKey = `/${renderedKey?.split('/')[1] ?? ''}`;
-    if (map?.getLayer(HEAT)) map.setLayoutProperty(HEAT, 'visibility', 'none');
+    heatLayer.hide();
   };
   const clear = () => { clearDetail(); clearHeat(); };
   const hasTarget = () => input.segments.length > 0 || input.ranges.features.length > 0;
@@ -79,7 +84,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     const id = running?.revision;
     if (id !== undefined && client) void client.call(worker => worker.cancel(id)).catch(() => {});
   };
-  const release = () => { detailImage = null; client?.dispose(); client = undefined; running = undefined; queued = false; renderedKey = undefined; };
+  const release = () => { heatLayer.clear(); detailImage = null; client?.dispose(); client = undefined; running = undefined; queued = false; renderedKey = undefined; };
   const query = async () => {
     timer = undefined;
     if (!map || !input.enabled || !hasTarget() || document.hidden) return;
@@ -98,12 +103,12 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     try {
       if (!client || client.retired) {
         client = new WorkerClient<LandingDisplayWorker>(new Worker(new URL('./landing.worker.ts', import.meta.url), { type: 'module' }), 'Landing areas unavailable');
-        renderedKey = undefined;
+        heatLayer.clear(); renderedKey = undefined;
       }
       const result = await client.call(worker => worker.query({ id: job.revision,
         sources, manifestUrl: new URL(`${chartRoot()}/glide/manifest.json`, location.href).href,
         bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], segments: input.segments, ranges: input.ranges, zoom,
-        discover, revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
+        discover, heatTiles: heatLayer.keys(), revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
       }));
       if (!map || job.heatRevision !== heatRevision) return;
       // Admission is not completion: canceled refreshes remain pending. Failed
@@ -112,14 +117,11 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       else if (check) { revalidate = true; refreshAfter = Date.now() + 60_000; }
       more = result.more;
       const [heatKey = '', detailKey = ''] = result.renderKey.split('/');
+      if (lastStatus.sourceKey && result.status.sourceKey && lastStatus.sourceKey !== result.status.sourceKey) clearDetail();
       if (result.heat !== undefined) {
-        const heat = result.heat;
-        if (heat) {
-          const [west, south, east, north] = heat.bounds;
-          map.getSource<ImageSource>(HEAT)?.updateImage({ image: new ImageData(heat.rgba as Uint8ClampedArray<ArrayBuffer>, heat.width, heat.height),
-            coordinates: [[west, north], [east, north], [east, south], [west, south]] });
-        }
-        map.setLayoutProperty(HEAT, 'visibility', heat?.shadedCells ? 'visible' : 'none');
+        heatLayer.set(result.heat ?? []);
+        // Do not retain uploaded arrays through a slower vector-source receipt.
+        delete result.heat;
       }
       renderedKey = `${heatKey}/${renderedKey?.split('/')[1] ?? ''}`;
       // A range update only invalidates detail. Ready route imagery and its
@@ -175,11 +177,18 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     waitingForCamera = true;
     clearTimeout(timer); timer = undefined; queued = false; cancel();
   };
-  const moved = () => { followingGps = false; if (submission?.failed && retryTimer === undefined) void renderCollection(collection, true); schedule(); };
+  const moved = () => {
+    followingGps = false; heatLayer.retry();
+    if (submission?.failed && retryTimer === undefined) void renderCollection(collection, true);
+    schedule();
+  };
   const idle = () => { if (waitingForCamera && map && !map.isMoving()) schedule(); };
-  const resized = () => schedule();
-  const visibility = () => { if (document.hidden) moving({ type: 'visibilitychange' }); else schedule(); };
-  const recover = () => { revalidate = true; refreshAfter = -Infinity; cancel(); schedule(); };
+  const resized = () => { heatLayer.retry(); schedule(); };
+  const visibility = () => {
+    if (document.hidden) { heatLayer.pause(); moving({ type: 'visibilitychange' }); }
+    else { heatLayer.retry(); schedule(); }
+  };
+  const recover = () => { heatLayer.retry(); revalidate = true; refreshAfter = -Infinity; cancel(); schedule(); };
   return {
     id: 'glide-landings', slot: 'weather',
     inspectAt(point) {
@@ -206,13 +215,14 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     },
     mount(target) {
       map = target;
-      for (const id of [HEAT, RASTER]) map.addSource(id, { type: 'image', coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
+      map.addSource(RASTER, { type: 'image', coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
       // MapLibre simplifies geometry at each tile zoom; close views retain the original boundaries.
       map.addSource(SOURCE, { type: 'geojson', data: emptyLandings(), maxzoom: 16, tolerance: 0.75,
         attribution: 'Landing candidates: USGS, USDA Forest Service, FAA, <a href="https://docs.overturemaps.org/attribution/">Overture Maps</a>; <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>' });
       const before = map.getLayer('glide-outline-trim') ? 'glide-outline-trim'
         : map.getLayer(WEATHER_LAYER_ANCHOR) ? WEATHER_LAYER_ANCHOR : undefined;
-      for (const id of [HEAT, RASTER]) map.addLayer({ id, type: 'raster', source: id, layout: { visibility: 'none' },
+      map.addLayer(heatLayer.layer, before);
+      map.addLayer({ id: RASTER, type: 'raster', source: RASTER, layout: { visibility: 'none' },
         paint: { 'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-resampling': 'nearest' } }, before);
       map.addLayer({ id: LAYERS[0]!, type: 'fill', source: SOURCE,
         paint: { 'fill-color': colors, 'fill-opacity': 0.62, 'fill-antialias': false } }, before);
@@ -256,6 +266,8 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       else revision++;
       if (sourceChanged || rangeChanged || toggle) clearDetail();
       if (sourceChanged || routeChanged || toggle) clearHeat();
+      if (sourceChanged) heatLayer.clear();
+      if (retry) heatLayer.retry();
       if (retry || sourceChanged) { revalidate = true; refreshAfter = -Infinity; }
       if (sourceChanged && lastStatus.sourceKey) status({ state: 'loading', sourceKey: `pending:${sourceIdentity}` });
       schedule();
@@ -269,7 +281,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       window.removeEventListener('online', recover); document.removeEventListener('visibilitychange', visibility);
       if (map) {
         map.off('movestart', moving); map.off('moveend', moved); map.off('resize', resized); map.off('idle', idle);
-        removeLayerResources(map, [...LAYERS].reverse().concat(RASTER, HEAT), [SOURCE, RASTER, HEAT]);
+        removeLayerResources(map, [...LAYERS].reverse().concat(RASTER, HEAT), [SOURCE, RASTER]);
       }
       followingGps = waitingForCamera = false; map = undefined; status({ state: 'idle' });
     },

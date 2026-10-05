@@ -174,6 +174,18 @@ test('warmer presence checks reuse authentication until raw or compressed file m
   await rm(saved.entry.file); assert.equal(await restarted.check(resource), false);
 });
 
+test('background cache reads reject appended bytes instead of reading an unbounded file', async t => {
+  let calls = 0;
+  const path = await directory(t), resource = resourceFor(metar);
+  const cache = new WeatherCache({ directory: path, maxBytes: 4096, load: async () => { calls++; return payload(); } });
+  await cache.restore(); await cache.get(resource);
+  const saved = await cache.open(resource); assert.ok(saved); await saved.handle.close();
+  const file = await open(saved.entry.file, 'a');
+  try { await file.writeFile(Buffer.alloc(8192)); } finally { await file.close(); }
+  assert.equal((await cache.get(resource)).body.toString(), 'weather');
+  assert.equal(calls, 2, 'even an intact prefix cannot authenticate an oversized saved file');
+});
+
 test('restart rejects damaged cache metadata before accepting a saved response', async t => {
   for (const change of [{ headers: null }, { headers: { 'content-type': 'text/plain\r\ninvalid' } }, { status: 999 },
     { resource: { ...resourceFor(metar), ttl: null } }]) {
@@ -371,4 +383,34 @@ test('rate limits apply across requests and malformed upstream data cannot becom
     await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => new Response(body) })(resourceFor(metar)), { status: 502 });
   }
   await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => new Response('not an index') })(modelResource(icing + '.idx')), { status: 502 });
+});
+
+test('weather honors long numeric and HTTP-date source backoffs across unrelated queries', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  for (const mode of ['seconds', 'date']) {
+    let calls = 0;
+    const retry = mode === 'seconds' ? '3600' : new Date(Date.now() + 3600_000).toUTCString();
+    const upstream = createUpstream({ signal, spacing: 0, fetch: async () => ++calls === 1
+      ? new Response('', { status: 429, headers: { 'Retry-After': retry } }) : Response.json(collection) });
+    await assert.rejects(upstream(resourceFor(metar)), { status: 503, retryAfter: 3600 });
+    t.mock.timers.tick(301_000);
+    await assert.rejects(upstream(resourceFor(metar.replace('KSFO', 'KOAK'))), { status: 503, retryAfter: 3299 });
+    assert.equal(calls, 1, 'five minutes must not release a longer source-requested backoff');
+    t.mock.timers.tick(3299_000);
+    assert.equal((await upstream(resourceFor(metar))).status, 200);
+    assert.equal(calls, 2);
+  }
+});
+
+test('oversized Retry-After values cannot overflow into immediate source retries', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  let calls = 0;
+  const upstream = createUpstream({ signal, spacing: 0, fetch: async () => {
+    calls++; return new Response('', { status: 503, headers: { 'Retry-After': '9'.repeat(400) } });
+  } });
+  await assert.rejects(upstream(resourceFor(metar)), (error: unknown) => error instanceof HttpError &&
+    Number.isSafeInteger(error.retryAfter) && error.retryAfter > 86400);
+  t.mock.timers.tick(86400_000);
+  await assert.rejects(upstream(resourceFor(metar)), { status: 503 });
+  assert.equal(calls, 1);
 });

@@ -30,6 +30,8 @@ recommendations. A malformed optional history resource does not disable FAA data
 - [AWC advisories](#awc-advisories)
 - [AWC forecast grids](#awc-forecast-grids)
 - [WPC surface snapshots](#wpc-surface-snapshots)
+- [NOTAM airport snapshots](#notam-airport-snapshots)
+- [TFR chart snapshots](#tfr-chart-snapshots)
 - [Route](#route)
 - [Workspace persistence](#workspace-persistence)
 - [Procedure](#procedure)
@@ -355,6 +357,31 @@ source catalog and its hash. PNGs have fixed AWC Web Mercator bounds, supported
 validates images before independent atomic publication; the browser authenticates
 their hashes before rendering or saving. The [Progs coverage guide](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
 owns source limitations, image gaps, time selection, rendering and cache recovery.
+
+## NOTAM airport snapshots
+
+`NotamAirportSnapshot` in `packages/contracts/src/notams.ts` owns the validated
+wire shape. Airport schema 1 supports legacy snapshots and adds paired `issues`
+and `contentCoverage` fields for unresolved source records. Resolved and unresolved
+IDs are disjoint; newer feed metadata separates collection continuity from content
+confidence. Source variants remain inert raw text and never enter plate matching
+or map rendering as authoritative notices. The
+[NOTAM airport contract](../../src/layers/notams/README.md#airport-query-contract)
+owns scope, freshness, backward compatibility and completeness rules; its
+[storage contract](../../src/layers/notams/README.md#storage-and-query-indexes)
+owns backend generation migration and quota preservation.
+
+## TFR chart snapshots
+
+`TfrSnapshot` in `packages/contracts/src/tfrs.ts` owns schema 1 for
+`/api/notams/tfrs`: FAA provenance, original check time, source NOTAM identity/raw
+text, altitude labels, per-area polygon geometry and UTC activation windows.
+The server prepares this independently of airport NOTAM queries. Null geometry
+or windows explicitly retain an interpretation gap; errors qualify retained
+snapshots. Longitudes may unwrap across the date line within a local interval
+less than 180 degrees wide. The
+[TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart) owns
+source semantics, bounds, recurrence, freshness and plugin lifetime.
 
 ## Route
 

@@ -1,6 +1,6 @@
 import type { NotamRecord } from '@zlayer/contracts';
 
-export const NOTAM_PARSER_VERSION = 3;
+export const NOTAM_PARSER_VERSION = 5;
 const subjects: Record<string, string> = { RWY: 'Runway', TWY: 'Taxiway', APRON: 'Apron', AD: 'Aerodrome',
   OBST: 'Obstruction', NAV: 'Navigation', COM: 'Communications', SVC: 'Services', AIRSPACE: 'Airspace',
   ODP: 'Departure', SID: 'Departure', STAR: 'Arrival', CHART: 'Chart', DATA: 'Data', DVA: 'Vector Area',
@@ -15,6 +15,13 @@ export type ParsedNotam = { body: string; subject: string | undefined; flairs: N
 const evidence = (body: string, start: number, length: number): NotamEvidence => ({ start, end: start + length, text: body.slice(start, start + length) });
 const parsedRecords = new WeakMap<NotamRecord, ParsedNotam>();
 const MAX_PARSE_LENGTH = 64 * 1024, MAX_HEADING_LENGTH = 320, MAX_TARGETS = 16, MAX_FLAIRS = 20;
+/** Only local-format identity headers; pointers and unfamiliar envelopes remain content. */
+export function localNotamContent(body: string, record?: Pick<NotamRecord, 'locations' | 'icaoLocations'>): string {
+  const content = body.replace(/^\s*!(?:FDC\s+\d+\/\d+\s+[A-Z0-9]+|[A-Z0-9]+\s+\d+\/\d+\s+[A-Z0-9]+)\s+/i, '');
+  const prefix = /^([A-Z0-9]+)\s+([A-Z]+)\b/.exec(content);
+  return prefix && subjects[prefix[2]!] && record && [...record.locations, ...record.icaoLocations].includes(prefix[1]!)
+    ? content.slice(prefix[0].lastIndexOf(prefix[2]!)) : content;
+}
 const approachTitle = /(?:HI\s*-\s*)?(?:COPTER\s+)?(?:ILS(?:\s+[XYZ])?\s+OR\s+LOC(?:\/DME)?|ILS(?:\/DME)?|LOC(?:\/DME)?(?:\s+BC)?|RNAV\s*\((?:GPS|RNP)\)|RNAV|VOR(?:\/DME)?(?:\s+OR\s+TACAN)?|TACAN|NDB(?:\/DME)?|LDA(?:\/DME)?|SDF|GLS)(?:\s+[XYZ])?(?:\s+RWY\s+\d{1,2}[LRC]?|-[A-Z])\s*$/i;
 const incidentalHeading = /\b(?:MISSED|EXC|EXCEPT|OBST|CRANE|NOTE|TRANSITION|CIRCLING|SEE|SPECIAL)\b/i;
 const headingPrefix = (prefix: string) => !incidentalHeading.test(prefix) && (!prefix.trim() || /[.,]\s*$/.test(prefix));
@@ -65,12 +72,12 @@ function procedureTargets(content: string, subject: string | undefined, body: st
   return { targets, limited };
 }
 
-/** Derive only supported clauses. The full body, including qualifications, remains the readable text. */
+/** Derive only supported clauses; retain the full body for presentation and source evidence. */
 export function parseNotam(record: NotamRecord): ParsedNotam {
   const cached = parsedRecords.get(record); if (cached) return cached;
   const body = record.text || record.translations.find(t => t.type === 'LOCAL_FORMAT')?.text || record.translations[0]?.text || '';
   // Local-format headers identify the notice; a SEE FDC pointer never changes its class.
-  const header = /^\s*!(?:FDC\s+\d+\/\d+\s+[A-Z0-9]+|[A-Z0-9]+\s+\d+\/\d+\s+[A-Z0-9]+)\s+/i.exec(body)?.[0].length ?? 0;
+  const header = body.length - localNotamContent(body, record).length;
   const content = body.slice(header, header + MAX_PARSE_LENGTH), subjectMatch = /^\s*([A-Z]+)\b/i.exec(content);
   const keyword = subjectMatch?.[1]?.toUpperCase(), subject = keyword && subjects[keyword] ? keyword : undefined;
   const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP'].includes(subject ?? '');
@@ -87,12 +94,19 @@ export function parseNotam(record: NotamRecord): ParsedNotam {
   function flair(label: string, match: RegExpExecArray | null, tone: NotamFlairTone = 'caution') {
     if (match) addFlair(label, tone, evidence(body, header + match.index, match[0].length));
   }
+  function closure(label: string, match: RegExpExecArray | null) {
+    if (!match) return;
+    const tail = content.slice(match.index + match[0].length);
+    const qualified = /^\s+(?:TO|EXC|EXCEPT|ONLY|WHEN|UNLESS)\b/i.test(tail);
+    addFlair(qualified ? label.replace('Closed', 'Closure Restriction') : label, qualified ? 'caution' : 'danger',
+      evidence(body, header + match.index, match[0].length + (qualified ? tail.length : 0)));
+  }
   if (subject) flair(subjects[subject]!, subjectMatch!, procedureNotice ? 'procedure' : 'info');
   for (const target of targets) addFlair(target.title, 'procedure', target.evidence);
   const runway = subject === 'RWY' ? /^\s*RWY\s+(\d{1,2}[LRC]?(?:\/\d{1,2}[LRC]?)?)(?=\s)/i.exec(content) : null;
   if (runway) flair(`RWY ${runway[1]!.toUpperCase()}`, runway, 'info');
   if (subject === 'RWY') {
-    flair('Runway Closed', /^\s*RWY\s+\d{1,2}[LRC]?(?:\/\d{1,2}[LRC]?)?\s+CLSD\b/i.exec(content), 'danger');
+    closure('Runway Closed', /^\s*RWY\s+\d{1,2}[LRC]?(?:\/\d{1,2}[LRC]?)?\s+CLSD\b/i.exec(content));
     const lights = /^\s*RWY\s+\d{1,2}[LRC]?(?:\/\d{1,2}[LRC]?)?\s+(RWY\s+END\s+ID\s+LGT|(?:EDGE\s+)?LGT|RAI\s+LGT|ALS|MALSR|MALSF|ALSF-[12]|ODALS|HIRL|MIRL|REIL|PAPI|VASI)\s+U\/S\b/i.exec(content);
     if (lights) {
       const name = lights[1]!.toUpperCase().replace(/\s+/g, ' ');
@@ -104,13 +118,13 @@ export function parseNotam(record: NotamRecord): ParsedNotam {
   if (subject === 'TWY') {
     const taxiway = /^\s*TWY\s+([A-Z0-9]+(?:\/[A-Z0-9]+)*)\b/i.exec(content);
     if (taxiway) flair(`TWY ${taxiway[1]!.toUpperCase()}`, taxiway, 'info');
-    flair('Taxiway Closed', /^\s*TWY\s+[A-Z0-9/]+(?:\s+BTN\s+TWY\s+[A-Z0-9]+\s+AND\s+TWY\s+[A-Z0-9]+)?\s+CLSD\b/i.exec(content), 'danger');
+    closure('Taxiway Closed', /^\s*TWY\s+[A-Z0-9/]+(?:\s+BTN\s+TWY\s+[A-Z0-9]+\s+AND\s+TWY\s+[A-Z0-9]+)?\s+CLSD\b/i.exec(content));
   }
   if (subject === 'APRON') {
-    flair('Taxilane Closed', /^\s*APRON\s+(?:[A-Z0-9]+\s+){0,4}TXL\s+BTN\s+TWY\s+[A-Z0-9]+\s+AND\s+TWY\s+[A-Z0-9]+\s+CLSD\b/i.exec(content), 'danger');
-    flair('Apron Closed', /^\s*APRON\s+(?:[A-Z0-9]+\s+){0,3}CLSD\b/i.exec(content), 'danger');
+    closure('Taxilane Closed', /^\s*APRON\s+(?:[A-Z0-9]+\s+){0,4}TXL\s+BTN\s+TWY\s+[A-Z0-9]+\s+AND\s+TWY\s+[A-Z0-9]+\s+CLSD\b/i.exec(content));
+    closure('Apron Closed', /^\s*APRON\s+(?:[A-Z0-9]+\s+){0,3}CLSD\b/i.exec(content));
   }
-  if (subject === 'AD') flair('Airport Closed', /^\s*AD\s+AP\s+CLSD\b/i.exec(content), 'danger');
+  if (subject === 'AD') closure('Airport Closed', /^\s*AD\s+AP\s+CLSD\b/i.exec(content));
   let facilityTarget: ParsedNotam['facilityTarget'];
   if (subject === 'NAV') {
     const aid = /^\s*NAV\s+(ILS|LOC|GP|GS|VOR\/DME|VOR|DME|TACAN|NDB)(?:\s+RWY\s+(\d{1,2}[LRC]?))?\s+U\/S\b/i.exec(content);
@@ -123,14 +137,16 @@ export function parseNotam(record: NotamRecord): ParsedNotam {
     }
   }
   if (subject === 'OBST') {
-    const lights = /^\s*OBST\s+(TOWER|POLE|CRANE|STACK|BLDG)\s+LGT\b/i.exec(content);
+    const lights = /^\s*OBST\s+(?:TOWERS?|POLES?|CRANES?|STACKS?|BLDGS?|BUILDINGS?|WIND TURBINES?|WINDMILLS?|RIGS?|TREES?)\s+LGT\b/i.exec(content);
     if (lights) {
       const outage = /\sU\/S(?:\s+\d{10}-\d{10}(?:EST)?)?\s*\.?\s*$/i.exec(content);
-      if (outage) addFlair('Obstacle Light Outage', 'caution', evidence(body, header, outage.index + outage[0].length));
+      if (outage && !/\b(?:NOT|IF|WHEN|UNLESS|EXC|EXCEPT|DISREGARD|DELETE|NOTE)\b/i.test(content)) addFlair('Obstacle Light Outage', 'caution', evidence(body, header, outage.index + outage[0].length));
       else flair('Obstacle Lighting', lights, 'info');
     }
     flair('Crane', /^\s*OBST\s+CRANE\b/i.exec(content));
-    flair('Flagged and Lighted', /\bFLAGGED\s+AND\s+LGTD\b/i.exec(content), 'neutral');
+    if (!/\b(?:NOT|IF|WHEN|UNLESS|EXC|EXCEPT|DISREGARD|DELETE|NOTE)\b/i.test(content)) {
+      flair('Flagged and Lighted', /\bFLAGGED\s+AND\s+LGTD\b/i.exec(content), 'neutral');
+    }
   }
   if (subject === 'AIRSPACE') {
     flair('UAS Activity', /^\s*AIRSPACE\s+UAS\b/i.exec(content));
@@ -139,18 +155,20 @@ export function parseNotam(record: NotamRecord): ParsedNotam {
     if (height) flair(`Surface to ${height[1]} ft AGL`, height, 'neutral');
   }
   if (procedureNotice) {
-    flair('Minima Amended', /\b(?:DA|MDA)\s+\d+(?:\/|\b)/i.exec(content));
-    flair('Visibility Amended', /\b(?:VIS(?:IBILITY)?\s+(?:(?:ALL\s+)?CATS?\s+[A-D/ ]{0,16})?(?:RVR\s+)?\d|RVR\s+\d)/i.exec(content));
-    flair('Sidestep Minima', /\bSIDESTEP\s+\d{1,2}[LRC]?\s+MDA\s+\d+/i.exec(content));
-    flair('Circling Minima', /\bCIRCLING\s+CAT\s+[A-D]\s+MDA\s+\d+/i.exec(content));
-    flair('VDP Amended', /\bVDP\s+(?:AT\s+)?\d+(?:\.\d+)?NM\b/i.exec(content));
-    flair('Takeoff Minima Amended', /\bTAKE-?OFF\s+MINIMUMS\s*:?\s*RWY\s+\d{1,2}[LRC]?\s*,\s*\d/i.exec(content));
-    flair('Climb Gradient', /\b(?:MINIMUM\s+)?CLIMB\s+OF\s+\d+\s*(?:FT|FEET)(?:\/|\s+PER\s+)NM\b/i.exec(content));
+    // Quoted/deleted/conditional values are not evidence of an operative minimum.
+    const numericContent = content.split(/\b(?:ADD|CHANGE|DELETE|DISREGARD|NOTE|NOTES|WHEN|UNLESS|EXC|EXCEPT|PROVIDED)\b|\bIF\s+|\bFOR\s+INOP/i, 1)[0]!;
+    flair('Minima Amended', /\b(?:DA|MDA)\s+\d+(?:\/|\b)/i.exec(numericContent));
+    flair('Visibility Amended', /\b(?:VIS(?:IBILITY)?\s+(?:(?:ALL\s+)?CATS?\s+[A-D/ ]{0,16})?(?:RVR\s+)?\d|RVR\s+\d)/i.exec(numericContent));
+    flair('Sidestep Minima', /\bSIDESTEP\s+\d{1,2}[LRC]?\s+MDA\s+\d+/i.exec(numericContent));
+    flair('Circling Minima', /\bCIRCLING\s+CAT\s+[A-D]\s+MDA\s+\d+/i.exec(numericContent));
+    flair('VDP Amended', /\bVDP\s+(?:AT\s+)?\d+(?:\.\d+)?NM\b/i.exec(numericContent));
+    flair('Takeoff Minima Amended', /\bTAKE-?OFF\s+MINIMUMS\s*:?\s*RWY\s+\d{1,2}[LRC]?\s*,\s*\d/i.exec(numericContent));
+    flair('Climb Gradient', /\b(?:MINIMUM\s+)?CLIMB\s+OF\s+\d+\s*(?:FT|FEET)(?:\/|\s+PER\s+)NM\b/i.exec(numericContent));
     flair('Crane', /\bTEMP(?:ORARY)?\s+CRANES?\b/i.exec(content));
     flair('Inoperative Lighting Note', /\bFOR\s+INOP\s+(?:ALS|MALSR|MALSF|ALSF-[12]|REIL)\b/i.exec(content));
-    flair('Terminal Route Unavailable', /\bTERMINAL\s+ROUTE:\s*FROM\s+[A-Z0-9]+(?:\s*\([A-Z]+\))?\s+TO\s+[A-Z0-9]+(?:\s*\([A-Z]+\))?\s+NA\b/i.exec(content));
-    if (subject === 'IAP') flair('Circling Restriction', /\bCIRCLING\s+(?:TO\s+[A-Z0-9 ,/]{1,60}\s+)?NA\b/i.exec(content));
-    if (subject === 'SID' || subject === 'STAR') flair('Transition Restriction', /\b[A-Z0-9]+\s+TRANSITION\s+NA\b/i.exec(content));
+    flair('Terminal Route Unavailable', /\bTERMINAL\s+ROUTE:\s*FROM\s+[A-Z0-9]+(?:\s*\([A-Z]+\))?\s+TO\s+[A-Z0-9]+(?:\s*\([A-Z]+\))?\s+NA\b/i.exec(numericContent));
+    if (subject === 'IAP') flair('Circling Restriction', /\bCIRCLING\s+(?:TO\s+[A-Z0-9 ,/]{1,60}\s+)?NA\b/i.exec(numericContent));
+    if (subject === 'SID' || subject === 'STAR') flair('Transition Restriction', /\b[A-Z0-9]+\s+TRANSITION\s+NA\b/i.exec(numericContent));
   }
   flair('Pointer', /\bSEE\s+(?:FDC\s+)?\d+\/\d+\b/i.exec(content), 'neutral');
   const result = { body, subject, flairs, targets, broad, broadRestricted, procedureNotice,

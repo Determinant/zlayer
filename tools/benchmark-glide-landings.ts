@@ -3,11 +3,21 @@
 import { createHash } from 'node:crypto';
 import type { Bounds } from '@zlayer/contracts';
 import { project, unproject, type Point, type Segment } from '../src/core/geo/route-corridor';
-import { landingHeatImage, type LandingHeat } from '../src/layers/glide/landing-heat';
+import type { LandingHeat } from '../src/layers/glide/landing-heat';
+import { composeLandingHeatCells } from '../src/layers/glide/landing-heat-composition';
 import { createLandingWorker, type LandingQuery } from '../src/layers/glide/landing-planner';
 import type { LandingArea, LandingManifest, LandingShard } from '../src/layers/glide/landing-data';
 import type { GlideAreas } from '../src/layers/glide/types';
 import { createLandingDisplayWorker, type LandingDisplayQuery } from '../src/layers/glide/landing-display';
+
+// Fixed-area composition diagnostic, separate from the retained display tiles.
+// Kept comparable with the earlier synthetic field measurements.
+function landingHeatImage(heats: LandingHeat[], bounds: Bounds, zoom: number, segments: Segment[]) {
+  const nw = project([bounds[0], bounds[3]]), se = project([bounds[2], bounds[1]]);
+  const step = 2 ** Math.ceil(Math.log2(Math.max(4 / (512 * 2 ** Math.floor(zoom)), (se[0] - nw[0]) / 384, (se[1] - nw[1]) / 384)));
+  const left = Math.floor(nw[0] / step) * step, top = Math.floor(nw[1] / step) * step;
+  return composeLandingHeatCells(heats, { left, top, step, width: Math.ceil((se[0] - left) / step), height: Math.ceil((se[1] - top) / step) }, segments);
+}
 
 const digest = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const median = (values: number[]) => +values.sort((a, b) => a - b)[Math.floor(values.length / 2)]!.toFixed(2);

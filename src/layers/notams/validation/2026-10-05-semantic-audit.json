@@ -1,0 +1,110 @@
+{
+  "auditedAt": "2026-10-05T20:49:00.576Z",
+  "scope": "Top 100 US passenger airports plus 8 GA airports; retained source records, not proof of complete upstream coverage",
+  "totals": {
+    "airports": 108,
+    "uniqueRecordIds": 8026,
+    "classes": {
+      "DOMESTIC": 3587,
+      "FDC": 1069,
+      "INTL": 3289,
+      "MIL": 81
+    },
+    "subjects": {
+      "APRON": 352,
+      "IAP": 1457,
+      "NAV": 579,
+      "AIRSPACE": 173,
+      "OBST": 1438,
+      "RWY": 1219,
+      "Unknown": 132,
+      "TWY": 1782,
+      "SID": 415,
+      "ODP": 175,
+      "AD": 112,
+      "SVC": 99,
+      "STAR": 45,
+      "COM": 36,
+      "VFP": 5,
+      "ROUTE": 1,
+      "SPECIAL": 5,
+      "CHART": 1
+    },
+    "blocks": {
+      "text": 10387,
+      "context": 2035,
+      "heading": 2317,
+      "minima": 1605,
+      "instruction": 648,
+      "takeoff": 114,
+      "distances": 14,
+      "minima-group": 8,
+      "takeoff-group": 10
+    },
+    "noticesWithValues": 1024,
+    "proseOnly": 5918,
+    "closureRestrictions": 231,
+    "mappedNotices": 1361,
+    "issues": 0
+  },
+  "temporalQualification": {
+    "qualified": false,
+    "freshGenerations": 0,
+    "distinctRecordVersions": 8026,
+    "problems": [
+      "capture 1: source is stale, degraded or mixed-generation",
+      "capture 2: source is stale, degraded or mixed-generation",
+      "At least two distinct fresh complete source generations are required"
+    ],
+    "captures": [
+      {
+        "capturedAt": "2026-10-05T20:39:41.886Z",
+        "generations": [
+          "044a92ceded9ea3202ce70d52b30cfcb27ef1413d88bbea84b0f2d4313aee2aa"
+        ],
+        "sourceCheckedAt": [
+          1791224843496
+        ],
+        "healthy": false,
+        "recordVersions": 8026,
+        "newRecordVersions": 8026,
+        "errors": []
+      },
+      {
+        "capturedAt": "2026-10-05T20:47:21.367Z",
+        "generations": [
+          "044a92ceded9ea3202ce70d52b30cfcb27ef1413d88bbea84b0f2d4313aee2aa"
+        ],
+        "sourceCheckedAt": [
+          1791224843496
+        ],
+        "healthy": false,
+        "recordVersions": 8026,
+        "newRecordVersions": 0,
+        "errors": []
+      }
+    ]
+  },
+  "sourceDigests": {
+    "src/layers/notams/parser.ts": "73ae39f02e9b252ba02088fd332653a0be5e3b1478c70372354e16401f88a1f9",
+    "src/layers/notams/presentation.ts": "51acfdbdf8f887f925fae5e44b2adbc187a974a29ac950e40fc51ba38ba0d11a",
+    "src/layers/notams/chart.ts": "5f3f8eb746bc2a8d57c5ca143bbe8c76088b9ed20f2958445bca470756a463f8",
+    "src/layers/notams/obstacles.ts": "e998494907423a119c3d086667b3880196ae46a4f254127170b9248504a785c5",
+    "src/layers/notams/areas.ts": "53d430e75b2dfd380d28877c68668b1907d18f4765b00572266cfc6ce6457747",
+    "src/layers/notams/minima.ts": "92f6c1d280147314e66d6eba1e89287e308c9f9e741e8bdce014cfa5c9d25027",
+    "src/layers/notams/takeoff.ts": "20d78916532fc5f6b1a031d1076fb92e7f2ec3439e2214f6ad13e222f3fd87bc",
+    "src/layers/notams/ui.tsx": "ec6d775b469d947d15754c9778efbe63d9f673dd30add73d630ac6ea1cedc1ed",
+    "tools/audit-notams.ts": "b77735a0c2bf9e74d06d08808c17610d5b5f2e3bd0713a25ffb0ed606c1aa5e6",
+    "tools/notam-value-audit.ts": "178777223f12450d1964ceb41ac6a5bf576314222e9b70c95a8dc381303359f9",
+    "tools/audit-notam-generations.ts": "8cf2e1a7f08655ea24d5940d6e78d1051e76d970a3631ca9bfb238d181b3dcef",
+    "test/fixtures/notams-corpus.json": "7fed92f7051692a625f43f5e1669b13ee7178efb943448e45dbd26d6d18f173c",
+    "test/fixtures/notams-semantic.json": "df35f5733ce3a62aff1743c3d8670781fd7dc0f329dac45e4a67639b5f2a3b05"
+  },
+  "goldenCases": 45,
+  "validation": {
+    "nodeTests": 79,
+    "browserScenarios": 27,
+    "browserNote": "All scenarios passed across the main run and focused reruns.",
+    "fullVerificationRun": false
+  }
+}

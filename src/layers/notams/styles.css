@@ -40,7 +40,7 @@
 .notam-section--upcoming { padding-inline-start: 10px; border-inline-start: 2px dashed var(--border-subtle); }
 .notam-section--upcoming > .notam-section-heading { color: var(--text-secondary); }
 .notam-match-heading { margin: 8px 0 4px; color: var(--text-secondary); font-size: 12px; font-weight: 700; line-height: 1.5; }
-.notam-entry { padding: 10px 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
+.notam-entry { container: notam-entry / inline-size; padding: 12px 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
 .notam-entry-heading { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; font-size: 13px; line-height: 1.5; }
 .notam-entry-heading > * { min-width: 0; max-width: 100%; }
 .notam-entry-heading > span { color: var(--text-secondary); }
@@ -61,8 +61,61 @@
 .notam-flairs > .notam-flair--caution { background: var(--surface-tag-caution); color: var(--text-tag-caution); }
 .notam-flairs > .notam-flair--danger { background: var(--surface-tag-danger); color: var(--text-tag-danger); }
 .notam-text, .notam-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-block: 8px; font-size: 13px; line-height: 1.55; }
+.notam-readable {
+  display: grid; gap: 16px; margin-block: 16px; min-width: 0; max-inline-size: 68ch;
+  font-size: 14px; line-height: 1.6; letter-spacing: normal; word-spacing: normal;
+}
+.notam-readable p { margin: 0; font-size: inherit; line-height: inherit; }
+.notam-readable .notam-body-context, .notam-readable .notam-amendment {
+  color: var(--text-secondary); font-size: 12px; line-height: 1.5;
+}
+.notam-body-title { display: grid; gap: 4px; }
+.notam-procedure-title { font-weight: 700; }
+.notam-takeoff, .notam-minima, .notam-instruction, .notam-distances {
+  display: grid; gap: 6px; min-width: 0; padding-block-start: 12px; border-block-start: 1px solid var(--border-subtle);
+}
+.notam-readable > :is(.notam-takeoff, .notam-minima, .notam-instruction, .notam-distances):first-child { padding-block-start: 0; border: 0; }
+.notam-readable .notam-block-title { font-size: 13px; font-weight: 700; line-height: 1.5; }
+.notam-minimum-row { display: grid; gap: 2px 16px; align-items: baseline; }
+/* Own definition-list styling in both hosts; airport fact cards also style dl/dt/dd. */
+.notam-readable .notam-minimum-row dl {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; margin: 0; padding: 0; min-width: 0;
+  border: 0; border-radius: 0; background: none; overflow: visible;
+}
+.notam-readable .notam-minimum-row dl > div {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; padding: 0; background: none;
+}
+.notam-readable .notam-minimum-row dl > div:only-child { grid-column: 1 / -1; }
+.notam-readable .notam-minimum-row dt, .notam-categories {
+  color: var(--text-secondary); font-size: 12px; line-height: 1.5; letter-spacing: normal; text-transform: none;
+}
+.notam-readable .notam-minimum-row dt { min-inline-size: 5em; }
+.notam-readable .notam-minimum-row dd {
+  margin: 0; font-size: 14px; line-height: 1.6; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary);
+}
+.notam-readable .notam-minimum-condition { margin-block-start: 2px; }
+.notam-minima-rows { display: flex; flex-wrap: wrap; align-items: start; gap: 8px 16px; min-width: 0; }
+.notam-minima .notam-minimum-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 100%; }
+.notam-minima .notam-categories { order: -1; }
+.notam-readable .notam-minima dl { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.notam-readable .notam-minima dl > div { flex-wrap: nowrap; gap: 4px; max-width: 100%; }
+.notam-readable .notam-minima dt { min-inline-size: 0; }
+.notam-minima abbr { text-decoration: none; }
+.notam-readable .notam-minima dd { min-width: 0; font-size: 13px; line-height: 1.5; }
+.notam-takeoff-option { display: grid; gap: 2px; }
+.notam-takeoff-choice { display: grid; gap: 6px; }
+.notam-minima-group { display: grid; gap: 16px; }
+.notam-block-heading, .notam-climb { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.notam-field-label { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.notam-quantity { font-weight: 700; font-variant-numeric: tabular-nums; }
+.notam-climb-to, span.notam-quantity { display: inline-block; }
+.notam-readable .notam-alternative { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-validity, .notam-match-reason, .notam-raw { font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .notam-validity, .notam-match-reason, .notam-raw p { margin-block: 8px; }
+.notam-validity { display: grid; gap: 4px; }
+.notam-validity > div { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); column-gap: 8px; align-items: baseline; }
+.notam-validity-label { color: var(--text-secondary); }
+.notam-chart-note { margin-block: 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-raw summary {
   cursor: pointer;
   min-height: max(32px, var(--touch-target));
@@ -89,3 +142,10 @@
 @container plate-reader (max-height: 420px) {
   .plate-notams-list { max-height: 20cqh; padding-block: 8px; }
 }
+.notam-tfr-detail { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; color: var(--text-primary); }
+.notam-tfr-detail h3 { margin: 0; font-size: 14px; }
+.notam-tfr-detail section + section { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 12px; }
+.notam-tfr-detail p { margin: 6px 0; }
+.notam-tfr-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.notam-tfr-detail small { display: block; margin-top: 8px; font-size: 11px; color: var(--text-secondary); }
+.notam-tfr-detail a, .notam-tfr-status a { color: var(--text-primary); }

@@ -13,7 +13,7 @@ import { landingShards, packagedLandingManifest } from '../src/layers/glide/land
 import { prepareHeatScope } from '../src/layers/glide/landing-scope';
 import { landingSources } from '../src/layers/glide/landing-sources';
 import { createLandingDisplayWorker } from '../src/layers/glide/landing-display';
-import { landingHeatImage } from '../src/layers/glide/landing-heat';
+import { composeLandingHeatCells } from '../src/layers/glide/landing-heat-composition';
 import { project, type Point } from '../src/core/geo/route-corridor';
 import { prepareRegionGlide, glideFilesIncluded } from '../src/offline/glide';
 import { RegionDownloads, type DownloadPlan } from '../src/offline/downloads';
@@ -123,7 +123,7 @@ test('route browsing reads only numeric overview; ranges acquire detail and pres
     segments: [[project([-120.03, 35]), project([-119.97, 35])]] as [Point, Point][], ranges: { type: 'FeatureCollection' as const, features: [] } };
   let result = await worker.query(request);
   for (let i = 0; result.more && i < 10; i++) result = await worker.query(request);
-  assert.ok(result.heat?.shadedCells);
+  assert.ok(result.status.densityCells);
   assert.equal(cache.requests.some(url => url.includes('.gld')), false, 'route views do not acquire detail');
   const fetched = cache.requests.length;
   const warm = await worker.query({ ...request, renderedKey: result.renderKey });
@@ -138,8 +138,8 @@ test('numeric density fractions affect opacity and scopes choose the pinned edit
   const cells = new Uint8Array(256 * 256 * 3);
   for (let i = 0; i < cells.length; i += 3) { cells[i] = 16; cells[i + 2] = 255; }
   const heat = { density: true, extent: [0, 0, 1, 1] as Bounds, width: 256, height: 256, cells, flags: 0 };
-  const bounds: Bounds = [-.1, -.1, .1, .1], route: [Point, Point][] = [[project([-1, 0]), project([1, 0])]];
-  const image = landingHeatImage([heat], bounds, 10, route);
+  const route: [Point, Point][] = [[project([-1, 0]), project([1, 0])]];
+  const image = composeLandingHeatCells([heat], { left: .4999, top: .4999, width: 16, height: 16, step: .00001 }, route);
   assert.ok(image.shadedCells > 0);
   assert.equal(Math.max(...image.rgba.filter((_, i) => i % 4 === 3)), Math.round(64 + 160 * Math.sqrt(16 / 255)));
   const old = source('saved'), current = source('latest'), saved = plan(old);
@@ -164,8 +164,10 @@ test('zooming out over summaries cached at several resolutions does not inflate 
   const reads = cache.requests.length;
   const overview = { ...request, zoom: 6, discover: false };
   const actual = await mixed.query(overview), expected = await single.query(overview);
-  assert.ok(expected.heat?.shadedCells);
-  assert.deepEqual(actual.heat, expected.heat, 'warming a child tile must not add its density again over its resident parent');
+  assert.ok(expected.status.densityCells);
+  assert.ok(actual.status.densityCells);
+  const maxAlpha = (result: typeof actual) => result.heat!.reduce((max, tile) => tile.levels![0]!.rgba.reduce((m, a, i) => i % 4 === 3 ? Math.max(m, a) : m, max), 0);
+  assert.equal(maxAlpha(actual), maxAlpha(expected), 'parent and child fractions must not add together');
   assert.equal(cache.requests.length, reads, 'overview rendering uses only resident grids');
 });
 

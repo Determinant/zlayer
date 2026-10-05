@@ -1,0 +1,251 @@
+{
+  "description": "FAA NMS same-revision FDC renderings captured October 5, 2026. Historical source data for collector regression only; no credentials or deployment metadata.",
+  "pairs": [
+    {
+      "previous": {
+        "id": "6754522463219859",
+        "sourceId": "NMS_ID_6754522463219859",
+        "classification": "FDC",
+        "number": "7442",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "FCM"
+        ],
+        "icaoLocations": [
+          "KFCM"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "FLYING CLOUD, MINNEAPOLIS, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7442 FCM SID FLYING CLOUD, MINNEAPOLIS, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "2fe3bb3f339a183a8915e7558e0afd5ac6e27eda6df1fee0ae795f81b181bbff"
+      },
+      "next": {
+        "id": "6754522463219859",
+        "sourceId": "NMS_ID_6754522463219859",
+        "classification": "FDC",
+        "number": "7442",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "FCM"
+        ],
+        "icaoLocations": [
+          "KFCM"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID FLYING CLOUD, MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7442 FCM SID FLYING CLOUD, MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZMP/QPDCH/I/NBO/A/000/999/4449N09327W005\nA) KFCM\nB) 2305232116\nC) 2401022116EST\nE) FCM FLYING CLOUD, MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "89e3e425b7105965bbb4a06427f5763aa7d3c893a6af8b1169cbf7f8c2a00f6f"
+      }
+    },
+    {
+      "previous": {
+        "id": "3684871187506906",
+        "sourceId": "NMS_ID_3684871187506906",
+        "classification": "FDC",
+        "number": "7443",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ANE"
+        ],
+        "icaoLocations": [
+          "KANE"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "ANOKA COUNTY/BLAINE (JANES FLD), MINNEAPOLIS, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7443 ANE SID ANOKA COUNTY/BLAINE (JANES FLD), MINNEAPOLIS, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "330699e8f3ac039e80ba9f491ea28ae7327e1fcb3baee13e5e47ae9a93dcafd4"
+      },
+      "next": {
+        "id": "3684871187506906",
+        "sourceId": "NMS_ID_3684871187506906",
+        "classification": "FDC",
+        "number": "7443",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ANE"
+        ],
+        "icaoLocations": [
+          "KANE"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID ANOKA COUNTY/BLAINE (JANES FLD), MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7443 ANE SID ANOKA COUNTY/BLAINE (JANES FLD), MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZMP/QPDCH/I/NBO/A/000/999/4508N09312W005\nA) KANE\nB) 2305232116\nC) 2401022116EST\nE) ANE ANOKA COUNTY/BLAINE (JANES FLD), MINNEAPOLIS, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "ef60943babf300ac5f64090781127c0da3b3f23e336ea40940c194f41e17130b"
+      }
+    },
+    {
+      "previous": {
+        "id": "5758532556805322",
+        "sourceId": "NMS_ID_5758532556805322",
+        "classification": "FDC",
+        "number": "7445",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "STP"
+        ],
+        "icaoLocations": [
+          "KSTP"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "ST PAUL DOWNTOWN HOLMAN FLD, ST PAUL, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7445 STP SID ST PAUL DOWNTOWN HOLMAN FLD, ST PAUL, MN. ROCHESTER ONE DEPARTURE... WATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS, ALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "c732cd29f91b86ded8a60ded01a9b3b9de9378f8709d47b17356ee6c2d7c2038"
+      },
+      "next": {
+        "id": "5758532556805322",
+        "sourceId": "NMS_ID_5758532556805322",
+        "classification": "FDC",
+        "number": "7445",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "STP"
+        ],
+        "icaoLocations": [
+          "KSTP"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791224820000,
+        "updatedAt": 1791224820000,
+        "sourceUpdatedAt": "2026-10-05T18:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791309600000,
+        "endsAt": 1791324000000,
+        "effectiveStart": "202610061800",
+        "effectiveEnd": "202610062200",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID ST PAUL DOWNTOWN HOLMAN FLD, ST PAUL, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7445 STP SID ST PAUL DOWNTOWN HOLMAN FLD, ST PAUL, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME OUT OF SERVICE. 2610061800-2610062200EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZMP/QPDCH/I/NBO/A/000/999/4456N09303W005\nA) KSTP\nB) 2305232117\nC) 2401022117EST\nE) STP ST PAUL DOWNTOWN HOLMAN FLD, ST PAUL, MN.\nROCHESTER ONE DEPARTURE...\nWATERLOO TRANSITION NA EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nALO VOR/DME U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "40c7a3556f11b65368d321cf187b81c3b1e203c3b13bf86e0f697de5a6cc8105"
+      }
+    }
+  ]
+}

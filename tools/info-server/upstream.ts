@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
 import { UpstreamQueue } from './upstream-queue';
+import { retryAfterAt } from './retry-after';
 
 export type Payload = { body: Buffer; status: number; headers: Record<string, string>; checkedAt: number; sha256: string };
 export const digest = (body: Uint8Array) => createHash('sha256').update(body).digest('hex');
@@ -20,9 +21,8 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
       } });
       try {
         if (response.status === 429 || response.status === 503) {
-          const retry = response.headers.get('retry-after'), numeric = Number(retry);
-          const seconds = retry && Number.isFinite(numeric) ? numeric : retry ? (Date.parse(retry) - Date.now()) / 1000 : 30;
-          throw queue.backoff(Date.now() + Math.min(300, Math.max(5, Number.isFinite(seconds) ? seconds : 30)) * 1000);
+          const now = Date.now();
+          throw queue.backoff(Math.max(now + 5000, retryAfterAt(response.headers.get('retry-after'), now) ?? now + 30_000));
         }
         const emptyReport = response.status === 204 && resource.kind === 'json' && resource.upstream === 'awc' &&
           ['/api/data/metar', '/api/data/taf'].includes(new URL(resource.url).pathname);

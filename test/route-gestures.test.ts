@@ -803,6 +803,49 @@ test('route changes during a drag never apply the old token index to the new pla
   assert.equal(map.touchZoomRotate.enabled, true);
 });
 
+test('workspace TFR inspection shares context-menu and long-press suppression without Routes', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fixture = setup(t);
+  fixture.gestures.destroy();
+  let inspections = 0, points = 0, menus = 0;
+  const actions: import('../src/core/map/selection').MapContextAction[][] = [];
+  const registry = new PluginRegistry<{ notams: import('../src/layers/notams/public').NotamsApi }>();
+  const provider = registry.registration('notams', { publicApi: scope => ({
+    state: createLayerStore({ airports: {}, now: 0 }), charted: createLayerStore([]),
+    retain: () => () => {}, previewChart: () => ({ update() {}, release() {} }), retry() {},
+    contextActions: scope.command(() => [{ id: 'notams:inspect-tfr', label: 'Inspect TFRs',
+      select: scope.command(() => { inspections++; }) }]),
+  }) });
+  provider.activate();
+  const input = createLayerInput<MapSelectionInput>();
+  input.set({ resolveFeature: value => value, onSelect: () => { points++; },
+    onChooseNearby: (_features, _point, offered = []) => { menus++; actions.push(offered); } });
+  const map = fixture.map as unknown as MapLibreMap;
+  const selection = createSelectionContribution(input, scope => registry.forScope(scope), {
+    map, signal: new AbortController().signal, preserveView: true, interactiveLayerIds: () => [],
+    occupiedRects: () => [], targetBearing: () => 0, run: (_id, action) => action(), reportError: error => { throw error; },
+  });
+  try {
+    selection.mount(map);
+    fixture.click();
+    assert.equal(inspections, 1); assert.equal(points, 0);
+    fixture.mouse('contextmenu');
+    assert.equal(menus, 1); assert.equal(inspections, 1);
+    assert.equal(actions[0]![0]!.id, 'notams:inspect-tfr');
+    actions[0]![0]!.select(); assert.equal(inspections, 2);
+    fixture.touch('touchstart', 1);
+    t.mock.timers.tick(550);
+    fixture.touch('touchend', 0);
+    fixture.click();
+    assert.equal(menus, 2); assert.equal(inspections, 2); assert.equal(points, 0);
+    fixture.click(); assert.equal(inspections, 3);
+    provider.deactivate();
+    fixture.click(); assert.equal(points, 1); assert.equal(inspections, 3);
+    provider.activate();
+    fixture.click(); assert.equal(inspections, 4);
+  } finally { selection.unmount(); provider.deactivate(); }
+});
+
 test('workspace retry restores route gestures after an initial snapshot failure without remounting', t => {
   const feature = { ...navigation.features[3]!, layer: { id: 'fixes' } } as unknown as MapGeoJSONFeature;
   const fixture = setup(t, [feature]);

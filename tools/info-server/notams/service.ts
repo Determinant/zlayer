@@ -4,16 +4,24 @@ import { readFile, rm } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import { isNotamRecord, NOTAM_AIRPORT_MAX_RECORDS, NOTAM_REFRESH_MS, NOTAM_STALE_MS,
-  type NotamAirportQuery, type NotamAirportSnapshot, type NotamEnvironment, type NotamFeedStatus, type NotamRecord } from '@zlayer/contracts';
+  type NotamAirportQuery, type NotamAirportSnapshot, type NotamEnvironment, type NotamFeedStatus, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { workerJob } from '../worker-job';
 import { createNotamSource, type NotamCredentials } from './client';
 import { NotamError, notamError } from './error';
 import { NOTAM_DAY_MS, NotamStore, type NotamGeneration } from './store';
-import { compareNotamRevision, mergeSameNotamRevision, NotamRevisionConflict } from './revision';
+import { collectNotamRecords, rebaseNotamRecords, NO_NOTAM_ISSUES } from './collection';
 
 export type NotamOptions = { enabled: boolean; environment?: NotamEnvironment; directory: string;
   credentials?: NotamCredentials; configurationError?: boolean };
 const OVERLAP_MS = 10 * 60_000;
+function boundedUnion<T extends { id: string }>(groups: readonly (readonly T[])[], limit: number): T[] {
+  const found = new Map<string, T>();
+  for (const group of groups) for (const entry of group) {
+    found.set(entry.id, entry);
+    if (found.size > limit) throw new NotamError('airport-size-limit');
+  }
+  return [...found.values()];
+}
 export async function notamOptionsFromEnv(env: NodeJS.ProcessEnv): Promise<NotamOptions> {
   const directory = resolve(env.NOTAMS_STATE_DIR ?? '.cache/notams');
   if (env.NOTAMS_ENABLED !== 'true') return { enabled: false, directory };
@@ -29,50 +37,25 @@ export async function notamOptionsFromEnv(env: NodeJS.ProcessEnv): Promise<Notam
   } catch { return { enabled: true, environment, directory, configurationError: true }; }
 }
 
-export function mergeNotamRecords(previous: readonly NotamRecord[], updates: readonly NotamRecord[]): readonly NotamRecord[] {
-  if (!updates.length) return previous;
-  const records = new Map(previous.map(record => [record.id, record]));
-  let changed = false;
-  let conflict: NotamRevisionConflict | undefined;
-  for (let next of updates) {
-    if (next.lifecycle === 'unknown') throw new NotamError('unsupported-lifecycle');
-    const old = records.get(next.id);
-    if (old) {
-      const order = compareNotamRevision(next, old);
-      if (order < 0) continue;
-      if (!order && next.revision !== old.revision) {
-        try { next = mergeSameNotamRevision(old, next); }
-        catch (cause) {
-          if (!(cause instanceof NotamRevisionConflict)) throw cause;
-          if (!conflict) conflict = cause;
-          else if (conflict.related.length < 31) conflict.related.push(cause);
-          continue;
-        }
-      }
-      if (next.revision === old.revision) continue;
-    }
-    records.set(next.id, next); changed = true;
-  }
-  if (conflict) throw conflict;
-  if (records.size > 150_000) throw new NotamError('record-limit');
-  return changed ? [...records.values()].sort((a, b) => a.id.localeCompare(b.id)) : previous;
-}
-
 export function createNotamService(options: NotamOptions | undefined,
-  dependencies: { signal: AbortSignal; fetch?: typeof fetch; now?: () => number; log?: (message: string) => void }) {
+  dependencies: { signal: AbortSignal; fetch?: typeof fetch; now?: () => number; log?: (message: string) => void;
+    wait?: (milliseconds: number, signal: AbortSignal) => Promise<void> }) {
+  const lifetime = new AbortController(), signal = AbortSignal.any([dependencies.signal, lifetime.signal]);
   const now = dependencies.now ?? Date.now, enabled = options?.enabled ?? false;
   const environment = options?.environment ?? null;
   const configurationValid = enabled && !!environment && !!options?.credentials && !options.configurationError;
   const store = configurationValid ? new NotamStore(join(options!.directory, environment!), environment!, now) : undefined;
-  const source = store ? createNotamSource({ environment: environment!, credentials: options!.credentials!, store, ...dependencies }) : undefined;
+  const source = store ? createNotamSource({ environment: environment!, credentials: options!.credentials!, store, ...dependencies, signal }) : undefined;
   let current: NotamGeneration | undefined, candidate: NotamGeneration | undefined;
   let domestic = new Map<string, NotamRecord[]>(), icao = new Map<string, NotamRecord[]>();
+  let domesticIssues = new Map<string, NotamSourceIssue[]>(), icaoIssues = new Map<string, NotamSourceIssue[]>();
+  let unscopedIssues: NotamSourceIssue[] = [];
   let error: string | null = enabled && !configurationValid ? 'configuration-error' : null;
   let initialized = false, restoring: Promise<void> | undefined, pending: Promise<void> | undefined, stopped = false;
   let retryAt = 0, recoveryAttempted = false;
-  const validSignal = () => { dependencies.signal.throwIfAborted(); if (stopped) throw new NotamError('stopping'); };
+  const validSignal = () => { signal.throwIfAborted(); if (stopped) throw new NotamError('stopping'); };
   function index(generation: NotamGeneration) {
-    if (current?.records === generation.records) { current = generation; return; }
+    if (current?.records === generation.records && current?.issues === generation.issues) { current = generation; return; }
     const byDomestic = new Map<string, NotamRecord[]>(), byIcao = new Map<string, NotamRecord[]>();
     for (const record of generation.records) {
       if (record.lifecycle === 'cancelled' || record.lifecycle === 'cancellation') continue;
@@ -80,19 +63,30 @@ export function createNotamService(options: NotamOptions | undefined,
         for (const code of codes) { const group = map.get(code) ?? []; group.push(record); map.set(code, group); }
       }
     }
+    domesticIssues = new Map(); icaoIssues = new Map(); unscopedIssues = [];
+    for (const issue of generation.issues ?? NO_NOTAM_ISSUES) {
+      if (issue.unscoped) { unscopedIssues.push(issue); continue; }
+      for (const [codes, map] of [[issue.locations, domesticIssues], [issue.icaoLocations, icaoIssues]] as const) {
+        for (const code of codes) { const group = map.get(code) ?? []; group.push(issue); map.set(code, group); }
+      }
+    }
     domestic = byDomestic; icao = byIcao; current = generation;
   }
   function failure(cause: unknown) {
     error = notamError(cause); retryAt = Math.max(now() + NOTAM_REFRESH_MS, cause instanceof NotamError ? cause.retryAt ?? 0 : 0);
-    dependencies.log?.(`NOTAM ${error}${cause instanceof NotamRevisionConflict ? ` id=${cause.next.id} fields=${cause.fields.join(',')}` : ''}`);
+    dependencies.log?.(`NOTAM ${error}`);
   }
   function status(): NotamFeedStatus {
     const fresh = current && now() >= current.checkedAt && now() - current.checkedAt < NOTAM_STALE_MS;
-    const continuity = current?.complete && now() >= current.watermark && now() - current.watermark + OVERLAP_MS < NOTAM_DAY_MS ? 'complete' : 'incomplete';
+    const collectionContinuity = current?.complete && now() >= current.watermark && now() - current.watermark + OVERLAP_MS < NOTAM_DAY_MS ? 'complete' : 'incomplete';
+    const unresolvedRecords = current?.issues?.length ?? 0;
+    const continuity = collectionContinuity === 'complete' && !unresolvedRecords ? 'complete' : 'incomplete';
     return { enabled, environment, state: !enabled ? 'disabled' : !configurationValid ? 'unavailable'
       : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || continuity !== 'complete' ? 'degraded' : 'ready',
       generation: current?.generation ?? null, checkedAt: current?.checkedAt ?? null, watermark: current?.watermark ?? null,
-      fullSyncAt: current?.fullSyncAt ?? null, recordCount: current?.records.length ?? 0, continuity, error: current?.incompleteReason ?? error,
+      fullSyncAt: current?.fullSyncAt ?? null, recordCount: (current?.records.length ?? 0) + unresolvedRecords,
+      collectionContinuity, unresolvedRecords, unscopedRecords: unscopedIssues.length,
+      continuity, error: current?.incompleteReason ?? error ?? (unresolvedRecords ? 'unresolved-records' : null),
       nextAttemptAt: store && initialized ? Math.max(retryAt, store.nextDataAt, !current && !candidate ? store.nextBulkAt : 0) : null };
   }
   function restore(): Promise<void> {
@@ -116,16 +110,16 @@ export function createNotamService(options: NotamOptions | undefined,
       // The bundle emits workers alongside main.js, while this source lives in notams/.
       const worker = import.meta.url.endsWith('.ts') ? module : new URL('./notams-worker.js', import.meta.url);
       let summary: { snapshotAt: number; count: number; bytes: number };
-      try { summary = await workerJob(worker, { path, output, kind, requestedAt }, dependencies.signal); }
+      try { summary = await workerJob(worker, { path, output, kind, requestedAt }, signal); }
       catch (cause) { throw new NotamError(cause instanceof Error && /^[a-z][a-z0-9-]{0,63}$/.test(cause.message) ? cause.message : 'parse-failed'); }
       validSignal();
       if (summary.snapshotAt > now() + 30_000 || summary.snapshotAt < now() - NOTAM_DAY_MS) throw new NotamError('invalid-source-boundary');
-      const records: NotamRecord[] = [], seen = new Set<string>(), stream = createReadStream(output);
+      const records: NotamRecord[] = [], stream = createReadStream(output);
       try {
         for await (const line of createInterface({ input: stream, crlfDelay: Infinity })) {
           validSignal(); const record: unknown = JSON.parse(line);
-          if (!isNotamRecord(record) || record.updatedAt > now() + 30_000 || kind === 'bulk' && seen.has(record.id)) throw new NotamError('invalid-record');
-          seen.add(record.id); records.push(record);
+          if (!isNotamRecord(record) || record.updatedAt > now() + 30_000) throw new NotamError('invalid-record');
+          records.push(record);
           if (records.length > summary.count) throw new NotamError('incomplete-collection');
         }
       } finally { stream.destroy(); }
@@ -147,13 +141,15 @@ export function createNotamService(options: NotamOptions | undefined,
   }
   async function applyDelta(base: NotamGeneration) {
     const delta = await acquire('delta', base.watermark - OVERLAP_MS); validSignal();
-    if (current && delta.requestedAt < current.watermark) throw new NotamError('invalid-source-boundary');
-    const merged = mergeNotamRecords(base.records, delta.records);
+    if (delta.requestedAt < base.watermark || current && delta.requestedAt < current.watermark) throw new NotamError('invalid-source-boundary');
+    const merged = collectNotamRecords(base, delta.records);
     const expired = (record: NotamRecord) => ['cancelled', 'cancellation'].includes(record.lifecycle) && record.updatedAt < now() - 2 * NOTAM_DAY_MS;
-    const records = merged.some(expired) ? merged.filter(record => !expired(record)) : merged;
+    const records = merged.records.some(expired) ? merged.records.filter(record => !expired(record)) : merged.records;
     const { incompleteReason: _reason, ...verified } = base;
-    const next = await store!.publish({ ...verified, records, checkedAt: delta.requestedAt, watermark: delta.requestedAt,
+    const next = await store!.publish({ ...verified, records, issues: merged.issues ?? NO_NOTAM_ISSUES,
+      checkedAt: delta.requestedAt, watermark: delta.requestedAt,
       complete: true });
+    if ((next.issues?.length ?? 0) !== (current?.issues?.length ?? 0)) dependencies.log?.(`NOTAM unresolved-records count=${next.issues?.length ?? 0}`);
     validSignal(); index(next); candidate = undefined; error = null; recoveryAttempted = false;
   }
   async function round() {
@@ -164,8 +160,9 @@ export function createNotamService(options: NotamOptions | undefined,
     // so a failed bulk attempt still permits ordinary budgeted replay afterward.
     if (now() >= store!.nextBulkAt) {
       const bulk = await acquire('bulk'); validSignal();
-      const records = mergeNotamRecords([], bulk.records);
-      candidate = await store!.publish({ schemaVersion: 1, environment: environment!, records,
+      const collection = current ? rebaseNotamRecords(current, bulk.records, bulk.snapshotAt >= current.watermark ? bulk.snapshotAt : undefined)
+        : collectNotamRecords({ records: [] }, bulk.records);
+      candidate = await store!.publish({ schemaVersion: 2, environment: environment!, ...collection,
         checkedAt: bulk.snapshotAt, watermark: bulk.snapshotAt, baselineAt: bulk.snapshotAt,
         fullSyncAt: bulk.requestedAt, complete: false }, true);
       error = null; return;
@@ -181,7 +178,6 @@ export function createNotamService(options: NotamOptions | undefined,
         // A failed replacement does not discredit the live dataset. Its next
         // budgeted round continues live deltas, rather than retrying a bad bridge.
         if (liveCanDelta()) await discardCandidate();
-        else if (cause instanceof NotamRevisionConflict || cause instanceof NotamError && cause.code === 'unsupported-lifecycle') await invalidate(cause);
         throw cause;
       }
       return;
@@ -191,34 +187,33 @@ export function createNotamService(options: NotamOptions | undefined,
       if (!inDeltaWindow(current)) throw new NotamError('delta-window-exceeded', store!.nextBulkAt);
       await applyDelta(current);
     } catch (cause) {
-      if (cause instanceof NotamError && ['unsupported-lifecycle', 'revision-conflict', 'delta-window-exceeded'].includes(cause.code)) {
+      if (cause instanceof NotamError && cause.code === 'delta-window-exceeded') {
         await invalidate(cause);
       }
       throw cause;
     }
   }
   function refresh() {
-    if (!initialized || !store || pending || stopped || dependencies.signal.aborted || now() < Math.max(retryAt, store.nextDataAt)) return;
+    if (!initialized || !store || pending || stopped || signal.aborted || now() < Math.max(retryAt, store.nextDataAt)) return;
     pending = round().catch(async cause => {
-      if (dependencies.signal.aborted || stopped) return;
+      if (signal.aborted || stopped) return;
       failure(cause);
-      if (cause instanceof NotamRevisionConflict) {
-        try { await store.recordConflict(cause); }
-        catch { dependencies.log?.('NOTAM conflict-diagnostic-unavailable'); }
-      }
     }).finally(() => { pending = undefined; });
   }
   return {
     restore, refresh, get status() { return status(); },
     readAirport(query: NotamAirportQuery): NotamAirportSnapshot | undefined {
       if (!current) return undefined;
-      const found = [...(query.faaId ? domestic.get(query.faaId) ?? [] : []), ...(query.icaoId ? icao.get(query.icaoId) ?? [] : [])];
-      const records = [...new Map(found.map(r => [r.id, r])).values()];
-      if (records.length > NOTAM_AIRPORT_MAX_RECORDS) throw new NotamError('airport-size-limit');
-      return { schemaVersion: 1, query, feed: status(), scope: 'airport-location',
-        associationCoverage: query.faaId ? 'complete' : 'incomplete', records };
+      const records = boundedUnion([query.faaId ? domestic.get(query.faaId) ?? [] : [],
+        query.icaoId ? icao.get(query.icaoId) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS);
+      const issues = boundedUnion([unscopedIssues, query.faaId ? domesticIssues.get(query.faaId) ?? [] : [],
+        query.icaoId ? icaoIssues.get(query.icaoId) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS - records.length);
+      const feed = status();
+      return { schemaVersion: 1, query, feed, scope: 'airport-location',
+        associationCoverage: query.faaId ? 'complete' : 'incomplete', records, issues,
+        contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
     },
     async settled() { await pending; },
-    async close() { stopped = true; await restoring; await pending; await store?.close(); },
+    async close() { stopped = true; lifetime.abort(); await restoring; await pending; await store?.close(); },
   };
 }

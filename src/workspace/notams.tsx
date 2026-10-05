@@ -14,8 +14,17 @@ export function useNotamsApi(registry: PluginRegistry<WorkspacePluginApis>): Not
     registry.forScope(scope).watch('notams', (provider, connection) => {
       if (!provider) { setApi(undefined); return; }
       const state = createLayerStore(provider.state.getSnapshot());
+      const charted = createLayerStore(provider.charted.getSnapshot());
       connection.observe(provider.state, state.publish);
-      setApi({ state, retain: (query, online) => connection.signal.aborted ? () => {} : provider.retain(query, online),
+      connection.observe(provider.charted, charted.publish);
+      connection.add(() => charted.publish([]));
+      setApi({ state, charted, contextActions: point => connection.signal.aborted ? [] : provider.contextActions(point),
+        retain: (query, online) => connection.signal.aborted ? () => {} : provider.retain(query, online),
+        previewChart: () => {
+          if (connection.signal.aborted) return { update() {}, release() {} };
+          const preview = provider.previewChart(), release = connection.add(preview.release);
+          return { update(records) { if (!connection.signal.aborted) preview.update(records); }, release };
+        },
         retry: () => { if (!connection.signal.aborted) provider.retry(); } });
     });
     return () => scope.dispose();
