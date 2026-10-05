@@ -33,6 +33,7 @@ export function mergeNotamRecords(previous: readonly NotamRecord[], updates: rea
   if (!updates.length) return previous;
   const records = new Map(previous.map(record => [record.id, record]));
   let changed = false;
+  let conflict: NotamRevisionConflict | undefined;
   for (let next of updates) {
     if (next.lifecycle === 'unknown') throw new NotamError('unsupported-lifecycle');
     const old = records.get(next.id);
@@ -40,12 +41,19 @@ export function mergeNotamRecords(previous: readonly NotamRecord[], updates: rea
       const order = compareNotamRevision(next, old);
       if (order < 0) continue;
       if (!order && next.revision !== old.revision) {
-        next = mergeSameNotamRevision(old, next);
+        try { next = mergeSameNotamRevision(old, next); }
+        catch (cause) {
+          if (!(cause instanceof NotamRevisionConflict)) throw cause;
+          if (!conflict) conflict = cause;
+          else if (conflict.related.length < 31) conflict.related.push(cause);
+          continue;
+        }
       }
       if (next.revision === old.revision) continue;
     }
     records.set(next.id, next); changed = true;
   }
+  if (conflict) throw conflict;
   if (records.size > 150_000) throw new NotamError('record-limit');
   return changed ? [...records.values()].sort((a, b) => a.id.localeCompare(b.id)) : previous;
 }

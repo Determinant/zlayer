@@ -132,7 +132,10 @@ export class NotamStore {
     this.assertHeld();
     const summary = { schemaVersion: 1, environment: this.environment, detectedAt: this.now(),
       id: conflict.next.id, fields: conflict.fields, previousRevision: conflict.previous.revision, nextRevision: conflict.next.revision };
-    const details = JSON.stringify({ ...summary, previous: conflict.previous, next: conflict.next });
+    const related = conflict.related.map(c => ({ id: c.next.id, fields: c.fields, previous: c.previous, next: c.next }));
+    let details = JSON.stringify({ ...summary, previous: conflict.previous, next: conflict.next, related });
+    if (Buffer.byteLength(details) > 8 * 1024 * 1024) details = JSON.stringify({ ...summary,
+      previous: conflict.previous, next: conflict.next, related: related.map(c => ({ id: c.id, fields: c.fields, recordsOmitted: true })) });
     // One private diagnostic, never part of an airport response or a source archive.
     await atomicNotamFile(join(this.directory, 'conflict.json'), Buffer.byteLength(details) <= 8 * 1024 * 1024
       ? details : JSON.stringify({ ...summary, recordsOmitted: true }));

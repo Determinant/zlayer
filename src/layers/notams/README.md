@@ -502,7 +502,12 @@ remain an optional additional check after their request accounting is qualified.
    override a populated value. Alternate renderings can also differ in issue time;
    retain the earliest supplied issue time without changing update ordering,
    effective times or freshness. Hash the combined normalized record. Never carry
-   old translations into a newer revision. All other notice fields, including body,
+   old translations into a newer revision. An E)-only body and a full ICAO body
+   reconcile only when both records retain the identical complete ICAO translation
+   and its E)-onward content matches the short body. Retain the short body and the
+   complete raw translation, including any F)/G) suffix. Missing structured referred
+   metadata may be supplemented; two supplied references must agree. References
+   never identify another source ID for deletion. All other notice fields, including
    lifecycle and effective-time qualifiers, remain exact. Real disagreements still
    invalidate continuity.
    The current overlap is ten minutes, accommodating timestamp precision and
@@ -554,8 +559,11 @@ window failure; it must not replace a revision conflict merely because that
 conflict disabled live deltas. Legacy incomplete checkpoints without a reason
 report `incomplete-checkpoint` until a successful replay or a diagnosed failure.
 On a conflict, log only the source ID and changed field names. A single private
-`conflict.json` retains the two normalized records and their digests for diagnosis,
-bounded to 8 MiB; larger diagnostics retain metadata with `recordsOmitted: true`.
+`conflict.json` retains the first pair of normalized records and their digests,
+plus up to 31 other conflicting pairs from the same rejected batch. No part of
+that batch is published. The file remains bounded to 8 MiB; oversized additional
+pairs retain only IDs/field names, and oversized primary evidence retains metadata
+with `recordsOmitted: true`.
 Diagnostic storage failure cannot erase the feed failure or advance its watermark.
 The file is not served by the API or included in public source releases.
 Honor 429/503 backoff and `Retry-After`; retries consume budget.

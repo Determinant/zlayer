@@ -124,6 +124,41 @@ test('paired domestic and international renderings preserve raw variants without
       'retained populated qualifiers must remain constraints even when another rendering omitted them');
   }
 });
+test('full ICAO bodies reconcile only with an identical retained translation and preserve optional references', () => {
+  const text = 'RWY 09L CLSD\nCANCELED';
+  const icao = `A0043/26 NOTAMC A0042/26 Q) KZZZ/QMRLC////000/999/3700N12100W005 A) KTST B) 2610041159 E) ${text}`;
+  const previous = normalized(notice({ number: '0043', series: 'A', text, changeType: 'C',
+    referred: { series: 'A', number: '0042', year: '2026' }, translations: [{ type: 'OTHER:ICAO', text: icao }] }));
+  const next = normalized(notice({ ...previous, number: '43', referred: null, text: icao,
+    translations: [{ type: 'OTHER:ICAO', text: `<pre>\n${icao}\n</pre>` }] }));
+  const saved = [previous];
+  assert.equal(mergeNotamRecords(saved, [next]), saved);
+  const reversed = mergeNotamRecords([next], saved);
+  assert.equal(reversed[0]?.text, text); assert.deepEqual(reversed[0]?.referred, previous.referred);
+  assert.equal(reversed[0]?.lifecycle, 'cancellation');
+  assert.equal(mergeNotamRecords(reversed, [previous, next]), reversed);
+  for (const overrides of [
+    { referred: { series: 'A', number: '0041', year: '2026' } },
+    { translations: [] }, { text: icao.replace('09L', '09R') }, { changeType: 'N' },
+    { translations: [{ type: 'OTHER:ICAO', text: icao.replace('A0042/26', 'A0041/26') }] },
+  ]) assert.throws(() => mergeNotamRecords(saved, [normalized(notice({ ...next, ...overrides }))]), NotamRevisionConflict);
+});
+test('failed batches capture bounded conflict evidence without changing the input generation', async () => {
+  const previous = Array.from({ length: 40 }, (_, i) => notice({ id: String(i).padStart(16, '0'), sourceId: String(i).padStart(16, '0') }));
+  const original = structuredClone(previous);
+  let conflict: NotamRevisionConflict | undefined;
+  try { mergeNotamRecords(previous, previous.map(r => ({ ...r, revision: 'b'.repeat(64), text: 'Changed restriction' }))); }
+  catch (cause) { assert.ok(cause instanceof NotamRevisionConflict); conflict = cause; }
+  assert.ok(conflict); assert.equal(conflict.related.length, 31); assert.deepEqual(previous, original);
+  const directory = await mkdtemp(join(tmpdir(), 'notam-batch-conflicts-'));
+  const store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
+  try {
+    await store.restore(); await store.recordConflict(conflict);
+    const saved = JSON.parse(await readFile(join(directory, 'conflict.json'), 'utf8'));
+    assert.equal(saved.related.length, 31); assert.equal(saved.related[0].previous.id, previous[1]?.id);
+    assert.equal(saved.related[0].next.text, 'Changed restriction');
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
 test('observed FAA timestamp, translation, annotation and lifecycle variants normalize without losing meaning', () => {
   const base = aixm(notice({ text: 'IAP TEST.\nRNAV (GPS) RWY 9, AMDT 2...\n2610041159-2610051200EST' }));
   const source = base.replaceAll('2026-10-04T11:59:00.000Z', '2026-10-04T11:59:00.123456789Z')

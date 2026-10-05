@@ -39,15 +39,33 @@ function compatibleIcao(a: string, b: string): boolean {
   return before.length === 8 && after.length === 8 && before.every((value, i) => value === after[i] ||
     i >= 2 && i <= 4 && (!value || !after[i]));
 }
+function equivalentBody(previous: NotamRecord, next: NotamRecord): string | undefined {
+  if (previous.text === next.text) return previous.text;
+  const before = translationsByType(previous).get('OTHER:ICAO'), after = translationsByType(next).get('OTHER:ICAO');
+  // Some source records put the entire ICAO translation into event:text. Only
+  // reconcile it with an E)-only body when both records retain that exact complete
+  // translation, including its header, reference, timing and any F)/G) suffix.
+  for (const translation of before ?? []) {
+    if (!after?.has(translation)) continue;
+    if (!/^[A-Z]\d{4}\/\d{2} NOTAM[NRC](?: [A-Z]\d{4}\/\d{2})? Q\) \S+ A\) /.test(translation)) continue;
+    const at = translation.indexOf(' E) '), body = at < 0 ? undefined : translation.slice(at + 4);
+    if (!body) continue;
+    if (translationContent(previous.text) === body && translationContent(next.text) === translation) return previous.text;
+    if (translationContent(next.text) === body && translationContent(previous.text) === translation) return next.text;
+  }
+  return undefined;
+}
 // Source ID/time spellings already participate in canonical matching/ordering.
-// Other operational fields remain exact, including body, lifecycle and timing.
+// Other operational content remains exact, including lifecycle and timing.
 const contentFields = ['id', 'classification', 'number', 'series', 'year', 'locations', 'icaoLocations', 'accountability',
   'updatedAt', 'canceledAt', 'referred', 'startsAt', 'endsAt', 'endKind', 'effectiveStart', 'effectiveEnd',
   'schedule', 'changeType', 'lifecycle', 'text', 'translations', 'sequence', 'correction'] as const satisfies readonly (keyof NotamRecord)[];
 export function notamContentDifferences(previous: NotamRecord, next: NotamRecord) {
   return contentFields.filter(field => {
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
+    if (field === 'text') return equivalentBody(previous, next) === undefined;
     if (field === 'referred') {
+      if (!previous.referred || !next.referred) return false;
       const content = (value: NotamRecord['referred']) => value && { ...value, number: numberContent(value.number) };
       return !isDeepStrictEqual(content(previous.referred), content(next.referred));
     }
@@ -75,14 +93,16 @@ export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord)
   // supplied issue time; never use this reconciliation to advance freshness.
   const issued = [previous.issuedAt, next.issuedAt].filter((time): time is number => time !== null);
   const issuedAt = issued.length ? Math.min(...issued) : null;
-  if (!added.length && issuedAt === previous.issuedAt) return previous;
+  const text = equivalentBody(previous, next)!, referred = previous.referred ?? next.referred;
+  if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred) return previous;
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, issuedAt, translations: [...previous.translations, ...added] });
+  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, translations: [...previous.translations, ...added] });
   if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
   return merged;
 }
 
 export class NotamRevisionConflict extends NotamError {
+  readonly related: NotamRevisionConflict[] = [];
   constructor(readonly previous: NotamRecord, readonly next: NotamRecord,
     readonly fields: ReturnType<typeof notamContentDifferences>) { super('revision-conflict'); }
 }

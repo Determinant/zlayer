@@ -47,7 +47,8 @@ export function aixm(record: NotamRecord = notice()): string {
   return `<m:AIXMBasicMessage xmlns:m="http://www.aixm.aero/schema/5.1/message" xmlns:g="http://www.opengis.net/gml/3.2"
     xmlns:a="http://www.aixm.aero/schema/5.1" xmlns:e="http://www.aixm.aero/schema/5.1/event" xmlns:f="http://www.aixm.aero/schema/5.1/extensions/FAA/FNSE" g:id="${record.sourceId}">
     <e:Event><e:timeSlice><e:EventTimeSlice><a:sequenceNumber>${record.sequence}</a:sequenceNumber><a:correctionNumber>${record.correction}</a:correctionNumber>
-    <e:textNOTAM><e:NOTAM><e:number>${record.number}</e:number><e:year>${record.year}</e:year><e:type>${record.changeType}</e:type>
+    <e:textNOTAM><e:NOTAM><e:number>${record.number}</e:number><e:series>${record.series}</e:series><e:year>${record.year}</e:year><e:type>${record.changeType}</e:type>
+    ${record.referred ? `<e:referredSeries>${record.referred.series}</e:referredSeries><e:referredNumber>${record.referred.number}</e:referredNumber><e:referredYear>${record.referred.year}</e:referredYear>` : ''}
     <e:issued>${new Date(record.issuedAt ?? record.updatedAt).toISOString()}</e:issued><e:location>${record.locations.join(' ')}</e:location>
     <e:effectiveStart>${record.effectiveStart}</e:effectiveStart><e:effectiveEnd>${record.effectiveEnd}</e:effectiveEnd><e:schedule>${escape(record.schedule)}</e:schedule><e:text>${escape(record.text)}</e:text>
     ${record.translations.map(t => `<e:translation><e:NOTAMTranslation><e:type>${t.type}</e:type><e:simpleText>${escape(t.text)}</e:simpleText></e:NOTAMTranslation></e:translation>`).join('')}
