@@ -485,9 +485,17 @@ remain an optional additional check after their request accounting is qualified.
    Compare the source timestamp through nanoseconds, then sequence and correction.
    The raw record digest includes original spellings; it is not a semantic revision
    number. At equal ordering, the demonstrated `NMS_ID_` alias and equivalent
-   update-time fractional-zero spellings do not make a conflict. Retain the saved
-   raw record for these equivalent duplicates. All other notice fields, including
-   text, translations, lifecycle and effective-time qualifiers, remain exact.
+   update-time fractional-zero spellings do not make a conflict. Decimal notice
+   and referred numbers compare without leading zero padding; composite identifiers
+   remain exact. Translations are optional representations grouped by type, not
+   an ordered list of required fields. Shared types must have the same text after
+   whitespace normalization and removal of the observed literal `<pre>` wrapper;
+   arbitrary markup, case and punctuation are not discarded. Missing types do not
+   withdraw previously supplied translations. Retain the earlier raw spellings,
+   append newly supplied types within the existing record limits, and hash the
+   combined normalized record. Never carry old translations into a newer revision.
+   All other notice fields, including body, lifecycle and effective-time qualifiers,
+   remain exact. Real disagreements still invalidate continuity.
    The current overlap is ten minutes, accommodating timestamp precision and
    delivery lag while remaining inside the 24-hour query window. It is not proof
    of an upper bound on FAA delivery latency.

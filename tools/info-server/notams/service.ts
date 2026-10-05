@@ -9,7 +9,7 @@ import { workerJob } from '../worker-job';
 import { createNotamSource, type NotamCredentials } from './client';
 import { NotamError, notamError } from './error';
 import { NOTAM_DAY_MS, NotamStore, type NotamGeneration } from './store';
-import { compareNotamRevision, notamContentDifferences, NotamRevisionConflict } from './revision';
+import { compareNotamRevision, mergeSameNotamRevision, NotamRevisionConflict } from './revision';
 
 export type NotamOptions = { enabled: boolean; environment?: NotamEnvironment; directory: string;
   credentials?: NotamCredentials; configurationError?: boolean };
@@ -33,16 +33,14 @@ export function mergeNotamRecords(previous: readonly NotamRecord[], updates: rea
   if (!updates.length) return previous;
   const records = new Map(previous.map(record => [record.id, record]));
   let changed = false;
-  for (const next of updates) {
+  for (let next of updates) {
     if (next.lifecycle === 'unknown') throw new NotamError('unsupported-lifecycle');
     const old = records.get(next.id);
     if (old) {
       const order = compareNotamRevision(next, old);
       if (order < 0) continue;
       if (!order && next.revision !== old.revision) {
-        const fields = notamContentDifferences(old, next);
-        if (fields.length) throw new NotamRevisionConflict(old, next, fields);
-        continue;
+        next = mergeSameNotamRevision(old, next);
       }
       if (next.revision === old.revision) continue;
     }

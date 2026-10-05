@@ -22,7 +22,7 @@ const attribute = (node: Element, uri: string, name: string) => Object.values(no
 const contentText = (node: Element): string => node.name === 'br' && node.uri === 'http://www.w3.org/1999/xhtml' ? '\n'
   : node.parts.map(part => typeof part === 'string' ? part : contentText(part)).join('');
 
-function recordWithRevision(facts: Omit<NotamRecord, 'revision'>): NotamRecord {
+export function recordWithRevision(facts: Omit<NotamRecord, 'revision'>): NotamRecord {
   facts = { ...facts, endKind: notamEndKind(facts) };
   return { ...facts, revision: createHash('sha256').update(JSON.stringify(facts)).digest('hex') };
 }

@@ -23,6 +23,14 @@ function generation(records: readonly NotamRecord[], time = NOTAM_NOW): Omit<Not
   return { schemaVersion: 1, environment: 'staging', records, complete: true,
     checkedAt: time, watermark: time, fullSyncAt: time, baselineAt: time };
 }
+function representationPair() {
+  const icao = { type: 'OTHER:ICAO', text: 'A0042/26 NOTAMN A) KTST B) 2610041159 C) 2610051200 E) RWY 09L CLSD' };
+  const previous = normalized(notice({ number: '0042', text: 'RWY 09L CLSD',
+    translations: [{ type: 'LOCAL_FORMAT', text: '!TST 10/042 TST RWY 09L CLSD 2610041159-2610051200' }, icao] }));
+  const next = normalized(notice({ number: '42', text: previous.text,
+    translations: [{ ...icao, text: `<pre>\n${icao.text.replaceAll(' ', '\n')}\n</pre>` }] }));
+  return { previous, next };
+}
 
 test('bounded AIXM parser uses namespaces, rejects truncated counts and retains source facts', () => {
   const records: NotamRecord[] = [], xml = bulkXml([notice()]);
@@ -67,6 +75,31 @@ test('equivalent source IDs and timestamp spellings do not conflict or replace r
   const conflict = normalized(notice({ sourceId: old.id, text: 'RWY 09L CLSD' }));
   assert.throws(() => mergeNotamRecords(previous, [conflict]), error => error instanceof NotamRevisionConflict &&
     error.fields.length === 1 && error.fields[0] === 'text' && error.previous === old && error.next === conflict);
+});
+test('same-revision padding and optional translation formats retain source text in either arrival order', () => {
+  const { previous, next } = representationPair(), saved = [previous];
+  assert.notEqual(previous.revision, next.revision);
+  assert.equal(mergeNotamRecords(saved, [next]), saved, 'a sparse rendering cannot erase the local translation');
+  const enriched = mergeNotamRecords([next], [previous]);
+  assert.equal(enriched[0]?.number, next.number, 'retain the first raw numeric spelling');
+  assert.deepEqual(enriched[0]?.translations, [...next.translations, previous.translations[0]]);
+  assert.notEqual(enriched[0]?.revision, next.revision, 'the digest must include added raw content');
+  assert.equal(mergeNotamRecords(enriched, [previous, next]), enriched, 'replay is idempotent');
+  const reordered = normalized(notice({ ...previous, translations: [...previous.translations].reverse() }));
+  assert.equal(mergeNotamRecords(saved, [reordered]), saved);
+  const corrected = normalized(notice({ ...next, updatedAt: NOTAM_NOW, text: 'RWY 09R CLSD' }));
+  assert.equal(mergeNotamRecords(saved, [corrected])[0], corrected, 'never carry translations into a newer revision');
+});
+test('representation tolerance still rejects changed notice content and bounds combined translations', () => {
+  const { previous, next } = representationPair();
+  for (const overrides of [
+    { number: '43' }, { number: '00/42' }, { text: 'RWY 09R CLSD' },
+    { effectiveEnd: '202610051300' }, { lifecycle: 'cancelled' as const },
+    { translations: [{ ...next.translations[0]!, text: next.translations[0]!.text.replace('09L', '09R') }] },
+    { translations: [{ type: 'OTHER:ICAO', text: '<div>different wording</div>' }] },
+  ]) assert.throws(() => mergeNotamRecords([previous], [normalized(notice({ ...next, ...overrides }))]), NotamRevisionConflict);
+  const many = (start: number) => normalized(notice({ translations: Array.from({ length: 5 }, (_, i) => ({ type: `OTHER:${i + start}`, text: 'Raw source' })) }));
+  assert.throws(() => mergeNotamRecords([many(0)], [many(5)]), /invalid-record/);
 });
 test('observed FAA timestamp, translation, annotation and lifecycle variants normalize without losing meaning', () => {
   const base = aixm(notice({ text: 'IAP TEST.\nRNAV (GPS) RWY 9, AMDT 2...\n2610041159-2610051200EST' }));
@@ -337,6 +370,37 @@ test('legacy incomplete checkpoints recover from an older verified generation wi
     assert.ok(service.status.watermark! > manifest.watermark);
     assert.equal(calls.length, 2); assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 780_000);
     assert.equal(JSON.parse(await readFile(join(directory, 'staging', 'budget.json'), 'utf8')).bulkAt, budget.bulkAt);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('a saved representation conflict recovers by full replay and stays healthy on the next delta', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-representation-replay-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const { previous, next } = representationPair();
+  const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
+  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([previous]));
+  await seed.invalidate('revision-conflict'); await seed.close();
+  const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
+  time += 3 * 60 * 60_000;
+  const calls: URL[] = [];
+  const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); calls.push(url); time += 1001;
+      return url.pathname === '/v1/auth/token'
+        ? Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' })
+        : Response.json({ status: 'Success', data: { aixm: [aixm(next)] } });
+    } });
+  try {
+    await service.restore(); assert.equal(service.status.error, 'revision-conflict');
+    service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete'); assert.equal(service.status.error, null);
+    assert.equal(calls.length, 2); assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 600_000);
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records, [previous]);
+    const checkedAt = service.status.checkedAt!;
+    time += 180_000; service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.ok(service.status.checkedAt! > checkedAt);
+    assert.equal(calls.length, 3); assert.equal(JSON.parse(await readFile(budgetPath, 'utf8')).bulkAt, budget.bulkAt);
+    assert.ok(calls.every(url => !url.pathname.endsWith('/il')));
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
