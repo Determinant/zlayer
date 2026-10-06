@@ -32,7 +32,8 @@ test('cached reports share saved gzip across readers, HEAD and restart, and repa
   const directory = await mkdtemp(join(tmpdir(), 'weather-delivery-'));
   let calls = 0, compressions = 0, revision = 1;
   const options = { directory, startUpdates: false, spacing: 0, fetch: async () => {
-    calls++; return Response.json({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { revision, text: 'weather'.repeat(100_000) } }] });
+    calls++; return Response.json({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+      properties: { revision, text: 'weather'.repeat(100_000) } }] });
   } };
   let app = await createInfoServer(options);
   const hook = createHook({ init(_id, type) { if (type === 'ZLIB') compressions++; } });
@@ -71,7 +72,8 @@ test('optional persistence failure still shares one acquisition and compression 
   let calls = 0, compressions = 0, finish!: () => void;
   const gate = new Promise<void>(resolve => { finish = resolve; });
   const app = await createInfoServer({ directory, maxBytes: 8, startUpdates: false, spacing: 0, fetch: async () => {
-    calls++; await gate; return Response.json({ type: 'FeatureCollection', features: [{ properties: { text: 'weather'.repeat(1000) } }] });
+    calls++; await gate; return Response.json({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+      properties: { text: 'weather'.repeat(1000) } }] });
   } });
   const hook = createHook({ init(_id, type) { if (type === 'ZLIB') compressions++; } });
   try {

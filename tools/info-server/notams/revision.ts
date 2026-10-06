@@ -4,6 +4,7 @@ import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
 import { fdcBodyForms } from '../../../src/layers/notams/source-text';
 import { notamEndKind, notamSchedule, notamTime } from '../../../src/layers/notams/validity';
+import { notamCancellationExpiresAt } from './policy';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
 export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
@@ -208,18 +209,25 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
 export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
   // A timestamped original-ID cancellation is positive source evidence. An
   // omitted optional canceled field at that same revision is not a resurrection.
+  // Cancellation can occur after lastUpdated without advancing the source
+  // revision. Older cancellation evidence must not withdraw that revision.
   for (const [cancelled, active] of [[previous, next], [next, previous]] as const) {
+    const canceledAt = notamTime(cancelled.canceledAt);
     if (cancelled.id === active.id && cancelled.classification === active.classification &&
       numberContent(cancelled.number) === numberContent(active.number) && cancelled.series === active.series && cancelled.year === active.year &&
       cancelled.changeType === active.changeType && cancelled.lifecycle === 'cancelled' && active.lifecycle === 'active' && !active.canceledAt &&
-      notamTime(cancelled.canceledAt) === cancelled.updatedAt && fraction(cancelled.canceledAt) === fraction(cancelled.sourceUpdatedAt)) return cancelled;
+      canceledAt !== null && (canceledAt > cancelled.updatedAt ||
+        canceledAt === cancelled.updatedAt && fraction(cancelled.canceledAt) >= fraction(cancelled.sourceUpdatedAt))) return cancelled;
   }
   // These records have no active-airport membership. NMS can replace their text
   // with a terse cancellation rendering at the same source revision. Preserve
-  // the retained raw record; presentation differences cannot break continuity.
+  // the retained raw record unless a later cancellation extends its retention;
+  // presentation differences cannot break continuity.
   // A NOTAMC message and an original-ID tombstone remain distinct lifecycle kinds.
   if (previous.id === next.id && previous.lifecycle === next.lifecycle &&
-    (previous.lifecycle === 'cancelled' || previous.lifecycle === 'cancellation')) return previous;
+    (previous.lifecycle === 'cancelled' || previous.lifecycle === 'cancellation')) {
+    return notamCancellationExpiresAt(next)! > notamCancellationExpiresAt(previous)! ? next : previous;
+  }
   const fields = notamContentDifferences(previous, next);
   if (fields.length) throw new NotamRevisionConflict(previous, next, fields);
   const types = translationsByType(previous);

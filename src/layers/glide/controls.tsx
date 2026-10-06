@@ -51,9 +51,9 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
     if (visible && focusAltitude) { altitudeControl.current?.focus({ preventScroll: true }); setFocusAltitude(false); }
   }, [visible, focusAltitude]);
   const [ratioDraft, setRatioDraft] = useState<string | null>(null);
-  return <section className="glide-panel" aria-label="Glide Planner"
+  return <section className="ui-toolbox glide-panel" aria-label="Glide Planner"
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-    <div className="glide-heading"><h3>Glide Planner</h3>
+    <div className="glide-heading"><h3 className="ui-toolbox-title">Glide Planner</h3>
       <button type="button" className="ui-switch" role="switch" aria-label="Show glide coverage" aria-checked={glideEnabled}
         onClick={() => change({ glideEnabled: !glideEnabled })}><span className="switch" aria-hidden="true"><i /></span></button>
     </div>
@@ -69,16 +69,16 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
     </div>
     {point && <div className="glide-selected-point" aria-label="Selected glide point">
       <div><strong>{site ? 'Glide to selected area' : 'Glide from here'}</strong><output aria-label="Selected glide point coordinates">{Math.abs(point[1]).toFixed(3)}°{point[1] < 0 ? 'S' : 'N'} · {Math.abs(point[0]).toFixed(3)}°{point[0] < 0 ? 'W' : 'E'}</output>
-        <p className="glide-note" aria-live="polite" aria-label="Selected point glide status">{!glideEnabled ? 'Glide coverage is off'
+        <p className="ui-meta glide-note" aria-live="polite" aria-label="Selected point glide status">{!glideEnabled ? 'Glide coverage is off'
           : status.point === 'zoom' ? 'Zoom in to calculate point range'
           : status.point === 'outside' ? 'Point is outside the visible map'
           : status.point === 'partial' ? 'Terrain incomplete at selected point'
           : status.point === 'ready' ? site ? `${(status.pointRouteNm ?? 0).toFixed(1)} NM of route inside arrival range` : 'Using the planning altitude below' : status.state === 'error' ? 'Point range unavailable' : 'Checking terrain…'}</p>
         {site && <><output>{site.tier === 2 ? 'Preferred' : 'Last resort'} · {site.lengthFt.toLocaleString()} × {site.widthFt.toLocaleString()} ft fit</output>
-          <p className="glide-note">Fit elevation up to {Math.round(site.elevationM / .3048).toLocaleString()} ft MSL.</p>
-          {site.alongGradePercent !== undefined && site.crossGradePercent !== undefined && <p className="glide-note">Approx. overall grade: {Math.abs(site.alongGradePercent).toFixed(1)}% along · {Math.abs(site.crossGradePercent).toFixed(1)}% across the measured fit.</p>}
-          <p className="glide-note">{landingFlagText(site.flags).join('; ') || 'No additional fallback flags'}.</p>
-          <p className="glide-note">Dashed purple: arrival at the measured fit with 500 ft reserve. Fit dimensions do not establish stopping distance.</p></>}
+          <p className="ui-meta glide-note">Fit elevation up to {Math.round(site.elevationM / .3048).toLocaleString()} ft MSL.</p>
+          {site.alongGradePercent !== undefined && site.crossGradePercent !== undefined && <p className="ui-meta glide-note">Approx. overall grade: {Math.abs(site.alongGradePercent).toFixed(1)}% along · {Math.abs(site.crossGradePercent).toFixed(1)}% across the measured fit.</p>}
+          <p className="ui-meta glide-note">{landingFlagText(site.flags).join('; ') || 'No additional fallback flags'}.</p>
+          <p className="ui-meta glide-note">Dashed purple: arrival at the measured fit with 500 ft reserve. Fit dimensions do not establish stopping distance.</p></>}
       </div>
       <button type="button" className="ui-button ui-button--quiet ui-button--compact ui-button--icon" aria-label="Clear selected glide point" onClick={clearPoint}>×</button>
     </div>}
@@ -94,7 +94,7 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
               if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
               if (event.key === 'Escape') { event.stopPropagation(); setRatioDraft(null); }
             }} /><span>: 1</span></span></div>
-        <p className="glide-note">8:1 is a conservative starting point.</p>
+        <p className="ui-meta glide-note">8:1 is a conservative starting point.</p>
       </div>
       <div className="glide-group">
         <div className="glide-row glide-altitude"><label htmlFor={`${id}-altitude`}>Glide start altitude</label>
@@ -103,16 +103,16 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
           value={glideAltitude} aria-valuetext={`${glideAltitude.toLocaleString('en-US')} feet MSL`}
           onChange={event => change({ glideAltitude: Number(event.currentTarget.value) })} />
         <div className="glide-limits"><span>0 ft</span><span>18,000 ft</span></div>
-        <p className="glide-note">Planning altitude for all glide ranges.</p>
-        {glideEnabled && <p className="glide-note" aria-live="polite" aria-label="Ownship glide status">{status.ownship === 'ready' ? 'Ownship ring · live position, planning altitude'
+        <p className="ui-meta glide-note">Planning altitude for all glide ranges.</p>
+        {glideEnabled && <p className="ui-meta glide-note" aria-live="polite" aria-label="Ownship glide status">{status.ownship === 'ready' ? 'Ownship ring · live position, planning altitude'
           : status.ownship === 'partial' ? 'Ownship ring · terrain incomplete'
           : status.ownship === 'loading' ? 'Ownship ring · checking terrain…'
           : status.ownship === 'zoom' ? 'Zoom in to calculate ownship range'
           : status.ownship === 'outside' ? 'Ownship is outside the visible map' : 'Ownship ring needs a fresh GPS position'}</p>}
-        <p className="glide-note" role="status" aria-label="Glide coverage status">{glideEnabled ? glideSummary(status, glideAirportsEnabled) : 'Glide coverage is off'}</p>
+        <p className="ui-meta glide-note" role="status" aria-label="Glide coverage status">{glideEnabled ? glideSummary(status, glideAirportsEnabled) : 'Glide coverage is off'}</p>
         {glideEnabled && (['error', 'partial'].includes(status.state) || status.ownship === 'partial' || status.point === 'partial') && <button className="ui-button ui-button--compact" type="button" onClick={retry}>Retry glide coverage</button>}
         {glideLandingsEnabled && <>
-          <p className="glide-note" role="status" aria-label="Landing areas status">{glideEnabled ? landingSummary(landingStatus) : 'Glide coverage is off'}</p>
+          <p className="ui-meta glide-note" role="status" aria-label="Landing areas status">{glideEnabled ? landingSummary(landingStatus) : 'Glide coverage is off'}</p>
           {landingStatus.generatedAt && <small>Prepared {formatDate(landingStatus.generatedAt)}</small>}
           {glideEnabled && ['unavailable', 'error', 'partial'].includes(landingStatus.state)
             && <button type="button" className="ui-button ui-button--compact" onClick={retryLandings}>Retry landing areas</button>}
@@ -120,7 +120,7 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
       </div>
     </div>
     <section className="glide-section" aria-label="Map legend">
-      <h4>Map legend</h4>
+      <h4 className="ui-section-title">Map legend</h4>
       <div className="glide-group">
         {glideAirportsEnabled && <div className="glide-key"><i aria-hidden="true" /><span>Amber · Glide to airports</span></div>}
         <div className="glide-key glide-key-ownship"><i aria-hidden="true" /><span>Teal · Glide from ownship</span></div>
@@ -132,12 +132,12 @@ export function GlideControls({ glideEnabled, glideAirportsEnabled, glideLanding
         {point && site && <div className="glide-key glide-key-point glide-key-landing-last-resort"><i aria-hidden="true" /><span>Dashed purple · To selected area</span></div>}
       </div>
       {glideLandingsEnabled && <p>Stronger shading means more screened ground within 20 NM of your route. Green or purple shows the more common category. Detailed boundaries appear inside your ownship or selected glide range.</p>}
-      {(!point || glideLandingsEnabled) && <p className="glide-note">Right-click or long-press the map:{' '}
+      {(!point || glideLandingsEnabled) && <p className="ui-meta glide-note">Right-click or long-press the map:{' '}
         {!point && 'Show glide range plans from a point. '}
         {glideLandingsEnabled && 'Inspect landing area shows a detailed candidate’s fit and arrival range.'}
       </p>}
     </section>
-    <details className="glide-section"><summary>Planning assumptions</summary>
+    <details className="ui-disclosure glide-section"><summary>Planning assumptions</summary>
       <p>Use your aircraft’s POH glide ratio and a planning margin. The 8:1 default is a conservative starting point for light singles.</p>
       <p>Still air and straight paths. Airport and selected-area coverage reserve 500 ft on arrival; all ranges use 200 ft terrain clearance. Ownship and selected-point ranges use the planning altitude, not GPS altitude. Terrain gaps cut coverage back. Outlines include a 0.1 NM inset and conservative smoothing.</p>
       <p>Airport coverage stays within 20 NM of your route and includes private and unpaved land runways. Check runway length, condition, permission and NOTAMs. Wind, turns, obstacles and landing maneuvers are not modeled.</p>

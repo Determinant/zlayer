@@ -57,7 +57,9 @@ maps at most 536px tall scroll the whole toolbox. Map Display groups this plugin
 METAR/TAF under **AWC Weather** without coupling their loading or visibility.
 
 Advisory switches distinguish G-AIRMET, non-convective SIGMET, convective SIGMET,
-CWA and freezing contours. G-AIRMET also filters icing, turbulence, IFR, mountain
+CWA and freezing contours. The convective switch displays **Conv. SIGMET** to fit
+the compact control while retaining **Convective SIGMET** as its accessible name.
+G-AIRMET also filters icing, turbulence, IFR, mountain
 obscuration and wind. Unknown hazards keep their supplied names. CWA records with
 a null or absent hazard use `UNK` and display **Unspecified hazard**, retaining the
 original bulletin and source properties without inferring a hazard from the text.

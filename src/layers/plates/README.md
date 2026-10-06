@@ -148,6 +148,9 @@ reader gestures, saved view state and map placement actions:
   stay selected, and the fitted page resizes when the device rotates. **Exit full
   screen** or Escape restores the panel; **Close plate** dismisses either mode.
   This works inside the app without requiring the browser's Fullscreen API.
+  On maps at most 300px tall, the side reader uses the full map height. Short
+  readers at least 400px wide place cache status beside the reading controls,
+  preserving PDF space when returning from fullscreen in phone landscape.
 - Side-panel, stowed and fullscreen presentations retain the same mounted reader
   and canvas. Stowing keeps page, zoom, rotation and scroll, and a pending download can finish
   without reopening the panel. The first Escape/PWA Back leaves fullscreen; the

@@ -47,7 +47,7 @@ export function RadarControls({ controller }: { controller: WeatherController })
       <button type="button" className="ui-button ui-button--quiet ui-button--slim" onClick={() => controller.retryRadar()}>Refresh radar</button>
       <div className="awc-radar-legend" aria-label="Radar reflectivity in dBZ">{RADAR_COLORS.map((color, i) => <span key={color}><i style={{ backgroundColor: color }} />{5 + i * 10}</span>)}<small>dBZ</small></div>
       <small>Terminal detail appears as you zoom in. Stronger echoes draw above weaker echoes.</small>
-      <details className="awc-source-status"><summary>Radar sources &amp; scan times</summary>
+      <details className="ui-disclosure awc-source-status"><summary>Radar sources &amp; scan times</summary>
         {unavailableTerminals.length > 0 && <div className="awc-product-status">
           <strong>{unavailableTerminals.length} terminal radar {unavailableTerminals.length === 1 ? 'feed is' : 'feeds are'} not updating nationwide</strong>
           <small>Observations may be old or temporarily unavailable. Sources are checked automatically; available scans keep their original observation times.</small>

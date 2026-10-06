@@ -875,7 +875,7 @@ test('detailed tags distinguish closures, outages and procedure notes in both th
   });
   await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
   await expect(page.getByText('7 of 7 retained notices')).toBeVisible();
-  await expect(page.getByText('RWY 12R/30L · Closure Restriction', { exact: true })).toHaveClass('notam-flair--caution');
+  await expect(page.getByText('RWY 12R/30L · Closure Restriction', { exact: true })).toContainClass('notam-flair--caution');
   const procedure = page.locator('.notam-entry').filter({ hasText: 'RNAV (RNP) Z RWY 30L' });
   await expect(procedure.locator('.notam-flairs')).toContainText('Minima Amended');
   await expect(procedure.locator('.notam-flairs')).toContainText('Visibility Amended');
@@ -958,6 +958,12 @@ for (const width of [393, 1280]) test(`plate remainder keeps each notice accessi
   const remainder = plate.locator('details').filter({ has: summary });
   await expect(remainder.locator('.notam-entry')).toHaveCount(1);
   await expect(plate.locator('.notam-entry')).toHaveCount(3);
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const foreground = await plate.evaluate(element => getComputedStyle(element).color);
+    await expect(remainder.locator('.notam-entry-heading > strong')).toHaveCSS('color', foreground);
+    await expect(remainder.locator('.notam-readable')).toHaveCSS('color', foreground);
+  }
   await remainder.getByText('Show raw', { exact: true }).click();
   await expect(remainder.locator('pre')).toHaveText(records[2]!.translations[0]!.text);
   await page.locator('.procedure-viewer').screenshot({ animations: 'disabled', path: testInfo.outputPath('remaining-notams.png') });

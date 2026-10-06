@@ -1,5 +1,5 @@
 import { isSurfaceCatalog, SURFACE_PRODUCTS, SURFACE_PROCESSING, type SurfaceProduct, type SurfaceCatalog, type SurfaceFile } from '@zlayer/contracts';
-import { parseSurfaceCatalog, SURFACE_CATALOG } from '../../src/layers/weather-awc/progs/source';
+import { isOlderSurfaceCatalog, parseSurfaceCatalog, SURFACE_CATALOG } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
 import { resourceFor, type Resource } from './routes';
 import { digest } from './upstream';
@@ -33,6 +33,7 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
       const charts = parseSurfaceCatalog(catalog.body.toString('utf8'), catalog.checkedAt)
         .filter(chart => product === 'analysis' ? chart.forecastHour === 0 : chart.forecastHour > 0);
       if (!charts.length) throw new Error('No published surface charts');
+      if (isOlderSurfaceCatalog(charts, state.catalog?.frames ?? [])) throw new Error('NOAA returned older surface charts');
       const frames: SurfaceFile[] = [], jobs: SurfaceJob[] = [];
       for (const chart of charts) {
         const input = await cache.get(sourceResource(chart.source, 512 * 1024), 150_000, signal);
@@ -64,20 +65,18 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
         sourceCatalog: catalog.body.toString('utf8'), frames };
       if (!isSurfaceCatalog(next)) throw new Error('Invalid prepared surface catalog');
       const previous = state.catalog?.frames;
-      if (previous && (frames[0]!.validTime < previous[0]!.validTime || frames.at(-1)!.validTime < previous.at(-1)!.validTime ||
-        frames.some(frame => previous.some(old => old.validTime === frame.validTime && old.referenceTime > frame.referenceTime)))) {
-        throw new Error('NOAA returned older surface charts');
-      }
       const body = Buffer.from(JSON.stringify(next));
       await cache.put(progsResource(product), { body, status: 200, checkedAt: next.checkedAt, sha256: digest(body),
         headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_PROGS } });
       for (const file of previous ?? []) retained.set(chartResource(file).key, now() + 10 * 60_000);
+      if (state.error) options.log?.(`Surface update recovered (${product})`);
       state.catalog = next; state.error = undefined; state.nextCheck = now() + 5 * 60_000;
     } catch (error) {
       if (signal.aborted) return;
-      state.error = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== state.error) options.log?.(`Surface update failed (${product}): ${message}`);
+      state.error = message;
       state.nextCheck = now() + 30_000;
-      options.log?.(`Surface update failed (${product}): ${state.error}`);
     } finally { state.building.clear(); protect(); }
   }
   return {
@@ -103,7 +102,7 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
     get status() {
       return Object.fromEntries([...states].map(([product, state]) => [product, {
         ready: !!state.catalog && cache.has(progsResource(product)) && state.catalog.frames.every(f => cache.has(chartResource(f))), preparing: !!state.task,
-        validTimes: state.catalog?.frames.map(f => f.validTime), checkedAt: state.catalog?.checkedAt,
+        validTimes: state.catalog?.frames.map(f => f.validTime), checkedAt: state.catalog?.checkedAt, nextAttemptAt: state.nextCheck,
         ...(state.error ? { error: state.error } : {}),
       }]));
     },

@@ -1084,15 +1084,19 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    Reconciliation first distinguishes active records from inactive lifecycle state.
    At equal ordering, the same source ID and the same `cancelled` or `cancellation`
    lifecycle are an idempotent inactive observation: retain the earlier raw record
-   without comparing its presentation or other inactive metadata. These records
-   are excluded from the active airport index; their text may shrink to a terse
+   unless a later cancellation timestamp extends retention, in which case retain
+   that original record. Presentation differences do not break continuity, and
+   neither choice advances source revision ordering or collection freshness.
+   These records are excluded from the active airport index; their text may shrink to a terse
    cancellation rendering without affecting active coverage. A cancellation
    message is distinct from an original-ID tombstone. Their references never
-   remove another source ID. An original-ID `canceled` timestamp matching the
+   remove another source ID. An original-ID `canceled` timestamp at or after the
    source update instant, including fractional precision, establishes cancellation
-   over a rendering that omits that field. Source ID, classification, notice
+   over a rendering that omits that field. Cancellation is an independent event
+   and need not advance `lastUpdated`; requiring timestamp equality would leave
+   confirmed cancellations unresolved. Source ID, classification, notice
    number/series/year and change type must agree. Absence of the optional field
-   cannot resurrect this tombstone. Missing, invalid or mismatched cancellation
+   cannot resurrect this tombstone. Missing, invalid or older cancellation
    evidence and active/NOTAMC disagreements remain unresolved. Newer source
    revisions follow the usual ordering. Envelope, source-ID,
    record-bound and lifecycle validation always precede reconciliation.
@@ -1197,7 +1201,8 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    Use a qualified source boundary or conservative request-start boundary, not
    response completion or the newest record. An empty delta follows the same rule.
 6. Apply replacement/cancellation events using verified source semantics. Retain
-   tombstones long enough to prevent resurrection from overlap. Absence in a delta
+   tombstones long enough to prevent resurrection from overlap, including the
+   bridge after a full snapshot omits the cancelled ID. Absence in a delta
    or a shared display number is not cancellation evidence.
 7. Commit resolved records, source issues, indexes, watermark and source-check time
    as one atomic generation.
@@ -1356,8 +1361,13 @@ bytes cannot silently rewrite source text. Downloads have a 120-second deadline.
 One 60-second parsing worker handles each round. Measured
 staging parsing fits that deadline; deployment headroom still needs qualification.
 Keep current, the previous distinct dataset and one candidate generation, and retain
-cancellation messages/tombstones for two days. The lock owner removes unreferenced
-dataset files at startup and after publication/candidate disposal, including failed
+cancellation messages/tombstones for two days after the later of their source
+update and valid cancellation timestamps. Missing cancellation timestamps use the
+source update time; active notices do not expire under this rule. A bulk snapshot's
+absence cannot shorten this retention, and the bridge applies the same expiry as
+ordinary deltas. Retention does not change source revision ordering or quota.
+The lock owner removes unreferenced dataset files at startup and after
+publication/candidate disposal, including failed
 replacement attempts. Cleanup never removes the admission journal. Empty, duplicate
 or older-only deltas reuse the immutable record array, dataset file and airport
 indexes; only the small manifest advances source time and watermark. Changed datasets
@@ -2310,6 +2320,8 @@ time limitations. This README remains the canonical guide after implementation.
   FDC conflict pairs, with no credentials or deployment metadata. Regressions cover
   both arrival orders, supported subject/interval wrappers, real-content rejection,
   saved-failure recovery, restart and subsequent deltas without resetting bulk quota.
+  Cancellation-retention cases include an old source revision cancelled recently,
+  sparse replay, restart with a pending bulk bridge, and expiry of old inactive records.
 - `test/notams-reconciliation.test.ts` also replays the retained corpus conflicts
   and the October 6 source pairs in
   [`notams-source-renderings-2026-10-06.json`](../../../test/fixtures/notams-source-renderings-2026-10-06.json).
@@ -2317,9 +2329,15 @@ time limitations. This README remains the canonical guide after implementation.
   SJC 10/027. Regressions check both arrival orders, sparse replays, shared native
   evidence, genuine schedule/content disagreements and recovery across XML deltas
   and restarts without changing source boundaries or request admission.
+  [`notams-cancellation-2026-10-06.json`](../../../test/fixtures/notams-cancellation-2026-10-06.json)
+  retains CZYZ G3595/26 with a cancellation later than its unchanged source revision.
+  The same replay checks cover its restoration and exclusion from active notices;
+  cancellation cases also cover fractional timestamp ordering and newer revisions.
 - `test/notams-collection.test.ts` covers unfamiliar representations, lifecycle
   ambiguity, order/duplicate independence, bounded evidence overflow, scope unions,
   sparse-version constraints, daily reconciliation and wire completeness guards.
+  They also cover two-day cancellation retention through bulk absence, later
+  cancellation evidence in either arrival order and the exact expiry boundary.
 - `test/notams-admission.test.ts` covers concurrent reservations/backoff, rapid
   failed-auth restarts, interrupted dispatch, slow writes, stale completion receipts,
   normal request spacing/token reuse, legacy admission migration, numeric and

@@ -55,7 +55,7 @@ test('helipads show their identity, dimensions and surface without runway headin
         id: 'H1', lengthFt: 24, widthFt: 22, surface: 'ASPH', ...(ends ? { ends } : {}),
       }] },
     });
-    assert.ok(html.includes('<h3>Helipads</h3>'));
+    assert.match(html, /<h3\b[^>]*>Helipads<\/h3>/);
     assert.ok(html.includes('<strong>H1</strong>'));
     assert.ok(html.includes('Helipad · 24 × 22 ft · ASPH'));
     for (const value of ['<table', 'Pattern', '°T', 'Runway heading unavailable', 'Wind', 'Cross', 'gust']) {

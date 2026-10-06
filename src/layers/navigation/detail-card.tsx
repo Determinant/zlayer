@@ -59,7 +59,7 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
         <p>{featureSubtitle(feature)}</p>
         {feature.properties.kind !== 'coordinate' &&
           <p className="feature-edition">FAA {formatDate(String(feature.properties.dataRevision ?? revision))}</p>}
-        {hasTabs && <TabList id={tabsId} label={navaid ? 'Navaid detail' : 'Airport detail'} tabs={tabs} value={activeTab}
+        {hasTabs && <TabList id={tabsId} size="slim" label={navaid ? 'Navaid detail' : 'Airport detail'} tabs={tabs} value={activeTab}
           onChange={next => { onIdentificationChange(false); setTab(next); }} className="feature-tabs" />}
         {activeTab === 'notams' && notams?.header && <div className="feature-tabs">{notams.header}</div>}
       </>}>

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { isNotamSourceIssue, isNotamAirportSnapshot, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord } from '@zlayer/contracts';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
+import { NOTAM_DAY_MS } from '../tools/info-server/notams/policy';
 import { notice, notamSnapshot, NOTAM_NOW } from './fixtures/notams';
 
 function record(overrides: Partial<NotamRecord> = {}) {
@@ -106,6 +107,32 @@ test('a full snapshot cannot erase resolved or unresolved observations newer tha
   assert.deepEqual(rebaseNotamRecords(conflict, [], NOTAM_NOW).issues, conflict.issues);
   assert.equal(rebaseNotamRecords(resolved, [], NOTAM_NOW + 1).records.length, 0);
   assert.equal(rebaseNotamRecords(conflict, [], NOTAM_NOW + 1).issues?.length, 0);
+});
+
+test('full replacement preserves cancellation evidence for two days from the later source event', () => {
+  const updatedAt = NOTAM_NOW - 3 * NOTAM_DAY_MS;
+  const active = record({ updatedAt, sourceUpdatedAt: new Date(updatedAt).toISOString() });
+  const cancelled = record({ ...active, lifecycle: 'cancelled', canceledAt: new Date(NOTAM_NOW).toISOString() });
+  const older = record({ ...cancelled, canceledAt: new Date(NOTAM_NOW - NOTAM_DAY_MS).toISOString() });
+  for (const variants of [[older, cancelled], [cancelled, older]]) {
+    const collection = collectNotamRecords({ records: [] }, variants);
+    assert.deepEqual(collection.records, [cancelled], 'retain the later cancellation without advancing its source revision');
+    assert.equal(collectNotamRecords(collection, [older, active]), collection, 'older and sparse replays cannot shorten retention');
+  }
+  for (const inactive of [cancelled,
+    record({ ...cancelled, updatedAt: NOTAM_NOW, sourceUpdatedAt: new Date(NOTAM_NOW).toISOString(), canceledAt: older.canceledAt }),
+    record({ ...active, lifecycle: 'cancellation', changeType: 'C', updatedAt: NOTAM_NOW, sourceUpdatedAt: new Date(NOTAM_NOW).toISOString() })]) {
+    const collection = { records: [inactive] };
+    for (const boundary of [undefined, NOTAM_NOW + NOTAM_DAY_MS, NOTAM_NOW + 2 * NOTAM_DAY_MS - 1]) {
+      assert.deepEqual(rebaseNotamRecords(collection, [], boundary).records, [inactive]);
+    }
+    assert.equal(rebaseNotamRecords(collection, [], NOTAM_NOW + 2 * NOTAM_DAY_MS).records.length, 0);
+  }
+  const rebased = rebaseNotamRecords({ records: [cancelled] }, [], NOTAM_NOW + NOTAM_DAY_MS);
+  assert.deepEqual(collectNotamRecords(rebased, [active]).records, [cancelled], 'the bulk bridge must not resurrect a cancelled ID');
+  assert.equal(rebaseNotamRecords({ records: [active] }, [], NOTAM_NOW).records.length, 0, 'active records still follow qualified bulk absence');
+  const legacy = record({ ...active, lifecycle: 'cancelled', canceledAt: '' });
+  assert.equal(rebaseNotamRecords({ records: [legacy] }, [], NOTAM_NOW).records.length, 0, 'missing cancellation time falls back to the update time');
 });
 
 test('wire guards reject lost issue evidence, overlapping resolved IDs and false airport completeness', () => {

@@ -14,6 +14,7 @@ import { NOTAM_DAY_MS, NotamStore, type NotamGeneration } from './store';
 import { collectNotamRecords, rebaseNotamRecords, NO_NOTAM_ISSUES } from './collection';
 import { NotamReconciliation } from './reconciliation';
 import { NotamIndex } from './index';
+import { notamCancellationExpiresAt } from './policy';
 import type { InfoMetrics } from '../metrics';
 
 export type NotamOptions = { enabled: boolean; environment?: NotamEnvironment; directory: string;
@@ -130,7 +131,7 @@ export function createNotamService(options: NotamOptions | undefined,
     const delta = await acquire('delta', base.watermark - OVERLAP_MS); validSignal();
     if (delta.requestedAt < base.watermark || current && delta.requestedAt < current.watermark) throw new NotamError('invalid-source-boundary');
     const merged = merge(() => collectNotamRecords(base, delta.records));
-    const expired = (record: NotamRecord) => ['cancelled', 'cancellation'].includes(record.lifecycle) && record.updatedAt < now() - 2 * NOTAM_DAY_MS;
+    const expired = (record: NotamRecord) => (notamCancellationExpiresAt(record) ?? Infinity) <= now();
     const records = merged.records.some(expired) ? merged.records.filter(record => !expired(record)) : merged.records;
     const { incompleteReason: _reason, ...verified } = base;
     const next = await measure('notams.persist', () => store!.publish({ ...verified, records, issues: merged.issues ?? NO_NOTAM_ISSUES,

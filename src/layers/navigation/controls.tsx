@@ -16,7 +16,7 @@ export function NavigationControls({ catalog, visibility, fixDisplay, navigation
   return (
     <section className="layer-section">
       <div className="section-title">
-        <h3>FAA reference</h3>
+        <h3 className="ui-section-title">FAA reference</h3>
         <span>Selectable</span>
       </div>
       <div className="toggle-list">
@@ -38,7 +38,7 @@ export function NavigationControls({ catalog, visibility, fixDisplay, navigation
                 >
                   {layer.shortTitle}
                 </span>
-                <span className="layer-copy">
+                <span className="ui-item-copy layer-copy">
                   <strong>{layer.title}</strong>
                   <small>{navigationLayerSummary(
                     loadState[layer.id],

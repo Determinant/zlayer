@@ -216,6 +216,9 @@ parameters and multipart ranges fail locally. Only METAR/TAF 204 responses becom
 empty report results. Advisory GeoJSON requires a successful document, including
 an explicit empty feature collection; a missing G-AIRMET frame rejects the package.
 Responses at the 400-record ceiling fail rather than silently truncate.
+METAR features and TAF records pass the same shared document guards used by the
+PWA before caching or delivery. Valid source bytes and extra source properties
+are preserved; malformed records reject the complete response.
 
 The server discovers the newest complete horizon within six preceding hourly
 cycles. Clouds/winds cover F00–F18; IFI covers F001–F018 at all 60 native altitudes.
@@ -248,6 +251,10 @@ one, including after restart; same-run source corrections remain eligible.
 Rejected older runs leave the catalog's source-check time unchanged and report an
 update error. After a complete publication, the next source check is
 six minutes later, covering the PWA's five-minute refresh and request lifetime.
+Restart authenticates the saved generation and waits out the remaining six-minute
+interval from its source-check time instead of immediately rediscovering a fresh
+generation. Repeated identical preparation errors log only on a change; health
+continues reporting the active error and next attempt.
 Advisories refresh independently every thirty seconds when their cache age expires.
 
 Up to two Node workers, capped by the host CPU count, acquire and convert native
@@ -375,6 +382,9 @@ proxy or tunnel before cutover, and through public HTTPS after activation:
 
 - Require `healthz.forecasts.clouds`, `.icing` and `.winds`, both `healthz.progs`
   families, and `healthz.progsCoverage` to report `ready: true`.
+- Require every weather source in `healthz.readiness.sources` to be available and
+  fresh with no active refresh error. This includes all three advisory families.
+  Expected partial radar/motion coverage and unpublished NDFD stops remain allowed.
 - Read reports, all three advisory snapshots, and a prepared numeric slice for
   each model. Read both pressure-chart catalogs and a referenced chart file from
   each family, plus the coverage catalog and a referenced PNG. Verify chart/PNG
@@ -402,8 +412,12 @@ its original times when a source becomes stale. A complete older forecast may
 remain available while its replacement is preparing, but availability and progress
 do not satisfy the freshness gate. An NMS feed with complete collection continuity
 and unresolved source records likewise fails the strict complete-feed check;
-retain that distinction in rollout evidence. Run it on
-the candidate loopback listener before activation and on public HTTPS afterward.
+retain that distinction in rollout evidence. Enabled NMS also requires an available
+reconciliation summary without an active error; fresh deltas do not clear failed
+full-sync or diagnostic-history checks. The [maintenance guide](maintenance.md#focused-qualification)
+defines the explicit age and source-issue exceptions, which do not waive these errors.
+Run the check on the candidate loopback listener before activation and on public
+HTTPS afterward.
 
 ### Service installation
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, isRadarCatalog,
   isRadarContours, isRadarMotionCatalog, isRadarMotionSnapshot, isAwcAdvisorySnapshot,
-  isNotamFeedStatus, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamRegionSnapshot, isTafReport, isTfrSnapshot, TFR_STALE_MS, RADAR_MAX_AGE } from '@zlayer/contracts';
+  isNotamFeedStatus, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamRegionSnapshot, isMetarFeatureCollection, isTafReport, isTfrSnapshot, TFR_STALE_MS, RADAR_MAX_AGE } from '@zlayer/contracts';
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../src/layers/weather-awc/grids/model-terrain';
@@ -54,6 +54,15 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   for (const group of [health.forecasts, health.progs, { coverage: health.progsCoverage, radar: health.radar, motion: health.radarMotion }]) {
     for (const [name, state] of Object.entries(group)) assert.ok(isRecord(state) && state.ready === true, `${name}: not ready`);
   }
+  assert.ok(isRecord(health.readiness) && isRecord(health.readiness.sources), 'Weather readiness status missing');
+  for (const name of ['clouds', 'icing', 'winds', 'progs.analysis', 'progs.forecast', 'progs.coverage', 'radar', 'radarMotion',
+    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa']) {
+    const state: unknown = health.readiness.sources[name];
+    assert.ok(isRecord(state), `${name}: readiness status missing`);
+    assert.equal(state.available, true, `${name}: unavailable`);
+    assert.equal(state.fresh, true, `${name}: stale or future source`);
+    assert.equal(state.error, null, `${name}: source refresh failed`);
+  }
   for (const product of ['clouds', 'icing', 'winds'] as const) {
     const saved = await read(`/api/weather/grids/${product}.json`), catalog = saved.json();
     assert.equal(saved.response.headers.get('x-weather-catalog'), 'complete-native-v1');
@@ -98,8 +107,12 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   fresh(latestMotion.availableAt, RADAR_MAX_AGE, 'Storm motion collection', 0);
   const tracks = (await file('/api/weather/radar/', latestMotion)).json(); assert.ok(isRadarMotionSnapshot(tracks));
   assert.ok(tracks.scans.some(scan => scan.observedAt <= Date.now() && Date.now() - scan.observedAt < RADAR_MAX_AGE), 'No current storm motion observations');
-  for (const product of ['gairmet', 'sigmet', 'cwa']) assert.ok(isAwcAdvisorySnapshot((await read(`/api/weather/advisories/${product}.json`)).json()));
-  const reports = (await read('/api/weather/metars.geojson?ids=KSFO')).json(); assert.ok(isRecord(reports) && reports.type === 'FeatureCollection');
+  for (const product of ['gairmet', 'sigmet', 'cwa']) {
+    const snapshot = (await read(`/api/weather/advisories/${product}.json`)).json();
+    assert.ok(isAwcAdvisorySnapshot(snapshot) && snapshot.product === product, `${product}: invalid advisory snapshot`);
+    fresh(snapshot.checkedAt, INFO_FRESHNESS.advisory, `${product} source check`);
+  }
+  const reports = (await read('/api/weather/metars.geojson?ids=KSFO')).json(); assert.ok(isMetarFeatureCollection(reports));
   const tafs = (await read('/api/weather/tafs.json?ids=KSFO')).json(); assert.ok(Array.isArray(tafs) && tafs.every(isTafReport));
   const tfrs = (await read('/api/notams/tfrs')).json();
   assert.ok(isTfrSnapshot(tfrs) && !tfrs.error, 'TFR snapshot unavailable or degraded');
@@ -112,6 +125,8 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     await read('/api/notams/regions?artccId=ZOA', 503);
   } else {
     checkFeed(feed);
+    assert.ok(isRecord(health.notamReconciliation), 'NOTAM reconciliation status missing');
+    assert.equal(health.notamReconciliation.error, null, 'NOTAM reconciliation failed');
     if (feed.unresolvedRecords) warnings.push(`unresolved-notam-records:${feed.unresolvedRecords}`);
     assert.ok(feed.fullSyncAt !== null);
     if (options.allowOverdueFullSync && feed.fullSyncAt <= Date.now() && !freshAt(feed.fullSyncAt, Date.now(), INFO_FRESHNESS.fullSync, 0)) {

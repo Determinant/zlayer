@@ -89,8 +89,8 @@ export function ProcedurePageLoading({ source, progress }: {
   return <div className="procedure-page-loading">
     <div className="procedure-download">
       <div role="status" aria-atomic="true">
-        <h3 id={titleId}>{title}</h3>
-        {bundled && <p id={descriptionId}>The first download may take a moment. Once saved, other{' '}
+        <h3 className="ui-panel-title" id={titleId}>{title}</h3>
+        {bundled && <p className="ui-note" id={descriptionId}>The first download may take a moment. Once saved, other{' '}
           {supplement ? 'airport entries' : 'plates'} in this regional book open much faster.</p>}
       </div>
       <div className="procedure-download-meter" role="progressbar" aria-labelledby={titleId}

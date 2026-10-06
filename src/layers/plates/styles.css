@@ -1,14 +1,11 @@
 .procedure-state {
-  min-height: 90px;
-  margin: 0 0 14px;
-  padding: 24px 10px;
-  color: var(--text-738da1);
+  margin: 0 0 var(--ui-space-section);
+  padding: var(--ui-panel-padding);
   text-align: center;
-  font-size: 12px;
 }
 
 .procedure-viewer > footer .procedure-return-to-approach { padding-inline: 12px; min-height: 44px; color: var(--text-8ee1d4); }
-.procedure-map-error { width: 100%; color: var(--text-efa7a0); font-size: 12px; }
+.procedure-map-error { width: 100%; color: var(--text-efa7a0); font-size: var(--ui-text-compact); }
 .plate-map-control {
   position: absolute;
   z-index: 5;
@@ -26,11 +23,11 @@
   box-shadow: 0 3px 12px var(--shadow-000000-a333);
 }
 .plate-map-control > span { display: grid; gap: 4px; min-width: 0; }
-.plate-map-control strong { font-size: 12px; color: var(--text-d9e9f2); overflow-wrap: anywhere; }
-.plate-map-control small { font-size: 11px; color: var(--text-91aabb); overflow-wrap: anywhere; }
+.plate-map-control strong { font-size: var(--ui-text-compact); color: var(--text-d9e9f2); overflow-wrap: anywhere; }
+.plate-map-control small { font-size: var(--ui-text-meta); color: var(--text-91aabb); overflow-wrap: anywhere; }
 .plate-map-control button { font-size: 22px; }
 
-.plate-map-control .plate-map-retry { font-size: 12px; }
+.plate-map-control .plate-map-retry { font-size: var(--ui-text-compact); }
 
 .procedure-state.is-error {
   color: var(--text-efa7a0);
@@ -40,19 +37,11 @@
   margin-bottom: 14px;
 }
 
-.procedure-group + .procedure-group {
-  margin-top: 12px;
-}
-
 .procedure-group h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 3px 5px;
-  color: var(--text-718ca0);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  margin: 0 0 var(--ui-panel-gap);
 }
 
 .procedure-group h3 span {
@@ -62,10 +51,10 @@
 .procedure-group > button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 9px;
+  gap: var(--ui-panel-gap);
   align-items: center;
   width: 100%;
-  min-height: 48px;
+  min-height: max(44px, var(--touch-target));
   padding: 8px 10px;
   border: 0;
   border-bottom: 1px solid var(--border-97c7e4-a70);
@@ -90,29 +79,10 @@
 
 .procedure-group > button:hover,
 .procedure-group > button:focus-visible {
-  outline: none;
   background: var(--surface-21465b-a760);
 }
 
-.procedure-group > button > span {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.procedure-group strong {
-  font-size: 13px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  line-height: 1.5;
-}
-
-.procedure-group small {
-  color: var(--text-muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+.procedure-group > button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 .procedure-group i {
   color: var(--text-5baea9);
@@ -187,7 +157,7 @@
 .procedure-viewer > header p {
   margin: 0;
   color: var(--text-738b9d);
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
 }
 
 .procedure-viewer-actions {
@@ -272,17 +242,10 @@
 
 .procedure-download h3 {
   margin: 0 0 10px;
-  color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.45;
 }
 
 .procedure-download p {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.65;
   text-wrap: pretty;
 }
 
@@ -317,7 +280,7 @@
   gap: 12px;
   margin-top: 10px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
   font-variant-numeric: tabular-nums;
 }
 
@@ -343,7 +306,7 @@
 .procedure-error span {
   max-width: 520px;
   color: var(--text-d79892);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
 }
 
 .procedure-viewer > footer {
@@ -388,11 +351,11 @@
   min-width: 75px;
   color: var(--text-muted);
   text-align: center;
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
   white-space: nowrap;
 }
 
-.procedure-pagination > span { font-size: 12px; }
+.procedure-pagination > span { font-size: var(--ui-text-compact); }
 
 .procedure-pagination > span,
 .procedure-reset-view > span,
@@ -410,7 +373,7 @@
   gap: 1px;
 }
 .procedure-reset-view small,
-.procedure-page-picker small { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.procedure-page-picker small { font-size: var(--ui-text-meta); color: var(--text-muted); white-space: nowrap; }
 
 .procedure-cache-state {
   margin-left: 5px;
@@ -480,19 +443,26 @@
   .procedure-panel { top: 8px; bottom: 8px; }
   .procedure-panel > .map-edge-handle { top: 56px; }
   .procedure-viewer:not(.is-fullscreen) > header { padding: 4px 8px; gap: 8px; align-items: center; }
-  .procedure-viewer:not(.is-fullscreen) > header h2 { margin: 0; font-size: 14px; }
+  .procedure-viewer:not(.is-fullscreen) > header h2 { margin: 0; font-size: var(--ui-text-body); }
   .procedure-viewer:not(.is-fullscreen) > header p { display: none; }
   .procedure-viewer:not(.is-fullscreen) > footer { padding: 4px 8px; gap: 4px; }
   .procedure-viewer:not(.is-fullscreen) .procedure-page-stage { padding: 8px; }
   .procedure-viewer:not(.is-fullscreen) .procedure-page-loading { inset: 8px; overflow: auto; }
   .procedure-viewer:not(.is-fullscreen) .procedure-download { padding-block: 8px; }
-  .procedure-viewer:not(.is-fullscreen) .procedure-download h3 { font-size: 13px; margin-bottom: 6px; }
-  .procedure-viewer:not(.is-fullscreen) .procedure-download p { font-size: 11px; line-height: 1.4; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-download h3 { margin-bottom: var(--ui-space-related); }
   .procedure-viewer:not(.is-fullscreen) .procedure-download-meter { margin-top: 10px; }
 }
 
 @container workspace (max-height: 300px) {
+  .procedure-panel { top: 0; bottom: 0; }
   .procedure-viewer:not(.is-fullscreen) .procedure-download p { display: none; }
+}
+
+/* In short landscape panels, keep cache status alongside the controls so it
+ * cannot consume the last usable PDF row after leaving full screen. */
+@container plate-reader (min-width: 400px) and (max-height: 240px) {
+  .procedure-viewer:not(.is-fullscreen) .procedure-reading-controls { flex: 1; width: auto; }
+  .procedure-viewer:not(.is-fullscreen) .procedure-cache-state { width: auto; max-width: 100px; margin: 0; white-space: normal; }
 }
 
 /* A viewport-filling reading mode, including browsers without native fullscreen. */
@@ -511,7 +481,7 @@
 
 .procedure-viewer.is-fullscreen > header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ui-text-body);
 }
 
 .procedure-viewer.is-fullscreen .eyebrow,

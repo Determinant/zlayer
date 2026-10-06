@@ -1,25 +1,19 @@
-.nearby-navaids { margin: 0 0 14px; }
-.nearby-navaids h3 { margin: 0 0 8px; color: var(--text-d6e7f1); font-size: 14px; }
-.nearby-navaids table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 1.5; }
-.nearby-navaids th, .nearby-navaids td { padding: 4px; border-bottom: 1px solid var(--border-97c7e4-a102); text-align: right; }
+.nearby-navaids table { table-layout: fixed; }
 .nearby-navaids th:first-child { width: 50%; padding-left: 0; text-align: left; }
 .nearby-navaids thead th:nth-child(2) { width: 30%; }
-.nearby-navaids thead th { color: var(--text-muted); font-size: 12px; font-weight: 400; }
-.nearby-navaids tbody th { font-weight: 400; overflow-wrap: anywhere; }
-.nearby-navaids td { font-variant-numeric: tabular-nums; }
-.nearby-navaids small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 12px; }
-.navaid-bearings .navaid-magnetic { display: block; font-size: 14px; font-weight: 700; }
+.nearby-navaids small { display: block; margin-top: 2px; }
+.navaid-bearings .navaid-magnetic { display: block; font-size: var(--ui-text-body); font-weight: 700; }
 .navaid-bearings .navaid-true { font-weight: 400; }
-.nearby-navaids p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.nearby-navaids p { margin-top: var(--ui-space-related); }
 .nearby-navaids .is-mapped strong { color: var(--text-65d9ff); }
-.navaid-mon { padding: 1px 3px; border-radius: 3px; background: var(--overlay-419cff-a125); color: var(--text-9dcfff); font-size: 11px; }
+.navaid-mon { padding: 1px 3px; border-radius: 3px; background: var(--overlay-419cff-a125); color: var(--text-9dcfff); }
 .nearby-navaids .navaid-map-key { display: flex; align-items: center; gap: 7px; color: var(--text-65d9ff); }
 .navaid-map-key > span { width: 22px; border-top: 2px dashed var(--border-005a9c); background: var(--fixed-ffffff); box-shadow: 0 0 0 2px var(--shadow-ffffff); }
 
-.nearby-navaids .navaid-select { width: 100%; padding: 3px 6px; text-align: left; line-height: 1.2; }
+.nearby-navaids .navaid-select { width: 100%; padding: 3px 6px; text-align: left; line-height: var(--ui-line-height); }
 .navaid-station-title { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.nearby-navaids .navaid-station-detail { margin-top: 2px; line-height: 1.3; }
-.nearby-navaids .navaid-select-hint { margin-bottom: 8px; font-size: 14px; line-height: 1.6; }
+.nearby-navaids .navaid-station-detail { margin-top: 2px; line-height: var(--ui-line-height); }
+.nearby-navaids .navaid-select-hint { margin-bottom: var(--ui-panel-gap); }
 .nearby-navaids tr.is-selected { background: var(--overlay-ffd17a-a71); }
 .nearby-navaids .is-selected .navaid-select[aria-pressed="true"] { border-color: var(--border-ffd17a); }
 .nearby-navaids .navaid-map-key.is-selected { color: var(--text-ffd17a); }

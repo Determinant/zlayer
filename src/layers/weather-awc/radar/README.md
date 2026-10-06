@@ -31,6 +31,11 @@ Observation timestamps are checked before PNG/bzip2 decoding or contour generati
 Rejected byte hashes are remembered until the source changes; future timestamps
 are reconsidered after a minute, and clock rollback clears these rejections.
 Repeated identical station errors are logged only when their status changes.
+Reusing authenticated scans from history applies the same age, future-time and
+source-order checks as a newly decoded scan; a replay cannot replace newer live
+radar. History suppresses deterministic invalid-source failures for the current
+window, while transport, storage and worker failures retry on a later background
+pass instead of leaving a permanent gap for that window.
 The numerical MRMS GRIB2 reader supports the qualified regular latitude/longitude
 grid, local discipline/category/parameter 209/10/0, observation time and PNG
 packing 5.41. It verifies the dated object name against the GRIB timestamp. TDWR

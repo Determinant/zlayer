@@ -2,14 +2,13 @@
 .ahrs-tool .ahrs-recorder-button.is-recording { color: var(--text-ff8585); border-color: var(--border-ea7272); background: var(--surface-542b35); }
 .ahrs-tool .ahrs-recorder-button.has-error { color: var(--text-ffdb80); border-color: var(--border-ffdb80); }
 .ahrs-recorder-menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(340px, 100%); max-height: min(430px, 65dvh); overflow: auto; overscroll-behavior: contain; padding: 12px; border: 1px solid var(--border-638293); border-radius: 8px; background: var(--surface-132735); box-shadow: 0 8px 24px var(--shadow-000000-a533); text-align: left; }
-.ahrs-tool .ahrs-recorder-menu p { font-size: 12px; line-height: 1.45; margin: 6px 0 10px; }
+.ahrs-tool .ahrs-recorder-menu p { margin-block: var(--ui-panel-gap); }
 .ahrs-tool .ahrs-recorder-menu [role="alert"] { color: var(--text-ffd28f); }
-.ahrs-recorder-menu h4 { margin: 14px 0 8px; font-size: 12px; }
+.ahrs-recorder-menu h4 { margin: var(--ui-space-section) 0 var(--ui-panel-gap); }
 .ahrs-recorder-menu ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .ahrs-recorder-menu li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border-344f60); }
-.ahrs-recorder-menu time, .ahrs-recorder-menu small { display: block; font-size: 11px; font-variant-numeric: tabular-nums; }
-.ahrs-recorder-menu small { color: var(--text-afc2cd); margin-top: 4px; }
-.ahrs-tool .ahrs-recorder-menu button { font-size: 12px; }
+.ahrs-recorder-menu time, .ahrs-recorder-menu small { display: block; font-variant-numeric: tabular-nums; }
+.ahrs-recorder-menu small { margin-top: var(--ui-space-related); }
 .ahrs-recording-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .ahrs-tool .ahrs-recording-actions button { min-height: 44px; }
 .ahrs-tool .ahrs-record-action { width: 100%; }

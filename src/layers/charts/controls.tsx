@@ -12,7 +12,7 @@ export function ChartControls({ charts, selection, onBaseChange, onOverlayChange
 }) {
   const overlays = availableChartOverlays(charts, selection.base);
   return <section className="layer-section">
-    <div className="section-title"><h3>Chart base</h3><span>Choose one</span></div>
+    <div className="section-title"><h3 className="ui-section-title">Chart base</h3><span>Choose one</span></div>
     <div className="segmented-list" aria-label="Chart base">
       <Choice selected={selection.base === ''} onClick={() => onBaseChange('')} title="Base map only" note="BASE" />
       {availableChartBases(charts).map(base => <Choice key={base.id}
@@ -20,7 +20,7 @@ export function ChartControls({ charts, selection, onBaseChange, onOverlayChange
         title={base.title} note={`${base.shortTitle} · ${chartCountForFamily(charts, base.id)}`} />)}
     </div>
     {overlays.length > 0 && <div className="chart-overlay-options">
-      <div className="section-title"><h3>VFR overlay</h3><span>Above sectionals</span></div>
+      <div className="section-title"><h3 className="ui-section-title">VFR overlay</h3><span>Above sectionals</span></div>
       <div className="segmented-list" aria-label="VFR overlay">
         <Choice selected={selection.overlay === ''} onClick={() => onOverlayChange('')} title="None" note="SECTIONALS ONLY" />
         {overlays.map(overlay => <Choice key={overlay.id}

@@ -120,7 +120,8 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
       const winds = [...element.querySelectorAll('.runway-wind-components')];
       const rows = [...element.querySelectorAll<HTMLElement>('.runway-end')];
       const badge = marker.getBoundingClientRect();
-      const badgeRow = marker.closest('tr')!.getBoundingClientRect();
+      const badgeCell = marker.closest('th')!.getBoundingClientRect();
+      const reference = marker.closest('th')!.querySelector('.runway-end-reference')!.getBoundingClientRect();
       return {
         fits: element.scrollWidth <= element.clientWidth,
         inline: winds.every(wind => {
@@ -133,23 +134,20 @@ test('disabled weather removes airport reports and wind, stops requests, and kee
           const heading = row.querySelector('small')!.getBoundingClientRect();
           return id.right < heading.left && Math.abs((id.top + id.bottom - heading.top - heading.bottom) / 2) < 2;
         }),
-        rowHeights: rows.map(row => row.getBoundingClientRect().height),
         iconsVisible: [...element.querySelectorAll('.runway-wind-component svg')].every(icon => {
           const box = icon.getBoundingClientRect();
           return box.width >= 14 && box.height >= 14;
         }),
-        badgeCentered: Math.abs((badge.top + badge.bottom - badgeRow.top - badgeRow.bottom) / 2) < 1,
-        badgeAfterHeading: badge.left > marker.closest('th')!.querySelector('small')!.getBoundingClientRect().right,
-        badgeFits: badge.right <= marker.closest('th')!.getBoundingClientRect().right };
+        badgeFollowsReference: badge.left > reference.right || badge.top >= reference.bottom,
+        badgeFits: badge.left >= badgeCell.left && badge.right <= badgeCell.right
+          && badge.top >= badgeCell.top && badge.bottom <= badgeCell.bottom };
     });
     await runways.screenshot({ path: testInfo.outputPath(`best-wind-${width}.png`) });
     expect(layout.fits).toBe(true);
     expect(layout.inline).toBe(true);
     expect(layout.headingsInline).toBe(true);
-    expect(Math.abs(layout.rowHeights[0]! - layout.rowHeights[1]!)).toBeLessThan(1);
     expect(layout.iconsVisible).toBe(true);
-    expect(layout.badgeCentered).toBe(true);
-    expect(layout.badgeAfterHeading).toBe(true);
+    expect(layout.badgeFollowsReference).toBe(true);
     expect(layout.badgeFits).toBe(true);
   }
   const cached = await page.evaluate(() => [

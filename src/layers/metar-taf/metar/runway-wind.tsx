@@ -58,8 +58,8 @@ export function RunwayWindNotes({ properties }: { properties: GeoPointProperties
   if (!estimated && !variation) return null;
   return (
     <div className="runway-wind-notes">
-      {estimated && <small>≈ Heading and wind components estimated from runway number.</small>}
-      {variation && <small>Direction varies {variation[1]}–{variation[2]}°T; components use the reported mean.</small>}
+      {estimated && <small className="ui-meta">≈ Heading and wind components estimated from runway number.</small>}
+      {variation && <small className="ui-meta">Direction varies {variation[1]}–{variation[2]}°T; components use the reported mean.</small>}
     </div>
   );
 }
@@ -70,12 +70,12 @@ export function RunwayWind({ end, properties, declination }: {
   declination?: number | null | undefined;
 }) {
   const wind = windForRunway(end, properties, declination);
-  if (wind.kind === 'calm') return <p className="runway-wind-state">Calm · 0</p>;
+  if (wind.kind === 'calm') return <p className="ui-meta runway-wind-state">Calm · 0</p>;
   if (wind.kind === 'variable') {
-    return <p className="runway-wind-state">Variable direction · components unavailable</p>;
+    return <p className="ui-meta runway-wind-state">Variable direction · components unavailable</p>;
   }
   if (wind.kind === 'unavailable') {
-    return <p className="runway-wind-state">{wind.reason === 'heading'
+    return <p className="ui-meta runway-wind-state">{wind.reason === 'heading'
       ? (runwayHeading(end)?.reference === 'magnetic' ? 'Magnetic reference unavailable' : 'Runway heading unavailable') : wind.reason === 'direction'
       ? 'Wind direction unavailable' : 'METAR wind unavailable'}</p>;
   }
@@ -111,7 +111,7 @@ function WindComponent({ label, direction, value, gust, tailwind = false, estima
   return <span className={tailwind ? 'runway-wind-component is-tailwind' : 'runway-wind-component'}
     role="img" aria-label={description} title={description}>
     <WindArrow direction={direction} />
-    <strong aria-hidden="true">{knots(value)}{gust !== undefined && <small>G{knots(gust)}</small>}</strong>
+    <strong aria-hidden="true">{knots(value)}{gust !== undefined && <small className="ui-meta">G{knots(gust)}</small>}</strong>
   </span>;
 }
 

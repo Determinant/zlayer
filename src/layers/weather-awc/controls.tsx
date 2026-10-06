@@ -19,8 +19,8 @@ import { ProgsControls, SurfaceDetails } from './progs/controls';
 import './styles.css';
 
 type BooleanKey = { [K in keyof WeatherAwcPreferences]: WeatherAwcPreferences[K] extends boolean ? K : never }[keyof WeatherAwcPreferences];
-const FILTERS: readonly [BooleanKey, string][] = [
-  ['awcGairmet', 'G-AIRMET'], ['awcSigmet', 'SIGMET'], ['awcConvective', 'Convective SIGMET'],
+const FILTERS: readonly [BooleanKey, string, string?][] = [
+  ['awcGairmet', 'G-AIRMET'], ['awcSigmet', 'SIGMET'], ['awcConvective', 'Conv. SIGMET', 'Convective SIGMET'],
   ['awcCwa', 'CWA'], ['awcFreezing', 'Freezing contours'],
 ];
 const HAZARD_FILTERS: readonly [BooleanKey, string][] = [
@@ -33,7 +33,7 @@ export function WeatherControls({ controller }: { controller: WeatherController 
   return <div className="toggle-list"><button type="button" role="switch" aria-checked={p.awcEnabled}
       className={p.awcEnabled ? 'is-active' : ''} onClick={() => controller.change({ awcEnabled: !p.awcEnabled })}>
       <span className="layer-swatch awc-swatch" aria-hidden="true">WX</span>
-      <span className="layer-copy"><strong>Forecasts &amp; advisories</strong><small>CONUS · Radar · Progs · Clouds · Icing · Winds · Advisories</small></span>
+      <span className="ui-item-copy layer-copy"><strong>Forecasts &amp; advisories</strong><small>CONUS · Radar · Progs · Clouds · Icing · Winds · Advisories</small></span>
       <span className="switch" aria-hidden="true"><i /></span>
     </button></div>;
 }
@@ -41,14 +41,14 @@ export function WeatherControls({ controller }: { controller: WeatherController 
 function WeatherFilters({ controller }: { controller: WeatherController }) {
   const { preferences: p } = useLayerSnapshot(controller);
   return <div className="awc-filters">
-    <h4>Products</h4>
+    <h4 className="ui-section-title">Products</h4>
     <div className="awc-filter-grid" role="group" aria-label="Advisory products">
-      {FILTERS.map(([key, label]) => <label key={key} className={`awc-filter${key === 'awcFreezing' ? ' awc-filter--wide' : ''}`}>
-        <input type="checkbox" checked={p[key]} onChange={e => controller.change({ [key]: e.currentTarget.checked })} />
+      {FILTERS.map(([key, label, accessibleLabel]) => <label key={key} className={`awc-filter${key === 'awcFreezing' ? ' awc-filter--wide' : ''}`}>
+        <input type="checkbox" aria-label={accessibleLabel} checked={p[key]} onChange={e => controller.change({ [key]: e.currentTarget.checked })} />
         <span>{label}</span>
       </label>)}
     </div>
-    {p.awcGairmet && <details className="awc-hazards"><summary>G-AIRMET hazards</summary>
+    {p.awcGairmet && <details className="ui-disclosure awc-hazards"><summary>G-AIRMET hazards</summary>
       <div className="awc-filter-grid" role="group" aria-label="G-AIRMET hazards">
         {HAZARD_FILTERS.map(([key, label]) => <label key={key} className={`awc-filter${key === 'awcWind' ? ' awc-filter--wide' : ''}`}>
           <input type="checkbox" checked={p[key]} onChange={e => controller.change({ [key]: e.currentTarget.checked })} />
@@ -106,7 +106,7 @@ function AdvisoryControls({ controller }: { controller: WeatherController }) {
       <button type="button" className="ui-button ui-button--slim" onClick={() => controller.retryAdvisories()}>Retry advisories</button>
     </div>}
     <small>Right-click or long-press an advisory, then choose Inspect weather.</small>
-    <details className="awc-source-status"><summary>{degraded ? 'Cached / unavailable · ' : ''}Products &amp; source status</summary>
+    <details className="ui-disclosure awc-source-status"><summary>{degraded ? 'Cached / unavailable · ' : ''}Products &amp; source status</summary>
       {(p.awcGairmet || p.awcFreezing) && <ProductStatus state={state} product="gairmet" shown={counts.gairmet} />}
       {(p.awcSigmet || p.awcConvective) && <ProductStatus state={state} product="sigmet" shown={counts.sigmet} />}
       {p.awcCwa && <ProductStatus state={state} product="cwa" shown={counts.cwa} />}
@@ -149,8 +149,8 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
     target?.focus();
     setFocusAltitude(false);
   }, [panel.open, focusAltitude, category]);
-  return <section ref={content} className="awc-toolbox" aria-label="AWC Weather toolbox">
-      <div className="awc-toolbox-heading"><h3>AWC Weather</h3><span>{category === 'progs' ? 'N. America' : 'CONUS'}</span>
+  return <section ref={content} className="ui-toolbox awc-toolbox" aria-label="AWC Weather toolbox">
+      <div className="awc-toolbox-heading"><h3 className="ui-toolbox-title">AWC Weather</h3><span>{category === 'progs' ? 'N. America' : 'CONUS'}</span>
         <button className="ui-switch" type="button" role="switch" aria-label="Show AWC weather"
           aria-checked={p.awcEnabled} onClick={() => controller.change({ awcEnabled: !p.awcEnabled })}>
           <span className="switch" aria-hidden="true"><i /></span>
@@ -210,7 +210,7 @@ export function WeatherDetails({ controller, revision }: { controller: WeatherCo
           <p className={`awc-advisory-freshness${status.stale ? ' awc-error' : ''}`}>Source: {status.label}
             {status.age !== undefined && status.age >= 0 && ` · ${formatAge(status.age)} ago`}</p>
           {record.error && <p className="awc-error">{record.error}</p>}
-          {a.text && <details className="awc-bulletin"><summary>{a.product === 'gairmet' ? 'Source text' : 'Full bulletin'}</summary>
+          {a.text && <details className="ui-disclosure awc-bulletin"><summary>{a.product === 'gairmet' ? 'Source text' : 'Full bulletin'}</summary>
             <pre>{a.text}</pre>
           </details>}
         </article>;

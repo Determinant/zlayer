@@ -17,8 +17,9 @@ and preparation. Its saved setting survives toggling the main planner switch.
 
 The panel follows [shared UI typography and controls](../../../docs/features/shared-ui.md#typography):
 inherited B612, core switches/buttons/inputs and touch sizing. Its compact hierarchy
-follows Terrain and AWC Weather: titles, labels, legends and explanatory paragraphs
-use the panel's 12 px base and 1.5 line height. Planning assumptions and landing-area
+follows Terrain and AWC Weather: a shared 13 px bold toolbox title with labels,
+section headings, legends and explanatory paragraphs at the core 12 px base and
+1.5 line height. Planning assumptions and landing-area
 explanations keep this same size; the map-gesture hint joins supporting notes,
 status, metadata and slider limits at 11 px. The altitude value and MSL units share
 a bold 14 px baseline, wrapping below the label on narrow panels. Compact padding,

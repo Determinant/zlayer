@@ -101,7 +101,7 @@ export function auditRenderedNotam(record: NotamRecord, mapped = false, now = re
   if (!presentation) return [];
   const html = renderToStaticMarkup(createElement(NotamList, { entries: [{ record }], now,
     ...(mapped ? { charted: new Set([notamChartKey(record)]) } : {}) }));
-  const start = html.indexOf('<div class="notam-readable">'), end = html.indexOf('<div class="notam-validity">');
+  const start = html.search(/<div class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?">/), end = html.indexOf('<div class="notam-validity">');
   if (!presentation.blocks.length) return start < 0 ? [] : ['unexpected mapped body'];
   if (start < 0 || end < start) return ['readable region missing'];
   // React emits escaped text and these known entities. Decode once, after removing

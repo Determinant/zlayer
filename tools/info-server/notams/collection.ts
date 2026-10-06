@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { compareNotamRevision, mergeNotamRecords } from './revision';
+import { notamCancellationExpiresAt } from './policy';
 
 export const NO_NOTAM_ISSUES: readonly NotamSourceIssue[] = Object.freeze([]);
 export type NotamCollection = { records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
@@ -71,7 +72,11 @@ export function rebaseNotamRecords(current: NotamCollection, bulk: readonly Nota
   // An older full snapshot cannot withdraw those observations, even when it
   // covers the watermark. Equality remains conservative at timestamp precision.
   const keep = (id: string, updatedAt: number) => present.has(id) || absenceBefore === undefined || updatedAt >= absenceBefore;
-  const retained: NotamCollection = { records: current.records.filter(r => keep(r.id, r.updatedAt)),
+  // A bulk load can omit cancelled IDs while its overlapping bridge still
+  // replays sparse active renderings. Preserve recent cancellation evidence;
+  // the bridge applies ordinary expiry against its actual collection time.
+  const retained: NotamCollection = { records: current.records.filter(r => keep(r.id, r.updatedAt) ||
+    (notamCancellationExpiresAt(r) ?? 0) > (absenceBefore ?? Infinity)),
     issues: (current.issues ?? []).filter(r => keep(r.id, r.variants[0]!.updatedAt)) };
   return collectNotamRecords(retained, bulk);
 }

@@ -94,34 +94,34 @@ export function AhrsRecorderControl({ layer, visible, onStart }: {
         <path d="m23 8 3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>
-    {open && <div id={id} className="ahrs-recorder-menu" role="region" aria-label="AHRS recordings">
-      <strong>AHRS recorder</strong>
-      <p>Motion, GPS, attitude and uncertainty. Saved on this device.</p>
-      <button type="button" className="ui-button ahrs-record-action" disabled={busy}
+    {open && <div id={id} className="ui-panel-content ahrs-recorder-menu" role="region" aria-label="AHRS recordings">
+      <strong className="ui-panel-title">AHRS recorder</strong>
+      <p className="ui-note">Motion, GPS, attitude and uncertainty. Saved on this device.</p>
+      <button type="button" className="ui-button ui-button--compact ahrs-record-action" disabled={busy}
         onClick={() => { if (running) void layer.recorder.stop(); else void onStart(); }}>
         {state.phase === 'starting' ? 'Starting…' : state.phase === 'saving' ? 'Saving…' : running ? 'Stop recording' : 'Start recording'}
       </button>
-      <p className="ahrs-recorder-status" role="status">{running
+      <p className="ui-note ahrs-recorder-status" role="status">{running
         ? 'Recording · keep ZLayer in the foreground.'
         : 'Start before calibration to capture the complete session.'}</p>
-      {(state.error || error) && <p role="alert">{error || state.error}</p>}
-      <h4>Saved recordings</h4>
-      {downloading && <button className="ui-button" type="button" onClick={() => downloadController.current?.abort()}>Cancel download</button>}
-      {!saved.length && <p>{loading ? 'Loading…' : 'No recordings yet.'}</p>}
+      {(state.error || error) && <p className="ui-note" role="alert">{error || state.error}</p>}
+      <h4 className="ui-section-title">Saved recordings</h4>
+      {downloading && <button className="ui-button ui-button--compact" type="button" onClick={() => downloadController.current?.abort()}>Cancel download</button>}
+      {!saved.length && <p className="ui-note">{loading ? 'Loading…' : 'No recordings yet.'}</p>}
       <ul>{saved.map(info => <li key={info.id}>
-        <div><time dateTime={new Date(info.startedAt).toISOString()}>{formatTimestamp(info.startedAt, { timeZone: 'local' })}</time>
-          <small>{duration(info)} · {bytes(info.bytes)}{info.status === 'recording'
+        <div><time className="ui-meta" dateTime={new Date(info.startedAt).toISOString()}>{formatTimestamp(info.startedAt, { timeZone: 'local' })}</time>
+          <small className="ui-meta">{duration(info)} · {bytes(info.bytes)}{info.status === 'recording'
             ? info.id === state.info?.id && (running || busy) ? ' · Recording' : ' · Partial' : ''}</small></div>
         <div className="ahrs-recording-actions">
-          <button className="ui-button" type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info, 'gpx'); }}>
+          <button className="ui-button ui-button--compact" type="button" disabled={downloading !== null || deleting !== null} onClick={() => { void download(info, 'gpx'); }}>
             {downloading?.id === info.id && downloading.format === 'gpx' ? 'Preparing…' : 'Download GPX'}
           </button>
-          <button className="ui-button" type="button" disabled={downloading !== null || deleting !== null}
+          <button className="ui-button ui-button--compact" type="button" disabled={downloading !== null || deleting !== null}
             title="Download the detailed sensor recording (JSONL) for debugging"
             onClick={() => { void download(info, 'jsonl'); }}>
             {downloading?.id === info.id && downloading.format === 'jsonl' ? 'Preparing…' : 'Debug log'}
           </button>
-          <button type="button" className="ui-button ui-button--danger"
+          <button type="button" className="ui-button ui-button--compact ui-button--danger"
             disabled={downloading !== null || deleting !== null || info.id === state.info?.id && (running || busy)}
             title={info.id === state.info?.id && (running || busy) ? 'Stop recording before deleting it.' : 'Delete recording from this device'}
             onClick={() => setConfirmation(info)}>

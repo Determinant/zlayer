@@ -5,7 +5,7 @@
   margin-top: 1px;
   color: var(--text-c3e3f4);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
   font-weight: 700;
   line-height: 1.1;
 }
@@ -17,18 +17,12 @@
 
 .airport-runways {
   display: grid;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: var(--ui-panel-gap);
   font-variant-numeric: tabular-nums;
 }
 
-.airport-runways > h3 {
+.airport-runways > .ui-section-title {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .airport-runway-scroll {
@@ -37,13 +31,10 @@
 }
 
 .airport-runway {
-  width: 100%;
   table-layout: auto;
-  border-collapse: collapse;
   background: var(--surface-panel);
   text-align: left;
-  font-size: 11px;
-  line-height: 1.4;
+  line-height: var(--ui-line-height);
 }
 
 .airport-runway caption,
@@ -57,14 +48,14 @@
 
 .airport-helipad {
   border-radius: 6px;
-  line-height: 1.4;
+  line-height: var(--ui-line-height);
 }
 
 .airport-runway caption strong,
 .airport-helipad strong {
   margin-right: 8px;
   color: var(--text-d6e7f1);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
 }
 
 .airport-runway caption span,
@@ -72,48 +63,38 @@
 .runway-end-heading small,
 .runway-empty {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
 }
 
 .runway-empty { margin: 0; }
 
 .airport-runway th,
 .airport-runway td {
-  padding: 4px;
-  border-bottom: 1px solid var(--border-97c7e4-a120);
+  text-align: left;
   vertical-align: middle;
 }
 
-.airport-runway thead th {
-  padding-top: 4px;
-  padding-bottom: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 400;
-}
-
 .airport-runway thead th span { font-weight: 400; }
-.airport-runway thead th:first-child { width: 45%; }
 
 .runway-end-heading { white-space: nowrap; }
-.runway-end-identity { display: flex; align-items: center; gap: 5px; }
+.runway-end-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+.runway-end-reference { display: inline-flex; align-items: center; gap: var(--ui-space-related); white-space: nowrap; }
 
 .runway-end-heading strong {
   color: var(--text-e3edf5);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
   white-space: nowrap;
 }
 
 .runway-best-wind {
   display: block;
   width: max-content;
-  margin-left: auto;
   padding: 2px 5px;
   border-radius: 3px;
   background: var(--overlay-7ee2a8-a120);
   color: var(--text-7ee2a8);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ui-text-meta);
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
 }

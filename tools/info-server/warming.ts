@@ -75,7 +75,9 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
       else await prepare();
     } catch (error) {
       if (signal.aborted) return;
-      state.error = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== state.error) options.log?.(`Forecast update failed (${product}): ${message}`);
+      state.error = message;
       // Retry transport/backoff failures against the same candidate. A removed,
       // changed or invalid source needs discovery again; otherwise one bad run
       // could pin the updater forever after newer data becomes available.
@@ -83,7 +85,6 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         state.candidate = undefined; retain();
       }
       state.nextCheck = now() + 30_000;
-      options.log?.(`Forecast update failed (${product}): ${state.error}`);
     }
   }
   return {
@@ -97,7 +98,11 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         const saved = generation(manifest, payload);
         let complete = true;
         for (const file of saved.files) if (!await cache.check(file.resource)) { complete = false; break; }
-        if (complete) states.get(product)!.current = saved;
+        if (complete) {
+          const state = states.get(product)!;
+          state.current = saved;
+          state.nextCheck = manifest.checkedAt + 6 * 60_000;
+        }
         else await cache.discard(catalogResource(product));
       }
       retain();

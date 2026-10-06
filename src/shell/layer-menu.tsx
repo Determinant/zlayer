@@ -16,7 +16,7 @@ function MapDisplayControls({ controls }: { controls: readonly UiContribution[] 
   }
   return [...groups].map(([key, { title, contributions }]) => title
     ? <section className="layer-section" key={key} aria-label={title}>
-      <div className="section-title"><h3>{title}</h3></div>
+      <div className="section-title"><h3 className="ui-section-title">{title}</h3></div>
       <div className="layer-control-group"><LayerContributions contributions={contributions} /></div>
     </section>
     : <LayerContributions key={key} contributions={contributions} />);

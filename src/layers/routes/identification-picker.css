@@ -13,7 +13,7 @@
 .route-identification-choices > p, .route-identification-choices > section:not(.nearby-navaids) > :is(h3, p) {
   margin: 0; overflow-wrap: anywhere;
 }
-.route-identification-choices h3 { font-size: 14px; }
+.route-identification-choices > section:not(.nearby-navaids) > h3 { font-size: var(--ui-text-body); }
 .route-identification-choices > section > .ui-button {
   white-space: normal; text-align: left; overflow-wrap: anywhere;
 }

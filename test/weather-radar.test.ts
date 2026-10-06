@@ -7,9 +7,10 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { isRadarCatalog, isRadarContours, RADAR_MAX_AGE, RADAR_HISTORY_MS } from '@zlayer/contracts';
 import { decodeMrms, decodeTdwr, prepareRadar } from '../tools/info-server/radar-decode';
 import { digest } from '../tools/info-server/upstream';
-import { radarKey, radarKeys, radarHistory, tdwrUrl } from '../tools/info-server/radar';
+import { createRadarWarming, PUBLISHED_RADAR, radarKey, radarKeys, radarHistory, tdwrUrl } from '../tools/info-server/radar';
+import { WeatherCache } from '../tools/info-server/cache';
 import { createInfoServer } from '../tools/info-server/server';
-import { resourceFor } from '../tools/info-server/routes';
+import { HttpError, resourceFor } from '../tools/info-server/routes';
 import { currentRadar, radarTimes } from '../src/layers/weather-awc/radar/time';
 import { forecastStops, HOUR } from '../src/layers/weather-awc/time';
 import { weatherTimeScale } from '../src/layers/weather-awc/time-scale';
@@ -169,9 +170,40 @@ test('restoring missing history preserves current radar and the original source-
   assert.ok(!catalog.history!.some(f => f.path === missing.path));
 });
 
+test('a cached terminal scan from history cannot replace a newer live observation', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'zlayer-radar-cached-rollback-'));
+  const current = radarFixture(), now = current.catalog.checkedAt, previous = radarFixture(now - 60_000);
+  const raw = Buffer.from('previously authenticated terminal input'), sourceHash = digest(raw);
+  const old = previous.catalog.files.find(file => file.site === 'TOKC')!;
+  const body = Buffer.from(JSON.stringify({ ...JSON.parse(previous.files.get(old.path)!.toString()), sourceHash }));
+  const sha256 = digest(body), path = `TOKC/${old.observedAt}-${sha256}.json`;
+  current.files.set(path, body);
+  current.catalog.history = [{ ...old, sourceHash, sha256, path, byteLength: body.length }];
+  const cache = new WeatherCache({ directory, maxBytes: 1024 * 1024, now: () => now, load: async resource => {
+    if (resource.url !== tdwrUrl('TOKC')) throw new HttpError(404, 'No station fixture');
+    return { body: raw, sha256: sourceHash, checkedAt: now, status: 200, headers: {} };
+  } });
+  await cache.restore();
+  for (const [path, body] of current.files) await cache.put(resourceFor(`/api/weather/radar/${path}`), {
+    body, sha256: digest(body), checkedAt: now, status: 200,
+    headers: { 'content-type': 'application/json', 'x-weather-artifact': PUBLISHED_RADAR },
+  });
+  const catalogBody = Buffer.from(JSON.stringify(current.catalog)), resource = resourceFor('/api/weather/radar/latest.json');
+  await cache.put(resource, { body: catalogBody, sha256: digest(catalogBody), checkedAt: now, status: 200,
+    headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_RADAR } });
+  const shutdown = new AbortController(), radar = createRadarWarming(cache, shutdown.signal, { now: () => now });
+  t.after(async () => { shutdown.abort(); await radar.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+  await radar.restore(); radar.refresh(); await radar.close();
+  const saved = JSON.parse((await cache.read(resource))!.body.toString());
+  assert.ok(isRadarCatalog(saved));
+  assert.deepEqual(saved.files.find(file => file.site === 'TOKC'), current.catalog.files.find(file => file.site === 'TOKC'));
+  assert.ok(saved.unavailable.includes('TOKC'), 'replayed old bytes are a failed source check even while their saved history remains usable');
+  assert.ok(saved.history?.some(file => file.path === path));
+});
+
 test('radar HTTP only reads prepared files; refresh reuses scans, failed sites stay independent and restart restores the catalog', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-radar-'));
-  let now = Date.parse('2026-09-24T20:25:00Z'), reads = 0, offline = false;
+  let now = Date.parse('2026-09-24T20:25:00Z'), reads = 0, offline = false, historyAttempts = 0;
   const national = await capture('20260924-202439-mrms.grib2.gz'), terminal = await capture('20260924-202234-tokc.level3');
   // A synthetic older timestamp on the captured field exercises real historical
   // acquisition/decoding without another multi-megabyte repository fixture.
@@ -183,7 +215,8 @@ test('radar HTTP only reads prepared files; refresh reuses scans, failed sites s
       const url = String(input);
       if (url.includes('?list-type')) return new Response(`<IsTruncated>false</IsTruncated><Key>${historyKey}</Key><Key>${key}</Key>`);
       if (url === mrmsSource) return new Response(Uint8Array.from(national));
-      if (url === mrmsSource.replace('202439', '192439')) return new Response(Uint8Array.from(historyRaw));
+      if (url === mrmsSource.replace('202439', '192439')) return ++historyAttempts === 1
+        ? new Response(null, { status: 500 }) : new Response(Uint8Array.from(historyRaw));
       if (url === tdwrUrl('TOKC')) return new Response(Uint8Array.from(terminal));
       return new Response(null, { status: 404 });
     }) as typeof fetch };
@@ -193,7 +226,11 @@ test('radar HTTP only reads prepared files; refresh reuses scans, failed sites s
   let origin = await listen();
   assert.equal((await fetch(`${origin}/api/weather/radar/latest.json`)).status, 503); assert.equal(reads, 0);
   app.radar.refresh(); await app.radar.close();
-  app.radar.refresh(); await app.radar.close(); // Idle live slot prepares one history bucket.
+  app.radar.refresh(); await app.radar.close(); // The first history download fails transiently.
+  assert.equal(historyAttempts, 1);
+  now += 6000;
+  app.radar.refresh(); await app.radar.close(); // A later idle pass retries the same key.
+  assert.equal(historyAttempts, 2, 'a transport failure must not blacklist history for the whole two-hour window');
   const response = await fetch(`${origin}/api/weather/radar/latest.json`), catalog = await response.json();
   assert.equal(response.status, 200); assert.ok(isRadarCatalog(catalog)); assert.equal(catalog.files.length, 2); assert.equal(catalog.unavailable.length, 44);
   const historical = catalog.history?.find(f => f.source.endsWith('192439.grib2.gz'));

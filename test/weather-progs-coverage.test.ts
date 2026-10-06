@@ -78,7 +78,11 @@ test('server publishes validated coverage independently, preserves prior data on
   const fetcher: typeof fetch = async input => {
     reads++;
     const path = new URL(String(input)).pathname;
-    if (path === '/api/data/progchart') return Response.json(surfaceCatalog());
+    if (path === '/api/data/progchart') {
+      const source = surfaceCatalog();
+      if (mode === 'rollback') { source.prog[0]!.file = '20260922_15_F000_wpc.geojson'; source.prog[0]!.vsecs -= 3 * 3600; }
+      return Response.json(source);
+    }
     if (path.includes('_F168_')) return new Response(null, { status: 404 });
     if (mode === 'outage') return new Response(null, { status: 500 });
     return new Response(mode === 'malformed' ? Uint8Array.from([1, 2, 3]) : png, { headers: { 'content-type': 'image/png' } });
@@ -104,9 +108,12 @@ test('server publishes validated coverage independently, preserves prior data on
   assert.equal((await fetch(origin + path, { method: 'HEAD' })).status, 200);
   assert.equal((await fetch(origin + path + '?time=other')).status, 400);
   assert.equal(reads, requests);
-  for (const failure of ['malformed', 'outage']) {
+  for (const failure of ['malformed', 'outage', 'rollback']) {
+    const before: number = reads;
     now += 6 * 60_000; mode = failure; await refresh();
     assert.ok(app.coverage.status.error);
+    assert.equal(app.coverage.status.nextAttemptAt, now + 30_000);
+    if (failure === 'rollback') assert.equal(reads, before + 1, 'an older catalog is rejected before acquiring any images');
     assert.deepEqual(await (await fetch(`${origin}/api/weather/progs/coverage.json`)).json(), first);
   }
   mode = 'good'; png = coveragePng(1); now += 6 * 60_000; await refresh();

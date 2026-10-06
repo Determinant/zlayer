@@ -14,8 +14,8 @@ export function AirportRunways({ feature, weather }: { feature: GeoPointFeature;
   const hasRunways = runways?.some(runway => !runway.id.startsWith('H'));
   const title = hasHelipads ? hasRunways ? 'Runways & helipads' : 'Helipads' : 'Runways';
   return (
-    <section className="airport-runways" aria-label={title}>
-      <h3>{title}</h3>
+    <section className="ui-section airport-runways" aria-label={title}>
+      <h3 className="ui-section-title">{title}</h3>
       {runways?.length ? (
         <>
           {hasRunways && weather?.notes}
@@ -27,7 +27,7 @@ export function AirportRunways({ feature, weather }: { feature: GeoPointFeature;
           ) : (
             <div className="airport-runway-scroll" key={runway.id} tabIndex={0}
               role="region" aria-label={`${runway.id} runway details`}>
-              <table className="airport-runway">
+              <table className="ui-data-table airport-runway">
                 <caption>
                   <strong>{runway.id}</strong>
                   <span>{dimensions(runway.lengthFt, runway.widthFt)}{runway.surface && ` · ${runway.surface}`}</span>
@@ -48,12 +48,14 @@ export function AirportRunways({ feature, weather }: { feature: GeoPointFeature;
                       <tr className="runway-end" key={end.id}>
                         <th scope="row" className="runway-end-heading">
                           <span className="runway-end-identity">
-                            <strong>{end.id}</strong>
-                            {heading && (
-                              <small title={heading.estimated ? 'Approximate magnetic heading from runway number' : undefined}>
-                                {heading.estimated && '≈'}{String(heading.degrees || 360).padStart(3, '0')}°{heading.reference === 'magnetic' ? 'M' : 'T'}
-                              </small>
-                            )}
+                            <span className="runway-end-reference">
+                              <strong>{end.id}</strong>
+                              {heading && (
+                                <small title={heading.estimated ? 'Approximate magnetic heading from runway number' : undefined}>
+                                  {heading.estimated && '≈'}{String(heading.degrees || 360).padStart(3, '0')}°{heading.reference === 'magnetic' ? 'M' : 'T'}
+                                </small>
+                              )}
+                            </span>
                             {weather?.bestWindEnds?.includes(end.id) && (
                               <span className="runway-best-wind"
                                 title={`Greatest headwind from the reported METAR.${heading?.estimated ? ' Uses approximate runway heading.' : ''} Wind only; not the active runway.`}>Best Wind</span>

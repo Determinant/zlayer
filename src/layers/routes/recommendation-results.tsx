@@ -41,7 +41,7 @@ export function RecommendationResults({ catalog, pair, navigation, airways, term
   const common = { model, preview, onPreview: (id: string) => { onPreviewInteraction(); setSelection({ scope, id }); }, onUseRoute };
   const engines = [...new Set(['Piston', 'Turboprop', 'Jet', 'Unknown', ...history.data?.engines ?? []])];
   return <>
-    <p className="route-preview-legend" role="status"><i />Selected <i className="is-alternative" />Alternatives
+    <p className="ui-meta route-preview-legend" role="status"><i />Selected <i className="is-alternative" />Alternatives
       <span>{preview.routes.length ? `${preview.routes.length} on map · select a row to compare` : 'No mapped alternatives yet'}</span></p>
     <RecommendationSection key={`frequency:${scope}`} id="frequency" title="Frequency" rows={model.groups.frequency} {...common}
       error={history.error} loading={history.loading} onRetry={history.retry}
@@ -77,12 +77,12 @@ export function RecommendationSection({ id, title, rows, model, preview, source,
   const [limit, setLimit] = usePluginState(pluginStorage, `recommendation-limit:${id}`, 5,
     (value): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 5);
   return <section className="route-recommend-section" aria-labelledby={`route-${id}-title`} data-route-category={id}>
-    <div className="route-section-heading"><h3 id={`route-${id}-title`}>{title}<span>{rows.length || ''}</span></h3>
-      {controls ?? <span className="route-recommend-source is-inline">{source}</span>}</div>
-    {controls && <div className="route-recommend-source">{source}</div>}
-    {error && <div className="route-recommend-state" role="alert"><span>{error}</span><button className="ui-button ui-button--compact" type="button" onClick={onRetry}>Retry {title}</button></div>}
-    {loading ? <p className="route-recommend-state" role="status">Loading {title.toLowerCase()} routes…</p>
-      : rows.length === 0 ? !error && <p className="route-recommend-state">{empty}</p>
+    <div className="route-section-heading"><h3 className="ui-section-title" id={`route-${id}-title`}>{title}<span>{rows.length || ''}</span></h3>
+      {controls ?? <span className="ui-meta route-recommend-source is-inline">{source}</span>}</div>
+    {controls && <div className="ui-meta route-recommend-source">{source}</div>}
+    {error && <div className="ui-note route-recommend-state" role="alert"><span>{error}</span><button className="ui-button ui-button--compact" type="button" onClick={onRetry}>Retry {title}</button></div>}
+    {loading ? <p className="ui-note route-recommend-state" role="status">Loading {title.toLowerCase()} routes…</p>
+      : rows.length === 0 ? !error && <p className="ui-note route-recommend-state">{empty}</p>
       : <ul className="route-recommend-list">{rows.slice(0, limit).map(row => {
         const plan = model.planFor(row);
         // The shared resolver is authoritative about TEC codes, including ambiguity.
@@ -99,8 +99,8 @@ export function RecommendationSection({ id, title, rows, model, preview, source,
           <button type="button" className="ui-button ui-button--quiet ui-button--compact route-suggestion-preview" disabled={!key} aria-pressed={selected}
             aria-label={`Preview route ${label}`} onClick={() => onPreview(row.id)}>
             <span className="route-suggestion-rank" title={index >= 0 ? `Map route ${index + 1}` : undefined}>{index >= 0 ? index + 1 : '·'}</span>
-            <span className="route-suggestion-copy"><strong>{row.route}</strong>
-              <span className="route-suggestion-meta">{row.detail}
+            <span className="ui-item-copy route-suggestion-copy"><strong>{row.route}</strong>
+              <span className="ui-meta route-suggestion-meta">{row.detail}
                 {tecs.length ? ' · current TEC' : ''}
                 {plan && key && !plan.issues.length && !plan.procedures.length ? ` · ${Math.round(plan.distanceNm)} NM` : ''}
                 {unavailable && <span className="route-suggestion-warning" title={plan?.issues.map(issue => issue.message).join('\n')}>{' · '}{unavailable}</span>}

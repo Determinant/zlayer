@@ -19,7 +19,7 @@
   display: flex;
   gap: 4px;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -34,32 +34,21 @@
   padding-left: 9px;
   border-left: 1px solid var(--border-d8effa-a140);
   color: var(--text-7890a3);
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
 .airport-weather {
   display: grid;
-  gap: 3px;
-  margin: 0 0 12px;
+  gap: var(--ui-space-related);
   font-variant-numeric: tabular-nums;
 }
 
-.airport-weather > h3 {
-  margin: 0 0 5px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+.weather-source { display: grid; gap: var(--ui-space-related); margin-block: var(--ui-space-related); }
 
-.weather-source { margin: 6px 0 8px; }
-.weather-source label { display: grid; gap: 5px; color: var(--text-8fa7b9); font-size: 11px; }
-.weather-source p { margin: 5px 0 0; color: var(--text-8fa7b9); font-size: 11px; line-height: 1.5; }
-
-.airport-weather > dl { margin: 5px 0 0; }
+.airport-weather > .ui-section-title { margin-bottom: var(--ui-space-related); }
+.airport-weather > dl { margin: var(--ui-space-related) 0 0; }
 
 .airport-weather-report {
   display: flex;
@@ -73,21 +62,12 @@
 
 .airport-weather time {
   color: var(--text-d6e7f1);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
   white-space: nowrap;
 }
 
 .airport-weather-age {
-  color: var(--text-muted);
-  font-size: 11px;
   white-space: nowrap;
-}
-
-.airport-weather-status {
-  margin: 0;
-  color: var(--text-8fa7b9);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .airport-weather-status > span { white-space: nowrap; }
@@ -98,13 +78,6 @@
 .runway-wind-notes {
   display: grid;
   gap: 2px;
-}
-
-.runway-wind-notes small,
-.runway-wind-state {
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.4;
 }
 
 .runway-wind-state { margin: 0; }
@@ -131,13 +104,13 @@
 
 .runway-wind-components small {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--ui-text-meta);
   font-weight: 400;
 }
 
 .runway-wind-components strong {
   color: var(--text-d6e7f1);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -149,17 +122,9 @@
   color: var(--text-f2bc7b);
 }
 
-.airport-taf {
-  padding-top: 13px;
-  border-top: 1px solid var(--border-97c7e4-a140);
-}
-
 .taf-dates {
   display: grid;
   gap: 3px;
-  color: var(--text-8fa7b9);
-  font-size: 11px;
-  line-height: 1.6;
 }
 
 .taf-dates time { font-size: inherit; }
@@ -190,15 +155,15 @@
 .airport-weather [data-flight-category='LIFR'] { color: var(--text-e97bf5); }
 
 .taf-category {
-  font-size: 11px;
+  font-size: var(--ui-text-meta);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .taf-lines code {
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--ui-text-compact);
+  line-height: var(--ui-line-height-prose);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -207,10 +172,7 @@
   grid-column: 2;
   justify-self: end;
   max-width: 100%;
-  color: var(--text-8fa7b9);
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
   text-align: right;
   white-space: normal;
 }

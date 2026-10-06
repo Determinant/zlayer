@@ -349,10 +349,12 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-progs-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   let now = WEATHER_NOW, calls = 0, failAnalysis = false, failForecast = false, rollback = false, correction = false;
+  const requested: string[] = [];
   const options = { directory, now: () => now, spacing: 0, startUpdates: false,
     fetch: (async (input: RequestInfo | URL) => {
       calls++;
       const url = new URL(String(input));
+      requested.push(url.href);
       if (url.href === SURFACE_CATALOG) {
         const catalog = surfaceCatalog();
         if (rollback) { catalog.prog[0]!.file = '20260922_15_F000_wpc.geojson'; catalog.prog[0]!.vsecs -= 3 * 3600; }
@@ -414,8 +416,11 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   assert.equal((await restarted.cache.read(progsResource('analysis')))?.body.toString(), latest);
   assert.equal(restarted.progs.status.analysis!.ready, true); assert.equal(calls, beforeRestart);
   now += 6 * 60_000; rollback = true; failForecast = false;
+  requested.length = 0;
   restarted.progs.refresh(); await restarted.progs.close();
   assert.match(restarted.progs.status.analysis!.error ?? '', /older surface/);
+  assert.ok(!requested.some(url => url.includes('_F000_')), 'an older catalog is rejected before downloading or preparing analysis');
+  assert.equal(restarted.progs.status.analysis!.nextAttemptAt, now + 30_000);
   assert.equal((await restarted.cache.read(progsResource('analysis')))?.body.toString(), latest);
   now += 6 * 60_000; rollback = false; correction = true;
   restarted.progs.refresh(); await restarted.progs.close();

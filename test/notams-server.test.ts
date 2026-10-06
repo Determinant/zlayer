@@ -426,6 +426,64 @@ test('bulk bridge, deltas and local airport reads share one collector; failures 
     assert.ok(journal.bulkAt >= NOTAM_NOW + NOTAM_DAY_MS);
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
+test('recent cancellation of an old revision survives deltas, restart and an absent full-load member', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-cancellation-retention-')), controller = new AbortController();
+  let time = NOTAM_NOW;
+  const active = normalized(notice({ updatedAt: time - 3 * NOTAM_DAY_MS, effectiveEnd: 'PERM', endsAt: null, endKind: 'permanent' }));
+  const oldMessage = normalized(notice({ ...active, id: '1757600000000002', sourceId: '1757600000000002', changeType: 'C' }));
+  const independent = normalized(notice({ ...active, id: '1757600000000003', sourceId: '1757600000000003' }));
+  const canceledAt = new Date(time).toISOString();
+  const cancellation = aixm({ ...active, lifecycle: 'cancelled' }).replace(/<f:canceled>[^<]+/, `<f:canceled>${canceledAt}`);
+  let updates = [cancellation];
+  const state = join(directory, 'staging'), budgetPath = join(state, 'budget.json');
+  const seed = new NotamStore(state, 'staging', () => time);
+  try { await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([active, oldMessage, independent])); }
+  finally { await seed.close(); }
+  const calls: string[] = [];
+  const create = () => createNotamService({ enabled: true, environment: 'staging', directory,
+    credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
+      const url = new URL(String(input)); calls.push(url.pathname); time += 1001;
+      if (url.pathname === '/v1/auth/token') return Response.json({ access_token: 'fixture', expires_in: '1799', token_type: 'BearerToken' });
+      if (url.pathname.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
+      if (url.pathname.endsWith('/content/fixture')) return new Response(gzipSync(bulkXml([], time)));
+      return Response.json({ status: 'Success', data: { aixm: updates } });
+    } });
+  let service = create();
+  const restart = async () => {
+    const budget = await readFile(budgetPath, 'utf8');
+    await service.close(); service = create(); await service.restore();
+    assert.equal(await readFile(budgetPath, 'utf8'), budget, 'restoration preserves admission');
+  };
+  try {
+    await service.restore(); time += 180_000;
+    service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready');
+    assert.equal(service.status.recordCount, 2, 'fresh cancellation remains; the old cancellation message expires');
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records.map(r => r.id), [independent.id]);
+    updates = [aixm(active)];
+    await restart(); time += 180_000;
+    service.refresh(); await service.settled();
+    assert.equal(service.status.recordCount, 2);
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records.map(r => r.id), [independent.id], 'sparse replay cannot resurrect the cancelled notice');
+    time = NOTAM_NOW + NOTAM_DAY_MS + 60_000;
+    service.refresh(); await service.settled();
+    assert.equal(calls.filter(path => path.endsWith('/il')).length, 1);
+    assert.equal(service.reconciliation?.pending, true);
+    await restart(); time += 180_000;
+    service.refresh(); await service.settled();
+    assert.equal(service.status.state, 'ready'); assert.equal(service.reconciliation?.state, 'current');
+    assert.equal(service.status.recordCount, 1, 'bulk absence removes the independent active record, retaining the recent tombstone');
+    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records, []);
+    const manifest = JSON.parse(await readFile(join(state, 'current.json'), 'utf8'));
+    const retained = JSON.parse((await readFile(join(state, `${manifest.generation}.ndjson`), 'utf8')).trim());
+    assert.equal(retained.id, active.id); assert.equal(retained.canceledAt, canceledAt);
+    assert.equal(retained.updatedAt, active.updatedAt); assert.equal(retained.lifecycle, 'cancelled');
+    await restart();
+    assert.equal(service.status.recordCount, 1); assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records, []);
+  } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 for (const failure of ['bulk-invalid', 'bridge-transport'] as const) {
   test(`failed replacement ${failure} preserves live continuity and resumes budgeted deltas`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'notam-replacement-')), controller = new AbortController();

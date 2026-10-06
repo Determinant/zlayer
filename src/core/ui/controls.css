@@ -3,7 +3,7 @@
 .ui-button {
   min-width: var(--touch-target); max-width: 100%; min-height: max(44px, var(--touch-target));
   padding: 8px 12px; border: 1px solid var(--border-control); border-radius: 6px;
-  color: var(--text-control); background: var(--surface-control); font: inherit; font-size: 14px; line-height: 1.4;
+  color: var(--text-control); background: var(--surface-control); font: inherit; font-size: var(--ui-text-body); line-height: 1.4;
   cursor: pointer;
 }
 .ui-button--quiet { border-color: transparent; background: transparent; }
@@ -15,9 +15,9 @@
 .ui-button:where([aria-pressed="true"], [aria-selected="true"]) {
   color: var(--text-d9fff5); background: var(--surface-selected); border-color: var(--border-4c8e83);
 }
-.ui-button--compact { min-height: max(32px, var(--touch-target)); padding: 5px 8px; font-size: 12px; }
+.ui-button--compact { min-height: max(var(--ui-control-height-compact), var(--touch-target)); padding: 5px 8px; font-size: var(--ui-text-compact); }
 /* Explicit opt-in for dense toolboxes, including touch screens. */
-.ui-button--slim { min-width: 44px; min-height: 32px; padding: 5px 8px; font-size: 12px; }
+.ui-button--slim { min-width: 44px; min-height: var(--ui-control-height-compact); padding: 5px 8px; font-size: var(--ui-text-compact); }
 .ui-button--icon {
   display: inline-grid; place-items: center; flex-shrink: 0;
   width: 44px; height: 44px; padding: 0;
@@ -47,7 +47,8 @@ textarea.ui-input { resize: vertical; }
 .ui-button:where(:disabled), .ui-input:where(:disabled), .ui-switch:where(:disabled) { opacity: .45; cursor: default; }
 
 .ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: var(--overlay-ffffff-a60); }
-.ui-tabs > .ui-button { flex: 1; }
+.ui-tabs > .ui-button { flex: 1; font-weight: 700; }
+.ui-tabs > .ui-button--slim { padding-inline: 4px; }
 .ui-tabs--scrollable { flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; border-inline: 2px solid transparent; }
 .ui-tabs--scrollable > .ui-button { flex: 0 0 auto; white-space: nowrap; }
 .ui-tabs--scrollable[data-overflow-start="true"] { border-left: 2px solid var(--text-muted); }

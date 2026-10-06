@@ -57,8 +57,12 @@ test('deployment readiness requires current weather as well as authenticated sav
   json('/api/weather/radar/motion/latest.json', motionCatalog);
   responses.set(`/api/weather/radar/motion/${hash}.json`, { body: motionBody, headers: {} });
   const ready = { ready: true };
+  const weatherSources = ['clouds', 'icing', 'winds', 'progs.analysis', 'progs.forecast', 'progs.coverage', 'radar', 'radarMotion',
+    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa'];
   json('/api/weather/healthz', { ok: true, forecasts: { clouds: ready, icing: ready, winds: ready },
-    progs: { analysis: ready, forecast: ready }, progsCoverage: ready, radar: ready, radarMotion: ready });
+    progs: { analysis: ready, forecast: ready }, progsCoverage: ready, radar: ready, radarMotion: ready,
+    readiness: { sources: Object.fromEntries(weatherSources.map(name => [name,
+      { available: true, fresh: true, coverage: ['radar', 'radarMotion', 'progs.coverage'].includes(name) ? 'partial' : 'complete', error: null }])) } });
   for (const product of ['gairmet', 'sigmet', 'cwa'] as const) json(`/api/weather/advisories/${product}.json`, advisorySnapshot(product));
   json('/api/weather/metars.geojson?ids=KSFO', { type: 'FeatureCollection', features: [] });
   json('/api/weather/tafs.json?ids=KSFO', []);
@@ -69,6 +73,18 @@ test('deployment readiness requires current weather as well as authenticated sav
 
   type Edit = { path: string; update: (value: any) => void; error: RegExp };
   const edits: Edit[] = [
+    { path: '/api/weather/healthz', update: v => { delete v.readiness; }, error: /Weather readiness status missing/ },
+    ...weatherSources.flatMap(name => [
+      { path: '/api/weather/healthz', update: (v: any) => { delete v.readiness.sources[name]; }, error: /readiness status missing/ },
+      { path: '/api/weather/healthz', update: (v: any) => { v.readiness.sources[name].available = false; }, error: /unavailable/ },
+      { path: '/api/weather/healthz', update: (v: any) => { v.readiness.sources[name].fresh = false; }, error: /stale or future source/ },
+      { path: '/api/weather/healthz', update: (v: any) => { v.readiness.sources[name].error = 'source refresh failed'; }, error: /source refresh failed/ },
+    ]),
+    ...['gairmet', 'sigmet', 'cwa'].flatMap(product => [
+      { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { v.checkedAt -= 11 * MINUTE; }, error: /source check: stale/ },
+      { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { v.checkedAt += MINUTE; }, error: /source check: stale or future/ },
+      { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { Object.assign(v, advisorySnapshot(product === 'gairmet' ? 'sigmet' : 'gairmet')); }, error: /invalid advisory snapshot/ },
+    ]),
     ...['clouds', 'icing', 'winds'].flatMap(product => [
       { path: `/api/weather/grids/${product}.json`, update: (v: NativeManifest) => { v.checkedAt = v.publishedAt = WEATHER_NOW - 91 * MINUTE; shiftRun(v, -1); }, error: /source check: stale/ },
       { path: `/api/weather/grids/${product}.json`, update: (v: NativeManifest) => { v.checkedAt = v.publishedAt = WEATHER_NOW + MINUTE; }, error: /source check: stale or future/ },
@@ -107,6 +123,8 @@ test('deployment readiness requires current weather as well as authenticated sav
     });
     if (edit) await assert.rejects(checkInfoApi('https://info.test'), edit.error);
     else assert.ok((await checkInfoApi('https://info.test')).reads > 25);
+    if (edit?.path === '/api/weather/healthz') await assert.rejects(checkInfoApi('https://info.test', 'production',
+      { allowOverdueFullSync: true, maxUnresolvedNotams: 1 }), edit.error, 'NOTAM exceptions cannot waive weather failures');
   });
   await t.test('recent collection cannot freshen old storm observations', async t => {
     t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
@@ -122,7 +140,22 @@ test('deployment readiness requires current weather as well as authenticated sav
     });
     await assert.rejects(checkInfoApi('https://info.test'), /No current storm motion observations/);
   });
-  for (const failure of [undefined, 'missing-route', 'wrong-scope', 'wrong-station', 'old-full-sync', 'source-issue'] as const) await t.test(`navaid route readiness: ${failure ?? 'ready'}`, async t => {
+  const reconciliation = { state: 'current', error: null };
+  const enabledCases: { name: string; failure?: string; reconciliation: unknown; error?: RegExp }[] = [
+    { name: 'ready', reconciliation },
+    { name: 'missing-route', failure: 'missing-route', reconciliation, error: /HTTP 404/ },
+    { name: 'wrong-scope', failure: 'wrong-scope', reconciliation, error: /Invalid navaid snapshot/ },
+    { name: 'wrong-station', failure: 'wrong-station', reconciliation, error: /SAU/ },
+    { name: 'old-full-sync', failure: 'old-full-sync', reconciliation: { state: 'overdue', error: null }, error: /NOTAM full synchronization/ },
+    { name: 'source-issue', failure: 'source-issue', reconciliation, error: /Unexpected unresolved/ },
+    { name: 'pending replacement', reconciliation: { state: 'pending', error: null } },
+    ...['source-http-502', 'reconciliation-interrupted', 'reconciliation-history-invalid', 'reconciliation-history-unavailable']
+      .map(code => ({ name: code, reconciliation: { state: 'failed', error: code }, error: /NOTAM reconciliation failed/ })),
+    { name: 'missing reconciliation status', reconciliation: undefined, error: /NOTAM reconciliation status missing/ },
+    { name: 'unavailable reconciliation status', reconciliation: null, error: /NOTAM reconciliation status missing/ },
+    { name: 'missing reconciliation error field', reconciliation: { state: 'current' }, error: /NOTAM reconciliation failed/ },
+  ];
+  for (const { name, failure, reconciliation, error } of enabledCases) await t.test(`enabled NOTAM readiness: ${name}`, async t => {
     t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
     const airport = notamSnapshot([], { query: { faaId: 'SFO', icaoId: 'KSFO' } });
     airport.feed.checkedAt = airport.feed.watermark = WEATHER_NOW;
@@ -136,7 +169,8 @@ test('deployment readiness requires current weather as well as authenticated sav
       const artifact = /^\/api\/weather\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
       const saved = responses.get(path) ?? (artifact ? { body: Buffer.from('prepared grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
       assert.ok(saved, `Unexpected readiness request: ${path}`);
-      const value = path === '/api/notams/healthz' ? airport.feed
+      const value = path === '/api/weather/healthz' ? { ...JSON.parse(saved.body.toString()), notamReconciliation: reconciliation }
+        : path === '/api/notams/healthz' ? airport.feed
         : path.startsWith('/api/notams/airports') ? airport
           : path.startsWith('/api/notams/navaids') ? failure === 'wrong-scope' ? airport
             : failure === 'wrong-station' ? { ...navaid, query: { navaidId: 'SFO' } } : navaid
@@ -145,13 +179,17 @@ test('deployment readiness requires current weather as well as authenticated sav
       return new Response(Uint8Array.from(body), { status: failure === 'missing-route' && path.startsWith('/api/notams/navaids') ? 404 : 200,
         headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
     });
-    if (failure) await assert.rejects(checkInfoApi('https://info.test', 'staging'), failure === 'missing-route' ? /HTTP 404/
-      : failure === 'wrong-scope' ? /Invalid navaid snapshot/ : failure === 'old-full-sync' ? /NOTAM full synchronization/
-        : failure === 'source-issue' ? /Unexpected unresolved/ : /SAU/);
+    if (error) await assert.rejects(checkInfoApi('https://info.test', 'staging'), error);
     else assert.ok((await checkInfoApi('https://info.test', 'staging')).reads > 25);
     if (failure === 'old-full-sync') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
       { allowOverdueFullSync: true })).warnings, ['full-sync-overdue'], 'an explicit rollout exception remains visible');
     if (failure === 'source-issue') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
       { maxUnresolvedNotams: 1 })).warnings, ['unresolved-notam-records:1']);
+    if (error && !failure) {
+      Object.assign(airport.feed, { fullSyncAt: WEATHER_NOW - 25 * HOUR, state: 'degraded', error: 'unresolved-records',
+        unresolvedRecords: 1, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', unscopedRecords: 0 });
+      await assert.rejects(checkInfoApi('https://info.test', 'staging', { allowOverdueFullSync: true, maxUnresolvedNotams: 1 }),
+        error, 'explicit age and source-issue exceptions cannot waive reconciliation failures');
+    }
   });
 });

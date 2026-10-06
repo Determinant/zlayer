@@ -15,14 +15,14 @@ export function MetarReportView({ entry, loading, online, now, source, emptyMess
   const cached = weather.cached || !online;
   const label = entry?.report ? cached ? 'Cached report' : weather.label
     : loading && online ? 'Loading METAR…' : emptyMessage ?? 'No METAR available for this airport.';
-  return <section className="airport-weather" aria-label="METAR" aria-busy={loading}>
-    <h3>METAR</h3>
+  return <section className="ui-section airport-weather" aria-label="METAR" aria-busy={loading}>
+    <h3 className="ui-section-title">METAR</h3>
     {source}
     <div className="airport-weather-report">
       {observedAt && <time dateTime={observedAt}>{formatObservationTime(observedAt, now)}</time>}
-      {weather.age && <span className="airport-weather-age">{weather.age}</span>}
+      {weather.age && <span className="ui-meta airport-weather-age">{weather.age}</span>}
     </div>
-    <p className="airport-weather-status" role="status">
+    <p className="ui-meta airport-weather-status" role="status">
       <span className={entry?.report ? cached ? 'is-cached' : 'is-current' : undefined}>{label}</span>
       {entry?.report && weather.details.map(detail => <Fragment key={detail}>{' '}<span>· {detail}</span></Fragment>)}
       {entry?.report && !online && <span> · Offline</span>}

@@ -31,7 +31,8 @@ async function pan(page: Page) {
   const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 180, box.y + box.height / 2 + 100, { steps: 12 });
+  // Keep the gesture on the map while the recommendations panel is open on the right.
+  await page.mouse.move(box.x + box.width / 2 - 180, box.y + box.height / 2 + 100, { steps: 12 });
   await page.mouse.up();
 }
 

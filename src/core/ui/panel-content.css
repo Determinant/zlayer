@@ -1,0 +1,88 @@
+/* Content roles for compact panels. Feature styles own geometry and state colors. */
+.ui-panel-content {
+  color: var(--text-primary);
+  font-size: var(--ui-text-compact);
+  line-height: var(--ui-line-height);
+}
+
+.ui-panel-title,
+.ui-toolbox-title,
+.ui-section-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--ui-text-title);
+  font-weight: 700;
+  line-height: var(--ui-line-height);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.ui-section-title { font-size: var(--ui-text-compact); }
+
+.ui-note,
+.ui-meta,
+.ui-field {
+  color: var(--text-muted);
+  font-size: var(--ui-text-compact);
+  font-weight: 400;
+  line-height: var(--ui-line-height);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.ui-meta { font-size: var(--ui-text-meta); }
+:where(p).ui-note,
+:where(p).ui-meta { margin: 0; }
+
+.ui-prose {
+  font-size: var(--ui-text-body);
+  line-height: var(--ui-line-height-prose);
+  overflow-wrap: anywhere;
+}
+.ui-prose :where(p) { margin: 0; }
+
+.ui-field { display: grid; align-content: start; gap: var(--ui-space-related); min-width: 0; }
+.ui-field > :where(input, select, textarea) { width: 100%; min-width: 0; }
+
+.ui-section { min-width: 0; margin: 0 0 var(--ui-space-section); }
+.ui-section:last-child { margin-bottom: 0; }
+.ui-section > .ui-section-title { margin-bottom: var(--ui-panel-gap); }
+.ui-section--divided { padding-top: var(--ui-space-section); border-top: 1px solid var(--border-subtle); }
+
+/* A list item's identity and description stay together and wrap as a unit. */
+.ui-item-copy { display: grid; gap: 2px; min-width: 0; line-height: var(--ui-line-height); }
+.ui-item-copy > :where(strong) { color: var(--text-primary); font-size: var(--ui-text-title); font-weight: 700; overflow-wrap: anywhere; }
+.ui-item-copy > :where(small) { color: var(--text-muted); font-size: var(--ui-text-meta); overflow-wrap: anywhere; }
+
+.ui-data-table { width: 100%; border-collapse: collapse; font-size: var(--ui-text-compact); line-height: var(--ui-line-height); }
+.ui-data-table :where(th, td) { padding: var(--ui-space-related); border-bottom: 1px solid var(--border-subtle); text-align: right; }
+.ui-data-table :where(th:first-child, td:first-child) { padding-left: 0; text-align: left; }
+.ui-data-table :where(th:last-child, td:last-child) { padding-right: 0; }
+.ui-data-table :where(thead th) { color: var(--text-muted); font-size: var(--ui-text-meta); font-weight: 400; }
+.ui-data-table :where(tbody th) { font-weight: 400; overflow-wrap: anywhere; }
+.ui-data-table :where(td) { font-variant-numeric: tabular-nums; }
+
+.ui-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  font-size: var(--ui-text-meta);
+  font-weight: 700;
+  line-height: var(--ui-line-height);
+  overflow-wrap: anywhere;
+}
+
+.ui-disclosure > summary {
+  min-height: max(var(--ui-control-height-compact), var(--touch-target));
+  padding-block: 6px;
+  align-content: center;
+  color: var(--text-action);
+  font-size: var(--ui-text-compact);
+  line-height: var(--ui-line-height);
+  cursor: pointer;
+}
+.ui-disclosure > summary:where(:hover) { text-decoration: underline; }
+.ui-disclosure > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 3px; }
+.ui-disclosure[open] > summary { margin-bottom: var(--ui-panel-gap); }

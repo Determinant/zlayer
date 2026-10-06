@@ -61,7 +61,7 @@ export function NearbyFeaturePicker({ features, point, actions = [], onSelect, o
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [onClose]);
-  return <div ref={ref} className="nearby-feature-picker" style={{ left: position.x, top: position.y }}
+  return <div ref={ref} className="ui-panel-content nearby-feature-picker" style={{ left: position.x, top: position.y }}
     role={menu ? 'menu' : 'dialog'} aria-label={menu ? 'Map actions' : 'Nearby map features'}
     onContextMenu={event => event.preventDefault()}
     onPointerDown={event => { pressed.current = event.button === 0 ? (event.target as HTMLElement).closest('button') : null; }}
@@ -83,12 +83,12 @@ export function NearbyFeaturePicker({ features, point, actions = [], onSelect, o
       items[next]?.focus();
     }}>
     <div className="nearby-feature-picker-heading">
-      <strong>{menu ? 'Map actions' : 'Nearby features'}</strong>
+      <strong className="ui-panel-title">{menu ? 'Map actions' : 'Nearby features'}</strong>
       <button className="ui-button ui-button--quiet ui-button--compact ui-button--icon" type="button" onClick={onClose}
         aria-label={menu ? 'Close map actions' : 'Close nearby features'}>×</button>
     </div>
     <div className="nearby-feature-picker-list">
-      {actions.map(action => <button key={action.id} type="button" role="menuitem"
+      {actions.map(action => <button className="ui-item-copy" key={action.id} type="button" role="menuitem"
         onClick={() => {
           restoreFocus.current = false;
           if (previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true });
@@ -97,11 +97,11 @@ export function NearbyFeaturePicker({ features, point, actions = [], onSelect, o
       {features.map(({ feature, routePointId, routeIndex }) => {
         const { kind, type, facilityType } = feature.properties;
         const category = (kind === 'navaid' ? normalizeNavaidType(type) : type) || facilityType || kind || 'FAA feature';
-        return <button
+        return <button className="ui-item-copy"
           key={routeIndex === undefined ? `feature:${featureKey(feature)}` : `route:${routePointId}:${routeIndex}`} type="button" role={menu ? 'menuitem' : undefined}
           onClick={() => onSelect(feature, routePointId)}>
           <strong>{formatWaypointLabel(featureIdent(feature))}</strong>
-          <span>{category}{routeIndex !== undefined && ` · On route · point ${routeIndex + 1}`} · {featureSubtitle(feature)}</span>
+          <small>{category}{routeIndex !== undefined && ` · On route · point ${routeIndex + 1}`} · {featureSubtitle(feature)}</small>
         </button>;
       })}
     </div>

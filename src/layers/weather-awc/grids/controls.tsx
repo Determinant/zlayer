@@ -179,7 +179,7 @@ function ForecastPointGroup({ state, data, declination, heading, onAltitude }: {
         {wind ? `${declination === null && sample && sample.barb !== 0 ? 'Magnetic variation unavailable. ' : ''}Wind directions are magnetic / true, from which the wind blows.`
           : data.manifest.product === 'clouds' ? 'Heights MSL; bases are not ceilings. Coverage is the full atmospheric column.'
             : 'SLD is a potential index, not a probability. Altitudes follow the model terrain.'}</p>)}
-      <details className="awc-bulletin"><summary>Source &amp; sampling</summary>
+      <details className="ui-disclosure awc-bulletin"><summary>Source &amp; sampling</summary>
         {samples.map(({ data, wind }) => <div key={data.manifest.product}>
           {wind && <p>{data.frame.pressureHpa !== undefined ? `Flight level at ${data.frame.pressureHpa.toFixed(1)} hPa. Components and temperature interpolate in log pressure; forecast MSL height varies across the map.`
             : 'Components and temperature interpolate between pressure levels using forecast MSL heights at this location.'} Missing or unbracketed samples remain unavailable.</p>}

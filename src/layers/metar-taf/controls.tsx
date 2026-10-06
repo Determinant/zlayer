@@ -11,7 +11,7 @@ export function WeatherControls({ enabled: metarEnabled, status: metarStatus,
       <span className="weather-swatch" aria-hidden="true">
         <i className="is-vfr" /><i className="is-mvfr" /><i className="is-ifr" /><i className="is-lifr" />
       </span>
-      <span className="layer-copy">
+      <span className="ui-item-copy layer-copy">
         <strong>METAR flight categories</strong>
         <small>{metarSummary(metarEnabled, metarStatus, weatherAirportCount, metarObservedAt)}</small>
       </span>

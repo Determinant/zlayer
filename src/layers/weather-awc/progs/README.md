@@ -71,10 +71,13 @@ updater shares AWC's request queue and catalog cache with pressure charts. It
 publishes only after all available images validate and save, checks every five
 minutes, and retries failures after thirty seconds. Corrected bytes replace an
 image even within the same naming cycle. Rollbacks cannot replace a newer chart
-range or overlapping reference cycle. HTTP performs no upstream acquisition.
+range or overlapping reference cycle. The updater checks that ordering immediately
+after parsing the catalog, before downloading or validating any images. HTTP
+performs no upstream acquisition.
 Current/building files and ten minutes of preceding catalog references are
 protected in the server's shared cache; restart restores validated publication.
-`healthz.progsCoverage` reports readiness, checks, available times, gaps and errors.
+`healthz.progsCoverage` reports readiness, checks, the next scheduled attempt,
+the explicit analysis time, available times, gaps and errors.
 
 Catalogs are limited to 64 KiB and 32 stops; PNGs to 1 MiB each and 8 MiB per
 catalog. Browser storage holds at most 32 images / 8 MiB with a 48-hour unused
@@ -239,11 +242,14 @@ source products, a syntactically complete file missing whole records cannot be
 detected without an authoritative upstream record count.
 
 A rollback in a family's first/last valid time or an overlapping chart's reference
-cycle cannot replace newer data. Equal-cycle corrected files are accepted. One
-failed family does not block the other. Current/building files and ten minutes of
+cycle is rejected immediately after catalog parsing, before acquiring or preparing
+chart files. Published bytes and source-check times remain intact. Equal-cycle
+corrected files are accepted. One failed family does not block the other. Current/building files and ten minutes of
 preceding catalog references are protected from grid eviction inside the existing
 cache budget. Files remain eligible for retention up to 24 hours.
-`healthz.progs` exposes readiness, valid times, source checks and errors per family.
+`healthz.progs` exposes readiness, valid times, source checks, next attempts and errors
+per family. Chart and coverage updates log repeated identical failures once, then
+log reason changes and recovery; the active error stays visible between attempts.
 Former monolithic and earlier smoothing revisions are replaced during migration;
 straight isobars and front-only smoothing cannot qualify as the current output.
 The current publication marker is `wpc-surface-v3-wpc-cardinal-v2`; chart artifacts carry the

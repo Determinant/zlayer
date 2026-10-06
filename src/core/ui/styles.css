@@ -1,11 +1,25 @@
 @import '../theme/tokens.css';
 @import './viewport.css';
 @import './controls.css';
+@import './toolbox.css';
+@import './panel-content.css';
 @import './detail-panel.css';
 
 :root {
   --font-ui: "B612", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --ui-text-meta: 11px;
+  --ui-text-compact: 12px;
+  --ui-text-title: 13px;
+  --ui-text-body: 14px;
+  --ui-line-height: 1.5;
+  --ui-line-height-prose: 1.6;
+  --ui-space-related: 4px;
+  --ui-space-section: 12px;
+  --ui-control-height-compact: 32px;
+  --ui-panel-padding: 8px 10px;
+  --ui-panel-gap: 8px;
+  --ui-panel-radius: 9px;
   font-family: var(--font-ui);
   font-size: 16px;
   font-synthesis: none;

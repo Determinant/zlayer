@@ -28,6 +28,7 @@ Display scaling and browser chrome can change the available viewport.
 - [Notifications](#notifications)
 - [Startup status](#startup-status)
 - [Typography](#typography)
+- [Panel content](#panel-content)
 - [Appearance and colors](#appearance-and-colors)
 - [Shared controls](#shared-controls)
 - [Automated regression coverage](#automated-regression-coverage)
@@ -201,21 +202,31 @@ bring the splash back.
 | Raw TAF and Morse | Shared system monospace stack; preserve report spacing and letter groups |
 | Map identifiers, terrain and GPS projection labels | Bundled Noto Sans Bold glyphs; preserve sizes and halos |
 | Compact metadata and badges | 11 px minimum in application CSS; a design choice, not an accessibility-standard minimum |
-| Dense controls and data | 12–14 px with clear weight/color hierarchy; Settings uses the hierarchy above, with 14px region supporting text |
-| Explanatory prose | Default 14 px, line height 1.6–1.7; compact toolbox guidance follows the owning plugin's hierarchy |
+| Compact toolbox titles | 13 px bold, natural spacing; shared by GPS, Terrain, Glide, AWC Weather and AHRS |
+| Dense controls and data | 12 px labels, actions, tabs and compact guidance; 11 px metadata; 14 px emphasized values and report prose |
+| Airport Info/Plates section headings | 12 px bold, sentence case; source acronyms such as METAR and TAF retain their spelling |
+| Explanatory prose | Default 14 px, line height 1.6–1.7; compact toolboxes use 12 px with 1.5 line height |
 | Touch text-entry fields | 16 px minimum; terrain altitude input remains 18 px |
 | Long airport and procedure names | Wrap without discarding identifying suffixes; search names use the full width below the identifier/category row |
 
-Compact toolbox help and disclosures can share their surrounding labels' scale;
-the [Glide guide](../../src/layers/glide/README.md) owns its compact paragraph,
-helper-note and value hierarchy. Touch text-entry minimums still apply.
+Core's `--ui-text-meta`, `--ui-text-compact`, `--ui-text-title` and `--ui-text-body`
+tokens own this compact scale. `ui-toolbox` in `src/core/ui/toolbox.css` provides
+the shared 8px × 10px inset, panel surface, border and 1.5 reading rhythm;
+`ui-toolbox-title` and `ui-section-title` distinguish headings from metadata.
+Plugins retain widths, scrolling, report layouts, status colors and instrument
+geometry. Use 8px between control groups and 4px between related tab rows.
+The feature identifier stays prominent at 24px; coordinate titles use 22px.
+Settings retains its larger dialog hierarchy above. NavLog and ruler captions
+follow the 11px metadata minimum. Fullscreen AHRS keeps 14px supporting prose
+and its specialized instrument scaling. Touch text-entry minimums still apply.
 
 Use the shared font stacks and `--text-muted` for secondary labels, with explicit
 placeholder color and opacity. `src/core/ui/styles.css` owns the shared heading
 spacing rule; panel and dialog styles should inherit it rather than tighten titles
-individually. Compact uppercase section labels may retain positive tracking.
-TAF categories and fix-setting labels must expand
-with letter spacing; layer descriptions wrap without tight identifier tracking.
+individually. Panel headings, field labels and supporting copy use sentence case
+and natural spacing. Published acronyms and category badges retain their spelling;
+TAF categories must expand with letter spacing. Layer descriptions wrap without
+tight identifier tracking.
 Map glyphs cover current identifier/numeric labels; arbitrary place names require
 additional ranges (see [map fonts](../../public/fonts/README.md)). FAA chart and PDF
 text remains publisher-supplied and readable through the existing zoom controls.
@@ -240,6 +251,47 @@ Apply these checks to all controls, including AHRS and reset flows. They do not
 establish full WCAG conformance by themselves.
 Physical iOS/Android rasterization, native selects and OS accessibility text
 settings still require device checks.
+
+## Panel content
+
+Core's `src/core/ui/panel-content.css` owns the ordinary content hierarchy inside
+side panels, toolboxes and compact menus. Choose a role by what the element does;
+do not copy its font size, weight, line height or muted color into a plugin rule.
+Use the native heading, label, table or disclosure element for its semantics.
+
+| Shared class | Use |
+| --- | --- |
+| `ui-panel-content` | Compact 12px / 1.5 content baseline when the host is not already a toolbox or feature card |
+| `ui-panel-title`, `ui-toolbox-title` | 13px bold panel or item title |
+| `ui-section-title` | 12px bold section heading, primary text color |
+| `ui-note` | 12px supporting guidance, source status or empty state |
+| `ui-meta` | 11px timestamps, units, counts and secondary descriptions |
+| `ui-prose` | 14px / 1.6 report reading, including interpreted NOTAMs |
+| `ui-field` | 12px label above a native control, with 4px separation |
+| `ui-section`, `ui-section--divided` | 12px section separation, 8px below its heading; optional top divider |
+| `ui-item-copy` | Wrapping 13px bold identity and 11px supporting description, separated by 2px |
+| `ui-data-table` | 12px data, 11px column labels, aligned numbers and restrained row dividers |
+| `ui-badge` | Compact 11px status badge; the feature supplies meaningful status colors |
+| `ui-disclosure` | Consistent 12px summary, keyboard focus and 32px desktop / 44px touch minimum |
+
+Use 4px for related content, 8px between groups and 12px between sections, via the
+shared spacing tokens. Keep descriptions and identifying names able to wrap.
+Empty states use the same compact inset as other content instead of reserving a
+large blank card. Interactive list rows retain at least 44px touch targets, and
+text inputs retain their touch font minimum. Compact tabs use their separate
+explicit slim contract below.
+Runway numbers stay with their headings, while the Best Wind badge can wrap below
+that pair so ordinary phone layouts can show both wind components. The table's
+local scroller still handles longer content and enlarged text.
+
+These roles are used by airport weather and runway details, nearby navaids,
+plate lists, NOTAM controls, AHRS setup/recordings, Glide and AWC disclosures,
+route recommendations, Map Display and the map feature chooser. Plugins retain
+content order, column widths, scrolling, semantic colors and specialist report
+layouts. Use the shared type tokens when a specialist layout needs its own
+selector, such as NOTAM minima or an instrument readout. Instrument faces, raw
+report spacing, prominent feature identifiers and the larger Settings/dialog
+hierarchy remain separate roles; compactness should not flatten their hierarchy.
 
 ## Appearance and colors
 
@@ -320,8 +372,12 @@ in width and height, including short action labels such as Use. Explicit
 `ui-button--slim` retains a 32px minimum height, 44px minimum width and compact
 padding/type on every device, including touch screens. `TabList size="slim"`
 selects this same core option; its default remains compact with the shared touch
-minimum. AWC's Prev/Now/Next and both product rows use the slim option consistently
-to preserve room for forecast controls. Enlarged text can increase the height.
+minimum. Airport/navaid Info/Plates/NOTAM, NOTAM area selectors, Terrain coloring,
+AWC's Prev/Now/Next and both weather product rows use the slim option consistently.
+Tab labels are bold and retain the same minimum height across primary and
+secondary rows, with 4px horizontal padding. The visible **ARTCC/FIR** label omits
+spaces around its slash so the area row fits narrow cards. Enlarged text can increase
+the height; do not clip labels to enforce a fixed height.
 Fields use 16px text; compact fields use the shared 14px/16px touch font size.
 Native selects contain their internal painting so long values with expanded text
 spacing cannot widen an enclosing scroller in WebKit; their full option labels

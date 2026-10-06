@@ -112,9 +112,13 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       for (const key of historyFailures) if (!discovered.includes(key)) historyFailures.delete(key);
     }
     const raw = await cache.get(inputResource(url), undefined, work);
+    const validateTime = (scan: RadarScan) => {
+      if (scan.observedAt > raw.checkedAt + 60_000 || now() - scan.observedAt >= maxAge) throw new Error('Radar scan is too old or future dated');
+      if (!historicalUrl && (latest.get(site)?.observedAt ?? 0) > scan.observedAt) throw new Error('Radar source moved backwards');
+    };
     const old = [latest.get(site), ...(catalog?.history ?? [])].find(f => f?.site === site && f.source === url && f.sourceHash === raw.sha256);
     if (old && await cache.check(resource(old))) {
-      if (now() - old.observedAt >= maxAge) throw new Error('Radar scan is too old');
+      validateTime(old);
       return old;
     }
     const rejection = rejected.get(site);
@@ -130,8 +134,7 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       throw cause;
     }
     const { body, scan } = result;
-    if (scan.observedAt > raw.checkedAt + 60_000 || now() - scan.observedAt >= maxAge) throw new Error('Radar scan is too old or future dated');
-    if (!historicalUrl && (latest.get(site)?.observedAt ?? 0) > scan.observedAt) throw new Error('Radar source moved backwards');
+    validateTime(scan);
     const hash = digest(body), path = `${site}/${scan.observedAt}-${hash}.json`, output = resource({ path });
     building.add(output.key); protect();
     try {
@@ -201,7 +204,14 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       try {
         await source('CONUS', work, ROOT + key); work.throwIfAborted(); await publish();
         if (!catalog?.history?.some(file => file.source === ROOT + key)) historyFailures.add(key);
-      } catch (cause) { if (!work.aborted) { historyFailures.add(key); report('history', cause); } }
+      } catch (cause) {
+        if (work.aborted) return;
+        report('history', cause);
+        // Only deterministic source failures suppress a key for this window.
+        // Transport, storage and worker failures get another background attempt.
+        if (cause instanceof WeatherSourceError && cause.code !== 'future-source') historyFailures.add(key);
+        else return;
+      }
       finally { protect(); }
     }
   }

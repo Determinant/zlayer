@@ -52,7 +52,7 @@ export function ProgsControls({ controller }: { controller: WeatherController })
           {coverageState.snapshot && <small>{coverageState.loading ? 'Refreshing…' : coverageStale ? 'Cached / unverified' : 'Checked'}</small>}
           {(display.error || coverageState.error) && <small className="awc-error">{display.error || coverageState.error}</small>}
         </div>
-        <details className="awc-coverage-legend"><summary>Weather coverage legend</summary>
+        <details className="ui-disclosure awc-coverage-legend"><summary>Weather coverage legend</summary>
           <table><thead><tr><th>Precipitation</th><th>Chance</th><th>Likely</th></tr></thead><tbody>
             {([['Rain', '#009641', '#065d2c'], ['Snow', '#0570b0', '#081d58'], ['Mix', '#b66dff', '#490092'], ['Ice', '#ff72b9', '#e40072']] as const)
               .map(([name, chance, likely]) => <tr key={name}><th>{name}</th><td><i style={{ backgroundColor: chance }} /></td><td><i style={{ backgroundColor: likely }} /></td></tr>)}
@@ -81,7 +81,7 @@ export function ProgsControls({ controller }: { controller: WeatherController })
         {state.preferences.awcProgsIsobars && <span><svg viewBox="0 0 54 24" aria-hidden="true"><path d="M0 18Q27 0 54 18" fill="none" stroke={SURFACE_COLORS.ISOBAR} /></svg>Isobars · hPa</span>}
       </div>
       <small>NOAA pressure contours show ridges and troughs. Chart labels retain the source annotations; dashed fronts indicate formation or weakening.</small>
-      <details className="awc-source-status"><summary>Progs source status</summary>
+      <details className="ui-disclosure awc-source-status"><summary>Progs source status</summary>
         {SURFACE_PRODUCTS.map(p => {
           const value = state.progs[p], status = surfaceStatus(value, state.now);
           return <div key={p} className="awc-product-status" data-product={`progs-${p}`}>
@@ -115,6 +115,6 @@ export function SurfaceDetails({ feature, controller }: { feature: SurfaceFeatur
     <p>{selection.product === 'analysis' ? 'WPC surface analysis' : 'WPC surface forecast'}</p>
     {selection.frame && <p>Valid {formatTimestamp(selection.frame.validTime)}</p>}
     {selection.frame && <p className="awc-advisory-freshness">Reference cycle {formatTimestamp(selection.frame.referenceTime)}</p>}
-    <details className="awc-bulletin"><summary>Source properties</summary><pre>{JSON.stringify(feature.sourceProperties, null, 2)}</pre></details>
+    <details className="ui-disclosure awc-bulletin"><summary>Source properties</summary><pre>{JSON.stringify(feature.sourceProperties, null, 2)}</pre></details>
   </article>;
 }

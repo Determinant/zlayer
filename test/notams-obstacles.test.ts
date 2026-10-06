@@ -177,8 +177,8 @@ test('charted standalone obstacles replace the description while raw, search and
         translations: [{ type: 'LOCAL_FORMAT', text: source }] });
       const render = (charted?: ReadonlySet<string>) => renderToStaticMarkup(createElement(NotamList, { entries: [{ record }], now: NOTAM_NOW, charted }));
       const original = render(), mapped = render(new Set([notamChartKey(record)]));
-      assert.match(original, /class="notam-readable"/);
-      assert.match(mapped, /class="notam-readable"/);
+      assert.match(original, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
+      assert.match(mapped, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
       assert.match(mapped, /Flagged and LGTD/);
       assert.match(mapped, /Location shown on chart/);
       assert.ok(mapped.includes(`<pre>${source}</pre>`));

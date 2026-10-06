@@ -18,13 +18,14 @@ const files = nativeForecastFiles(), runTime = Date.UTC(2026, 8, 22, 20);
 test('forecast discovery cannot roll back the published run, including after restart', async t => {
   const metrics = new InfoMetrics(); t.after(() => metrics.close());
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-forecast-rollback-')), shutdown = new AbortController();
-  let now = runTime + 3600_000, older = false, correction = false, conversions = 0;
+  let now = runTime + 3600_000, older = false, correction = false, conversions = 0, discoveries = 0;
   const payload = (body: Buffer): Payload => ({ body, sha256: digest(body), status: 200, checkedAt: now, headers: {} });
   const template = await discover(async path => payload(files.get('/weather/noaa/' + path)!), 'clouds', shutdown.signal, now);
   const options = { directory, maxBytes: 1024 * 1024, now: () => now, load: async () => { throw new Error('No acquisition'); } };
   let cache = new WeatherCache(options); await cache.restore();
   const processing = { concurrency: 2, catalog: async (product: string) => {
     if (product !== 'clouds') throw new HttpError(503, 'Other products unavailable');
+    discoveries++;
     const manifest = structuredClone(template); manifest.checkedAt = manifest.publishedAt = now;
     if (older) {
       manifest.runTime -= 3600_000; manifest.generation = `clouds-${manifest.runTime}`;
@@ -45,6 +46,12 @@ test('forecast discovery cannot roll back the published run, including after res
   warming.refresh(); await warming.close();
   const published = (await cache.read(resource))!, prepared = conversions;
   assert.equal(warming.status.clouds!.ready, true);
+  cache = new WeatherCache(options); await cache.restore();
+  warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now, metrics }); await warming.restore();
+  warming.refresh(); await warming.close();
+  assert.equal(discoveries, 1, 'restart waits out the remaining source-check interval');
+  assert.equal(conversions, prepared);
+  assert.equal(warming.status.clouds!.nextAttemptAt, now + 6 * 60_000);
   older = true;
   for (let attempt = 0; attempt < 2; attempt++) {
     now += 6 * 60_000; warming.refresh(); await warming.close();

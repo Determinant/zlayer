@@ -53,11 +53,11 @@ export function RouteRecommendations({ catalog, tokens, pins, onUseRoute, onPrev
       aria-describedby="route-recommend-hint"
       aria-expanded={open} aria-pressed={open} aria-controls={open ? 'route-recommendations' : undefined}
       aria-haspopup="dialog" onClick={() => { setPreserveRestoredView(false); setOpen(value => !value); }}>Advise</button>
-    {open && <div ref={panel} id="route-recommendations" className="route-preview-panel route-recommendations"
+    {open && <div ref={panel} id="route-recommendations" className="ui-panel-content route-preview-panel route-recommendations"
       role="dialog" aria-labelledby="route-recommendations-title" aria-describedby="route-recommendations-hint">
       <header className="route-recommend-header">
-        <div><span className="route-recommend-caption">Route recommendations</span>
-          <h2 id="route-recommendations-title">{pair ? `${airportRouteIdent(pair.origin)} → ${airportRouteIdent(pair.destination)}` : 'Choose airports'}</h2></div>
+        <div><span className="ui-meta route-recommend-caption">Route recommendations</span>
+          <h2 className="ui-panel-title" id="route-recommendations-title">{pair ? `${airportRouteIdent(pair.origin)} → ${airportRouteIdent(pair.destination)}` : 'Choose airports'}</h2></div>
         <button ref={closeButton} type="button" className="ui-button ui-button--compact ui-button--quiet ui-button--icon route-recommend-close" aria-label="Close recommendations"
           onClick={() => { setOpen(false); button.current?.focus(); }}>×</button>
       </header>

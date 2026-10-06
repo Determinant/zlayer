@@ -36,8 +36,9 @@ test('TAF periods follow METAR with category colors, wrap on phones, and survive
   await expect(taf.locator('.taf-category')).toHaveText(['VFR', 'MVFR', 'IFR', 'LIFR']);
   expect(await taf.locator('code').evaluateAll(elements => elements.map(element => element.textContent).join(' '))).toBe(rawTAF);
   await expect(taf.locator('.taf-local-time')).toHaveText(['Sep 17 · 11:00 PDT – Sep 18 · 11:00 PDT', 'Sep 17 · 12:00 PDT', 'Sep 17 · 14:00 PDT']);
+  const metadataColor = await taf.locator('.airport-weather-status').evaluate(element => getComputedStyle(element).color);
   expect(await taf.locator('.taf-local-time').evaluateAll(elements => elements.map(element => getComputedStyle(element).color)))
-    .toEqual(['rgb(143, 167, 185)', 'rgb(143, 167, 185)', 'rgb(143, 167, 185)']);
+    .toEqual([metadataColor, metadataColor, metadataColor]);
   await expect(taf.locator('code').nth(1)).toHaveText('FM171900 28010KT P6SM BKN020');
   expect(await taf.locator('code').evaluateAll(elements => elements.map(element => getComputedStyle(element).color)))
     .toEqual(['rgb(32, 198, 107)', 'rgb(98, 169, 255)', 'rgb(255, 112, 112)', 'rgb(233, 123, 245)']);

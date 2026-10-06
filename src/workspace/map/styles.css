@@ -179,7 +179,7 @@
   line-height: 1;
 }
 .map-orientation-mode { font-size: 13px; }
-.map-orientation-up { font-size: 9px; letter-spacing: 0.08em; }
+.map-orientation-up { font-size: var(--ui-text-meta); letter-spacing: normal; }
 .map-orientation-toggle[aria-pressed="true"] { color: var(--text-7ae6d7); background: var(--overlay-61d6c5-a120); }
 .map-orientation-toggle.is-waiting { color: var(--text-e9be78); }
 

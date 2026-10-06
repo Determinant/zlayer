@@ -16,7 +16,7 @@ type Charts = Published & { validTimes?: number[] | undefined; unavailableTimes?
 type Radar = Published & { observedAt?: number | undefined; unavailable?: string[] | undefined };
 type Motion = Published & { newestObservedAt?: number | null | undefined; unavailable: number };
 export type InfoHealthInput = {
-  forecasts: Record<string, Forecast>; progs: Record<string, Charts>; progsCoverage: Charts;
+  forecasts: Record<string, Forecast>; progs: Record<string, Charts>; progsCoverage: Charts & { analysisTime?: number | undefined };
   radar: Radar; radarMotion: Motion; advisories: Record<string, Published>; notams: NotamFeedStatus;
   tfrs: Published & { unresolvedRecords: number };
   notamReconciliation: { state: string; error: string | null; nextAttemptAt: number } | null;
@@ -44,10 +44,11 @@ export function assessInfoHealth(input: InfoHealthInput, now: number) {
       { valid: product === 'analysis' ? freshAt(value.validTimes?.[0], now, INFO_FRESHNESS.analysis, 0) : value.validTimes?.some(time => time >= now) === true });
   }
   const coverage = input.progsCoverage;
+  const coverageTimes = [...(coverage.validTimes ?? []), ...(coverage.unavailableTimes ?? [])];
   // Unpublished images still belong to the catalog horizon. Availability needs
   // at least one saved image, independently of which future stops have images.
   source('progs.coverage', { ...coverage, ready: coverage.ready && !!coverage.validTimes?.length }, INFO_FRESHNESS.charts,
-    { valid: [...(coverage.validTimes ?? []), ...(coverage.unavailableTimes ?? [])].some(time => time >= now),
+    { valid: freshAt(coverage.analysisTime, now, INFO_FRESHNESS.analysis, 0) && coverageTimes.some(time => time >= now),
       coverage: coverage.unavailableTimes?.length ? 'partial' : 'complete' });
   source('radar', input.radar, INFO_FRESHNESS.radar, { valid: freshAt(input.radar.observedAt, now, INFO_FRESHNESS.radar, 0),
     coverage: input.radar.unavailable?.length ? 'partial' : 'complete' });

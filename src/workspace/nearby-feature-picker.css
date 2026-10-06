@@ -16,7 +16,7 @@
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   min-height: 40px; padding: 5px 8px 5px 12px;
   border-bottom: 1px solid var(--border-97c7e4-a160);
-  font-size: 12px;
+  font-size: var(--ui-text-compact);
 }
 
 .nearby-feature-picker-list { display: grid; overflow-y: auto; overscroll-behavior: contain; }
@@ -27,5 +27,3 @@
 }
 .nearby-feature-picker-list button:hover, .nearby-feature-picker-list button:focus-visible { background: var(--overlay-61d6c5-a120); }
 .nearby-feature-picker-list button:focus-visible { outline: 2px solid var(--accent-61d6c5); outline-offset: -2px; }
-.nearby-feature-picker-list strong { font-size: 13px; }
-.nearby-feature-picker-list span { overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }

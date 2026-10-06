@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isMetarFeatureCollection, isTafReport } from '@zlayer/contracts';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
 import { UpstreamQueue } from './upstream-queue';
 import { retryAfterAt } from './retry-after';
@@ -90,6 +91,11 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
             const c = value as { type?: string; features?: unknown[]; exceededTransferLimit?: boolean } | null;
             if (!c || c.type !== 'FeatureCollection' || !Array.isArray(c.features) || c.features.length >= 400 || c.exceededTransferLimit) throw new HttpError(502, 'Incomplete upstream feature collection');
           } else if (!Array.isArray(value) || value.length >= 400) throw new HttpError(502, 'Incomplete upstream reports');
+          const path = new URL(resource.url).pathname;
+          if (path === '/api/data/metar' && !isMetarFeatureCollection(value) ||
+            path === '/api/data/taf' && (!Array.isArray(value) || !value.every(isTafReport))) {
+            throw new HttpError(502, 'Invalid upstream weather reports');
+          }
           headers['content-type'] = 'application/json; charset=utf-8';
         }
         return { body, status, headers, checkedAt, sha256: digest(body) };

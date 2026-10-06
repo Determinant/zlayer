@@ -112,7 +112,8 @@ test('server shutdown cancels shared work; a disconnected HTTP viewer does not',
 });
 
 test('large catalogs use negotiated gzip without changing decoded content or source identity', async t => {
-  const value = { ...collection, features: Array.from({ length: 100 }, () => ({ type: 'Feature', properties: { text: 'forecast'.repeat(30) } })) };
+  const value = { ...collection, features: Array.from({ length: 100 }, () => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { text: 'forecast'.repeat(30) } })) };
   const app = await http(t, async () => Response.json(value));
   const compressed = await fetch(app.origin + metar, { headers: { 'Accept-Encoding': 'gzip' } });
   assert.equal(compressed.headers.get('content-encoding'), 'gzip');
@@ -425,6 +426,26 @@ test('rate limits apply across requests and malformed upstream data cannot becom
     await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => new Response(body) })(resourceFor(metar)), { status: 502 });
   }
   await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => new Response('not an index') })(modelResource(icing + '.idx')), { status: 502 });
+});
+
+test('report acquisition validates METAR and TAF records without rewriting valid source fields', async () => {
+  const metarValue = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { icaoId: 'KSFO', rawOb: 'KSFO 222056Z 28010KT 10SM CLR 20/10 A2992', extraSourceField: 'retained' } }] };
+  const tafValue = [{ icaoId: 'KSFO', issueTime: '2026-09-22T20:00:00Z', validTimeFrom: 1790107200,
+    validTimeTo: 1790193600, rawTAF: 'TAF KSFO 222000Z 2220/2320 28010KT P6SM SKC', fcsts: [], extraSourceField: 'retained' }];
+  for (const [path, value] of [[metar, metarValue], ['/api/weather/tafs.json?ids=KSFO', tafValue]] as const) {
+    const body = JSON.stringify(value);
+    const saved = await createUpstream({ signal, spacing: 0, fetch: async () => new Response(body) })(resourceFor(path));
+    assert.equal(saved.body.toString(), body);
+  }
+  for (const value of [{ ...metarValue, features: [{}] }, { ...metarValue, features: [{ ...metarValue.features[0], geometry: null }] }]) {
+    await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => Response.json(value) })(resourceFor(metar)),
+      { status: 502, message: 'Invalid upstream weather reports' });
+  }
+  for (const value of [[{}], [{ ...tafValue[0], rawTAF: null }], [{ ...tafValue[0], fcsts: [{}] }]]) {
+    await assert.rejects(createUpstream({ signal, spacing: 0, fetch: async () => Response.json(value) })(resourceFor('/api/weather/tafs.json?ids=KSFO')),
+      { status: 502, message: 'Invalid upstream weather reports' });
+  }
 });
 
 test('weather honors long numeric and HTTP-date source backoffs across unrelated queries', async t => {

@@ -78,27 +78,27 @@ export const AhrsDiagnostics = memo(function AhrsDiagnostics({ layer, active }: 
   if (!attitude) return null;
   const live = propagating(state);
   const angle = (value: number) => live ? degrees(value) : '—';
-  return <details className="ahrs-diagnostics">
+  return <details className="ui-disclosure ahrs-diagnostics">
     <summary><span>Tilt uncertainty</span><strong title="Estimated tilt uncertainty (1σ)">{angle(attitude.tiltStd)}</strong></summary>
     <p className={`ahrs-aiding-status${aided(state) ? ' is-aided' : ''}`}>{aidingStatus(state)}</p>
     <UncertaintyTrend samples={samples} />
-    <div className="ahrs-uncertainty-legend"><span className="is-aided">Tilt aided</span><span className="is-unaided">Gyro propagation</span></div>
+    <div className="ui-meta ahrs-uncertainty-legend"><span className="is-aided">Tilt aided</span><span className="is-unaided">Gyro propagation</span></div>
     <dl className="ahrs-diagnostic-readings">
-      <div><dt>Roll σ</dt><dd>{angle(attitude.attitudeStd[0])}</dd></div>
-      <div><dt>Pitch σ</dt><dd>{angle(attitude.attitudeStd[1])}</dd></div>
-      <div><dt>Local yaw σ</dt><dd>{angle(attitude.relativeYawStd)}</dd></div>
-      <div><dt>Heading σ</dt><dd>{attitude.headingStatus !== 'tracking' ? 'Unknown' : angle(attitude.attitudeStd[2])}</dd></div>
-      <div><dt>Heading</dt><dd title={attitude.headingReason}>{attitude.headingStatus === 'tracking' ? 'Aligned' : attitude.headingStatus === 'recovering' ? 'Recovering' : 'Aligning'}</dd></div>
-      <div><dt>HSI reference</dt><dd>{state.hsiHeading?.source === 'gps' ? 'GPS + gyro estimate'
+      <div><dt className="ui-meta">Roll σ</dt><dd>{angle(attitude.attitudeStd[0])}</dd></div>
+      <div><dt className="ui-meta">Pitch σ</dt><dd>{angle(attitude.attitudeStd[1])}</dd></div>
+      <div><dt className="ui-meta">Local yaw σ</dt><dd>{angle(attitude.relativeYawStd)}</dd></div>
+      <div><dt className="ui-meta">Heading σ</dt><dd>{attitude.headingStatus !== 'tracking' ? 'Unknown' : angle(attitude.attitudeStd[2])}</dd></div>
+      <div><dt className="ui-meta">Heading</dt><dd title={attitude.headingReason}>{attitude.headingStatus === 'tracking' ? 'Aligned' : attitude.headingStatus === 'recovering' ? 'Recovering' : 'Aligning'}</dd></div>
+      <div><dt className="ui-meta">HSI reference</dt><dd>{state.hsiHeading?.source === 'gps' ? 'GPS + gyro estimate'
         : state.hsiHeading ? 'AHRS heading' : 'Relative'}</dd></div>
-      <div><dt>Last alignment</dt><dd>{attitude.headingReference === 'relative' ? 'None' : attitude.headingReference === 'manual-true' ? 'Initial input' : 'GPS + IMU'}</dd></div>
-      <div><dt>Last velocity aid</dt><dd>{Number.isFinite(attitude.fusionAge) ? `${attitude.fusionAge.toFixed(1)}s ago` : 'Never'}</dd></div>
-      <div><dt>Last tilt aid</dt><dd>{Number.isFinite(attitude.tiltFusion.age) ? `${attitude.tiltFusion.age.toFixed(1)}s ago` : 'Never'}</dd></div>
-      <div><dt>Magnetic aiding</dt><dd title={attitude.magneticFusion.reason}>{attitude.magneticFusion.active ? 'Active' : 'Waiting'}</dd></div>
+      <div><dt className="ui-meta">Last alignment</dt><dd>{attitude.headingReference === 'relative' ? 'None' : attitude.headingReference === 'manual-true' ? 'Initial input' : 'GPS + IMU'}</dd></div>
+      <div><dt className="ui-meta">Last velocity aid</dt><dd>{Number.isFinite(attitude.fusionAge) ? `${attitude.fusionAge.toFixed(1)}s ago` : 'Never'}</dd></div>
+      <div><dt className="ui-meta">Last tilt aid</dt><dd>{Number.isFinite(attitude.tiltFusion.age) ? `${attitude.tiltFusion.age.toFixed(1)}s ago` : 'Never'}</dd></div>
+      <div><dt className="ui-meta">Magnetic aiding</dt><dd title={attitude.magneticFusion.reason}>{attitude.magneticFusion.active ? 'Active' : 'Waiting'}</dd></div>
     </dl>
-    <p className="ahrs-fusion-counts">GPS velocity: {attitude.fusion.accepted} used · {attitude.fusion.rejected} rejected · {attitude.fusion.stale} late</p>
-    <p className="ahrs-tilt-counts">Tilt updates: {attitude.tiltFusion.accepted} used · {attitude.tiltFusion.rejected} rejected. {attitude.tiltFusion.reason}</p>
-    <p className="ahrs-magnetic-counts">Magnetic fusion: {attitude.magneticFusion.accepted} used · {attitude.magneticFusion.rejected} rejected. {attitude.magneticFusion.reason}</p>
-    <p className="ahrs-uncertainty-note">Model estimates (1σ), not measured error. Summary and trend show tilt uncertainty. Mounting/zero-reference error is excluded.</p>
+    <p className="ui-meta ahrs-fusion-counts">GPS velocity: {attitude.fusion.accepted} used · {attitude.fusion.rejected} rejected · {attitude.fusion.stale} late</p>
+    <p className="ui-meta ahrs-tilt-counts">Tilt updates: {attitude.tiltFusion.accepted} used · {attitude.tiltFusion.rejected} rejected. {attitude.tiltFusion.reason}</p>
+    <p className="ui-meta ahrs-magnetic-counts">Magnetic fusion: {attitude.magneticFusion.accepted} used · {attitude.magneticFusion.rejected} rejected. {attitude.magneticFusion.reason}</p>
+    <p className="ui-meta ahrs-uncertainty-note">Model estimates (1σ), not measured error. Summary and trend show tilt uncertainty. Mounting/zero-reference error is excluded.</p>
   </details>;
 });

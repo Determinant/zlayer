@@ -32,13 +32,13 @@ export function TerrainControls({ enabled, status, onToggle, coverage, onCoverag
   enabled: boolean; status: TerrainStatus; onToggle: () => void;
 } & CoverageProps) {
   return <section className="layer-section terrain-section">
-    <div className="section-title"><h3>{coverage === 'viewport' ? 'Viewport terrain' : 'Route terrain'}</h3>
+    <div className="section-title"><h3 className="ui-section-title">{coverage === 'viewport' ? 'Viewport terrain' : 'Route terrain'}</h3>
       <div className="terrain-section-meta"><span>Feet MSL</span><TerrainHelp coverage={coverage} /></div>
     </div>
     <div className="toggle-list">
       <button className={enabled ? 'is-active' : ''} type="button" role="switch" aria-checked={enabled} onClick={onToggle}>
         <span className="terrain-swatch" aria-hidden="true">△</span>
-        <span className="layer-copy"><strong>{coverage === 'viewport' ? 'Terrain shading' : 'Elevation contours'}</strong><small>{enabled ? terrainSummary(status) : 'Off'}</small></span>
+        <span className="ui-item-copy layer-copy"><strong>{coverage === 'viewport' ? 'Terrain shading' : 'Elevation contours'}</strong><small>{enabled ? terrainSummary(status) : 'Off'}</small></span>
         <span className="switch" aria-hidden="true"><i /></span>
       </button>
     </div>
@@ -144,9 +144,9 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
   const stops = [{ feet: status.interval, color: `rgb(${terrainColor(status.interval).join(', ')})` },
     ...TERRAIN_COLOR_STOPS.filter(stop => stop.feet > status.interval)];
   const position = (feet: number) => (feet - status.interval) / (10000 - status.interval) * 100;
-  return <section className="terrain-legend" aria-label={coverage === 'viewport' ? 'Viewport terrain elevation' : 'Route terrain elevation'}
+  return <section className="ui-toolbox terrain-legend" aria-label={coverage === 'viewport' ? 'Viewport terrain elevation' : 'Route terrain elevation'}
     onPointerDown={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-    <div className="terrain-legend-heading"><strong>Terrain</strong>
+    <div className="terrain-legend-heading"><strong className="ui-toolbox-title">Terrain</strong>
       <span>{comparison ? 'Difference in ft' : 'ft MSL'}</span>
       <button className="ui-switch" type="button" role="switch" aria-label="Show terrain" aria-checked={enabled}
         onClick={onToggle}><span className="switch" aria-hidden="true"><i /></span></button>
@@ -155,7 +155,7 @@ export function TerrainLegend({ enabled, onToggle, status, altitude, onAltitudeC
     {enabled && status.state === 'zoom' && <div className="terrain-zoom-hint" role="status">
       <span aria-hidden="true">＋</span><span>Zoom in to see terrain contours</span>
     </div>}
-    <TabList id={sliderId} label="Terrain coloring" tabs={COLOR_TABS} value={colorMode}
+    <TabList id={sliderId} size="slim" label="Terrain coloring" tabs={COLOR_TABS} value={colorMode}
       onChange={mode => selectMode(mode === 'clearance')} />
     <div className="terrain-legend-panel" {...tabPanelProps(sliderId, 'elevation', colorMode)} tabIndex={0}>
       <span className="terrain-scale" aria-hidden="true" style={{ background: `linear-gradient(to right, ${

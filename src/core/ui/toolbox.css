@@ -1,0 +1,14 @@
+/* Compact map tools share a reading rhythm; plugins own content and geometry. */
+.ui-toolbox {
+  padding: var(--ui-panel-padding);
+  border: 1px solid var(--border-panel-translucent);
+  border-radius: 0 var(--ui-panel-radius) var(--ui-panel-radius) 0;
+  color: var(--text-primary);
+  background: var(--surface-panel);
+  font-size: var(--ui-text-compact);
+  line-height: var(--ui-line-height);
+}
+
+.ui-toolbox :where(h3, h4, p) { margin: 0; font-size: inherit; line-height: inherit; }
+.ui-toolbox :where(p, small) { color: var(--text-muted); }
+.ui-toolbox :where(small) { font-size: var(--ui-text-meta); }

@@ -1,11 +1,9 @@
 .ownship-status {
   display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
-  justify-self: start; max-width: 100%; padding: 7px 10px;
-  border: 1px solid var(--border-8e7541); border-radius: 9px;
-  color: var(--text-f5d697); background: var(--surface-081423-a940); font-size: 11px;
+  justify-self: start; max-width: 100%;
+  border-color: var(--border-8e7541); color: var(--text-f5d697);
 }
 .ownship-status.is-live { color: var(--text-d9ecf5); border-color: var(--border-32b5ff-a400); }
 .ownship-status.is-off { color: var(--text-muted); border-color: var(--border-d8effa-a180); }
-.ownship-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
-.ownship-summary { min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
-.ownship-status strong { color: var(--text-32b5ff); font-size: 11px; letter-spacing: .08em; }
+.ownship-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-panel-gap); width: 100%; }
+.ownship-summary { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }

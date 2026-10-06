@@ -160,9 +160,9 @@ test('captured Bull Fire TFR keeps the published four-vertex national geometry',
     { entries: [{ record: source }], now: manifest.capture.reviewTime, chartedTfrs }));
   const abbreviated = render();
   assert.match(abbreviated, /TFR 6\/7106 shown on chart/); assert.match(abbreviated, /SFC–10000 ft MSL/);
-  assert.doesNotMatch(abbreviated, /class="notam-readable"/);
+  assert.doesNotMatch(abbreviated, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
   assert.match(abbreviated, /BULL FIRE/); assert.match(abbreviated, /Show raw/);
-  assert.match(render([]), /class="notam-readable"/, 'detachment restores the full readable notice');
+  assert.match(render([]), /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/, 'detachment restores the full readable notice');
 });
 
 test('every ARTCC obstruction is accounted for as a point, an area or a reviewed malformed coordinate', () => {

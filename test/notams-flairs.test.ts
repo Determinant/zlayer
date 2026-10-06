@@ -65,7 +65,7 @@ test('mapped obstacle status remains readable independently of summary badge sel
     assert.deepEqual(auditRenderedNotam(source, true), []);
     assert.ok(auditMappedNotam(source, { blocks: [], sourceSpans: [], searchText: '' }).length, 'the audit must reject status lost from the body even when a badge exists');
     const html = renderToStaticMarkup(createElement(NotamList, { entries: [{ record: source }], now: NOTAM_NOW, charted: new Set([notamChartKey(source)]) }));
-    assert.match(html, /class="notam-readable"/);
+    assert.match(html, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
     assert.ok(html.includes(status === 'U/S' ? 'LGT U/S' : 'Flagged and LGTD'));
   }
 });

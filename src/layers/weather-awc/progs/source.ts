@@ -4,6 +4,13 @@ import { surfaceLineCurve } from './curves';
 export const SURFACE_CATALOG = 'https://aviationweather.gov/api/data/progchart';
 const HOUR = 3600_000;
 export type SurfaceChart = { file: string; referenceTime: number; validTime: number; forecastHour: number; source: string };
+/** Compare validated, time-ordered catalogs before acquiring their chart files.
+ * Mixed cycles and same-cycle corrections remain eligible. */
+export function isOlderSurfaceCatalog(next: readonly Pick<SurfaceChart, 'validTime' | 'referenceTime'>[],
+  previous: readonly Pick<SurfaceChart, 'validTime' | 'referenceTime'>[]): boolean {
+  return !!previous.length && (next[0]!.validTime < previous[0]!.validTime || next.at(-1)!.validTime < previous.at(-1)!.validTime ||
+    next.some(frame => previous.some(old => old.validTime === frame.validTime && old.referenceTime > frame.referenceTime)));
+}
 function referenceTime(text: string): number {
   if (!/^\d{8}_\d{2}$/.test(text)) throw new Error('Invalid NOAA chart cycle');
   const iso = `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T${text.slice(9)}:00:00.000Z`;

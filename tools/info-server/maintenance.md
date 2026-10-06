@@ -19,6 +19,16 @@ a full cache is not a health failure.
 NDFD readiness uses both available and unpublished stops to assess the catalog
 horizon, while separately requiring at least one saved image. Unpublished future
 images do not invalidate an available current analysis image.
+The catalog's explicit analysis time must also satisfy the six-hour limit, whether
+its image is available or explicitly unpublished. A successful source check and
+distant forecast horizon cannot freshen an old analysis.
+
+The artifact probe requires all weather sources to be available and fresh without
+active refresh errors, then independently validates delivered artifacts and advisory
+family/check times. Cached files can remain usable during a failed refresh without
+satisfying this deployment gate. The NOTAM allowances below waive no weather errors.
+Progs exposes its next attempt; chart and grid failure logs report transitions
+instead of repeating identical errors on every retry.
 
 `notamReconciliation` reports the last completed full sync, its age, a pending
 replacement, the last attempt/failure, and the next budget-eligible attempt. A
@@ -96,9 +106,15 @@ retain the latest NMS and TFR journals through failure or rollback. A pre-existi
 overdue full sync may be explicitly reported by the artifact probe's
 `--allow-overdue-full-sync` option; the default remains strict, and future source
 times, stale deltas, lost continuity and missing artifacts are never waived.
+For enabled NMS collection, the probe also requires a reconciliation summary with
+no active error. Failed/interrupted reconciliation and corrupt or unavailable
+history fail the probe even when deltas are fresh and the last full sync is recent.
+A pending replacement with a healthy live feed can pass. The overdue-age exception
+does not waive reconciliation errors or missing diagnostic status.
 
 A compatible rollout may also supply `--allow-unresolved-notams=N` for a captured
 pre-existing source ambiguity. The probe still requires fresh, continuous
 collection and reports the retained issue count in `warnings`. A deployment must
 independently compare source IDs against its stopped baseline; a numeric allowance
 alone does not prove the candidate preserved the same ambiguity.
+This source-issue allowance also cannot waive reconciliation failures.

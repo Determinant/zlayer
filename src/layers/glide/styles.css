@@ -1,15 +1,13 @@
 .map-edge-glide .map-edge-content { width: 292px; max-width: calc(100vw - 96px); }
-.glide-panel { display: grid; gap: 8px; padding: 7px 10px; border: 1px solid var(--border-panel-translucent); border-radius: 0 9px 9px 0; color: var(--text-e2edf4); font-size: 12px; line-height: 1.5; }
+.glide-panel { display: grid; gap: var(--ui-panel-gap); }
 .glide-heading, .glide-row, .glide-value, .glide-limits, .glide-key { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.glide-panel h3, .glide-panel h4 { margin: 0; font-size: 12px; }
-.glide-group, .glide-section { display: grid; gap: 7px; min-width: 0; }
+.glide-group, .glide-section { display: grid; gap: var(--ui-panel-gap); min-width: 0; }
 .glide-section { border-top: 1px solid var(--border-385061); padding-top: 8px; }
 .glide-settings { gap: 12px; }
-.glide-panel p { margin: 0; color: var(--text-muted); }
-.glide-panel .glide-note, .glide-panel small, .glide-limits, .glide-selected-point output { font-size: 11px; line-height: 1.5; color: var(--text-muted); }
+.glide-limits, .glide-selected-point output { font-size: var(--ui-text-meta); color: var(--text-muted); }
 .glide-row label { min-width: 0; }
 .glide-altitude { flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-.glide-altitude output { margin-left: auto; white-space: nowrap; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.glide-altitude output { margin-left: auto; white-space: nowrap; font-size: var(--ui-text-body); font-weight: 700; font-variant-numeric: tabular-nums; }
 .glide-value input { width: 76px; text-align: right; font-variant-numeric: tabular-nums; }
 .glide-value { flex-shrink: 0; }
 .glide-slider { width: 100%; margin: 0; padding: 0; height: max(32px, var(--touch-target)); accent-color: var(--accent-75d8cd); cursor: ew-resize; touch-action: none; }
@@ -18,9 +16,6 @@
 .glide-key { justify-content: flex-start; color: var(--text-muted); }
 .glide-key i { width: 24px; height: 12px; border: 2px solid #ffc875; background: #ffc87552; flex-shrink: 0; }
 .glide-panel details { display: block; }
-.glide-panel summary { cursor: pointer; min-height: max(32px, var(--touch-target)); padding-block: 6px; box-sizing: border-box; color: var(--text-muted); }
-.glide-panel summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-.glide-panel details[open] summary { margin-bottom: 8px; }
 .glide-panel details p + p { margin-top: 8px; }
 
 .glide-key-ownship i, .glide-key-point i { border-color: #53e4c6; background: #53e4c63d; }

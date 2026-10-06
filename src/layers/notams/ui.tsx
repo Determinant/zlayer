@@ -72,7 +72,7 @@ export function SourceStatus({ view }: { view: View }) {
   // Older responses mark every station incomplete; coverage here is the station's own notices.
   const complete = snapshot?.scope === 'navaid-location'
     ? (snapshot.contentCoverage ?? snapshot.feed.continuity) === 'complete' : view.complete;
-  return <div className="notam-source">
+  return <div className="ui-note notam-source">
     {staging ? <>
       <strong>Testing with FAA staging data. Notices may be incomplete. Do not use for flight planning.</strong>
       {!online && <span>Offline</span>}
@@ -86,8 +86,8 @@ export function SourceStatus({ view }: { view: View }) {
 export function NotamSourceIssues({ issues }: { issues: readonly NotamSourceIssue[] }) {
   if (!issues.length) return null;
   return <section className="notam-section notam-section--check" aria-label="Unresolved FAA source records">
-    <h3 className="notam-section-heading">Source data needs review <span className="notam-section-count">{issues.length}</span></h3>
-    <p className="notam-list-status">These records are excluded from interpreted notices, plate matches and map symbols. Their status or content could not be resolved.</p>
+    <h3 className="ui-section-title notam-section-heading">Source data needs review <span className="ui-meta notam-section-count">{issues.length}</span></h3>
+    <p className="ui-note notam-list-status">These records are excluded from interpreted notices, plate matches and map symbols. Their status or content could not be resolved.</p>
     {issues.map(issue => <article className="notam-entry" key={issue.id}>
       <strong>FAA source ID {issue.id}</strong>
       <p>{issue.reason === 'unsupported-lifecycle' ? 'The source does not establish whether this notice is active or cancelled.'
@@ -95,7 +95,7 @@ export function NotamSourceIssues({ issues }: { issues: readonly NotamSourceIssu
           : 'The source supplied different versions without a newer revision. No version has been chosen as authoritative.'}</p>
       {issue.unscoped && <p>Location applicability is uncertain. This warning is shown for all locations.</p>}
       {issue.variantsTruncated && <p>Additional source versions were received. The retained examples below are not exhaustive.</p>}
-      <details className="notam-raw"><summary>Review FAA source versions</summary>
+      <details className="ui-note ui-disclosure notam-raw"><summary>Review FAA source versions</summary>
         {issue.variants.map((record, index) => <div key={record.revision}>
           <strong>Version {index + 1} · {displayNumber(record)}</strong>
           <p>Source lifecycle: {record.lifecycle} · Updated {formatTimestamp(record.updatedAt)}</p>
@@ -107,7 +107,7 @@ export function NotamSourceIssues({ issues }: { issues: readonly NotamSourceIssu
   </section>;
 }
 function NotamBody({ blocks }: { blocks: NotamBodyBlock[] }) {
-  return <div className="notam-readable">{blocks.map((block, i) => {
+  return <div className="ui-prose notam-readable">{blocks.map((block, i) => {
     if (block.kind === 'context' && blocks[i + 1]?.kind === 'heading') return null;
     const context = i > 0 && blocks[i - 1]?.kind === 'context' ? blocks[i - 1] : undefined;
     return <ReadableBlock key={i} block={block} context={context && 'text' in context ? context.text : undefined} />;
@@ -188,9 +188,9 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
     onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
     <div className="notam-entry-heading"><strong>{classification(record)} · {displayNumber(record)}</strong>
       <span>{record.locations.join(', ') || record.icaoLocations.join(', ')}</span></div>
-    <div className="notam-flairs">{flairs.map(flair => <span key={flair.label} className={`notam-flair--${flair.tone}`} title={flair.evidence.map(source => source.text).join('\n')}>{flair.label}</span>)}
-      {interpretationNotes.map(note => <span key={note.label} className="notam-flair--caution" title={note.detail}>{note.label}</span>)}
-      {validity !== 'within interval' && validity !== 'upcoming' && <span className={validity.startsWith('check') ? 'notam-flair--caution' : 'notam-flair--neutral'}>
+    <div className="notam-flairs">{flairs.map(flair => <span key={flair.label} className={`ui-badge notam-flair--${flair.tone}`} title={flair.evidence.map(source => source.text).join('\n')}>{flair.label}</span>)}
+      {interpretationNotes.map(note => <span key={note.label} className="ui-badge notam-flair--caution" title={note.detail}>{note.label}</span>)}
+      {validity !== 'within interval' && validity !== 'upcoming' && <span className={validity.startsWith('check') ? 'ui-badge notam-flair--caution' : 'ui-badge notam-flair--neutral'}>
         {validity.replace(/\b[a-z]/g, letter => letter.toUpperCase())}</span>}</div>
     {reason && <p className="notam-match-reason">{reason}</p>}
     {tfr ? <p className="notam-chart-note">TFR {tfr.id} shown on chart · {[...new Set(tfr.areas.map(a => `${a.lower}–${a.upper}`))].join('; ')}.
@@ -204,7 +204,7 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
         : `${formatTimestampPair(record.endsAt, { now, primary: 'local' })}${endKind === 'estimated' ? ' (estimated)' : endKind === 'unknown' ? ' (unconfirmed)' : ''}`}</span></div>
     </div>
     {record.schedule && <p className="notam-text">Schedule: {record.schedule}</p>}
-    <details className="notam-raw"><summary>Show raw</summary>
+    <details className="ui-note ui-disclosure notam-raw"><summary>Show raw</summary>
       {translations.map((translation, i) => <div key={i}>
         <strong>{translation.type === 'LOCAL_FORMAT' ? 'Original NOTAM' : translation.type || 'Source translation'}</strong>
         <pre>{translation.text}</pre></div>)}
@@ -233,14 +233,14 @@ export function NotamList({ entries, now, charted, chartedTfrs = [], highlight }
       tfr={chartedTfrReference(record, chartedTfrs)} highlight={highlight} {...(reason ? { reason } : {})} />);
   const populated = sections.filter(section => section.entries.length);
   if (!populated.length) return null;
-  return <div className="notam-list">{populated.map(section =>
+  return <div className="ui-panel-content notam-list">{populated.map(section =>
     <section key={section.key} className={`notam-section notam-section--${section.key}`} aria-label={section.title}>
-      <h3 className="notam-section-heading">{section.title}{' '}<span className="notam-section-count">{section.entries.length}</span></h3>
+      <h3 className="ui-section-title notam-section-heading">{section.title}{' '}<span className="ui-meta notam-section-count">{section.entries.length}</span></h3>
       {section.entries.some(entry => entry.outcome) ? (['applies', 'review'] as const).map(outcome => {
         const group = section.entries.filter(entry => entry.outcome === outcome)
           .sort((a, b) => Number(b.record.classification === 'FDC') - Number(a.record.classification === 'FDC'));
         return group.length ? <div key={outcome}>
-          <h4 className="notam-match-heading">{outcome === 'applies' ? 'Related to this plate' : 'Review applicability'}</h4>
+          <h4 className="ui-section-title notam-match-heading">{outcome === 'applies' ? 'Related to this plate' : 'Review applicability'}</h4>
           {renderEntries(group)}
         </div> : null;
       }) : renderEntries(section.entries)}
@@ -256,14 +256,14 @@ export function useAirportNotamView({ api, query, region }: {
   return {
     contentKey: `${notamQueryKey(query)}:${scope}`,
     header: <TabList id={tabsId} label="NOTAM area" size="slim" value={scope} onChange={setScope}
-      tabs={[{ value: 'airport', label: 'Airport' }, { value: 'region', label: 'ARTCC / FIR' }]} />,
+      tabs={[{ value: 'airport', label: 'Airport' }, { value: 'region', label: 'ARTCC/FIR', accessibleLabel: 'ARTCC / FIR' }]} />,
     body: (active: boolean) => <>
       <div {...tabPanelProps(tabsId, 'airport', scope)}>
         {scope === 'airport' && <LocationNotams key={notamQueryKey(query)} api={api} query={query} active={active} />}
       </div>
       <div {...tabPanelProps(tabsId, 'region', scope)}>
         {scope === 'region' && (region ? <LocationNotams key={notamQueryKey(region)} api={api} query={region} region={region} active={active} />
-          : <p className="notam-list-status">ARTCC/FIR lookup is unavailable because this airport’s navigation data has no published regional association.</p>)}
+          : <p className="ui-note notam-list-status">ARTCC/FIR lookup is unavailable because this airport’s navigation data has no published regional association.</p>)}
       </div>
     </>,
   };
@@ -271,7 +271,7 @@ export function useAirportNotamView({ api, query, region }: {
 export function NavaidNotams({ api, feature, active }: { api: NotamsApi; feature: GeoPointFeature; active: boolean }) {
   const context = useMemo(() => navaidNotamContext(feature), [feature]);
   return context ? <LocationNotams api={api} query={context.query} active={active} navaid={context} />
-    : <p className="notam-list-status">NOTAM lookup is unavailable for this navaid’s published identity.</p>;
+    : <p className="ui-note notam-list-status">NOTAM lookup is unavailable for this navaid’s published identity.</p>;
 }
 function LocationNotams({ api, query, active, navaid, region }: {
   api: NotamsApi; query: NotamQuery; active: boolean; navaid?: NavaidNotamContext; region?: NotamRegionQuery;
@@ -293,7 +293,7 @@ function LocationNotams({ api, query, active, navaid, region }: {
   const preview = useChartPreview(api, shown, active && view.visiblePage);
   const activeFilters = [filter === 'all' ? '' : filter === 'other' ? 'Other / Unclassified' : filter,
     subject === 'all' ? '' : subject, search ? `Search: “${search}”` : ''].filter(Boolean);
-  return <section className="airport-notams" aria-label={region ? 'Regional NOTAMs' : navaid ? 'Navaid NOTAMs' : 'Airport NOTAMs'}>
+  return <section className="ui-panel-content airport-notams" aria-label={region ? 'Regional NOTAMs' : navaid ? 'Navaid NOTAMs' : 'Airport NOTAMs'}>
     <SourceStatus view={view} />
     <NotamSourceIssues issues={view.snapshot?.issues ?? []} />
     {!navaid && <div className="notam-filter-controls">
@@ -305,28 +305,28 @@ function LocationNotams({ api, query, active, navaid, region }: {
         </button>
         {activeFilters.length > 0 && <button type="button" className="ui-button ui-button--quiet ui-button--slim" aria-label="Clear NOTAM filters"
           onClick={() => { setFilter('all'); setSubject('all'); setSearch(''); }}>Clear</button>}
-        {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices</p>}
+        {view.snapshot && <p className="ui-note notam-list-status">{shown.length} of {records.length} retained notices</p>}
       </div>
-      {!filtersOpen && activeFilters.length > 0 && <p className="notam-list-status">{activeFilters.join(' · ')}</p>}
+      {!filtersOpen && activeFilters.length > 0 && <p className="ui-note notam-list-status">{activeFilters.join(' · ')}</p>}
       <div id={filtersId} hidden={!filtersOpen}>
         {filtersOpen && <div className="notam-filters">
-          <label>Classification<select className="ui-input" aria-label="Classification" value={filter} onChange={e => setFilter(e.target.value)}>
+          <label className="ui-field">Classification<select className="ui-input" aria-label="Classification" value={filter} onChange={e => setFilter(e.target.value)}>
             <option value="all">All</option><option value="D">D</option><option value="FDC">FDC</option><option value="other">Other / Unclassified</option>
           </select></label>
-          <label>Subject<select className="ui-input" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)}>
+          <label className="ui-field">Subject<select className="ui-input" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)}>
             <option value="all">All subjects</option>{subjects.map(s => <option key={s}>{s}</option>)}</select></label>
-          <label className="notam-search">Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
+          <label className="ui-field notam-search">Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
         </div>}
       </div>
     </div>}
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
     <div className="location-notam-results">
       <NotamList entries={shown} now={view.now} {...preview} />
-      {view.snapshot && !shown.length && <p className="notam-list-status">{(partition?.related.length || records.length) ? 'No notices match these filters.'
+      {view.snapshot && !shown.length && <p className="ui-note notam-list-status">{(partition?.related.length || records.length) ? 'No notices match these filters.'
         : region ? 'No retained regional notices in this snapshot.' : navaid ? 'No directly associated facility notices in this snapshot.' : 'No retained notices.'}</p>}
-      {navaid && view.snapshot && <details className="notam-raw" open={otherOpen} onToggle={event => setOtherOpen(event.currentTarget.open)}>
+      {navaid && view.snapshot && <details className="ui-note ui-disclosure notam-raw" open={otherOpen} onToggle={event => setOtherOpen(event.currentTarget.open)}>
         <summary>Other notices filed under {navaid.query.navaidId} ({partition!.other.length})</summary>
-        <p className="notam-list-status">These location notices have not been associated with the selected navaid.</p>
+        <p className="ui-note notam-list-status">These location notices have not been associated with the selected navaid.</p>
         {otherOpen && <NotamList entries={partition!.other.map(record => ({ record }))} now={view.now} />}
       </details>}
     </div>
@@ -367,7 +367,7 @@ export function PlateNotams(props: PlateNotamsProps) {
   const effective = selected ?? context;
   const value = selected?.key ?? context.choices?.find(c => c.procedure?.id === context.procedure?.id &&
     c.airport?.faaId === context.airport?.faaId)?.key ?? '';
-  const picker = context.choices && <label className="plate-notam-section">Airport / chart section
+  const picker = context.choices && <label className="ui-field plate-notam-section">Airport / chart section
       <select className="ui-input" value={value} onChange={event => setChoice({ page: context.key, key: event.target.value })}>
         <option value="" disabled>Choose a section on this shared page</option>
         {context.choices.map(c => <option key={c.key} value={c.key}>{c.airport?.icaoId ?? c.airport?.faaId} · {c.procedure?.name}</option>)}
@@ -388,13 +388,13 @@ export function PlateNotamResults({ records, result, now, charted, chartedTfrs, 
   const remaining = records.filter(record => !displayedIds.has(record.id));
   return <div className="plate-notam-results">
     <NotamList entries={result.matches} now={now} charted={charted} chartedTfrs={chartedTfrs} highlight={highlight} />
-    {!result.matches.length && <p className="notam-list-status">{remaining.length
+    {!result.matches.length && <p className="ui-note notam-list-status">{remaining.length
       ? 'No established matches. Review the remaining airport NOTAMs below.' : 'No retained airport NOTAMs.'}</p>}
-    {result.unresolved > 0 && <p className="notam-list-status">Matching is incomplete for {result.unresolved} airport notice(s). Other notices may be relevant to this plate.</p>}
-    {result.unmatchedTargets.length > 0 && <details className="notam-raw"><summary>Unmatched procedure references</summary>
+    {result.unresolved > 0 && <p className="ui-note notam-list-status">Matching is incomplete for {result.unresolved} airport notice(s). Other notices may be relevant to this plate.</p>}
+    {result.unmatchedTargets.length > 0 && <details className="ui-note ui-disclosure notam-raw"><summary>Unmatched procedure references</summary>
       {result.unmatchedTargets.map(({ record, titles }) => <p key={record.id}>{displayNumber(record)} · {titles.join('; ')}</p>)}
     </details>}
-    {remaining.length > 0 && <details className="notam-raw" open={remainingOpen} onToggle={event => setRemainingOpen(event.currentTarget.open)}>
+    {remaining.length > 0 && <details className="ui-note ui-disclosure notam-raw" open={remainingOpen} onToggle={event => setRemainingOpen(event.currentTarget.open)}>
       <summary>Show remaining airport NOTAMs ({remaining.length})</summary>
       {remainingOpen && <NotamList entries={remaining.map(record => ({ record }))} now={now} />}
     </details>}
@@ -417,14 +417,14 @@ function PlateNotamsForContext({ api, context, active, retryCatalog, pageKey, pi
   return <section className={`plate-notams${count || sourceIssues ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
     <button className="ui-button plate-notam-toggle" type="button" aria-expanded={open} aria-controls={id}
       onClick={() => setOpenKey(open ? undefined : pageKey)}><span>NOTAM · {label}</span><span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
-    {open && <div id={id} className="plate-notams-list panel-scroll" role="region" aria-label="Notices for displayed plate" tabIndex={0}>
+    {open && <div id={id} className="ui-panel-content plate-notams-list panel-scroll" role="region" aria-label="Notices for displayed plate" tabIndex={0}>
       {picker}
       {!result.available ? context.status === 'loading' ? <LoadingPlaceholder label="Loading plate context…" rows={1} />
-        : retryCatalog ? <div className="notam-recovery"><p className="notam-list-status">The plate catalog could not be loaded. Matching is unavailable.</p>
+        : retryCatalog ? <div className="notam-recovery"><p className="ui-note notam-list-status">The plate catalog could not be loaded. Matching is unavailable.</p>
           <button type="button" className="ui-button ui-button--compact" onClick={retryCatalog}>Retry plate catalog</button></div>
-          : <p className="notam-list-status">This page’s airport and procedure could not be established from its edition. Choose an indexed section or reopen the procedure from Plates.</p> : <>
-        <strong className="plate-notams-heading">{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
-        {context.sharedPage && <p className="notam-list-status">Showing notices for the selected airport and chart section on this shared page.</p>}
+          : <p className="ui-note notam-list-status">This page’s airport and procedure could not be established from its edition. Choose an indexed section or reopen the procedure from Plates.</p> : <>
+        <strong className="ui-panel-title plate-notams-heading">{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
+        {context.sharedPage && <p className="ui-note notam-list-status">Showing notices for the selected airport and chart section on this shared page.</p>}
         <SourceStatus view={view} />
         <NotamSourceIssues issues={view.snapshot?.issues ?? []} />
         {!view.snapshot && view.entry?.loading && <LoadingPlaceholder label="Loading NOTAMs…" rows={2} />}

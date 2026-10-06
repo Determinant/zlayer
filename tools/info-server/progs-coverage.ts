@@ -1,6 +1,6 @@
 import { isProgsCoverageCatalog, progsCoverageSource, PROGS_COVERAGE_SOURCE, PROGS_COVERAGE_MAX_BYTES,
   type ProgsCoverageCatalog, type ProgsCoverageFrame, type ProgsCoverageFile } from '@zlayer/contracts';
-import { parseSurfaceCatalog } from '../../src/layers/weather-awc/progs/source';
+import { isOlderSurfaceCatalog, parseSurfaceCatalog } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
 import { HttpError, resourceFor, type Resource } from './routes';
 import { digest, type Payload } from './upstream';
@@ -29,6 +29,9 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
     try {
       const input = await cache.get(sourceResource(PROGS_COVERAGE_SOURCE), 150_000, signal);
       const charts = parseSurfaceCatalog(input.body.toString('utf8'), input.checkedAt);
+      if (isOlderSurfaceCatalog(charts, catalog?.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) ?? [])) {
+        throw new Error('NOAA returned older NDFD coverage charts');
+      }
       const frames: ProgsCoverageFrame[] = [], changed: { file: ProgsCoverageFile; payload: Payload }[] = [];
       for (const chart of charts) {
         const source = progsCoverageSource(chart.validTime, chart.referenceTime);
@@ -46,10 +49,6 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
       const next: ProgsCoverageCatalog = { schemaVersion: 1, source: PROGS_COVERAGE_SOURCE, sourceHash: input.sha256,
         sourceCatalog: input.body.toString('utf8'), checkedAt: Math.min(input.checkedAt, ...frames.map(frame => frame.checkedAt)), frames };
       if (!isProgsCoverageCatalog(next)) throw new Error('Invalid NDFD coverage catalog');
-      if (catalog && (frames[0]!.validTime < catalog.frames[0]!.validTime || frames.at(-1)!.validTime < catalog.frames.at(-1)!.validTime ||
-        frames.some(frame => catalog!.frames.some(old => old.validTime === frame.validTime && old.chartReferenceTime > frame.chartReferenceTime)))) {
-        throw new Error('NOAA returned older NDFD coverage charts');
-      }
       if (changed.length) await workerJob(workerModule(import.meta.url, 'progs-coverage-worker'),
         changed.map(image => image.payload.body), signal);
       for (const { file, payload } of changed) {
@@ -61,11 +60,13 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
       await cache.put(catalogResource(), { body, status: 200, checkedAt: next.checkedAt, sha256: digest(body),
         headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_COVERAGE } });
       for (const frame of catalog?.frames ?? []) if (frame.file) retained.set(imageResource(frame.file).key, now() + 10 * 60_000);
+      if (error) options.log?.('NDFD coverage update recovered');
       catalog = next; error = undefined; nextCheck = now() + 5 * 60_000;
     } catch (cause) {
       if (signal.aborted) return;
-      error = cause instanceof Error ? cause.message : String(cause); nextCheck = now() + 30_000;
-      options.log?.(`NDFD coverage update failed: ${error}`);
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (message !== error) options.log?.(`NDFD coverage update failed: ${message}`);
+      error = message; nextCheck = now() + 30_000;
     } finally { building.clear(); protect(); }
   }
   return {
@@ -80,7 +81,8 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
       } else await cache.discard(resource);
     },
     refresh() { if (!signal.aborted && !task && now() >= nextCheck) task = update().finally(() => { task = undefined; }); },
-    get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.frames.every(frame => !frame.file || cache.has(imageResource(frame.file))), preparing: !!task, checkedAt: catalog?.checkedAt,
+    get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.frames.every(frame => !frame.file || cache.has(imageResource(frame.file))), preparing: !!task, checkedAt: catalog?.checkedAt, nextAttemptAt: nextCheck,
+      analysisTime: catalog?.frames.find(frame => frame.validTime === frame.chartReferenceTime)?.validTime,
       validTimes: catalog?.frames.filter(frame => frame.file).map(frame => frame.validTime),
       unavailableTimes: catalog?.frames.filter(frame => !frame.file).map(frame => frame.validTime), ...(error ? { error } : {}) }; },
     async close() { await task; },

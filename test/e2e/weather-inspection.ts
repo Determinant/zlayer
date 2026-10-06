@@ -2,6 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 /** Choose exposed map pixels beside the open toolbox, including phone layouts. */
 export async function weatherMapPoint(page: Page) {
+  // Handles respond before panel slides finish; choose pixels from settled bounds.
+  await expect.poll(() => page.locator('.edge-panels').evaluateAll(groups => groups.every(group =>
+    group.getAnimations().every(animation => animation.playState !== 'running')))).toBe(true);
   const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
   const openToolbox = page.locator('.map-edge-awc.is-open');
   const toolbox = await openToolbox.isVisible() ? await openToolbox.boundingBox() : null;

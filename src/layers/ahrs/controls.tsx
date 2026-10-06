@@ -90,8 +90,8 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
   const calibrationProgress = `${Math.floor(state.progress * 10)} / 10 s`;
   return <PanelSurface expanded={expanded} onExitFullScreen={() => setFullScreen(false)} fullScreenButton={fullScreenButton}
     className="ahrs-window" role={expanded ? 'dialog' : 'presentation'} aria-label={expanded ? 'AHRS full screen' : undefined}>
-    <section className="ahrs-tool" aria-label="AHRS toolbox">
-      <header className="ahrs-heading"><h3>Attitude</h3>
+    <section className="ui-toolbox ahrs-tool" aria-label="AHRS toolbox">
+      <header className="ahrs-heading"><h3 className="ui-toolbox-title">Attitude</h3>
         <div className="ahrs-heading-actions">
           <AhrsRecorderControl layer={layer} visible={active} onStart={() => {
             setTesting(false);
@@ -116,12 +116,12 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
           <strong>Calibrate attitude</strong>
           <p>Secure the device in its mount and hold roughly steady and level for about 10 seconds. In flight, keep straight and level at a steady speed; small movements and cockpit vibration are okay.</p>
           <p>Calibration can finish with no GPS fix, including while stationary. Once calibrated, IMU attitude stays visible and moving beneath any red cross.</p>
-          <label>Device mount<select className="ui-input ui-input--compact" value={mount} onChange={event => setMount(event.target.value as Mount)}>
+          <label className="ui-field">Device mount<select className="ui-input ui-input--compact" value={mount} onChange={event => setMount(event.target.value as Mount)}>
             <option value="upright">Upright · screen facing you</option><option value="flat">Flat · top edge forward</option>
           </select></label>
-          <details><summary>True heading (optional)</summary>
+          <details className="ui-disclosure"><summary>True heading (optional)</summary>
             <p>A known true heading initializes direction once during calibration. Otherwise, moving GPS supplies an estimated heading carried by the gyros. Changing flight motion can refine heading; REL is used only until a geographic reference is available.</p>
-            <label>True heading · degrees<input className="ui-input ui-input--compact" type="number" min="0" max="359.9" step="any" inputMode="decimal"
+            <label className="ui-field">True heading · degrees<input className="ui-input ui-input--compact" type="number" min="0" max="359.9" step="any" inputMode="decimal"
               value={heading} onChange={event => setHeading(event.target.value)} placeholder="Use GPS when available" /></label>
           </details>
           {state.message && !testing && <p className="ahrs-message" role="status">{state.message}</p>}
@@ -148,7 +148,7 @@ export function AhrsTool({ layer, route, revision, visible = true }: {
           {testing ? 'Stop test' : 'Test'}
         </button>
       </div>
-      <footer className="ahrs-footnote">Experimental attitude · not flight validated</footer>
+      <footer className="ui-meta ahrs-footnote">Experimental attitude · not flight validated</footer>
     </section>
   </PanelSurface>;
 }

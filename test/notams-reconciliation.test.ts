@@ -25,15 +25,19 @@ const renderings: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-s
 assert.ok(isRecord(renderings) && typeof renderings.checkedAt === 'number' &&
   Array.isArray(renderings.issues) && renderings.issues.every(isNotamSourceIssue));
 const representationIssues = renderings.issues;
-const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values(), ...representationIssues];
-const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt);
+const cancellations: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-cancellation-2026-10-06.json', import.meta.url), 'utf8'));
+assert.ok(isRecord(cancellations) && typeof cancellations.checkedAt === 'number' &&
+  Array.isArray(cancellations.issues) && cancellations.issues.every(isNotamSourceIssue));
+const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values(),
+  ...representationIssues, ...cancellations.issues];
+const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt, cancellations.checkedAt);
 function changed(record: NotamRecord, fields: Partial<NotamRecord>) {
   const { revision: _revision, ...facts } = { ...record, ...fields };
   return recordWithRevision(facts);
 }
 
 test('captured source pairs reconcile in both arrival orders without losing raw translations or source time', () => {
-  assert.equal(issues.length, 21);
+  assert.equal(issues.length, 22);
   for (const issue of issues) for (const variants of [issue.variants, [...issue.variants].reverse()]) {
     let collection = collectNotamRecords({ records: [] }, [variants[0]!]);
     collection = collectNotamRecords(collection, variants.slice(1));
@@ -202,10 +206,41 @@ test('lifecycle precedence requires the original-ID cancellation timestamp and m
   const cancelled = issue.variants.find(r => r.lifecycle === 'cancelled')!;
   for (const fields of [{ canceledAt: '' }, { canceledAt: 'invalid' },
     { canceledAt: new Date(cancelled.updatedAt - 60_000).toISOString() },
-    { canceledAt: new Date(cancelled.updatedAt + 60_000).toISOString() },
-    { classification: 'FDC' }, { number: '9999' }, { changeType: 'C' }]) {
+    { classification: 'FDC' }, { number: '9999' }, { series: 'X' }, { year: '2099' }, { changeType: 'C' }]) {
     const result = collectNotamRecords({ records: [active] }, [changed(cancelled, fields)]);
     assert.equal(result.issues?.length, 1, JSON.stringify(fields));
+  }
+});
+
+test('independent cancellation timestamps preserve fractional ordering and newer source revisions', () => {
+  const issue = issues.find(i => i.id === '1791309061314000')!;
+  const active = issue.variants.find(r => r.lifecycle === 'active')!;
+  const cancelled = issue.variants.find(r => r.lifecycle === 'cancelled')!;
+  const sourceUpdatedAt = '2026-10-06T17:51:00.000000001Z', updatedAt = Date.parse(sourceUpdatedAt);
+  const preciseActive = changed(active, { sourceUpdatedAt, updatedAt });
+  for (const canceledAt of ['2026-10-06T17:51:00.000Z', '2026-10-06T17:51:00.000000001Z',
+    '2026-10-06T17:51:00.000000002Z', '2026-10-06T17:51:44.394Z', '2026-10-06T17:52:00.000Z']) {
+    const preciseCancelled = changed(cancelled, { sourceUpdatedAt, updatedAt, canceledAt });
+    for (const pair of [[preciseActive, preciseCancelled], [preciseCancelled, preciseActive]]) {
+      const collection = collectNotamRecords({ records: [] }, pair);
+      if (canceledAt === '2026-10-06T17:51:00.000Z') {
+        assert.equal(collection.issues?.length, 1, 'an older sub-millisecond cancellation cannot withdraw this revision');
+      } else {
+        assert.equal(collection.issues?.length ?? 0, 0, canceledAt);
+        assert.deepEqual(collection.records, [preciseCancelled]);
+        assert.equal(collectNotamRecords(collection, [preciseActive]), collection, 'sparse replay cannot resurrect the notice');
+      }
+    }
+  }
+  const resolved = collectNotamRecords({ records: [] }, issue.variants);
+  const later = new Date(Date.parse(cancelled.canceledAt) + 1000).toISOString();
+  for (const fields of [{ sourceUpdatedAt: later, updatedAt: Date.parse(later) },
+    { sequence: active.sequence + 1 }, { correction: active.correction + 1 }]) {
+    const newer = changed(active, fields);
+    const collection = collectNotamRecords(resolved, [newer]);
+    assert.equal(collection.issues?.length ?? 0, 0);
+    assert.deepEqual(collection.records, [newer], 'a newer source revision keeps its own lifecycle');
+    assert.equal(collectNotamRecords(collection, issue.variants), collection, 'older cancellation replay cannot replace the newer revision');
   }
 });
 

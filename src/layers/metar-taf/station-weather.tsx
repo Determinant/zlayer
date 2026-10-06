@@ -116,7 +116,7 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
   const description = name === 'METAR' ? 'Observation' : 'Forecast';
   const staleLabel = name === 'METAR' ? 'Stale' : 'Expired';
   const source = selected && <div className="weather-source">
-    <label>{nearby ? `Nearby ${name}` : `${name} station`}
+    <label className="ui-field">{nearby ? `Nearby ${name}` : `${name} station`}
       <select className="ui-input ui-input--compact" aria-label={`${name} station`} value={selected.stationId} onChange={event => setSelectedId(event.target.value)}>
         {choices.map(station => <option key={station.stationId} value={station.stationId}>
           {station.stationId} · {station.distanceNm.toFixed(1)} NM {station.direction}
@@ -124,7 +124,7 @@ export function StationWeather<Report extends WeatherReport>({ feature, client, 
         </option>)}
       </select>
     </label>
-    <p>{nearby ? <>{description} for {selected.stationId} · {selected.distanceNm.toFixed(1)} NM {selected.direction} of {featureIdent(feature)}.</>
+    <p className="ui-meta">{nearby ? <>{description} for {selected.stationId} · {selected.distanceNm.toFixed(1)} NM {selected.direction} of {featureIdent(feature)}.</>
       : <>{description} for {selected.stationId}.</>}</p>
   </div>;
   return <View entry={error ? { ...entry, error } : entry} loading={loading} online={online} now={now}

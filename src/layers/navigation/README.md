@@ -154,8 +154,10 @@ layout and offline restoration.
 - Selected features use core's `DetailPanel`, shared with weather advisories, for
   their frame, heading/close controls, metadata styling and scroll body. Navigation
   retains its actions, Info/Plates tabs, content and refresh demand.
-- Airport Info/Plates uses core's [content tabs](../../../docs/features/shared-ui.md#shared-controls),
-  including selected-state semantics and Left/Right/Home/End navigation. Selection
+- Airport Info/Plates/NOTAM and navaid Info/NOTAM use core's slim
+  [content tabs](../../../docs/features/shared-ui.md#shared-controls), matching
+  the 32px minimum of NOTAM area and weather tabs, with selected-state semantics
+  and Left/Right/Home/End navigation. Selection
   remains plugin-persisted for the 128 most recently written feature-tab identities.
   Older optional tab preferences are evicted; feature selection is unaffected. Inactive panel shells stay empty; selecting another tab
   or identification unmounts the previous body, while stowing retains it.
@@ -164,8 +166,10 @@ layout and offline restoration.
 - Route points show Name/GPS choices above the ID table. Station names in the
   existing sorted table select radial/distance identification and mark the selected
   row. Each button has two rows: identifier/checkmark/MON, then frequency/type,
-  fitting the 44px target even on narrow phones. Station actions use core `ui-button` states and touch sizing; table values
-  use 14px type, supporting labels 12px, and MON badges at least 11px. Missing
+  fitting the 44px target even on narrow phones. Station actions use core `ui-button` states and touch sizing. Core
+  [panel content](../../../docs/features/shared-ui.md#panel-content) supplies 12px
+  table data and section headings, with 14px emphasized magnetic bearings and
+  11px supporting labels and MON badges. Missing
   magnetic alignment disables selection while keeping TB visible.
   The selected radial reference is always drawn alongside the top-three map
   references, with blue dashes and yellow line/marker/label trim. Saved references

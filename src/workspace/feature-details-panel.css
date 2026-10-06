@@ -22,9 +22,9 @@
 .identify-feature-button:focus-visible, .direct-to-button:focus-visible { outline: 2px solid var(--accent-78baff); outline-offset: 3px; }
 
 .feature-card-header > p {
-  margin: 4px 0 12px;
-  color: var(--text-8fa7b9);
-  font-size: 13px;
+  margin: 4px 0 8px;
+  color: var(--text-muted);
+  font-size: var(--ui-text-compact);
 }
 
 .feature-card .feature-facts > div { align-content: start; }
@@ -40,7 +40,6 @@
   padding-top: calc((var(--frequency-row-height) - 18px) / 2);
   font-size: 11px;
   line-height: 18px;
-  letter-spacing: 0.06em;
 }
 .airport-frequency-value {
   display: grid;
@@ -174,7 +173,8 @@
   font-size: 11px;
 }
 
-.feature-tabs { margin: 0 0 12px; }
+.feature-tabs { margin: 0 0 var(--ui-panel-gap); }
+.feature-tabs:has(+ .feature-tabs) { margin-bottom: 4px; }
 
 /* Navigation metadata and tabs adapt inside the shared core frame. */
 @container workspace (max-height: 400px) {

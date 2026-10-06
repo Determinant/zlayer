@@ -1,0 +1,96 @@
+{
+  "description": "Retained FAA NMS renderings of CZYZ G3595/26: an original-ID cancellation follows lastUpdated without advancing that revision.",
+  "checkedAt": 1791316846786,
+  "issues": [
+    {
+      "id": "1791309061314000",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "1791309061314000",
+          "sourceId": "NMS_ID_1791309061314000",
+          "classification": "INTL",
+          "number": "3595",
+          "series": "G",
+          "year": "2026",
+          "locations": [
+            "CZYZ"
+          ],
+          "icaoLocations": [
+            "CZYZ"
+          ],
+          "accountability": "CYHQYNYX",
+          "issuedAt": 1791309000000,
+          "updatedAt": 1791309060000,
+          "sourceUpdatedAt": "2026-10-06T17:51:00.000Z",
+          "canceledAt": "2026-10-06T17:51:44.394Z",
+          "referred": null,
+          "startsAt": 1791374400000,
+          "endsAt": 1791388800000,
+          "effectiveStart": "202610071200",
+          "effectiveEnd": "202610071600",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "cancelled",
+          "text": "REMOTELY PILOTED ACFT (RPA) ACT WILL TAKE PLACE \r\nWITHIN AREA BOUNDED BY: 440722N 0773313W - \r\n440753N 0773329W - 440825N 0773101W - 440750N 0773049W - \r\n440722N 0773313W. TYPE: UNKNOWN.",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "G3595/26 NOTAMN\r Q) CZYZ/QWULW/IV/BO/W/000/008/4408N07732W002\r A) CZYZ B) 2610071200 C) 2610071600\r E) REMOTELY PILOTED ACFT (RPA) ACT WILL TAKE PLACE \r WITHIN AREA BOUNDED BY: 440722N 0773313W - \r 440753N 0773329W - 440825N 0773101W - 440750N 0773049W - \r 440722N 0773313W. TYPE: UNKNOWN.\r F) SFC G) 400FT AGL"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "0d60524443afac6d2ecafda1b23cc5964043345529bc04b45ba65eea8f8e391a"
+        },
+        {
+          "id": "1791309061314000",
+          "sourceId": "NMS_ID_1791309061314000",
+          "classification": "INTL",
+          "number": "3595",
+          "series": "G",
+          "year": "2026",
+          "locations": [
+            "CZYZ"
+          ],
+          "icaoLocations": [
+            "CZYZ"
+          ],
+          "accountability": "CYHQYNYX",
+          "issuedAt": 1791309000000,
+          "updatedAt": 1791309060000,
+          "sourceUpdatedAt": "2026-10-06T17:51:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791374400000,
+          "endsAt": 1791388800000,
+          "effectiveStart": "202610071200",
+          "effectiveEnd": "202610071600",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "REMOTELY PILOTED ACFT (RPA) ACT WILL TAKE PLACE \r\nWITHIN AREA BOUNDED BY: 440722N 0773313W - \r\n440753N 0773329W - 440825N 0773101W - 440750N 0773049W - \r\n440722N 0773313W. TYPE: UNKNOWN.",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "G3595/26 NOTAMN\r Q) CZYZ/QWULW/IV/BO/W/000/008/4408N07732W002\r A) CZYZ B) 2610071200 C) 2610071600\r E) REMOTELY PILOTED ACFT (RPA) ACT WILL TAKE PLACE \r WITHIN AREA BOUNDED BY: 440722N 0773313W - \r 440753N 0773329W - 440825N 0773101W - 440750N 0773049W - \r 440722N 0773313W. TYPE: UNKNOWN.\r F) SFC G) 400FT AGL"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "894061a50ba573e957d19fb312bf9ceb951d403d329d96f7a466e2fb3a3ccd34"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "CZYZ"
+      ],
+      "icaoLocations": [
+        "CZYZ"
+      ],
+      "unscoped": false
+    }
+  ]
+}

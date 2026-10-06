@@ -70,8 +70,8 @@ export function AirportPlates({
   return (
     <div className="procedure-groups content-reveal">
       {groups.map((group) => (
-        <section key={group.id} className="procedure-group">
-          <h3>
+        <section key={group.id} className="ui-section procedure-group">
+          <h3 className="ui-section-title">
             {group.title}
             <span>{group.plates.length}</span>
           </h3>
@@ -81,7 +81,7 @@ export function AirportPlates({
               type="button"
               onClick={() => onOpen(selection)}
             >
-              <span>
+              <span className="ui-item-copy">
                 <strong>{selection.procedure.name}</strong>
                 <small>{detail}</small>
                 {noticeCount?.(resolvePlateNoticeContext(selection, selection.document.pageIndex, procedures.catalog))}
@@ -93,10 +93,10 @@ export function AirportPlates({
       ))}
       {procedures.loading && <LoadingPlaceholder label="Loading procedures…" rows={3} />}
       {supplements.loading && <LoadingPlaceholder label="Loading Chart Supplement…" rows={3} />}
-      {procedures.error && <p className="procedure-state is-error">{procedures.error}</p>}
-      {supplements.error && <p className="procedure-state is-error">{supplements.error}</p>}
+      {procedures.error && <p className="ui-note procedure-state is-error">{procedures.error}</p>}
+      {supplements.error && <p className="ui-note procedure-state is-error">{supplements.error}</p>}
       {!groups.length && !procedures.loading && !supplements.loading && !procedures.error && !supplements.error &&
-        <p className="procedure-state">No plates published for this airport.</p>}
+        <p className="ui-note procedure-state">No plates published for this airport.</p>}
     </div>
   );
 }

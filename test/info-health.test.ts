@@ -12,7 +12,7 @@ function healthy(): InfoHealthInput {
   const forecast = { ...published, runTime: NOTAM_NOW - 3600_000, validThrough: NOTAM_NOW + 3600_000 };
   return { forecasts: { clouds: forecast, icing: forecast, winds: forecast },
     progs: { analysis: { ...published, validTimes: [NOTAM_NOW] }, forecast: { ...published, validTimes: [NOTAM_NOW + 3600_000] } },
-    progsCoverage: { ...published, validTimes: [NOTAM_NOW, NOTAM_NOW + 3600_000] },
+    progsCoverage: { ...published, analysisTime: NOTAM_NOW, validTimes: [NOTAM_NOW, NOTAM_NOW + 3600_000] },
     radar: { ...published, observedAt: NOTAM_NOW }, radarMotion: { ...published, newestObservedAt: NOTAM_NOW, unavailable: 0 },
     advisories: { gairmet: published, sigmet: published, cwa: published }, notams: notamSnapshot().feed,
     tfrs: { ...published, unresolvedRecords: 0 }, notamReconciliation: { state: 'current', error: null, nextAttemptAt: NOTAM_NOW + 86400_000 } };
@@ -39,12 +39,16 @@ test('health distinguishes expected coverage gaps from source freshness and avai
 test('coverage readiness separates unpublished forecast stops from missing images and expired horizons', () => {
   const value = healthy();
   value.progsCoverage.validTimes = [NOTAM_NOW - 3600_000];
+  value.progsCoverage.analysisTime = NOTAM_NOW - 3600_000;
   value.progsCoverage.unavailableTimes = [NOTAM_NOW + 3600_000];
   const status = assessInfoHealth(value, NOTAM_NOW);
   assert.equal(status.ready, true, 'a current analysis image is enough when forecast images are unpublished');
   assert.equal(status.sources['progs.coverage']?.coverage, 'partial');
   const cases: [Partial<InfoHealthInput['progsCoverage']>, 'stale' | 'unavailable'][] = [
     [{ checkedAt: NOTAM_NOW - INFO_FRESHNESS.charts }, 'stale'],
+    [{ analysisTime: NOTAM_NOW - INFO_FRESHNESS.analysis }, 'stale'],
+    [{ analysisTime: NOTAM_NOW + 60_000 }, 'stale'],
+    [{ analysisTime: undefined }, 'stale'],
     [{ unavailableTimes: [NOTAM_NOW - 1] }, 'stale'],
     [{ validTimes: [] }, 'unavailable'],
     [{ ready: false }, 'unavailable'],
@@ -54,6 +58,8 @@ test('coverage readiness separates unpublished forecast stops from missing image
     assert.equal(result.ready, false);
     assert.deepEqual(result.problems, [{ product: 'progs.coverage', reason, severity: 'error' }]);
   }
+  value.progsCoverage.validTimes!.unshift(NOTAM_NOW - 7 * 3600_000);
+  assert.equal(assessInfoHealth(value, NOTAM_NOW).ready, true, 'an older forecast stop cannot stand in for the explicit analysis time');
 });
 test('fresh deltas and available weather cannot hide an overdue or failed full sync', () => {
   const value = healthy(); value.notams.fullSyncAt = NOTAM_NOW - INFO_FRESHNESS.fullSync;

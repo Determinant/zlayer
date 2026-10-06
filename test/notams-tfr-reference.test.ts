@@ -24,7 +24,7 @@ test('KEWR ZNY single and complete multipart notices match their exact national 
       chartedTfrs: national.notices, highlight: () => () => {} }));
     assert.match(markup, /tabindex="0"/);
     assert.match(markup, /TFR .* shown on chart/);
-    assert.doesNotMatch(markup, /class="notam-readable"/);
+    assert.doesNotMatch(markup, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
     assert.match(markup, /Show raw/);
   }
   const radial = region.records.find(r => r.number === '8436')!;

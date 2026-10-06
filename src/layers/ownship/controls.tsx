@@ -36,9 +36,9 @@ export function OwnshipStatus({ layer, enabled, onToggle }: {
   const snapshot = useLayerSnapshot(status);
   const live = enabled && snapshot.state === 'tracking';
   const retry = enabled && ['denied', 'unavailable', 'stale'].includes(snapshot.state);
-  return <div className={`ownship-status ${!enabled ? 'is-off' : live ? 'is-live' : ''}`} aria-label="GPS aircraft status">
+  return <div className={`ui-toolbox ownship-status ${!enabled ? 'is-off' : live ? 'is-live' : ''}`} aria-label="GPS aircraft status">
     <div className="ownship-heading">
-      <strong title="Aircraft marks the current GPS position. The blue line shows the 1-minute ground-track trend, curving with turns (up to 90°).">GPS</strong>
+      <strong className="ui-toolbox-title" title="Aircraft marks the current GPS position. The blue line shows the 1-minute ground-track trend, curving with turns (up to 90°).">GPS</strong>
       <button type="button" className="ui-switch" role="switch" aria-label="GPS aircraft"
         aria-checked={enabled} onClick={onToggle}>
         <span className="switch" aria-hidden="true"><i /></span>

@@ -19,7 +19,11 @@ test.describe('airport details on touch screens', () => {
       for (const mode of ['Info', 'Plates', 'ID']) {
         if (mode === 'ID') await page.getByRole('button', { name: 'Identify KSBA with nearby navaids' }).tap();
         else await page.getByRole('tab', { name: mode, exact: true }).tap();
-        if (mode === 'Plates') await expect(page.getByRole('button', { name: /TEST APPROACH/ })).toBeVisible();
+        if (mode === 'Plates') {
+          // Both catalogs must finish before comparing content across stowing.
+          await expect(body.getByRole('button', { name: /TEST APPROACH/ })).toBeVisible();
+          await expect(body.getByRole('button', { name: /Chart Supplement/ })).toBeVisible();
+        }
         if (mode === 'ID') await expect(page.locator('.nearby-navaids')).toContainText('CMA');
         const contents = await body.textContent();
         const scroll = await body.evaluate(element => {
