@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { createInfoServer } from './server.ts';
-import { DEFAULT_WEATHER_CACHE_BYTES } from './cache.ts';
+import { DEFAULT_WEATHER_CACHE_BYTES, DEFAULT_WEATHER_CACHE_ENTRIES } from './cache.ts';
 import { MiB } from './routes.ts';
 import { notamOptionsFromEnv } from './notams/service';
 
@@ -16,7 +16,8 @@ const sourceUrl = process.env.INFO_SOURCE_URL;
 if (sourceUrl && (new URL(sourceUrl).href !== sourceUrl || !/^https?:/.test(sourceUrl))) throw new Error('INFO_SOURCE_URL must be an HTTP(S) source archive URL');
 const app = await createInfoServer({ directory: resolve(process.env.WEATHER_CACHE_DIR ?? '.cache/weather'),
   notams: await notamOptionsFromEnv(process.env),
-  maxBytes: integer('WEATHER_CACHE_MIB', DEFAULT_WEATHER_CACHE_BYTES / MiB, 8, 102_400) * MiB,
+  maxBytes: integer('WEATHER_CACHE_MIB', DEFAULT_WEATHER_CACHE_BYTES / MiB, 8, 1_048_576) * MiB,
+  maxEntries: integer('WEATHER_CACHE_ENTRIES', DEFAULT_WEATHER_CACHE_ENTRIES, 1, 1_000_000),
   ...(sourceUrl ? { sourceUrl } : {}), ...(origin ? { origin } : {}), ...(process.env.INFO_USER_AGENT ? { userAgent: process.env.INFO_USER_AGENT } : {}),
   log: message => console.error(new Date().toISOString(), message) });
 function close() {

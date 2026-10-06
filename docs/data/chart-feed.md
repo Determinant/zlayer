@@ -34,10 +34,19 @@ supported dates are deduplicated and sorted newest first. FAA-regs generates it
 after `npm run build:charts`, or separately with `npm run build:chart-cycles`.
 Publish dated artifacts before this index and serve it with revalidation.
 
-Cycle folders are product publication dates, not standalone bundles. The client
-first requests raster manifests under the selected date. If they are absent, and
+The optional `rasterCycles` array lists the subset of `cycles` with published
+raster manifests. An empty array means no raster publications are available;
+omitting it preserves discovery for older publishers. Entries must be valid dates
+in `cycles`. The publisher derives this inventory from manifest files, not from
+the expected FAA calendar. The client saves this metadata for offline discovery
+and skips raster requests for dates explicitly absent from the inventory.
+
+Cycle folders are product publication dates, not standalone bundles. With an older
+index lacking `rasterCycles`, the client first requests raster manifests under the
+selected date. If they are absent (or the new index declares no raster there), and
 both that date's navigation and TPP manifests validate, it searches published
-older dates newest first, strictly within the raster's 56-day interval. It never
+older raster dates newest first, strictly within the raster's 56-day interval. An
+advertised but missing raster manifest is a feed error. The client never
 uses future or expired rasters, and invalid manifests/readable server errors do
 not trigger carryover. For example, October 1 navigation and procedures use the
 September 3 raster URLs; October 29 requires a new raster edition. The browsing

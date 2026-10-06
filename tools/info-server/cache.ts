@@ -9,6 +9,7 @@ import { digest, type Payload } from './upstream.ts';
 import { withAbort } from '../../src/core/data/abort';
 
 export const DEFAULT_WEATHER_CACHE_BYTES = 8192 * MiB;
+export const DEFAULT_WEATHER_CACHE_ENTRIES = 5000;
 
 type Entry = Omit<Payload, 'body'> & { resource: Resource; bytes: number; offset: number; used: number; file: string; removed?: boolean;
   gzipBytes?: number; gzipHash?: string; verified?: boolean; verification?: Promise<void>; verificationStamp?: string };
@@ -27,6 +28,9 @@ export class WeatherCache {
   private retained = new Set<string>();
   private publication: Promise<void> = Promise.resolve();
   private bytes = 0;
+  private expiredRemovals = 0;
+  private capacityEvictions = 0;
+  private lastExpirySweep: number | undefined;
   private options: Options;
   private readonly signal: AbortSignal;
   constructor(options: Options) { this.options = options; this.signal = options.signal ?? new AbortController().signal; }
@@ -80,7 +84,9 @@ export class WeatherCache {
     await this.trim();
   }
 
-  get stats() { return { entries: this.entries.size, bytes: this.bytes, updating: this.pending.size }; }
+  get stats() { return { entries: this.entries.size, bytes: this.bytes, updating: this.pending.size,
+    maxBytes: this.options.maxBytes, maxEntries: this.options.maxEntries ?? DEFAULT_WEATHER_CACHE_ENTRIES,
+    expiredRemovals: this.expiredRemovals, capacityEvictions: this.capacityEvictions }; }
   storedSize(resource: Resource): number { const entry = this.entries.get(resource.key); return entry ? storedBytes(entry) : 0; }
 
   /** Published and building generations cannot be evicted by disposable source reads. */
@@ -274,16 +280,32 @@ export class WeatherCache {
   }
 
   private async trim(additionalBytes = 0, additionalEntries = 0, replacing?: string): Promise<void> {
-    if (this.bytes + additionalBytes <= this.options.maxBytes && this.entries.size + additionalEntries <= (this.options.maxEntries ?? 5000)) return;
     const now = (this.options.now ?? Date.now)();
+    // Reclaim unusable entries during publication even on hosts with ample disk.
+    // Amortize the metadata scan; retained generations and the replacement stay protected.
+    if (this.lastExpirySweep === undefined || now < this.lastExpirySweep || now - this.lastExpirySweep >= 60_000) {
+      this.lastExpirySweep = now;
+      for (const entry of this.entries.values()) {
+        if (entry.resource.key !== replacing && !this.retained.has(entry.resource.key) && now - entry.checkedAt >= entry.resource.ttl) {
+          this.expiredRemovals++;
+          await this.remove(entry);
+        }
+      }
+    }
+    const overBudget = () => this.bytes + additionalBytes > this.options.maxBytes ||
+      this.entries.size + additionalEntries > (this.options.maxEntries ?? DEFAULT_WEATHER_CACHE_ENTRIES);
+    if (!overBudget()) return;
     const oldest = [...this.entries.values()].filter(entry => entry.resource.key !== replacing && !this.retained.has(entry.resource.key)).sort((a, b) =>
       Number(now - b.checkedAt >= b.resource.ttl) - Number(now - a.checkedAt >= a.resource.ttl) ||
       a.used - b.used || a.checkedAt - b.checkedAt);
     for (const entry of oldest) {
-      if (this.bytes + additionalBytes <= this.options.maxBytes && this.entries.size + additionalEntries <= (this.options.maxEntries ?? 5000)) return;
+      if (!overBudget()) return;
+      if (entry.removed) continue;
+      if (now - entry.checkedAt >= entry.resource.ttl) this.expiredRemovals++;
+      else this.capacityEvictions++;
       await this.remove(entry);
     }
-    if (this.bytes + additionalBytes > this.options.maxBytes || this.entries.size + additionalEntries > (this.options.maxEntries ?? 5000)) {
+    if (overBudget()) {
       throw new HttpError(507, 'Weather cache cannot retain the published and replacement forecasts');
     }
   }

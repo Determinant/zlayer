@@ -3,6 +3,7 @@ import { readOfflineRecord, writeOfflineRecord } from '../../core/storage/databa
 import { chartRoot } from './feed';
 
 export type CycleSelection = 'latest' | string;
+export type ChartCycleIndex = { revisions: string[]; rasterRevisions: string[] | undefined };
 
 // This directory predates the ZLayer feeds and cannot be consumed by the app.
 export function isSupportedCycle(value: unknown): value is string {
@@ -17,29 +18,42 @@ export function defaultCycleSelection(): CycleSelection {
 }
 
 export function parseChartCycles(value: unknown): string[] {
-  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.cycles) ||
-    !value.cycles.every(isIsoDate)) throw new Error('Invalid FAA cycle index');
-  return [...new Set(value.cycles.filter(isSupportedCycle))].sort().reverse();
+  return parseChartCycleIndex(value).revisions;
 }
 
-export async function fetchChartCycles(signal?: AbortSignal): Promise<{ revisions: string[]; stale: boolean }> {
+export function parseChartCycleIndex(value: unknown): ChartCycleIndex {
+  if (!isRecord(value) || value.schemaVersion !== 1 || !Array.isArray(value.cycles) ||
+    !value.cycles.every(isIsoDate)) throw new Error('Invalid FAA cycle index');
+  const cycles = value.cycles;
+  if (value.rasterCycles !== undefined && (!Array.isArray(value.rasterCycles) ||
+    !value.rasterCycles.every(date => isIsoDate(date) && cycles.includes(date)))) {
+    throw new Error('Invalid FAA raster cycle index');
+  }
+  return { revisions: [...new Set(cycles.filter(isSupportedCycle))].sort().reverse(),
+    rasterRevisions: value.rasterCycles === undefined ? undefined
+      : [...new Set(value.rasterCycles.filter(isSupportedCycle))].sort().reverse() };
+}
+
+export async function fetchChartCycles(signal?: AbortSignal): Promise<ChartCycleIndex & { stale: boolean }> {
   const root = chartRoot();
   const key = `catalog-cycles:${root}`;
   try {
     const response = await fetch(`${root}/cycles.json`, { cache: 'no-store',
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8_000)]) : AbortSignal.timeout(8_000) });
     if (!response.ok) throw new Error(`FAA cycle list unavailable (${response.status})`);
-    const revisions = parseChartCycles(await response.json());
-    if (!revisions.length) throw new Error('No supported FAA cycles are published');
+    const index = parseChartCycleIndex(await response.json());
+    if (!index.revisions.length) throw new Error('No supported FAA cycles are published');
     signal?.throwIfAborted();
-    await writeOfflineRecord(key, revisions).catch(() => {});
-    return { revisions, stale: false };
+    await writeOfflineRecord(key, index.rasterRevisions === undefined ? index.revisions
+      : { schemaVersion: 1, cycles: index.revisions, rasterCycles: index.rasterRevisions }).catch(() => {});
+    return { ...index, stale: false };
   } catch (error) {
     signal?.throwIfAborted();
     const cached = await readOfflineRecord(key).catch(() => undefined);
-    if (Array.isArray(cached) && cached.length && cached.every(isSupportedCycle)) {
-      return { revisions: [...new Set(cached)].sort().reverse(), stale: true };
-    }
+    try {
+      const index = parseChartCycleIndex(Array.isArray(cached) ? { schemaVersion: 1, cycles: cached } : cached);
+      if (index.revisions.length) return { ...index, stale: true };
+    } catch { /* Only validated discovery can guide offline selection. */ }
     throw error;
   }
 }

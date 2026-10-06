@@ -70,6 +70,37 @@ test('change notice uses current navigation and procedures with the valid older 
   assert.notEqual(full.chartPackages?.root, current.chartPackages?.root);
 });
 
+test('advertised raster dates bypass absent change-notice manifests without changing edition identity', async t => {
+  const f = fixture(t);
+  const current = await fetchChartCatalog(notice, undefined, [next, notice, first], { rasterRevisions: [next, first] });
+  assert.deepEqual(current.issues, []);
+  assert.equal(current.revision, notice);
+  assert.equal(current.charts[0]?.revision, first);
+  assert.equal(current.procedures?.effectiveDate, notice);
+  assert.ok(current.navigation.every(layer => layer.url.includes(`/${notice}/nav/`)));
+  assert.ok(f.requests.includes(`${root}/${first}/mbtiles/manifest.json`));
+  assert.ok(!f.requests.some(url => url.includes(`/${notice}/mbtiles/`) || url.endsWith(`/${notice}/chart-manifest.json`)));
+  assert.ok(!f.requests.some(url => url.includes(`/${next}/`)));
+});
+
+test('an advertised but missing raster publication is a feed error, not silent carryover', async t => {
+  const f = fixture(t);
+  f.rasters.delete(next);
+  const current = await fetchChartCatalog(next, undefined, [next, notice, first], { rasterRevisions: [next, first] });
+  assert.equal(current.charts.length, 0);
+  assert.ok(current.issues.some(issue => issue.product === 'charts'));
+  assert.ok(!f.requests.some(url => url.includes(`/${first}/`)));
+});
+
+test('availability metadata does not authorize carryover without current navigation and procedures', async t => {
+  const f = fixture(t);
+  f.absent.add(`${root}/${notice}/tpp/manifest.json`);
+  const current = await fetchChartCatalog(notice, undefined, [notice, first], { rasterRevisions: [first] });
+  assert.equal(current.charts.length, 0);
+  assert.ok(current.issues.some(issue => issue.product === 'charts'));
+  assert.ok(!f.requests.some(url => url.includes(`/${first}/`)));
+});
+
 test('published-cycle discovery is reused when the caller already has it', async t => {
   const f = fixture(t);
   const current = await fetchChartCatalog(notice, undefined, [next, first, notice, first]);
@@ -132,4 +163,15 @@ test('regional updates refuse incomplete latest metadata instead of silently ado
   await fetchLatestDownloadCatalog();
   f.broken.set(`${root}/${notice}/nav/manifest.json`, 503);
   await assert.rejects(fetchLatestDownloadCatalog(), /download metadata is unavailable/);
+});
+
+test('regional download discovery uses raster availability without probing the change notice', async t => {
+  const f = fixture(t);
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-01T12:00:00Z'));
+  f.broken.set(`${root}/cycles.json`, { schemaVersion: 1, cycles: [next, notice, first], rasterCycles: [next, first] });
+  const latest = await fetchLatestDownloadCatalog();
+  assert.equal(latest.revision, notice);
+  assert.equal(latest.charts[0]!.revision, first);
+  assert.ok(!f.requests.some(url => url.includes(`/${notice}/mbtiles/`) || url.endsWith(`/${notice}/chart-manifest.json`)));
+  assert.ok(!f.requests.some(url => url.includes(`/${next}/`)));
 });

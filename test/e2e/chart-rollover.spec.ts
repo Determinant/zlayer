@@ -41,6 +41,13 @@ async function approach(page: Page, name: string) {
 }
 
 test('fresh change-notice install saves old raster/base books and new notice, then opens offline', async ({ page, request, context }) => {
+  const absentRasterRequests: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/chart-data/2026-10-01/mbtiles/') || path === '/chart-data/2026-10-01/chart-manifest.json') {
+      absentRasterRequests.push(path);
+    }
+  });
   await request.post('/__test/chart-rollover', { data: { edition: 'notice' } });
   await page.goto('/');
   await expect(page.getByLabel('Settings and offline downloads')).toBeEnabled();
@@ -54,6 +61,7 @@ test('fresh change-notice install saves old raster/base books and new notice, th
   await offlineSettings(page);
   await row(page, '2026-10-01').getByRole('button', { name: 'Download', exact: true }).click();
   await expect(row(page, '2026-10-01').locator('.offline-tag')).toHaveText('Saved');
+  expect(absentRasterRequests, 'startup and download use the advertised older raster edition directly').toEqual([]);
   await page.getByLabel('Close settings').click();
   await context.setOffline(true);
   await page.reload();

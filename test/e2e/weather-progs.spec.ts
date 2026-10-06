@@ -107,6 +107,10 @@ test('coverage switch and legend explain precipitation and fog independently of 
 
 test('surface maps render all symbol families from prepared snapshots and recover their selected forecast', async ({ page }, testInfo) => {
   const raw: string[] = [];
+  const failedGlyphs: string[] = [];
+  page.on('response', response => {
+    if (new URL(response.url()).pathname.startsWith('/fonts/') && !response.ok()) failedGlyphs.push(response.url());
+  });
   page.on('request', request => { if (/wpc\.ncep\.noaa\.gov|aviationweather\.gov/.test(request.url())) raw.push(request.url()); });
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/test/browser/weather-progs.html');
@@ -142,6 +146,7 @@ test('surface maps render all symbol families from prepared snapshots and recove
   expect(sides.isobarPixels).toBeGreaterThan(80);
   expect(sides.coldRight).toBe(0); expect(sides.warmLeft).toBe(0);
   expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+  expect(failedGlyphs, 'rendered weather labels use bundled glyphs without HTTP errors').toEqual([]);
   await page.evaluate(() => window.progsMapAudit.change({ awcSigmet: true, awcGairmet: true }));
   await expect.poll(() => page.evaluate(() => !!window.progsMapAudit.state().products.sigmet.snapshot && !!window.progsMapAudit.state().products.gairmet.snapshot)).toBe(true);
   await page.evaluate(time => window.progsMapAudit.select(time), WEATHER_NOW + 2 * 3600_000);

@@ -46,7 +46,7 @@ export function mountRadarMotionMap(map: Map, controller: WeatherController, bef
     map.addLayer({ id: MOTION_LAYERS[3]!, source: SOURCE, type: 'symbol', filter: ['==', ['get', 'end'], true], layout: { visibility: 'none',
       'icon-image': ARROW, 'icon-rotate': ['get', 'bearing'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true } }, anchor);
     map.addLayer({ id: MOTION_LAYERS[4]!, source: SOURCE, type: 'symbol', minzoom: 7, filter: ['==', ['geometry-type'], 'Point'], layout: { visibility: 'none',
-      'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': 10, 'text-anchor': 'top-left', 'text-offset': [.5, .5] },
+      'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 10, 'text-anchor': 'top-left', 'text-offset': [.5, .5] },
       paint: { 'text-color': '#fff', 'text-halo-color': '#172b39', 'text-halo-width': 1.5 } }, anchor);
   };
   const update = () => {

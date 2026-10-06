@@ -236,6 +236,13 @@ owns numeric formats and validation.
 The default **8 GiB / 5,000-entry** cache covers prepared artifacts and disposable
 source responses together. The former 4 GiB default filled during concurrent
 forecast replacement and radar retention; 8 GiB provides additional working space.
+Size deployments with `WEATHER_CACHE_MIB` (8–1,048,576 MiB) and
+`WEATHER_CACHE_ENTRIES` (1–1,000,000); both limits apply independently. Provision
+headroom for all useful source inputs, prepared runs and concurrent replacement
+on the filesystem backing `WEATHER_CACHE_DIR`, not merely elsewhere on the host.
+Disk capacity does not increase the worker pool or process memory allowance;
+entry metadata remains in memory. Host-specific budgets and mounts belong in
+private operations.
 Published, preceding and building generations are protected;
 raw inputs and older runs are evicted first. A replacement that cannot fit fails
 without deleting the published generation. Files are atomic and checksummed;
@@ -244,6 +251,16 @@ serialized publication reserves space before writing. Completed catalogs carry
 before accepting them; malformed cache metadata and incomplete catalogs are discarded and rebuilt in the
 background. A cold installation has no ready catalog until initial preparation
 finishes. It must be prepared before production cutover.
+
+Publication sweeps expired, unprotected entries at most once per minute, even
+below capacity. Larger budgets preserve useful data without accumulating expired
+files indefinitely; source lifetimes and freshness do not change. Health's `cache`
+includes `maxBytes`, `maxEntries`, `expiredRemovals` and `capacityEvictions`.
+The counters reset on restart and count removals by cache trimming:
+`capacityEvictions` counts unexpired entries removed for space, while
+`expiredRemovals` counts expired entries reclaimed by a sweep or capacity trim.
+Startup rejection of invalid/expired files, replacement and integrity-repair
+removals are not included.
 
 HTTP forecast requests perform no upstream work. Numeric files stream from disk
 with bounded buffers, without a conversion queue or whole-response allocation.

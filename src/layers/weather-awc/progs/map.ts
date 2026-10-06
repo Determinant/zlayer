@@ -128,7 +128,7 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
           paint: { 'line-width': 24, 'line-pattern': ['concat', 'weather-awc-front-', ['get', 'kind'], '-', ['get', 'phase']] } }, before);
         for (const pressure of [false, true]) map.addLayer({ id: layer(pressure ? 'pressure-labels' : 'labels'), type: 'symbol', source: SOURCE,
           filter: ['all', ['==', ['get', 'kind'], 'LABEL'], ['==', ['get', 'pressureLabel'], pressure]],
-          layout: { visibility: 'none', 'text-field': ['get', 'text'], 'text-font': ['Noto Sans Regular'], 'text-size': 12,
+          layout: { visibility: 'none', 'text-field': ['get', 'text'], 'text-font': ['Noto Sans Bold'], 'text-size': 12,
             'text-allow-overlap': true, 'text-ignore-placement': true, 'text-padding': 0 },
           paint: { 'text-color': ['case', ['==', ['get', 'txtcol'], '6'], '#202020', SURFACE_COLORS.LABEL],
             'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } }, before);

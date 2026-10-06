@@ -28,7 +28,7 @@ function acceptsGzip(value: string | undefined): boolean {
   });
 }
 
-export async function createInfoServer(options: { directory: string; maxBytes?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
+export async function createInfoServer(options: { directory: string; maxBytes?: number; maxEntries?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
   notamWait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number; startUpdates?: boolean; log?: (message: string) => void }) {
   const shutdown = new AbortController();
@@ -59,6 +59,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   void notams.restore();
   const upstream = createUpstream({ ...options, signal: shutdown.signal });
   const cache = new WeatherCache({ directory: options.directory, maxBytes: options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES, now: options.now, signal: shutdown.signal,
+    ...(options.maxEntries !== undefined ? { maxEntries: options.maxEntries } : {}),
     load: (resource, signal) => resource.kind === 'prepared' ? processing.load(resource) : upstream(resource, signal),
     ...(options.log ? { log: options.log } : {}) });
   const processing = createProcessing(cache, shutdown.signal, options.now);

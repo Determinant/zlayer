@@ -12,6 +12,7 @@ import { pruneOnlineCache } from '../../offline/cache-cleanup';
 type CatalogState = {
   catalogs: ChartCatalog[];
   revisions: string[];
+  rasterRevisions?: string[] | undefined;
   selection: CycleSelection;
   catalog?: ChartCatalog;
   ready: boolean;
@@ -44,7 +45,7 @@ export function useCatalog() {
       const discovered = await fetchChartCycles(controller.signal).catch(error => {
         controller.signal.throwIfAborted();
         if (!saved.catalog && saved.selection === 'latest') throw error;
-        return { revisions: saved.catalogs.map(value => value.revision), stale: true };
+        return { revisions: saved.catalogs.map(value => value.revision), rasterRevisions: undefined, stale: true };
       });
       if (!controller.signal.aborted) setState(current => ({ ...current, ...discovered, ready: true }));
     })().catch((error: unknown) => {
@@ -115,7 +116,8 @@ export function useCatalog() {
       controller.signal.throwIfAborted();
       for (const revision of candidates) {
         const cached = state.catalogs.find(value => value.revision === revision);
-        const catalog = retainCachedProducts(await fetchChartCatalog(revision, controller.signal, state.revisions), cached);
+        const catalog = retainCachedProducts(await fetchChartCatalog(revision, controller.signal, state.revisions,
+          { rasterRevisions: state.rasterRevisions }), cached);
         controller.signal.throwIfAborted();
         // A dated directory may be a partial upload. Require usable chart metadata
         // before automatically choosing it; keep any same-cycle saved products.
@@ -130,7 +132,7 @@ export function useCatalog() {
     });
     return () => controller.abort();
     // Catalog writes must not restart revalidation. Only discovery or a user choice does.
-  }, [state.ready, state.revisions, requested]);
+  }, [state.ready, state.revisions, state.rasterRevisions, requested]);
 
   const selectCycle = (selection: CycleSelection) => {
     if (selection === 'latest' || (isSupportedCycle(selection) && cycles.includes(selection))) setRequested({ selection });

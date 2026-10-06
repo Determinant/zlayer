@@ -50,6 +50,7 @@ export function publishChartRollover(files, original, options) {
     if (/^\/chart-data\/\d{4}-\d{2}-\d{2}\//.test(url) && !url.startsWith(`${root}/`)) files.delete(url);
   }
   const previous = options.onlyLatest ? [] : get('/chart-data/cycles.json').cycles;
+  const cycles = [...new Set([date, ...previous])].sort().reverse();
   set('/chart-data/cycles.json', { schemaVersion: 1, generatedAt: `${date}T00:00:00Z`,
-    cycles: [...new Set([date, ...previous])].sort().reverse() });
+    cycles, rasterCycles: cycles.filter(cycle => files.has(`/chart-data/${cycle}/mbtiles/manifest.json`)) });
 }

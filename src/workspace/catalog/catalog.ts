@@ -122,10 +122,10 @@ export function isInsideChartCoverage(
  * A stale discovery list cannot authorize a claim that a selection is up to date.
  */
 export async function fetchLatestDownloadCatalog(signal?: AbortSignal): Promise<ChartCatalog> {
-  const { revisions, stale } = await fetchChartCycles(signal);
+  const { revisions, rasterRevisions, stale } = await fetchChartCycles(signal);
   if (stale) throw new Error('Could not check the latest FAA cycle. Reconnect and try again; saved downloads are kept.');
   for (const revision of revisions.filter(revision => revision <= faaEffectiveDate())) {
-    const catalog = await fetchChartCatalog(revision, signal, revisions, { requireFresh: true });
+    const catalog = await fetchChartCatalog(revision, signal, revisions, { requireFresh: true, rasterRevisions });
     if (catalog.issues.length) throw new Error(`FAA ${revision} download metadata is unavailable: ${catalog.issues.map(issue => issue.message).join(' ')}`);
     if (catalog.charts.length) return catalog;
   }
@@ -133,7 +133,7 @@ export async function fetchLatestDownloadCatalog(signal?: AbortSignal): Promise<
 }
 
 export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
-  publishedRevisions?: readonly string[], options: { requireFresh?: boolean } = {}): Promise<ChartCatalog> {
+  publishedRevisions?: readonly string[], options: { requireFresh?: boolean; rasterRevisions?: readonly string[] | undefined } = {}): Promise<ChartCatalog> {
   if (!isSupportedCycle(revision)) throw new Error(`Unsupported FAA cycle: ${revision}`);
   const revisionRoot = `${chartRoot()}/${revision}`;
   const issues: CatalogIssue[] = [];
@@ -162,24 +162,30 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
   )));
   const [charts, navigation, procedures, terrain, glide] = await Promise.all([
     load('charts', async () => {
-      try { return await fetchChartManifest(revisionRoot, revision, signal, options.requireFresh); }
-      catch (error) {
-        signal?.throwIfAborted();
-        // Carryover is only for absent raster publications with complete current
-        // navigation and TPP metadata. Invalid manifests and server errors stay visible.
-        if (!isMissingManifest(error)) throw error;
-        const [navigation, procedures] = await Promise.all([navigationRequest, procedureRequest]);
-        if (!navigation || !procedures) throw error;
-        const published = publishedRevisions ?? (await fetchChartCycles(signal)).revisions;
-        const candidates = [...new Set(published)].filter(date => isSupportedCycle(date) &&
-          date < revision && chartEditionCoversCycle(date, revision)).sort().reverse();
-        for (const date of candidates) {
+      const advertised = options.rasterRevisions;
+      let missing: unknown = new Error(`No published raster charts cover FAA cycle ${revision}`);
+      if (advertised?.includes(revision) !== false) {
+        try { return await fetchChartManifest(revisionRoot, revision, signal, options.requireFresh); }
+        catch (error) {
           signal?.throwIfAborted();
-          try { return await fetchChartManifest(`${chartRoot()}/${date}`, date, signal, options.requireFresh); }
-          catch (error) { if (!isMissingManifest(error)) throw error; }
+          // A declared publication must exist. Keep broken advertised feeds visible.
+          if (!isMissingManifest(error) || advertised !== undefined) throw error;
+          missing = error;
         }
-        throw error;
       }
+      // Carryover requires complete current navigation and TPP metadata and an
+      // older raster edition whose validity interval covers the selected cycle.
+      const [navigation, procedures] = await Promise.all([navigationRequest, procedureRequest]);
+      if (!navigation || !procedures) throw missing;
+      const published = advertised ?? publishedRevisions ?? (await fetchChartCycles(signal)).revisions;
+      const candidates = [...new Set(published)].filter(date => isSupportedCycle(date) &&
+        date < revision && chartEditionCoversCycle(date, revision)).sort().reverse();
+      for (const date of candidates) {
+        signal?.throwIfAborted();
+        try { return await fetchChartManifest(`${chartRoot()}/${date}`, date, signal, options.requireFresh); }
+        catch (error) { if (!isMissingManifest(error) || advertised !== undefined) throw error; }
+      }
+      throw missing;
     }),
     navigationRequest,
     procedureRequest,

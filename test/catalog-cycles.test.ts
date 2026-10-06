@@ -48,7 +48,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
 } });
 const { useCatalog } = await import('../src/workspace/catalog/use-catalog');
 const { savedCatalogs, saveCatalog } = await import('../src/workspace/catalog/saved-catalog');
-const { fetchChartCycles, parseChartCycles } = await import('../src/workspace/catalog/cycles');
+const { fetchChartCycles, parseChartCycles, parseChartCycleIndex } = await import('../src/workspace/catalog/cycles');
 loader.deregister();
 
 function fixture(t: TestContext) {
@@ -177,6 +177,22 @@ test('failed or aborted discovery never overwrites the last validated cycle list
   const controller = new AbortController(); controller.abort();
   await assert.rejects(fetchChartCycles(controller.signal), { name: 'AbortError' });
   assert.deepEqual(records.get(`catalog-cycles:${root}`), valid.revisions);
+});
+
+test('raster availability validates against published dates and survives an offline restart', async t => {
+  fixture(t);
+  const index = { schemaVersion: 1, cycles: [fresh.revision, old.revision], rasterCycles: [old.revision] };
+  assert.deepEqual(parseChartCycleIndex(index), { revisions: [fresh.revision, old.revision], rasterRevisions: [old.revision] });
+  assert.deepEqual(parseChartCycleIndex({ ...index, rasterCycles: [] }).rasterRevisions, []);
+  for (const rasterCycles of [null, '2026-09-03', ['2026-09-31'], ['2026-10-29'], ['../2026-09-03']]) {
+    assert.throws(() => parseChartCycleIndex({ ...index, rasterCycles }), /Invalid FAA raster cycle index/);
+  }
+  globalThis.fetch = async () => Response.json(index);
+  const online = await fetchChartCycles();
+  globalThis.fetch = async () => { throw new TypeError('offline'); };
+  assert.deepEqual(await fetchChartCycles(), { ...online, stale: true });
+  globalThis.fetch = async () => Response.json({ schemaVersion: 1, cycles: index.cycles });
+  assert.equal((await fetchChartCycles()).rasterRevisions, undefined, 'a legacy index clears previously advertised availability');
 });
 
 test('broken cycle indexes preserve cached dates and fail clearly without saved data', async t => {

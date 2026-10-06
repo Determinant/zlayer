@@ -1,7 +1,8 @@
 # Map label glyphs
 
 `Noto Sans Bold/0-255.pbf` is the ASCII/Latin-1 glyph range used by ZLayer's
-airport, NAVAID, fix and route identifiers, terrain labels and GPS projection label.
+airport, NAVAID, fix and route identifiers, terrain and GPS projection labels,
+weather pressure annotations and storm-motion labels.
 It is bundled in the offline shell, including before a map has been viewed.
 The current labels use identifiers and short numeric/unit text. Add the appropriate
 glyph ranges to the shell inventory before expanding to arbitrary place names.

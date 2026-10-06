@@ -174,6 +174,48 @@ test('warmer presence checks reuse authentication until raw or compressed file m
   await rm(saved.entry.file); assert.equal(await restarted.check(resource), false);
 });
 
+test('expiry cleanup reclaims unused data below capacity and preserves retained generations', async t => {
+  let now = Date.now();
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 1024 * 1024, maxEntries: 100,
+    now: () => now, load: async () => { throw new Error('No upstream acquisition'); } });
+  await cache.restore();
+  const expired = resourceFor(metar), retained = resourceFor(metar.replace('KSFO', 'KOAK'));
+  const fresh = resourceFor('/api/weather/grids/clouds.json');
+  const value = { ...payload(), checkedAt: now };
+  await cache.put(expired, value); await cache.put(retained, value); await cache.put(fresh, value);
+  cache.retain([retained.key]);
+  now += 60_000;
+  await cache.put(fresh, { ...value, checkedAt: now });
+  assert.equal(cache.storedSize(expired), 0);
+  assert.equal(cache.storedSize(retained), value.body.length, 'expiry does not remove protected generations');
+  assert.equal(cache.stats.entries, 2);
+  assert.equal(cache.stats.expiredRemovals, 1); assert.equal(cache.stats.capacityEvictions, 0);
+  cache.retain([]); now += 60_000;
+  await cache.put(fresh, { ...value, checkedAt: now });
+  assert.equal(cache.stats.entries, 1);
+  assert.equal(cache.stats.expiredRemovals, 2); assert.equal(cache.stats.capacityEvictions, 0);
+});
+
+test('server applies entry budgets independently of bytes and reports capacity eviction', async t => {
+  const app = await createInfoServer({ directory: await directory(t), maxBytes: 1024 * 1024, maxEntries: 2,
+    startUpdates: false, fetch: async () => { throw new Error('No upstream acquisition'); } });
+  t.after(() => app.close());
+  await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  const address = app.server.address(); assert.ok(address && typeof address === 'object');
+  const resources = ['KSFO', 'KOAK', 'KSQL'].map(id => resourceFor(metar.replace('KSFO', id)));
+  app.cache.retain([resources[0]!.key]);
+  for (const resource of resources) await app.cache.put(resource, payload());
+  assert.equal(app.cache.has(resources[0]!), true, 'retained data survives pressure');
+  assert.equal(app.cache.has(resources[1]!), false);
+  assert.equal(app.cache.has(resources[2]!), true);
+  const health = await (await fetch(`http://127.0.0.1:${address.port}/api/weather/healthz`)).json();
+  assert.deepEqual(health.cache, { entries: 2, bytes: 14, updating: 0, maxBytes: 1024 * 1024, maxEntries: 2,
+    expiredRemovals: 0, capacityEvictions: 1 });
+  app.cache.retain(resources.map(resource => resource.key));
+  await assert.rejects(app.cache.put(resourceFor(metar.replace('KSFO', 'KHWD')), payload()), { status: 507 });
+  assert.equal(app.cache.stats.entries, 2, 'an overfull protected set fails without evicting published data');
+});
+
 test('background cache reads reject appended bytes instead of reading an unbounded file', async t => {
   let calls = 0;
   const path = await directory(t), resource = resourceFor(metar);
