@@ -101,8 +101,9 @@ the server guide's [NOTAM settings](../../tools/info-server/README.md#notam-coll
 and retain `.cache/notams/` independently of the disposable weather cache.
 
 Vite also forwards `/chart-data` to the FAA static feed and the qualified
-`/faa-procedures/<cycle>/<filename>.PDF` paths to FAA. Raw weather acquisition stays inside the server. Production must install the server and nginx routes
-separately; uploading `dist/` does not create them. The
+`/faa-procedures/<cycle>/<filename>.PDF` paths to FAA. Raw weather acquisition stays
+inside the server. Production must install the server and HTTPS reverse-proxy
+routes separately; uploading `dist/` does not create them. The
 [plugin guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
 owns report freshness and [weather delivery](../../src/layers/weather-awc/README.md#development-and-production-delivery)
 owns advisory acquisition.

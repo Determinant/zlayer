@@ -391,6 +391,9 @@ Notice and issue IDs are unique within each list, with at most 1,000 distinct ID
 across both. Nonempty issues require an error so older schema-1 clients also
 qualify partial data. A validated index can publish independent updates and
 withdrawals despite failed details; an invalid index cannot advance its check time.
+An index revision older than published, unresolved or privately saved detail
+invalidates the entire replacement, including its withdrawal evidence. The
+published snapshot and its check time survive the failed round and restart.
 Longitudes may unwrap across the date line within a local interval
 less than 180 degrees wide. The
 [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart) owns

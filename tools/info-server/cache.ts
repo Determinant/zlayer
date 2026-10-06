@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { validateHeaderName, validateHeaderValue } from 'node:http';
-import { HttpError, MiB, resourceFor, type Resource } from './routes.ts';
+import { HttpError, MiB, routeFor, type Resource } from './routes.ts';
 import { digest, type Payload } from './upstream.ts';
 import { withAbort } from '../../src/core/data/abort';
 
@@ -12,9 +12,11 @@ export const DEFAULT_WEATHER_CACHE_BYTES = 8192 * MiB;
 export const DEFAULT_WEATHER_CACHE_ENTRIES = 5000;
 
 type Entry = Omit<Payload, 'body'> & { resource: Resource; bytes: number; offset: number; used: number; file: string; removed?: boolean;
-  gzipBytes?: number; gzipHash?: string; verified?: boolean; verification?: Promise<void>; verificationStamp?: string };
+  immutable: boolean; gzipBytes?: number; gzipHash?: string; verified?: boolean; verification?: Promise<void>; verificationStamp?: string };
 const compress = promisify(gzip);
 const storedBytes = (entry: Entry) => entry.bytes + (entry.gzipBytes ?? 0);
+const preparedRoute = (resource: Resource) => resource.kind === 'prepared' && new URL(resource.url).origin === 'http://weather.invalid'
+  ? routeFor(new URL(resource.url).pathname) : undefined;
 type Options = { directory: string; maxBytes: number; maxEntries?: number;
   load: (resource: Resource, signal: AbortSignal) => Promise<Payload>; signal?: AbortSignal;
   now?: (() => number) | undefined; log?: (message: string) => void };
@@ -54,8 +56,8 @@ export class WeatherCache {
           entry = JSON.parse(metadata.toString('utf8')) as Entry;
           const stat = await handle.stat();
           const origin = new URL(entry.resource.url).origin;
-          const prepared = entry.resource.kind === 'prepared' && origin === 'http://weather.invalid' &&
-            resourceFor(new URL(entry.resource.url).pathname).key === entry.resource.key;
+          const route = preparedRoute(entry.resource), prepared = route?.resource.key === entry.resource.key;
+          const immutable = prepared && route?.type === 'artifact';
           if (!(prepared || ['https://aviationweather.gov', 'https://nomads.ncep.noaa.gov', 'https://storage.googleapis.com', 'https://noaa-mrms-pds.s3.amazonaws.com', 'https://tgftp.nws.noaa.gov'].includes(origin) &&
             ['json', 'package', 'index', 'range', 'surface', 'coverage-image', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
             typeof entry.resource.key !== 'string' || !entry.resource.key ||
@@ -63,7 +65,7 @@ export class WeatherCache {
             ![200, 206].includes(entry.status) || !entry.headers || typeof entry.headers !== 'object' || Array.isArray(entry.headers) ||
             !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > 16 * 1024 * 1024 ||
             !Number.isSafeInteger(entry.checkedAt) || entry.checkedAt < 0 || entry.checkedAt > (this.options.now ?? Date.now)() ||
-            (this.options.now ?? Date.now)() - entry.checkedAt >= entry.resource.ttl ||
+            !immutable && (this.options.now ?? Date.now)() - entry.checkedAt >= entry.resource.ttl ||
             (entry.gzipBytes !== undefined && (!Number.isSafeInteger(entry.gzipBytes) || entry.gzipBytes <= 0 || entry.gzipBytes > entry.bytes ||
               !/^[a-f0-9]{64}$/.test(entry.gzipHash ?? ''))) ||
             stat.size !== size + 4 + storedBytes(entry) || !/^[a-f0-9]{64}$/.test(entry.sha256)) throw new Error('Expired or invalid cache');
@@ -71,7 +73,7 @@ export class WeatherCache {
             if (typeof value !== 'string') throw new Error('Invalid cached response header');
             validateHeaderName(name); validateHeaderValue(name, value);
           }
-          entry = { ...entry, file, offset: size + 4, used: 0, removed: false, verified: false };
+          entry = { ...entry, immutable, file, offset: size + 4, used: 0, removed: false, verified: false };
           delete entry.verification;
           delete entry.verificationStamp;
         } finally { await handle.close(); }
@@ -81,8 +83,13 @@ export class WeatherCache {
         this.entries.set(entry.resource.key, entry); this.bytes += storedBytes(entry);
       } catch { await unlink(file).catch(() => {}); }
     }
-    await this.trim();
+    // Catalog owners must restore their references before old immutable files
+    // can be swept. Capacity bounds still apply during startup.
+    await this.trim(0, 0, undefined, false);
   }
+
+  /** Finish startup cleanup after catalog owners have retained their files. */
+  async prune(): Promise<void> { await this.trim(); }
 
   get stats() { return { entries: this.entries.size, bytes: this.bytes, updating: this.pending.size,
     maxBytes: this.options.maxBytes, maxEntries: this.options.maxEntries ?? DEFAULT_WEATHER_CACHE_ENTRIES,
@@ -104,10 +111,11 @@ export class WeatherCache {
   /** After server shutdown, wait for outstanding reads/writes to release their files. */
   async drain(): Promise<void> { await Promise.allSettled([...this.pending.values(), this.publication]); }
 
-  /** Freshness check; get() also authenticates the file contents. */
+  /** Source freshness or immutable artifact availability; reads authenticate bytes.
+   * Artifact retention never changes the original source-check timestamp. */
   has(resource: Resource, maxAgeMs = resource.ttl): boolean {
     const entry = this.entries.get(resource.key), now = (this.options.now ?? Date.now)();
-    return !!entry && now >= entry.checkedAt && now - entry.checkedAt < Math.min(resource.ttl, maxAgeMs);
+    return !!entry && now >= entry.checkedAt && (entry.immutable || now - entry.checkedAt < Math.min(resource.ttl, maxAgeMs));
   }
 
   async read(resource: Resource, maxAgeMs = resource.ttl): Promise<Payload | undefined> {
@@ -274,16 +282,16 @@ export class WeatherCache {
     } catch (error) { await unlink(temporary).catch(() => {}); throw error; }
     const entry: Entry = { resource, status: payload.status, headers: payload.headers, checkedAt: payload.checkedAt,
       sha256: payload.sha256, bytes: payload.body.length, offset: metadata.length + 4, used: previous?.used ?? (this.options.now ?? Date.now)(), file,
-      ...encoding, verified: true };
+      ...encoding, immutable: preparedRoute(resource)?.type === 'artifact', verified: true };
     this.entries.set(resource.key, entry); this.bytes += storedBytes(entry);
     if (previous) await this.remove(previous);
   }
 
-  private async trim(additionalBytes = 0, additionalEntries = 0, replacing?: string): Promise<void> {
+  private async trim(additionalBytes = 0, additionalEntries = 0, replacing?: string, sweep = true): Promise<void> {
     const now = (this.options.now ?? Date.now)();
     // Reclaim unusable entries during publication even on hosts with ample disk.
     // Amortize the metadata scan; retained generations and the replacement stay protected.
-    if (this.lastExpirySweep === undefined || now < this.lastExpirySweep || now - this.lastExpirySweep >= 60_000) {
+    if (sweep && (this.lastExpirySweep === undefined || now < this.lastExpirySweep || now - this.lastExpirySweep >= 60_000)) {
       this.lastExpirySweep = now;
       for (const entry of this.entries.values()) {
         if (entry.resource.key !== replacing && !this.retained.has(entry.resource.key) && now - entry.checkedAt >= entry.resource.ttl) {

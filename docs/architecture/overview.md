@@ -3,10 +3,10 @@
 [Documentation](../README.md) / Architecture
 
 ZLayer is a static TypeScript PWA with a shared weather and NOTAM info server.
-Browsers read versioned files from a CDN; local user state lives in browser storage.
+Browsers read versioned files over HTTPS; local user state lives in browser storage.
 The server stores disposable weather responses and prepared numeric grids, plus
-durable FAA NMS snapshots and request quota state. It has no account service or
-per-user backend.
+durable FAA NMS and graphical TFR snapshots with separate request-admission state.
+It has no account service or per-user backend.
 
 ```text
 FAA sources ──► faa-regs builder ──► dated static files ──► charts.tedyin.com ──► PWA
@@ -15,6 +15,8 @@ AWC/WPC analysis / forecast GeoJSON ─────────► TypeScript in
 NOAA IFI on NOMADS ──────────────────────────► TypeScript info server ──────────┘
 NOAA HRRR on Google Cloud ───────────────────► TypeScript info server ──────────┘
 FAA NMS ────────────────────────────────────► TypeScript info server ──────────┘
+FAA graphical TFR index / XML ───────────────► TypeScript info server ──────────┘
+NOAA radar / storm motion ───────────────────► TypeScript info server ──────────┘
 USGS 3DEP / FAA Daily DOF ──► packaged static feed ──► terrain / obstruction workers ┘
 Terrarium elevation tiles ───────────────────► terrain fallback worker ─────────────┘
 Device Geolocation API ──────────────────────► shared GPS source ─► map / AHRS ──────┘
@@ -44,7 +46,9 @@ Device Motion API ────────────────────�
   workers using TypeScript decoding, projection and wind rotation. The PWA caches
   compact numeric artifacts through core and owns altitude interpolation,
   rendering, point inspection and user offline storage. Optional FAA NMS collection
-  maintains a local NOTAM dataset; airport queries never contact FAA directly.
+  maintains a local NOTAM dataset. A separate graphical TFR adapter runs
+  independently of NMS enablement and credentials. Airport/TFR queries never
+  contact FAA directly; both collectors retain durable admission history.
 - Publishers validate schemas, bounds, cycles, checksums, and source freshness once
   for all clients.
 
@@ -101,7 +105,8 @@ Its presentation can be map imagery, weather circles and airport details, or a s
 procedure panel. A MapLibre style layer is only a rendering primitive within a product.
 
 Source is grouped by product under `src/layers/`: `charts/`, `metar-taf/`,
-`weather-awc/`, `plates/`, `navigation/`, `routes/`, `glide/`, `terrain/`, `obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
+`weather-awc/`, `plates/`, `notams/`, `navigation/`, `routes/`, `glide/`, `terrain/`,
+`obstructions/`, `ownship/`, `ahrs/`, and `ruler/`. Each folder
 exposes internal entry points; these are still evolving, not a stable framework API.
 Map adapters and the chart service-worker adapter have separate entry points so the
 PDF viewer and map runtime remain lazy-loaded. `core/` holds reusable request, storage,

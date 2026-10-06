@@ -42,27 +42,32 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   const readMetadata = (resource: Resource, signal: AbortSignal) => cache.get(resource, resource.ttl / 2, signal);
   const read = async (path: string, signal: AbortSignal) => { signal.throwIfAborted(); return readMetadata(modelResource(path), signal); };
   type ReadRecord = (record: SourceRecord, signal: AbortSignal) => Promise<Buffer>;
-  const readers = new WeakMap<NativeManifest, ReadRecord>();
+  const plans = new WeakMap<NativeManifest, ReturnType<typeof sourceBlocks>>();
   const reader = (manifest: NativeManifest): ReadRecord => {
-    const existing = readers.get(manifest);
-    if (existing) return existing;
-    const plan = sourceBlocks(manifest.frames.flatMap(frame => Object.values(frame.records)));
+    let plan = plans.get(manifest);
+    if (!plan) { plan = sourceBlocks(manifest.frames.flatMap(frame => Object.values(frame.records))); plans.set(manifest, plan); }
+    // One admitted conversion owns these buffers. Multiple fields in a block
+    // share its authenticated read, including hits in the on-disk source cache.
+    const blocks = new Map<string, Promise<Payload>>();
     const readRecord: ReadRecord = async (record, signal) => {
+      signal.throwIfAborted();
       const block = plan.get(sourceRecordKey(record));
       const resource = block?.resource ?? modelResource(record.path, `bytes=${record.start}-${record.end ?? ''}`, record.indexHash);
-      const payload = await cache.get(resource, undefined, signal);
+      let pending = blocks.get(resource.key);
+      if (!pending) { pending = cache.get(resource, undefined, signal); blocks.set(resource.key, pending); }
+      const payload = await pending;
       const start = record.start - (block?.start ?? record.start);
       const body = payload.body.subarray(start, record.end === undefined ? undefined : start + record.end - record.start + 1);
       if (body.length < 20 || body.toString('ascii', 0, 4) !== 'GRIB' || body.readBigUInt64BE(8) !== BigInt(body.length) ||
         body.toString('ascii', body.length - 4) !== '7777') throw new Error('Source record does not match its index range');
       return body;
     };
-    readers.set(manifest, readRecord);
     return readRecord;
   };
-  async function convert(job: ConversionJob, signal: AbortSignal, readRecord: ReadRecord): Promise<ArrayBuffer> {
+  async function convert(job: ConversionJob, signal: AbortSignal, manifest: NativeManifest): Promise<ArrayBuffer> {
     return prepare(signal, async () => {
       signal.throwIfAborted();
+      const readRecord = reader(manifest);
       const slot = slots.find(slot => !slot.busy)!;
       slot.busy = true;
       const timeout = new AbortController(), work = AbortSignal.any([signal, timeout.signal]);
@@ -133,7 +138,7 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   async function forecast(manifest: NativeManifest, frame: NativeFrame, terrainOnly = false): Promise<Payload> {
     // The worker receives one validated selection, not the full catalog.
     const selected = selectNativeFrame({ ...manifest, frames: [] }, frame);
-    const body = Buffer.from(await convert({ ...selected, terrainOnly }, shutdown, reader(manifest)));
+    const body = Buffer.from(await convert({ ...selected, terrainOnly }, shutdown, manifest));
     if (body.length > 16 * MiB) throw new Error('Prepared forecast exceeds its byte limit');
     return { body, sha256: digest(body), checkedAt: manifest.checkedAt, status: 200,
       headers: { 'content-type': 'application/octet-stream', 'x-weather-artifact': digest(Buffer.from(terrainOnly ? terrainKey(manifest, frame) : gridKey(manifest, frame))) } };

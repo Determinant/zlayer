@@ -307,7 +307,9 @@ cancels retries/listeners and releases resources even after partial setup.
 
 ## Persistent TFR chart
 
-Implemented locally; deployment and sustained live qualification are separate.
+Implemented with a deployed backend; frontend rollout and sustained live
+qualification remain separate, as tracked in the
+[roadmap](../../../docs/product/roadmap.md#airport-and-procedure-notams).
 Enabling the NOTAM plugin starts a national TFR client independently of airport
 selection, search, open readers or stowed panels. Disabling it aborts requests,
 stops clocks and removes the map resources, context-menu action and details panel. Map reattachment
@@ -394,10 +396,12 @@ after a retry or restart. The progress cache never becomes a national HTTP resul
 Snapshot and progress writes are atomic and synchronized. Invalid UTF-8, truncated
 responses and cache corruption cannot silently change source text. Closing the
 collector aborts its own transport and drains writes before releasing ownership.
-An invalid or unavailable index retains the preceding snapshot and its original
-`checkedAt`, with an explicit error. Once the complete index validates, a failing
-detail becomes an explicit `issues` entry, including the current index identity
-and a `detail-unavailable` or `detail-invalid` reason. Other updates and index
+An invalid, regressed or unavailable index retains the preceding snapshot and its
+original `checkedAt`, with an explicit error. A revision older than published,
+unresolved or privately saved detail rejects the whole index before it can
+establish withdrawals; this protection survives restart. Once the complete index
+validates, a failing detail becomes an explicit `issues` entry, including the
+current index identity and a `detail-unavailable` or `detail-invalid` reason. Other updates and index
 withdrawals can publish in the same round. Failed details may retain only their
 previously published notice, with `retainedCheckedAt` equal to its original
 `detailCheckedAt`; repeated failures and restarts never renew that time. Rechecks
@@ -1141,8 +1145,9 @@ The 60-second worker deadline handled the measured staging load, but needs
 deployment headroom qualification.
 
 Measure weather latency and preparation during bootstrap, deltas and NMS failure.
-The systemd budget is shared: four CPUs' worth of time and 4 GiB across the process
-and workers. Set the [storage/resource limits](#storage-and-query-indexes) within
+The checked-in systemd unit defaults to a shared budget of four CPUs' worth of
+time and 4 GiB across the process and workers; deployments may override it.
+Set the [storage/resource limits](#storage-and-query-indexes) within
 measured headroom; adding a worker does not add memory capacity.
 
 ### Configuration and credentials
@@ -1162,7 +1167,8 @@ Disabled deployments need neither file. Never put secrets in `VITE_*`, checked-i
 configuration, command arguments or image layers; access tokens stay in memory.
 Invalid enabled configuration reports NOTAM unavailable while weather continues.
 Deployment acceptance checks product readiness, not only process health.
-Enabled collection requires Linux `flock` (util-linux); Docker installs it. A
+The collectors require Linux `flock` (util-linux), including the graphical TFR
+collector when NMS is disabled; Docker installs it. A
 kernel-owned helper lock is held until collector shutdown, so a process crash
 does not leave a stale PID lease. The credential-level single-owner rule also
 applies across hosts. Never delete `budget.json` or the provisioning marker to
@@ -1176,25 +1182,25 @@ fresh state. Preserve admission state across migration, failover and rollback.
 
 ### HTTP, proxy and deployment changes
 
-Dispatch `/api/notams/` before weather's `routeFor`, enforcing the query contract
-and rejecting unexpected parameters/ranges. Expose no arbitrary upstream proxy.
-Include the feed-health summary as `notams` in existing `/api/weather/healthz`.
+The server dispatches `/api/notams/` before weather's `routeFor`, enforces the query
+contract and rejects unexpected parameters/ranges. It exposes no arbitrary upstream
+proxy and includes the feed-health summary as `notams` in `/api/weather/healthz`.
 
-- Add `/api/notams/` to `tools/dev-proxy.ts` with the same
+- `tools/dev-proxy.ts` forwards `/api/notams/` to the same
   `INFO_API_ORIGIN` target as weather. Both products use one local/remote service.
-- Add a sibling location in `docs/development/info-api.nginx.conf` forwarding
-  to the same backend as weather. The snippet's optional SSH tunnel uses loopback
-  port 8788; a same-host backend uses port 8787. Reuse the same-origin TLS boundary;
+- The Caddy hosting configuration and optional `docs/development/info-api.nginx.conf`
+  forward both API prefixes to the same backend. The nginx snippet's optional SSH
+  tunnel uses loopback port 8788; a same-host backend uses port 8787. Reuse the same-origin TLS boundary;
   no additional public listener is needed.
-- Give `zlayer-info.service` a second persistent state directory,
-  `/var/lib/zlayer-notams`, and configure `NOTAMS_STATE_DIR` there. Keep it stable
+- `zlayer-info.service` includes the persistent state directory
+  `/var/lib/zlayer-notams` and configures `NOTAMS_STATE_DIR` there. Keep it stable
   across release symlinks and weather cache swaps. Mount a separate persistent
-  NOTAM volume for Docker and include any new worker in the existing build.
-- Warm candidate weather releases with NMS disabled. Stop and drain the old
-  collector before enabling its replacement against the same durable NOTAM state.
-  Do not let candidate/staging processes use the production key concurrently.
-  Validate state-schema compatibility before switching or rolling back code;
-  never restore an older quota journal as part of rollback.
+  NOTAM volume for Docker; the bundle includes the collector's worker.
+- Follow the [single-owner staging and handoff procedure](../../../tools/info-server/README.md#service-installation).
+  Disabling NMS does not stop the separate graphical TFR collector. Offline
+  candidate restoration uses independent state copies, disabled background updates
+  and blocked source requests. Drain the old service before transferring live
+  collection ownership; preserve both collectors' durable admission history.
 
 Multi-host expansion needs a shared admission mechanism or continued single-owner
 ingestion before adding collectors.

@@ -2,8 +2,10 @@
 
 One TypeScript service for ZLayer weather and NOTAM data. It shares AWC
 reports/advisories, NOMADS IFI and Google HRRR acquisition, normalizes advisories,
-prepares compact numeric grids, and maintains a local FAA NMS dataset. The
-PWA keeps altitude interpolation, validation, rendering, point inspection and offline storage. nginx owns TLS.
+prepares compact numeric grids, surface charts and radar products, and maintains
+local FAA NMS and graphical TFR snapshots. The PWA keeps altitude interpolation,
+validation, rendering, point inspection and offline storage. The HTTPS reverse
+proxy owns TLS; the portable hosting setup uses Caddy, with an optional nginx example.
 
 Forecast delivery has two paths: the background updater discovers and prepares
 native fields; HTTP only reads published catalogs and saved files. A new catalog
@@ -124,7 +126,11 @@ through reuse, failure and restart. Saved schema-1 details without that timestam
 remain readable with unknown age and are reacquired at the next admitted round.
 `detail-recheck-due` qualifies overdue/unknown detail even between index checks;
 per-notice failures retain their original detail time and do not block other
-validated index updates. See the [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart)
+validated index updates. An index containing an older revision than published,
+unresolved or privately saved detail is rejected as a whole: it cannot establish
+withdrawals or advance the snapshot's check time. This guard survives restart;
+the retained snapshot reports `refresh-failed` until a valid round succeeds.
+See the [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart)
 for the wire and PWA review behavior.
 
 Airport HTTP delivery uses a 128-entry/32 MiB bounded cache for JSON and shared
@@ -143,7 +149,9 @@ connections. Weather readers cannot occupy the NOTAM delivery slots.
 
 `npm run dev` forwards weather and NOTAM reads to `https://zlayer.tedyin.com`, reusing
 its prepared data over HTTPS. It starts no local backend. To develop this
-service, use Node 24+ and run `npm run info:serve` separately from the repository root. It listens on
+service, use Node 24+ with Linux `flock` (util-linux) and run `npm run info:serve`
+separately from the repository root. The graphical TFR collector needs its lock
+even when NMS is disabled. It listens on
 `127.0.0.1:8787` with `.cache/weather/`. Start the PWA with
 `INFO_API_ORIGIN=http://127.0.0.1:8787 npm run dev` to opt into that local backend.
 
@@ -178,11 +186,11 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
 | `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
 | `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
-| `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Retained up to 24 hours within the shared byte budget |
+| `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
 | `/api/weather/progs/coverage.json` and `/api/weather/progs/coverage/<sha256>.png` | Independent NDFD weather-image catalog with explicit unpublished stops, and authenticated AWC PNGs | Source checks every five minutes; 30-second failure retry; immutable images retained within the shared budget |
 | `/api/weather/grids/{clouds,icing,winds}.json` | Latest complete prepared generation | Up to 24 hours; original source times retained |
-| `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Up to 24 hours, within the shared byte budget |
-| `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Up to 24 hours, within the shared byte budget |
+| `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
+| `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
 
 Raw AWC and model index/range acquisition is internal; the API exposes no upstream
 proxy routes. G-AIRMET reads 0/3/6/9/12 h at one lookup instant, validates their
@@ -220,7 +228,10 @@ The updater has one job per product. It finishes that candidate rather than
 abandoning partially prepared runs whenever a newer index appears. An unchanged
 source reuses authenticated artifacts. Changed, removed or invalid source data, including
 malformed GRIB envelopes and incorrect ranges, trigger discovery again; transient failures retry after thirty seconds while the previous
-catalog remains available. After a complete publication, the next source check is
+catalog remains available. Discovery cannot replace a published run with an older
+one, including after restart; same-run source corrections remain eligible.
+Rejected older runs leave the catalog's source-check time unchanged and report an
+update error. After a complete publication, the next source check is
 six minutes later, covering the PWA's five-minute refresh and request lifetime.
 Advisories refresh independently every thirty seconds when their cache age expires.
 
@@ -228,14 +239,18 @@ Up to two Node workers, capped by the host CPU count, acquire and convert native
 fields. Updaters submit bounded batches to that shared pool; one remaining product
 can use the whole pool without increasing overall concurrency. Each job has a 150-second deadline and bounded GRIB inputs; idle workers
 exit after thirty seconds. Each worker reuses geometry/terrain, and the source
-block plan is computed once per candidate. Terrain is read only when its run
+block plan is computed once per candidate. Fields within one admitted conversion
+share a single authenticated read per block, including disk-cache hits. Those
+buffers are released with the job, rather than retained across conversions.
+Terrain is read only when its run
 changes. No selected-altitude slices or full vertical cubes are produced here.
 The [grid guide](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract)
 owns numeric formats and validation.
 
 The default **8 GiB / 5,000-entry** cache covers prepared artifacts and disposable
-source responses together. The former 4 GiB default filled during concurrent
-forecast replacement and radar retention; 8 GiB provides additional working space.
+source responses together. The byte default was raised from 4 GiB after concurrent
+forecast replacement and radar retention filled it. Defaults are not a capacity
+qualification: the entry limit can evict useful files even with byte headroom.
 Size deployments with `WEATHER_CACHE_MIB` (8–1,048,576 MiB) and
 `WEATHER_CACHE_ENTRIES` (1–1,000,000); both limits apply independently. Provision
 headroom for all useful source inputs, prepared runs and concurrent replacement
@@ -251,6 +266,13 @@ serialized publication reserves space before writing. Completed catalogs carry
 before accepting them; malformed cache metadata and incomplete catalogs are discarded and rebuilt in the
 background. A cold installation has no ready catalog until initial preparation
 finishes. It must be prepared before production cutover.
+
+Immutable artifact availability is independent of source freshness. Referenced
+files remain readable beyond their original 24-hour retention age, including
+across restart; unchanged source checks do not rewrite their bytes or timestamps.
+Catalogs and raw responses still expire at their original TTLs. Startup restores
+catalog references before sweeping unprotected old artifacts. Byte and entry
+limits still apply, and released artifacts remain eligible for expiry cleanup.
 
 Publication sweeps expired, unprotected entries at most once per minute, even
 below capacity. Larger budgets preserve useful data without accumulating expired
@@ -350,8 +372,21 @@ The bundle includes a read-only check for these routes and authenticated artifac
 `node tools/info-server/dist/check-info-api.js https://your-app.example disabled`.
 Use `staging` or `production` instead of `disabled` when that NOTAM environment
 is enabled; the check requires a ready, complete feed and a valid local airport
-response. It also checks national radar, the storm-motion catalog and a valid,
-fresh national TFR snapshot, including when NMS is disabled. Run it on
+response. Readiness requires model runs less than three hours old, grid source
+checks less than 90 minutes old and a remaining forecast horizon. Chart/coverage
+checks must be less than ten minutes old, with analysis less than six hours old
+and future forecast stops. National radar observations and source checks, motion
+collection/source checks and at least one motion observation must be less than
+15 minutes old. A current motion scan with no storm tracks passes; an empty or
+stale scan collection does not. Metadata checks tolerate at most 30 seconds of
+clock skew; model, analysis and observation times cannot be in the future.
+The check also requires a valid, fresh national TFR snapshot, including when NMS
+is disabled. These are deployment gates; retained data can still be served with
+its original times when a source becomes stale. A complete older forecast may
+remain available while its replacement is preparing, but availability and progress
+do not satisfy the freshness gate. An NMS feed with complete collection continuity
+and unresolved source records likewise fails the strict complete-feed check;
+retain that distinction in rollout evidence. Run it on
 the candidate loopback listener before activation and on public HTTPS afterward.
 
 ### Service installation
@@ -385,16 +420,28 @@ lower CPU/I/O priority for other host services. Restart attempts remain enabled 
 session is required. Subsequent releases switch `current`, restart the unit, and
 must meet the [readiness checklist](#deployment-readiness).
 
-Two forecast workers reduce overlapping decoded-grid allocations; the 4 GiB
-allowance leaves room for independent radar/chart workers and resident NOTAM generations. This
-does not reduce grid or chart resolution. Check `MemoryCurrent`, `MemoryPeak` and
+Two forecast workers reduce overlapping decoded-grid allocations without reducing
+grid or chart resolution. Independent radar/chart workers and resident NOTAM
+generations share the process allowance; the default is not a measured capacity
+guarantee. Size any deployment override from `MemoryCurrent`, `MemoryPeak` and
 the cgroup's `memory.events` across forecast replacement, radar backfill and a
 NOTAM full sync after rollout; a short local replay is not a production soak test.
 
-For the initial publication or a converter migration, prepare on a separate
-loopback port/cache first, then stop both processes and move the prepared cache
-with the release pointer. Never let two processes write one cache directory.
-Rollback switches `current` back and restarts the same unit.
+For a compatible update, validate restoration using the reusable `server.js` entry
+with independent copies of weather and NOTAM state, `startUpdates: false`, and a
+`fetch` implementation that rejects source requests. Do not give an offline
+candidate production credentials. `NOTAMS_ENABLED=false` alone is insufficient:
+the graphical TFR collector runs independently of NMS enablement.
+
+Live preparation for an initial publication or converter migration needs an
+isolated cache and a qualified single owner of source collection. Stop and drain
+the old service before transferring ownership, keeping both NMS and TFR durable
+state and admission journals intact. Never let two processes write one cache or
+collect concurrently using copied production credentials. Verify persisted-format
+compatibility, publish the exact source archive, then switch the release and its
+`INFO_SOURCE_URL` together. Rollback selects compatible previous code and its
+matching source URL while retaining the latest durable state and quota history;
+a forensic state backup must not replenish request allowances.
 
 For a separate backend host, install `zlayer-info-tunnel.service` on the HTTPS
 proxy host, a restricted SSH key at `/etc/zlayer-info-tunnel/id_ed25519`, verified
@@ -403,9 +450,9 @@ backend host keys at `/etc/zlayer-info-tunnel/known_hosts`, and an environment f
 The backend SSH account should allow forwarding only to `127.0.0.1:8787`.
 Enable the tunnel with systemd; it reconnects automatically and binds only to the
 proxy host's loopback. Apply the [readiness checklist](#deployment-readiness) through
-`127.0.0.1:8788` before changing nginx. Keep the old backend available until that
-cutover succeeds, then disable it so only the selected backend performs background
-source updates.
+`127.0.0.1:8788` before changing nginx. A web-tier/tunnel cutover can keep the same
+backend running. Moving the backend itself requires the single-owner state handoff
+above; a second directory or host does not create a separate source allowance.
 
 Add
 [info-api.nginx.conf](../../docs/development/info-api.nginx.conf) inside
@@ -418,7 +465,7 @@ Do not deploy this backend alone under that PWA. Coordinate the frontend/backend
 cutover and tell existing tabs to accept **Update now** for the changed wind API.
 Deploying this service does not publish the frontend. Publish its corresponding
 source archive and set `INFO_SOURCE_URL` to the immutable HTTPS URL; API responses
-offer it with a `Link` header and `/healthz` includes the same source link.
+offer it with a `Link` header and `/api/weather/healthz` includes the same source link.
 FAA/chart hosting follows the [deployment guide](../../docs/development/deployment.md).
 
 Process environment (systemd optionally reads `/etc/zlayer-info.env`):
@@ -428,10 +475,11 @@ Process environment (systemd optionally reads `/etc/zlayer-info.env`):
 | `INFO_HOST` | `127.0.0.1` |
 | `INFO_PORT` | `8787` |
 | `WEATHER_CACHE_DIR` | `.cache/weather`; systemd uses `/var/lib/zlayer-weather` |
-| `WEATHER_CACHE_MIB` | `8192` (8–102400), combined source and processed-response payload budget |
+| `WEATHER_CACHE_MIB` | `8192` (8–1,048,576 MiB), combined source and processed-response payload budget |
+| `WEATHER_CACHE_ENTRIES` | `5000` (1–1,000,000), combined source and processed-response entry limit |
 | `INFO_USER_AGENT` | `ZLayer-info-server/0.1`; operator contact may be appended |
 | `INFO_SOURCE_URL` | Unset locally; deployed releases link their corresponding source archive |
-| `INFO_CORS_ORIGIN` | Unset for same-origin nginx; optionally one exact HTTP(S) origin |
+| `INFO_CORS_ORIGIN` | Unset for same-origin delivery; optionally one exact HTTP(S) origin |
 
 Alternatively build and run the container from the repository root:
 
@@ -445,7 +493,8 @@ docker run -d --name zlayer-info --restart unless-stopped --memory=4g --cpus=4 \
 Use systemd or Docker with persistent storage and prepare data before serving the
 first forecast catalog. Allow disk space for the 8 GiB weather payload budget,
 cache metadata, temporary writes and separate durable NOTAM state. An explicit
-`WEATHER_CACHE_MIB` overrides the default; restart the server after changing it.
+`WEATHER_CACHE_MIB` or `WEATHER_CACHE_ENTRIES` overrides its respective default;
+restart the server after changing either setting.
 Replicas do not share caches or upstream quotas. The same [readiness checklist](#deployment-readiness)
 applies to either installation method.
 

@@ -24,6 +24,23 @@ function gate<T = void>() {
   return { promise, resolve };
 }
 
+test('each conversion shares one authenticated disk read per source block without retaining bodies between jobs', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'zlayer-source-reuse-')), app = await fixtureWeather(directory);
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const manifest = JSON.parse((await app.processing.catalog('clouds')).body.toString()) as NativeManifest;
+  const frame = manifest.frames[1]!, first = await app.processing.forecast(manifest, frame);
+  const read = app.cache.read; let blocks = 0;
+  t.mock.method(app.cache, 'read', async (...args: Parameters<typeof read>) => {
+    const payload = await read.apply(app.cache, args);
+    if (payload && args[0].kind === 'range') blocks++;
+    return payload;
+  });
+  for (let count = 1; count <= 2; count++) {
+    assert.deepEqual((await app.processing.forecast(manifest, frame)).body, first.body);
+    assert.equal(blocks, count, 'five fields share one block read, and a later job authenticates again');
+  }
+});
+
 test('server shares forecast preparation, retains exact values and reuses saved results after restart', { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-prepared-'));
   let rawReads = 0, app = await fixtureWeather(directory, { onRaw: () => { rawReads++; } });

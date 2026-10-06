@@ -19,6 +19,8 @@ hosts must provide the following hosting contract:
 | `/api/weather/metars.geojson` and `/api/weather/tafs.json` | Forward to the [TypeScript gateway](../../tools/info-server/README.md), which reads AWC and caches bounded station/area queries. These are the blank-setting defaults. |
 | `/api/weather/advisories/` | Server-normalized SIGMET/CWA and complete five-frame G-AIRMET snapshots, including freezing contours. |
 | `/api/weather/grids/` | Server catalogs and prepared HRRR/IFI native numeric grids, including wind pressure levels and same-run terrain. Google is the server's HRRR upstream; the PWA interpolates wind altitudes. Preserve identity/checksum/source-check headers. |
+| `/api/weather/progs/` | Prepared AWC/WPC analysis/forecast charts and NDFD coverage images, with complete catalogs and explicit unpublished coverage stops. Preserve artifact lengths, checksums and source times. |
+| `/api/weather/radar/` | Prepared national/terminal radar contours, recent history and storm-motion snapshots. Preserve each observation's time and the catalog's source-check time. |
 | `/api/notams/` | Forward to the same info server. FAA NMS credentials and collection stay server-side; airport queries read its retained dataset. See [NOTAM collection](../../tools/info-server/README.md#notam-collection) for enablement and durable state. |
 | Esri World Imagery basemap | External raster service; only viewed resources are cached. Regional downloads do not promise offline basemap coverage. Review provider terms before public release. |
 | Terrain elevation | Prefer the chart feed's `terrain/manifest.json` and versioned USGS 3DEP packages; regional saves include published packages at supported DEM zooms. Without a packaged source, use Mapzen Terrarium tiles on AWS or `VITE_ZLAYERS_TERRAIN_TILE_URL`; a replacement must provide readable 256px Terrarium PNG tiles. Elevation is independent of the basemap, and fallback PNG coverage is not a regional offline guarantee. See [terrain](../../src/layers/terrain/README.md). |
@@ -43,15 +45,20 @@ setup reaches a backend on the same host; the optional [nginx snippet](info-api.
 supports a separate backend through a managed SSH tunnel. Keep the backend listener
 private in either arrangement. Weather uses `/api/weather/` and NOTAMs use
 `/api/notams/`; direct `/weather/` proxy routes are retired. The gateway handles metadata refreshes itself; no cron job
-or database is needed. `/api/weather/healthz` checks the process, not upstream availability.
-Fresh cache files survive restarts; user offline weather remains browser-owned.
+or database is needed. In `/api/weather/healthz`, `ok: true` reports process
+liveness; the product fields separately report retained-data readiness, source
+times and failures. Check freshness and artifacts with the
+[info API deployment probe](../../tools/info-server/README.md#deployment-readiness).
+Valid catalogs and their referenced immutable artifacts survive restarts without
+renewing source times; user offline weather remains browser-owned.
 
 ## Static-host contract
 
 - HTTPS, with the app and service worker served at the origin root.
 - Correct MIME types for `.js` and `.mjs` (JavaScript), `.wasm`
   (`application/wasm`), and `.webmanifest` (`application/manifest+json`).
-- Revalidate `index.html`, `sw.js`, and the web manifest. Hashed assets can be immutable.
+- Serve `sw.js` with `Cache-Control: no-store`; revalidate `index.html` and the web
+  manifest. Hashed assets can be immutable.
   Return real errors for missing assets/data, not the SPA's HTML fallback.
 - Publish all assets before switching the shell, and retain previous hashed assets
   for clients finishing updates. Service-worker installation precaches a complete
@@ -267,6 +274,12 @@ and automatic cycle migration remain outside the current contract; see
 
 ## Weather rollout
 
+The [Caddy configuration](../../tools/hosting/Caddyfile) forwards both API prefixes
+to the same-host backend. Validate the selected reverse proxy and run the
+[server readiness checks](../../tools/info-server/README.md#deployment-readiness)
+through loopback and public HTTPS. Weather and NOTAM collection remain owned by
+one backend during handoff; a web-tier move does not require a second collector.
+
 For nginx deployments, the versioned [snippet](info-api.nginx.conf) forwards
 `/api/weather/` and `/api/notams/` through a private connection to the info server.
 METAR/TAF retain their AWC queries and
@@ -288,7 +301,8 @@ nginx handles TLS while the server validates and prepares weather. The backend
 restarts automatically under systemd. Its service file and rollback procedure are
 in the info server guide. The updater prepares complete native generations
 before publishing catalogs; HTTP forecast requests only read saved files. Require
-all three forecast readiness flags before production cutover. See
+the complete server readiness checks, including source ages and referenced
+artifacts, before production cutover. See
 [nginx buffering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering).
 Connection buffers and network traffic remain server costs.
 
@@ -299,7 +313,8 @@ certificate verification enabled.
 
 Deploy the weather service and verify its catalogs and representative slices,
 then deploy the static app with the METAR/TAF URLs and
-both AWC feed overrides blank. Validate and reload nginx as part of deployment.
+both AWC feed overrides blank. Validate and reload the selected reverse proxy
+when its configuration changes.
 Metadata refresh runs inside this service; no Python/GDAL installation, separate publisher
 or database is required. Frontend assets alone do not install the server or snippet.
 This contract does not establish that the live host has these routes installed.

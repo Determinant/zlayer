@@ -39,7 +39,8 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         const payload = await processing.catalog(product);
         signal.throwIfAborted();
         const manifest: unknown = JSON.parse(payload.body.toString());
-        if (!isNativeManifest(manifest) || manifest.product !== product) throw new Error('Invalid discovered forecast catalog');
+        if (!isNativeManifest(manifest) || manifest.product !== product || manifest.checkedAt !== payload.checkedAt) throw new Error('Invalid discovered forecast catalog');
+        if (state.current && manifest.runTime < state.current.manifest.runTime) throw new Error('Source returned an older forecast run');
         state.candidate = generation(manifest, payload); retain();
       }
       const candidate = state.candidate;
@@ -87,7 +88,7 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
         if (!payload || payload.headers['x-weather-catalog'] !== PUBLISHED_CATALOG) continue;
         let manifest: unknown;
         try { manifest = JSON.parse(payload.body.toString()); } catch { /* Invalid saved catalog. */ }
-        if (!isNativeManifest(manifest) || manifest.product !== product) { await cache.discard(catalogResource(product)); continue; }
+        if (!isNativeManifest(manifest) || manifest.product !== product || manifest.checkedAt !== payload.checkedAt) { await cache.discard(catalogResource(product)); continue; }
         const saved = generation(manifest, payload);
         let complete = true;
         for (const file of saved.files) if (!await cache.check(file.resource)) { complete = false; break; }

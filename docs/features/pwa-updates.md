@@ -70,7 +70,9 @@ worker rebuilds its shell after a local reset.
 
 Once a release is ready, its update button also works offline. An app
 launched offline still observes its existing registration and checks on reconnect.
-Keep `/sw.js` served with `Cache-Control: no-store` as in the nginx configuration.
+Keep `/sw.js` served with `Cache-Control: no-store`, as in the
+[Caddy hosting configuration](../../tools/hosting/Caddyfile); apply the same
+policy with other web servers.
 No reinstall or site-data reset is needed.
 
 `test/offline-shell.test.ts` verifies matching page/worker versions, reproducible

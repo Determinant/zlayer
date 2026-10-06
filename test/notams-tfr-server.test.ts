@@ -11,6 +11,59 @@ import corpus from './fixtures/tfrs.json' with { type: 'json' };
 const START = Date.parse('2026-10-05T21:00Z');
 const index = corpus.cases.slice(0, 2).map(c => c.index);
 
+for (const unresolved of [false, true]) test(`regressed TFR indexes preserve ${unresolved ? 'unresolved' : 'published'} revisions and membership across restart`, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tfr-rollback-'));
+  let now = START, revision = '202610052000', omitOther = false, failed = unresolved, detailReads = 0;
+  const options = { directory, now: () => now, wait: async (ms: number) => { now += ms; }, signal: new AbortController().signal,
+    fetch: async (input: string | URL | Request) => {
+      if (String(input).endsWith('getTfrList')) return Response.json([
+        { ...index[0], mod_abs_time: revision }, ...(omitOther ? [] : [index[1]]),
+      ]);
+      detailReads++;
+      const first = String(input).includes(index[0]!.notam_id.replace('/', '_'));
+      if (first && failed) return new Response(null, { status: 502 });
+      return new Response(first ? corpus.cases[0]!.xml.replaceAll('10000', revision === '202610052000' ? '11000' : '10000') : corpus.cases[1]!.xml);
+    } };
+  let service = createTfrService(options);
+  try {
+    await service.restore(); await service.refresh();
+    const original = service.read()!, reads = detailReads;
+    revision = '202610051900'; omitOther = true; failed = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      now += TFR_REFRESH_MS; await service.refresh();
+      assert.equal(service.read()!.checkedAt, original.checkedAt, 'an older index cannot advance source freshness');
+      assert.deepEqual(service.read()!.notices, original.notices, 'an older index cannot revise or withdraw published notices');
+      assert.deepEqual(service.read()!.issues, original.issues, 'unresolved newer revisions survive repeated regressions');
+      assert.equal(service.read()!.error, 'refresh-failed');
+      assert.equal(detailReads, reads, 'reject before acquiring obsolete detail');
+      await service.close(); service = createTfrService(options); await service.restore();
+    }
+    revision = '202610052000'; omitOther = false; now += TFR_REFRESH_MS; await service.refresh();
+    assert.equal(service.read()!.error, undefined);
+    assert.equal(service.read()!.notices.find(n => n.id === index[0]!.notam_id)!.areas[0]!.upper, '11000 ft MSL');
+    assert.equal(service.read()!.notices.length, 2);
+  } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('an interrupted TFR withdrawal cannot erase the published revision guard', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tfr-interrupted-withdrawal-'));
+  let now = START, revision = '202610052000', withdraw = false;
+  const service = createTfrService({ directory, now: () => now, wait: async ms => { now += ms; }, signal: new AbortController().signal,
+    fetch: async input => String(input).endsWith('getTfrList')
+      ? Response.json(withdraw ? [] : [{ ...index[0], mod_abs_time: revision }]) : new Response(corpus.cases[0]!.xml) });
+  try {
+    await service.restore(); await service.refresh();
+    const original = service.read()!, file = join(directory, 'tfrs', 'snapshot.json'), saved = await readFile(file);
+    await rm(file); await mkdir(file); withdraw = true; now += TFR_REFRESH_MS; await service.refresh();
+    assert.equal(service.read()!.checkedAt, original.checkedAt);
+    await rm(file, { recursive: true }); await writeFile(file, saved);
+    withdraw = false; revision = '202610051900'; now += TFR_REFRESH_MS; await service.refresh();
+    assert.equal(service.read()!.checkedAt, original.checkedAt);
+    assert.deepEqual(service.read()!.notices, original.notices);
+    assert.equal(service.read()!.error, 'refresh-failed');
+  } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('unchanged TFR index metadata cannot indefinitely cache XML or renew its age, including across restart', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'tfr-revalidation-'));
   let now = START, revised = false, failed = false;

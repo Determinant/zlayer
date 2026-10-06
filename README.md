@@ -7,7 +7,10 @@ It combines FAA charts, navigation and procedures with METAR/TAF weather, route
 planning, terrain and optional device GPS in one MapLibre/WebGL workspace. An
 experimental AHRS toolbox adds attitude, GPS instruments, an HSI and local recordings;
 it has not been validated in flight. Each product owns its data, behavior and
-interface. WPC analysis and NOAA radar/satellite imagery remain planned.
+interface. Weather includes AWC/WPC surface analysis and forecasts, numeric
+cloud/icing/wind fields, and NOAA radar contours with recent history and optional
+storm-motion tracks. Airport/procedure NOTAMs and a national graphical TFR chart
+share the info server. Weather satellite imagery remains planned.
 
 ## Direction
 

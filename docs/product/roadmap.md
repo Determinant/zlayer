@@ -54,8 +54,9 @@ adding more data sources. Current capabilities and planned work are listed separ
   navigation that unwinds active workspace controls.
 - [Full local reset](../features/offline-storage.md#full-local-reset) with explicit confirmation,
   coordination across open windows and interruption recovery.
-- Static-host deployment scripts and nginx data/weather/PDF proxies, bundled glyphs,
-  TypeScript/unit/build gates, full Chromium regressions and a targeted
+- Portable Docker/Caddy hosting and systemd info service, with optional nginx API
+  forwarding, data/PDF routes and bundled glyphs.
+- TypeScript/unit/build gates, full Chromium regressions and a targeted
   Firefox/WebKit graphics matrix in CI.
 
 ## Next: release confidence and continuity
@@ -203,19 +204,19 @@ delivery checks for each release.
 
 ### Surface analysis and imagery
 
-- Implemented locally: [Progs](../../src/layers/weather-awc/progs/README.md) adds
+- Implemented: [Progs](../../src/layers/weather-awc/progs/README.md) adds
   AWC/WPC analysis and forecast isobars, source labels, fronts, distinct boundaries and H/L centers,
   prepared/cached independently by the info server. Captured source fixtures,
   native-time selection, optional offline snapshots and independent slim controls
-  accompany the feature. Deploy the matching server and app to make the new
-  endpoints available. Ridges use NOAA pressure contours and chart labels.
+  accompany the feature. Delivery requires matching server and app contracts.
+  Ridges use NOAA pressure contours and chart labels.
   NDFD precipitation/weather shading now uses independently prepared AWC images,
   an explicit chance/likely/fog legend and visible gaps at unpublished times.
   Broader operational-chart comparison and physical-device qualification remain.
-- Implemented locally: [Radar](../../src/layers/weather-awc/radar/README.md) adds
+- Implemented: [Radar](../../src/layers/weather-awc/radar/README.md) adds
   server-prepared current MRMS/NEXRAD composite and terminal TDWR contours, with
   source times, expiration, optional offline files and six slim product tabs.
-  Deploy the matching server and app. Two-hour timeline rewind is implemented;
+  Delivery requires matching server and app contracts. Two-hour timeline rewind is implemented;
   an optional NOAA STI storm-motion overlay adds server-cached projected cell
   tracks aligned with the displayed radar. Captured-source motion regressions are
   part of local verification; physical-device rendering qualification, automatic

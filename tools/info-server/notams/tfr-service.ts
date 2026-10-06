@@ -136,10 +136,16 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   async function collect() {
     const checkedAt = now(), index = parseTfrIndex(JSON.parse((await download(INDEX, 1024 * 1024)).text));
     if (index.some(n => n.modifiedAt > checkedAt + 60_000)) throw new Error('TFR index from future');
+    // A regressed index cannot establish either current detail or withdrawals.
+    // Include unresolved revisions and private progress in the high-water mark.
+    const published = new Map(snapshot?.notices.map(n => [n.id, n]));
+    const revisions = new Map(snapshot?.issues?.map(issue => [issue.id, issue.modifiedAt]));
+    if (index.some(n => n.modifiedAt < Math.max(details.get(n.id)?.modifiedAt ?? 0, published.get(n.id)?.modifiedAt ?? 0, revisions.get(n.id) ?? 0))) {
+      throw new Error('TFR index regressed');
+    }
     const present = new Set(index.map(n => n.id));
     for (const id of details.keys()) if (!present.has(id)) details.delete(id);
     const notices: TfrNotice[] = [], issues: TfrSourceIssue[] = [];
-    const published = new Map(snapshot?.notices.map(n => [n.id, n]));
     for (const entry of index) {
       held(); const saved = details.get(entry.id);
       let record: TfrNotice, downloaded = false, reason: TfrSourceIssue['reason'] = 'detail-unavailable';

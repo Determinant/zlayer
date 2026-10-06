@@ -13,6 +13,53 @@ import type { NativeManifest } from '../src/layers/weather-awc/grids/native-sour
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
 
 const files = nativeForecastFiles(), runTime = Date.UTC(2026, 8, 22, 20);
+
+test('forecast discovery cannot roll back the published run, including after restart', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'zlayer-forecast-rollback-')), shutdown = new AbortController();
+  let now = runTime + 3600_000, older = false, correction = false, conversions = 0;
+  const payload = (body: Buffer): Payload => ({ body, sha256: digest(body), status: 200, checkedAt: now, headers: {} });
+  const template = await discover(async path => payload(files.get('/weather/noaa/' + path)!), 'clouds', shutdown.signal, now);
+  const options = { directory, maxBytes: 1024 * 1024, now: () => now, load: async () => { throw new Error('No acquisition'); } };
+  let cache = new WeatherCache(options); await cache.restore();
+  const processing = { concurrency: 2, catalog: async (product: string) => {
+    if (product !== 'clouds') throw new HttpError(503, 'Other products unavailable');
+    const manifest = structuredClone(template); manifest.checkedAt = manifest.publishedAt = now;
+    if (older) {
+      manifest.runTime -= 3600_000; manifest.generation = `clouds-${manifest.runTime}`;
+      for (const frame of manifest.frames) {
+        frame.validTime -= 3600_000;
+        for (const record of Object.values(frame.records)) record.path = record.path.replace('t20z', 't19z');
+        frame.sources = frame.sources.map(source => source.replace('t20z', 't19z'));
+      }
+    }
+    if (correction) for (const frame of manifest.frames) for (const record of Object.values(frame.records)) record.indexHash = 'a'.repeat(64);
+    return payload(Buffer.from(JSON.stringify(manifest)));
+  }, forecast: async (_manifest: NativeManifest, frame: NativeManifest['frames'][number]) => {
+    conversions++; return payload(Buffer.from(JSON.stringify(frame)));
+  } };
+  let warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now });
+  t.after(async () => { shutdown.abort(); await warming.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+  const resource = resourceFor('/api/weather/grids/clouds.json');
+  warming.refresh(); await warming.close();
+  const published = (await cache.read(resource))!, prepared = conversions;
+  assert.equal(warming.status.clouds!.ready, true);
+  older = true;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    now += 6 * 60_000; warming.refresh(); await warming.close();
+    assert.deepEqual(await cache.read(resource), published);
+    assert.equal(warming.status.clouds!.runTime, runTime);
+    assert.equal(warming.status.clouds!.ready, true);
+    assert.match(warming.status.clouds!.error!, /older forecast run/);
+    assert.equal(conversions, prepared, 'older runs are rejected before conversion');
+    cache = new WeatherCache(options); await cache.restore();
+    warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now }); await warming.restore(); await cache.prune();
+  }
+  older = false; correction = true; now += 30_000; warming.refresh(); await warming.close();
+  assert.equal(warming.status.clouds!.error, undefined);
+  assert.equal(warming.status.clouds!.runTime, runTime, 'same-run corrections remain publishable');
+  assert.ok(conversions > prepared);
+  assert.notEqual((await cache.read(resource))!.sha256, published.sha256);
+});
 for (const invalid of [true, false]) test(`forecast updates ${invalid ? 'rediscover invalid sources' : 'resume transient failures'} while retaining published files`, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-warming-')), shutdown = new AbortController();
   let now = runTime + 3600000, version = 0, catalogs = 0, failure: Error | undefined;

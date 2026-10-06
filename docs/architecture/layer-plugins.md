@@ -141,9 +141,9 @@ capabilities for every plugin.
 | [charts/](../../src/layers/charts/README.md) | VFR/IFR selection definitions, rendering, MBTiles/package readers, archive caching, offline planning and service-worker adapter |
 | [navigation/](../../src/layers/navigation/README.md) | Navigation/airway loaders, search, airport/runway/frequency details, symbols, fix display and navaid identification |
 | [metar-taf/](../../src/layers/metar-taf/README.md) | Report clients/caches, station selection, refresh, weather details, runway wind and METAR map rendering |
-| [weather-awc/](../../src/layers/weather-awc/README.md) | Advisory and surface-analysis/Progs vectors, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
+| [weather-awc/](../../src/layers/weather-awc/README.md) | Advisories, surface-analysis/Progs charts and coverage, radar/history/storm motion, numeric cloud/freezing/icing/wind forecasts, shared timeline, native altitude controls, point inspection and source status |
 | [plates/](../../src/layers/plates/README.md) | Procedure/supplement catalogs, PDF cache/viewer, selected document and reader state, georeferenced overlay and offline planning |
-| [notams/](../../src/layers/notams/README.md) | Shared airport snapshot demand, D/FDC interpretation, plate applicability, raw entries and source freshness; optional workspace composition with Navigation and Plates |
+| [notams/](../../src/layers/notams/README.md) | Shared airport snapshot demand, D/FDC interpretation, plate applicability, temporary reader geometry, persistent national TFR chart and inspection, raw entries and source freshness; optional workspace composition with Navigation and Plates |
 | [routes/](../../src/layers/routes/README.md) | Draft/editing, planning, procedures, recommendations, navlog, history, named saves, direct-to and rendering |
 | [glide/](../../src/layers/glide/README.md) | Terrain-aware airport, ownship and selected-point ranges; cached origin profiles; prepared off-airport candidate areas and controls |
 | [terrain/](../../src/layers/terrain/README.md) | Elevation acquisition/decoding, workers, route/viewport demand, contours, colors, controls and offline planning |
@@ -1107,8 +1107,9 @@ retains compressed artifacts; the plugin owns preparation order, cancellation,
 progress, manifest refresh, validity and source-time presentation. The
 [grid guide](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
 owns its category/cohort choices, ceilings, decoded neighborhoods and retry policy.
-The same split applies to future immutable forecast, radar or satellite files
-with qualified source contracts.
+Radar contours and storm-motion files use the same core file APIs with their own
+categories and retention limits. Future satellite products should preserve this
+split when their source contracts are qualified.
 
 Use the existing APIs where the resource has different requirements:
 

@@ -81,6 +81,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     await cache.restore();
     await warming.restore(); await progs.restore(); await coverage.restore();
     await radar.restore(); await motion.restore();
+    await cache.prune();
   } catch (cause) {
     await stopProducers().catch(error => options.log?.(String(error)));
     throw cause;

@@ -81,6 +81,12 @@ owns complete-cycle discovery, pinned acquisition, projection and native-field
 preparation. Catalogs describe complete prepared generations. Background updates retain the
 previous catalog until every replacement artifact is saved; HTTP reads never start
 preparation. The PWA has no server-readiness protocol or partial-catalog state.
+The server rejects older model runs while allowing validated corrections within
+the current run. Referenced immutable files retain their original bytes and
+source-check times across restart and beyond their ordinary retention age;
+availability does not establish freshness. See the server's
+[cache contract](../../../../tools/info-server/README.md#source-and-cache-contract)
+for budgets, protection and expiry.
 
 Native artifacts use
 `<product>/<run>-<lead>-<level>-<identity>.zwp.gz`; pressure levels use `p<hPa>`.
