@@ -206,7 +206,8 @@ labels/states, not real focus, layout, touch or DOM events. Avoid fixed-delay sl
 source-text assertions and incidental markup ordering.
 
 `npm run test:notams:corpus` runs the [frozen 1,000-airport NOTAM audit](../../src/layers/notams/README.md#frozen-1000-airport-regression)
-alone. It is also included in `npm test` and CI verification. The compressed local
+and the [U.S. ARTCC area/obstruction replay](../../test/fixtures/notams-us-artcc/README.md).
+Both are also included in `npm test` and CI verification. The compressed local
 fixture requires no network, credentials or browser; focused semantic cases run
 alongside it in the ordinary suite.
 

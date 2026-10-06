@@ -18,7 +18,7 @@
     "check": "npm run check:theme && npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",
     "check:imports": "node --import=tsx tools/check-imports.ts",
     "test": "node --import=tsx --import=./test/helpers/assets.ts --test test/*.test.ts && npm run test --workspaces --if-present",
-    "test:notams:corpus": "node --import=tsx --import=./test/helpers/assets.ts --test test/notams-us1000.test.ts",
+    "test:notams:corpus": "node --import=tsx --import=./test/helpers/assets.ts --test test/notams-us1000.test.ts test/notams-artcc.test.ts",
     "test:weather:corpus": "node --import=tsx --test packages/domain/test/weather-decoder-corpus.test.ts",
     "test:browser": "playwright test",
     "test:browser:session": "node tools/browser-session.mjs",

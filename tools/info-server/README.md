@@ -170,6 +170,11 @@ source times, preparation progress and failures. Use the
 [deployment readiness checklist](#deployment-readiness) before serving a release;
 `ok: true` alone is insufficient.
 
+The [maintenance guide](maintenance.md) owns the aggregate readiness policy,
+durable full-sync history, bounded source diagnostics, runtime measurements and
+focused workload replay. Expected source coverage gaps and ordinary cache eviction
+remain distinct from failures of freshness, publication or collection continuity.
+
 Restart and unchanged-source reuse authenticate referenced prepared files,
 including both stored HTTP encodings. Readiness requires the catalog and its
 required artifacts to remain present. Progs and grids require complete families;

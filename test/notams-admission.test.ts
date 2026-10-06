@@ -334,3 +334,78 @@ test('XML member limits count UTF-8 bytes instead of allowing multi-byte text to
   const xml = aixm(notice({ translations: Array.from({ length: 8 }, (_, i) => ({ type: `OTHER:${i}`, text: '空'.repeat(100_000) })) }));
   assert.throws(() => parser.write(xml), /member-limit/); assert.equal(emitted, 0);
 });
+
+for (const failure of ['http', 'stream', 'truncated', 'backoff'] as const) test(`bulk content recovery retries ${failure} within the original reference and admission`, async () => {
+  const directory = await temporary(); let now = NOTAM_NOW, attempts = 0;
+  const calls: { path: string; at: number }[] = [];
+  const store = new NotamStore(directory, 'production', () => now);
+  try {
+    await store.restore();
+    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+      signal: new AbortController().signal, wait: async ms => { now += ms; }, fetch: async input => {
+        const path = new URL(String(input)).pathname; calls.push({ path, at: now });
+        if (path.endsWith('/token')) return token();
+        if (path.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
+        if (++attempts > 1) return new Response('complete source');
+        if (failure === 'http') return new Response(null, { status: 500 });
+        if (failure === 'backoff') return new Response(null, { status: 503, headers: { 'retry-after': '30' } });
+        if (failure === 'truncated') return new Response('partial', { headers: { 'content-length': '100' } });
+        return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('partial')); },
+          pull(controller) { controller.error(new Error('fixture connection lost')); } }));
+      } });
+    const path = join(directory, 'bulk.tmp'), result = await source.download('bulk', path);
+    assert.equal(await readFile(path, 'utf8'), 'complete source', 'retry replaces partial bytes');
+    assert.equal(attempts, 2);
+    assert.deepEqual(calls.map(call => call.path), ['/v1/auth/token', '/nmsapi/v1/notams/il', '/nmsapi/v1/content/fixture', '/nmsapi/v1/content/fixture']);
+    assert.equal(result.requestedAt, calls[1]!.at);
+    assert.equal(store.nextBulkAt, calls[1]!.at + NOTAM_DAY_MS);
+    assert.ok(calls.slice(1).every((call, i) => call.at - calls[i]!.at >= 1000));
+    if (failure === 'backoff') assert.ok(calls[3]!.at - calls[2]!.at >= 30_000);
+    const budget = await readFile(join(directory, 'budget.json'), 'utf8');
+    await store.close(); const restored = new NotamStore(directory, 'production', () => now);
+    try { await restored.restore(); assert.equal(restored.nextBulkAt, store.nextBulkAt); assert.equal(await readFile(join(directory, 'budget.json'), 'utf8'), budget); }
+    finally { await restored.close(); }
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+for (const failure of [500, 401, 403, 404, 429, 503] as const) test(`bulk content HTTP ${failure} has bounded recovery and preserves long backoff`, async () => {
+  const directory = await temporary(); let now = NOTAM_NOW, attempts = 0, references = 0;
+  const store = new NotamStore(directory, 'production', () => now);
+  try {
+    await store.restore();
+    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+      signal: new AbortController().signal, wait: async ms => { now += ms; }, fetch: async input => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/token')) return token();
+        if (path.endsWith('/il')) { references++; return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } }); }
+        attempts++; return new Response(null, { status: failure, headers: { 'retry-after': '600' } });
+      } });
+    await assert.rejects(source.download('bulk', join(directory, 'bulk.tmp')));
+    assert.equal(attempts, failure === 500 ? 3 : 1);
+    assert.equal(references, 1);
+    assert.ok(store.nextBulkAt > now + 23 * 3600_000);
+    if ([429, 503].includes(failure)) assert.ok(store.nextAnyAt >= now + 600_000);
+    await assert.rejects(source.download('bulk', join(directory, 'later.tmp')), /request-budget/);
+    assert.equal(references, 1);
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('local content persistence failures and shutdown cannot start content retries', async () => {
+  const directory = await temporary(); let now = NOTAM_NOW, attempts = 0;
+  const lifetime = new AbortController(), store = new NotamStore(directory, 'production', () => now);
+  try {
+    await store.restore();
+    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+      signal: lifetime.signal, wait: async ms => { now += ms; }, fetch: async input => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith('/token')) return token();
+        if (path.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
+        attempts++; return new Response('source');
+      } });
+    await assert.rejects(source.download('bulk', join(directory, 'missing', 'bulk.tmp')), { code: 'ENOENT' });
+    assert.equal(attempts, 1);
+    now = store.nextBulkAt; lifetime.abort();
+    await assert.rejects(source.download('bulk', join(directory, 'bulk.tmp')), { name: 'AbortError' });
+    assert.equal(attempts, 1);
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});

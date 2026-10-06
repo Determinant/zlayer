@@ -1,4 +1,4 @@
-import type { NotamQuery, NotamSnapshot, NotamRecord } from '@zlayer/contracts';
+import type { NotamQuery, NotamSnapshot, NotamRecord, TfrNotice } from '@zlayer/contracts';
 import type { LayerStore } from '../../core/layers/store';
 import type { MapContextAction } from '../../core/map/selection';
 
@@ -15,8 +15,10 @@ export type NotamMapPreview = {
 export type NotamsApi = {
   contextActions(point: { x: number; y: number }): MapContextAction[];
   readonly state: LayerStore<NotamsState>;
-  /** Current record revisions accepted by the live map; empty on clear, failure or teardown. */
+  /** Temporary geometry/direction cues accepted by the map; empty on clear, failure or teardown. */
   readonly charted: LayerStore<readonly string[]>;
+  /** Complete national TFR notices whose boundaries the current map has accepted. */
+  readonly chartedTfrs: LayerStore<readonly TfrNotice[]>;
   /** Each mounted consumer owns a release function; offline demand still updates time labels. */
   retain(query: NotamQuery, online: boolean): () => void;
   /** Visible readers lease temporary map context separately from cached query demand. */

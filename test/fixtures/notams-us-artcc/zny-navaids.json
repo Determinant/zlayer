@@ -1,0 +1,243 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "navaid:US:VA:HERNDON:AML:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.46670175,
+          38.93459247
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "AML",
+        "type": "VOR/DME",
+        "name": "ARMEL",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "HERNDON",
+        "state": "VA",
+        "country": "US",
+        "highArtcc": "ZDC",
+        "lowArtcc": "ZDC",
+        "elevationFt": 295.7,
+        "frequency": "113.5",
+        "stationDeclinationDeg": -8,
+        "channel": "82X",
+        "publicUse": true,
+        "notamId": "IAD"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:NY:CALVERTON:CCC:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.79885825,
+          40.92961883
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "CCC",
+        "type": "VOR/DME",
+        "name": "CALVERTON",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "CALVERTON",
+        "state": "NY",
+        "country": "US",
+        "highArtcc": "ZBW",
+        "lowArtcc": "ZNY",
+        "elevationFt": 84.7,
+        "frequency": "114.55",
+        "stationDeclinationDeg": -13,
+        "channel": "92Y",
+        "publicUse": true,
+        "notamId": "ISP"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:NY:CARMEL:CMK:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.58132641,
+          41.28008941
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "CMK",
+        "type": "VOR/DME",
+        "name": "CARMEL",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "CARMEL",
+        "state": "NY",
+        "country": "US",
+        "highArtcc": "ZBW",
+        "lowArtcc": "ZNY",
+        "elevationFt": 692.8,
+        "frequency": "116.6",
+        "stationDeclinationDeg": -12,
+        "channel": "113X",
+        "publicUse": true,
+        "notamId": "ISP"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:MD:WESTMINSTER:EMI:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -76.97857197,
+          39.49500738
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "EMI",
+        "type": "VORTAC",
+        "name": "WESTMINSTER",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "WESTMINSTER",
+        "state": "MD",
+        "country": "US",
+        "highArtcc": "ZNY",
+        "lowArtcc": "ZDC",
+        "elevationFt": 820,
+        "frequency": "117.9",
+        "stationDeclinationDeg": -8,
+        "channel": "126X",
+        "publicUse": true,
+        "notamId": "DCA"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:NY:EAST HAMPTON:HTO:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -72.31670436,
+          40.91899572
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "HTO",
+        "type": "VORTAC",
+        "name": "HAMPTON",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "EAST HAMPTON",
+        "state": "NY",
+        "country": "US",
+        "highArtcc": "ZBW",
+        "lowArtcc": "ZBW",
+        "elevationFt": 22,
+        "frequency": "113.6",
+        "stationDeclinationDeg": -13,
+        "channel": "83X",
+        "publicUse": true,
+        "notamId": "HTO"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:PA:PHILIPSBURG:PSB:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.99271694,
+          40.91625888
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "PSB",
+        "type": "VORTAC",
+        "name": "PHILIPSBURG",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "PHILIPSBURG",
+        "state": "PA",
+        "country": "US",
+        "highArtcc": "ZNY",
+        "lowArtcc": "ZNY",
+        "elevationFt": 2443.4,
+        "frequency": "115.5",
+        "stationDeclinationDeg": -10,
+        "channel": "102X",
+        "publicUse": true,
+        "notamId": "AOO"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:NJ:SPARTA:SAX:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -74.53830816,
+          41.06754127
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "SAX",
+        "type": "VORTAC",
+        "name": "SPARTA",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "SPARTA",
+        "state": "NJ",
+        "country": "US",
+        "highArtcc": "ZNY",
+        "lowArtcc": "ZNY",
+        "elevationFt": 1399.5,
+        "frequency": "115.7",
+        "stationDeclinationDeg": -11,
+        "channel": "104X",
+        "publicUse": true,
+        "notamId": "MIV"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:PA:STONYFORK:SFK:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -77.41990577,
+          41.69525319
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "SFK",
+        "type": "VOR/DME",
+        "name": "STONYFORK",
+        "status": "OPERATIONAL IFR",
+        "city": "STONYFORK",
+        "state": "PA",
+        "country": "US",
+        "highArtcc": "ZNY",
+        "lowArtcc": "ZNY",
+        "elevationFt": 1984.7,
+        "frequency": "108.6",
+        "stationDeclinationDeg": -8,
+        "channel": "23X",
+        "publicUse": true,
+        "notamId": "IPT"
+      }
+    }
+  ],
+  "meta": {
+    "layer": "navaids",
+    "revision": "2026-10-01",
+    "returned": 8,
+    "truncated": false
+  }
+}

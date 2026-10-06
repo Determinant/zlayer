@@ -236,7 +236,8 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
     },
     get status() { return { ready: !!catalog && cache.has(radarResource()) && catalog.files.some(file => file.site === 'CONUS' && cache.has(resource(file))), preparing: !!nationalTask || !!terminalTask || !!historyTask,
       checkedAt: catalog?.checkedAt, scans: catalog?.files.length ?? 0, historyScans: catalog?.history?.length ?? 0,
-      unavailable: catalog?.unavailable, ...(error ? { error } : {}) }; },
+      observedAt: catalog?.files.find(file => file.site === 'CONUS')?.observedAt,
+      nextAttemptAt: nextNational, unavailable: catalog?.unavailable, ...(error ? { error } : {}) }; },
     async close() { await Promise.allSettled([nationalTask, terminalTask, historyTask]); await publication.catch(() => {}); },
   };
 }

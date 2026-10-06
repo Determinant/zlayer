@@ -332,6 +332,10 @@ fields remain intact. These are interpretation limits, not source truncation.
 
 ## Contracts and verification
 
+- [Historical NOAA/NWS source comparison](validation/2026-09-23-source-comparison/README.md)
+  retains the unused direct-source observation and TAF captures with their original
+  provenance. The [NOAA bulk METAR fixture](../../../test/fixtures/nws/README.md)
+  remains active regression input for the shared report parser and display.
 - [Source access policies](../../../docs/data/sources.md#awc-constraints-that-shape-the-system)
   describe upstream limits, gateway routing and source comparisons.
 - [METAR](../../../docs/data/contracts.md#metar),

@@ -306,4 +306,4 @@ publication. Release work must coordinate the supporting client, data and manife
 publish data before the manifest and verify the deployed edition separately.
 Pinned offline copies use explicit Verify/update. Loading a new client cannot
 recover fields absent from old saved exports. Follow the
-[same-cycle rebuild contract](../../../docs/data/chart-feed.md#navigation-rebuilds-within-a-cycle).
+[same-cycle rebuild contract](../../../docs/data/chart-feed.md#navigation-and-supplement-exports).

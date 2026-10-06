@@ -229,8 +229,11 @@ raw-fix preservation and high-zoom stationary drift.
 Browser regressions cover map rotation, the one-minute projection, missing velocity,
 poor accuracy, stale fixes, denial/recovery, watch cleanup, map replacement, dateline
 crossings, phone-size controls and cold offline launch. Native browser API tests
-use emulated coordinates; visibility tests simulate suspension. Check the native
-permission prompt in a fresh headed session without pregranting permission, and
+use emulated coordinates; visibility tests simulate suspension. Curved-vector checks
+require interior pixel samples and a midpoint displaced from the endpoint chord
+in the expected turn direction, then check the actual blue WebGL pixels.
+
+Check the native permission prompt in a fresh headed session without pregranting permission, and
 verify the app version served by the intended HTTPS deployment. Follow the
 [hosting and release checks](../../../docs/development/deployment.md) for that verification.
 

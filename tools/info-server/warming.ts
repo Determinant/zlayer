@@ -4,6 +4,7 @@ import type { WeatherCache } from './cache';
 import { forecastResource, terrainResource, type createProcessing } from './processing';
 import { HttpError, InvalidForecastSourceError, resourceFor, type Resource } from './routes';
 import type { Payload } from './upstream';
+import type { InfoMetrics } from './metrics';
 
 const PRODUCTS: AwcGridProduct[] = ['clouds', 'icing', 'winds'];
 export const PUBLISHED_CATALOG = 'complete-native-v1';
@@ -11,7 +12,7 @@ const catalogResource = (product: AwcGridProduct) => resourceFor(`/api/weather/g
 function generation(manifest: NativeManifest, payload: Payload) {
   const files = manifest.frames.map(frame => ({ resource: forecastResource(manifest, frame), frame, terrain: false }));
   if (manifest.product === 'winds') files.unshift({ resource: terrainResource(manifest, manifest.frames[0]!), frame: manifest.frames[0]!, terrain: true });
-  return { manifest, payload, files };
+  return { manifest, payload, files, validThrough: Math.max(...manifest.frames.map(frame => frame.validTime)) };
 }
 type Generation = ReturnType<typeof generation>;
 type State = { current?: Generation | undefined; candidate?: Generation | undefined;
@@ -21,7 +22,7 @@ type State = { current?: Generation | undefined; candidate?: Generation | undefi
 /** Prepare in the background, then atomically publish the complete catalog.
  * HTTP readers never discover sources or prepare missing forecast files. */
 export function createForecastWarming(cache: WeatherCache, processing: Pick<ReturnType<typeof createProcessing>, 'catalog' | 'forecast' | 'concurrency'>,
-  signal: AbortSignal, options: { now?: () => number; log?: (message: string) => void } = {}) {
+  signal: AbortSignal, options: { now?: () => number; log?: (message: string) => void; metrics?: InfoMetrics } = {}) {
   const now = options.now ?? Date.now;
   const states = new Map(PRODUCTS.map(product => [product, { nextCheck: 0, completed: 0 } as State]));
   function retain() {
@@ -34,7 +35,7 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
   async function update(product: AwcGridProduct, state: State) {
     // The preceding release has had at least one browser refresh interval to drain.
     state.previous = undefined; retain();
-    try {
+    const prepare = async () => {
       if (!state.candidate) {
         const payload = await processing.catalog(product);
         signal.throwIfAborted();
@@ -68,6 +69,10 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
       state.nextCheck = now() + 6 * 60_000;
       retain();
       options.log?.(`Published ${product} ${new Date(candidate.manifest.runTime).toISOString()}: ${candidate.files.length} saved files`);
+    };
+    try {
+      if (options.metrics) await options.metrics.measure(`forecast.${product}`, prepare);
+      else await prepare();
     } catch (error) {
       if (signal.aborted) return;
       state.error = error instanceof Error ? error.message : String(error);
@@ -105,7 +110,8 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
     get status() {
       return Object.fromEntries([...states].map(([product, state]) => [product, {
         ready: !!state.current && cache.has(catalogResource(product)) && state.current.files.every(file => cache.has(file.resource)),
-        runTime: state.current?.manifest.runTime,
+        runTime: state.current?.manifest.runTime, checkedAt: state.current?.manifest.checkedAt,
+        validThrough: state.current?.validThrough, nextAttemptAt: state.nextCheck,
         preparing: !!state.task, completed: state.completed, total: state.candidate?.files.length,
         ...(state.error ? { error: state.error } : {}),
       }]));

@@ -73,6 +73,7 @@ export function useWorkspaceInputs({ workspaceLayers, context, mapPreferences, s
     workspaceLayers.charts.input.set({ ...charts, catalog: context, savedEditionDetails,
       routingRevision: context.routing.revision, savedEditions, ...pluginActions.charts });
     workspaceLayers.navigation.input.set({ ...navigation, catalog: context, fixDisplay, ...pluginActions.navigation });
+    workspaceLayers.notams.input.set(navigation.navigationData);
     workspaceLayers.metar.input.set({ catalog: context, enabled: !!loaded.metar && mapPreferences.metarEnabled,
       ...pluginActions.metar });
     workspaceLayers.weatherAwc.input.set({ ...workspaceLayers.weatherAwc.preferences.select(mapPreferences), revision: context.browsing.revision,

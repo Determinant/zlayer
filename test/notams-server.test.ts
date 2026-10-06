@@ -462,6 +462,18 @@ for (const failure of ['bulk-invalid', 'bridge-transport'] as const) {
       assert.equal(deltas, attempts + 1); assert.equal(service.status.state, 'ready');
       assert.equal(service.status.generation, original.generation);
       assert.ok(service.status.watermark! > original.watermark);
+      assert.equal(service.reconciliation?.state, 'failed', 'fresh deltas cannot hide a failed replacement');
+      const history = service.reconciliation;
+      const budget = await readFile(join(directory, 'staging', 'budget.json'), 'utf8');
+      await service.close();
+      const restored = createNotamService({ enabled: true, environment: 'staging', directory,
+        credentials: { clientId: 'fixture', clientSecret: 'fixture' } }, { now: () => time, signal: controller.signal,
+        fetch: async () => { throw new Error('Restore must not acquire sources'); } });
+      try {
+        await restored.restore(); assert.equal(restored.status.state, 'ready');
+        assert.deepEqual(restored.reconciliation, history);
+        assert.equal(await readFile(join(directory, 'staging', 'budget.json'), 'utf8'), budget);
+      } finally { await restored.close(); }
     } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
   });
 }

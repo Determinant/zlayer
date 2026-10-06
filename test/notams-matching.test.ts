@@ -265,11 +265,13 @@ test('a matched sibling cannot hide a missing heading, and all airport records r
   assert.deepEqual(result.unmatchedTargets.map(g => g.titles), [['ILS RWY 32R (SA CAT I)']]);
   assert.equal(result.unresolved, 1);
   const html = renderToStaticMarkup(createElement(PlateNotamResults, { records: [record], result, now: manifest.capture.reviewTime }));
-  assert.match(html, /Matching is incomplete/); assert.match(html, /Unmatched procedure references/); assert.match(html, /Show all airport NOTAMs \(1\)/);
+  assert.match(html, /Matching is incomplete/); assert.match(html, /Unmatched procedure references/);
+  assert.doesNotMatch(html, /Show remaining airport NOTAMs/);
+  assert.match(html, /Show raw/); assert.match(html, /ILS RWY 32R \(SA CAT I\)/);
   const missing = captured('OAK', '7507'), empty = matchPlateNotams([missing], contextFor('OAK', plateFor('OAK', 'SILENT THREE')));
   assert.equal(empty.matches.length, 0); assert.equal(empty.unresolved, 1);
   const fallback = renderToStaticMarkup(createElement(PlateNotamResults, { records: [missing], result: empty, now: NOTAM_NOW }));
-  assert.match(fallback, /No established matches/); assert.match(fallback, /Show all airport NOTAMs/); assert.match(fallback, /SILENT FOUR/);
+  assert.match(fallback, /No established matches/); assert.match(fallback, /Show remaining airport NOTAMs \(1\)/); assert.match(fallback, /SILENT FOUR/);
   for (const [faa, number] of [['DFW', '1931'], ['DTW', '388']]) {
     const r = captured(faa!, number!), parsed = parseNotam(r);
     assert.equal(airport(faa!).procedures.some(p => parsed.targets.some(t => procedureTargetMatch(t.title, parsed.subject, p))), false,

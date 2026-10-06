@@ -3,7 +3,7 @@ import { mkdir, open, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
-import { atomicNotamFile } from './store';
+import { atomicStateFile } from '../state-file';
 import { acquireNotamLock } from './lock';
 import { parseTfrDetail, parseTfrIndex } from './tfr-normalize';
 import { retryAfterAt } from '../retry-after';
@@ -28,7 +28,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   function held() { signal.throwIfAborted(); if (!lock || stopped) throw new Error('TFR collector unavailable'); lock.assertHeld(); }
   async function saveBudget(value: Budget) {
     try {
-      held(); await atomicNotamFile(join(directory, 'admission.json'), JSON.stringify({ ...value, sha256: digest(JSON.stringify(value)) }));
+      held(); await atomicStateFile(join(directory, 'admission.json'), JSON.stringify({ ...value, sha256: digest(JSON.stringify(value)) }));
       held(); budget = value;
     } catch (cause) { budget = undefined; throw cause; }
   }
@@ -48,7 +48,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   async function saveSnapshot(path: string, value: TfrSnapshot) {
     held(); const data = JSON.stringify(value);
     if (!isTfrSnapshot(value) || Buffer.byteLength(data) > TFR_MAX_BYTES) throw new Error('TFR snapshot too large');
-    await atomicNotamFile(path, JSON.stringify({ sha256: digest(data), data })); held();
+    await atomicStateFile(path, JSON.stringify({ sha256: digest(data), data })); held();
   }
   function restore(): Promise<void> {
     return restoring ??= (async () => {
@@ -66,7 +66,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
           let prior = false;
           try { await stat(join(directory, 'admission.json')); prior = true; }
           catch (cause) { if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause; }
-          await atomicNotamFile(join(directory, 'provisioned'), 'FAA-TFR');
+          await atomicStateFile(join(directory, 'provisioned'), 'FAA-TFR');
           if (prior) throw new Error('TFR admission recovery required');
           await saveBudget({ schemaVersion: 1, source: 'FAA-TFR', nextAt: snapshot ? now() + TFR_REFRESH_MS : 0, backoffAt: 0, failed: false });
         } else {

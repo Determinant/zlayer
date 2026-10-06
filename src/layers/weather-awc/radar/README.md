@@ -153,6 +153,15 @@ tabular block. Empty-cell products and stationary circles are supported; incompa
 formats fail visibly through unavailable-source status. Invalid unchanged hashes
 skip parsing, while valid unchanged scans reuse their decoded geometry.
 
+Server health retains bounded per-station failure reasons and transition counts,
+including stale products, unsupported/invalid data, source transport and backoff.
+These explain unavailable motion without equating every missing track product
+with a radar outage. `newestObservedAt` describes the latest published snapshot,
+independently of collection time; pending future-dated scans cannot override its
+freshness, and retained old observations keep their original time. The server's
+[maintenance guide](../../../../tools/info-server/maintenance.md) owns diagnostic
+limits and operational readiness.
+
 National motion snapshots retain individual station times and source URL/hash.
 History accumulates as observations arrive; there is no startup backfill. One stable
 snapshot per five-minute bucket plus the latest is retained for two hours (at most

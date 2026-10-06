@@ -5,6 +5,7 @@ import { resourceFor, type Resource } from './routes';
 import { digest } from './upstream';
 import { decodeStormTracks } from './radar-motion-decode';
 import { WeatherSourceError } from './source-error';
+import { SourceDiagnostics, sourceFailureCode } from './diagnostics';
 
 export const PUBLISHED_MOTION = 'noaa-storm-tracks-v1';
 const catalogResource = () => resourceFor('/api/weather/radar/motion/latest.json');
@@ -19,8 +20,10 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
   const now = options.now ?? Date.now, budget = Math.min(64 * 1024 * 1024, (options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES) / 64);
   let catalog: RadarMotionCatalog | undefined, task: Promise<void> | undefined, next = 0, clock = now(), error: string | undefined;
   let prepared: { identity: string; file: RadarMotionFile } | undefined;
+  let newestObservedAt: number | null = null;
   const scans = new Map<string, RadarMotionScan>(), unavailable = new Set<string>(), retained = new Map<string, number>(), building = new Set<string>();
-  const rejected = new Map<string, string>();
+  const rejected = new Map<string, { hash: string; code: WeatherSourceError['code'] }>();
+  const diagnostics = new SourceDiagnostics(160, now, message => options.log?.(`Radar storm motion ${message}`));
   const protect = () => {
     for (const [key, until] of retained) if (until <= now()) retained.delete(key);
     cache.retain([catalogResource().key, ...(catalog?.files ?? []).filter(f => cache.has(fileResource(f))).map(f => fileResource(f).key),
@@ -62,11 +65,15 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
     }).slice(0, 26).reverse();
     const updated: RadarMotionCatalog = { schemaVersion: 1, checkedAt, files, unavailable: [...unavailable].sort() };
     if (!isRadarMotionCatalog(updated)) throw new Error('Invalid storm motion catalog');
+    const publishedObservation = current.length ? Math.max(...current.map(scan => scan.observedAt))
+      : files.at(-1)?.sha256 === catalog?.files.at(-1)?.sha256 ? newestObservedAt : null;
     const body = Buffer.from(JSON.stringify(updated));
     await cache.put(catalogResource(), { body, sha256: digest(body), checkedAt, status: 200,
       headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_MOTION } });
     for (const file of catalog?.files ?? []) retained.set(fileResource(file).key, checkedAt + 6 * 60_000);
-    catalog = updated; building.clear(); protect();
+    // Pending scans, including tolerated source clock skew, cannot change the
+    // freshness of the snapshot readers can actually retrieve.
+    catalog = updated; newestObservedAt = publishedObservation; building.clear(); protect();
   }
   async function update() {
     try {
@@ -75,6 +82,8 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
       if (!text.trimEnd().endsWith('</html>')) throw new Error('Incomplete NOAA storm tracking station listing');
       const sites = [...new Set([...text.matchAll(/href="SI\.(k[a-z]{3})\//g)].map(m => m[1]!.toUpperCase()))].sort();
       if (!sites.length || sites.length > 160) throw new Error('Invalid NOAA storm tracking station listing');
+      diagnostics.retain(new Set(sites));
+      for (const site of rejected.keys()) if (!sites.includes(site)) rejected.delete(site);
       for (const site of scans.keys()) if (!sites.includes(site)) scans.delete(site);
       for (const site of unavailable) if (!sites.includes(site)) unavailable.delete(site);
       for (const [index, site] of sites.entries()) {
@@ -82,17 +91,19 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
         try {
           const raw = await cache.get(input(`${RADAR_MOTION_ROOT}SI.${site.toLowerCase()}/sn.last`), undefined, signal);
           const old = scans.get(site);
-          if (rejected.get(site) === raw.sha256) throw new Error('Unchanged invalid storm tracking product');
+          const rejection = rejected.get(site);
+          if (rejection?.hash === raw.sha256) throw new WeatherSourceError('Unchanged invalid storm tracking product', rejection.code);
           let scan = old?.sourceHash === raw.sha256 ? old : undefined;
           if (!scan) {
             try { scan = decodeStormTracks(raw.body, site, raw.sha256); }
-            catch (cause) { if (cause instanceof WeatherSourceError) rejected.set(site, raw.sha256); throw cause; }
+            catch (cause) { if (cause instanceof WeatherSourceError) rejected.set(site, { hash: raw.sha256, code: cause.code }); throw cause; }
           }
           if (scan.observedAt > raw.checkedAt + 60_000 || now() - scan.observedAt >= RADAR_MAX_AGE || (old?.observedAt ?? 0) > scan.observedAt) {
-            throw new Error('Storm tracking scan is old, future dated or moved backwards');
+            throw new WeatherSourceError('Storm tracking scan is old, future dated or moved backwards',
+              scan.observedAt > raw.checkedAt + 60_000 ? 'future-source' : 'stale-source');
           }
-          scans.set(site, scan); unavailable.delete(site); rejected.delete(site);
-        } catch { signal.throwIfAborted(); unavailable.add(site); }
+          scans.set(site, scan); unavailable.delete(site); rejected.delete(site); diagnostics.recovered(site);
+        } catch (cause) { signal.throwIfAborted(); unavailable.add(site); diagnostics.failed(site, sourceFailureCode(cause)); }
         // Make regional results usable without waiting for all national stations.
         if (index % 25 === 24 || index === sites.length - 1) await publish();
       }
@@ -124,19 +135,23 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
         const latest = value.files.at(-1), data = latest && await cache.read(fileResource(latest));
         if (data && latest) {
           const snapshot: unknown = JSON.parse(data.body.toString());
-          if (data.sha256 === latest.sha256 && isRadarMotionSnapshot(snapshot)) for (const scan of snapshot.scans) if (scan.observedAt <= now()) scans.set(scan.site, scan);
+          if (data.sha256 === latest.sha256 && isRadarMotionSnapshot(snapshot)) {
+            for (const scan of snapshot.scans) if (scan.observedAt <= now()) scans.set(scan.site, scan);
+            newestObservedAt = scans.size ? Math.max(...[...scans.values()].map(scan => scan.observedAt)) : null;
+          }
         }
         for (const site of value.unavailable) unavailable.add(site);
-      } catch { catalog = undefined; scans.clear(); await cache.discard(catalogResource()); protect(); }
+      } catch { catalog = undefined; newestObservedAt = null; scans.clear(); await cache.discard(catalogResource()); protect(); }
     },
     refresh() {
       if (signal.aborted) return;
-      if (now() < clock) { next = 0; scans.clear(); rejected.clear(); prepared = undefined; }
+      if (now() < clock) { next = 0; scans.clear(); rejected.clear(); prepared = undefined; newestObservedAt = null; }
       clock = now(); protect();
       if (!task && now() >= next) task = update().finally(() => { task = undefined; });
     },
     get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.files.every(file => cache.has(fileResource(file))), preparing: !!task, checkedAt: catalog?.checkedAt,
-      stations: scans.size, unavailable: catalog?.unavailable.length ?? 0, ...(error ? { error } : {}) }; },
+      newestObservedAt,
+      nextAttemptAt: next, diagnostics: diagnostics.status, stations: scans.size, unavailable: catalog?.unavailable.length ?? 0, ...(error ? { error } : {}) }; },
     async close() { await task; },
   };
 }

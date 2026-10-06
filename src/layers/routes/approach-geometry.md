@@ -225,7 +225,7 @@ any cache by data revision, entry and schematic-policy version. No new service,
 airport patch table or general-purpose constraint framework is needed.
 
 Publisher artifacts and manifests must remain consistent across same-cycle
-rebuilds; see [navigation rebuilds](../../../docs/data/chart-feed.md#navigation-rebuilds-within-a-cycle).
+rebuilds; see [navigation rebuilds](../../../docs/data/chart-feed.md#navigation-and-supplement-exports).
 Old exports remain usable with explicit missing-reference diagnostics. Loading a
 new app alone cannot recover fields absent from a saved data edition.
 

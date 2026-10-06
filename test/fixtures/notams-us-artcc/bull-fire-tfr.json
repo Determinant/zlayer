@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "source": "FAA-TFR",
+  "checkedAt": 1791306305486,
+  "notices": [
+    {
+      "id": "6/7106",
+      "modifiedAt": 1791134940000,
+      "title": "12NM W RENO, NV, Sunday, October 4, 2026 through Friday, October 9, 2026 UTC",
+      "type": "HAZARDS",
+      "facility": "ZOA",
+      "state": "NV",
+      "startsAt": 1791134820000,
+      "endsAt": 1791514800000,
+      "text": "!FDC 6/7106 ZOA NV..AIRSPACE 12NM W RENO, NV..TEMPORARY FLIGHT RESTRICTIONS. PURSUANT TO 14 CFR SECTION 91.137(A)(2) TEMPORARY FLIGHT RESTRICTIONS ARE IN EFFECT TO PROVIDE A SAFE ENVIRONMENT FOR FIRE FIGHTING ACFT OPS. WI AN AREA DEFINED AS 393530N1195930W (FMG267016.0) TO 393530N1195700W (FMG269014.1) TO 393030N1195730W (FMG248014.1) TO 393000N1200100W (FMG248016.8) TO 393530N1195930W (FMG267016.0) TO POINT OF ORIGIN SFC-10000FT SIERRA FRONT DISPATCH TEL 775-782-1401 OR FREQ 118.425 BULL FIRE IS IN CHARGE OF THE OPERATION. OAKLAND/ZOA/ARTCC TEL 510-745-3331 IS THE FAA CDN FAC. 2610041727-2610090300",
+      "areas": [
+        {
+          "id": "418",
+          "name": "Hazard Area1",
+          "lower": "SFC",
+          "upper": "10000 ft MSL",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -119.99166667,
+                  39.59166667
+                ],
+                [
+                  -119.94999999999996,
+                  39.59166667
+                ],
+                [
+                  -119.95833332999999,
+                  39.50833333
+                ],
+                [
+                  -120.01666666999998,
+                  39.5
+                ],
+                [
+                  -119.99166667,
+                  39.59166667
+                ]
+              ]
+            ]
+          },
+          "windows": [
+            {
+              "startsAt": 1791134820000,
+              "endsAt": 1791514800000
+            }
+          ]
+        }
+      ],
+      "detailCheckedAt": 1791306035927
+    }
+  ],
+  "issues": []
+}

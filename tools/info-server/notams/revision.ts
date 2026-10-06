@@ -51,6 +51,54 @@ function sharedLocalNotice(previous: NotamRecord, next: NotamRecord): boolean {
   const text = [...before][0]!;
   return after.has(text) && completeLocalNotice(previous, text) && completeLocalNotice(next, text);
 }
+const weekday = '(?:MON|TUE|WED|THU|FRI|SAT|SUN)';
+const days = `(?:DLY|DAILY|${weekday}(?:-${weekday})?(?: ${weekday}(?:-${weekday})?)*)`;
+const schedulePattern = new RegExp(`^(${days})(?: (\\d{4}-\\d{4}))?$`);
+const scheduleSuffix = new RegExp(` (${days}) (\\d{4}-\\d{4})$`);
+const additionalSchedule = new RegExp(`\\b(?:DLY|DAILY|${weekday}|\\d{4}-\\d{4})\\b`);
+function scheduleParts(value: string): { days: number; hours: string | undefined } | undefined {
+  const match = schedulePattern.exec(value);
+  if (!match) return undefined;
+  const hours = match[2];
+  if (hours) {
+    const [start, end] = hours.split('-');
+    const clock = /^(?:[01]\d|2[0-3])[0-5]\d$/;
+    if (!clock.test(start!) || !(clock.test(end!) || end === '2400') || start === end) return undefined;
+  }
+  let mask = 0;
+  if (match[1] === 'DLY' || match[1] === 'DAILY') mask = 127;
+  else for (const range of match[1]!.split(' ')) {
+    const [first, last = first] = range.split('-'), names = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    for (let day = names.indexOf(first!); ; day = (day + 1) % 7) {
+      mask |= 1 << day;
+      if (day === names.indexOf(last!)) break;
+    }
+  }
+  return { days: mask, hours };
+}
+function equivalentSchedule(previous: NotamRecord, next: NotamRecord): string | undefined {
+  const before = notamSchedule(previous.schedule), after = notamSchedule(next.schedule);
+  if (before === after) return previous.schedule;
+  // Optional schedule metadata can omit days/hours already supplied by the
+  // identical complete native body. Every populated part must agree with that
+  // body's terminal schedule; presence alone never makes a version authoritative.
+  if (previous.classification !== 'DOMESTIC' || next.classification !== 'DOMESTIC' || !sharedLocalNotice(previous, next)) return undefined;
+  const body = previous.text.replace(/\s+/g, ' ').trim();
+  if (body !== next.text.replace(/\s+/g, ' ').trim()) return undefined;
+  const suffix = scheduleSuffix.exec(body);
+  if (!suffix) return undefined;
+  const prefix = body.slice(0, suffix.index);
+  if (additionalSchedule.test(prefix) || /\b(?:EXC|EXCEPT|NOT|BEFORE|AFTER|UNTIL|BTN|AND|OR)$/.test(prefix)) return undefined;
+  const witness = scheduleParts(`${suffix[1]} ${suffix[2]}`);
+  if (!witness) return undefined;
+  const a = scheduleParts(before), b = scheduleParts(after);
+  for (const [raw, parts] of [[before, a], [after, b]] as const) {
+    if (raw && (!parts || parts.days !== witness.days || parts.hours && parts.hours !== witness.hours)) return undefined;
+  }
+  // Retain the fuller source spelling, not a synthesized schedule, so later
+  // sparse replays cannot erase supplied hours or hide a subsequent disagreement.
+  return !before || !a?.hours && b?.hours ? next.schedule : previous.schedule;
+}
 function compatibleIcao(a: string, b: string): boolean {
   if (a === b) return true;
   // FAA can render a domestic NOTAM under either its local number or its paired
@@ -70,6 +118,8 @@ function compatibleIcao(a: string, b: string): boolean {
 }
 function equivalentBody(previous: NotamRecord, next: NotamRecord): string | undefined {
   if (previous.text === next.text) return previous.text;
+  if (previous.text.replace(/\s+/g, ' ').trim() === next.text.replace(/\s+/g, ' ').trim() &&
+    sharedLocalNotice(previous, next)) return previous.text;
   const localBefore = translationsByType(previous).get('LOCAL_FORMAT'), localAfter = translationsByType(next).get('LOCAL_FORMAT');
   for (const translation of localBefore ?? []) {
     if (!localAfter?.has(translation)) continue;
@@ -106,7 +156,7 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
   return contentFields.filter(field => {
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
     if (field === 'effectiveEnd') return effectiveEndContent(previous) !== effectiveEndContent(next);
-    if (field === 'schedule') return notamSchedule(previous.schedule) !== notamSchedule(next.schedule);
+    if (field === 'schedule') return equivalentSchedule(previous, next) === undefined;
     if (field === 'icaoLocations') {
       // FNSE's optional association is absent from some renderings. Absence
       // cannot withdraw a supplied association at the same source revision.
@@ -180,13 +230,14 @@ export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord)
   const issued = [previous.issuedAt, next.issuedAt].filter((time): time is number => time !== null);
   const issuedAt = issued.length ? Math.min(...issued) : null;
   const text = equivalentBody(previous, next)!, referred = previous.referred ?? next.referred;
+  const schedule = equivalentSchedule(previous, next)!;
   const icaoLocations = previous.icaoLocations.length ? previous.icaoLocations : next.icaoLocations;
   const translations = added.length ? [...previous.translations, ...added] : previous.translations;
   const endKind = notamEndKind({ ...previous, translations });
   if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred &&
-    icaoLocations === previous.icaoLocations && endKind === previous.endKind) return previous;
+    icaoLocations === previous.icaoLocations && endKind === previous.endKind && schedule === previous.schedule) return previous;
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, translations });
+  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, schedule, translations });
   if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
   return merged;
 }

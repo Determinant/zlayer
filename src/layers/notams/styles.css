@@ -11,7 +11,6 @@
 .notam-source { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-source > strong { color: var(--text-primary); }
 .notam-recovery > button { justify-self: start; }
-.notam-source-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; min-width: 0; }
 .notam-list-status { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .notam-filter-controls { display: grid; gap: 8px; min-width: 0; }
 .notam-filter-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -29,6 +28,8 @@
 .notam-search { grid-column: 1 / -1; }
 
 /* Section spacing belongs to the list, independent of its airport/plate host. */
+.location-notam-results { display: grid; gap: 4px; min-width: 0; }
+.location-notam-results .notam-entry:last-child { padding-bottom: 0; }
 .notam-list { display: grid; gap: 16px; min-width: 0; }
 .notam-section { min-width: 0; }
 .notam-section-heading {
@@ -134,7 +135,7 @@
 }
 .notam-raw summary:where(:hover) { text-decoration: underline; }
 .notam-raw summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 3px; }
-.notam-raw[open] summary { margin-bottom: 8px; }
+.notam-raw[open] > summary { margin-bottom: 8px; }
 .notam-raw pre { user-select: text; color: var(--text-primary); font-family: var(--font-mono); }
 
 /* The disclosure contributes height to the reader and scrolls independently. */
@@ -144,6 +145,8 @@
 .plate-notam-toggle > [aria-hidden] { flex: none; }
 .has-notams > .plate-notam-toggle { background: var(--surface-60343b); color: var(--text-ffd0ca); border-color: var(--border-a45656); }
 .plate-notams-list { max-height: min(30cqh, 18rem); overflow: auto; overscroll-behavior: contain; padding: 12px; }
+.plate-notam-results { display: grid; gap: 4px; min-width: 0; }
+.plate-notam-results .notam-entry:last-child { padding-bottom: 0; }
 .plate-notams-heading { font-size: 14px; line-height: 1.5; }
 .plate-notam-section { display: grid; gap: 4px; min-width: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 .plate-notam-section .ui-input { width: 100%; min-width: 0; }

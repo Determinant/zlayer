@@ -157,6 +157,9 @@ Direct notices appear as a simple list with all retained classifications. Navaid
 readers omit classification, subject, search and manual refresh controls. The
 source status uses the full list width. Timing sections, raw disclosures and the
 other-location list remain available; airports retain their filters.
+Location results use a compact 4 px gap before the other-location disclosure and
+omit trailing notice-group padding so **Show raw** and **Other notices filed under …**
+stay close, while preserving both disclosures' pointer and touch target sizes.
 
 Coverage is measured within this station's affected-location scope. Airport
 NOTAMs are a separate view; their absence from this list does not make station
@@ -265,21 +268,21 @@ expanded plate list, using the actual source-check time. Offline, stale,
 incomplete-coverage, request-failure and degraded-feed states remain explicit when
 present; production access alone does not establish freshness or completeness.
 The snapshot's environment controls the note, including for saved data.
-Airport, ARTCC/FIR and navaid detail lists have no manual refresh button. Visible
+Airport, ARTCC/FIR, navaid and plate lists have no manual refresh button. Visible
 online readers refresh automatically every three minutes. Reopening resumes
 demand and retries failed or due reads; a recent successful read retains its
 original refresh deadline. Source status and errors remain visible across these
-transitions. The plate reader retains its explicit refresh action.
+transitions.
 Keep feed status in this source header. Counts describe retained notices and
 matches without repeating generic completeness or coverage qualifiers. Empty
-airport lists say **No retained notices.** Empty plate lists say **No matches in
-the retained notices.** These describe the saved results without a separate claim
+airport lists say **No retained notices.** An empty airport snapshot in the plate
+reader says **No retained airport NOTAMs.** These describe the saved results without a separate claim
 about current completeness.
 
 Staging snapshots retain one testing notice in the same position:
 **Testing with FAA staging data. Notices may be incomplete. Do not use for flight
 planning.** This replaces source-age, stale, incomplete and degraded-feed messages.
-Offline state, request failures, plate-reader retry actions and procedure-specific
+Offline state, request failures, plate-catalog retry actions and procedure-specific
 interpretation/review qualifiers remain visible.
 Empty staging results describe retained notices without implying current completeness.
 
@@ -354,6 +357,29 @@ All points or areas belonging to that notice respond together. Unsupported or
 not-yet-accepted geometry offers no highlight interaction. Touch scrolling does
 not establish hover. The camera stays where the user left it.
 
+Compact national TFR references participate in the same reader interaction:
+hover/focus highlights all accepted areas of that exact notice, including
+multiple boundaries. The national source stays installed when the reader closes;
+only its emphasis is released. National and temporary source acknowledgments stay
+independent, so failure of one cannot erase the other's valid interaction.
+
+`radials.ts` recognizes explicitly unusable/restricted VOR radials such as
+`HTO VOR R-236 UNUSABLE`, multiple bearings (`R-274 AND R-057`), and separate
+stations in one notice. These are station radials, not `R-xxxx` restricted areas.
+Hover/focus shows fixed screen-size direction arrows at uniquely resolved VOR
+positions using published station alignment. Arrows and a **Direction only** label
+provide reference context; they have no geographic range, width or outage boundary.
+The full notice stays readable, including beyond-distance, altitude and RNAV
+exceptions. Multiple bearings at one station share a label. Ordinary healthy
+route references, radial sectors, malformed bearings, ambiguous/missing stations
+and missing alignment do not become guessed directions. These cues are prepared
+with the temporary source and remain hidden until highlighted; interaction changes
+filters without resubmitting geometry or moving the camera.
+Radials use the shared document control scopes: an instruction or unassembled
+part cannot supply a cue. Conditional route text can supply a direction reference
+because the complete qualification remains visible and the arrow asserts no
+outage extent or applicability. Every bearing in a recognized list must be valid.
+
 Each interaction belongs to its reader's preview lease and exact source revision.
 Pointer exit or focus leaving the entry releases that interaction; filtering,
 revision replacement, stow, area/tab changes and map failure also clear it.
@@ -365,29 +391,127 @@ resubmit geometry, fetch data or animate the map.
 [FAA 7930.2 §5-2-2](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap5_section_2.html).
 The unlabeled altitude in feet in that format is MSL; parenthesized AGL is separate.
 Compact DMS coordinates support fractional seconds and all hemispheres, with
-strict degree/minute/second limits. A leading airport identifier is stripped only
+validated degree/minute/second limits and the bounded recovery rules below. A leading airport identifier is stripped only
 when confirmed by the record's locations. Selected explicit FDC crane/tower clauses
 with MSL and coordinates also qualify; without AGL they use a neutral position ring
 and `(?)` for the unknown AGL height, never an inferred low/tall classification. Multiple
 explicit FDC point clauses remain separate. Note edits/conditions stop extraction
 of subsequent FDC coordinates rather than promoting quoted positions.
+Each accepted obstacle carries its exact coordinate occurrence in the selected
+source body. The charted reader removes only that occurrence, never all tokens
+with the same numeric position. Quoted/repeated coordinates remain readable.
+The independent mapped-reader audit checks those spans and detects removal of
+coordinates outside the mapped occurrence, alongside status/qualification loss.
 
-Farm descriptions without supported boundaries, multiple ambiguous coordinates, malformed coordinates, unknown
+Farm descriptions without supported boundaries, multiple ambiguous coordinates, unrecoverable coordinates, unknown
 positions and runway-relative descriptions stay in the readable list without a
 guessed point. Airport/Q-line centers and ASN/ASR references are not obstacle
 coordinates. This preview does not promise complete obstacle coverage or change
 plate applicability. Cancelled and definitely expired notices never generate points.
 
-`areas.ts` supports explicit latitude/longitude circles and closed simple polygons
-in AIRSPACE, NAV GPS and OBST notices, following the location forms in
+`areas.ts` uses a bounded cursor parser for circles and closed simple polygons
+in AIRSPACE, NAV GPS, OBST, service-outage and supported FDC area notices, following the location forms in
 [FAA 7930.2 §6-1](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap6_section_1.html).
-Circles require a published NM radius and coordinate center. Polygons require
-at least three distinct vertices, at most 64 supplied coordinate pairs and an
-explicit return to the first point; self crossings,
-missing closure, arcs, corridors, exclusions, additional boundary qualifications
-and navaid-relative positions retain full prose. Never use the Q-line radius or
-an airport center as the operational area. Coordinates use the same strict DMS
-decoder as obstacle points. Geodesic circles use 64–720 segments, with a radial
+It consumes a location, an optional reference annotation, then a connector or
+closure; it never collects unrelated coordinates scattered through prose.
+Document scopes are checked before splitting multiple area introductions. A later
+`DELETE NOTE`, `CHANGE`, or conditional introduction cannot restart operative
+geometry parsing. Circle, polygon, corridor and multiple-area definitions have
+distinct types; unsupported combinations such as an arc inside a corridor fail.
+Case-insensitive tokens retain exact offsets into the original source. Circles
+require an explicit NM (or nautical mile) distance and a coordinate or named center.
+The observed `NMR RADIUS`, `NM OF RADIUS OF` and `NM OF` variants are accepted.
+Polygons require at least three distinct vertices, at most 64 supplied locations
+and an explicit return to the first point. A repeated first vertex and “point of
+origin” close once; the observed “ORGIN” spelling is accepted. Coordinates support
+degrees/minutes, degrees/minutes/seconds, fractional seconds and mixed precision,
+with the same range checks and recovery rules as obstacle points. Self crossings,
+missing closure, exclusions and unresolved additional boundary qualifications stay
+as prose. Never infer operational boundaries from the Q-line or airport association.
+
+`area-tail.ts` consumes complete supported limits, GPS tiers, service airport
+lists, schedules, contacts and operational statements after the boundary. It must
+consume the whole suffix; punctuation and a recognized altitude do not authorize
+ignoring unknown words. Qualifications such as `ONLY THAT PORTION EAST OF HIGHWAY
+101` keep the complete notice textual. Known malformed height wording remains
+visible without an inferred datum, while an unrecognized radius token such as
+`M179NM` cannot supply a partial numeric tier.
+
+`area-geometry.ts` handles multi-leg corridors using the published lateral NM
+distance on each side of every great-circle leg, round interior joins and flat
+caps at the first/last stations. Polygon union removes shared seams and preserves
+interior holes; a sub-millimeter coordinate grid avoids numerical slivers. Width
+is limited to 100 NM per side, each leg to 600 NM, and input to 64 locations.
+Clockwise/counterclockwise station arcs retain the published direction and radius;
+endpoints must agree with the stated radius within 0.6 NM. The entire expanded
+polygon must still be simple. NALU's captured clockwise arc crosses a previous
+segment and remains unplotted; the parser never silently reverses it.
+
+Multiple explicit area definitions produce one Polygon/MultiPolygon feature and
+one notice label, with all source qualifications retained. Every component must
+resolve before acknowledgment. Complete multipart transport markers can be masked
+without changing source offsets. `multipart.ts` is shared by geometry and national
+TFR source matching: it requires ordered, nonempty parts, matching totals and a
+closing marker for every part (at most 99). Opening markers may be absent in NMS
+renderings; duplicates, gaps, reversed order, contradictory openings and trailing
+content fail. Part markers are masked only after that proof. National matching
+additionally validates each envelope's identity and validity. Malformed redundant distance
+annotations after valid vertices may be ignored for geometry while keeping the
+full source prose. They never override the explicit coordinate. A structured
+flight-check `INCLUDING … RWY … FINAL AND … DEG EITHER SIDE` qualification
+after a complete polygon is retained in full and called out in the map label;
+only the supplied polygon is drawn, without constructing another sector.
+
+`coordinate-recovery.ts` recognizes exact 60-second carries and a displaced
+longitude hemisphere such as `07240W00`, retaining all numeric fields. A missing
+hemisphere or observed `M` in the latitude hemisphere needs a unique published
+airport reference from the adjacent distance/direction annotation. The resulting
+point must agree within 25 degrees and max(2 NM, 5%) of that plain-language
+distance. Missing-decimal candidates use the stricter max(0.25 NM, 2%) distance
+check; they are not accepted without corroboration. No digit is deleted or
+inserted to force an otherwise ambiguous coordinate to fit. Two-digit longitude
+is accepted without a reference only when interpreting its first three digits
+as degrees would exceed 180; an ambiguous shortened `113242W` is rejected.
+Recovered positions are marked **Recovered coordinate — check source** on the
+map, and the reader retains the source coordinate. Navigation replacement
+invalidates recovered geometry just like VOR/reference geometry.
+
+`activity-points.ts` depicts explicitly located laser sources, free-balloon
+launches and volcano advisories as source points with their complete prose.
+These markers do not imply a hazard radius or a predicted balloon track.
+Explicit route-amendment controlling windmills and tower-light position notices
+also retain their operational text; unknown height datums remain unknown.
+
+`area-references.ts` resolves named centers and compact, spaced or slash-separated
+VOR radial/distance references against the selected navigation edition. Radials
+use the station's published alignment, including fractional NM distances. Missing
+alignment, ambiguous identities and unsupported station types remain unresolved;
+airport variation and current magnetic models are not substitutes. Bare airport
+identifiers need an unambiguous published match or an explicit airport ICAO
+association. The workspace supplies airport/navaid data even when their map
+symbols are hidden; replacement or late arrival recomputes geometry and follows
+the same renderer acknowledgment lifecycle. Reference-dependent notices retain
+their full location prose with an **Area shown on chart** receipt.
+
+ADS-B/ADS-R/TIS-B/FIS-B service footprints retain their affected-airport lists and
+altitudes, including limits after that list. Airport identifiers such as `ARC`
+inside that structured list are not boundary instructions. Wind-farm and balloon
+heights retain their MSL/AGL meaning and lighting status.
+Point obstructions also recognize water/power/transmission towers, tower
+abbreviations, antennas, silos, ship masts, rigs, parked aircraft, dirt piles and
+individually positioned power lines. `obstacle-fields.ts` owns the bounded object,
+identifier, relative-annotation and height fields; a cursor consumes them in order
+after the shared document state admits the report. Relative annotations and
+ASN/ASR identifiers never supply a position. ICAO object headings, truncated ASN
+suffixes and incomplete heights retain the full source. Explicit unknown
+heights use `?` in the MSL (AGL) label; missing units or datums remain in the
+readable text, with no inferred elevation. A position can still be depicted when
+its height is unknown. Malformed coordinates never receive guessed digits or
+hemispheres.
+Explicit final-approach obstacle and ramp-light reports can publish their exact
+positions while retaining all prose and leaving unspecified heights unknown.
+An unlabeled FAS number is never interpreted as an elevation or height.
+Geodesic circles use 64–720 segments, with a radial
 chord error below 0.01 NM; polygon edges use the shared great-circle sampler.
 Longitudes unwrap locally across the dateline. Radii/edges over 600 NM and
 geometry above 85° latitude remain text, bounding work and avoiding polar ambiguity.
@@ -398,8 +522,10 @@ fill, a fully opaque 2.5 px dashed boundary and a concise activity label with a 
 available. These are activity footprints, not an inferred entry prohibition.
 One repeating pattern image supplies the hatch and tint without additional geometry
 or camera listeners; it shares the preview's visibility and resource lifetime.
-GPS footprints that explicitly decrease with altitude depict the published outer
-circle as **Outer extent**. All smaller-radius altitude tiers stay in the entry;
+GPS footprints with explicit altitude/radius tiers depict the largest published
+circle as **Outer extent**. All altitude tiers stay in the entry. If a later tier
+is larger than the first circle, the full location sentence also stays visible
+and the map omits the first circle's altitude label;
 the map does not imply that the outer footprint applies at every altitude.
 
 `chart.ts` replaces only the validated location portion of a standalone OBST
@@ -418,6 +544,29 @@ failure, detachment, stow or disabling the plugin restores the full readable bod
 An altitude-dependent GPS footprint instead says **Outer area shown on chart ·
 Extent varies with altitude**. “Shown” describes geometry installed on the chart;
 it does not promise that the location is inside the current viewport.
+
+Identical map features share one depiction and label even when FAA delivers
+separate FDC/international filings or neighboring-center notices. Each source
+ID/revision retains its own list entry, raw text, timing, chart receipt and hover/
+focus interaction. Geometry, label, altitude or current timing differences remain
+distinct. This is presentation deduplication, not source-record reconciliation.
+
+When the national TFR renderer has accepted every area of a matching notice,
+the regional/airport entry replaces its long body with **TFR … shown on chart**,
+published altitude limits and a reference to map inspection. Raw text, search,
+identity, validity and schedule remain intact. Matching requires the FDC number,
+start time and complete normalized body, not a `SEE FDC` pointer or `R-…` name.
+Complete multipart notices compare each ordered part after validating its optional
+FDC envelope, part number and repeated validity. Every body word and repeated title
+remains in the comparison; basic source HTML entities compare as their characters.
+Missing/reordered parts, mismatched identities or altered validity cannot compact
+the notice. This includes the captured three-part New York TFR `5/2811` in KEWR's
+ZNY region, as well as Baltimore `6/7096` with two boundaries.
+Metadata end differences require identical complete FAA local text including its
+validity range (the captured Bull Fire has an NMS end one minute after that raw
+range). Missing geometry, conflicting/newer text, detail issues, pending source
+replacement or map detachment restore the full body. A restricted-area name
+alone never proves that its particular restriction is already drawn.
 
 `map-state.ts` owns per-reader leases and chart acknowledgments; `map.ts` owns
 images, fills, outlines, labels, source submissions and cleanup. Clears and
@@ -626,10 +775,16 @@ rows share the same qualifiers: **Offline**, **Refresh failed**, and, for
 production, **Stale** or **Feed degraded** when applicable. Unrelated source-record
 issues do not degrade an otherwise complete airport query. Detailed feed status
 belongs in the expanded source header; notice-specific interpretation and
-applicability reasons remain with the entries. The expanded bar always offers
-**Show all airport NOTAMs**, including with zero matches; it uses the same current
-airport snapshot and timing rules. Unmatched references are listed separately.
-The full list renders when opened, avoiding duplicate hidden readers on busy airports.
+applicability reasons remain with the entries. When airport notices remain outside
+the displayed suggestions, the expanded bar offers **Show remaining airport NOTAMs**
+with their count, using the same current airport snapshot and timing rules. Exclude
+notice IDs already displayed in either applicability group; keep each displayed
+notice's full content and raw text accessible. The remainder describes which notices
+have not been shown, without asserting that they are irrelevant to this plate.
+With zero suggestions it contains every retained airport notice; omit the disclosure
+when none remain. An empty snapshot says **No retained airport NOTAMs.** Unmatched
+procedure references remain listed separately, including references from notices
+already shown above. The remaining list renders only when opened.
 Count each source notice once even if several clauses match. Multipart groups
 retain their individual parts' identities and counts.
 
@@ -639,8 +794,11 @@ PDF controls, and some reading area reachable on short phones. The disclosure
 participates in layout rather than covering chart content. Scrolling it must not
 trigger PDF pan/zoom. The strip stays
 reachable while its list or the PDF scrolls.
-Keep the source status and refresh action spaced apart from the plate title and
-the first timing-section heading so the controls and notice groups remain distinct.
+Keep the source status spaced apart from the plate title and the first
+timing-section heading so the source information and notice groups remain distinct.
+Within plate results, use a compact 4 px gap before disclosures and omit trailing
+notice-group padding so **Show raw** and **Show remaining airport NOTAMs** stay close.
+Both disclosures retain their shared pointer and touch target sizes.
 The title uses the shared 14 px heading scale. Empty, recovery and unavailable
 states use the same compact status typography as airport lists; catalog retry
 keeps its shared button styling. The bar label wraps beside a separate chevron,
@@ -656,10 +814,10 @@ and procedure-row counts wrap within their existing metadata layout.
 | Unresolved interpretation | Keep compact counts unchanged; show matching limits, unmatched references and all airport notices in the expanded view, including with zero matches |
 | Unresolved page or failed query without data | Explicit unavailable matching state with recovery |
 
-The expanded strip shows notices related to the displayed plate and offers
-**Show all airport NOTAMs** from the same snapshot. This fallback remains available
-when the match count is zero or another heading in a matched notice is unresolved;
-it does not create plate matches or chart overlays. Apply the staging presentation
+The expanded strip keeps every airport notice accessible either in its suggested
+groups or under **Show remaining airport NOTAMs**. A notice with an unresolved
+heading stays complete wherever it is shown, without appearing in both places.
+Opening the remainder does not create plate matches or chart overlays. Apply the staging presentation
 above; production keeps source freshness
 and actual incomplete states visible. Unresolved interpretation remains explicit in
 both environments, without repeating general regional/route-scope explanations.
@@ -985,7 +1143,26 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    same set. No domestic-to-ICAO alias is invented. The demonstrated
    `Daily:HHMM-HHMM~DLY HHMM-HHMM` schedule equals its readable `DLY` form only
    when both supplied windows agree, using the same rule as validity display.
-   The raw schedule stays intact. Derived end kinds are compared after combining
+   The raw schedule stays intact. Domestic schedule metadata may also omit the
+   schedule or its hours while both records retain the same complete native
+   notice and body. Reconcile those omissions only against one terminal schedule
+   in that shared body: every supplied weekday and hour must agree. Supported
+   evidence is a weekday list/range or `DLY`/`DAILY` with one valid UTC window;
+   overnight windows and an end of `2400` are allowed. Weekday ranges and their
+   expanded lists identify the same days. Multiple windows, exceptions, unknown
+   expressions, different days/hours and missing or mismatched native evidence
+   remain unresolved. Keep the fuller original schedule field, including its raw
+   spelling, so sparse replays cannot erase known hours. Never synthesize a field
+   from prose or let a partial field overrule a complete one.
+
+   Whitespace-only body differences also reconcile through an identical complete
+   native notice. Retain the first original body; do not discard changed words,
+   punctuation, case, units or digits. These representation repairs change neither
+   source revision ordering nor collection freshness. Verified saved issues are
+   reconsidered on restore using all retained variants, preserving incomplete
+   collection checkpoints, genuine conflicts, overflow evidence and quota history.
+
+   Derived end kinds are compared after combining
    compatible optional evidence: a matching retained `EST` suffix can qualify
    a representation whose missing local translation caused a fixed-end default.
    Different end instants, conflicting suffixes and unknown/permanent ends are
@@ -1119,6 +1296,15 @@ credentials or content references.
 Follow same-origin allowlisted content routes; never forward credentials to an
 arbitrary redirect host. Preserve safe request IDs for diagnosis. An expired
 content reference enters budget-aware recovery, not an unbounded download loop.
+
+The server permits at most three content-download attempts against the same
+validated reference within the original 120-second download deadline and the
+reference's five-minute lifetime. Transport failures, truncated/empty bodies and
+transient source responses can retry after durable spacing/backoff. Partial files
+are removed before retry. Long `Retry-After`, authentication failures, redirects,
+size limits, local storage failures and shutdown stop recovery. Retrying content
+never obtains another `/il` reference or renews authentication; the consumed daily
+allowance and original snapshot request boundary remain unchanged.
 
 ### Storage and query indexes
 
@@ -1275,6 +1461,14 @@ continuity, source check, last completed full reconciliation, latest delta bound
 record counts, safe failure code and next allowed attempt. Keep process health,
 freshness and completeness separate; a successful full sync cannot conceal later
 failed deltas. Health output excludes credentials and temporary content references.
+
+The shared server health additionally exposes `notamReconciliation`: completed
+full-sync age, pending state, durable last attempt/failure and the next allowed
+bulk attempt. Fresh deltas do not erase this history. An overdue full sync is an
+operational warning separate from the existing feed/airport continuity contract;
+it does not make otherwise continuous local reads unavailable. The server's
+[maintenance guide](../../../tools/info-server/maintenance.md) defines the warning
+threshold and diagnostic-file recovery behavior.
 
 ## Navaid query contract
 
@@ -1498,15 +1692,21 @@ The parser is organized by responsibility:
 | `procedure-targets.ts`, `procedure-title.ts` | Complete headings/amendments and a state machine for facility, variant, designation and qualifications; stopped before narrative references |
 | `effects.ts` | Typed, subject-bound facts and complete supporting source spans, independently of badge selection |
 | `flairs.ts` | At-a-glance summaries, proven facility/effect combinations, and specific interpretation explanations |
-| `clauses.ts` | Sentence lexer and document state machine: operative, instruction, conditional, multipart |
+| `clauses.ts` | Shared control lexer/transitions, sentence clauses and exact document scopes: operative, instruction, conditional, multipart |
+| `multipart.ts` | Bounded ordered transport proof and offset-preserving marker masking, shared by spatial consumers and national TFR matching |
+| `areas.ts`, `area-tail.ts` | Typed spatial definitions, boundary cursor and whole-suffix grammar; no geometric approximation of unknown qualifications |
+| `area-geometry.ts`, `area-references.ts`, `coordinate-recovery.ts` | Geometry construction, unique navigation resolution and corroborated coordinate recovery |
+| `obstacles.ts`, `radials.ts`, `activity-points.ts` | Scoped point/direction interpretation; obstacle coordinate evidence retains exact source occurrences |
 | `minima.ts`, `minima-row.ts` | Procedure/category scope and token-driven field/value state machine |
 | `takeoff.ts`, `distances.ts` | Bounded whole-clause grammars for takeoff alternatives and declared distances |
 | `presentation.ts`, `readable-text.ts` | Reading model and display wording; no source or applicability mutation |
 
 Small lexical patterns recognize tokens and supported headings. State machines
 control interpretation: the document machine cannot leave an instruction,
-condition or multipart state merely at punctuation. Numeric effect badges share
-these control boundaries, as do named-procedure amendment fallbacks; an `(IF)`
+condition or multipart state merely at punctuation. Instruction state takes
+precedence over an earlier condition; unassembled multipart state takes precedence
+over both. Numeric effect badges and geometry share these control boundaries,
+as do named-procedure amendment fallbacks; an `(IF)`
 fix qualifier is not a conditional `IF`.
 The minima row machine moves
 through field, value, separator and final-category states. Ordered `DA/HAT` or
@@ -2023,7 +2223,8 @@ time limitations. This README remains the canonical guide after implementation.
 - `test/notams-us1000.test.ts` replays every delivered record in the frozen
   1,000-airport commercial/GA capture through the current parser and both React
   reader paths. It checks source integrity, value bindings, evidence and mapped
-  content preservation. It runs in `npm test`; see the
+  content preservation. A separate obstruction inventory checks point coordinates,
+  map publication and every reviewed omission. It runs in `npm test`; see the
   [frozen corpus contract](#frozen-1000-airport-regression) for provenance and limits.
 - `test/notams-corpus.test.ts` retains 24 complete captured records from 21 airports,
   with independent expectations for field/category assignments, alternatives,
@@ -2086,10 +2287,18 @@ time limitations. This README remains the canonical guide after implementation.
   reader leases. `test/notams-map.test.ts` covers immediate hiding on stow,
   delayed source acceptance, replacement coalescing, failures and teardown.
 - `test/notams-areas.test.ts` covers source circle radii, polygon closure and
-  dateline wrapping, malformed/ambiguous boundaries, GPS altitude qualifications,
+  dateline wrapping, station alignment, late reference data, service footprints,
+  malformed/ambiguous boundaries, GPS altitude qualifications,
   source preservation and renderer-acknowledged coordinate abbreviation. Browser
   coverage verifies overlays, filter/stow lifetime, restoration after map detachment
   and separate From/Until rows on a narrow screen.
+- `test/notams-artcc.test.ts` replays 27 U.S. ARTCC and 27 published FIR scopes, including
+  oceanic and island scopes, with pinned navigation references and reviewed
+  omissions. It checks geometry, source/readers and the supplied ZOA 6/7169 and
+  Bull Fire cases. `test/notams-coordinate-recovery.test.ts` checks corroborated
+  hemisphere repair, numeric carries, ambiguous tokens and source-point handling.
+  See the [ARTCC audit](validation/2026-10-06-artcc-areas.md)
+  and [fixture contract](../../../test/fixtures/notams-us-artcc/README.md).
 - `test/notams-server.test.ts` covers AIXM variants, durable admission, generation
   restoration, bulk-to-delta publication, cancellations, failed replacement recovery,
   equivalent raw representations, checksummed source issues, legacy incomplete-checkpoint
@@ -2101,6 +2310,13 @@ time limitations. This README remains the canonical guide after implementation.
   FDC conflict pairs, with no credentials or deployment metadata. Regressions cover
   both arrival orders, supported subject/interval wrappers, real-content rejection,
   saved-failure recovery, restart and subsequent deltas without resetting bulk quota.
+- `test/notams-reconciliation.test.ts` also replays the retained corpus conflicts
+  and the October 6 source pairs in
+  [`notams-source-renderings-2026-10-06.json`](../../../test/fixtures/notams-source-renderings-2026-10-06.json).
+  Those pairs retain omitted/partial schedules and body line wrapping, including
+  SJC 10/027. Regressions check both arrival orders, sparse replays, shared native
+  evidence, genuine schedule/content disagreements and recovery across XML deltas
+  and restarts without changing source boundaries or request admission.
 - `test/notams-collection.test.ts` covers unfamiliar representations, lifecycle
   ambiguity, order/duplicate independence, bounded evidence overflow, scope unions,
   sparse-version constraints, daily reconciliation and wire completeness guards.
@@ -2234,6 +2450,19 @@ integrity and exact cohort/counts, schema validity, unchanged source snapshots,
 source spans and flair evidence, numeric/word preservation, independent structured
 value bindings, and both ordinary and mapped React readers. Failures identify the
 airport, record ID, revision and failing audit.
+
+The obstruction replay independently inventories all 4,976 `OBST` notices:
+4,957 publish point markers, four publish areas and 15 remain text-only. Thirteen
+of those have ambiguous or uncorroborated coordinates; two only point to another
+notice. It also inventories 47 other explicit obstruction-coordinate reports:
+45 depict, while two crane descriptions remain inside an open missed-approach
+instruction scope. The test independently decodes every accepted point's exact
+source span and checks map output, including 37 notices with exact 60-second
+carries. `obstructions.json` pins counts and every omitted ID/revision with its
+reviewed reason. `obstruction-references.json` pins the necessary navigation
+subset, retaining all alias candidates and the full published source hashes.
+The [obstruction audit](validation/2026-10-06-airport-obstructions.md) explains
+these limits. No fixture source records were rewritten to repair coordinates.
 
 This is broad preservation coverage, not an assertion that every notice has a
 complete structured interpretation. Unsupported wording may correctly remain

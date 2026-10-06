@@ -122,9 +122,13 @@ test('deployment readiness requires current weather as well as authenticated sav
     });
     await assert.rejects(checkInfoApi('https://info.test'), /No current storm motion observations/);
   });
-  for (const failure of [undefined, 'missing-route', 'wrong-scope', 'wrong-station'] as const) await t.test(`navaid route readiness: ${failure ?? 'ready'}`, async t => {
+  for (const failure of [undefined, 'missing-route', 'wrong-scope', 'wrong-station', 'old-full-sync', 'source-issue'] as const) await t.test(`navaid route readiness: ${failure ?? 'ready'}`, async t => {
     t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
     const airport = notamSnapshot([], { query: { faaId: 'SFO', icaoId: 'KSFO' } });
+    airport.feed.checkedAt = airport.feed.watermark = WEATHER_NOW;
+    airport.feed.fullSyncAt = WEATHER_NOW - (failure === 'old-full-sync' ? 25 * HOUR : 0);
+    if (failure === 'source-issue') Object.assign(airport.feed, { state: 'degraded', error: 'unresolved-records',
+      unresolvedRecords: 1, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', unscopedRecords: 0 });
     const navaid = { ...airport, scope: 'navaid-location', associationCoverage: 'complete', query: { navaidId: 'SAU' } };
     const region = { ...airport, scope: 'region-location', associationCoverage: 'incomplete', query: { artccId: 'ZOA' } };
     t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
@@ -142,7 +146,12 @@ test('deployment readiness requires current weather as well as authenticated sav
         headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
     });
     if (failure) await assert.rejects(checkInfoApi('https://info.test', 'staging'), failure === 'missing-route' ? /HTTP 404/
-      : failure === 'wrong-scope' ? /Invalid navaid snapshot/ : /SAU/);
+      : failure === 'wrong-scope' ? /Invalid navaid snapshot/ : failure === 'old-full-sync' ? /NOTAM full synchronization/
+        : failure === 'source-issue' ? /Unexpected unresolved/ : /SAU/);
     else assert.ok((await checkInfoApi('https://info.test', 'staging')).reads > 25);
+    if (failure === 'old-full-sync') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
+      { allowOverdueFullSync: true })).warnings, ['full-sync-overdue'], 'an explicit rollout exception remains visible');
+    if (failure === 'source-issue') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
+      { maxUnresolvedNotams: 1 })).warnings, ['unresolved-notam-records:1']);
   });
 });

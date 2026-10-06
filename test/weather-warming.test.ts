@@ -9,12 +9,14 @@ import { forecastResource } from '../tools/info-server/processing';
 import { HttpError, InvalidForecastSourceError, resourceFor } from '../tools/info-server/routes';
 import { digest, type Payload } from '../tools/info-server/upstream';
 import { createForecastWarming, PUBLISHED_CATALOG } from '../tools/info-server/warming';
+import { InfoMetrics } from '../tools/info-server/metrics';
 import type { NativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
 
 const files = nativeForecastFiles(), runTime = Date.UTC(2026, 8, 22, 20);
 
 test('forecast discovery cannot roll back the published run, including after restart', async t => {
+  const metrics = new InfoMetrics(); t.after(() => metrics.close());
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-forecast-rollback-')), shutdown = new AbortController();
   let now = runTime + 3600_000, older = false, correction = false, conversions = 0;
   const payload = (body: Buffer): Payload => ({ body, sha256: digest(body), status: 200, checkedAt: now, headers: {} });
@@ -37,7 +39,7 @@ test('forecast discovery cannot roll back the published run, including after res
   }, forecast: async (_manifest: NativeManifest, frame: NativeManifest['frames'][number]) => {
     conversions++; return payload(Buffer.from(JSON.stringify(frame)));
   } };
-  let warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now });
+  let warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now, metrics });
   t.after(async () => { shutdown.abort(); await warming.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
   const resource = resourceFor('/api/weather/grids/clouds.json');
   warming.refresh(); await warming.close();
@@ -51,8 +53,9 @@ test('forecast discovery cannot roll back the published run, including after res
     assert.equal(warming.status.clouds!.ready, true);
     assert.match(warming.status.clouds!.error!, /older forecast run/);
     assert.equal(conversions, prepared, 'older runs are rejected before conversion');
+    assert.equal(metrics.status.operations['forecast.clouds']?.failed, attempt + 1, 'handled failures remain failures in timing metrics');
     cache = new WeatherCache(options); await cache.restore();
-    warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now }); await warming.restore(); await cache.prune();
+    warming = createForecastWarming(cache, processing, shutdown.signal, { now: () => now, metrics }); await warming.restore(); await cache.prune();
   }
   older = false; correction = true; now += 30_000; warming.refresh(); await warming.close();
   assert.equal(warming.status.clouds!.error, undefined);

@@ -48,6 +48,7 @@ test('navaid details compose exactly Info/NOTAM tabs and remain usable without t
   const feature: GeoPointFeature = { type: 'Feature', id: 'navaid:TST', geometry: { type: 'Point', coordinates: [-122, 37] },
     properties: { kind: 'navaid', ident: 'TST', type: 'VOR/DME', country: 'US', name: 'Test station' } };
   const api: NotamsApi = { state: createLayerStore({ queries: {}, now: NOTAM_NOW }), charted: createLayerStore<readonly string[]>([]),
+    chartedTfrs: createLayerStore([]),
     retain() { assert.fail('The Info tab must not demand NOTAMs'); }, retry() {}, contextActions: () => [],
     previewChart() { assert.fail('The Info tab must not preview NOTAMs'); } };
   const props: ComponentProps<typeof FeatureDetailsPanel> = {

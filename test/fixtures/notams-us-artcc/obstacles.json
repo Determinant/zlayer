@@ -1,0 +1,32 @@
+{
+  "total": 264,
+  "points": 121,
+  "areas": 138,
+  "unsupported": [
+    {
+      "id": "8278907925031283",
+      "revision": "19e0508becaf8098c9e86a6a03bad52f5373b99caf116ed390ca0dfa6199b800",
+      "reason": "ambiguous shortened longitude"
+    },
+    {
+      "id": "1764648275966094",
+      "revision": "b16f5dbc64258941d19f55d7484beba11fa42e4b49ee0d83990ca3b3cbae1883",
+      "reason": "extra latitude digit has no unique repair"
+    },
+    {
+      "id": "3195133854775273",
+      "revision": "8a0468e15f387a40f75a3d264fd97c3ebb31418339706560bbe3e159d7df61bc",
+      "reason": "extra latitude digits have no unique repair"
+    },
+    {
+      "id": "1764648238065587",
+      "revision": "a5d06b55e7768a5b1c9b94a96a1b693e800a43fb80ecf5e13c2c0cd0dd6e2ff4",
+      "reason": "extra latitude digit has no unique repair"
+    },
+    {
+      "id": "7276057709917815",
+      "revision": "19983591eced0761dfaae0d0677359369235199a2a90cb4e78caa288837819e5",
+      "reason": "extra longitude digit conflicts with the published distance annotation"
+    }
+  ]
+}

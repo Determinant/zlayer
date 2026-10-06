@@ -126,7 +126,8 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
     const advisory = /^\/api\/weather\/advisories\/(gairmet|sigmet|cwa)\.json$/.exec(new URL(resource.url).pathname);
     if (!advisory) throw new HttpError(404, 'Forecasts are published by the background updater');
     const product = advisory[1] as AwcAdvisoryProduct, endpoint = product === 'sigmet' ? 'airsigmet' : product;
-    const input = await readMetadata(advisoryResource(product), shutdown);
+    // Leave one scheduler interval to replace the 60-second advisory response.
+    const input = await cache.get(advisoryResource(product), 20_000, shutdown);
     const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
     if (!collections.every(isSourceCollection)) throw new Error('Invalid advisory collection');
     return json(normalizeAdvisories(product, collections, input.checkedAt, `https://aviationweather.gov/api/data/${endpoint}`), input.checkedAt);

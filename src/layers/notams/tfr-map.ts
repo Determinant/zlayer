@@ -6,9 +6,14 @@ import { LayerScope } from '../../core/layers/scope';
 import { tfrNextChange, tfrTiming } from './tfr-time';
 import type { TfrState } from './tfr-client';
 import type { TfrAreaSelection } from './tfr-selection';
+import type { TfrNotice } from '@zlayer/contracts';
 
 export const TFR_SOURCE = 'notam-tfrs', TFR_FILL = 'notam-tfr-fill', TFR_LINE = 'notam-tfr-line';
-const layers = [TFR_FILL, TFR_LINE];
+export const TFR_HIGHLIGHT = 'notam-tfr-highlight';
+const TFR_HIGHLIGHT_HALO = 'notam-tfr-highlight-halo';
+const highlights = [TFR_HIGHLIGHT_HALO, TFR_HIGHLIGHT];
+const layers = [TFR_FILL, TFR_LINE, ...highlights];
+type Input = TfrState & { highlighted?: string | undefined };
 const ACTIVE = '#ff4d55', UPCOMING = '#ffd54a';
 type Collection = FeatureCollection<Polygon, { noticeId: string; areaId: string; status: string; color: string }>;
 export function tfrFeatures(state: TfrState): Collection {
@@ -31,17 +36,33 @@ function sameGeometry(a: Polygon, b: Polygon): boolean {
       point[0] === b.coordinates[i]![j]![0] && point[1] === b.coordinates[i]![j]![1]));
 }
 
-export function createTfrMapLayer(): MapLayerModule<TfrState> & { inspectAt(point: { x: number; y: number }): TfrAreaSelection[] } {
+export function createTfrMapLayer(onShown: (notices: readonly TfrNotice[]) => void = () => {}): MapLayerModule<Input> & { inspectAt(point: { x: number; y: number }): TfrAreaSelection[] } {
   let map: MapLibreMap | undefined, scope: LayerScope | undefined, submission: ReturnType<typeof createSourceSubmission> | undefined;
   let collection = tfrFeatures({ now: 0, loading: false }), pending = false, dirty = false;
   let snapshot: TfrState['snapshot'], previousTime = -Infinity, nextChange = -Infinity;
   const colors = new Map<string, string>();
   let ready = false;
+  let highlighted: string | undefined, highlightId: string | undefined;
+  const emphasize = () => {
+    if (!map || highlights.some(id => !map!.getLayer(id))) return;
+    const id = ready ? highlighted ?? '' : '';
+    if (highlightId === id) return;
+    highlightId = id;
+    for (const layer of highlights) map.setFilter(layer, ['==', ['get', 'noticeId'], id]);
+  };
   let retry: ReturnType<typeof setTimeout> | undefined, retried = false;
+  const reportShown = () => {
+    const ids = new Set(collection.features.map(f => String(f.id)));
+    onShown(ready ? (snapshot?.notices ?? []).filter(n => n.areas.length > 0 &&
+      !snapshot?.issues?.some(issue => issue.id === n.id) && n.areas.every(a => ids.has(`${n.id}:${a.id}`))) : []);
+  };
   const visible = (show: boolean) => {
-    if (ready === show) return;
-    ready = show;
-    for (const id of layers) if (map?.getLayer(id)) map.setLayoutProperty(id,'visibility',show ? 'visible' : 'none');
+    if (ready !== show) {
+      ready = show;
+      for (const id of layers) if (map?.getLayer(id)) map.setLayoutProperty(id,'visibility',show ? 'visible' : 'none');
+    }
+    emphasize();
+    reportShown();
   };
   function style() {
     if (!map) return;
@@ -95,6 +116,11 @@ export function createTfrMapLayer(): MapLayerModule<TfrState> & { inspectAt(poin
       map.addLayer({ id: TFR_LINE, type: 'line', source: TFR_SOURCE, layout: { visibility: 'none' },
         paint: { 'line-color': ['coalesce', ['feature-state','color'], ACTIVE], 'line-width': 2.5 } });
       scope.add(() => { if (target.getLayer(TFR_LINE)) target.removeLayer(TFR_LINE); });
+      for (const [id, color, width] of [[TFR_HIGHLIGHT_HALO, '#081220', 7], [TFR_HIGHLIGHT, '#fff3cc', 3]] as const) {
+        map.addLayer({ id, type: 'line', source: TFR_SOURCE, filter: ['==', ['get', 'noticeId'], ''],
+          layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': width } });
+        scope.add(() => { if (target.getLayer(id)) target.removeLayer(id); });
+      }
       submission = createSourceSubmission(map,TFR_SOURCE,() => {
         visible(false);
         if (!retried && collection.features.length) { retried = true; retry = setTimeout(() => { dirty = true; render(); },100); }
@@ -102,19 +128,20 @@ export function createTfrMapLayer(): MapLayerModule<TfrState> & { inspectAt(poin
       render();
     },
     update(next) {
-      if (snapshot === next.snapshot && next.now >= previousTime && next.now < nextChange && !submission?.failed) return;
+      highlighted = next.highlighted;
+      if (snapshot === next.snapshot && next.now >= previousTime && next.now < nextChange && !submission?.failed) { emphasize(); return; }
       snapshot = next.snapshot; previousTime = next.now; nextChange = tfrNextChange(snapshot, next.now);
       const data = tfrFeatures(next);
       const sameSource = data.features.length === collection.features.length && data.features.every((feature, i) =>
         feature.id === collection.features[i]!.id && sameGeometry(feature.geometry, collection.features[i]!.geometry));
       collection = data;
-      if (sameSource && !submission?.failed) { if (!pending) style(); return; }
+      if (sameSource && !submission?.failed) { if (!pending) { style(); emphasize(); reportShown(); } return; }
       dirty = true; retried = false;
       clearTimeout(retry); submission?.invalidate(); visible(false); render();
     },
     unmount() {
       clearTimeout(retry); submission?.destroy(); submission = undefined; pending = false; dirty = false;
-      ready = false; colors.clear(); map = undefined; scope?.dispose(); scope = undefined;
+      ready = false; highlightId = undefined; reportShown(); colors.clear(); map = undefined; scope?.dispose(); scope = undefined;
     },
   };
 }

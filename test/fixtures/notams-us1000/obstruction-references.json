@@ -1,0 +1,580 @@
+{
+  "effectiveDate": "2026-10-01",
+  "source": {
+    "airports": {
+      "file": "airports.c091f077661dfead75099351fcac45a063324f6b6f73e6cd213f48d8aeca0256.geojson",
+      "bytes": 15988737,
+      "sha256": "c091f077661dfead75099351fcac45a063324f6b6f73e6cd213f48d8aeca0256"
+    },
+    "navaids": {
+      "file": "navaids.46e1811b8cdce0ac798d5fc9a4cd0cce7f61436b66dfbf12b920aad1b9d8013f.geojson",
+      "bytes": 659524,
+      "sha256": "46e1811b8cdce0ac798d5fc9a4cd0cce7f61436b66dfbf12b920aad1b9d8013f"
+    }
+  },
+  "airports": [
+    {
+      "type": "Feature",
+      "id": "airport:08995.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -70.28035916,
+          41.66933722
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "08995.",
+        "facilityType": "A",
+        "faaId": "HYA",
+        "icaoId": "KHYA",
+        "name": "CAPE COD GATEWAY",
+        "city": "HYANNIS",
+        "state": "MA",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 54.1,
+        "chart": "NEW YORK",
+        "notamId": "HYA",
+        "responsibleArtcc": "ZBW",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 5425,
+        "frequencies": [
+          {
+            "type": "GROUND",
+            "frequencyMHz": 118.45,
+            "use": "GND/P",
+            "hours": "0600-2200"
+          },
+          {
+            "type": "CTAF",
+            "frequencyMHz": 119.5,
+            "use": "CTAF",
+            "remarks": "ACTVT MALSR RWY 15; MALSF RWY 24; HIRL RWYS 06/24 & 15/33 - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.5,
+            "use": "LCL/P",
+            "hours": "0600-2200"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 123.8,
+            "use": "ATIS",
+            "hours": "0600-2200"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.8,
+            "use": "LCL/P",
+            "hours": "0600-2200"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 118.2,
+            "use": "APCH/P DEP/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 120.125,
+            "use": "CD/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON",
+            "sector": "WHEN TWR CLSD"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 284.6,
+            "use": "APCH/P DEP/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 125.15,
+            "use": "CD/P",
+            "facilityId": "HYA",
+            "facilityName": "HYANNIS",
+            "hours": "0600-2200"
+          }
+        ],
+        "runways": [
+          {
+            "id": "06/24",
+            "lengthFt": 5425,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "06",
+                "trueHeadingDeg": 50,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 66
+              },
+              {
+                "id": "24",
+                "trueHeadingDeg": 230,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 246
+              }
+            ]
+          },
+          {
+            "id": "15/33",
+            "lengthFt": 5255,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "15",
+                "trueHeadingDeg": 140,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 156
+              },
+              {
+                "id": "33",
+                "trueHeadingDeg": 320,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 336
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:23369.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.66987611,
+          30.19452722
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "23369.",
+        "facilityType": "A",
+        "faaId": "AUS",
+        "icaoId": "KAUS",
+        "name": "AUSTIN-BERGSTROM INTL",
+        "city": "AUSTIN",
+        "state": "TX",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 541.5,
+        "chart": "SAN ANTONIO",
+        "notamId": "AUS",
+        "responsibleArtcc": "ZHU",
+        "towerType": "ATCT-TRACON",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 12250,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.225,
+            "use": "LCL/S",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 121,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.7,
+            "use": "GND/S",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 124.4,
+            "use": "D-ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 254.25,
+            "use": "LCL/S",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 281.5,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 348.6,
+            "use": "GND/P",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 119,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "WEST",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 120.875,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "SOUTH",
+            "hours": "24"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 125.5,
+            "use": "CD/P",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 127.225,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "EAST",
+            "hours": "24"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 263,
+            "use": "CD/P",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 270.25,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "SOUTH",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 317.65,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "EAST",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 370.85,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AUS",
+            "facilityName": "AUSTIN",
+            "sector": "WEST",
+            "hours": "24"
+          }
+        ],
+        "runways": [
+          {
+            "id": "18L/36R",
+            "lengthFt": 9000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "18L",
+                "trueHeadingDeg": 179,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 175
+              },
+              {
+                "id": "36R",
+                "trueHeadingDeg": 359,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 355
+              }
+            ]
+          },
+          {
+            "id": "18R/36L",
+            "lengthFt": 12250,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "18R",
+                "trueHeadingDeg": 179,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 175
+              },
+              {
+                "id": "36L",
+                "trueHeadingDeg": 359,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 355
+              }
+            ]
+          },
+          {
+            "id": "H1",
+            "lengthFt": 60,
+            "widthFt": 60,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H1"
+              }
+            ]
+          },
+          {
+            "id": "H2",
+            "lengthFt": 60,
+            "widthFt": 60,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H2"
+              }
+            ]
+          },
+          {
+            "id": "H3",
+            "lengthFt": 50,
+            "widthFt": 50,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H3"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:24194.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -99.46158333,
+          27.54419444
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "24194.",
+        "facilityType": "A",
+        "faaId": "LRD",
+        "icaoId": "KLRD",
+        "name": "LAREDO INTL",
+        "city": "LAREDO",
+        "state": "TX",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 508,
+        "chart": "BROWNSVILLE",
+        "notamId": "LRD",
+        "responsibleArtcc": "ZHU",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 8743,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 120.1,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MALSR RWY 18R - CTAF. MIRL RWY 14/32; HIRL RWYS 18L/36R & 18R/36L PRESET MED INTST."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 120.1,
+            "use": "LCL/P",
+            "hours": "0600-2400"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.8,
+            "use": "GND/P",
+            "hours": "0600-2400"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 125.775,
+            "use": "ATIS",
+            "hours": "0600-2400"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.9,
+            "use": "LCL/P",
+            "hours": "0600-2400"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 127.8,
+            "use": "LAREDO RCAG",
+            "facilityId": "ZHU",
+            "facilityName": "HOUSTON",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY HOUSTON ARTCC (ZHU) ON FREQS 127.8/307.2 (LAREDO RCAG)."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 307.2,
+            "use": "LAREDO RCAG",
+            "facilityId": "ZHU",
+            "facilityName": "HOUSTON",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY HOUSTON ARTCC (ZHU) ON FREQS 127.8/307.2 (LAREDO RCAG)."
+          }
+        ],
+        "runways": [
+          {
+            "id": "14/32",
+            "lengthFt": 5927,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "14",
+                "trueHeadingDeg": 147,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 142
+              },
+              {
+                "id": "32",
+                "trueHeadingDeg": 327,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 322
+              }
+            ]
+          },
+          {
+            "id": "18L/36R",
+            "lengthFt": 8236,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "18L",
+                "trueHeadingDeg": 183,
+                "magneticHeadingDeg": 178
+              },
+              {
+                "id": "36R",
+                "trueHeadingDeg": 3,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 358
+              }
+            ]
+          },
+          {
+            "id": "18R/36L",
+            "lengthFt": 8743,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "18R",
+                "trueHeadingDeg": 183,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 178
+              },
+              {
+                "id": "36L",
+                "trueHeadingDeg": 3,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 358
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "navaids": [
+    {
+      "type": "Feature",
+      "id": "navaid:US:TX:LAREDO:LRD:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -99.41767891,
+          27.47873733
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "LRD",
+        "type": "VORTAC",
+        "name": "LAREDO",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "LAREDO",
+        "state": "TX",
+        "country": "US",
+        "highArtcc": "ZHU",
+        "lowArtcc": "ZHU",
+        "elevationFt": 583,
+        "frequency": "117.4",
+        "stationDeclinationDeg": 9,
+        "channel": "121X",
+        "publicUse": true,
+        "notamId": "LRD"
+      }
+    }
+  ]
+}

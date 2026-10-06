@@ -3,6 +3,7 @@ import { forecastResource, terrainResource } from '../../tools/info-server/proce
 import type { AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { createInfoServer } from '../../tools/info-server/server';
+import type { NotamOptions } from '../../tools/info-server/notams/service';
 import { PUBLISHED_CATALOG } from '../../tools/info-server/warming';
 import { nativeForecastFiles } from './awc-native.mjs';
 import { advisorySource, WEATHER_NOW } from './awc-advisories';
@@ -14,10 +15,14 @@ const files = nativeForecastFiles();
 // Distinct pixels make a stale image detectable when selecting a forecast.
 const coverage = { analysis: coveragePng(), forecast: coveragePng(1) };
 export async function fixtureWeather(directory: string, options: { onRaw?: (signal: AbortSignal | undefined, path: string) => void | Promise<void>;
+  notams?: NotamOptions; notamFetch?: typeof fetch; now?: () => number;
+  notamWait?: (ms: number, signal: AbortSignal) => Promise<void>;
   advisories?: () => { failure?: boolean; gairmet: unknown[]; sigmet: unknown; cwa: unknown } | undefined } = {}) {
-  const app = await createInfoServer({ directory, spacing: 0, now: () => WEATHER_NOW, startUpdates: false, log: message => console.error(message),
+  const app = await createInfoServer({ directory, spacing: 0, now: options.now ?? (() => WEATHER_NOW), startUpdates: false,
+    ...(options.notams ? { notams: options.notams } : {}), ...(options.notamWait ? { notamWait: options.notamWait } : {}), log: message => console.error(message),
     fetch: async (input, init) => {
       const url = new URL(String(input));
+      if (url.hostname === 'api-staging.cgifederal-aim.com' && options.notamFetch) return options.notamFetch(input, init);
       if (url.pathname === '/api/data/progchart') return Response.json(surfaceCatalog());
       if (url.pathname.endsWith('_ndfd_sfc_wx_m.png')) return url.pathname.includes('_F168_')
         ? new Response(null, { status: 404 }) : new Response(url.pathname.includes('_F000_') ? coverage.analysis : coverage.forecast,

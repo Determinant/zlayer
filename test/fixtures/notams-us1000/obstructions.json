@@ -1,0 +1,105 @@
+{
+  "counts": {
+    "standalone": 4976,
+    "points": 4957,
+    "areas": 4,
+    "unresolved": 15,
+    "otherCandidates": 47,
+    "otherDepicted": 45,
+    "otherUnresolved": 2
+  },
+  "references": {
+    "file": "obstruction-references.json",
+    "bytes": 15393,
+    "sha256": "10468e1d14d4d3b68d94a94eca8e569e3e04e15d36d2f08c99e23922a884b9af",
+    "airports": 3,
+    "navaids": 1
+  },
+  "unsupported": [
+    {
+      "id": "1778782620004994",
+      "revision": "799b6e91ae467dbe7164d09f184a13471b6d4bcb60efce712e9fd14ac33e9997",
+      "reason": "Five-digit latitude has no unique DMS interpretation."
+    },
+    {
+      "id": "7229183410260883",
+      "revision": "b02a7f12c5b06391824d92cd12360f69bdaee924f6e496cd31f3d9053d44e9ef",
+      "reason": "Five-digit latitude has no unique DMS interpretation."
+    },
+    {
+      "id": "1758720278218803",
+      "revision": "fda33ecc2b31bd1adc2de96065f6289d66681d4a8d4ad1b2e4b75a160c545303",
+      "reason": "Crane clauses follow an open missed-approach instruction scope; no independent scope closure."
+    },
+    {
+      "id": "1758776635478153",
+      "revision": "30ec9f59caa204ac577c7632bf498d689a84c907df04820eee3d43b51932701b",
+      "reason": "Crane clauses follow an open missed-approach instruction scope; no independent scope closure."
+    },
+    {
+      "id": "1780081389581996",
+      "revision": "4864ef5890181116a607b355a1d21b20c3e1885ddc2a8552adc19fbe33daa351",
+      "reason": "Missing longitude hemisphere; published NW annotation fails corroboration against AUS."
+    },
+    {
+      "id": "3285614261206721",
+      "revision": "6afe30741f4a783dc3522815480073535e733ed295ca6a699489a63db7f39a7a",
+      "reason": "Missing longitude hemisphere; published NW annotation fails corroboration against AUS."
+    },
+    {
+      "id": "1769463409447852",
+      "revision": "d21853d9e7f36c2db8f11123d246411131b707df887acbde2cddddc402bbd3d0",
+      "reason": "Reference to WHP 01/015 supplies no position in this notice."
+    },
+    {
+      "id": "1783002653141660",
+      "revision": "6e84871786ac52337e496bb3509d345416e49539a94a281def692a39aded4386",
+      "reason": "Longitude uses N; runway-relative annotation cannot establish E/W."
+    },
+    {
+      "id": "7450732768852589",
+      "revision": "6163d9bedc04d71fd8c246d0124c875c16e559215512b4093de2290583f79ce1",
+      "reason": "Longitude uses N; runway-relative annotation cannot establish E/W."
+    },
+    {
+      "id": "9607986469425720",
+      "revision": "bff871204343e1443ce06c25072ff2d229d5e48f5eac92d05b950c5afe4dedb9",
+      "reason": "Mixed malformed latitude and decimal longitude have no supported unambiguous interpretation."
+    },
+    {
+      "id": "3602800217459387",
+      "revision": "195dcc8b20e1965e76967d00d31433e4f7282b2c47011dfe0e276f48c6bf081a",
+      "reason": "Short latitude has no unique DMS interpretation."
+    },
+    {
+      "id": "1784141816404838",
+      "revision": "4b17eea7594ff7000a14169f83b7cb214abb3202066a99c9c821d58cf6f73844",
+      "reason": "Missing longitude hemisphere; published N annotation conflicts with position northwest of HYA."
+    },
+    {
+      "id": "9366580347287092",
+      "revision": "b046c9be13a5ade3b1e95fa989a8702ea7a95045b9a622a225d8d1b58c127cab",
+      "reason": "Missing longitude hemisphere; published N annotation conflicts with position northwest of HYA."
+    },
+    {
+      "id": "2711497717386783",
+      "revision": "bc5208a80db91cf92302c190896aa89db3872d82348f1f8431390f02ca849220",
+      "reason": "Latitude minutes are 90; a corrected coordinate cannot be inferred."
+    },
+    {
+      "id": "1758720887722478",
+      "revision": "f320731f07c30d66f26c30678ee55b92543c29bc2a956254527044a0a06d6bea",
+      "reason": "Reference to VUH 03/014 supplies no position in this notice."
+    },
+    {
+      "id": "6988431026732983",
+      "revision": "102edb7352eada0817e0dfe15063891c9452d892fcbbb219e3560c5024f310a2",
+      "reason": "Short longitude has ambiguous degree/minute/second fields."
+    },
+    {
+      "id": "5034106137263325",
+      "revision": "ad06e385527e58a2900fb2606650ca9f21bb0f8761ebbc56974b02050a16941b",
+      "reason": "Short longitude has ambiguous degree/minute/second fields."
+    }
+  ]
+}

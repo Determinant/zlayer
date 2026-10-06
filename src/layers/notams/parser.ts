@@ -6,7 +6,7 @@ import { notamEffects } from './effects';
 export type { ParsedNotam, NotamTarget, NotamFact, NotamFlair, NotamFlairTone, NotamEvidence } from './interpretation';
 export { normalizeRunway } from './interpretation';
 
-export const NOTAM_PARSER_VERSION = 11;
+export const NOTAM_PARSER_VERSION = 12;
 const parsedRecords = new WeakMap<NotamRecord, ParsedNotam>();
 const MAX_PARSE_LENGTH = 64 * 1024;
 /** Only local-format identity headers; pointers and unfamiliar envelopes remain content. */

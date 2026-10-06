@@ -2,7 +2,7 @@ import type { SourceRecord } from '../../src/layers/weather-awc/grids/native-sou
 import type { NativeSelection } from '../../src/layers/weather-awc/grids/selection';
 import { WeatherSourceError } from './source-error';
 
-export type WorkerFailure = { code: 'invalid-source' | 'future-source' | 'processing'; message: string };
+export type WorkerFailure = { code: 'invalid-source' | 'future-source' | 'stale-source' | 'processing'; message: string };
 export type WorkerResult<T> = { type: 'done'; value: T } | { type: 'error'; error: WorkerFailure };
 export type ConversionJob = NativeSelection & { terrainOnly?: boolean };
 export type ConversionRequest = { type: 'convert'; job: ConversionJob } | { type: 'read'; id: number; body: ArrayBuffer };

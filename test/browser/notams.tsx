@@ -7,7 +7,7 @@ import type { ProcedureSelection } from '../../src/layers/plates/data';
 import { FeatureDetailsPanel } from '../../src/workspace/feature-details-panel';
 import { WorkspacePlateNotices, useNotamsApi } from '../../src/workspace/notams';
 import type { WorkspacePluginApis } from '../../src/workspace/plugin-apis';
-import type { ProcedureResourceRecord } from '@zlayer/contracts';
+import type { NavigationData, ProcedureResourceRecord } from '@zlayer/contracts';
 import { LayerPanels } from '../../src/core/layers/panels';
 import { EdgePanels } from '../../src/core/ui/edge-panels';
 import { PANEL_LAYOUT } from '../../src/workspace/panel-layout';
@@ -27,13 +27,14 @@ import { installObstructions, syncObstructions } from '../../src/layers/obstruct
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const registry = new PluginRegistry<WorkspacePluginApis>(), product = createNotamsPlugin();
+product.input.set((window as unknown as { notamFixtureNavigation?: NavigationData }).notamFixtureNavigation ?? {});
 const plates = createPlatesLayer(props => <WorkspacePlateNotices {...props} registry={registry} />);
 const registration = registry.registration('notams', product);
 const TfrStatus = product.footer[0]!.Component;
 const metarClient = createMetarClient();
 const resource = (window as unknown as { notamFixtureResource: ProcedureResourceRecord }).notamFixtureResource;
 const savedSelection = (window as unknown as { notamFixtureSelection: ProcedureSelection }).notamFixtureSelection;
-const airport = { faaId: 'TST', icaoId: 'KTST', country: 'US',
+const airport = (window as unknown as { notamFixtureAirport?: { faaId: string; icaoId: string; country: string; responsibleArtcc: string } }).notamFixtureAirport ?? { faaId: 'TST', icaoId: 'KTST', country: 'US',
   ...(new URLSearchParams(location.search).has('region') ? { responsibleArtcc: 'ZOA', firId: 'KZOA' } : {}) };
 function MapFixture({ enabled }: { enabled: boolean }) {
   const target = useRef<HTMLDivElement>(null);

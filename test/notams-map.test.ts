@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
-import { createNotamChartLayer, NOTAM_CHART_SOURCE, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_AREA } from '../src/layers/notams/map';
+import { createNotamChartLayer, NOTAM_CHART_SOURCE, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_AREA, NOTAM_HIGHLIGHT_RADIAL } from '../src/layers/notams/map';
 import { notice, NOTAM_NOW } from './fixtures/notams';
 import { notamChartKey } from '../src/layers/notams/chart';
+import { createNotamAreaReferences } from '../src/layers/notams/area-references';
+import { isFeatureCollectionResponse } from '@zlayer/contracts';
+import navaids from './fixtures/notams-us-artcc/zny-navaids.json';
 
 const record = notice({ text: 'OBST CRANE (ASN UNKNOWN) 370015N1220015W (1NM E TST) 350FT (200FT AGL) FLAGGED' });
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -57,6 +60,20 @@ test('stowing hides immediately and a delayed populated source cannot reveal old
   assert.equal(h.writes.length, count, 'unchanged timing/geometry does not resubmit');
 });
 
+test('shared depiction acknowledges and highlights each source identity and survives filtering either filing', async t => {
+  const h = setup(t), duplicate = { ...record, id: '1757600000000002' };
+  h.writes[0]!.resolve(); await flush();
+  h.layer.update({ records: [record, duplicate], now: NOTAM_NOW });
+  assert.equal(h.writes[1]!.data.features.length, 1);
+  h.writes[1]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), [notamChartKey(record), notamChartKey(duplicate)]);
+  h.layer.update({ records: [record, duplicate], now: NOTAM_NOW, highlighted: notamChartKey(duplicate) });
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['in', ['get', 'kind'], ['literal', ['obstacle', 'activity', 'radial-label']]], ['in', duplicate.id, ['get', 'noticeIds']]]);
+  h.layer.update({ records: [duplicate], now: NOTAM_NOW });
+  h.writes[2]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), [notamChartKey(duplicate)]);
+});
+
 test('replacement coalesces pending data, clears old points, and only reveals accepted current points', async t => {
   const h = setup(t), newer = { ...record, text: record.text.replace('370015N', '370025N') };
   h.layer.update({ records: [newer], now: NOTAM_NOW });
@@ -96,6 +113,27 @@ test('area boundaries and labels share acceptance, stow and failure lifetime', a
   assert.deepEqual(h.shown(), []);
 });
 
+test('late and replaced navigation references replace area geometry before acknowledging the same notice revision', async t => {
+  const h = setup(t), area = notice({ text: 'AIRSPACE UAS WI AN AREA DEFINED AS .5NM RADIUS OF TST SFC-400FT AGL' });
+  const records = [area], references = () => [-122, 37] as [number, number];
+  h.layer.update({ records, now: NOTAM_NOW });
+  h.writes[0]!.resolve(); await flush(); h.writes[1]!.resolve(); await flush();
+  assert.equal(h.visibility(), 'none'); assert.deepEqual(h.shown(), []);
+  h.layer.update({ records, now: NOTAM_NOW, references });
+  assert.equal(h.writes[2]!.data.features.length, 2);
+  // The navigation edition changes while its first source submission is pending.
+  const changed = () => [-121, 38] as [number, number];
+  h.layer.update({ records, now: NOTAM_NOW, references: changed });
+  h.writes[2]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), []);
+  assert.deepEqual(h.writes[3]!.data.features[1]!.geometry, { type: 'Point', coordinates: [-121, 38] });
+  h.writes[3]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), [notamChartKey(area)]);
+  h.layer.update({ records, now: NOTAM_NOW });
+  assert.equal(h.visibility(), 'none'); assert.deepEqual(h.shown(), []);
+  h.writes[4]!.resolve(); await flush(); assert.equal(h.writes[4]!.data.features.length, 0);
+});
+
 test('cleanup continues after a failed layer removal and cancels pending retries', async t => {
   const h = setup(t);
   t.mock.method(console, 'error', () => {});
@@ -112,12 +150,32 @@ test('entry highlighting reuses accepted geometry, matches the current revision,
   h.layer.update({ records, now: NOTAM_NOW });
   h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(record) });
   assert.equal(h.writes.length, 1, 'highlighting must not submit geometry');
-  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['==', ['get', 'kind'], 'obstacle'], ['==', ['get', 'noticeId'], record.id]]);
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['in', ['get', 'kind'], ['literal', ['obstacle', 'activity', 'radial-label']]], ['in', record.id, ['get', 'noticeIds']]]);
   const stale = { ...record, revision: 'b'.repeat(64) };
   h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(stale) });
-  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['==', ['get', 'kind'], 'obstacle'], ['==', ['get', 'noticeId'], '']]);
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['in', ['get', 'kind'], ['literal', ['obstacle', 'activity', 'radial-label']]], ['in', '', ['get', 'noticeIds']]]);
   h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(record) });
   h.layer.update({ records: [], now: NOTAM_NOW, highlighted: notamChartKey(record) });
   assert.equal(h.visibility(), 'none');
-  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_AREA), ['all', ['==', ['get', 'kind'], 'area'], ['==', ['get', 'noticeId'], '']]);
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_AREA), ['all', ['==', ['get', 'kind'], 'area'], ['in', '', ['get', 'noticeIds']]]);
+});
+
+test('radial highlighting reuses prepared directions and loses its receipt when station data is removed', async t => {
+  const h = setup(t), collection: unknown = navaids;
+  assert(isFeatureCollectionResponse(collection));
+  const references = createNotamAreaReferences({ navaids: collection });
+  const radial = notice({ text: 'HTO VOR R-236 UNUSABLE BEYOND 40 NM BELOW 6500' }), records = [radial];
+  h.writes[0]!.resolve(); await flush();
+  h.layer.update({ records, now: NOTAM_NOW, references });
+  assert.deepEqual(h.shown(), []);
+  h.writes[1]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), [notamChartKey(radial)]);
+  h.layer.update({ records, now: NOTAM_NOW, references, highlighted: notamChartKey(radial) });
+  assert.equal(h.writes.length, 2, 'hover does not submit direction cues again');
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_RADIAL), ['all', ['==', ['get', 'kind'], 'radial'], ['in', radial.id, ['get', 'noticeIds']]]);
+  h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(radial) });
+  assert.deepEqual(h.shown(), []); assert.equal(h.visibility(), 'none');
+  assert.deepEqual(h.writes[2]!.data.features, []);
+  h.writes[2]!.resolve(); await flush();
+  assert.deepEqual(h.shown(), []);
 });

@@ -250,6 +250,10 @@ test('source character escapes and runway-relative annotations do not manufactur
   assert.equal(notamDisplayText('&amp;apos; &lt;script&gt; &quot;Q&quot;'), '&apos; &lt;script&gt; "Q"', 'decode once, plain text only');
   assert.equal(notamObstacles(record('runway-offset-obstacle')).length, 1);
   assert.equal(notamObstacles(record('invalid-coordinate')).length, 0);
-  assert.equal(notamObstacles(record('unknown-msl')).length, 0);
+  const unknownMsl = notamObstacles(record('unknown-msl'));
+  assert.equal(unknownMsl.length, 1, 'unknown elevation does not erase an explicit position');
+  assert.equal(unknownMsl[0]!.elevationMslFt, undefined);
+  assert.equal(unknownMsl[0]!.heightAglFt, 111);
+  assert.deepEqual(unknownMsl[0]!.coordinates, [-(80 + 16 / 60 + 5 / 3600), 25 + 53 / 60 + 41 / 3600]);
   assert.equal(notamValidity(record('conflicting-schedule'), Date.parse(corpus.capturedAt)), 'check schedule');
 });

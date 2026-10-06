@@ -6,11 +6,16 @@ import { NotamError } from './error';
 import { retryAfterAt } from '../retry-after';
 
 const HOSTS = { staging: 'https://api-staging.cgifederal-aim.com', production: 'https://api-nms.aim.faa.gov' };
+const DOWNLOAD_MS = 120_000, CONTENT_LIFETIME_MS = 5 * 60_000, CONTENT_ATTEMPTS = 3;
+const retryableContent = new Set(['source-unreachable', 'source-http-500', 'source-http-502',
+  'source-http-504', 'source-backoff', 'truncated-source', 'empty-source']);
 export type NotamCredentials = { clientId: string; clientSecret: string };
 export function createNotamSource(options: { environment: NotamEnvironment; credentials: NotamCredentials;
   store: NotamStore; signal: AbortSignal; fetch?: typeof fetch; now?: () => number;
   wait?: (milliseconds: number, signal: AbortSignal) => Promise<void> }) {
   const host = HOSTS[options.environment], now = options.now ?? Date.now, fetcher = options.fetch ?? fetch;
+  const wait = (milliseconds: number, signal: AbortSignal) => options.wait
+    ? options.wait(milliseconds, signal) : delay(milliseconds, undefined, { signal });
   let token: { value: string; expiresAt: number } | undefined;
   let renewing: Promise<string> | undefined;
   async function reserve(kind: 'auth' | 'content' | 'bulk' | 'delta', signal: AbortSignal) {
@@ -21,7 +26,7 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
       const spacing = options.store.nextAnyAt - now();
       if (spacing > 1500) throw new NotamError('source-backoff', options.store.nextAnyAt);
       if (spacing <= 0) break;
-      await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
+      await wait(spacing, signal);
     }
     signal.throwIfAborted(); return options.store.reserve(kind, 120_000);
   }
@@ -89,10 +94,19 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
     return url.href;
   }
   async function save(response: Response, path: string, maxBytes: number) {
-    const handle = await open(path, 'wx', 0o600); let size = 0;
+    let handle;
+    try { handle = await open(path, 'wx', 0o600); }
+    catch (cause) { await response.body?.cancel().catch(() => {}); throw cause; }
+    let size = 0;
+    const reader = response.body?.getReader();
     try {
-      if (!response.body) throw new NotamError('empty-source');
-      for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+      if (!reader) throw new NotamError('empty-source');
+      for (;;) {
+        // Distinguish a broken source stream from a local storage failure. Only
+        // the former is eligible to retry the already-issued content reference.
+        const part = await reader.read().catch(() => { throw new NotamError('source-unreachable'); });
+        if (part.done) break;
+        const chunk = part.value;
         size += chunk.length;
         if (size > maxBytes) throw new NotamError('download-size-limit');
         await handle.writeFile(chunk);
@@ -101,11 +115,34 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
       const length = response.headers.get('content-length');
       if (!response.headers.get('content-encoding') && length !== null && Number(length) !== size) throw new NotamError('truncated-source');
     } catch (cause) { await rm(path, { force: true }); throw cause; }
-    finally { await handle.close(); }
+    finally { await reader?.cancel().catch(() => {}); reader?.releaseLock(); await handle.close(); }
+  }
+  async function content(target: string, authorization: string, path: string, signal: AbortSignal, deadline: number) {
+    for (let attempt = 1; ; attempt++) {
+      signal.throwIfAborted();
+      if (now() >= deadline) throw new NotamError('content-reference-expired');
+      try {
+        const reservation = await reserve('content', signal);
+        if (now() >= deadline) throw new NotamError('content-reference-expired');
+        const response = await request(target, { signal, headers: { Authorization: authorization } }, reservation);
+        if (response.status !== 200) { await response.body?.cancel(); throw new NotamError('unexpected-redirect'); }
+        await save(response, path, 64 * 1024 * 1024);
+        return;
+      } catch (cause) {
+        signal.throwIfAborted();
+        if (attempt >= CONTENT_ATTEMPTS || !(cause instanceof NotamError) || !retryableContent.has(cause.code)) throw cause;
+        const retryAt = Math.max(now() + attempt * 1000, options.store.nextAnyAt, cause.retryAt ?? 0);
+        // Preserve long Retry-After and quota history; never obtain another /il
+        // reference or renew authentication inside a content retry.
+        if (retryAt >= deadline) throw cause;
+        while (now() < retryAt) { signal.throwIfAborted(); await wait(retryAt - now(), signal); }
+      }
+    }
   }
   return {
     async download(kind: 'bulk' | 'delta', path: string, since?: number): Promise<{ requestedAt: number }> {
-      const signal = AbortSignal.any([options.signal, AbortSignal.timeout(120_000)]);
+      const deadline = now() + DOWNLOAD_MS;
+      const signal = AbortSignal.any([options.signal, AbortSignal.timeout(DOWNLOAD_MS)]);
       const url = new URL(`/nmsapi/v1/notams${kind === 'bulk' ? '/il' : ''}`, host);
       if (kind === 'bulk') url.searchParams.set('allowRedirect', 'false');
       else {
@@ -131,11 +168,11 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
           reference = envelope.data.url;
         }
         const target = contentUrl(reference);
-        const content = await reserve('content', signal);
-        response = await request(target, { signal, headers: { Authorization: authorization } }, content);
+        await content(target, authorization, path, signal, Math.min(deadline, requestedAt + CONTENT_LIFETIME_MS));
+        return { requestedAt };
       }
       if (response.status !== 200) { await response.body?.cancel(); throw new NotamError('unexpected-redirect'); }
-      await save(response, path, kind === 'bulk' ? 64 * 1024 * 1024 : 32 * 1024 * 1024);
+      await save(response, path, 32 * 1024 * 1024);
       return { requestedAt };
     },
   };

@@ -8,8 +8,10 @@ import { acquireNotamLock } from './lock';
 import { NotamError } from './error';
 import { upgradeNotamRecord } from './normalize';
 import { collectNotamRecords, NO_NOTAM_ISSUES } from './collection';
+import { atomicStateFile, readStateJson } from '../state-file';
+import { NOTAM_DAY_MS } from './policy';
 
-export const NOTAM_DAY_MS = 86_400_000;
+export { NOTAM_DAY_MS } from './policy';
 export const NOTAM_GENERATION_MAX_BYTES = 256 * 1024 * 1024;
 export type NotamGeneration = { schemaVersion: 1 | 2; environment: NotamEnvironment; generation: string;
   checkedAt: number; watermark: number; fullSyncAt: number; baselineAt: number; complete: boolean;
@@ -24,24 +26,6 @@ function sealManifest(value: Manifest): Manifest {
   const { sha256: _sha256, ...fields } = value;
   const content = { ...fields, schemaVersion: 2 as const, issueCount: fields.issueCount ?? 0 };
   return { ...content, sha256: digest(content) };
-}
-async function readMetadata(path: string): Promise<unknown> {
-  const handle = await open(path, 'r');
-  try {
-    if ((await handle.stat()).size > 16 * 1024) throw new SyntaxError('NOTAM metadata size limit');
-    return JSON.parse(await handle.readFile('utf8'));
-  } finally { await handle.close(); }
-}
-
-export async function atomicNotamFile(path: string, content: string): Promise<void> {
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  const handle = await open(temporary, 'wx', 0o600);
-  try { await handle.writeFile(content); await handle.sync(); }
-  catch (cause) { await rm(temporary, { force: true }); throw cause; }
-  finally { await handle.close(); }
-  await rename(temporary, path);
-  const directory = await open(join(path, '..'), 'r');
-  try { await directory.sync(); } finally { await directory.close(); }
 }
 
 export class NotamStore {
@@ -65,7 +49,7 @@ export class NotamStore {
     try {
       const { sha256: _sha256, ...fields } = journal;
       const content = { ...fields, schemaVersion: 2 as const }, saved = { ...content, sha256: digest(content) };
-      await atomicNotamFile(join(this.directory, 'budget.json'), JSON.stringify(saved));
+      await atomicStateFile(join(this.directory, 'budget.json'), JSON.stringify(saved));
       this.assertHeld(); this.journal = saved;
     } catch (cause) {
       // An uncertain write must never be followed by admission from old memory.
@@ -96,14 +80,14 @@ export class NotamStore {
     try { await stat(provisioned); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') exists = false; else throw e; }
     if (!exists) {
       // Mark before creating allowance. An interrupted provisioning cannot reset a spent budget.
-      await atomicNotamFile(provisioned, this.environment);
-      if ((await readdir(this.directory)).some(name => /^(budget|current|previous|candidate)\.json$|\.ndjson$/.test(name))) {
+      await atomicStateFile(provisioned, this.environment);
+      if ((await readdir(this.directory)).some(name => /^(budget|current|previous|candidate|reconciliation)\.json$|\.ndjson$/.test(name))) {
         throw new NotamError('state-recovery-required');
       }
       await this.saveJournal({ schemaVersion: 1, environment: this.environment, lastAttemptAt: 0, dataAt: 0, bulkAt: 0, anyAt: 0, backoffAt: 0, authAt: 0 });
     } else {
       let value: unknown;
-      try { value = await readMetadata(join(this.directory, 'budget.json')); }
+      try { value = await readStateJson(join(this.directory, 'budget.json')); }
       catch { throw new NotamError('invalid-budget'); }
       if (!isRecord(value) || value.schemaVersion !== 1 && value.schemaVersion !== 2 || value.environment !== this.environment ||
         !['lastAttemptAt', 'dataAt', 'bulkAt', 'anyAt', 'backoffAt'].every(k => instant(value[k])) ||
@@ -120,7 +104,7 @@ export class NotamStore {
     for (const name of ['current.json', 'previous.json']) {
       let found = false;
       try {
-        const manifest = await readMetadata(join(this.directory, name));
+        const manifest = await readStateJson(join(this.directory, name));
         found = true;
         const generation = await this.readGeneration(manifest, name);
         const { records: _records, issues: _issues, ...metadata } = generation;
@@ -171,7 +155,7 @@ export class NotamStore {
   }
   async restoreCandidate(): Promise<NotamGeneration | undefined> {
     try {
-      const value = await readMetadata(join(this.directory, 'candidate.json'));
+      const value = await readStateJson(join(this.directory, 'candidate.json'));
       return await this.readGeneration(value, 'candidate.json');
     } catch (cause) {
       if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
@@ -185,7 +169,7 @@ export class NotamStore {
   }
   async restorePrevious(): Promise<NotamGeneration | undefined> {
     try {
-      const value = await readMetadata(join(this.directory, 'previous.json'));
+      const value = await readStateJson(join(this.directory, 'previous.json'));
       const previous = await this.readGeneration(value, 'previous.json');
       return previous.complete ? previous : undefined;
     } catch { return undefined; /* Only an authenticated complete checkpoint can seed replay. */ }
@@ -195,9 +179,9 @@ export class NotamStore {
     if (!this.manifest) return;
     // The rejected delta never changed this verified prefix. Retain its exact
     // boundary for a complete replay; the visible current state stays incomplete.
-    if (this.manifest.complete) await atomicNotamFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
+    if (this.manifest.complete) await atomicStateFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
     const manifest = sealManifest({ ...this.manifest, complete: false, incompleteReason: reason });
-    await atomicNotamFile(join(this.directory, 'current.json'), JSON.stringify(manifest));
+    await atomicStateFile(join(this.directory, 'current.json'), JSON.stringify(manifest));
     this.manifest = manifest;
   }
   private async readGeneration(value: unknown, name: string): Promise<NotamGeneration> {
@@ -250,7 +234,7 @@ export class NotamStore {
     if (changed || reconciled !== original) {
       const nextIssues = reconciled.issues ?? NO_NOTAM_ISSUES;
       const next = sealManifest({ ...manifest, ...await this.saveRecords(reconciled.records, nextIssues), issueCount: nextIssues.length });
-      await atomicNotamFile(join(this.directory, name), JSON.stringify(next));
+      await atomicStateFile(join(this.directory, name), JSON.stringify(next));
       return { ...next, records: reconciled.records, issues: nextIssues };
     }
     this.remember(records, issues, { generation: manifest.generation, count: manifest.count, bytes: manifest.bytes });
@@ -288,14 +272,14 @@ export class NotamStore {
       const manifest = sealManifest({ ...metadata, schemaVersion: 2, issueCount: issues.length, ...await this.saveRecords(records, issues) });
       this.assertHeld();
       if (candidate) {
-        await atomicNotamFile(join(this.directory, 'candidate.json'), JSON.stringify(manifest));
+        await atomicStateFile(join(this.directory, 'candidate.json'), JSON.stringify(manifest));
         return { ...manifest, records, issues };
       }
       // Keep the preceding distinct dataset, not another manifest for the same file.
       if (this.manifest && this.manifest.generation !== manifest.generation) {
-        await atomicNotamFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
+        await atomicStateFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
       }
-      await atomicNotamFile(join(this.directory, 'current.json'), JSON.stringify(manifest));
+      await atomicStateFile(join(this.directory, 'current.json'), JSON.stringify(manifest));
       this.manifest = manifest;
       await rm(join(this.directory, 'candidate.json'), { force: true });
       return { ...manifest, records, issues };
@@ -307,7 +291,7 @@ export class NotamStore {
     const retained = new Set<string>();
     for (const name of ['current.json', 'previous.json', 'candidate.json']) {
       try {
-        const value = await readMetadata(join(this.directory, name));
+        const value = await readStateJson(join(this.directory, name));
         if (isRecord(value) && typeof value.generation === 'string' && /^[a-f0-9]{64}$/.test(value.generation)) retained.add(value.generation);
       } catch (cause) {
         if (!(cause instanceof SyntaxError) && (cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;

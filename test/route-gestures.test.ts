@@ -814,7 +814,7 @@ test('workspace TFR inspection shares context-menu and long-press suppression wi
   const actions: import('../src/core/map/selection').MapContextAction[][] = [];
   const registry = new PluginRegistry<{ notams: import('../src/layers/notams/public').NotamsApi }>();
   const provider = registry.registration('notams', { publicApi: scope => ({
-    state: createLayerStore({ queries: {}, now: 0 }), charted: createLayerStore([]),
+    state: createLayerStore({ queries: {}, now: 0 }), charted: createLayerStore([]), chartedTfrs: createLayerStore([]),
     retain: () => () => {}, previewChart: () => ({ update() {}, highlight: () => () => {}, release() {} }), retry() {},
     contextActions: scope.command(() => [{ id: 'notams:inspect-tfr', label: 'Inspect TFRs',
       select: scope.command(() => { inspections++; }) }]),

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
-import { TFR_DETAIL_REFRESH_MS, type TfrSnapshot } from '@zlayer/contracts';
-import { createTfrMapLayer, TFR_FILL, TFR_SOURCE } from '../src/layers/notams/tfr-map';
+import { TFR_DETAIL_REFRESH_MS, type TfrSnapshot, type TfrNotice } from '@zlayer/contracts';
+import { createTfrMapLayer, TFR_FILL, TFR_SOURCE, TFR_HIGHLIGHT } from '../src/layers/notams/tfr-map';
 import { createTfrClient, type TfrState } from '../src/layers/notams/tfr-client';
 import { bindMapLayer } from '../src/core/map/contribution';
 
@@ -24,24 +24,48 @@ function setup(t: test.TestContext) {
   const listeners = new Set<(e: unknown) => void>();
   const writes: { data: FeatureCollection; resolve(): void; reject(error: unknown): void }[] = [];
   const styles: { id: string; color: string }[] = [], visibility: string[] = [];
+  const filters = new Map<string, unknown>();
   const source = { setData: (data: FeatureCollection) => new Promise<void>((resolve, reject) => writes.push({ data, resolve, reject })) };
   const map = {
     addSource(id: string) { sources.add(id); }, getSource: (id: string) => sources.has(id) ? source : undefined,
     addLayer(layer: { id: string }) { layers.add(layer.id); }, getLayer: (id: string) => layers.has(id),
     setLayoutProperty(id: string, _key: string, value: string) { if (id === TFR_FILL) visibility.push(value); },
     setFeatureState({ id }: { id: string }, { color }: { color: string }) { styles.push({ id, color }); },
+    setFilter(id: string, filter: unknown) { filters.set(id, filter); },
     removeFeatureState() {},
     removeSource: (id: string) => sources.delete(id), removeLayer: (id: string) => layers.delete(id),
     on(_type: string, listener: (e: unknown) => void) { listeners.add(listener); },
     off(_type: string, listener: (e: unknown) => void) { listeners.delete(listener); },
     queryRenderedFeatures: () => writes.at(-1)!.data.features,
   } as unknown as MapLibreMap;
-  const layer = createTfrMapLayer();
+  let shown: readonly TfrNotice[] = [];
+  const layer = createTfrMapLayer(notices => { shown = notices; });
   const state: TfrState = { snapshot: snapshot(), now: NOW, loading: false };
   layer.update(state); layer.mount(map);
   t.after(() => layer.unmount());
-  return { layer, map, state, writes, styles, visibility, layers, sources, listeners };
+  return { layer, map, state, writes, styles, visibility, layers, sources, listeners, filters, shown: () => shown };
 }
+
+test('TFR hover follows accepted geometry without worker submissions and clears on failure or removal', async t => {
+  const h = setup(t), highlighted = h.state.snapshot!.notices[0]!.id;
+  h.layer.update({ ...h.state, highlighted });
+  assert.deepEqual(h.filters.get(TFR_HIGHLIGHT), ['==', ['get', 'noticeId'], '']);
+  h.writes[0]!.resolve(); await flush();
+  assert.deepEqual(h.filters.get(TFR_HIGHLIGHT), ['==', ['get', 'noticeId'], highlighted]);
+  h.layer.update(h.state);
+  assert.deepEqual(h.filters.get(TFR_HIGHLIGHT), ['==', ['get', 'noticeId'], '']);
+  h.layer.update({ ...h.state, highlighted });
+  assert.equal(h.writes.length, 1, 'hover/focus only changes filters on the existing source');
+  assert.equal(h.styles.length, 3, 'hover preserves active/upcoming colors');
+  for (const listener of h.listeners) listener({ sourceId: TFR_SOURCE, error: new Error('worker failed') });
+  assert.deepEqual(h.filters.get(TFR_HIGHLIGHT), ['==', ['get', 'noticeId'], '']);
+  assert.deepEqual(h.shown(), []);
+  h.layer.update({ ...h.state, snapshot: { ...h.state.snapshot!, notices: [] } });
+  h.writes.at(-1)!.resolve(); await flush();
+  assert.deepEqual(h.filters.get(TFR_HIGHLIGHT), ['==', ['get', 'noticeId'], '']);
+  h.layer.unmount();
+  assert.equal(h.layers.size, 0);
+});
 
 test('TFR detail expiry and refresh preserve colors and geometry until the schedule changes', async t => {
   const h = setup(t);
@@ -68,19 +92,37 @@ test('TFR detail expiry and refresh preserve colors and geometry until the sched
 
 test('TFR geometry revisions and expiry still replace the source and wait for acceptance before inspection', async t => {
   const h = setup(t);
+  assert.deepEqual(h.shown(), []);
   h.writes[0]!.resolve(); await flush();
+  assert.equal(h.shown().length, 3);
   const revised = structuredClone(h.state.snapshot!);
   revised.notices[0]!.areas[0]!.geometry!.coordinates[0]![1]![0] = -120;
   h.layer.update({ ...h.state, snapshot: revised });
   assert.equal(h.writes.length, 2, 'coordinates can change even without a new modification timestamp');
   assert.deepEqual(h.layer.inspectAt({ x: 0, y: 0 }), []);
+  assert.deepEqual(h.shown(), [], 'readers cannot abbreviate a pending revision');
   h.writes[1]!.resolve(); await flush();
   assert.equal(h.layer.inspectAt({ x: 0, y: 0 }).length, 3);
+  assert.equal(h.shown()[0], revised.notices[0]);
   h.layer.update({ ...h.state, snapshot: revised, now: NOW + 120_000 });
   assert.equal(h.writes.length, 3); assert.equal(h.writes[2]!.data.features.length, 0);
   assert.deepEqual(h.layer.inspectAt({ x: 0, y: 0 }), [], 'expired geometry cannot remain inspectable while the worker runs');
   h.writes[2]!.resolve(); await flush();
   assert.equal(h.visibility.at(-1), 'none');
+  assert.deepEqual(h.shown(), []);
+});
+
+test('TFR reader receipts exclude incomplete or failed details and restore full text on teardown', async t => {
+  const h = setup(t);
+  h.writes[0]!.resolve(); await flush();
+  const revised = structuredClone(h.state.snapshot!);
+  revised.notices[0]!.areas.push({ ...revised.notices[0]!.areas[0]!, id: 'missing', geometry: null });
+  revised.issues = [{ id: revised.notices[1]!.id, title: 'Synthetic TFR', type: 'HAZARDS', facility: 'TST', state: 'CA', modifiedAt: NOW,
+    reason: 'detail-invalid', retainedCheckedAt: NOW }];
+  h.layer.update({ ...h.state, snapshot: revised });
+  assert.equal(h.writes.length, 1, 'same geometry does not need a new worker submission');
+  assert.deepEqual(h.shown().map(n => n.id), ['6/9002']);
+  h.layer.unmount(); assert.deepEqual(h.shown(), []);
 });
 
 test('pending TFR submissions use the latest colors; clock rollback and map reattachment restore them', async t => {

@@ -1,0 +1,42 @@
+{
+  "id": "5336971619014012",
+  "sourceId": "NMS_ID_5336971619014012",
+  "classification": "FDC",
+  "number": "7169",
+  "series": "",
+  "year": "2026",
+  "locations": [
+    "ZOA"
+  ],
+  "icaoLocations": [
+    "KZOA"
+  ],
+  "accountability": "FDC",
+  "issuedAt": 1791205380000,
+  "updatedAt": 1791205380000,
+  "sourceUpdatedAt": "2026-10-05T13:03:00.000Z",
+  "canceledAt": "",
+  "referred": null,
+  "startsAt": 1791205080000,
+  "endsAt": 1794866400000,
+  "effectiveStart": "202610051258",
+  "effectiveEnd": "202611162200EST",
+  "endKind": "estimated",
+  "schedule": "",
+  "changeType": "N",
+  "lifecycle": "active",
+  "text": "ADS-B, AUTO DEPENDENT SURVEILLANCE REBROADCAST (ADS-R), TFC INFO SER BCST (TIS-B), FLT INFO SER BCST (FIS-B) SER MAY NOT BE AVBL WI AN AREA DEFINED AS 141NM RADIUS OF 384306N1254053W.  AP AIRSPACE AFFECTED MAY INCLUDE STS, LLR. 2000FT-UNL.",
+  "translations": [
+    {
+      "type": "LOCAL_FORMAT",
+      "text": "!FDC 6/7169 ZOA AIRSPACE ADS-B, AUTO DEPENDENT SURVEILLANCE REBROADCAST (ADS-R), TFC INFO SER BCST (TIS-B), FLT INFO SER BCST (FIS-B) SER MAY NOT BE AVBL WI AN AREA DEFINED AS 141NM RADIUS OF 384306N1254053W.  AP AIRSPACE AFFECTED MAY INCLUDE STS, LLR. 2000FT-UNL.  2610051258-2611162200EST"
+    },
+    {
+      "type": "OTHER:ICAO",
+      "text": "A1417/26 NOTAMN Q) KZOA/QCBLS////020/999/ A) KZOA B) 2610051258 C) 2611162200 E) AIRSPACE ADS-B, AUTO DEPENDENT SURVEILLANCE REBROADCAST (ADS-R), TFC INFO SER BCST (TIS-B), FLT INFO SER BCST (FIS-B) SER MAY NOT BE AVBL WI AN AREA DEFINED AS 141NM RADIUS OF 384306N1254053W.  AP AIRSPACE AFFECTED MAY INCLUDE STS, LLR. F) 2000FT AMSL G) UNL"
+    }
+  ],
+  "sequence": 1,
+  "correction": 0,
+  "revision": "4c5246f990d68f8567c8ddf94bd84c496059047044783e0cda16295341382021"
+}

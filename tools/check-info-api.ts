@@ -6,15 +6,29 @@ import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, 
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../src/layers/weather-awc/grids/model-terrain';
+import { INFO_FRESHNESS, freshAt } from './info-server/health';
 
 const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 
 /** Readiness includes saved artifacts and the optional NOTAM feed, not just liveness. */
-export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging' | 'production' = 'disabled') {
+export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging' | 'production' = 'disabled',
+  options: { allowOverdueFullSync?: boolean; maxUnresolvedNotams?: number } = {}) {
+  const warnings: string[] = [];
+  const maxIssues = options.maxUnresolvedNotams ?? 0;
+  assert.ok(Number.isInteger(maxIssues) && maxIssues >= 0 && maxIssues <= 150000, 'Invalid source-issue allowance');
+  function checkFeed(feed: import('@zlayer/contracts').NotamFeedStatus) {
+    assert.equal(feed.environment, notams);
+    assert.equal(feed.collectionContinuity ?? feed.continuity, 'complete');
+    const issues = feed.unresolvedRecords ?? 0;
+    assert.ok(issues <= maxIssues, 'Unexpected unresolved NOTAM source records');
+    assert.equal(feed.state, issues ? 'degraded' : 'ready');
+    assert.equal(feed.error, issues ? 'unresolved-records' : null);
+    fresh(feed.checkedAt!, INFO_FRESHNESS.notams, 'NOTAM source check', 0);
+  }
   let reads = 0;
   function fresh(time: number, maxAge: number, name: string, futureTolerance = 30_000) {
     const now = Date.now();
-    assert.ok(time <= now + futureTolerance && now - time < maxAge, `${name}: stale or future timestamp`);
+    assert.ok(freshAt(time, now, maxAge, futureTolerance), `${name}: stale or future timestamp`);
   }
   async function read(path: string, status = 200) {
     const response = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
@@ -45,8 +59,8 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     assert.equal(saved.response.headers.get('x-weather-catalog'), 'complete-native-v1');
     assert.ok(isNativeManifest(catalog) && catalog.product === product, `${product}: invalid catalog`);
     assert.equal(catalog.frames.length, { clouds: 19, icing: 1080, winds: 703 }[product]);
-    fresh(catalog.checkedAt, 90 * 60_000, `${product} source check`);
-    fresh(catalog.runTime, 3 * 3600_000, `${product} model run`, 0);
+    fresh(catalog.checkedAt, INFO_FRESHNESS.gridCheck, `${product} source check`);
+    fresh(catalog.runTime, INFO_FRESHNESS.modelRun, `${product} model run`, 0);
     const frame = catalog.frames.find(f => f.validTime >= Date.now());
     assert.ok(frame, `${product}: forecast horizon has expired`);
     const identity = sha256(gridKey(catalog, frame));
@@ -62,14 +76,14 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   for (const product of ['analysis', 'forecast'] as const) {
     const catalog = (await read(`/api/weather/progs/${product}.json`)).json();
     assert.ok(isSurfaceCatalog(catalog) && catalog.product === product);
-    fresh(catalog.checkedAt, 10 * 60_000, `${product} source check`);
-    if (product === 'analysis') fresh(catalog.frames[0]!.validTime, 6 * 3600_000, 'Surface analysis', 0);
+    fresh(catalog.checkedAt, INFO_FRESHNESS.charts, `${product} source check`);
+    if (product === 'analysis') fresh(catalog.frames[0]!.validTime, INFO_FRESHNESS.analysis, 'Surface analysis', 0);
     else assert.ok(catalog.frames.some(frame => frame.validTime >= Date.now()), 'Surface forecast horizon has expired');
     for (const reference of catalog.frames) assert.ok(isSurfaceArtifact((await file('/api/weather/progs/', reference)).json()));
   }
   const coverage = (await read('/api/weather/progs/coverage.json')).json(); assert.ok(isProgsCoverageCatalog(coverage));
-  fresh(coverage.checkedAt, 10 * 60_000, 'Coverage source check');
-  fresh(coverage.frames.find(frame => frame.validTime === frame.chartReferenceTime)!.validTime, 6 * 3600_000, 'Coverage analysis', 0);
+  fresh(coverage.checkedAt, INFO_FRESHNESS.charts, 'Coverage source check');
+  fresh(coverage.frames.find(frame => frame.validTime === frame.chartReferenceTime)!.validTime, INFO_FRESHNESS.analysis, 'Coverage analysis', 0);
   assert.ok(coverage.frames.some(frame => frame.validTime >= Date.now()), 'Coverage forecast horizon has expired');
   const image = coverage.frames.find(frame => frame.file)?.file; assert.ok(image, 'No available coverage image');
   const png = await file('/api/weather/progs/', image); assert.equal(png.body.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
@@ -97,17 +111,22 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     await read('/api/notams/navaids?navaidId=SAU', 503);
     await read('/api/notams/regions?artccId=ZOA', 503);
   } else {
-    assert.equal(feed.environment, notams); assert.equal(feed.state, 'ready'); assert.equal(feed.continuity, 'complete');
+    checkFeed(feed);
+    if (feed.unresolvedRecords) warnings.push(`unresolved-notam-records:${feed.unresolvedRecords}`);
+    assert.ok(feed.fullSyncAt !== null);
+    if (options.allowOverdueFullSync && feed.fullSyncAt <= Date.now() && !freshAt(feed.fullSyncAt, Date.now(), INFO_FRESHNESS.fullSync, 0)) {
+      warnings.push('full-sync-overdue');
+    } else fresh(feed.fullSyncAt, INFO_FRESHNESS.fullSync, 'NOTAM full synchronization', 0);
     const airport = (await read('/api/notams/airports?faaId=SFO&icaoId=KSFO')).json(); assert.ok(isNotamAirportSnapshot(airport));
-    assert.equal(airport.feed.environment, notams); assert.equal(airport.feed.state, 'ready');
+    checkFeed(airport.feed);
     const navaid = (await read('/api/notams/navaids?navaidId=SAU')).json(); assert.ok(isNotamNavaidSnapshot(navaid), 'Invalid navaid snapshot');
     assert.deepEqual(navaid.query, { navaidId: 'SAU' });
-    assert.equal(navaid.feed.environment, notams); assert.equal(navaid.feed.state, 'ready');
+    checkFeed(navaid.feed);
     const region = (await read('/api/notams/regions?artccId=ZOA')).json(); assert.ok(isNotamRegionSnapshot(region), 'Invalid regional snapshot');
     assert.deepEqual(region.query, { artccId: 'ZOA' });
-    assert.equal(region.feed.environment, notams); assert.equal(region.feed.state, 'ready');
+    checkFeed(region.feed);
   }
-  return { origin, checkedAt: new Date().toISOString(), reads, notams, source: health.source, health };
+  return { origin, checkedAt: new Date().toISOString(), reads, notams, warnings, source: health.source, health };
 }
 
 if (import.meta.main) {
@@ -115,6 +134,9 @@ if (import.meta.main) {
     const mode = process.argv[3] ?? 'disabled';
     assert.ok(mode === 'disabled' || mode === 'staging' || mode === 'production', 'Invalid NOTAM mode');
     assert.ok(process.argv[2], 'Supply the info API origin');
-    console.log(JSON.stringify(await checkInfoApi(process.argv[2], mode)));
+    const args = process.argv.slice(4);
+    assert.ok(args.every(arg => arg === '--allow-overdue-full-sync' || /^--allow-unresolved-notams=\d+$/.test(arg)), 'Unknown probe option');
+    console.log(JSON.stringify(await checkInfoApi(process.argv[2], mode, { allowOverdueFullSync: args.includes('--allow-overdue-full-sync'),
+      maxUnresolvedNotams: Number(args.find(arg => arg.startsWith('--allow-unresolved-notams='))?.split('=')[1] ?? 0) })));
   } catch (error) { console.error(error instanceof Error ? error.message : error); process.exitCode = 1; }
 }

@@ -11,6 +11,10 @@ import { contrast } from '../../tools/theme/color';
 import { procedureSelection } from '../../src/layers/plates/data';
 import corpus from '../fixtures/notams-corpus.json' with { type: 'json' };
 import formats from '../fixtures/notams-formats.json' with { type: 'json' };
+import bullFire from '../fixtures/notams-us-artcc/bull-fire-tfr.json' with { type: 'json' };
+import znyTfrs from '../fixtures/notams-us-artcc/zny-tfrs.json' with { type: 'json' };
+import znyRegion from '../fixtures/notams-us-artcc/zny-hover.json' with { type: 'json' };
+import znyNavaids from '../fixtures/notams-us-artcc/zny-navaids.json' with { type: 'json' };
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 
 let server: ViteDevServer, origin: string, directory: string, pdf: Buffer;
@@ -373,7 +377,12 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await expect.poll(displayed).toEqual(expected);
     expect(await page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.getPaintProperty('notam-tfr-fill','fill-pattern'))).toBeUndefined();
     expect(await page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.getStyle().layers
-      .filter(layer => layer.id.startsWith('notam-tfr-')).map(layer => layer.type))).toEqual(['fill', 'line']);
+      .filter(layer => layer.id.startsWith('notam-tfr-')).map(layer => [layer.id, layer.type]))).toEqual([
+      ['notam-tfr-fill', 'fill'], ['notam-tfr-line', 'line'],
+      ['notam-tfr-highlight-halo', 'line'], ['notam-tfr-highlight', 'line'],
+    ]);
+    await expect.poll(() => page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map
+      .queryRenderedFeatures(undefined, { layers: ['notam-tfr-highlight-halo', 'notam-tfr-highlight'] }).length)).toBe(0);
     await page.getByRole('tab',{name:'NOTAM',exact:true}).click(); await expect.poll(displayed).toEqual(expected);
     await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('searchbox',{name:'Search'}).fill('nothing-matches'); await expect.poll(displayed).toEqual(expected);
@@ -591,7 +600,7 @@ test('temporary areas replace only mapped location prose and restore it when the
   const records = [circle,
     'AIRSPACE UAS WI AN AREA DEFINED AS 370008N1220100W TO 370008N1220030W TO 370030N1220030W TO 370030N1220100W TO POINT OF ORIGIN SFC-200FT AGL',
     'NAV GPS MAY NOT BE AVAILABLE WITHIN A .8NM RADIUS CENTERED AT 370000N1220010W FL250-UNL DECREASING IN AREA WITH A DECREASE IN ALTITUDE DEFINED AS: .4NM RADIUS AT 10000FT, .2NM RADIUS AT 50FT AGL.',
-    'AIRSPACE UAS WI AN AREA DEFINED AS .1NM EITHER SIDE OF A LINE FM 370000N1220100W TO 370100N1220100W SFC-400FT AGL',
+    'AIRSPACE UAS WI AN AREA DEFINED AS .1NM EITHER SIDE OF A LINE FM 370000N1220100W TO 370100N1220100W TO 370200N1220200W SFC-400FT AGL',
   ].map((text, i) => notice({ id: `175760000000004${i}`, sourceId: `NMS_ID_175760000000004${i}`, text,
     translations: [{ type: 'LOCAL_FORMAT', text }], startsAt: now - 1000, endsAt: now + 86_400_000 }));
   await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
@@ -601,9 +610,9 @@ test('temporary areas replace only mapped location prose and restore it when the
     return map?.getLayer('notam-area-fill') ? new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-area-fill'] }).map(f => f.id)).size : 0;
   });
   await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
-  await expect.poll(areas).toBe(3);
+  await expect.poll(areas).toBe(4);
   const entries = page.locator('.airport-notams .notam-entry'), first = entries.first();
-  await expect(page.getByText('Area shown on chart', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Area shown on chart', { exact: true })).toHaveCount(3);
   await expect(first.locator('.notam-readable')).not.toContainText('370015N1220015W');
   await expect(first.locator('.notam-readable')).toContainText('SFC-400FT AGL');
   const gps = entries.filter({ hasText: 'NAV GPS' });
@@ -611,8 +620,8 @@ test('temporary areas replace only mapped location prose and restore it when the
   await expect(gps.locator('.notam-readable')).toContainText('.4NM radius at 10000FT');
   await expect(gps.locator('.notam-readable')).toContainText('50FT AGL');
   const corridor = entries.last();
-  await expect(corridor.locator('.notam-chart-note')).toHaveCount(0);
-  await expect(corridor.locator('.notam-readable')).toContainText('370000N1220100W');
+  await expect(corridor.locator('.notam-chart-note')).toHaveText('Area shown on chart');
+  await expect(corridor.locator('.notam-readable')).not.toContainText('370000N1220100W');
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('notam-areas.png') });
   await first.getByText('Show raw', { exact: true }).click();
   await expect(first.locator('.notam-raw pre').last()).toHaveText(circle);
@@ -635,6 +644,223 @@ test('temporary areas replace only mapped location prose and restore it when the
   expect(until.y).toBeGreaterThanOrEqual(from.y + from.height);
   await validity.screenshot({ animations: 'disabled', path: testInfo.outputPath('notam-validity-phone.png') });
   expect(errors).toEqual([]);
+});
+
+test('ZOA ADS-B duplicate filings share map geometry and labels while preserving both source notices', async ({ page }, testInfo) => {
+  const now = Date.now(), text = 'ADS-B, AUTO DEPENDENT SURVEILLANCE REBROADCAST (ADS-R), TFC INFO SER BCST (TIS-B), ' +
+    'FLT INFO SER BCST (FIS-B) SER MAY NOT BE AVBL WI AN AREA DEFINED AS 141NM RADIUS OF 384306N1254053W. ' +
+    'AP AIRSPACE AFFECTED MAY INCLUDE STS, LLR. 2000FT-UNL.';
+  const record = notice({ id: '5336971619014012', sourceId: '5336971619014012', number: '7169', classification: 'FDC', locations: ['ZOA'],
+    icaoLocations: ['KZOA'], text, translations: [{ type: 'LOCAL_FORMAT', text }], startsAt: now - 1000, endsAt: now + 86_400_000 });
+  const duplicate = { ...record, id: '5336971619014013', sourceId: '5336971619014013', number: '7171' };
+  await page.route('**/api/notams/regions?**', route => route.fulfill({ json: {
+    ...notamSnapshot([record, duplicate]), query: { artccId: 'ZOA', firId: 'KZOA' }, scope: 'region-location', associationCoverage: 'complete',
+  } }));
+  await page.goto(`${origin}/test/browser/notams.html?map&region`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  const entries = page.locator('.airport-notams .notam-entry'), entry = entries.first();
+  await expect(entries).toHaveCount(2);
+  await expect(entries.locator('.notam-chart-note')).toHaveCount(2);
+  await expect(entry.locator('.notam-chart-note')).toHaveText('Area shown on chart');
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-125 - 40 / 60 - 53 / 3600, 38 + 43 / 60 + 6 / 3600], zoom: 5 });
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-area-fill'] }).map(f => f.id)).size;
+  })).toBe(1);
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return new Set(map.querySourceFeatures('notam-graphics').filter(f => f.properties.kind === 'area-label').map(f => f.id)).size;
+  })).toBe(1);
+  await entries.last().hover();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-highlight-area'] }).map(f => f.id)).size;
+  })).toBe(1);
+  await expect(entry.locator('.notam-readable')).toContainText('STS, LLR');
+  await expect(entry.locator('.notam-readable')).toContainText('2000FT-UNL');
+  await entry.getByText('Show raw', { exact: true }).click();
+  await expect(entry.locator('.notam-raw pre').last()).toHaveText(text);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('zoa-adsb-area.png') });
+});
+
+test('Bull Fire regional notice refers to accepted national TFR geometry and restores prose on map detachment', async ({ page }, testInfo) => {
+  await page.clock.install({ time: new Date(bullFire.checkedAt) });
+  const fire = bullFire.notices[0]!;
+  const body = fire.text.replace(/^!FDC 6\/7106 ZOA /, '').replace(/ \d{10}-\d{10}$/, '');
+  const record = notice({ id: '4102096289613864', sourceId: '4102096289613864', number: '7106', classification: 'FDC',
+    locations: ['ZOA'], icaoLocations: ['KZOA'], text: body, translations: [{ type: 'LOCAL_FORMAT', text: fire.text }],
+    startsAt: fire.startsAt, endsAt: fire.endsAt + 60_000 });
+  await page.route('**/api/notams/tfrs', route => route.fulfill({ json: bullFire }));
+  await page.route('**/api/notams/regions?**', route => route.fulfill({ json: {
+    ...notamSnapshot([record]), query: { artccId: 'ZOA', firId: 'KZOA' }, scope: 'region-location', associationCoverage: 'complete',
+  } }));
+  await page.goto(`${origin}/test/browser/notams.html?map&region`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  const entry = page.locator('.airport-notams .notam-entry');
+  await expect(entry.locator('.notam-chart-note')).toContainText('TFR 6/7106 shown on chart · SFC–10000 ft MSL');
+  await expect(entry.locator('.notam-readable')).toHaveCount(0);
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-120, 39.55], zoom: 10 });
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-fill'] }).map(f => f.id)).size;
+  })).toBe(1);
+  await expect(entry).toHaveAttribute('tabindex', '0');
+  await entry.hover();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-highlight'] }).map(f => f.properties.noticeId))];
+  })).toEqual(['6/7106']);
+  await entry.getByText('Show raw', { exact: true }).click();
+  await expect(entry.locator('.notam-raw pre').first()).toHaveText(fire.text);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('bull-fire-chart-reference.png') });
+  await page.getByRole('button', { name: 'Detach NOTAM chart', exact: true }).click();
+  await expect(entry.locator('.notam-chart-note')).toHaveCount(0);
+  await expect(entry.locator('.notam-readable')).toContainText('BULL FIRE');
+  await page.getByRole('button', { name: 'Attach NOTAM chart', exact: true }).click();
+  await expect(entry.locator('.notam-readable')).toHaveCount(0);
+});
+
+test('KEWR ARTCC TFR and VOR radial references highlight on hover and focus', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.clock.install({ time: new Date(znyRegion.feed.checkedAt) });
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(navaids => Object.assign(window, { notamFixtureNavigation: { navaids }, notamFixtureAirport: {
+    faaId: 'EWR', icaoId: 'KEWR', country: 'US', responsibleArtcc: 'ZNY',
+  } }), znyNavaids);
+  await page.route('**/api/notams/tfrs', route => route.fulfill({ json: znyTfrs }));
+  await page.route('**/api/notams/regions?**', route => {
+    expect(Object.fromEntries(new URL(route.request().url()).searchParams)).toEqual({ artccId: 'ZNY' });
+    return route.fulfill({ json: znyRegion });
+  });
+  await page.goto(`${origin}/test/browser/notams.html?map&region`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  const entries = page.locator('.airport-notams .notam-entry');
+  const newYork = entries.filter({ hasText: 'TFR 5/2811 shown on chart' });
+  const baltimore = entries.filter({ hasText: 'TFR 6/7096 shown on chart' });
+  await expect(newYork).toHaveAttribute('tabindex', '0');
+  await expect(baltimore).toHaveAttribute('tabindex', '0');
+  const highlighted = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-highlight'] }).map(f => f.id))].sort();
+  });
+  const camera = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return { center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing() };
+  });
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-73.94, 40.75], zoom: 11 });
+    const source = map.getSource('notam-tfrs') as GeoJSONSource, setData = source.setData.bind(source);
+    const audit = { writes: 0 }; Object.assign(window, { notamHighlightAudit: audit });
+    source.setData = (...args: Parameters<typeof setData>) => { audit.writes++; return setData(...args); };
+  });
+  const beforeNewYork = await camera();
+  await newYork.hover(); await expect.poll(highlighted).toEqual(['5/2811:24623']);
+  expect(await camera()).toEqual(beforeNewYork);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('kewr-new-york-tfr-highlight.png') });
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).hover();
+  await expect.poll(highlighted).toEqual([]);
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-76.3, 39.24], zoom: 8 });
+  });
+  const beforeBaltimore = await camera();
+  await baltimore.focus(); await expect.poll(highlighted).toEqual(['6/7096:404', '6/7096:406']);
+  await baltimore.getByText('Show raw', { exact: true }).focus();
+  await expect.poll(highlighted).toEqual(['6/7096:404', '6/7096:406']);
+  expect(await camera()).toEqual(beforeBaltimore);
+  expect(await page.evaluate(() => (window as unknown as { notamHighlightAudit: { writes: number } }).notamHighlightAudit.writes)).toBe(0);
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Search' }).fill('HTO');
+  await expect(entries).toHaveCount(1); await expect.poll(highlighted).toEqual([]);
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-72.25, 40.92], zoom: 10 });
+  });
+  const radial = entries.first(), beforeRadial = await camera();
+  await expect(radial).toHaveAttribute('tabindex', '0');
+  await expect(radial.locator('.notam-readable')).toContainText(/R-236 unusable/i);
+  await radial.hover();
+  const radialDirections = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return map.queryRenderedFeatures(undefined, { layers: ['notam-highlight-radial'] }).map(f => f.properties.bearing);
+  });
+  await expect.poll(radialDirections).toHaveLength(1);
+  expect((await radialDirections())[0]).toBeCloseTo(223, 6);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('kewr-hto-radial-highlight.png') });
+  expect(await camera()).toEqual(beforeRadial);
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).hover();
+  await expect.poll(radialDirections).toHaveLength(0);
+  await radial.focus(); await expect.poll(radialDirections).toHaveLength(1);
+  await page.getByRole('searchbox', { name: 'Search' }).fill('');
+  await expect.poll(radialDirections).toHaveLength(0);
+  await newYork.focus();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return map.getFilter('notam-tfr-highlight');
+  })).toEqual(['==', ['get', 'noticeId'], '5/2811']);
+  await page.getByRole('button', { name: 'Detach NOTAM chart', exact: true }).click();
+  await expect(entries.locator('.notam-chart-note')).toHaveCount(0);
+  await expect(entries.locator('.notam-readable')).toHaveCount(3);
+  await expect(entries.locator(':scope[tabindex="0"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Attach NOTAM chart', exact: true }).click();
+  await expect(newYork).toHaveAttribute('tabindex', '0');
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    map.jumpTo({ center: [-76.3, 39.24], zoom: 8 });
+  });
+  await baltimore.focus(); await expect.poll(highlighted).toEqual(['6/7096:404', '6/7096:406']);
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect.poll(highlighted).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('regional named-center and VOR radial areas reach the renderer and retain their published reference wording', async ({ page }, testInfo) => {
+  const now = Date.now();
+  const records = [
+    'AIRSPACE PJE WI AN AREA DEFINED AS .15NM RADIUS OF TST SFC-6500FT',
+    'AIRSPACE UAS WI AN AREA DEFINED AS .15NM RADIUS OF TST090000.3 SFC-400FT AGL',
+    'AIRSPACE UAS WI AN AREA DEFINED AS TST000000.4 TO TST120000.4 TO TST240000.4 TO POINT OF ORIGIN SFC-200FT AGL',
+  ].map((text, i) => notice({ id: `175760000000007${i}`, sourceId: `NMS_ID_175760000000007${i}`, text,
+    translations: [{ type: 'LOCAL_FORMAT', text }], startsAt: now - 1000, endsAt: now + 86_400_000 }));
+  await page.addInitScript(() => {
+    const collection = (layer: string, properties: object, coordinates: number[]) => ({ type: 'FeatureCollection',
+      features: [{ type: 'Feature', id: layer + ':TST', geometry: { type: 'Point', coordinates }, properties }],
+      meta: { layer, revision: '2026-10-01', returned: 1, truncated: false } });
+    Object.assign(window, { notamFixtureNavigation: {
+      airports: collection('airports', { kind: 'airport', faaId: 'TST', icaoId: 'KTST' }, [-122.025, 37.004]),
+      navaids: collection('navaids', { kind: 'navaid', ident: 'TST', type: 'VOR/DME', stationDeclinationDeg: 10,
+        status: 'OPERATIONAL IFR' }, [-122.012, 37.004]),
+    } });
+  });
+  await page.route('**/api/notams/regions?**', route => route.fulfill({ json: {
+    ...notamSnapshot(records), query: { artccId: 'ZOA', firId: 'KZOA' }, scope: 'region-location', associationCoverage: 'incomplete',
+  } }));
+  await page.goto(`${origin}/test/browser/notams.html?map&region`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  await expect(page.locator('.airport-notams .notam-entry--charted')).toHaveCount(3);
+  await expect(page.getByText('Area shown on chart', { exact: true })).toHaveCount(3);
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-area-fill'] }).map(f => f.id)).size;
+  })).toBe(3);
+  for (const reference of ['TST090000.3', 'TST120000.4']) {
+    await expect(page.locator('.airport-notams .notam-readable').filter({ hasText: reference })).toHaveCount(1);
+  }
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('notam-reference-areas.png') });
+  await page.getByRole('button', { name: 'Detach NOTAM chart', exact: true }).click();
+  await expect(page.getByText('Area shown on chart', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.airport-notams .notam-readable').filter({ hasText: 'TST090000.3' })).toHaveCount(1);
 });
 test('detailed tags distinguish closures, outages and procedure notes in both themes on a phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 852 });
@@ -696,6 +922,7 @@ test('plate bar shares data, follows actual pages, scrolls and leaves the PDF mo
   await bar.click();
   await expect(page.getByRole('region', { name: 'Notices for displayed plate' })).toBeVisible();
   await expect(page.getByText('Related to this plate', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Show remaining airport NOTAMs/)).toHaveCount(0);
   await expect(canvas).toHaveAttribute('data-notam-pdf-marker', 'same');
   expect(notamRequests).toBe(1);
   await page.getByRole('button', { name: 'Disable NOTAM plugin' }).click();
@@ -710,6 +937,32 @@ test('plate bar shares data, follows actual pages, scrolls and leaves the PDF mo
   await expect(page.getByRole('button', { name: 'NOTAM · Matching unavailable' })).toBeVisible();
   await expect(page.getByLabel('PDF page 3')).toHaveAttribute('data-notam-pdf-marker', 'same');
   expect(pdfRequests).toBe(1);
+});
+for (const width of [393, 1280]) test(`plate remainder keeps each notice accessible once at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const now = Date.now(), related = approachAmendmentNotice();
+  const records = [related,
+    { ...related, id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002',
+      text: related.text.replace('AMDT 2', 'AMDT 99'), translations: [] },
+    notice({ id: '1757600000000003', sourceId: 'NMS_ID_1757600000000003', text: 'TWY B CLSD',
+      translations: [{ type: 'LOCAL_FORMAT', text: '!TST 10/003 TST TWY B CLSD 2610041159-2710042359' }] }),
+  ].map(record => ({ ...record, startsAt: now - 60_000, endsAt: now + 86_400_000 }));
+  await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
+  await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
+  await page.getByRole('button', { name: /NOTAM · 2 matched · 1 review/ }).click();
+  const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
+  await expect(plate.getByRole('heading', { level: 4 })).toHaveText(['Related to this plate', 'Review applicability']);
+  await expect(plate.locator('.notam-entry')).toHaveCount(2);
+  const summary = page.getByText('Show remaining airport NOTAMs (1)', { exact: true });
+  await summary.click();
+  const remainder = plate.locator('details').filter({ has: summary });
+  await expect(remainder.locator('.notam-entry')).toHaveCount(1);
+  await expect(plate.locator('.notam-entry')).toHaveCount(3);
+  await remainder.getByText('Show raw', { exact: true }).click();
+  await expect(remainder.locator('pre')).toHaveText(records[2]!.translations[0]!.text);
+  await page.locator('.procedure-viewer').screenshot({ animations: 'disabled', path: testInfo.outputPath('remaining-notams.png') });
+  await summary.click();
+  await expect(plate.locator('.notam-entry')).toHaveCount(2);
 });
 test('offline staging notices keep one testing warning; stowing releases demand', async ({ page }) => {
   // Install before module evaluation so the client's captured Date.now uses this clock.
@@ -1040,7 +1293,7 @@ test.describe('NOTAM reading layout', () => {
     await expect(page.getByLabel('PDF page 1')).toBeVisible();
     await page.getByRole('button', { name: /NOTAM · 0 matched/ }).click();
     const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
-    const empty = plate.getByText('No established matches. Review the airport NOTAMs below.', { exact: true });
+    const empty = plate.getByText('No retained airport NOTAMs.', { exact: true });
     await expect(empty).toBeVisible();
     expect(await empty.evaluate(element => getComputedStyle(element).font)).toBe(airportStatusFont);
     for (const theme of ['dark', 'light']) {
@@ -1131,9 +1384,10 @@ test.describe('NOTAM reading layout', () => {
       await expect(plate.getByRole('heading', { level: 3 })).toHaveText(['Active 1', 'Check timing 1', 'Upcoming 1']);
       await expect(plate.locator('.notam-takeoff')).toContainText('412 ft/NM');
       await expect(plate.locator('.notam-takeoff')).toContainText('For climb in visual conditions');
-      const plateRefreshBox = (await plate.getByRole('button', { name: 'Refresh NOTAMs' }).boundingBox())!;
+      await expect(plate.getByRole('button', { name: 'Refresh NOTAMs' })).toHaveCount(0);
+      const plateSourceBox = (await plate.locator('.notam-source').boundingBox())!;
       const activeBox = (await plate.getByRole('heading', { name: 'Active 1', exact: true }).boundingBox())!;
-      expect(activeBox.y - plateRefreshBox.y - plateRefreshBox.height).toBeGreaterThanOrEqual(8);
+      expect(activeBox.y - plateSourceBox.y - plateSourceBox.height).toBeGreaterThanOrEqual(8);
       await plate.getByText('Show raw', { exact: true }).first().focus();
       await plate.getByText('Show raw', { exact: true }).first().press('Enter');
       await expect(plate.locator('.notam-raw[open] pre').first()).toHaveText(raw);
@@ -1157,6 +1411,7 @@ test.describe('NOTAM reading layout', () => {
 for (const width of [393, 1280]) test(`plate counts stay compact while exposing stale data and refresh failures at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   const now = Date.now(); let failed = false, fresh = false;
+  await page.clock.install({ time: now });
   await page.route('**/api/notams/airports?**', route => {
     if (failed) return route.fulfill({ status: 503, json: { error: 'unavailable' } });
     const query = Object.fromEntries(new URL(route.request().url()).searchParams);
@@ -1173,11 +1428,11 @@ for (const width of [393, 1280]) test(`plate counts stay compact while exposing 
   await expect(toggle).toContainText('NOTAM · 0 matched · Stale');
   await toggle.click();
   const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
-  await plate.getByText('Show all airport NOTAMs (1)', { exact: true }).click();
+  await plate.getByText('Show remaining airport NOTAMs (1)', { exact: true }).click();
   await expect(plate.getByText('ILS Unavailable', { exact: true })).toBeVisible();
   await expect(plate.getByText(/Matching is incomplete/)).toBeVisible();
   failed = true;
-  await plate.getByRole('button', { name: 'Refresh NOTAMs', exact: true }).click();
+  await page.clock.fastForward(3 * 60_000);
   await expect(toggle).toContainText('Refresh failed · Stale');
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); window.dispatchEvent(new Event('offline'));
@@ -1267,4 +1522,40 @@ for (const width of [393, 1280]) test(`TFR source review includes retained, unkn
   await expect(details).toContainText('Check source schedule');
   await expect(details.getByText('Active', { exact: true })).toHaveCount(0);
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('tfr-unresolved-details.png') });
+});
+
+test('multiple areas and recovered coordinates render with qualifications and activity positions stay points', async ({ page }, testInfo) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const now = Date.now(), texts = [
+    'AIRSPACE UAS WI AN AREA DEFINED AS .12NM RADIUS OF 370010N1220010W SFC-300FT AGL AND WI AN AREA DEFINED AS .1NM RADIUS OF 370030N1220030W SFC-400FT AGL',
+    'AIRSPACE UAS WI AN AREA DEFINED AS .15NM RADIUS OF 365960N1220100W SFC-200FT AGL',
+    'AIRSPACE UNMANNED FREE BALLOON 370010N1220030W (1NM W TST) SFC-FL950 SEB',
+  ];
+  const records = texts.map((text, i) => notice({ id: `175760000000008${i}`, sourceId: `NMS_ID_175760000000008${i}`, text,
+    translations: [{ type: 'LOCAL_FORMAT', text }], startsAt: now - 1000, endsAt: now + 86400000 }));
+  await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
+  await page.goto(`${origin}/test/browser/notams.html?map`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
+    return map?.getLayer('notam-area-fill') ? new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-area-fill'] }).map(f => f.id)).size : 0;
+  })).toBe(2);
+  const entries = page.locator('.airport-notams .notam-entry');
+  await expect(entries.nth(0).locator('.notam-readable')).toContainText('SFC-300FT AGL');
+  await expect(entries.nth(0).locator('.notam-readable')).toContainText('SFC-400FT AGL');
+  await expect(entries.nth(1).locator('.notam-readable')).toContainText('365960N1220100W');
+  await expect(entries.nth(1).locator('.notam-chart-note')).toContainText('Coordinate normalized');
+  await expect(entries.nth(2).locator('.notam-chart-note')).toContainText('Source position shown');
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
+    return map?.getLayer('notam-activity-points') ? map.queryRenderedFeatures(undefined, { layers: ['notam-activity-points'] }).length : 0;
+  })).toBeGreaterThan(0);
+  await entries.nth(2).hover();
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
+    return map?.queryRenderedFeatures(undefined, { layers: ['notam-highlight-point'] }).length ?? 0;
+  })).toBeGreaterThan(0);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('notam-recovered-and-multiple.png') });
+  expect(errors).toEqual([]);
 });

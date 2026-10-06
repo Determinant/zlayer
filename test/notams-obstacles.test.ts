@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { auditMappedNotam } from '../tools/audit-notams';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { notamObstacles, notamObstacleFeatures } from '../src/layers/notams/obstacles';
@@ -22,11 +23,42 @@ test('point obstacle coordinates and FAA MSL/AGL heights remain separate and exa
   assert.equal(notamObstacleFeatures([record], NOTAM_NOW).features[0]?.properties.label, 'Crane\n1209 (200)');
   assert.deepEqual(record, before);
   for (const source of [text, `!ATL 10/001 ATL ${text}`, `TST ${text}`]) {
-    assert.deepEqual(notamObstacles(notice({ text: source })), [point]);
+    const start = source.indexOf('333831N0842606W');
+    assert.deepEqual(notamObstacles(notice({ text: source })), [{ ...point, coordinateSpan: { start, end: start + '333831N0842606W'.length } }]);
   }
   assert.equal(notamObstacles(notice({ text: `XYZ ${text}` })).length, 0, 'unrelated identity is not stripped');
   assert.equal(notamObstacles(notice({ text: text.replace('200FT AGL', '1000FT AGL') }))[0]?.shape, 'tall');
   assert.equal(notamObstacles(notice({ text: text.replace('CRANE', 'CRANES') }))[0]?.grouped, true);
+});
+
+test('unassembled multipart and instruction scope cannot publish procedure obstacles', () => {
+  const crane = 'PERM CRANE (2015-AWP-1234-OE) 500FT MSL 370000N1220000W.';
+  for (const control of ['PART 1 OF 2.', 'DELETE NOTE:', 'EXCEPT WHEN AUTHORIZED.', 'MISSED APPROACH:']) {
+    const record = notice({ text: `IAP TEST, CA. ILS RWY 09, AMDT 1... ${control} ${crane}` });
+    assert.deepEqual(notamObstacles(record), [], control);
+    assert.equal(chartedNotamPresentation(record), undefined);
+  }
+  const complete = notice({ text: `PART 1 OF 2 IAP TEST. ${crane} END PART 1 OF 2 PART 2 OF 2 ${crane.replace('370000N', '371000N')} END PART 2 OF 2` });
+  assert.equal(notamObstacles(complete).length, 2);
+  assert.deepEqual(chartedNotamPresentation(complete)!.presentation, presentNotam(complete), 'complete transport keeps its original source qualifications');
+});
+
+test('mapped obstacle elision removes only its source occurrence and the audit catches quoted-coordinate loss', () => {
+  const coordinate = '370000N1220000W';
+  const source = `IAP TEST, CA. ILS RWY 09, AMDT 1... PERM CRANE (2015-AWP-1234-OE) 500FT MSL ${coordinate}. DELETE NOTE: AVOID OVERFLIGHT OF ${coordinate}.`;
+  for (const text of [source, '!FDC 6/1234 TST ' + source, source.replaceAll('. ', '.\n\n'), source.toLowerCase()]) {
+    const record = notice({ text, translations: [] }), points = notamObstacles(record);
+    assert.equal(points.length, 1);
+    assert.deepEqual(points[0]!.coordinateSpan, { start: text.toUpperCase().indexOf(coordinate), end: text.toUpperCase().indexOf(coordinate) + coordinate.length });
+    const reading = chartedNotamPresentation(record)!.presentation;
+    assert.equal(reading.searchText.match(new RegExp(coordinate, 'gi'))?.length, 1);
+    assert.deepEqual(auditMappedNotam(record), []);
+    const damaged = presentNotam({ ...record, text: text.replace(new RegExp(coordinate, 'gi'), '') });
+    assert.deepEqual(auditMappedNotam(record, damaged), ['mapped operational content differs']);
+  }
+  const record = notice({ text: `IAP TEST. PERM CRANE (${coordinate}) 500FT MSL ${coordinate}.` });
+  assert.equal(notamObstacles(record)[0]!.coordinateSpan.start, record.text.lastIndexOf(coordinate), 'capture offsets must not find the identical token in a different field');
+  assert.match(chartedNotamPresentation(record)!.presentation.searchText, new RegExp(`\\(${coordinate}\\)`));
 });
 
 test('fractional seconds and southern/eastern hemispheres are decoded without rounding', () => {
@@ -34,9 +66,85 @@ test('fractional seconds and southern/eastern hemispheres are decoded without ro
   assert.deepEqual(point?.coordinates, [84 + 26 / 60 + 6.25 / 3600, -(33 + 38 / 60 + 31.5 / 3600)]);
 });
 
+test('ARTCC obstacle types and explicitly unknown heights retain exact positions without inventing elevations', () => {
+  for (const kind of ['WATER TOWER', 'POWER TWR', 'TRANSMISSION TOWER', 'POWER LINE', 'DEEP SPACE ANTENNA']) {
+    const record = notice({ text: text.replace('CRANE', kind).replace('1209FT', 'UNKNOWN') });
+    const [point] = notamObstacles(record);
+    assert.ok(point); assert.equal(point.elevationMslFt, undefined); assert.equal(point.heightAglFt, 200);
+    assert.equal(point.shape, 'low');
+    assert.match(notamObstacleFeatures([record], NOTAM_NOW).features[0]!.properties.label, /\? \(200\)/);
+    assert.match(chartedNotamPresentation(record)!.presentation.searchText, /FLAGGED AND LGTD/i);
+  }
+  for (const source of [text.replace('1209FT', '1209'), text.replace('200FT AGL', '200FT')]) {
+    const record = notice({ text: source }), point = notamObstacles(record)[0]!;
+    assert.ok(point);
+    const reading = chartedNotamPresentation(record)!.presentation.searchText;
+    assert.match(reading, /1209/); assert.match(reading, /200FT/); assert.match(reading, /FLAGGED AND LGTD/i);
+  }
+});
+
+test('minute-only point coordinates use the same accepted location receipt without claiming a repair', () => {
+  const record = notice({ text: 'OBST CRANE 3700N12200W 350FT (200FT AGL) FLAGGED' });
+  assert.deepEqual(notamObstacles(record)[0]!.coordinates, [-122, 37]);
+  assert.equal(chartedNotamPresentation(record)!.note, 'Location shown on chart');
+  assert.match(chartedNotamPresentation(record)!.presentation.searchText, /FLAGGED/i);
+  assert.deepEqual(auditMappedNotam(record), []);
+});
+
+test('airport obstacle field variants preserve position, height datums and lighting status', () => {
+  const coordinate = '333831N0842606W';
+  for (const kind of ['SILO', 'WATERTOWER', 'SHIP MAST', 'OIL RIG', 'PARKED ACFT', 'DIRT STOCKPILE', 'COOLING TOWER', 'TOWER LINE', 'LGT']) {
+    for (const annotation of ['(.9NM S OF APCH END OF RWY 09L)', '(25.4NMNW MOB SPA)', '(.4NM MEB)', '(500FT E RWY 16/34)', '(ENA199003)']) {
+      const record = notice({ text: `OBST ${kind} (ASR-#UNKNOWN) ${coordinate} ${annotation} 1209FT (200FT AGL) U/S` });
+      const [point] = notamObstacles(record);
+      assert.ok(point, record.text);
+      assert.deepEqual(point.coordinates, [-84 - 26 / 60 - 6 / 3600, 33 + 38 / 60 + 31 / 3600]);
+      assert.equal(point.elevationMslFt, 1209); assert.equal(point.heightAglFt, 200);
+      const reading = chartedNotamPresentation(record)!.presentation.searchText;
+      assert.match(reading, /U\/S/);
+      if (kind === 'LGT') assert.match(reading, /LGT/);
+      assert.deepEqual(auditMappedNotam(record), []);
+    }
+  }
+  for (const [heights, msl, agl] of [['779FT', 779, undefined], ['40FT AGL', undefined, 40], ['(150FT AGL)', undefined, 150]] as const) {
+    const record = notice({ text: `OBST CRANE ${coordinate} ${heights} NOT LGTD` }), [point] = notamObstacles(record);
+    assert.ok(point); assert.equal(point.elevationMslFt, msl); assert.equal(point.heightAglFt, agl);
+    assert.deepEqual(chartedNotamPresentation(record)!.presentation, presentNotam(record), 'incomplete heights retain the complete source');
+  }
+  for (const prefix of ['TOWER LGT (ASN 2024-AGL-1234-O', 'AIRSPACE CRANE', 'OBSTACLE POLE']) {
+    const record = notice({ text: `${prefix} ${coordinate} 1209FT (200FT AGL) U/S` });
+    assert.equal(notamObstacles(record).length, 1, prefix);
+    assert.deepEqual(chartedNotamPresentation(record)!.presentation, presentNotam(record));
+  }
+  for (const prefix of ['OBST CRANE (UNKNOWN POSITION)', 'OBST CRANE']) {
+    const record = notice({ text: `${prefix} (500FT E RWY 16/34) 1209FT (200FT AGL) U/S` });
+    assert.deepEqual(notamObstacles(record), [], 'annotations and identifiers alone cannot supply a position');
+  }
+});
+
+test('explicit FAS and ramp positions preserve unqualified numbers and shared instruction scope', () => {
+  const examples = [
+    'IAP TEST. RNAV RWY 09, ORIG... FAS OBST: 3136 TOWER (12-0345) 370000N1220000W.',
+    'ALL ALL ADC RAMP - OBSTRUCTION LIGHT OUTAGE ON RAMP LOCATED AT 370000N1220000W',
+  ];
+  for (const text of examples) {
+    const record = notice({ text }), point = notamObstacles(record)[0]!;
+    assert.ok(point); assert.deepEqual(point.coordinates, [-122, 37]);
+    assert.equal(point.heightAglFt, undefined); assert.equal(point.elevationMslFt, undefined);
+    assert.equal(point.shape, 'unknown');
+    assert.deepEqual(chartedNotamPresentation(record)!.presentation, presentNotam(record));
+    const repaired = notice({ text: text.replace('370000N', '365960N') });
+    assert.equal(notamObstacles(repaired)[0]!.recovered, true);
+    assert.match(notamObstacleFeatures([repaired], NOTAM_NOW).features[0]!.properties.label, /Recovered coordinate/);
+    for (const control of ['DELETE NOTE:', 'IF AUTHORIZED:', 'PART 1 OF 2']) {
+      assert.deepEqual(notamObstacles(notice({ text: `${control} ${text}` })), []);
+    }
+  }
+});
+
 test('invalid, area, ambiguous and relative positions never become guessed point markers', () => {
   for (const source of [
-    text.replace('333831N', '336031N'), text.replace('0842606W', '0842660W'), text.replace('333831N', '903831N'),
+    text.replace('333831N', '336031N'), text.replace('0842606W', '0842661W'), text.replace('333831N', '903831N'),
     text.replace('0842606W', '1842606W'), text.replace('333831N0842606W', 'UNKNOWN'),
     text.replace('333831N0842606W', '333831N0842606W TO 333931N0842706W'),
     text.replace('CRANE', 'WIND FARM'), text.replace('CRANE', 'CRANE WI AN AREA DEFINED AS 1NM RADIUS OF'),

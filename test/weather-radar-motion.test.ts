@@ -75,5 +75,48 @@ test('background motion publication reuses unchanged artifacts and restores them
   await restored.restore(); assert.equal(restored.status.stations, 1); assert.equal(reads, priorReads);
   now += RADAR_MAX_AGE; restored.refresh(); await restored.close();
   assert.deepEqual((await readCatalog()).unavailable, ['KTLX']);
+  assert.equal(restored.status.diagnostics.sources.KTLX?.code, 'stale-source');
+  assert.equal(restored.status.newestObservedAt, first.files.length ? decodeStormTracks(raw, 'KTLX', digest(raw)).observedAt : null);
   await cache.drain();
+});
+
+for (const withCurrent of [false, true]) test(`future motion scans preserve published freshness ${withCurrent ? 'with' : 'without'} current observations`, async t => {
+  const future = await capture('20260924-211024-kamx-sti.level3'), current = await capture('20260924-210657-khtx-sti.level3');
+  const futureAt = decodeStormTracks(future, 'KAMX', digest(future)).observedAt;
+  const currentAt = decodeStormTracks(current, 'KHTX', digest(current)).observedAt;
+  let now = futureAt - 30_000, reads = 0;
+  const directory = await mkdtemp(join(tmpdir(), 'zlayer-motion-future-')), lifetime = new AbortController();
+  const cache = new WeatherCache({ directory, maxBytes: 16 * 1024 * 1024, now: () => now, async load(resource) {
+    reads++;
+    const body = resource.url === RADAR_MOTION_ROOT
+      ? Buffer.from(`<html><a href="SI.kamx/">KAMX</a>${withCurrent ? '<a href="SI.khtx/">KHTX</a>' : ''}</html>`)
+      : resource.url.includes('SI.kamx/') ? future : current;
+    return { body, sha256: digest(body), status: 200, checkedAt: now, headers: { 'content-type': 'application/octet-stream' } };
+  } });
+  const warmer = createRadarMotionWarming(cache, lifetime.signal, { now: () => now });
+  t.after(async () => { lifetime.abort(); await warmer.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+  await cache.restore(); warmer.refresh(); await warmer.close();
+  const published = async () => {
+    const saved = await cache.read(resourceFor('/api/weather/radar/motion/latest.json'));
+    const catalog: unknown = JSON.parse(saved!.body.toString()); assert.ok(isRadarMotionCatalog(catalog));
+    const latest = catalog.files.at(-1);
+    if (!latest) return [];
+    const data = await cache.read(resourceFor(`/api/weather/radar/${latest.path}`));
+    const snapshot: unknown = JSON.parse(data!.body.toString()); assert.ok(isRadarMotionSnapshot(snapshot));
+    return snapshot.scans;
+  };
+  assert.deepEqual((await published()).map(scan => scan.site), withCurrent ? ['KHTX'] : []);
+  assert.equal(warmer.status.newestObservedAt, withCurrent ? currentAt : null);
+  now += 31_000;
+  const priorReads = reads;
+  warmer.refresh(); await warmer.close();
+  assert.equal(reads, priorReads, 'the next collection is not due');
+  assert.equal(warmer.status.newestObservedAt, withCurrent ? currentAt : null, 'the clock passing a pending scan cannot publish it');
+  const restored = createRadarMotionWarming(cache, lifetime.signal, { now: () => now });
+  await restored.restore();
+  assert.equal(restored.status.newestObservedAt, warmer.status.newestObservedAt);
+  assert.equal(reads, priorReads, 'restart reads only published files');
+  now += 90_000; warmer.refresh(); await warmer.close();
+  assert.deepEqual((await published()).map(scan => scan.site), withCurrent ? ['KAMX', 'KHTX'] : ['KAMX']);
+  assert.equal(warmer.status.newestObservedAt, futureAt, 'freshness advances with the published snapshot');
 });

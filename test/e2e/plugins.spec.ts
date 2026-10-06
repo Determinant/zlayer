@@ -9,7 +9,7 @@ async function settings(page: Page) {
 }
 const row = (page: Page, id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
 const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!));
-const pluginIds = ['charts', 'glide', 'terrain', 'plates', 'obstructions', 'navigation', 'metar', 'weather-awc', 'routes', 'ruler', 'ownship', 'ahrs'];
+const pluginIds = ['charts', 'glide', 'terrain', 'plates', 'notams', 'obstructions', 'navigation', 'metar', 'weather-awc', 'routes', 'ruler', 'ownship', 'ahrs'];
 
 test('all plugins disable and re-enable without replacing the map or erasing a route', async ({ page }) => {
   const errors: string[] = [];
@@ -37,6 +37,7 @@ test('all plugins disable and re-enable without replacing the map or erasing a r
     await expect(row(page, id).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   }
   await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(pluginIds.length);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: true })).toHaveCount(0);
   await expect.poll(() => countWatches(page)).toBe(0);
   await expect(page.locator('.route-bar')).toHaveCount(0);
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
@@ -134,7 +135,9 @@ test('a workspace saved with every plugin disabled starts with core settings ava
   await expect(page.locator('.map-edge-tool')).toHaveCount(0);
   expect((await page.locator('.maplibregl-canvas').boundingBox())!.height).toBeGreaterThan(100);
   await settings(page);
+  await expect(page.locator('.plugin-row')).toHaveCount(pluginIds.length);
   await expect(page.locator('.plugin-list').getByRole('switch', { checked: false })).toHaveCount(pluginIds.length);
+  await expect(page.locator('.plugin-list').getByRole('switch', { checked: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'General', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'FAA data cycle', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Plugins', exact: true }).click();

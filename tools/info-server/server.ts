@@ -3,7 +3,7 @@ import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { DEFAULT_WEATHER_CACHE_BYTES, WeatherCache } from './cache.ts';
-import { HttpError, resourceFor, routeFor, type PreparedFamily } from './routes.ts';
+import { HttpError, routeFor, type PreparedFamily } from './routes.ts';
 import { createUpstream, type Payload } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
@@ -14,6 +14,9 @@ import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
 import { createNotamService, type NotamOptions } from './notams/service';
 import { createNotamResponder } from './notams/routes';
 import { createTfrService } from './notams/tfr-service';
+import { createAdvisoryWarming } from './advisories';
+import { assessInfoHealth } from './health';
+import { InfoMetrics } from './metrics';
 const compress = promisify(gzip);
 const catalogMarkers: Record<PreparedFamily, string> = {
   forecast: PUBLISHED_CATALOG, progs: PUBLISHED_PROGS, coverage: PUBLISHED_COVERAGE, radar: PUBLISHED_RADAR, motion: PUBLISHED_MOTION,
@@ -34,7 +37,8 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   const shutdown = new AbortController();
   const tfrs = createTfrService({ ...options, directory: options.notams?.directory ?? options.directory, signal: shutdown.signal });
   await tfrs.restore();
-  const notams = createNotamService(options.notams, { ...options, ...(options.notamWait ? { wait: options.notamWait } : {}), signal: shutdown.signal });
+  const metrics = new InfoMetrics();
+  const notams = createNotamService(options.notams, { ...options, metrics, ...(options.notamWait ? { wait: options.notamWait } : {}), signal: shutdown.signal });
   const notamResponses = createNotamResponder(notams);
   const deliveries = { weather: 0, notams: 0 };
   function admit(kind: keyof typeof deliveries, response: ServerResponse): () => Promise<void> {
@@ -63,30 +67,36 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     load: (resource, signal) => resource.kind === 'prepared' ? processing.load(resource) : upstream(resource, signal),
     ...(options.log ? { log: options.log } : {}) });
   const processing = createProcessing(cache, shutdown.signal, options.now);
-  const warming = createForecastWarming(cache, processing, shutdown.signal, options);
+  const warming = createForecastWarming(cache, processing, shutdown.signal, { ...options, metrics });
   const progs = createProgsWarming(cache, shutdown.signal, options);
   const coverage = createProgsCoverageWarming(cache, shutdown.signal, options);
   const radar = createRadarWarming(cache, shutdown.signal, options);
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
+  const advisories = createAdvisoryWarming(cache, shutdown.signal, options);
   async function stopProducers() {
     shutdown.abort();
     const results = await Promise.allSettled([tfrs.close(), notams.close(), processing.close(),
-      warming.close(), progs.close(), coverage.close(), radar.close(), motion.close()]);
+      warming.close(), progs.close(), coverage.close(), radar.close(), motion.close(), advisories.close()]);
     // Producers have settled, so no new cache publications can join this drain.
     results.push(...await Promise.allSettled([cache.drain()]));
+    metrics.close();
     const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
     if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
   }
   try {
     await cache.restore();
     await warming.restore(); await progs.restore(); await coverage.restore();
-    await radar.restore(); await motion.restore();
+    await radar.restore(); await motion.restore(); await advisories.restore();
     await cache.prune();
   } catch (cause) {
     await stopProducers().catch(error => options.log?.(String(error)));
     throw cause;
   }
   const server = createServer(async (request, response) => {
+    const path = request.url?.split('?')[0] ?? '';
+    const finishRequest = metrics.request(path.endsWith('/healthz') ? 'health' : path.startsWith('/api/notams/') ? 'notams'
+      : path.startsWith('/api/weather/') ? 'weather' : 'other');
+    response.once('close', () => finishRequest(!response.writableFinished || response.statusCode >= 500));
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     if (options.sourceUrl) response.setHeader('Link', `<${options.sourceUrl}>; rel="source"`);
@@ -122,7 +132,12 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       }
       if (request.url === '/api/weather/healthz') {
         response.setHeader('Content-Type', 'application/json');
-        response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, cache: cache.stats, forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status, radar: radar.status, radarMotion: motion.status, notams: notams.status, tfrs: tfrs.status, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
+        const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
+          radar: radar.status, radarMotion: motion.status, advisories: advisories.status, notams: notams.status,
+          notamReconciliation: notams.reconciliation, tfrs: tfrs.status };
+        response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ...data,
+          readiness: assessInfoHealth(data, (options.now ?? Date.now)()), runtime: metrics.status,
+          delivery: { ...deliveries }, cache: cache.stats, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
       if (request.url?.startsWith('/api/notams/')) {
         const payload = notamResponses.read(request.url, request.headers.range);
@@ -190,7 +205,6 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   server.keepAliveTimeout = 5000;
   server.maxRequestsPerSocket = 1000;
   server.maxConnections = 512;
-  const metadata = ['gairmet', 'sigmet', 'cwa'].map(product => `/api/weather/advisories/${product}.json`);
   const refresh = () => {
     void tfrs.refresh();
     notams.refresh();
@@ -199,7 +213,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     coverage.refresh();
     radar.refresh();
     motion.refresh();
-    for (const path of metadata) void cache.get(resourceFor(path), undefined, shutdown.signal).catch(() => {});
+    advisories.refresh();
   };
   const timer = options.startUpdates === false ? undefined : setInterval(refresh, 30_000).unref();
   if (options.startUpdates !== false) refresh();
@@ -214,5 +228,5 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
     } finally { clearTimeout(forced); }
   })(); }
-  return { server, cache, processing, progs, coverage, radar, motion, notams, tfrs, close };
+  return { server, metrics, cache, processing, forecasts: warming, progs, coverage, radar, motion, notams, tfrs, close };
 }

@@ -7,10 +7,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { parseNotam, localNotamContent } from '../src/layers/notams/parser';
 import { presentNotam, notamBlockText, type NotamBodyBlock, type NotamPresentation } from '../src/layers/notams/presentation';
 import { NotamList } from '../src/layers/notams/ui';
+import { notamActivityPoint } from '../src/layers/notams/activity-points';
 import { chartedNotamPresentation, notamChartKey } from '../src/layers/notams/chart';
-import { notamObstacles } from '../src/layers/notams/obstacles';
+import { mappedObstacleRemainder, notamObstacles } from '../src/layers/notams/obstacles';
 import { notamArea } from '../src/layers/notams/areas';
-import { NOTAM_COORDINATE } from '../src/layers/notams/coordinates';
+import { NOTAM_COORDINATE, notamCoordinate } from '../src/layers/notams/coordinates';
+import { operativePrefix } from '../src/layers/notams/clauses';
 import { auditValueBindings } from './notam-value-audit';
 
 // Source character escapes are display encoding, not operational numbers or words.
@@ -118,23 +120,39 @@ export function auditMappedNotam(record: NotamRecord, reading = chartedNotamPres
   if (!reading) return [];
   const parsed = parseNotam(record), area = notamArea(record), obstacles = notamObstacles(record);
   let retained: string;
-  if (obstacles.some(o => o.standalone)) {
+  if (area?.preserveText || notamActivityPoint(record) || obstacles.some(point => point.recovered || point.preserveText)) retained = parsed.body;
+  else if (obstacles.some(o => o.standalone) && mappedObstacleRemainder(record) !== undefined) {
     const content = localNotamContent(parsed.body, record).replace(/\s+/g, ' ').trim();
-    const height = /\(\d+(?:\.\d+)?\s*FT AGL\)/.exec(content);
+    const height = /\((?:\d+(?:\.\d+)?\s*FT AGL|UNKNOWN)\)/i.exec(content);
     if (!height) return ['mapped obstacle lacks explicit height'];
     retained = content.slice(height.index + height[0].length).trim();
-    const lighting = /^OBST (?:\w+ ){1,2}LGT\b/.test(content);
+    const lighting = /^OBST (?:\w+ ){0,4}LGT\b/i.test(content);
     if (lighting) retained = `LGT ${retained}`;
   } else if (area) {
     // The elided source may contain coordinates, radius, explicit location aliases
     // and closure wording. Altitudes, operational nouns and conditions are not geometry.
-    const location = parsed.body.slice(area.span.start, area.span.end).replace(NOTAM_COORDINATE, '')
-      .replace(/\((?:[.\d]+\s*NM?\s*[NSEW]{1,3}\s+[A-Z0-9]+|[A-Z0-9]{2,5}\s*\d{6}(?:\.\d+)?)\)/g, '');
-    if ((location.match(/[A-Z]+/g) ?? []).some(w => !['WI','WITHIN','A','AN','AREA','DEFINED','AS','NM','RADIUS','OF','CENTERED','AT','TO','THE','POINT','ORIGIN'].includes(w))) {
+    const location = parsed.body.slice(area.span.start, area.span.end).toUpperCase()
+      .replace(/\bOF(?=\d{4}(?:\d{2}(?:\.\d+)?)?[NS])/g, 'OF ')
+      .replace(/\b\d{4}(?:\d{2}(?:\.\d+)?)?[NS]\s*\/?\s*\d{4,7}(?:\.\d+)?[EW]\b/g, '')
+      .replace(/\((?:[.\d]+\s*(?:NM\s*)?(?:[NSEW]{1,3}|NORTH|SOUTH|EAST|WEST)\s+[A-Z0-9]+|[A-Z0-9]{2,5}\s*\d{6}(?:\.\d+)?|(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{2,5}|(?!(?:EXC|ARC|NOT|ALL|OUT|LGT|ABV|BLW|MSL|AGL|AND|UNL)\b)[A-Z]{3}|[.\d]+\s*(?:NM|FT)\s+[NSEW]{1,3}\s+(?:APCH\s+)?END\s+RWY\s+\d{2}[LRC]?|[A-Z -]+ (?:ATOLL|ISLAND))\s*\)/g, '');
+    if ((location.match(/[A-Z]+/g) ?? []).some(w => !['WI','WITHIN','A','AN','HAZARD','AREA','DEFINED','AS','NM','NMR','NAUTICAL','MILE','MILES','RADIUS','OF','CENTERED','AT','ON','TO','THE','POINT','ORIGIN','ORGIN','EITHER','SIDE','LINE','FM','FROM'].includes(w))) {
       return ['mapped area removed non-location wording'];
     }
     retained = parsed.body.slice(0, area.span.start) + parsed.body.slice(area.span.end);
-  } else retained = parsed.body.replace(NOTAM_COORDINATE, '');
+  } else {
+    retained = parsed.body;
+    let next = parsed.body.length;
+    for (const obstacle of [...obstacles].sort((a, b) => b.coordinateSpan.start - a.coordinateSpan.start)) {
+      const { start, end } = obstacle.coordinateSpan;
+      const source = parsed.body.slice(start, end);
+      const match = new RegExp(`^(?:${NOTAM_COORDINATE.source})$`).exec(source.toUpperCase());
+      // Independently require one exact point token in operative source. Never
+      // forgive deletion of every coordinate just because one point was mapped.
+      if (start < 0 || end <= start || end > next || end > operativePrefix(parsed.body).length ||
+          !match || !equal(notamCoordinate(match), obstacle.coordinates)) return ['mapped obstacle has invalid coordinate evidence'];
+      retained = retained.slice(0, start) + retained.slice(end); next = start;
+    }
+  }
   if (!retained.trim()) return reading.blocks.length ? ['unexpected mapped content'] : [];
   // Rebase spans on independently retained source, so the ordinary audit checks
   // every remaining word/value without borrowing the shortened model's source.

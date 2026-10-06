@@ -18,7 +18,7 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
       const response = await fetcher(resource.url, { signal, redirect: 'error', headers: {
         'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1', 'Accept-Encoding': 'identity',
         ...(resource.range ? { Range: resource.range } : {}),
-      } });
+      } }).catch(() => { throw new HttpError(502, 'Upstream connection failed', 5); });
       try {
         if (response.status === 429 || response.status === 503) {
           const now = Date.now();
@@ -93,6 +93,9 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
           headers['content-type'] = 'application/json; charset=utf-8';
         }
         return { body, status, headers, checkedAt, sha256: digest(body) };
+      } catch (cause) {
+        if (cause instanceof HttpError) throw cause;
+        throw new HttpError(502, 'Upstream response failed', 5);
       } finally { if (!response.bodyUsed) await response.body?.cancel().catch(() => {}); }
     });
   }

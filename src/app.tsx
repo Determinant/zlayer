@@ -104,8 +104,15 @@ export function App() {
     if (!loaded.navigation) setQuery('');
   }, [loaded.navigation]);
 
+  // NOTAM centers/radials need reference data even when navigation symbols are hidden.
+  const navigationDemand = useMemo(() => ({
+    airports: !!loaded.notams || !!loaded.navigation && visibility.airports,
+    navaids: !!loaded.notams || !!loaded.navigation && visibility.navaids,
+    fixes: !!loaded.navigation && visibility.fixes,
+    'vfr-waypoints': !!loaded.navigation && visibility['vfr-waypoints'],
+  }), [loaded.notams, loaded.navigation, visibility]);
   const { data: navigationData, loadState, loading: navigationPending, issues: navigationIssues, airways } = useNavigationData(
-    loaded.navigation ? context : undefined, visibility);
+    loaded.navigation || loaded.notams ? context : undefined, navigationDemand);
   const route = useRouteController({ catalog: context?.routing, enabled: !!loaded.routes,
     gps: ownshipLayer, directToEnabled: !!loaded.ownship });
   const routePreview = route.preview;

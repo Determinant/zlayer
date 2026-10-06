@@ -1,0 +1,167 @@
+[
+  {
+    "id": "8278907925031283",
+    "revision": "19e0508becaf8098c9e86a6a03bad52f5373b99caf116ed390ca0dfa6199b800",
+    "reason": "ambiguous shortened longitude"
+  },
+  {
+    "id": "1758719909152683",
+    "revision": "83573cdd6f28c922f5cf36033520df0b2cb133ef21de52d2eeea3766fd075cd2",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1773444724741609",
+    "revision": "e70d39e04c3f4cde5466d8cfcfdc6edcd3fba92615c52ea62662654a5bc04bb4",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "6434046585198413",
+    "revision": "d70165aa51157af427e98286732b1e9aba6768cf8b2068b9244c3b46f6d2ca18",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758719961925964",
+    "revision": "736b9d24f243407b3314208663191a95118527211b113ac3f53fa52ba56273f9",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758720801029414",
+    "revision": "757324f2297416e512ff1120c3b539ce03342412a11089be2f7a7844d6306e83",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758720179873074",
+    "revision": "5c976e65cd7662a296fd13a6066014dac779ee1c98fb9de9dcd08dc8b0dd144d",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758720388577393",
+    "revision": "15b09357f22e9dd1ddfa9927239608b7f852a6d81dba614a38eb72403b1f4ca2",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758720619769264",
+    "revision": "e62108d127d751e4ad0b2e0fd8e6050dc3bb587e7b8a09709471dd83f819a053",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758721005377100",
+    "revision": "5938e42b0c76911da32859db7cece532d661ddec64e18a284f5b495f955c01df",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758776742731704",
+    "revision": "1cc3abc23c516cbc3bc4cb165c2089ae5e18424d30f093a10ccc1a7833dfc1ff",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1769196169484024",
+    "revision": "61a7e2ca95eb9df271f858f70477bc013eb3962bd7d4df8c0141f322be788b8d",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758721072722558",
+    "revision": "598ddf7ce83d80405189c253c9e9e18b479e85c8876cd947d034f4d828934c94",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "2947892110109522",
+    "revision": "028459550d6cf57d2144b58c4316ea0cd9f1d5ce6af3d0bdb4289948eccdf9ca",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "3097797556950329",
+    "revision": "3d8a300cb849f1391e029311377ef8a4cce12078f6a3248fd3d0b4d317ae97c4",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "4077503404659482",
+    "revision": "3dca903bae3ac2a8f3c1623b371ad84a6d5d454e91008ba193ee0529ca83fe15",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "5031749639844416",
+    "revision": "bd5576e58e87cd3d70a66e4d31bc7eb445d8d03abf76f27a7182d8c0c1e1a228",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "6126656657023955",
+    "revision": "ae8bf0e1f72fca7a87258f399cf1383146dc547831b7072c72a37c724ba8f9dd",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "7431678087187157",
+    "revision": "196419401111e0d4b659b075b915bc1ce79494f48c61162baea6f8c9b3589ed4",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758720102469235",
+    "revision": "fc7a8f0947efd049aa68627fcf24d5f250d5bd64788b2e625a08d767f933590b",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758720212759391",
+    "revision": "899255ea62b89339b673030cf00437d80bec6e7d3ee4f61d532a43f7be98698a",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758721115909149",
+    "revision": "3a4488129c5234cf2b3d474ce695bf004872f254dab8c6a061310f2fba7a4f03",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758719908743149",
+    "revision": "ec12144a4b135a11bdd3138e3ef4f10dc99b05e165f64ba6d3bcefac4619e5d4",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758721574448655",
+    "revision": "e98c3443f93307428d8d532453aab7456a84863995d2974db957d80d62c708cb",
+    "reason": "national restriction text"
+  },
+  {
+    "id": "1758720069176406",
+    "revision": "5fa37f447d94ed594873368004374398d5a78e8fbbc7bd0d4633203a994c9c56",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758720563721040",
+    "revision": "785cb334a08492309e706aeed287b88949c1d3489be5246a316ee441b48cb461",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "3195133854775273",
+    "revision": "8a0468e15f387a40f75a3d264fd97c3ebb31418339706560bbe3e159d7df61bc",
+    "reason": "extra latitude digits have no unique repair"
+  },
+  {
+    "id": "1758720598057167",
+    "revision": "b7b5cfd354dc0f985f5fc8456bf0283fcbe794a24c3cc7db9d2f537150dc6140",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758721873546954",
+    "revision": "75e8d71fa7dde30a5372bda45bf5b42cfef5e5e96e3ba41e39084af9f2de2555",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1758776606179169",
+    "revision": "1636aa4a389a0a5c4b943c62716861e4352effc5556c8ae0fa163712bb6e0e41",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "1791237285900845",
+    "revision": "a0c3b46a68e29193194139cd952d21a8588a97243e3e1a6f61bf710f052bb7c2",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "8377246803646121",
+    "revision": "227ccf5de38509e71b49bb39a4b0620566cada910e4cf16f404a46adf3ca3f5f",
+    "reason": "procedural or service text without a standalone footprint"
+  },
+  {
+    "id": "7276057709917815",
+    "revision": "19983591eced0761dfaae0d0677359369235199a2a90cb4e78caa288837819e5",
+    "reason": "extra longitude digit conflicts with the published distance annotation"
+  }
+]

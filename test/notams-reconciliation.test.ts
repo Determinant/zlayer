@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { isNotamAirportSnapshot, isNotamSourceIssue, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
+import { isRecord, isNotamAirportSnapshot, isNotamSourceIssue, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';
@@ -20,21 +20,27 @@ const snapshots = gunzipSync(readFileSync(new URL('./fixtures/notams-us1000/snap
   .toString('utf8').trimEnd().split('\n').map(line => {
     const value: unknown = JSON.parse(line); assert.ok(isNotamAirportSnapshot(value)); return value;
   });
-const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values()];
-const now = Math.max(...snapshots.map(s => s.feed.checkedAt!));
+// Later source pairs exposed omitted/partial schedules and wrapped body text.
+const renderings: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-source-renderings-2026-10-06.json', import.meta.url), 'utf8'));
+assert.ok(isRecord(renderings) && typeof renderings.checkedAt === 'number' &&
+  Array.isArray(renderings.issues) && renderings.issues.every(isNotamSourceIssue));
+const representationIssues = renderings.issues;
+const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values(), ...representationIssues];
+const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt);
 function changed(record: NotamRecord, fields: Partial<NotamRecord>) {
   const { revision: _revision, ...facts } = { ...record, ...fields };
   return recordWithRevision(facts);
 }
 
 test('captured source pairs reconcile in both arrival orders without losing raw translations or source time', () => {
-  assert.equal(issues.length, 12);
+  assert.equal(issues.length, 21);
   for (const issue of issues) for (const variants of [issue.variants, [...issue.variants].reverse()]) {
     let collection = collectNotamRecords({ records: [] }, [variants[0]!]);
     collection = collectNotamRecords(collection, variants.slice(1));
     assert.equal(collection.issues?.length ?? 0, 0, issue.id);
     assert.equal(collection.records.length, 1, issue.id);
     const record = collection.records[0]!;
+    assert.ok(variants.some(r => r.text === record.text), 'retain an original body, including its whitespace');
     assert.equal(record.updatedAt, variants[0]!.updatedAt);
     assert.equal(record.startsAt, variants[0]!.startsAt);
     assert.equal(record.endsAt, variants[0]!.endsAt);
@@ -47,6 +53,100 @@ test('captured source pairs reconcile in both arrival orders without losing raw 
       if (variants.some(r => r.endKind === 'estimated')) assert.equal(record.endKind, 'estimated', issue.id);
     }
     assert.equal(collectNotamRecords(collection, [...variants, ...variants]), collection, `${issue.id}: idempotent replay`);
+  }
+});
+
+test('native schedule evidence supplements missing metadata and retains supplied hours through sparse replays', () => {
+  const expected = new Map([
+    ['3470508447286252', 'WED THU FRI'], ['4084776096364174', 'Daily:2359-1000~DLY 2359-1000'],
+    ['4690820396922953', 'SAT SUN 1100-0300'], ['5560062601888734', 'Daily:1300-2300~DLY 1300-2300'],
+    ['6218155093458891', 'Daily:1058-2200~DLY 1058-2200'],
+  ]);
+  for (const [id, schedule] of expected) {
+    const variants = issues.find(i => i.id === id)!.variants;
+    for (const order of [variants, [...variants].reverse()]) {
+      const collection = collectNotamRecords({ records: [order[0]!] }, order.slice(1));
+      assert.equal(collection.records[0]?.schedule, schedule, id);
+      assert.equal(collectNotamRecords(collection, [...variants, changed(variants[0]!, { schedule: '' })]), collection);
+    }
+  }
+});
+
+test('representation differences require complete, shared and correctly identified native evidence', () => {
+  for (const issue of representationIssues) {
+    const alterations = [
+      (text: string) => text.replace(/^!\S+/, '!XXX'),
+      (text: string) => text.replace(/\d{10}-\d{10}$/, '2610010000-2610020000'),
+    ];
+    const variants = [issue.variants.map(r => changed(r, { translations: r.translations.filter(t => t.type !== 'LOCAL_FORMAT') })),
+      ...alterations.map(alter => issue.variants.map(r => changed(r, { translations: r.translations.map(t =>
+        t.type === 'LOCAL_FORMAT' ? { ...t, text: alter(t.text) } : t) }))),
+      issue.variants.map(r => changed(r, { translations: [...r.translations, { type: 'LOCAL_FORMAT', text: 'Conflicting native text' }] }))];
+    for (const pair of variants) {
+      assert.equal(collectNotamRecords({ records: [] }, pair).issues?.length, 1, issue.id);
+    }
+  }
+});
+
+test('schedule disagreement survives empty metadata and every arrival order', () => {
+  const [sparse, full] = issues.find(i => i.id === '4690820396922953')!.variants;
+  for (const schedule of ['SAT', 'MON SUN', 'SAT SUN 1200-0300', 'SAT SUN 1100-0400', 'SAT SUN 2460-0300',
+    'SAT SUN SR-SS', 'SAT SUN 1100-0300 EXC HOL', 'H24', 'Daily:1100-0300~DLY 1200-0300']) {
+    const conflict = changed(full!, { schedule }), empty = changed(sparse!, { schedule: '' });
+    for (const records of [[sparse!, full!, conflict], [sparse!, conflict, full!], [full!, sparse!, conflict],
+      [full!, conflict, sparse!], [conflict, sparse!, full!], [conflict, full!, sparse!], [full!, conflict, empty]]) {
+      let collection = collectNotamRecords({ records: [] }, [records[0]!]);
+      for (const record of records.slice(1)) collection = collectNotamRecords(collection, [record]);
+      assert.equal(collection.records.length, 0, schedule); assert.equal(collection.issues?.length, 1);
+      assert.equal(collectNotamRecords(collection, [sparse!, full!, empty]).issues?.length, 1, schedule);
+      assert.equal(collectNotamRecords({ records: [] }, records).issues?.length, 1, 'batch reconciliation keeps the same disagreement');
+    }
+  }
+});
+
+test('native schedule matching understands weekday ranges and daily windows without broadening the supplied days', () => {
+  const source = issues.find(i => i.id === '4690820396922953')!.variants[0]!;
+  const withSchedule = (bodySchedule: string, schedule: string) => changed(source, {
+    text: source.text.replace('SAT SUN 1100-0300', bodySchedule), schedule,
+    translations: source.translations.map(t => ({ ...t, text: t.text.replace('SAT SUN 1100-0300', bodySchedule) })),
+  });
+  for (const [body, sparse, full] of [
+    ['MON-FRI 1100-0300', 'MON TUE WED THU FRI', 'MON-FRI 1100-0300'],
+    ['FRI-MON 1100-0300', 'FRI SAT SUN MON', 'FRI-MON 1100-0300'],
+    ['DLY 0000-2400', '', 'Daily:0000-2400~DLY 0000-2400'],
+    ['SUN 1100-0300', 'SUN', 'SUN 1100-0300'],
+  ]) {
+    const variants = [withSchedule(body!, sparse!), withSchedule(body!, full!)];
+    for (const order of [variants, [...variants].reverse()]) {
+      const collection = collectNotamRecords({ records: [order[0]!] }, order.slice(1));
+      assert.equal(collection.issues?.length ?? 0, 0, body);
+      assert.equal(collection.records[0]?.schedule, full, body);
+      const different = changed(collection.records[0]!, { schedule: 'TUE 1100-0300' });
+      assert.equal(collectNotamRecords(collection, [different]).issues?.length, 1);
+    }
+  }
+  for (const tail of ['SAT SUN 2500-0300', 'SAT SUN 2400-0300', 'SAT SUN 1100-2460', 'SAT SUN 1100-1100',
+    'SAT SUN 1100-0300 EXC HOL', 'SAT SUN 1100-0300 AND 1200-0400']) {
+    const pair = [withSchedule(tail, 'SAT SUN'), withSchedule(tail, tail)];
+    assert.equal(collectNotamRecords({ records: [] }, pair).issues?.length, 1, tail);
+  }
+  for (const body of ['SAT SUN 1100-0300 MON 1200-0400', 'SAT SUN EXC MON 1200-0400', 'EXC MON 1200-0400']) {
+    const pair = [withSchedule(body, ''), withSchedule(body, 'MON 1200-0400')];
+    assert.equal(collectNotamRecords({ records: [] }, pair).issues?.length, 1, 'one suffix cannot establish a compound/excepted schedule');
+  }
+});
+
+test('body wrapping does not discard original text or admit changed words, punctuation, units or digits', () => {
+  const variants = issues.find(i => i.id === '1893333917728834')!.variants;
+  for (const order of [variants, [...variants].reverse()]) {
+    const collection = collectNotamRecords({ records: [order[0]!] }, order.slice(1));
+    assert.equal(collection.records[0]?.text, order[0]!.text);
+    for (const text of [order[1]!.text.replace('110FT', '111FT'), order[1]!.text.replace('110FT', '110M'),
+      order[1]!.text.replace('FLAGGED', 'FLAGGED AND LGTD'), order[1]!.text.toLowerCase(),
+      order[1]!.text.replace('(110FT AGL)', '110FT AGL'), order[1]!.text.replace('CRANE ', 'CRANE'),
+      `<pre>${order[1]!.text}</pre>`]) {
+      assert.equal(collectNotamRecords(collection, [changed(order[1]!, { text })]).issues?.length, 1);
+    }
   }
 });
 
@@ -134,16 +234,19 @@ for (const complete of [true, false]) test(`restart reconciles records while pre
     variants: conflicting.issues![0]!.variants.map(r => changed(r, { id: '0000000000000001', sourceId: '0000000000000001' })) };
   const overflow: NotamSourceIssue = { ...issues[0]!, id: '0000000000000002', variantsTruncated: true,
     variants: issues[0]!.variants.map(r => changed(r, { id: '0000000000000002', sourceId: '0000000000000002' })) };
+  const scheduled = changed(issues.find(i => i.id === '4690820396922953')!.variants[1]!,
+    { id: '0000000000000003', sourceId: '0000000000000003' });
+  const conflictingSchedule = collectNotamRecords({ records: [scheduled] }, [changed(scheduled, { schedule: 'SAT SUN 1200-0300' })]).issues![0]!;
   try {
     await store.restore(); await store.reserve('bulk');
     const original = await store.publish({ schemaVersion: 2, environment: 'production', records: [],
-      issues: [...issues, genuine, overflow], complete, checkedAt: now, watermark: now,
+      issues: [...issues, genuine, overflow, conflictingSchedule], complete, checkedAt: now, watermark: now,
       baselineAt: now - 3600_000, fullSyncAt: now - 3600_000 });
     const budget = await readFile(join(directory, 'budget.json'), 'utf8');
     await store.close(); store = new NotamStore(directory, 'production', () => now);
     const restored = await store.restore(); assert.ok(restored);
-    assert.equal(restored.records.length, 12);
-    assert.deepEqual(restored.issues?.map(i => i.id).sort(), [genuine.id, overflow.id]);
+    assert.equal(restored.records.length, issues.length);
+    assert.deepEqual(restored.issues?.map(i => i.id).sort(), [genuine.id, overflow.id, conflictingSchedule.id]);
     for (const field of ['checkedAt', 'watermark', 'baselineAt', 'fullSyncAt', 'complete'] as const) assert.equal(restored[field], original[field]);
     assert.equal(await readFile(join(directory, 'budget.json'), 'utf8'), budget);
     await store.close(); store = new NotamStore(directory, 'production', () => now);

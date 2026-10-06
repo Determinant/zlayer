@@ -88,8 +88,19 @@ for (const rate of [-1, 1]) {
     expect(trace.coordinates.at(-1)![0]).toBeGreaterThan(-122);
     expect(Math.sign(trace.coordinates.at(-1)![1]! - 37)).toBe(-rate);
     expect(geometry.features.filter(feature => feature.geometry.type === 'Point')).toHaveLength(1);
+    const samples = trace.coordinates.slice(Math.ceil(trace.coordinates.length / 2), -1);
+    expect(samples.length, 'the curved vector must provide interior pixel samples').toBeGreaterThan(0);
+    const bend = await page.evaluate(coordinates => {
+      const points = coordinates.map(coordinate => window.ownshipFixture.project(coordinate as [number, number]));
+      const start = points[0]!, end = points.at(-1)!, middle = points[Math.floor(points.length / 2)]!;
+      const dx = end.x - start.x, dy = end.y - start.y;
+      return (dx * (middle.y - start.y) - dy * (middle.x - start.x)) / Math.hypot(dx, dy);
+    }, trace.coordinates);
+    // The arc midpoint must depart from its chord in the expected turn direction,
+    // by more than the line width; sampling submitted geometry alone cannot prove curvature.
+    expect(bend * rate).toBeLessThan(-3);
     // Sample the real WebGL output along the outer half of the arc. A dashed
-    // line or a straight vector cannot fill this continuous curve in blue.
+    // line cannot fill this continuous curve in blue.
     await expect.poll(() => page.evaluate(coordinates => {
       const canvas = document.querySelector<HTMLCanvasElement>('.maplibregl-canvas')!;
       const gl = canvas.getContext('webgl2')!, ratio = canvas.width / canvas.clientWidth;
@@ -99,7 +110,7 @@ for (const rate of [-1, 1]) {
         gl.readPixels(Math.floor(x * ratio), canvas.height - Math.floor(y * ratio) - 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
         return pixel[2]! - pixel[0]! > 100;
       });
-    }, trace.coordinates.slice(Math.ceil(trace.coordinates.length / 2), -1))).toBe(true);
+    }, samples)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`gps-turn-${rate < 0 ? 'left' : 'right'}.png`) });
     await expect(page.getByTestId('errors')).toBeEmpty();
   });

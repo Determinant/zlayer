@@ -1,0 +1,860 @@
+{
+  "source": "FAA NMS production collector: retained normalized source issues",
+  "checkedAt": 1791307415671,
+  "issues": [
+    {
+      "id": "1893333917728834",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "1893333917728834",
+          "sourceId": "NMS_ID_1893333917728834",
+          "classification": "DOMESTIC",
+          "number": "032",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "RFD"
+          ],
+          "icaoLocations": [
+            "KRFD"
+          ],
+          "accountability": "RFD",
+          "issuedAt": 1791298320000,
+          "updatedAt": 1791298320000,
+          "sourceUpdatedAt": "2026-10-06T14:52:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791298260000,
+          "endsAt": 1791327600000,
+          "effectiveStart": "202610061451",
+          "effectiveEnd": "202610062300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 421233N0890501W (0.31NM NE APCH END RWY 19) UNKNOWN (110FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!RFD 10/032 RFD OBST CRANE (ASN UNKNOWN) 421233N0890501W (0.31NM NE APCH END RWY 19) UNKNOWN (110FT AGL) FLAGGED 2610061451-2610062300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A2418/26 NOTAMN Q) KZAU/QOBCE/IV/M/AE/000/999/4211N08905W005 A) KRFD B) 2610061451 C) 2610062300 E) OBST CRANE (ASN UNKNOWN) 421233N0890501W (0.31NM NE APCH END RWY 19)  UNKNOWN (110FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "960c11b1acd37ed337643e774e87227e08e854f52aca5d94ffce9d68ec66ae4f"
+        },
+        {
+          "id": "1893333917728834",
+          "sourceId": "NMS_ID_1893333917728834",
+          "classification": "DOMESTIC",
+          "number": "32",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "RFD"
+          ],
+          "icaoLocations": [
+            "KRFD"
+          ],
+          "accountability": "RFD",
+          "issuedAt": 1791298260000,
+          "updatedAt": 1791298320000,
+          "sourceUpdatedAt": "2026-10-06T14:52:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791298260000,
+          "endsAt": 1791327600000,
+          "effectiveStart": "202610061451",
+          "effectiveEnd": "202610062300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 421233N0890501W (0.31NM NE APCH END RWY 19) \r\nUNKNOWN (110FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!RFD 10/032 RFD OBST CRANE (ASN UNKNOWN) 421233N0890501W (0.31NM NE APCH END RWY 19) \r\nUNKNOWN (110FT AGL) FLAGGED 2610061451-2610062300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/032 NOTAMN \r\nQ) KZAU//IV/M//000//4211N08905W005 \r\nA) KRFD \r\nB) 2610061451 \r\nC) 2610062300 \r\nE) CRANE LGT (ASN UNKNOWN) 421233N0890501W ( 0.31NM NE ( APCH END RWY 19))( UNKNOWN) ( 110FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "af0fe02a3167c2d465aef7ae654eb8ee25d9ab9fc794d010abcbf0918f3eb628"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "RFD"
+      ],
+      "icaoLocations": [
+        "KRFD"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "3470508447286252",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "3470508447286252",
+          "sourceId": "NMS_ID_3470508447286252",
+          "classification": "DOMESTIC",
+          "number": "042",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "DJT"
+          ],
+          "icaoLocations": [
+            "KDJT"
+          ],
+          "accountability": "DJT",
+          "issuedAt": 1791279000000,
+          "updatedAt": 1791279000000,
+          "sourceUpdatedAt": "2026-10-06T09:30:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791338400000,
+          "endsAt": 1793444400000,
+          "effectiveStart": "202610070200",
+          "effectiveEnd": "202610311100",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 14/32 CLSD WED-FRI 0200-1100",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DJT 10/042 DJT RWY 14/32 CLSD WED-FRI 0200-1100 2610070200-2610311100"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0829/26 NOTAMN Q) KZMA/QMRLC////000/999/2640N08005W005 A) KDJT B) 2610070200 C) 2610311100 E) RWY 14/32 CLSD WED-FRI 0200-1100"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "452e7a4652cc76473fb0fb6d4a5a4b27ed6e8725e45e9b561d38ac8719f2b3bf"
+        },
+        {
+          "id": "3470508447286252",
+          "sourceId": "NMS_ID_3470508447286252",
+          "classification": "DOMESTIC",
+          "number": "42",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "DJT"
+          ],
+          "icaoLocations": [
+            "KDJT"
+          ],
+          "accountability": "DJT",
+          "issuedAt": 1791278400000,
+          "updatedAt": 1791279000000,
+          "sourceUpdatedAt": "2026-10-06T09:30:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791338400000,
+          "endsAt": 1793444400000,
+          "effectiveStart": "202610070200",
+          "effectiveEnd": "202610311100",
+          "endKind": "fixed",
+          "schedule": "WED THU FRI",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 14/32 CLSD WED-FRI 0200-1100",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DJT 10/042 DJT RWY 14/32 CLSD WED-FRI 0200-1100 2610070200-2610311100"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/042 NOTAMR \r\nQ) KZMA/QMRLC/IV/NBO/A/000/999/2640N08005W005 \r\nA) KDJT \r\nB) 2610070200 \r\nC) 2610311100 \r\n D) WED-FRI 0200-1100 \r\n\r\nE) RWY 14/32 CLSD"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "803c757b4f51416028abfa6957501f920a6c1b12444fc623f9c84b3261d993b6"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "DJT"
+      ],
+      "icaoLocations": [
+        "KDJT"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "3926820915120836",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "3926820915120836",
+          "sourceId": "NMS_ID_3926820915120836",
+          "classification": "DOMESTIC",
+          "number": "041",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "PWK"
+          ],
+          "icaoLocations": [
+            "KPWK"
+          ],
+          "accountability": "PWK",
+          "issuedAt": 1791293700000,
+          "updatedAt": 1791293700000,
+          "sourceUpdatedAt": "2026-10-06T13:35:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791374400000,
+          "endsAt": 1791381600000,
+          "effectiveStart": "202610071200",
+          "effectiveEnd": "202610071400",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 420647N0875336W (0.15NM E APCH END RWY 30) UNKNOWN (75FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!PWK 10/041 PWK OBST CRANE (ASN UNKNOWN) 420647N0875336W (0.15NM E APCH END RWY 30) UNKNOWN (75FT AGL) FLAGGED 2610071200-2610071400"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "a50c69c52bc9b131a12880a7e0e05fafccbed741e9a7212a6e0b9e8835a1f5b6"
+        },
+        {
+          "id": "3926820915120836",
+          "sourceId": "NMS_ID_3926820915120836",
+          "classification": "DOMESTIC",
+          "number": "41",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "PWK"
+          ],
+          "icaoLocations": [
+            "KPWK"
+          ],
+          "accountability": "PWK",
+          "issuedAt": 1791293700000,
+          "updatedAt": 1791293700000,
+          "sourceUpdatedAt": "2026-10-06T13:35:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791374400000,
+          "endsAt": 1791381600000,
+          "effectiveStart": "202610071200",
+          "effectiveEnd": "202610071400",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 420647N0875336W (0.15NM E APCH END RWY 30) \r\nUNKNOWN (75FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!PWK 10/041 PWK OBST CRANE (ASN UNKNOWN) 420647N0875336W (0.15NM E APCH END RWY 30) \r\nUNKNOWN (75FT AGL) FLAGGED 2610071200-2610071400"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/041 NOTAMR \r\nQ) KZAU//IV/M//000//4206N08754W005 \r\nA) KPWK \r\nB) 2610071200 \r\nC) 2610071400 \r\nE) CRANE LGT (ASN UNKNOWN) 420647N0875336W ( 0.15NM E ( APCH END RWY 30))( UNKNOWN) ( 75FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "be883828de002e5640e39f0ac4002424087d5a97bbbfb25482a9e23f418e565d"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "PWK"
+      ],
+      "icaoLocations": [
+        "KPWK"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "4084776096364174",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "4084776096364174",
+          "sourceId": "NMS_ID_4084776096364174",
+          "classification": "DOMESTIC",
+          "number": "007",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "JYO"
+          ],
+          "icaoLocations": [
+            "KJYO"
+          ],
+          "accountability": "JYO",
+          "issuedAt": 1791291180000,
+          "updatedAt": 1791291180000,
+          "sourceUpdatedAt": "2026-10-06T12:53:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791331140000,
+          "endsAt": 1792144800000,
+          "effectiveStart": "202610062359",
+          "effectiveEnd": "202610161000",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 17/35 CLSD DLY 2359-1000",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!JYO 10/007 JYO RWY 17/35 CLSD DLY 2359-1000 2610062359-2610161000"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "a92b0635f1c3a35fb3cac4502f1236a77c346fdcbea8d4287e02a66d13b43b91"
+        },
+        {
+          "id": "4084776096364174",
+          "sourceId": "NMS_ID_4084776096364174",
+          "classification": "DOMESTIC",
+          "number": "7",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "JYO"
+          ],
+          "icaoLocations": [
+            "KJYO"
+          ],
+          "accountability": "JYO",
+          "issuedAt": 1791291180000,
+          "updatedAt": 1791291180000,
+          "sourceUpdatedAt": "2026-10-06T12:53:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791331140000,
+          "endsAt": 1792144800000,
+          "effectiveStart": "202610062359",
+          "effectiveEnd": "202610161000",
+          "endKind": "fixed",
+          "schedule": "Daily:2359-1000~DLY 2359-1000",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 17/35 CLSD DLY 2359-1000",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!JYO 10/007 JYO RWY 17/35 CLSD DLY 2359-1000 2610062359-2610161000"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "e3195a332f40a21576726554e11accfab2ddd081200df875022ad43c9cb8ca53"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "JYO"
+      ],
+      "icaoLocations": [
+        "KJYO"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "4690820396922953",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "4690820396922953",
+          "sourceId": "NMS_ID_4690820396922953",
+          "classification": "DOMESTIC",
+          "number": "27",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "SJC"
+          ],
+          "icaoLocations": [
+            "KSJC"
+          ],
+          "accountability": "SJC",
+          "issuedAt": 1791306720000,
+          "updatedAt": 1791306960000,
+          "sourceUpdatedAt": "2026-10-06T17:16:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791630000000,
+          "endsAt": 1792378800000,
+          "effectiveStart": "202610101100",
+          "effectiveEnd": "202610190300",
+          "endKind": "fixed",
+          "schedule": "SAT SUN",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN 2025-AWP-18040-OE) 371949N1215339W (2.6NM SE SJC) 408FT (320FT AGL) FLAGGED AND LGTD SAT SUN 1100-0300",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!SJC 10/027 SJC OBST CRANE (ASN 2025-AWP-18040-OE) 371949N1215339W (2.6NM SE SJC) 408FT (320FT AGL) FLAGGED AND LGTD SAT SUN 1100-0300 2610101100-2610190300"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "5f4eee1402b519980702756a1b9da160b5bf9b87299ec66c615c408db5492bbb"
+        },
+        {
+          "id": "4690820396922953",
+          "sourceId": "NMS_ID_4690820396922953",
+          "classification": "DOMESTIC",
+          "number": "027",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "SJC"
+          ],
+          "icaoLocations": [
+            "KSJC"
+          ],
+          "accountability": "SJC",
+          "issuedAt": 1791306960000,
+          "updatedAt": 1791306960000,
+          "sourceUpdatedAt": "2026-10-06T17:16:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791630000000,
+          "endsAt": 1792378800000,
+          "effectiveStart": "202610101100",
+          "effectiveEnd": "202610190300",
+          "endKind": "fixed",
+          "schedule": "SAT SUN 1100-0300",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN 2025-AWP-18040-OE) 371949N1215339W (2.6NM SE SJC) 408FT (320FT AGL) FLAGGED AND LGTD SAT SUN 1100-0300",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!SJC 10/027 SJC OBST CRANE (ASN 2025-AWP-18040-OE) 371949N1215339W (2.6NM SE SJC) 408FT (320FT AGL) FLAGGED AND LGTD SAT SUN 1100-0300 2610101100-2610190300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A1435/26 NOTAMN Q) KZOA/QOBCE/IV/M/AE/000/999/3721N12155W005 A) KSJC B) 2610101100 C) 2610190300 D) SAT SUN 1100-0300 E) OBST CRANE (ASN 2025-AWP-18040-OE) 371949N1215339W (2.6NM SE SJC) 408FT (320FT AGL) FLAGGED AND LGTD"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "7123e558e1d97345c2e90d6d68618293c996e269f39cbffa051d246ff2aacf43"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "SJC"
+      ],
+      "icaoLocations": [
+        "KSJC"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "5560062601888734",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "5560062601888734",
+          "sourceId": "NMS_ID_5560062601888734",
+          "classification": "DOMESTIC",
+          "number": "55",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "CFT"
+          ],
+          "icaoLocations": [
+            "KCFT"
+          ],
+          "accountability": "PRC",
+          "issuedAt": 1791298560000,
+          "updatedAt": 1791298560000,
+          "sourceUpdatedAt": "2026-10-06T14:56:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791378000000,
+          "endsAt": 1791500400000,
+          "effectiveStart": "202610071300",
+          "effectiveEnd": "202610082300",
+          "endKind": "fixed",
+          "schedule": "Daily:1300-2300~DLY 1300-2300",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 07/25 WIP MOWING DLY 1300-2300",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!PRC 10/055 CFT RWY 07/25 WIP MOWING DLY 1300-2300 2610071300-2610082300"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "d37c75b92493c2129b1b12265922c6c8603d1106bc340bcf3e83508fa1c2ede1"
+        },
+        {
+          "id": "5560062601888734",
+          "sourceId": "NMS_ID_5560062601888734",
+          "classification": "DOMESTIC",
+          "number": "055",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "CFT"
+          ],
+          "icaoLocations": [
+            "KCFT"
+          ],
+          "accountability": "PRC",
+          "issuedAt": 1791298560000,
+          "updatedAt": 1791298560000,
+          "sourceUpdatedAt": "2026-10-06T14:56:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791378000000,
+          "endsAt": 1791500400000,
+          "effectiveStart": "202610071300",
+          "effectiveEnd": "202610082300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 07/25 WIP MOWING DLY 1300-2300",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!PRC 10/055 CFT RWY 07/25 WIP MOWING DLY 1300-2300 2610071300-2610082300"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "ed0f3f7e888d2fea0cf4d955cc8f42f125653d19e5dd4294afb34094836f11f4"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "CFT"
+      ],
+      "icaoLocations": [
+        "KCFT"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "6218155093458891",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "6218155093458891",
+          "sourceId": "NMS_ID_6218155093458891",
+          "classification": "DOMESTIC",
+          "number": "8",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "OSU"
+          ],
+          "icaoLocations": [
+            "KOSU"
+          ],
+          "accountability": "OSU",
+          "issuedAt": 1791284460000,
+          "updatedAt": 1791284460000,
+          "sourceUpdatedAt": "2026-10-06T11:01:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791284280000,
+          "endsAt": 1791583200000,
+          "effectiveStart": "202610061058",
+          "effectiveEnd": "202610092200",
+          "endKind": "fixed",
+          "schedule": "Daily:1058-2200~DLY 1058-2200",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "TWY A, C WIP MAINT DLY 1058-2200",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!OSU 10/008 OSU TWY A, C WIP MAINT DLY 1058-2200 2610061058-2610092200"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/008 NOTAMN \r\nQ) KZID/QMXHW/IV/M/A/000/999/4004N08304W005 \r\nA) KOSU \r\nB) 2610061058 \r\nC) 2610092200 \r\n D) DLY 1058-2200 \r\n\r\nE) TWY A, C WIP MAINT"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "1a0b844c8aaeb0348e0c24104f1ba6bafe9d6ebee370016bb8f1432e0702be43"
+        },
+        {
+          "id": "6218155093458891",
+          "sourceId": "NMS_ID_6218155093458891",
+          "classification": "DOMESTIC",
+          "number": "008",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "OSU"
+          ],
+          "icaoLocations": [
+            "KOSU"
+          ],
+          "accountability": "OSU",
+          "issuedAt": 1791284460000,
+          "updatedAt": 1791284460000,
+          "sourceUpdatedAt": "2026-10-06T11:01:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791284280000,
+          "endsAt": 1791583200000,
+          "effectiveStart": "202610061058",
+          "effectiveEnd": "202610092200",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "TWY A, C WIP MAINT DLY 1058-2200",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!OSU 10/008 OSU TWY A, C WIP MAINT DLY 1058-2200 2610061058-2610092200"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "bbf7d8c483f659732572ccc60db30e9af239c9b00d2453f758c7b43ab6aa39ee"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "OSU"
+      ],
+      "icaoLocations": [
+        "KOSU"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "7658223939618807",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "7658223939618807",
+          "sourceId": "NMS_ID_7658223939618807",
+          "classification": "DOMESTIC",
+          "number": "033",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "DAB"
+          ],
+          "icaoLocations": [
+            "KDAB"
+          ],
+          "accountability": "DAB",
+          "issuedAt": 1791304860000,
+          "updatedAt": 1791304860000,
+          "sourceUpdatedAt": "2026-10-06T16:41:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791304860000,
+          "endsAt": 1793314800000,
+          "effectiveStart": "202610061641",
+          "effectiveEnd": "202610292300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 291122N0810345W (.63NM NNW DAB) 154FT (120FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DAB 10/033 DAB OBST CRANE (ASN UNKNOWN) 291122N0810345W (.63NM NNW DAB) 154FT (120FT AGL) FLAGGED 2610061641-2610292300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A1706/26 NOTAMN Q) KZJX/QOBCE/IV/M/AE/000/999/2910N08103W005 A) KDAB B) 2610061641 C) 2610292300 E) OBST CRANE (ASN UNKNOWN) 291122N0810345W (.63NM NNW DAB)   154FT (120FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "1f917bcae618e90adeff1bc3a72d4d6db1dae50d740df3efd595b562bcce981a"
+        },
+        {
+          "id": "7658223939618807",
+          "sourceId": "NMS_ID_7658223939618807",
+          "classification": "DOMESTIC",
+          "number": "33",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "DAB"
+          ],
+          "icaoLocations": [
+            "KDAB"
+          ],
+          "accountability": "DAB",
+          "issuedAt": 1791304860000,
+          "updatedAt": 1791304860000,
+          "sourceUpdatedAt": "2026-10-06T16:41:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791304860000,
+          "endsAt": 1793314800000,
+          "effectiveStart": "202610061641",
+          "effectiveEnd": "202610292300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 291122N0810345W (.63NM NNW DAB) \r\n 154FT (120FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DAB 10/033 DAB OBST CRANE (ASN UNKNOWN) 291122N0810345W (.63NM NNW DAB) \r\n 154FT (120FT AGL) FLAGGED 2610061641-2610292300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/033 NOTAMN \r\nQ) KZJX//IV/M//000//2910N08103W005 \r\nA) KDAB \r\nB) 2610061641 \r\nC) 2610292300 \r\nE) CRANE LGT (ASN UNKNOWN) 291122N0810345W ( .63NM NNW (DABICAO))( 154FT) ( 120FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "5787931020d22870fea3c618fdb59d79ad2b9ff484790c02b9317c9c2fcfd51e"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "DAB"
+      ],
+      "icaoLocations": [
+        "KDAB"
+      ],
+      "unscoped": false
+    },
+    {
+      "id": "9744079994651276",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "9744079994651276",
+          "sourceId": "NMS_ID_9744079994651276",
+          "classification": "DOMESTIC",
+          "number": "35",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "ABE"
+          ],
+          "icaoLocations": [
+            "KABE"
+          ],
+          "accountability": "ABE",
+          "issuedAt": 1791287580000,
+          "updatedAt": 1791287640000,
+          "sourceUpdatedAt": "2026-10-06T11:54:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791287580000,
+          "endsAt": 1791320400000,
+          "effectiveStart": "202610061153",
+          "effectiveEnd": "202610062100",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 404016N0752736W (1.11NM NNW APCH END RWY 13) \r\n 514FT (125FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!ABE 10/035 ABE OBST CRANE (ASN UNKNOWN) 404016N0752736W (1.11NM NNW APCH END RWY 13) \r\n 514FT (125FT AGL) FLAGGED 2610061153-2610062100"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/035 NOTAMN \r\nQ) KZNY//IV/M//000//4039N07526W005 \r\nA) KABE \r\nB) 2610061153 \r\nC) 2610062100 \r\nE) CRANE LGT (ASN UNKNOWN) 404016N0752736W ( 1.11NM NNW ( APCH END RWY 13))( 514FT) ( 125FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "3de5edbac01d8b634ccfbe364b7a86be1e21396a988a89decd48bdca62b59473"
+        },
+        {
+          "id": "9744079994651276",
+          "sourceId": "NMS_ID_9744079994651276",
+          "classification": "DOMESTIC",
+          "number": "035",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "ABE"
+          ],
+          "icaoLocations": [
+            "KABE"
+          ],
+          "accountability": "ABE",
+          "issuedAt": 1791287640000,
+          "updatedAt": 1791287640000,
+          "sourceUpdatedAt": "2026-10-06T11:54:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791287580000,
+          "endsAt": 1791320400000,
+          "effectiveStart": "202610061153",
+          "effectiveEnd": "202610062100",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN UNKNOWN) 404016N0752736W (1.11NM NNW APCH END RWY 13) 514FT (125FT AGL) FLAGGED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!ABE 10/035 ABE OBST CRANE (ASN UNKNOWN) 404016N0752736W (1.11NM NNW APCH END RWY 13) 514FT (125FT AGL) FLAGGED 2610061153-2610062100"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A4117/26 NOTAMN Q) KZNY/QOBCE/IV/M/AE/000/999/4039N07526W005 A) KABE B) 2610061153 C) 2610062100 E) OBST CRANE (ASN UNKNOWN) 404016N0752736W (1.11NM NNW APCH END RWY 13)   514FT (125FT AGL) FLAGGED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "46b3bc3f3ac21764e6a078d49502b354c2c1c9f5e93592c6dc21053b4fb691b6"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "ABE"
+      ],
+      "icaoLocations": [
+        "KABE"
+      ],
+      "unscoped": false
+    }
+  ]
+}

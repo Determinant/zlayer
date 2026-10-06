@@ -15,10 +15,13 @@ export function useNotamsApi(registry: PluginRegistry<WorkspacePluginApis>): Not
       if (!provider) { setApi(undefined); return; }
       const state = createLayerStore(provider.state.getSnapshot());
       const charted = createLayerStore(provider.charted.getSnapshot());
+      const chartedTfrs = createLayerStore(provider.chartedTfrs.getSnapshot());
       connection.observe(provider.state, state.publish);
       connection.observe(provider.charted, charted.publish);
+      connection.observe(provider.chartedTfrs, chartedTfrs.publish);
       connection.add(() => charted.publish([]));
-      setApi({ state, charted, contextActions: point => connection.signal.aborted ? [] : provider.contextActions(point),
+      connection.add(() => chartedTfrs.publish([]));
+      setApi({ state, charted, chartedTfrs, contextActions: point => connection.signal.aborted ? [] : provider.contextActions(point),
         retain: (query, online) => connection.signal.aborted ? () => {} : provider.retain(query, online),
         previewChart: () => {
           if (connection.signal.aborted) return { update() {}, highlight: () => () => {}, release() {} };

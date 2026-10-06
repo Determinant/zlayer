@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1759097182635827",
+    "revision": "63cb6c35910838d26d93b607224d71351dc68e1c0af86a204adef74d80ece198",
+    "reason": "missing closure"
+  },
+  {
+    "id": "5950743001907086",
+    "revision": "6611f7f61b30a8777a3003b9852680d9d178f552426c0177954a219ae3f0dd1d",
+    "reason": "two vertices and duplicated AS"
+  },
+  {
+    "id": "1764648275966094",
+    "revision": "b16f5dbc64258941d19f55d7484beba11fa42e4b49ee0d83990ca3b3cbae1883",
+    "reason": "extra latitude digit has no unique repair"
+  },
+  {
+    "id": "1758720171007027",
+    "revision": "6284eec49aff4915e3873b4542ebb071954aa616b2fe66387bf8bd4c4a56e2b8",
+    "reason": "regulatory prose"
+  },
+  {
+    "id": "1758720594891941",
+    "revision": "244ee45ba9bae9d7bc8baccf2c95490e4e9f19ece92e14e8e2325b2e272d41f1",
+    "reason": "regulatory prose"
+  },
+  {
+    "id": "1758720602819197",
+    "revision": "ea4b66bb6a7293f689d9a0d455259524f3664f337b1315d5d1e7093bd744d3ae",
+    "reason": "regulatory prose"
+  },
+  {
+    "id": "3125635728660520",
+    "revision": "1edde9548e4557bbe61eaff8cc755e6ad9859b8ecbd8c334d989f30e49cac980",
+    "reason": "ambiguous airport or navaid"
+  },
+  {
+    "id": "6254300650597967",
+    "revision": "d5b2c690f5715ddb3a11fc2f851b054091072d6e32997dd629027b7156798d71",
+    "reason": "TACAN without published alignment"
+  },
+  {
+    "id": "2861077958468160",
+    "revision": "f4e411b48ef284787e52759c18a12159ad90e72fd43631a372e1b7e16e07f69d",
+    "reason": "published clockwise arc crosses an earlier boundary segment"
+  },
+  {
+    "id": "4446007441108563",
+    "revision": "63265e12cd2651704cf3e29f9a83a474dc89f1124f4ee377b6b6247b7f0a21f6",
+    "reason": "published clockwise arc crosses an earlier boundary segment"
+  },
+  {
+    "id": "4827873480009202",
+    "revision": "971a32a416dac173347f44d1ba1ffb93061f89cdd203690ac50c8e955cca734f",
+    "reason": "published clockwise arc crosses an earlier boundary segment"
+  },
+  {
+    "id": "1768243610508042",
+    "revision": "cdd3138a99d73160e8736e3c8bb65ffcb6d46bf89d87020a58fa81fc47729a08",
+    "reason": "ambiguous airport or navaid"
+  },
+  {
+    "id": "1774365359541240",
+    "revision": "98c4f39c0a2ca694babc9976a63e5ff8fd501da5f721374593ede1b920f0d373",
+    "reason": "self crossing"
+  },
+  {
+    "id": "2660066670478905",
+    "revision": "65fd504424fcdbb72b1f822e81659850183e63656753ebd237d1cd82e86a1dea",
+    "reason": "TACAN without published alignment"
+  },
+  {
+    "id": "5902288671935024",
+    "revision": "a1ec62a5e7810a20eddfbaf9b5e5932b535ebab5249b9e5524867b28d08221fc",
+    "reason": "missing closure"
+  },
+  {
+    "id": "1764648238065587",
+    "revision": "a5d06b55e7768a5b1c9b94a96a1b693e800a43fb80ecf5e13c2c0cd0dd6e2ff4",
+    "reason": "extra latitude digit has no unique repair"
+  },
+  {
+    "id": "1114112889879180",
+    "revision": "200e2b1d5f2136fee80465d15b8f9891fa8215904cfc43f244d81db36805470d",
+    "reason": "malformed coordinate"
+  },
+  {
+    "id": "1772724853162730",
+    "revision": "ef8f5cec5003ecdb5872458f87450349482d08bac0bc7c03c9e47e28f87cfe18",
+    "reason": "TACAN without published alignment"
+  },
+  {
+    "id": "1789020642687985",
+    "revision": "fff88db9b0aafe46c56ce1d2137acdc634a36c4cc2a458d824fb7609c82a2a0d",
+    "reason": "malformed coordinate"
+  },
+  {
+    "id": "1758719819181756",
+    "revision": "8d38731a964fb3961eb57ad5447656df48b66512d9b0a12f3ea16afe82f65ab4",
+    "reason": "geographic prose"
+  },
+  {
+    "id": "1762781691927939",
+    "revision": "a932a65b9e63a4bd0bc2b29cb257fc724279ad33e55c23f8be6d6d508702a3f4",
+    "reason": "missing closure"
+  },
+  {
+    "id": "5695844667594447",
+    "revision": "cec44d1fa91c55e1a88842f55c2eee607275dda60fa7e617fb513ce96dd91fb4",
+    "reason": "ambiguous airport or navaid"
+  },
+  {
+    "id": "7785136805319430",
+    "revision": "1b043a3fe4f7bc3c1ae45f29253dee74835b265dd7301422be7512b70c07ed29",
+    "reason": "malformed GPS tier radius M179NM has no supported numeric interpretation"
+  },
+  {
+    "id": "3473792392352477",
+    "revision": "4d70ef067bfc055e31d55e4c68859d09f12abcccde771a312826187e6d57a17e",
+    "reason": "duplicate END PART 1 OF 2 and repeated PART 2 OF 2 make transport assembly ambiguous"
+  }
+]
