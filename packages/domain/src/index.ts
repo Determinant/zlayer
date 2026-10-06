@@ -14,6 +14,7 @@ export * from './features.js';
 export * from './navaids.js';
 export * from './nearby-navaids.js';
 export * from './weather.js';
+export { metarAltimeter } from './metar.js';
 export * from './runway-wind.js';
 export * from './preferred-routes.js';
 export * from './route-history.js';

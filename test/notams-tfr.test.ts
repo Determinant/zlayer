@@ -131,7 +131,7 @@ test('the live TFR clock qualifies detail age at its deadline without another re
   const data = snapshot(), now = data.checkedAt;
   data.notices = data.notices.slice(1, 2); data.notices[0]!.detailCheckedAt = now - TFR_DETAIL_REFRESH_MS + 1000;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
-  const client = createTfrClient({ debounceMs: 0, storage: { read: () => data, write() {} }, load: async () => data });
+  const client = createTfrClient({ debounceMs: 0, storage: { read: () => data, async update() { return false; } }, load: async () => data });
   t.after(() => client.stop()); client.start(); t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve));
   assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'upcoming');
   t.mock.timers.tick(1000);
@@ -141,7 +141,7 @@ test('the live TFR clock qualifies detail age at its deadline without another re
 
 test('TFR clients reject future detail acquisition times from storage and HTTP', async t => {
   const data = snapshot(), now = data.checkedAt; data.notices[0]!.detailCheckedAt = now + 30_001;
-  const client = createTfrClient({ now: () => now, debounceMs: 0, storage: { read: () => data, write() { assert.fail('invalid data cannot persist'); } }, load: async () => data });
+  const client = createTfrClient({ now: () => now, debounceMs: 0, storage: { read: () => data, async update() { assert.fail('invalid data cannot persist'); } }, load: async () => data });
   t.after(() => client.stop()); client.start(); await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(client.state.getSnapshot().snapshot, undefined);
   assert.equal(client.state.getSnapshot().error, 'Unable to refresh TFRs');
@@ -184,7 +184,7 @@ test('TFR HTTP reads only published snapshots and never acquire FAA data', async
 
 test('TFR demand persists without airport readers and late reads cannot survive disable', async t => {
   let finish!: (s:TfrSnapshot)=>void, writes=0, calls=0;
-  const client=createTfrClient({now:()=>at('2026-10-05T21:00Z'),debounceMs:0,storage:{read:()=>null,write:()=>{writes++;}},
+  const client=createTfrClient({now:()=>at('2026-10-05T21:00Z'),debounceMs:0,storage:{read:()=>null,update:async()=>{writes++;return true;}},
     load:()=>{calls++;return new Promise(resolve=>{finish=resolve;});}});
   t.after(()=>client.stop()); client.start(); await new Promise(r=>setTimeout(r,10));
   assert.equal(calls,1); client.stop(); finish(snapshot()); await new Promise(r=>setImmediate(r));
@@ -200,7 +200,7 @@ test('the live clock changes TFR colors at activation and removes expired areas 
   notice.areas=notice.areas.slice(0,1); notice.areas[0]!.windows=[{startsAt:notice.startsAt,endsAt:notice.endsAt}];
   t.mock.timers.enable({apis:['Date','setTimeout'],now});
   let requests=0;
-  const client=createTfrClient({debounceMs:0,storage:{read:()=>data,write(){}},load:async()=>{requests++;return data;}});
+  const client=createTfrClient({debounceMs:0,storage:{read:()=>data,async update(){return false;}},load:async()=>{requests++;return data;}});
   t.after(()=>client.stop()); client.start();
   t.mock.timers.tick(0); await new Promise(resolve=>setImmediate(resolve));
   assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status,'upcoming');

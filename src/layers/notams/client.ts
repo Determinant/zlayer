@@ -3,13 +3,13 @@ import { isNotamAirportQuery, isNotamAirportSnapshot, notamAirportKey, NOTAM_AIR
 import { requestJson } from '../../core/data/request-json';
 import { createLayerStore } from '../../core/layers/store';
 import { OnDemandRefresh } from '../../core/layers/on-demand-refresh';
-import { airportSnapshots } from './storage';
+import { airportSnapshots, MAX_AIRPORT_SNAPSHOTS, mergeAirportSnapshots, notamSnapshotTimeValid } from './storage';
 import type { AirportNotamsState, NotamsApi, NotamsState } from './public';
 
 export function createNotamsClient(dependencies: {
   now?: () => number;
   load?: (query: NotamAirportQuery, signal: AbortSignal) => Promise<NotamAirportSnapshot>;
-  storage?: Pick<typeof airportSnapshots, 'read' | 'write'>;
+  storage?: Pick<typeof airportSnapshots, 'read' | 'update'>;
   debounceMs?: number;
 } = {}) {
   const now = dependencies.now ?? Date.now, storage = dependencies.storage ?? airportSnapshots;
@@ -21,6 +21,7 @@ export function createNotamsClient(dependencies: {
   let epoch = 0;
   const load = dependencies.load ?? ((query, signal) => requestJson(
     `/api/notams/airports?${new URLSearchParams(query)}`, isNotamAirportSnapshot, 'NOTAMs', { signal, maxBytes: NOTAM_AIRPORT_MAX_BYTES }));
+  const validTime = (snapshot: NotamAirportSnapshot) => notamSnapshotTimeValid(snapshot, now());
   function update(key: string, value: AirportNotamsState) {
     const airports = { ...state.getSnapshot().airports, [key]: value };
     if (value.snapshot !== state.getSnapshot().airports[key]?.snapshot) sizes.set(key, value.snapshot ? JSON.stringify(value.snapshot).length * 2 : 0);
@@ -28,20 +29,14 @@ export function createNotamsClient(dependencies: {
     const unused = Object.keys(airports).filter(k => !demanded.has(k)).sort((a, b) => (airports[b]?.retrievedAt ?? 0) - (airports[a]?.retrievedAt ?? 0));
     let total = [...sizes.values()].reduce((sum, size) => sum + size, 0), count = Object.keys(airports).length;
     for (const key of unused.reverse()) {
-      if (count <= 24 && total <= 64 * 1024 * 1024) break;
+      if (count <= MAX_AIRPORT_SNAPSHOTS && total <= 64 * 1024 * 1024) break;
       delete airports[key]; count--; total -= sizes.get(key) ?? 0; sizes.delete(key); attempts.delete(key);
     }
     state.publish({ airports, now: now() });
   }
-  function persist() {
-    const values: NotamAirportSnapshot[] = []; let bytes = 0;
-    for (const entry of Object.values(state.getSnapshot().airports).sort((a, b) => (b.retrievedAt ?? 0) - (a.retrievedAt ?? 0))) {
-      if (!entry.snapshot) continue;
-      const size = JSON.stringify(entry.snapshot).length * 2;
-      if (bytes + size > 1_900_000) continue;
-      bytes += size; values.push(entry.snapshot);
-    }
-    try { storage.write(values); } catch { /* Online results do not depend on optional storage. */ }
+  async function persist(snapshot: NotamAirportSnapshot, signal: AbortSignal) {
+    try { await storage.update(saved => mergeAirportSnapshots(saved, snapshot, now()), signal); }
+    catch { /* Online results do not depend on optional storage. */ }
   }
   function demand() {
     refresh?.setDemand([...consumers.values()].filter(v => v.online).map(v => notamAirportKey(v.query)), true);
@@ -61,13 +56,14 @@ export function createNotamsClient(dependencies: {
     const activation = ++epoch;
     try {
       for (const snapshot of storage.read()) {
-        if (!isNotamAirportSnapshot(snapshot)) continue;
+        if (!isNotamAirportSnapshot(snapshot) || !validTime(snapshot)) continue;
         const key = notamAirportKey(snapshot.query), old = state.getSnapshot().airports[key];
-        if (!old?.snapshot || (old.snapshot.feed.checkedAt ?? 0) < (snapshot.feed.checkedAt ?? 0)) update(key, { snapshot, loading: false });
+        if (!old?.snapshot || !validTime(old.snapshot) || (old.snapshot.feed.checkedAt ?? 0) < (snapshot.feed.checkedAt ?? 0)) update(key, { snapshot, loading: false });
       }
     } catch { /* Optional restoration. */ }
     refresh = new OnDemandRefresh({ intervalMs: NOTAM_REFRESH_MS, debounceMs: dependencies.debounceMs ?? 100,
       onState() {}, onError() {}, async refresh(keys, signal) {
+        const saves: Promise<void>[] = [];
         for (const key of keys) {
           signal.throwIfAborted();
           const query = [...consumers.values()].find(v => v.online && notamAirportKey(v.query) === key)?.query;
@@ -78,13 +74,14 @@ export function createNotamsClient(dependencies: {
           update(key, { ...old, loading: true });
           try {
             const snapshot = await load(query, signal); signal.throwIfAborted();
-            if (!isNotamAirportSnapshot(snapshot) || notamAirportKey(snapshot.query) !== key ||
-              (snapshot.feed.checkedAt ?? Infinity) > now() + 30_000) throw new Error('Invalid NOTAM snapshot');
-            if (old?.snapshot?.feed.environment === snapshot.feed.environment &&
+            if (!isNotamAirportSnapshot(snapshot) || notamAirportKey(snapshot.query) !== key || !validTime(snapshot)) throw new Error('Invalid NOTAM snapshot');
+            // Clock rollback can make previously accepted data implausibly future-dated.
+            if (old?.snapshot?.feed.environment === snapshot.feed.environment && validTime(old.snapshot) &&
               (old.snapshot.feed.checkedAt ?? 0) > (snapshot.feed.checkedAt ?? 0)) throw new Error('NOTAM snapshot regressed');
             // Cancelled reads never throttle a replacement activation.
             attempts.set(key, requestedAt);
-            update(key, { snapshot, loading: false, retrievedAt: now() }); persist();
+            update(key, { snapshot, loading: false, retrievedAt: now() });
+            saves.push(persist(snapshot, signal));
           } catch {
             if (signal.aborted) {
               if (activation === epoch) { attempts.delete(key); update(key, { ...old, loading: false }); }
@@ -94,6 +91,8 @@ export function createNotamsClient(dependencies: {
             update(key, { ...old, loading: false, error: 'Unable to refresh NOTAMs. Saved results may be out of date.' });
           }
         }
+        // Keep saves within the cancellable round without delaying other airport reads.
+        await Promise.all(saves);
         // A skipped fresh airport keeps its original deadline when demand changes.
         const time = now();
         return Math.min(NOTAM_REFRESH_MS, ...keys.map(key => {

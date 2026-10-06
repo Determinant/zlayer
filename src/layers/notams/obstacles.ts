@@ -53,7 +53,7 @@ function parseObstacle(body: string): { point: NotamObstacle; remainder: { text:
   const prefix = text.slice(0, point.index);
   const kind = /^OBST (CRANES?|TOWERS?|STACKS?|BLDGS?|BUILDINGS?|WIND TURBINES?|WINDMILLS?|POLES?|RIGS?|TREES?)(?: LGT)?(?: \((?:ASN|ASR) [A-Z0-9 /.,-]+\))?\s*$/.exec(prefix);
   if (!kind) return undefined;
-  const heights = /^(?:\s*\([.\d]+\s*NM\s+[NSEW]{1,3}\s+[A-Z0-9]+\))?\s+(-?\d+(?:\.\d+)?)\s*FT(?: MSL)?\s*\((\d+(?:\.\d+)?)\s*FT AGL\)(?=\s|\.|$)/.exec(text.slice(point.index + point[0].length));
+  const heights = /^(?:\s*\([.\d]+\s*(?:NM|FT)\s+[NSEW]{1,3}\s+(?:APCH END RWY \d{1,2}[LRC]?|[A-Z0-9]+)\))?\s+(-?\d+(?:\.\d+)?)\s*FT(?: MSL)?\s*\((\d+(?:\.\d+)?)\s*FT AGL\)(?=\s|\.|$)/.exec(text.slice(point.index + point[0].length));
   if (!heights) return undefined;
   const elevationMslFt = Number(heights[1]), heightAglFt = Number(heights[2]);
   if (Math.abs(elevationMslFt) > 99_999 || heightAglFt > 99_999) return undefined;
@@ -68,12 +68,8 @@ export function mappedObstacleRemainder(record: NotamRecord): string | undefined
   notamObstacles(record);
   const remainder = remainders.get(record);
   if (!remainder) return undefined;
-  // Keep every qualification. Only an exact, unconditional status already visible
-  // in a badge may be omitted; unknown schedules/wording stay in the reader.
-  const flags = parseNotam(record).flairs.map(f => f.label);
-  const status = remainder.text.replace(/\.$/, '');
-  if (status === 'FLAGGED AND LGTD' && flags.includes('Flagged and Lighted') ||
-    status === 'U/S' && remainder.lighting && flags.includes('Obstacle Light Outage')) return '';
+  // Only location is represented by the map. Status and qualifications always
+  // remain in the body, independently of which summary badges are displayed.
   return `${remainder.lighting ? 'LGT ' : ''}${remainder.text}`.trim();
 }
 

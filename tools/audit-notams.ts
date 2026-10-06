@@ -13,14 +13,16 @@ import { notamArea } from '../src/layers/notams/areas';
 import { NOTAM_COORDINATE } from '../src/layers/notams/coordinates';
 import { auditValueBindings } from './notam-value-audit';
 
-const numbers = (text: string) => text.match(/\d+(?:\.\d+)?/g) ?? [];
+// Source character escapes are display encoding, not operational numbers or words.
+const characters = (text: string) => text.replace(/&(?:apos|#39|#x27);/g, "'").replace(/&(?:quot|#34|#x22);/g, '"').replace(/&amp;/g, '&');
+const numbers = (text: string) => characters(text).match(/\d+(?:\.\d+)?/g) ?? [];
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const increment = (counts: Record<string, number>, key: string) => { counts[key] = (counts[key] ?? 0) + 1; };
 
 // This is a content-preservation check, not a second semantic parser. Only known
 // display aliases and grammar words are normalized; identifiers/qualifiers remain.
 function words(text: string, kind: NotamBodyBlock['kind']): string[] {
-  let value = text.toUpperCase().replace(/\s+/g, ' ').replace(/TAKE-OFF/g, 'TAKEOFF').replace(/&/g, 'AND')
+  let value = characters(text).toUpperCase().replace(/\s+/g, ' ').replace(/TAKE-OFF/g, 'TAKEOFF').replace(/&/g, 'AND')
     .replace(/\bAMDT\b/g, 'AMENDMENT');
   if (kind === 'instruction') value = value.replace(/CHANGE (.*?) TO READ\b/g, 'REPLACE $1')
     .replace(/\bINOP\b/g, 'INOPERATIVE').replace(/\bCATS\b/g, 'CATEGORIES');
@@ -30,7 +32,8 @@ function words(text: string, kind: NotamBodyBlock['kind']): string[] {
       .replace(/\bFEET\b/g, 'FT').replace(/\bDIST\b/g, 'DISTANCES');
   }
   if (kind === 'takeoff' || kind === 'takeoff-group') value = value.replace(/STANDARD MINIMUMS/g, 'STANDARD')
-    .replace(/(?:WITH (?:A )?)?MINIMUM CLIMB(?: GRADIENT)?(?: OF)?/g, 'MINIMUM CLIMB').replace(/FT PER NM/g, 'FT/NM');
+    .replace(/(?:WITH (?:A )?)?MINIMUM CLIMB(?: GRADIENT)?(?: OF)?/g, 'MINIMUM CLIMB').replace(/FT PER NM/g, 'FT/NM')
+    .replace(/\bTHEN (?=\d+(?:\.\d+)?\s*FT\/NM TO \d+)/g, 'THEN MINIMUM CLIMB ');
   return (value.match(/[A-Z]+|\d+(?:\.\d+)?|[*#]/g) ?? []).sort();
 }
 
@@ -83,7 +86,7 @@ export function auditNotam(record: NotamRecord, presentation?: NotamPresentation
     if (!range || range[1] !== stamp(record.startsAt) || range[2] !== stamp(record.endsAt) ||
       (range[3] ? record.endKind !== 'estimated' : record.endKind !== 'fixed')) fail('unaccounted validity suffix');
   }
-  for (const item of [...parsed.flairs, ...parsed.targets]) {
+  for (const item of [...parsed.facts, ...parsed.targets]) {
     if (body.slice(item.evidence.start, item.evidence.end) !== item.evidence.text) fail('invalid evidence span');
   }
   if (JSON.stringify(record) !== before) fail('source mutated');
@@ -91,10 +94,10 @@ export function auditNotam(record: NotamRecord, presentation?: NotamPresentation
 }
 
 /** Check the shared React reader, excluding the raw disclosure and metadata. */
-export function auditRenderedNotam(record: NotamRecord, mapped = false): string[] {
+export function auditRenderedNotam(record: NotamRecord, mapped = false, now = record.startsAt ?? 0): string[] {
   const presentation = mapped ? chartedNotamPresentation(record)?.presentation : presentNotam(record);
   if (!presentation) return [];
-  const html = renderToStaticMarkup(createElement(NotamList, { entries: [{ record }], now: record.startsAt ?? 0,
+  const html = renderToStaticMarkup(createElement(NotamList, { entries: [{ record }], now,
     ...(mapped ? { charted: new Set([notamChartKey(record)]) } : {}) }));
   const start = html.indexOf('<div class="notam-readable">'), end = html.indexOf('<div class="notam-validity">');
   if (!presentation.blocks.length) return start < 0 ? [] : ['unexpected mapped body'];
@@ -109,8 +112,8 @@ export function auditRenderedNotam(record: NotamRecord, mapped = false): string[
   return equal(words(displayed, 'text'), words(presentation.searchText, 'text')) ? [] : ['rendered content differs from reading model'];
 }
 
-/** Independent deletion check for the shortened reader: location prose is the
- * only removable content, apart from exact unconditional statuses visible as badges. */
+/** Independent deletion check: only location prose may leave the shortened reader.
+ * Status and qualifications must remain, regardless of the selected badges. */
 export function auditMappedNotam(record: NotamRecord, reading = chartedNotamPresentation(record)?.presentation): string[] {
   if (!reading) return [];
   const parsed = parseNotam(record), area = notamArea(record), obstacles = notamObstacles(record);
@@ -121,9 +124,7 @@ export function auditMappedNotam(record: NotamRecord, reading = chartedNotamPres
     if (!height) return ['mapped obstacle lacks explicit height'];
     retained = content.slice(height.index + height[0].length).trim();
     const lighting = /^OBST (?:\w+ ){1,2}LGT\b/.test(content);
-    if (retained.replace(/\.$/, '') === 'FLAGGED AND LGTD' && parsed.flairs.some(f => f.label === 'Flagged and Lighted')) retained = '';
-    else if (retained.replace(/\.$/, '') === 'U/S' && lighting && parsed.flairs.some(f => f.label === 'Obstacle Light Outage')) retained = '';
-    else if (lighting) retained = `LGT ${retained}`;
+    if (lighting) retained = `LGT ${retained}`;
   } else if (area) {
     // The elided source may contain coordinates, radius, explicit location aliases
     // and closure wording. Altitudes, operational nouns and conditions are not geometry.
@@ -176,7 +177,7 @@ async function main() {
     const presentation = presentNotam(record);
     if (presentation.blocks.some(b => ['minima', 'minima-group', 'takeoff', 'takeoff-group', 'distances'].includes(b.kind))) noticesWithValues++;
     if (presentation.blocks.every(b => b.kind === 'text')) proseOnly++;
-    closureRestrictions += parseNotam(record).flairs.filter(f => f.label.endsWith('Closure Restriction')).length;
+    closureRestrictions += parseNotam(record).facts.filter(f => f.label.endsWith('Closure Restriction')).length;
     for (const block of presentation.blocks) {
       increment(blocks, block.kind);
       if (block.kind !== 'text') continue;

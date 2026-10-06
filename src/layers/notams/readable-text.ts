@@ -46,8 +46,16 @@ const connective = new Set(`ALL AN AND AS AT BELOW BY EACH FOR FROM IN INTERCEPT
 const facilityDescription = new Set(`A ALL AN ANY APPROACH DIVERSE EACH INOPERATIVE MISSED
   OBSTACLE PUBLISHED RADAR REQUIRED STANDARD STEPDOWN SUITABLE THE`.split(/\s+/));
 
-/** Casing only: never changes wording, punctuation, numeric notation or spacing. */
+/** Known source character escapes, decoded once as text, never as HTML. */
+export function notamDisplayText(text: string): string {
+  const entities: Record<string, string> = { '&apos;': "'", '&#39;': "'", '&#x27;': "'",
+    '&quot;': '"', '&#34;': '"', '&#x22;': '"', '&amp;': '&' };
+  return text.replace(/&(?:apos|quot|amp|#39|#34|#x27|#x22);/g, entity => entities[entity]!);
+}
+
+/** Display characters and casing only; raw strings and numeric grammar never use this output. */
 export function readableNotamText(text: string, identifiers: readonly string[] = []): string {
+  text = notamDisplayText(text);
   const protectedWords = new Set(identifiers);
   const protectedOffsets = new Set<number>();
   // ASCII folding keeps offsets stable even in a publisher's non-English text.
@@ -83,5 +91,5 @@ export function readableNotamText(text: string, identifiers: readonly string[] =
 const airportCodes = new Set('AAF AFB ARB CGAS FLD INTL JRB MCAS MUNI NAS NOLF NS RGNL USAF USCG'.split(' '));
 /** Called only on the name/city span of a recognized airport heading, excluding its state. */
 export function readableAirportName(text: string): string {
-  return text.replace(/\b[A-Z]+\b/g, word => airportCodes.has(word) ? word : word[0]! + word.slice(1).toLowerCase());
+  return notamDisplayText(text).replace(/\b[A-Z]+\b/g, word => airportCodes.has(word) ? word : word[0]! + word.slice(1).toLowerCase());
 }

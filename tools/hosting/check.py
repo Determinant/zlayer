@@ -92,7 +92,7 @@ for path in ['/assets/does-not-exist.js', '/source/does-not-exist.tar.gz',
 read(app, '/api/weather/healthz', 405, method='POST')
 
 headers, feed = read(charts, '/charts/cycles.json', headers=['Origin: https://' + app])
-require(headers.get('access-control-allow-origin') == '*', 'Chart CORS')
+require(headers.get('access-control-allow-origin') == f'https://{app}', 'Chart CORS must allow only the app origin')
 require(headers.get('cache-control') == 'no-cache', 'Feed discovery must revalidate')
 require(bool(json.loads(feed)['cycles']), 'Empty chart discovery')
 _, same_origin = read(app, '/chart-data/cycles.json')
@@ -101,11 +101,25 @@ headers, _ = read(charts, '/charts/cycles.json', status=204, method='OPTIONS',
                   headers=['Origin: https://' + app, 'Access-Control-Request-Method: GET',
                            'Access-Control-Request-Headers: Range'])
 require('Range' in headers.get('access-control-allow-headers', ''), 'Range preflight')
+require(headers.get('access-control-allow-origin') == f'https://{app}', 'Chart preflight origin')
+for origin in ['https://untrusted.example', 'null', f'https://{app}.untrusted.example']:
+    for domain, path, methods in [
+        (charts, '/charts/cycles.json', ['GET', 'HEAD', 'OPTIONS']),
+        (app, '/chart-data/cycles.json', ['GET', 'HEAD']),
+    ]:
+        for method in methods:
+            headers, _ = read(domain, path, 403, method=method, headers=['Origin: ' + origin])
+            require(headers.get('cache-control') == 'no-store', 'Chart origin rejection must not be cached')
+            require(headers.get('access-control-allow-origin') not in ['*', origin], 'Untrusted chart origin allowed')
 for path in ['/', '/charts/', '/aim/', '/far/']:
     read(charts, path)
+    read(charts, path, headers=[f'Origin: https://{charts}'])
+for product in ['aim', 'far']:
+    for filename in ['manifest.webmanifest', 'service-worker.js']:
+        read(charts, f'/{product}/{filename}', method='HEAD', headers=[f'Origin: https://{charts}'])
 headers, _ = read(charts, '/charts/does-not-exist.mbtiles', 404,
                   headers=['Origin: https://' + app])
-require(headers.get('access-control-allow-origin') == '*', 'Chart errors must remain readable through CORS')
+require(headers.get('access-control-allow-origin') == f'https://{app}', 'Chart errors must remain readable by the app')
 
 headers, health_bytes = read(app, '/api/weather/healthz')
 health = json.loads(health_bytes)

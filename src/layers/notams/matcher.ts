@@ -1,8 +1,9 @@
 import type { NotamRecord } from '@zlayer/contracts';
 import type { PlateNoticeContext } from '../plates/public';
 import { normalizeRunway, parseNotam, type ParsedNotam } from './parser';
+import { approachFacilities } from './interpretation';
 
-export const NOTAM_MATCHER_VERSION = 4;
+export const NOTAM_MATCHER_VERSION = 5;
 export type PlateNotamMatch = { record: NotamRecord; parsed: ParsedNotam; outcome: 'applies' | 'review'; reason: string };
 const numbers = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
   'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY'];
@@ -48,10 +49,10 @@ export function matchPlateNotams(records: readonly NotamRecord[], context: Plate
         : parsed.broad ? 'Explicitly addresses all instrument approaches at this airport.' : `Names ${target!.title}.` });
     } else if (plate.kind === 'approach' && runway && parsed.facilityTarget?.runway === normalizeRunway(runway)) {
       const facility = parsed.facilityTarget.facility;
-      const supported = ['ILS', 'LOC', 'GP', 'GS'].includes(facility);
-      const usesFacility = facility === 'ILS' || facility === 'LOC' ? /\b(?:ILS|LOC)\b/i.test(plate.name) : /\bILS\b/i.test(plate.name);
+      const supported = approachFacilities.has(facility);
+      const usesFacility = facility === 'ILS' || facility.startsWith('LOC') ? /\b(?:ILS|LOC)\b/i.test(plate.name) : /\bILS\b/i.test(plate.name);
       if (supported && usesFacility) matches.push({ record, parsed, outcome: 'applies',
-        reason: `Explicit ${facility} outage for runway ${runway} used by this procedure. Read the stated effect and exceptions.` });
+        reason: `Explicit ${facility} ${parsed.facilityTarget.effect === 'unmonitored' ? 'monitoring restriction' : 'outage'} for runway ${runway} used by this procedure. Read the stated effect and exceptions.` });
       else if (!supported) {
         matches.push({ record, parsed, outcome: 'review', reason: `Runway ${runway} matches; the ${facility} dependency is unconfirmed.` });
       }

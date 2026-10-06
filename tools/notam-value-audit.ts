@@ -4,8 +4,8 @@ import type { NotamMinima, NotamMinimumRow } from '../src/layers/notams/minima';
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const normalized = (text: string) => text.toUpperCase().replace(/\s+/g,' ').trim().replace(/\.+$/,'');
 const category = (text: string) => /^ALL CATS?$/.test(text) ? 'All categories' : text.replace(/^CATS /,'CAT ');
-const value = '(?:NA|\\d+-\\d+/\\d+|\\d+ \\d+/\\d+|\\d+/\\d+|\\d+(?:\\.\\d+)?)(?: (?:SM|MILES?))?';
-const fields = new RegExp(`\\b(MDA|DA|HAT|HAA|HAS|VISIBILITY|VIS|RVR)([*#]?)\\s*(RVR )?(${value})( RVR)?`,'g');
+const value = '(?:NA|\\d+-\\d+/\\d+|\\d+ \\d+/\\d+|\\d+/\\d+|\\d+(?:\\.\\d+)?)(?:\\s*(?:SM|MILES?|FT))?';
+const fields = new RegExp(`\\b(MDA|DA|RA|HAT|HAA|HAS|VISIBILITY|VIS|RVR|MINIMUMS)\\s*([*#]?)[: ]*(RVR )?(${value})`,'g');
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
 /** Independent field-binding audit, not the extraction grammar. The preservation
@@ -28,16 +28,18 @@ function minima(source: string, block: NotamMinima): boolean {
   }
   const segments=text.split(/, */), rows: NotamMinimumRow[]=[];
   for (const segment of segments) {
-    const cats=[...segment.matchAll(/\b(ALL CATS?|CATS? [A-E](?:\/[A-E])*)\b/g)];
+    const cats=[...segment.matchAll(/\b(ALL CATS?|CATS? [A-E](?:(?:\/| AND )[A-E])*)\b/g)];
     if (cats.length>1) return false;
     const categories=cats[0] ? category(cats[0][1]!) : undefined;
-    const content=segment.replace(/\b(?:ALL CATS?|CATS? [A-E](?:\/[A-E])*)\b/g,'').trim();
+    const content=segment.replace(/\b(?:ALL CATS?|CATS? [A-E](?:(?:\/| AND )[A-E])*)\b/g,'').trim();
     if (!content && categories && rows.length===1 && !rows[0]!.categories) { rows[0]!.categories=categories; continue; }
     const triplet=/^(DA|MDA)\/RVR\/(HAT|HAA|HAS)\s+(\d+)\/(\d+)\/(\d+)$/.exec(content);
+    const pair=/^(DA|MDA)\/(HAT|HAA|HAS)[: ]+(\d+(?:\.\d+)?(?:\s*FT)?)\/(\d+(?:\.\d+)?(?:\s*FT)?)$/.exec(content);
     let values: NotamMinimumRow['values'];
     if (triplet) values=[{label:triplet[1]!,value:triplet[3]!},{label:'RVR',value:triplet[4]!},{label:triplet[2]!,value:triplet[5]!}];
-    else values=[...content.matchAll(fields)].map(m=>({label:`${/^VIS/.test(m[1]!)?'Visibility':m[1]}${m[2]}`,
-      value:`${m[3] || m[5] ? 'RVR ' : ''}${m[4]}`}));
+    else if (pair) values=[{label:pair[1]!,value:pair[3]!},{label:pair[2]!,value:pair[4]!}];
+    else values=[...content.matchAll(fields)].map(m=>({label:`${/^VIS/.test(m[1]!)?'Visibility':m[1]==='MINIMUMS'?'Minimums':m[1]}${m[2]}`,
+      value:`${m[3] || /^VIS/.test(m[1]!) && /^ RVR\b/.test(content.slice(m.index + m[0].length)) ? 'RVR ' : ''}${m[4]}`}));
     if (!values.length && categories && new RegExp(`^${value}$`).test(content) &&
       rows.at(-1)?.values.length===1 && rows.at(-1)!.values[0]!.label==='Visibility' && !rows.at(-1)!.values[0]!.value.startsWith('RVR ')) {
       values=[{label:'Visibility',value:content}];
@@ -53,7 +55,7 @@ export function auditValueBindings(source: string, block: NotamBodyBlock): strin
   const text=normalized(source);
   if (block.kind==='minima') return minima(text,block)?[]:['minima field/category binding'];
   if (block.kind==='minima-group') {
-    const sections=text.split(/, (?=[*#]?(?:LNAV|LPV|LP|GLS|RNP|S-|H-|CIRCLING|SIDESTEP)\b)/);
+    const sections=source.toUpperCase().trim().split(/(?:[,;]\s+|\r?\n\s*)(?=[*#]?(?:LNAV|LPV|LP|GLS|ILS|LOC|RNP|S-|H-|CIRCLING|SIDESTEP)\b)/);
     return sections.length===block.entries.length && block.entries.every((e,i)=>minima(sections[i]!,e))?[]:['minima procedure-scope binding'];
   }
   if (block.kind==='distances') return block.values.every(v=>new RegExp(`\\b${v.label} ${escape(v.value).replace(' FT','\\s*FT')}\\b`).test(text)) &&

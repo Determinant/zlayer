@@ -805,9 +805,11 @@ test('route changes during a drag never apply the old token index to the new pla
 
 test('workspace TFR inspection shares context-menu and long-press suppression without Routes', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const fixture = setup(t);
+  const features: MapGeoJSONFeature[] = [];
+  const fixture = setup(t, features);
   fixture.gestures.destroy();
   let inspections = 0, points = 0, menus = 0;
+  let selected: GeoPointFeature | undefined, selectedPointId: string | undefined;
   const actions: import('../src/core/map/selection').MapContextAction[][] = [];
   const registry = new PluginRegistry<{ notams: import('../src/layers/notams/public').NotamsApi }>();
   const provider = registry.registration('notams', { publicApi: scope => ({
@@ -818,7 +820,7 @@ test('workspace TFR inspection shares context-menu and long-press suppression wi
   }) });
   provider.activate();
   const input = createLayerInput<MapSelectionInput>();
-  input.set({ resolveFeature: value => value, onSelect: () => { points++; },
+  input.set({ resolveFeature: value => value, onSelect: (feature, pointId) => { points++; selected = feature; selectedPointId = pointId; },
     onChooseNearby: (_features, _point, offered = []) => { menus++; actions.push(offered); } });
   const map = fixture.map as unknown as MapLibreMap;
   const selection = createSelectionContribution(input, scope => registry.forScope(scope), {
@@ -843,6 +845,20 @@ test('workspace TFR inspection shares context-menu and long-press suppression wi
     fixture.click(); assert.equal(points, 1); assert.equal(inspections, 3);
     provider.activate();
     fixture.click(); assert.equal(inspections, 4);
+    // MapLibre returns the covering area first because it is drawn above navigation.
+    features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [] },
+      properties: {}, layer: { id: 'notam-tfr-fill' }, source: 'notam-tfrs' } as unknown as MapGeoJSONFeature);
+    features.push({ ...navigation.features[0]!, layer: { id: 'airports' }, source: 'navigation' } as unknown as MapGeoJSONFeature);
+    fixture.click();
+    assert.equal(selected?.properties.ident, 'KSFO', 'the airport remains selectable beneath a TFR');
+    assert.equal(inspections, 4, 'selecting an airport must not open TFR details');
+    features[1]!.source = ROUTE_SOURCE_ID;
+    features[1]!.properties.routePointId = 'token:0';
+    fixture.click();
+    assert.equal(selectedPointId, 'token:0', 'route point identity survives selection beneath a TFR');
+    assert.equal(inspections, 4);
+    features.pop();
+    fixture.click(); assert.equal(inspections, 5, 'the surrounding TFR area still opens its details');
   } finally { selection.unmount(); provider.deactivate(); }
 });
 

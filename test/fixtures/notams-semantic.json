@@ -44,7 +44,7 @@
       },
       "expected": {
         "subject": "OBST",
-        "flairs": [
+        "facts": [
           "Obstacle Light Outage"
         ],
         "mapped": true,
@@ -93,7 +93,7 @@
       },
       "expected": {
         "subject": "OBST",
-        "flairs": [
+        "facts": [
           "Obstacle Light Outage"
         ],
         "mapped": true,
@@ -142,7 +142,7 @@
       },
       "expected": {
         "subject": "OBST",
-        "flairs": [
+        "facts": [
           "Obstacle Light Outage"
         ],
         "mapped": true,
@@ -195,7 +195,7 @@
       },
       "expected": {
         "subject": "OBST",
-        "flairs": [
+        "facts": [
           "Obstacle Light Outage"
         ],
         "mapped": true,
@@ -244,7 +244,7 @@
       },
       "expected": {
         "subject": "OBST",
-        "flairs": [
+        "facts": [
           "Obstacle Light Outage"
         ],
         "mapped": true,
@@ -711,7 +711,7 @@
         "retained": [
           "WINGSPAN MORE THAN 118FT"
         ],
-        "flairs": [
+        "facts": [
           "Taxiway Closure Restriction"
         ],
         "forbidden": [
@@ -1017,7 +1017,7 @@
       "expected": {
         "subject": "AIRSPACE",
         "mapped": true,
-        "flairs": [
+        "facts": [
           "UAS Activity",
           "Surface to 400 ft AGL"
         ],

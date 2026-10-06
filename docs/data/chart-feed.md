@@ -266,7 +266,9 @@ files for open clients and saved regions; do not mirror with blanket deletion.
    unsafe. Removing a date from discovery does not migrate pinned clients or
    repair missing files in saved regions.
 6. Serve deployed cross-origin GET requests with CORS enabled. HEAD and Range requests
-   are handled locally after the initial whole-file download.
+   are handled locally after the initial whole-file download. The provided host
+   restricts CORS to the configured HTTPS app origin; see the
+   [hosting access policy](../development/deployment.md#docker-hosting-and-staged-migration).
 
 For an already completed older build, `npm run build:chart-manifests` in faa-regs
 migrates sheets out of the publish tree and flattens existing delivery packages without

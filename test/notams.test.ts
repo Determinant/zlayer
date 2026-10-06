@@ -17,16 +17,16 @@ test('NOTAM contract keeps airport namespaces, source strings and complete snaps
   assert.equal(isNotamAirportSnapshot(notamSnapshot([notice(), notice()])), false);
   assert.notEqual(notamAirportKey({ faaId: 'TST' }), notamAirportKey({ icaoId: 'KTST' }));
 });
-test('flairs keep the subject, effect, qualifications and evidence separate', () => {
+test('extracted facts keep the subject, effect, qualifications and evidence separate', () => {
   const lights = parseNotam(notice());
-  assert.ok(lights.flairs.some(f => f.label === 'Lighting Unavailable'));
-  assert.ok(!lights.flairs.some(f => f.label === 'Runway Closed'));
+  assert.ok(lights.facts.some(f => f.label === 'Lighting Unavailable'));
+  assert.ok(!lights.facts.some(f => f.label === 'Runway Closed'));
   const closure = parseNotam(notice({ text: 'RWY 9L/27R CLSD EXC EMERG ACFT' }));
-  assert.ok(closure.flairs.some(f => f.label === 'Runway Closure Restriction' && f.tone === 'caution')); assert.match(closure.body, /EXC EMERG/);
+  assert.ok(closure.facts.some(f => f.label === 'Runway Closure Restriction' && f.tone === 'caution')); assert.match(closure.body, /EXC EMERG/);
   const pointer = parseNotam(notice({ text: 'AD SEE FDC 6/1001 FOR IAP RESTRICTIONS' }));
   assert.equal(pointer.subject, 'AD'); assert.equal(pointer.procedureNotice, false);
-  for (const f of [...lights.flairs, ...closure.flairs]) assert.equal(f.evidence.text.length, f.evidence.end - f.evidence.start);
-  assert.equal(parseNotam(notice({ text: 'UNKNOWN RWY 09 CLSD' })).flairs.length, 0);
+  for (const f of [...lights.facts, ...closure.facts]) assert.equal(f.evidence.text.length, f.evidence.end - f.evidence.start);
+  assert.equal(parseNotam(notice({ text: 'UNKNOWN RWY 09 CLSD' })).facts.length, 0);
 });
 test('KSJC-style D and FDC clauses expose scoped facilities, procedure changes and distinct tones', () => {
   const cases: [string, string[]][] = [
@@ -44,31 +44,31 @@ test('KSJC-style D and FDC clauses expose scoped facilities, procedure changes a
   ];
   for (const [text, expected] of cases) {
     const record = notice({ text }), parsed = parseNotam(record);
-    for (const label of expected) assert.ok(parsed.flairs.some(f => f.label === label), `${label}: ${text}`);
+    for (const label of expected) assert.ok(parsed.facts.some(f => f.label === label), `${label}: ${text}`);
     assert.equal(parsed.body, text);
-    for (const flair of parsed.flairs) assert.equal(text.slice(flair.evidence.start, flair.evidence.end), flair.evidence.text);
+    for (const fact of parsed.facts) assert.equal(text.slice(fact.evidence.start, fact.evidence.end), fact.evidence.text);
   }
   const [procedure, closure, nav, obstruction, uas] = detailedNotices().map(parseNotam);
-  assert.equal(procedure!.flairs.find(f => f.label === 'RNAV (RNP) Z RWY 30L')?.tone, 'procedure');
-  assert.equal(procedure!.flairs.find(f => f.label === 'Minima Amended')?.tone, 'caution');
-  assert.ok(procedure!.flairs.some(f => f.label === 'Visibility Amended'));
-  assert.ok(procedure!.flairs.some(f => f.label === 'Inoperative Lighting Note'));
-  assert.ok(!procedure!.flairs.some(f => /unavailable|closed|outage/i.test(f.label)), 'a conditional lighting note is not an actual outage');
-  assert.equal(closure!.flairs.find(f => f.label === 'Runway Closure Restriction')?.tone, 'caution');
-  assert.equal(nav!.flairs.find(f => f.label === 'RWY 30L')?.tone, 'info');
-  assert.equal(nav!.flairs.find(f => f.label === 'ILS Unavailable')?.tone, 'caution');
-  assert.match(obstruction!.flairs.find(f => f.label === 'Obstacle Light Outage')!.evidence.text, /LGT.*U\/S/);
-  assert.ok(uas!.flairs.some(f => f.label === 'Surface to 300 ft AGL'));
+  assert.equal(procedure!.facts.find(f => f.label === 'RNAV (RNP) Z RWY 30L')?.tone, 'procedure');
+  assert.equal(procedure!.facts.find(f => f.label === 'Minima Amended')?.tone, 'caution');
+  assert.ok(procedure!.facts.some(f => f.label === 'Visibility Amended'));
+  assert.ok(procedure!.facts.some(f => f.label === 'Inoperative Lighting Note'));
+  assert.ok(!procedure!.facts.some(f => /unavailable|closed|outage/i.test(f.label)), 'a conditional lighting note is not an actual outage');
+  assert.equal(closure!.facts.find(f => f.label === 'Runway Closure Restriction')?.tone, 'caution');
+  assert.equal(nav!.facts.find(f => f.label === 'RWY 30L')?.tone, 'info');
+  assert.equal(nav!.facts.find(f => f.label === 'ILS Unavailable')?.tone, 'caution');
+  assert.match(obstruction!.facts.find(f => f.label === 'Obstacle Light Outage')!.evidence.text, /LGT.*U\/S/);
+  assert.ok(uas!.facts.some(f => f.label === 'Surface to 300 ft AGL'));
 });
 test('incidental, conditional and unsupported clauses never turn into a facility closure or outage', () => {
   for (const text of [
     'RWY 12R PAPI U/S', 'OBST CRANE NEAR RWY 12R CLSD', 'AD SEE FDC 6/1001 FOR RWY 12R CLSD',
     'IAP TEST. RNAV (GPS) RWY 12R, AMDT 1... WHEN RWY 30L CLSD, CIRCLING NA.',
     'NAV ILS RWY 12R MAY BE U/S', 'RWY 12R WHEN PAPI U/S USE CAUTION',
-  ]) assert.ok(!parseNotam(notice({ text })).flairs.some(f => f.tone === 'danger'), text);
+  ]) assert.ok(!parseNotam(notice({ text })).facts.some(f => f.tone === 'danger'), text);
   for (const text of ['IAP TEST. RNAV (GPS) RWY 12R, AMDT 1... FOR INOP ALS, INCREASE VISIBILITY TO 1 SM.',
     'NAV ILS RWY 12R MAY BE U/S', 'RWY 12R WHEN PAPI U/S USE CAUTION']) {
-    assert.ok(!parseNotam(notice({ text })).flairs.some(f => /unavailable|outage/i.test(f.label)), text);
+    assert.ok(!parseNotam(notice({ text })).facts.some(f => /unavailable|outage/i.test(f.label)), text);
   }
 });
 test('bounded heading parsing keeps multiple targets and preserves oversized source text', () => {
@@ -80,8 +80,8 @@ test('bounded heading parsing keeps multiple targets and preserves oversized sou
   const result = parseNotam(notice({ text: huge }));
   assert.equal(result.body, huge); assert.equal(result.unresolved, true); assert.equal(result.targets.length, 0);
   const fallback = parseNotam(notice({ text: '', translations: [{ type: 'LOCAL_FORMAT', text: '!TST 10/001 TST NAV ILS RWY 30L U/S 2610041159-2610051200' }] }));
-  assert.ok(fallback.flairs.some(f => f.label === 'ILS Unavailable'));
-  for (const flair of fallback.flairs) assert.equal(fallback.body.slice(flair.evidence.start, flair.evidence.end), flair.evidence.text);
+  assert.ok(fallback.facts.some(f => f.label === 'ILS Unavailable'));
+  for (const fact of fallback.facts) assert.equal(fallback.body.slice(fact.evidence.start, fact.evidence.end), fact.evidence.text);
 });
 const selection = procedureSelection(testCatalog, testAirport, testProcedure, testResource.url, 'https://example.test/', testResource);
 const context = procedureNoticeContext(selection, testAirport, testProcedure);
@@ -112,7 +112,7 @@ test('partial approach headings preserve supported matches and expose every rema
 test('matching preserves runway side, Y/Z, GPS/RNP and amendment identity', () => {
   const fdc = notice({ classification: 'FDC', text: 'IAP TEST AIRPORT, CA. RNAV (GPS) Y RWY 09L, AMDT 2...\nCIRCLING NA EXC CAT A.' });
   const match = matchPlateNotams([fdc], context).matches[0]!;
-  assert.equal(match.outcome, 'applies'); assert.equal(match.parsed.flairs.at(-1)?.label, 'Circling Restriction');
+  assert.equal(match.outcome, 'applies'); assert.equal(match.parsed.facts.at(-1)?.label, 'Circling Restriction');
   for (const replacement of ['RNAV (GPS) Z RWY 09L', 'RNAV (GPS) Y RWY 09R', 'RNAV (RNP) Y RWY 09L']) {
     assert.equal(matchPlateNotams([{ ...fdc, text: fdc.text.replace('RNAV (GPS) Y RWY 09L', replacement) }], context).matches.length, 0, replacement);
   }
@@ -242,7 +242,7 @@ test('actual book page resolves its own airport; missing/ambiguous/other-edition
 test('one client coalesces consumers, preserves failure/offline data and releases obsolete work', async t => {
   let calls = 0, time = NOTAM_NOW, fail = false;
   const client = createNotamsClient({ now: () => time, debounceMs: 0,
-    storage: { read: () => [notamSnapshot()], write() { throw new Error('Storage denied'); } },
+    storage: { read: () => [notamSnapshot()], async update() { throw new Error('Storage denied'); } },
     load: async (query, signal) => { signal.throwIfAborted(); calls++; if (fail) throw new Error(); return notamSnapshot(undefined, { query }); } });
   client.start(); t.after(client.stop);
   const a = client.retain({ faaId: 'TST', icaoId: 'KTST' }, true), b = client.retain({ faaId: 'TST', icaoId: 'KTST' }, true);
@@ -258,7 +258,7 @@ test('one client coalesces consumers, preserves failure/offline data and release
 test('reopening and adding airports preserve each demanded airport refresh deadline', async t => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: NOTAM_NOW });
   const calls: [string, number][] = [];
-  const client = createNotamsClient({ debounceMs: 0, storage: { read: () => [], write() {} },
+  const client = createNotamsClient({ debounceMs: 0, storage: { read: () => [], async update() { return false; } },
     load: async query => { calls.push([query.faaId!, Date.now() - NOTAM_NOW]); return notamSnapshot([], { query }); } });
   t.after(client.stop);
   const advance = async (ms: number) => { t.mock.timers.tick(ms); await flush(); };
@@ -285,7 +285,7 @@ test('reopening and adding airports preserve each demanded airport refresh deadl
 test('reactivation replaces an aborted first read immediately and ignores its late response', async t => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: NOTAM_NOW });
   const requests: { signal: AbortSignal; finish(snapshot: ReturnType<typeof notamSnapshot>): void }[] = [];
-  const client = createNotamsClient({ debounceMs: 0, storage: { read: () => [], write() {} },
+  const client = createNotamsClient({ debounceMs: 0, storage: { read: () => [], async update() { return false; } },
     load: (_query, signal) => new Promise(resolve => requests.push({ signal, finish: resolve })) });
   t.after(client.stop);
   const query = { faaId: 'TST' }, key = notamAirportKey(query);
@@ -306,7 +306,7 @@ test('reactivation replaces an aborted first read immediately and ignores its la
 });
 test('a late client response cannot replace an airport or resurrect an unloaded activation', async () => {
   let finish!: (value: ReturnType<typeof notamSnapshot>) => void;
-  const client = createNotamsClient({ now: () => NOTAM_NOW, debounceMs: 0, storage: { read: () => [], write() {} },
+  const client = createNotamsClient({ now: () => NOTAM_NOW, debounceMs: 0, storage: { read: () => [], async update() { return false; } },
     load: () => new Promise(resolve => { finish = resolve; }) });
   client.start(); client.retain({ faaId: 'TST' }, true);
   await new Promise(resolve => setTimeout(resolve, 10)); client.stop(); client.start();
@@ -331,7 +331,7 @@ test('captured equivalent FDC renderings retain procedure matches through collec
       const before = JSON.stringify(record), parsed = parseNotam(record);
       assert.equal(parsed.subject, 'SID');
       assert.deepEqual(parsed.targets.map(t => t.title), ['ROCHESTER ONE']);
-      for (const value of [...parsed.targets, ...parsed.flairs]) assert.equal(parsed.body.slice(value.evidence.start, value.evidence.end), value.evidence.text);
+      for (const value of [...parsed.targets, ...parsed.facts]) assert.equal(parsed.body.slice(value.evidence.start, value.evidence.end), value.evidence.text);
       const matches = matchPlateNotams([record], context);
       assert.equal(matches.matches.length, 1); assert.equal(matches.matches[0]!.outcome, 'applies');
       assert.equal(matches.unresolved, 0);

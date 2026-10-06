@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { deferred } from './helpers/deferred';
 import { createPluginStorage } from '../src/core/storage/plugin-storage';
 import { pluginPreferences, booleanPreference } from '../src/core/storage/preferences';
 import { layerPlugins } from '../src/core/layers/plugin';
@@ -100,6 +101,91 @@ test('optional record limits bound UTF-16 storage and skip oversized restores be
   assert.doesNotThrow(() => record.write('larger'));
   assert.equal(values.get(record.key), '"too large"');
   assert.throws(() => createPluginStorage('bounded', undefined, { maxRecordBytes: 0 }), /record limit/);
+});
+
+test('record writes preserve readable data when the serialized replacement fails its decoder', t => {
+  const { values } = setup(t);
+  const scope = createPluginStorage('test');
+  const record = () => scope.record<number[]>('numbers', { version: 1, fallback: [],
+    decode: value => Array.isArray(value) && value.length <= 2 && value.every(v => typeof v === 'number') ? value : undefined,
+    encode: value => value });
+  record().write([1, 2]);
+  const saved = values.get(record().key);
+  for (const invalid of [[1, 2, 3], [NaN], [Infinity]]) {
+    assert.doesNotThrow(() => record().write(invalid));
+    assert.equal(values.get(record().key), saved);
+    assert.deepEqual(record().read(), [1, 2], 'validate the JSON representation, including non-finite numbers becoming null');
+  }
+  record().write([]);
+  assert.deepEqual(record().read(), [], 'valid empty replacements still persist');
+});
+
+test('decoder exceptions do not commit records or evict existing view state', t => {
+  const { values } = setup(t);
+  const scope = createPluginStorage('test', undefined, { uiRetention: [{ prefix: 'view:', limit: 1 }] });
+  scope.ui('view:retained', false, isBoolean).write(true);
+  const saved = [...values];
+  const rejected = scope.record('view:new', { version: 1, fallback: false,
+    decode: () => { throw new Error('Invalid data'); }, encode: (value: boolean) => value });
+  assert.doesNotThrow(() => rejected.write(true));
+  assert.deepEqual([...values], saved);
+  assert.equal(rejected.read(), false);
+});
+
+test('coordinated records merge independent writers and reject invalid updates without replacing saved values', async t => {
+  setup(t);
+  const record = () => createPluginStorage('test').record<number[]>('shared', { version: 1, fallback: [],
+    decode: value => Array.isArray(value) && value.length <= 2 && value.every(v => typeof v === 'number') ? value : undefined,
+    encode: value => value });
+  const a = record(), b = record();
+  assert.deepEqual(await Promise.all([a.update(saved => [...saved, 1]), b.update(saved => [...saved, 2])]), [true, true]);
+  assert.deepEqual(record().read(), [1, 2]);
+  assert.equal(await a.update(saved => [...saved, 3]), false);
+  assert.deepEqual(record().read(), [1, 2]);
+});
+
+for (const failure of ['abort', 'timeout'] as const) test(`a queued record update cannot write after ${failure}`, async t => {
+  setup(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const record = createPluginStorage('test').record('shared', { version: 1, fallback: 0,
+    decode: value => typeof value === 'number' ? value : undefined, encode: (value: number) => value });
+  record.write(1);
+  const entered = deferred(), release = deferred();
+  const holding = navigator.locks.request(record.key, async () => { entered.resolve(); await release.promise; });
+  t.after(async () => { release.resolve(); await holding; });
+  await entered.promise;
+  let changes = 0; const abort = new AbortController();
+  const pending = record.update(saved => { changes++; return saved + 1; }, abort.signal);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  if (failure === 'abort') abort.abort(); else t.mock.timers.tick(10_000);
+  assert.equal(await pending, false);
+  release.resolve(); await holding;
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(changes, 0); assert.equal(record.read(), 1);
+  assert.equal(await record.update(saved => saved + 1), true, 'a later update can recover');
+  assert.equal(record.read(), 2);
+});
+
+test('coordinated records skip writes if locks or the storage read are unavailable', async t => {
+  const { storage, values } = setup(t);
+  const record = createPluginStorage('test').record('shared', { version: 1, fallback: 0,
+    decode: value => typeof value === 'number' ? value : undefined, encode: (value: number) => value });
+  record.write(1);
+  const descriptor = Object.getOwnPropertyDescriptor(navigator, 'locks');
+  const restoreLocks = () => descriptor ? Object.defineProperty(navigator, 'locks', descriptor) : Reflect.deleteProperty(navigator, 'locks');
+  t.after(restoreLocks);
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+  assert.equal(await record.update(() => 2), false);
+  Object.defineProperty(navigator, 'locks', { configurable: true, get() { throw new Error('Locks denied'); } });
+  assert.equal(await record.update(() => 2), false);
+  restoreLocks();
+  const read = storage.getItem;
+  storage.getItem = () => { throw new Error('Storage denied'); };
+  assert.equal(await record.update(() => 2), false, 'an unreadable record cannot be treated as missing');
+  assert.equal(values.get(record.key), '1');
+  storage.getItem = read;
+  assert.equal(await record.update(saved => saved + 1), true);
+  assert.equal(record.read(), 2);
 });
 
 test('legacy route migration commits generated IDs in the namespace and explicit clearing survives reload', t => {

@@ -30,6 +30,17 @@ test('TAF status distinguishes unavailable, offline, cached, expired and cancell
   assert.match(html({ entry: { report: { ...report, rawTAF: 'TAF KSFO NIL' }, checkedAt: now } }), /No forecast issued/);
 });
 
+test('TAF reader retains malformed change groups without displaying an inherited category', () => {
+  const rawTAF = 'TAF KSFO 171800Z 1719/1819 P6SM SCT030 PROB50 1720/1722 1/2SM';
+  const value: TafReport = { ...report, rawTAF, fcsts: [{ timeFrom: report.validTimeFrom, timeTo: report.validTimeTo,
+    visib: '6+', clouds: [{ cover: 'SCT', base: 3000 }] }] };
+  const html = renderToStaticMarkup(createElement(TafReportView, { entry: { report: value, checkedAt: now },
+    loading: false, online: true, now }));
+  assert.equal([...html.matchAll(/<code>(.*?)<\/code>/g)].map(match => match[1]).join(' '), rawTAF);
+  assert.equal((html.match(/data-flight-category="unknown"/g) ?? []).length, 2);
+  assert.ok(!html.includes('data-flight-category="VFR"'));
+});
+
 test('airport details put TAF immediately after METAR, and fixes have neither weather section', () => {
   const html = (kind: string) => renderToStaticMarkup(createElement(FeatureDetailsPanel, {
       onIdentificationChange() {},

@@ -2,10 +2,17 @@ import { isRecord } from '@zlayer/contracts';
 import type { PersistentRecord } from './record';
 import { createPluginFileCache, type PluginFilePolicy, type PluginFileBudget } from './plugin-file-cache';
 import { subscribePluginFileChanges } from './plugin-file-events';
+import { optionalStorage } from './optional-storage';
+
+export type PluginRecord<T> = PersistentRecord<T> & {
+  /** All concurrent writers must use this locked read/change/write path. */
+  update(change: (value: T) => T, signal?: AbortSignal): Promise<boolean>;
+};
 
 type RecordOptions<T> = {
   version: number;
   fallback: T;
+  /** Validates/migrates parsed JSON on restore and before writes; must not write storage. */
   decode(value: unknown): T | undefined;
   encode(value: T): unknown;
   /** Read-only compatibility source. New writes always use the plugin namespace. */
@@ -42,36 +49,58 @@ export function createPluginStorage(pluginId: string, legacyUi?: (name: string) 
       },
     };
   }
-  function record<T>(name: string, options: RecordOptions<T>): PersistentRecord<T> {
+  function record<T>(name: string, options: RecordOptions<T>): PluginRecord<T> {
     const stored = slot(name), { key } = stored;
-    const write = (value: T) => {
-      try {
-        const storage = browserStorage(), rule = retention(name);
-        const prune = rule && (!trimmed.has(rule) || storage.getItem(key) === null);
-        stored.write(JSON.stringify(options.encode(value)), storage);
-        if (prune) {
-          pruneUi(storage, pluginId, rule, name, legacyUi);
-          trimmed.add(rule);
-        }
+    function commit(value: T, storage: Storage): boolean {
+      const raw = JSON.stringify(options.encode(value));
+      // Validate what a later read actually sees (JSON can change values).
+      // Rejected writes must preserve existing data and never trigger eviction.
+      if (typeof raw !== 'string' || !fits(raw) || options.decode(JSON.parse(raw)) === undefined) return false;
+      const rule = retention(name);
+      const prune = rule && (!trimmed.has(rule) || storage.getItem(key) === null);
+      stored.write(raw, storage);
+      if (prune) {
+        pruneUi(storage, pluginId, rule, name, legacyUi);
+        trimmed.add(rule);
       }
+      return true;
+    }
+    const write = (value: T) => {
+      try { commit(value, browserStorage()); }
       catch { /* Optional persistence must not disable session controls. */ }
     };
-    return { key, version: options.version, write, read() {
-      try {
-        const storage = browserStorage();
-        let raw = storage.getItem(key);
-        const legacy = raw === null && options.legacyKey !== undefined;
-        if (legacy) raw = storage.getItem(options.legacyKey!);
-        if (raw === null || !fits(raw)) return options.fallback;
-        const saved: unknown = JSON.parse(raw);
-        const value = options.decode(saved);
-        if (value === undefined) return options.fallback;
-        // Commit known migrations only. Unknown/corrupt records never fall back
-        // to an older slot or get overwritten with defaults during startup.
-        if (legacy || (isRecord(saved) && saved.version !== options.version)) write(value);
-        return value;
-      } catch { return options.fallback; }
-    } };
+    function restore(storage: Storage, migrate: boolean): T {
+      // Access errors must reach update(): an unavailable read is not an empty record.
+      let raw = storage.getItem(key);
+      const legacy = raw === null && options.legacyKey !== undefined;
+      if (legacy) raw = storage.getItem(options.legacyKey!);
+      if (raw === null || !fits(raw)) return options.fallback;
+      let saved: unknown;
+      try { saved = JSON.parse(raw); } catch { return options.fallback; }
+      const value = options.decode(saved);
+      if (value === undefined) return options.fallback;
+      // Only explicit older envelopes or legacy keys establish a migration.
+      // Codecs without a version field must not rewrite shared snapshots on reads.
+      if (migrate && (legacy || (isRecord(saved) && saved.version !== undefined && saved.version !== options.version))) write(value);
+      return value;
+    }
+    return { key, version: options.version, write,
+      read() {
+        try { return restore(browserStorage(), true); } catch { return options.fallback; }
+      },
+      async update(change, signal = new AbortController().signal) {
+        try {
+          const locks = globalThis.navigator?.locks;
+          if (!locks) return false;
+          return await optionalStorage(storageSignal => locks.request(key, { signal: storageSignal }, () => {
+            storageSignal.throwIfAborted();
+            const storage = browserStorage(), value = change(restore(storage, false));
+            storageSignal.throwIfAborted();
+            return commit(value, storage);
+          }), signal);
+        } catch { return false; }
+      },
+    };
   }
   return {
     pluginId,

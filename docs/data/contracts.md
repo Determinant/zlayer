@@ -227,8 +227,10 @@ excluded. Missing heights remain unknown rather than becoming a clear-sky claim.
 When a ceiling layer has an unknown base, other measured layers still bound the
 ceiling: an 800 ft overcast layer retains the known IFR restriction even if another
 broken layer's base is missing. That bound is not displayed as an exact ceiling.
-Without an AWC-supplied category, an unknown ceiling can establish a restrictive
-category from known layers or visibility, but cannot establish VFR.
+Without an AWC-supplied category, either known element can establish a restrictive
+category, but both ceiling and visibility must be known to establish VFR. Invalid
+visibility remains unavailable; the [report parser](../../src/layers/metar-taf/README.md#report-parsing)
+owns complete-field validation and handling of damaged source groups.
 
 Catalog, navigation, airway, and METAR documents are runtime-validated before entering client
 state. A matching report without enough ceiling/visibility information remains

@@ -146,8 +146,20 @@ supported schedule; uncertain validity/schedules and notices outside their sched
 stay under Check timing with their existing qualifiers. Upcoming always appears last,
 with a muted heading and subtle dashed leading border using existing theme tokens;
 it is a section, not a flair. Keep notice text and semantic flair colors at full contrast.
-Within each airport section, order newest issued first with a stable ID tie-breaker;
-the plate list additionally prioritizes FDC notices as described below.
+Within each airport section, use this priority order:
+
+1. Airport, runway and taxiway closures, including partial or qualified closures.
+2. Navaid outages.
+3. Other closures, outages, monitoring limitations, restrictions and procedure notices.
+4. Remaining notices, including activity, obstacles and informational updates.
+
+Use supported parser facts and subjects, not raw keyword matches, classification
+or flair colors. A runway lighting outage is not a runway closure; an unmonitored
+navaid is not an outage. Preserve newest-issued order (updated time when issue
+time is missing) and the stable ID tie-breaker within each priority. Apply the
+same ordering under classification, subject and search filters, independently in
+Active, Check timing and Upcoming. `priority.ts` owns this airport-only reading
+order; the plate list prioritizes FDC notices as described below.
 The clock reevaluates timing every 30 seconds while
 demanded and immediately when demand resumes, moving notices between sections as
 their effective times change. Expired/cancelled
@@ -157,12 +169,12 @@ history is separate and bounded. Do not infer severity from FDC versus D.
 | Entry element | Contract |
 | --- | --- |
 | Identity | Source number and location, with classification `D` or `FDC`; preserve unknown classifications explicitly |
-| Subject flairs | Source-backed topics such as Runway, Taxiway, IAP, SID, STAR, Navaid, Obstruction, or Airspace |
-| Effect flairs | Scoped effects such as Runway Closed, Lighting Unavailable, Procedure Amended, or Circling Unavailable, only when established |
+| Subject flairs | Source-backed topics when a more specific facility/effect does not already identify the subject; long procedure lists stay in the body |
+| Effect flairs | An at-a-glance body: scoped closures/outages, distinct minima/visibility/VDP/takeoff amendments, climb gradients and restrictions, only when established |
 | Body | Conservative formatting retaining every operational clause, condition, exception, value, and unit |
 | Validity | Start/end in device-local time with Zulu in parentheses, schedule, estimated/permanent qualifiers, and timing uncertainty using core time formatting |
 | Source state | Environment-specific source status and retry above the list, as described below |
-| Raw disclosure | **Show raw** containing the complete original local-format text and any ICAO translation, separately labeled |
+| Raw disclosure | **Show raw** containing the complete local-format text labeled **Original NOTAM** and any separately labeled ICAO translation; **Source body** appears only when the original is unavailable or does not contain the complete body |
 
 Production snapshots show **FAA NOTAMs · Checked …** above each airport list or
 expanded plate list, using the actual source-check time. Offline, stale,
@@ -183,6 +195,7 @@ interpretation/review qualifiers remain visible.
 Empty staging results describe retained notices without implying current completeness.
 
 Raw text is selectable/copyable, retains line breaks, and wraps on narrow screens.
+The raw disclosure footer shows the update timestamp without the internal NMS source ID.
 Validity labels use the shared local-first timestamp pair, for example
 `From Oct 4 · 09:00 PDT (16:00Z)`. **From** and **Until** occupy separate aligned
 rows; long dates wrap within their value column. Permanent, estimated and unknown
@@ -190,7 +203,11 @@ end qualifiers stay on the Until row. When local and UTC calendar days differ, i
 the UTC date inside the parentheses. Display the local zone at each instant so
 daylight-saving transitions remain explicit. Source schedule and raw NOTAM times
 retain their supplied notation.
-If a complete translation is missing, expose available source text and label that
+Compare the entire source body against the supplied local-format originals using
+whitespace folding and complete word boundaries only. Omit the redundant body when
+an original contains it; retain different wording, values, punctuation and qualifiers.
+Keep displayed text and stored source fields unchanged. Empty originals count as
+unavailable. If the original is missing, expose available source text and label that
 limitation; never present a reconstructed full NOTAM as original. Render strings
 as text. Disclosure expansion is session state keyed by source ID/revision, not
 an unbounded collection of persistent records. Material revisions must not inherit
@@ -281,9 +298,7 @@ the map does not imply that the outer footprint applies at every altitude.
 `chart.ts` replaces only the validated location portion of a standalone OBST
 description with **Location shown on chart**. The chart labels carry its type and
 heights; outages, marking/lighting status, conditions and all remaining wording
-stay visible. Only exact unconditional `U/S` lighting or `FLAGGED AND LGTD` status
-may move entirely into its corresponding visible badge. Additional wording or
-schedules prevent that omission. Never clear an obstacle's whole readable body
+stay visible in the body even when a summary badge repeats them. Never clear an obstacle's whole readable body
 merely because its coordinates are plotted. The full description remains under
 **Show raw**; identity, validity and schedule stay in the entry.
 Procedure amendments and area notices omit only mapped location prose,
@@ -323,9 +338,11 @@ shared right-side detail panel with its identity, altitude limits, current/next
 window, complete raw NOTAM and a link to the FAA detail page. Overlapping areas
 are listed together. Right-click or long-press opens the shared map menu with
 **Inspect TFRs** alongside applicable actions from other enabled plugins; releasing
-the long press does not select an action. Direct TFR inspection takes precedence
-over point selection inside an area; nearby navigation points remain available in
-the context menu. Active tools and route drags retain the shared gesture policy.
+the long press does not select an action. Clicking or tapping an airport or another
+navigation/route point's marker or label opens that point's details, including
+inside active or upcoming TFRs. Direct TFR inspection applies where no point is hit;
+**Inspect TFRs** remains available in the context menu at overlapping points.
+Active tools and route drags retain the shared gesture policy.
 The panel has no dedicated edge tab. Reopen it by clicking/tapping an area or choosing
 **Inspect TFRs**; Close, Escape and Back use the shared panel lifecycle. Its compact
 typography matches other map details: 12px content, 14px notice headings and 11px
@@ -432,8 +449,13 @@ the common NOTAM delivery limit bounds slow clients.
 
 The PWA reads every three minutes while enabled, rejects future/regressing
 snapshots, and marks source data stale after six minutes or a reported refresh
-failure. Optional validated localStorage restoration is limited by the plugin's
-2 MiB record ceiling; storage failure never prevents online display. This route
+failure. After clock rollback, a valid snapshot may replace retained data with
+implausibly future index/detail check times, during refresh or reactivation.
+Optional validated localStorage restoration is limited by the plugin's
+2 MiB record ceiling. Saves use core's coordinated record update so an older
+window cannot overwrite a newer usable check; equal-check error/recovery changes
+remain publishable. Restoration does not rewrite the shared snapshot. Missing
+locks or failed/cancelled storage never prevent online display. This route
 shares the existing `/api/notams/` service-worker exclusion and reverse proxy.
 The matching info-server release must be deployed to make the new route available.
 
@@ -802,14 +824,17 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    metadata may be supplemented; two supplied references must agree. References
    never identify another source ID for deletion.
 
-   FDC procedure bodies may include or omit the subject (`IAP`, `SID`, `STAR`,
-   `ODP`) and trailing validity interval. Reconcile those forms only through an
+   FDC bodies may include or omit the subject (`IAP`, `SID`, `STAR`, `ODP`,
+   `ROUTE`, `VFP`, `SPECIAL`) and trailing validity interval. Reconcile those forms
+   only through an
    identical complete `LOCAL_FORMAT` translation retained by both records, after
    whitespace normalization. Its FDC number/year, airport, interval and end qualifier
    must match each record; both bodies must equal a supported form of that exact
    translation. Preserve the first raw body and all compatible translations. An
    optional ICAO rendering may carry older dates and cannot substitute for this
-   local evidence. Changed restrictions, conditions, identities or dates still
+   local evidence. A `PERM` wrapper additionally requires a permanent structured
+   end, literal `PERM` effective end and no normalized expiry. Changed restrictions,
+   conditions, identities or dates still
    conflict. An optional `EST` suffix on the compact structured end is equivalent
    only when both records have the same known estimated end instant; fixed,
    permanent and unknown ends do not receive that tolerance. Original end spellings
@@ -1244,6 +1269,39 @@ lexical/header parsing, scoped clauses/targets, then presentation. Keep comparis
 text alongside untouched raw text. Prefer qualified structured fields; use supported
 grammar where absent. Surface conflicts instead of silently choosing one reading.
 
+The parser is organized by responsibility:
+
+| Module | Responsibility |
+| --- | --- |
+| `parser.ts`, `interpretation.ts` | Source selection, bounded orchestration, shared evidence/types and interpretation coverage |
+| `source-text.ts` | Identity/interval/whole-body proof for alternate FDC renderings, shared with collection |
+| `procedure-targets.ts`, `procedure-title.ts` | Complete headings/amendments and a state machine for facility, variant, designation and qualifications; stopped before narrative references |
+| `effects.ts` | Typed, subject-bound facts and complete supporting source spans, independently of badge selection |
+| `flairs.ts` | At-a-glance summaries, proven facility/effect combinations, and specific interpretation explanations |
+| `clauses.ts` | Sentence lexer and document state machine: operative, instruction, conditional, multipart |
+| `minima.ts`, `minima-row.ts` | Procedure/category scope and token-driven field/value state machine |
+| `takeoff.ts`, `distances.ts` | Bounded whole-clause grammars for takeoff alternatives and declared distances |
+| `presentation.ts`, `readable-text.ts` | Reading model and display wording; no source or applicability mutation |
+
+Small lexical patterns recognize tokens and supported headings. State machines
+control interpretation: the document machine cannot leave an instruction,
+condition or multipart state merely at punctuation. Numeric effect badges share
+these control boundaries, as do named-procedure amendment fallbacks; an `(IF)`
+fix qualifier is not a conditional `IF`.
+The minima row machine moves
+through field, value, separator and final-category states. Ordered `DA/HAT` or
+`DA/RVR/HAT` labels establish their paired values; a slash inside a visibility
+value can instead form a fraction. Only the current field determines that meaning.
+Failed transitions preserve the entire clause as prose; no partial numeric result
+escapes. A row accepts at most eight fields. A category on a later field cannot
+retroactively scope earlier fields. Categories never carry to a later row;
+the one supported shorthand is a category-only visibility row immediately after
+a single explicit, non-RVR visibility row. Its units remain exactly as written.
+The approach-title machine consumes the prefix, facility/combined branch, runway
+or bearing, then complete category qualifications. Unknown branches and unbalanced
+qualifications reject the whole title. It returns recognition only; source titles
+and offsets remain untouched for matching and evidence.
+
 Recognize keywords in their subject position, not unrestricted substring searches.
 Start with NMS's vocabulary: `RWY`, `TWY`, `APRON`, `AD`, `OBST`, `NAV`, `COM`, `SVC`,
 `AIRSPACE`, `ODP`, `SID`, `STAR`, `CHART`, `DATA`, `DVA`, `IAP`, `VFP`, `ROUTE`,
@@ -1254,7 +1312,10 @@ Attach effects to their subject and clause. Retain exceptions, conditions, aircr
 categories, transitions and time windows. Context-specific abbreviation expansion
 must preserve values, units, direction and scope. Unknown clauses stay in the
 default readable body; raw disclosure is not a reason to omit qualifications there.
-Every derived flair retains supporting source-field or text-span evidence.
+Every derived fact retains supporting source-field or text-span evidence. Badge
+selection is a separate pure presentation step, driven by fact kinds rather than
+display-label comparisons. It cannot change procedure matching, geometry or source
+content. Each displayed badge retains all of its supporting spans.
 
 `presentation.ts` prepares a clock-independent reading model used by both airport
 and plate entries. It separates procedure/airport context, titles and amendments,
@@ -1286,10 +1347,13 @@ record location identifiers, taxiway codes and numeric/reference components also
 their spelling. Recognized airport headings title-case the name and city separately
 from the state code. Procedure titles keep their source identity. Raw text, matching
 and numeric parsing never consume the cased display text.
+Known apostrophe, quotation-mark and ampersand character escapes are decoded once
+for plain-text display. Raw text and evidence retain the source escapes; unknown
+escapes and markup are not interpreted as HTML.
 
 `minima.ts` recognizes complete approach-minimums clauses for LNAV, LNAV/VNAV,
 LP/LPV, RNP, GLS, straight-in ILS/LOC, circling and sidestep entries. It displays
-MDA/DA, HAT/HAA/HAS and visibility/RVR as compact inline label/value pairs.
+MDA/DA/RA, HAT/HAA/HAS and visibility/RVR as compact inline label/value pairs.
 Visibility uses **Vis**, with the full label supplied by its abbreviation element.
 Category groups sit beside each other when space permits and wrap as groups on
 narrow or enlarged layouts. Use 12 px labels and categories, 13 px bold tabular
@@ -1302,9 +1366,12 @@ types, RVR labels, units or categories. Standalone minima/visibility clauses kee
 their source position without borrowing scope from preceding minima. At most 16 rows
 are accepted per clause; any unmatched remainder preserves the entire source clause.
 Explicitly labeled `DA/RVR/HAT` triplets retain the published field order. Adjacent
-explicitly labeled altitude/height/visibility values with value-before-RVR
-ordering share a row only with their published category scope. Multiple
-explicit approach scopes on one line become separate minimums sections only when
+explicitly labeled altitude/height/visibility values, including colon labels,
+compact `FT`/`SM` units and value-before-RVR ordering, share a row only with their
+published category scope. `CAT C AND D` remains that written category group.
+`MINIMUMS NA` retains its explicit prohibition. Multiple
+explicit approach scopes separated by commas, semicolons or publisher newlines
+become separate minimums sections only when
 every member parses completely. `NA` in a minimums value displays **Not authorized**;
 it is never zero, an absent field or a general-purpose expansion of `NA` elsewhere.
 
@@ -1315,6 +1382,8 @@ units, or carry a scope into an unheaded later clause. Explicit JETS/PROPS branc
 retain separate aircraft/runway headings; every branch must name its runway.
 Up to four explicitly unit-labeled climb stages retain their ordered gradients
 and endpoints under **Minimum climb** and **Then minimum climb**. An explicit
+`THEN 280 FT/NM TO 6300` can omit the repeated climb introduction but must still
+supply the gradient unit and destination altitude. An explicit
 `OR DEPARTURE NA` remains a prohibition alternative, never standard minima.
 Unknown aircraft types, missing units or extra qualifications retain the whole
 clause as prose. `distances.ts`
@@ -1334,8 +1403,9 @@ Structured runway grammar must consume the entire clause. Extra exceptions,
 conditions, unfamiliar units or unsupported runway forms leave that whole clause
 as source text in the main view. Paragraph splitting does not split commas,
 semicolons or decimal numbers. This formatting does not resolve applicability or
-remove **Interpretation Limited**. Complete translations and the source body stay
-untouched under **Show raw**. A trailing compact validity range is omitted from the
+remove **Interpretation Limited**. Raw text stays untouched under **Show raw**, with
+redundant source bodies omitted under the [entry contract](#airport-detail-tab).
+A trailing compact validity range is omitted from the
 readable body only when both endpoints and its estimated/fixed qualifier agree
 with the visible validity row; conflicting/unknown ranges remain visible.
 
@@ -1353,23 +1423,46 @@ contract; it changes neither collection/reconciliation nor record identity.
 The current grammar includes the D/FDC clause forms observed in the KSJC staging
 snapshot: runway/taxiway/apron closures, runway and approach lighting outages,
 ILS and other named navaid outages, obstacle light outages, cranes, UAS Activity
-and explicit surface-to-AGL limits. Procedure tags include the source procedure
-title, amended DA/MDA and visibility minima, sidestep/circling minima, VDP changes,
+and explicit surface-to-AGL limits. Procedure summaries retain distinct
+amended DA/MDA and visibility minima, sidestep/circling minima, VDP changes,
 takeoff minima and climb gradients, terminal-route/transition restrictions, and
-conditional inoperative-lighting notes. Numeric minima, aircraft categories and
+crane context. Procedure titles and conditional inoperative-lighting instructions
+remain in the body. Numeric minima, aircraft categories and
 their qualifications remain together in the complete body; tags do not replace
 them with a single airport-wide value. A `FOR INOP ALS` note does not establish an
 actual lighting outage, and an obstacle or lighting notice does not close a runway.
+
+Flairs form an at-a-glance body, not a fixed-size selection of keywords. Preserve
+separate **Minima Amended**, **Visibility Amended**, **VDP Amended**,
+**Takeoff Minima Amended** and **Climb Gradient** summaries when supported; these
+describe different changes even when structured values also appear below.
+Do not drop operational effects to meet an arbitrary visual cap. Remove repeated
+subject/identity labels instead. A proven whole-runway closure becomes
+**RWY 09 · Closed**; qualified and partial closures retain **Closure Restriction**
+or **Segment Closed**. Scope must be supplied by the recognizer. The first taxiway
+in a compound or segment closure cannot label the entire effect; use **Taxiway
+Closure** and retain the complete boundaries in the body. Source procedure names
+remain in their headings/prose. Multiple names receive one **Multiple Approaches**,
+**Multiple Departures** or **Multiple Arrivals** summary, without implying that an
+unresolved heading set is complete. References name their target as **See NOTAM …**.
+
+Obstacle marking and conditional lighting details remain ordinary body content.
+Mapped obstacle readers always retain lighting status, marking and qualifications;
+badge visibility never licenses deleting that text. Parser issues distinguish an
+unclear subject, affected-procedure scope, procedure exceptions, unconfirmed
+facility dependencies and bounded interpretation. Entry badges state the relevant
+cause and expose its explanation. The collapsed plate bar retains its aggregate
+interpretation qualifier; it does not imply that these issues are source-feed failures.
 
 Color expresses the kind of information, independently of D/FDC classification:
 
 | Color | Meaning | Examples |
 | --- | --- | --- |
-| Blue | Facility or subject | Runway, RWY 12R, Navigation, Obstruction |
-| Purple | Procedure identity | Approach, Departure, RNAV (RNP) Z RWY 30L |
+| Blue | Facility or subject | RWY 12R, Navigation, Obstruction |
+| Purple | Procedure context | Approach, Departure, Multiple Approaches |
 | Amber | Restriction, amendment, outage, activity or uncertainty | Minima Amended, ILS Unavailable, UAS Activity, Check Schedule |
-| Red | Explicit unqualified closure of the identified facility | Runway Closed, Taxilane Closed |
-| Neutral | Supporting information or timing | Flagged and Lighted, Surface to 300 ft AGL, Outside Schedule |
+| Red | Explicit unqualified closure of the identified facility | RWY 09 · Closed, Taxilane Closed |
+| Neutral | Supporting information or timing | See NOTAM FDC 6/1001, Surface to 300 ft AGL, Outside Schedule |
 
 Use the shared `surface-tag-*` / `text-tag-*` theme roles; the light palette is
 generated from the dark seeds. Labels convey the meaning without color and wrap
@@ -1382,28 +1475,39 @@ Illustrative fixtures, not live NOTAMs:
 
 | Fragment | Result |
 | --- | --- |
-| `RWY 20 RWY END ID LGT U/S` | Runway / Lighting Unavailable; no runway-closure claim |
+| `RWY 20 RWY END ID LGT U/S` | RWY 20 · Lighting Unavailable; no runway-closure claim |
 | `RWY 09/27 CLSD EXC …` | Runway closure with the exception retained |
 | `IAP … CIRCLING NA` | Circling Unavailable for that procedure, not the entire approach |
 | `SID … TRANSITION … NA` | Restriction scoped to that transition |
-| `SEE FDC …` | Pointer with a reference when resolvable; unresolved pointers stay visible |
+| `SEE FDC …` | See NOTAM FDC …; the reference stays visible without following or merging it |
 
 Parsing is bounded to 64 KiB of body text, 320-character heading prefixes, 16
-procedure targets and 20 deduplicated flairs. Scan delimiters before applying
+procedure targets and 20 deduplicated facts. Scan delimiters before applying
 the bounded heading grammar. Each IAP heading is checked independently, with or
 without an amendment; one supported heading cannot suppress another heading or
 an unsupported heading's interpretation warning. Familiar suffixes inside
 unsupported prefixes/compound headings do not establish a target. Scanning
 stops before narrative notes, exceptions and conditional procedure references.
 If limits are reached, retain the entire body/raw text and flag
-**Interpretation Limited**. Derived results are cached by
+the relevant interpretation issue. Derived results are cached by
 record identity for repeated airport-list and plate matching; replacement records
-are parsed anew. Parser version 7 owns these derivations, not the wire schema.
+are parsed anew. Parser version 9 owns these derivations, not the wire schema.
+Recognized headings include RNAV departures/arrivals, `DEP`/`ARR` spellings,
+explicit arrival prohibitions, PRM and converging approaches, lettered variants,
+parenthesized or flat CAT qualifications and copter bearing titles. These
+qualifiers remain part of the procedure identity; unsupported prefixes, source
+typos and shared-amendment compound headings are not silently corrected.
 An exact associated FAA/ICAO prefix may precede a subject; unrelated prefixes
 remain unrecognized. Obstacle lighting includes plural objects and wind turbines,
 with negations and conditions preventing an unconditional outage/lighting claim.
 Closures qualified by aircraft type/size, exceptions or conditions receive a caution
-**Closure Restriction** flair with the qualifier included in its evidence. Numeric
+**Closure Restriction** flair with the qualifier included in its evidence. Explicit
+exceptions in a later sentence still qualify a closure. Taxiway segments can name
+runways, taxilanes, ramps, gates and deice pads as endpoints. A partial runway
+closure receives **Runway Segment Closed**, not an airport-wide closure claim.
+Recognized COM/SVC outages retain frequencies and qualifications; a tower closure
+does not mean the airport is closed. Facility-qualified `SEE` references retain
+their pointer identity without following or merging another notice. Numeric
 procedure flairs stop before note edits and conditional wording, so quoted values
 inside a disregarded or conditional note do not look like operative amendments.
 
@@ -1435,7 +1539,7 @@ remain unchanged, and evidence offsets address the chosen original string.
 SID/STAR procedure headings may follow airport context on the same line; bounded
 sentence recognition stops before note, exception and incidental narrative.
 
-Matcher version 4 is a pure function of validated notices and exact plate context. Return
+Matcher version 5 is a pure function of validated notices and exact plate context. Return
 source ID, applicability outcome, affected clauses, and an explainable reason.
 Avoid numerical confidence scores suggesting unmeasured accuracy.
 
@@ -1465,7 +1569,11 @@ Avoid numerical confidence scores suggesting unmeasured accuracy.
    minima or declaring whole procedures unavailable. Incomplete dependencies must
    not imply complete facility coverage.
    Explicit `NAV ILS/LOC RWY … U/S` matches ILS or LOC approaches on that exact runway;
-   `GP`/`GS` matches ILS approaches. These notices do not establish a dependency for
+   `GP`/`GS` matches ILS approaches. `ILS RWY … LOC`, `GP`/`GS` and
+   `LOC/GP`/`LOC/GS` identify explicit
+   components. `ILS … DME/OM/IM/MM` retains its component and requires dependency
+   review; it never becomes an outage of the complete ILS. `NOT MNT` is a monitoring
+   restriction, distinct from `U/S`. These notices do not establish a dependency for
    RNAV approaches. Unknown or absent facility/runway dependencies remain unresolved,
    and unresolved interpretation also qualifies the collapsed bar's assurance.
 
@@ -1497,11 +1605,23 @@ Only completed reads establish throttling, so unloading during acquisition canno
 delay the first read after reactivation. Dispose timers/listeners and reject obsolete airport,
 edition, page or activation completions.
 
-Persist bounded validated airport snapshots. The client keeps up to 24 airport
-entries under a 64 MiB eviction target, protecting visible demand; the optional
-scoped record is capped at 2 MiB and skips snapshots that do not fit.
-Restoration shows saved results but
-cannot replace newer live state. Preserve original check/validity times and usable
+Persist bounded validated airport snapshots. The client targets 24 airport
+entries and 64 MiB in memory, protecting visible demand even above those targets.
+Persistence independently limits the saved list to 24 complete snapshots and
+1,900,000 UTF-16 bytes within the scoped record's 2 MiB ceiling, preferring recent
+retrievals and skipping snapshots that do not fit.
+Every successful airport response merges only that airport into the latest saved
+list under core's record lock. Other windows' airports survive, and an older
+response cannot replace a newer usable check from the same source environment.
+The recently retrieved airport moves first in the saved retention order; equal
+checks may update feed health. The same count/byte caps apply after the merge.
+Live results publish before the optional save, and waiting for a save lock does
+not delay requests for other demanded airports. Missing/denied locks skip saving;
+teardown cancels queued writes and storage deadlines cannot block recovery.
+Restoration and live responses require a source-check time no more than 30 seconds
+ahead of the current clock. Restoration cannot replace newer usable live state;
+after clock rollback, a valid snapshot may replace an implausibly future-dated
+one even if its check time is earlier. Preserve original check/validity times and usable
 data after refresh failure. Optional storage failure does not invalidate online
 results. Re-evaluate validity/schedules over time even offline; handle clock rollback
 and implausibly future timestamps.
@@ -1553,6 +1673,18 @@ time limitations. This README remains the canonical guide after implementation.
 
 ### Regression coverage
 
+- `test/notams-storage.test.ts` exercises actual scoped storage through save,
+  client recreation, offline restoration and refresh, including count/byte bounds,
+  future source times, clock rollback, rejected updates, denied writes and multiple
+  windows merging under a held lock. `test/notams-tfr-storage.test.ts` covers TFR
+  rollback, reactivation, cross-window regression, read-only restoration and
+  cancelled saves. Core record tests cover unavailable locks/reads, queue timeout,
+  cancellation and output validation.
+- `test/notams-us1000.test.ts` replays every delivered record in the frozen
+  1,000-airport commercial/GA capture through the current parser and both React
+  reader paths. It checks source integrity, value bindings, evidence and mapped
+  content preservation. It runs in `npm test`; see the
+  [frozen corpus contract](#frozen-1000-airport-regression) for provenance and limits.
 - `test/notams-corpus.test.ts` retains 24 complete captured records from 21 airports,
   with independent expectations for field/category assignments, alternatives,
   note actions, qualified closures and conservative fallbacks. It also checks
@@ -1577,6 +1709,10 @@ time limitations. This README remains the canonical guide after implementation.
   that keeps upcoming matches after current review candidates and prioritizes FDC
   within each applicability group without changing airport order. These are markup
   and timing checks; browser layout remains part of the release matrix.
+- `test/notams-priority.test.ts` checks airport priority against supported closures,
+  navaid outages, other effects and misleading mentions. The browser priority
+  regression covers independent timing sections, newest-issued and stable-ID ties,
+  missing issue times, and classification/subject/search filtering.
 - `test/notams-presentation.test.ts` covers runway-specific minimums and alternatives,
   flat/wrapped local-format text, exact values and source retention, unsupported
   qualifications, contradictory validity and bounded fallback. UI tests also check
@@ -1589,6 +1725,16 @@ time limitations. This README remains the canonical guide after implementation.
   identifiers, airport names, exact coordinates/reference codes, punctuation and
   unknown tokens. The shared browser case also checks missed-approach prose and
   unchanged raw disclosure in both airport and plate views.
+- `test/notams-formats.test.ts` and its 55 captured examples cover the expanded
+  commercial/GA corpus formats, document state boundaries, field/value/category
+  binding, exact source evidence, permanent FDC equivalence and rejected source
+  ambiguities. Deliberately swapped fields, units and scopes must fail the
+  independent audit. The browser suite checks compact units, newline scopes,
+  conditional RVR, shortened climb stages and raw character escapes at 320/1280 px.
+- `test/notams-flairs.test.ts` covers distinct amendment summaries, complete-scope
+  facility combinations, retained procedure names, specific interpretation causes
+  and mapped status preservation independent of badge selection. The mapped audit
+  must reject lost status even if an outage badge still exists.
 - `test/notams-obstacles.test.ts` covers exact coordinate/height parsing, rejected
   ambiguous positions, FDC points without AGL, timing qualifiers and independent
   reader leases. `test/notams-map.test.ts` covers immediate hiding on stow,
@@ -1705,6 +1851,66 @@ minutes, incomplete collection continuity, unresolved/unscoped counts, failure
 codes and `nextAttemptAt`; process liveness alone is not NOTAM readiness. Do not
 try to repair stale status by resetting source time, deleting quotas, or adding a
 second collector.
+
+### Frozen 1,000-airport regression
+
+`test/fixtures/notams-us1000/` retains the October 5, 2026 commercial/GA capture
+(October 6, 01:30:54–01:34:52 UTC): 1,000 airport snapshots and all 19,469 delivered
+records, including DOMESTIC, FDC, INTL and MIL classifications. The JSON manifest
+records the original capture endpoint/time, airport identities and counts, and a
+SHA-256 digest of the uncompressed payload. `snapshots.jsonl.gz` stores one complete
+snapshot per line in manifest order, compressed to about 3 MB. It preserves every
+source field and translation, empty-airport snapshots, feed/coverage status, and
+the 12 source conflicts with their 24 variants. Conflicts remain separate from
+the delivered records; they are not promoted to resolved notices for the audit.
+
+The sample combines operational public-use land airports in the 50 states and DC
+using FAA FY2025 Terminal Area Forecast activity and October 1, 2026 NASR identities.
+Selection uses the best rank across total operations, GA operations, and itinerant
+GA plus air taxi, with deterministic activity/identifier tie breaks; display order
+uses total operations. This retains the earlier 500 GA airports and includes major
+commercial airports such as SFO, LAX and DEN. Activity is a coverage proxy, not an
+official FAA popularity ranking. Published FAA/ICAO pairs are retained, including
+airports without an ICAO identifier. The original ranking CSV and capture reports
+remain local audit artifacts; the test only needs the frozen snapshots and manifest.
+
+Run just this corpus with:
+
+```sh
+npm run test:notams:corpus
+```
+
+The ordinary `npm test` glob also includes it, so `npm run verify` and the automatic
+CI verification job run it without a separate opt-in. It performs no downloads,
+FAA calls or browser launches and does not read `tmp/`. Records are audited one
+airport at a time with the capture's fixed review clock. Assertions cover fixture
+integrity and exact cohort/counts, schema validity, unchanged source snapshots,
+source spans and flair evidence, numeric/word preservation, independent structured
+value bindings, and both ordinary and mapped React readers. Failures identify the
+airport, record ID, revision and failing audit.
+
+This is broad preservation coverage, not an assertion that every notice has a
+complete structured interpretation. Unsupported wording may correctly remain
+prose, and source conflicts remain unresolved. The focused corpus/formats/semantic
+tests retain independent expected meanings and deliberately corrupted examples;
+keep those tests when extending this replay. Do not replace them with generated
+parser-output snapshots or weaken an audit to make unfamiliar wording pass.
+
+`tools/pack-notam-corpus.ts` packages an existing sequential capture offline:
+
+```sh
+node --import=tsx tools/pack-notam-corpus.ts CAPTURE_DIRECTORY NEW_FIXTURE_DIRECTORY
+```
+
+The input contains `manifest.json`, `capture.json` (capture times, review clock,
+endpoint, and each airport's FAA/ICAO identity, record/issue counts and original
+`snapshotSha256`) and `snapshots/<faaId>.json`. The packer validates every original
+hash, schema, identity and count, copies all source content without parsing or
+filtering, and refuses to overwrite an existing destination. For an intentional
+refresh, review a new capture and its source issues, package a separate candidate,
+then review the manifest/cohort and focused semantic cases before replacing the
+fixture and its explicit test counts. Tests never recapture or update expectations.
+To inspect the retained data, use `gzip -dc test/fixtures/notams-us1000/snapshots.jsonl.gz`.
 
 ### Broad airport presentation audit
 

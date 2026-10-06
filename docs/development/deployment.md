@@ -84,8 +84,29 @@ digest-pinned official Caddy container for the app and chart domains. Its
 [`Caddyfile`](../../tools/hosting/Caddyfile) implements the static-host contract,
 same-origin `/chart-data/`, the bounded FAA PDF proxy, and the two info API prefixes.
 The chart domain retains a directory browser for the public `charts/`, `aim/` and
-`far/` trees, with CORS and Range support. Hidden work directories are denied.
+`far/` trees, with Range support and CORS restricted to `https://<APP_DOMAIN>`.
+The chart domain and same-origin `/chart-data/` alias accept explicit origins from
+the HTTPS app and chart domains; the latter preserves the chart host's own FAR/AIM
+PWAs. They reject any other `Origin` (including `null`) with an uncached 403 before
+reading files or accepting a chart-domain preflight. The CORS header still allows
+only the app domain; the chart host's own apps make same-origin reads.
+Requests without `Origin` remain public for direct browsing, publisher checks and
+the local development proxy. This discourages
+third-party browser apps; it is not authentication or protection against clients
+that omit or forge headers. Keep the fixed app-only CORS header if CDN caching is
+configured; an origin-side rejection alone cannot police responses served from an
+edge cache. Local browser development should use Vite's `/chart-data` proxy rather
+than reading the production chart hostname directly.
+Hidden work directories are denied.
 Neither host falls back to app HTML for missing resources.
+
+Retain the `/chart-data/` mapping when a newer frontend moves to a separate chart
+hostname. Older installed PWAs, open tabs and saved catalog snapshots can still
+reference its URLs, including after an application update. Both paths must keep
+serving the same published files during that transition. Plan alias retirement
+separately after reviewing adoption of the migrated PWA, remaining legacy requests
+and saved-data compatibility; publishing the new frontend does not remove or
+redirect the old route.
 
 Keep the app's hidden-path and method guards ahead of every static and proxy
 handler inside one ordered `route` block. Caddy's default
@@ -175,7 +196,8 @@ python3 tools/hosting/test-routing.py --caddy /path/to/caddy
 It adapts the real Caddyfile and runs its handlers on loopback with temporary
 static files and a recording upstream. It checks existing hidden files under
 every app mount, method rejection before the info/FAA proxies, allowed GET/HEAD
-routing and query preservation, cache headers, and chart CORS/Range delivery.
+routing and query preservation, cache headers, chart CORS/Range delivery, and
+rejection of untrusted chart origins on both hosts.
 Only fixture paths, upstream addresses, listeners and TLS are substituted; it
 does not contact production or FAA. HTTPS is checked separately below.
 

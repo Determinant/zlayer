@@ -1,4 +1,5 @@
 import type { GeoPointProperties } from '@zlayer/contracts';
+import { metarAltimeter } from '@zlayer/domain';
 import { formatDataAge, formatTimestamp } from '../../../core/format/time';
 import { magneticBearing } from '../../../core/geo/magnetic-model';
 
@@ -20,9 +21,8 @@ export function formatObservationTime(value: string | undefined, now = Date.now(
 
 /** Read only the coded report body, preserving its published pressure unit. */
 export function formatMetarAltimeter(raw: string | undefined): string | undefined {
-  const group = raw?.split(/\bRMK\b/)[0]?.match(/(?:^|\s)([AQ])(\d{4})(?=\s|=|$)/);
-  if (!group || Number(group[2]) === 0) return undefined;
-  return group[1] === 'A' ? `${(Number(group[2]) / 100).toFixed(2)} inHg` : `${Number(group[2])} hPa`;
+  const setting = metarAltimeter(raw);
+  return setting ? `${setting.unit === 'inHg' ? setting.amount.toFixed(2) : setting.amount} ${setting.unit}` : undefined;
 }
 
 export function formatMetarWind(properties: GeoPointProperties, declination?: number | null): string | undefined {

@@ -3,6 +3,8 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { MetarFeature } from '@zlayer/contracts';
+import { metarWeatherProperties } from '@zlayer/domain';
+import capturedMetars from './fixtures/nws/metars-noaa.json' with { type: 'json' };
 import { MetarReportView } from '../src/layers/metar-taf/metar/report';
 import { formatMetarAltimeter, formatMetarWind } from '../src/layers/metar-taf/metar/format';
 import { metarDetailRows } from '../src/layers/metar-taf/metar/details';
@@ -73,11 +75,33 @@ test('METAR altimeter preserves reported units and never substitutes remarks or 
     ['METAR EGLL 171800Z 24010KT CAVOK 18/12 Q0995=', '995 hPa'],
     ['METAR EGLL 171800Z Q1013 NOSIG', '1013 hPa'],
     ['METAR KSFO 171800Z RMK A2992 SLP132', undefined],
+    ['METAR KSFO 171800Z rmk A2992', undefined],
+    ['METAR KSFO 171800Z TEMPO A2992', undefined],
+    ['METAR KSFO 171800Z= METAR KJFK A2992', undefined],
+    ['metar egll 171800z q1013 rmk Q0995', '1013 hPa'],
     ['METAR KSFO 171800Z A//// RMK AO2', undefined],
     ['METAR KSFO 171800Z A29921', undefined],
     ['METAR KSFO 171800Z Q0000', undefined],
     [undefined, undefined],
   ] as const) assert.equal(formatMetarAltimeter(raw), expected, raw);
+});
+
+test('captured US and international METARs retain observed sky conditions and pressure through the shared parser', () => {
+  const expected: Record<string, [string, number | undefined]> = {
+    PHNL: ['29.97 inHg', undefined], KLAX: ['29.84 inHg', undefined], KSBA: ['29.83 inHg', undefined],
+    EGLL: ['1026 hPa', undefined], PAFA: ['29.93 inHg', 5000], KSFO: ['29.90 inHg', undefined], CYVR: ['30.11 inHg', undefined],
+  };
+  assert.equal(capturedMetars.features.length, Object.keys(expected).length);
+  for (const { properties: source } of capturedMetars.features) {
+    const raw = source.rawdata, [altimeter, ceiling] = expected[source.stationname]!;
+    const report: MetarFeature = { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: { rawOb: raw } };
+    const original = JSON.stringify(report), decoded = metarWeatherProperties(report);
+    assert.equal(formatMetarAltimeter(raw), altimeter, source.stationname);
+    assert.equal(decoded.metarCeilingFt, ceiling, source.stationname);
+    assert.equal(decoded.metarCeilingStatus, ceiling === undefined ? 'none' : 'measured', source.stationname);
+    assert.equal(decoded.rawMetar, raw);
+    assert.equal(JSON.stringify(report), original);
+  }
 });
 
 test('METAR detail grid keeps wind/visibility then ceiling/altimeter above raw text', () => {

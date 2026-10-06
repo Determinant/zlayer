@@ -205,6 +205,15 @@ races. A small hook scheduler covers lifecycle behavior; server-rendered markup 
 labels/states, not real focus, layout, touch or DOM events. Avoid fixed-delay sleeps,
 source-text assertions and incidental markup ordering.
 
+`npm run test:notams:corpus` runs the [frozen 1,000-airport NOTAM audit](../../src/layers/notams/README.md#frozen-1000-airport-regression)
+alone. It is also included in `npm test` and CI verification. The compressed local
+fixture requires no network, credentials or browser; focused semantic cases run
+alongside it in the ordinary suite.
+
+`npm run test:weather:corpus` runs the [curated METAR/TAF decoder regressions](../../packages/domain/test/fixtures/weather-decoder/README.md)
+alone. The domain workspace also includes them in `npm test` and CI verification.
+Pinned local examples and reviewed expected values require no network or browser.
+
 `npm run test:browser` runs the Playwright suite in `test/e2e/`, including offline
 launch, saved-edition ownership, source recovery, responsive layout, routes, plates,
 TAF, terrain, GPS, AHRS, recordings and full reset. Its server builds into a temporary

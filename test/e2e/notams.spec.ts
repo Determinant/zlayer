@@ -10,6 +10,7 @@ import { approachAmendmentNotice, departureNotice, detailedNotices, notice, nota
 import { contrast } from '../../tools/theme/color';
 import { procedureSelection } from '../../src/layers/plates/data';
 import corpus from '../fixtures/notams-corpus.json' with { type: 'json' };
+import formats from '../fixtures/notams-formats.json' with { type: 'json' };
 import type { Map as MapLibreMap } from 'maplibre-gl';
 
 let server: ViteDevServer, origin: string, directory: string, pdf: Buffer;
@@ -56,7 +57,7 @@ test('airport third tab shows D/FDC with raw text, filters and no Plates depende
   await expect(tabs.getByRole('tab')).toHaveText(['Info', 'Plates', 'NOTAM']);
   await tabs.getByRole('tab', { name: 'NOTAM', exact: true }).click();
   await expect(page.getByText('2 of 2 retained notices')).toBeVisible();
-  await expect(page.getByText('Lighting Unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByText('RWY 09L · Lighting Unavailable', { exact: true })).toBeVisible();
   await page.getByText('Show raw', { exact: true }).first().click();
   await expect(page.locator('.notam-raw[open] pre').first()).toBeVisible();
   await page.getByLabel('Classification', { exact: true }).selectOption('FDC');
@@ -68,6 +69,46 @@ test('airport third tab shows D/FDC with raw text, filters and no Plates depende
   await expect(tabs).toHaveCount(0);
   await page.getByRole('button', { name: 'Enable NOTAM plugin' }).click();
   await expect(tabs.getByRole('tab', { name: 'NOTAM', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+test('airport notices prioritize closures and navaid outages separately within each timing section and filters', async ({ page }) => {
+  const now = Date.now();
+  const samples = [
+    { text: 'RWY 09 WIP', issuedAt: now },
+    { text: 'SVC TWR CLSD', issuedAt: now - 1000 },
+    { text: 'NAV VOR U/S', issuedAt: now - 2000 },
+    { text: 'TWY A CLSD', issuedAt: now - 3000 },
+    { text: 'RWY 09 CLSD', issuedAt: now - 4000 },
+    { text: 'RWY 27 CLSD', issuedAt: null, updatedAt: now - 3000 },
+    { text: 'IAP ALL IAPS NA', classification: 'FDC', issuedAt: now },
+    { text: 'NAV VOR NOT MNT', issuedAt: now },
+  ];
+  const records = [100, 200, 300].flatMap(base => samples.map((sample, i) => {
+    const number = String(base + i + 1);
+    return notice({ ...sample, number, id: number.padStart(16, '0'), sourceId: number.padStart(16, '0'), translations: [],
+      startsAt: base === 300 ? now + 3_600_000 : now - 60_000, endsAt: now + 86_400_000,
+      schedule: base === 200 ? 'SR-SS' : '' });
+  })).reverse();
+  await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  const airport = page.locator('.airport-notams');
+  await expect(airport.getByRole('heading', { level: 3 })).toHaveText(['Active 8', 'Check timing 8', 'Upcoming 8']);
+  const assertOrder = async (order: number[]) => {
+    for (const [section, base] of [['Active', 100], ['Check timing', 200], ['Upcoming', 300]] as const) {
+      await expect(airport.getByRole('region', { name: section, exact: true }).locator('.notam-entry-heading strong'))
+        .toHaveText(order.map(n => `${n === 7 ? 'FDC' : 'D'} · ${base + n}/2026`));
+    }
+  };
+  await assertOrder([4, 6, 5, 3, 7, 8, 2, 1]);
+  await airport.getByLabel('Classification', { exact: true }).selectOption('D');
+  await assertOrder([4, 6, 5, 3, 8, 2, 1]);
+  await airport.getByLabel('Classification', { exact: true }).selectOption('all');
+  await airport.getByLabel('Subject', { exact: true }).selectOption('NAV');
+  await assertOrder([3, 8]);
+  await airport.getByLabel('Subject', { exact: true }).selectOption('all');
+  await airport.getByRole('searchbox', { name: 'Search' }).fill('CLSD');
+  await assertOrder([4, 6, 5, 2]);
+  await airport.getByRole('searchbox', { name: 'Search' }).clear();
+  await assertOrder([4, 6, 5, 3, 7, 8, 2, 1]);
 });
 for (const width of [393, 1280]) test(`source conflicts remain visible offline and qualify only affected airports at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
@@ -147,11 +188,12 @@ test('temporary obstacle map context follows open readers, filters, stow and plu
   await expect.poll(rendered).toBe(0);
   await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
   await expect.poll(rendered).toBe(3);
-  const entries = page.locator('.airport-notams .notam-entry'), crane = entries.first();
+  const entries = page.locator('.airport-notams .notam-entry');
+  const crane = entries.filter({ hasText: '2026-AWP-3090-OE' });
   await expect(crane.locator('.notam-chart-note')).toHaveText('Location shown on chart');
   await expect(crane.locator('.notam-readable')).toHaveText('Flagged');
-  await expect(entries.nth(1).locator('.notam-readable')).toHaveCount(0);
-  await expect(entries.nth(2).locator('.notam-readable')).toContainText('RNAV (GPS) Y');
+  await expect(entries.filter({ hasText: 'ASR UNKNOWN' }).locator('.notam-readable')).toHaveText('LGT U/S');
+  await expect(entries.filter({ hasText: '06-000846' }).locator('.notam-readable')).toContainText('RNAV (GPS) Y');
   await crane.getByText('Show raw', { exact: true }).click();
   await expect(crane.locator('.notam-raw pre').last()).toHaveText(records[0]!.text);
   await crane.getByText('Show raw', { exact: true }).click();
@@ -345,21 +387,32 @@ test('detailed tags distinguish closures, outages and procedure notes in both th
   await page.route('**/api/notams/airports?**', route => {
     const now = Date.now(), records: NotamRecord[] = detailedNotices().map(record => ({ ...record, startsAt: now - 1000, endsAt: now + 86_400_000 }));
     records.push(notice({ id: '1757600000000019', sourceId: 'NMS_ID_1757600000000019', text: 'RWY 09L/27R CLSD', startsAt: now - 1000, endsAt: now + 86_400_000 }));
+    records.push(notice({ id: '1757600000000020', sourceId: 'NMS_ID_1757600000000020', classification: 'FDC',
+      text: 'IAP TEST, CA. ILS OR LOC RWY 09, AMDT 1... RNAV (GPS) RWY 09, AMDT 2... LNAV MDA 600/HAT 400, VIS CAT C 1 1/2.',
+      startsAt: now - 1000, endsAt: now + 86_400_000 }));
     const snapshot = notamSnapshot(records); snapshot.feed.checkedAt = snapshot.feed.watermark = now;
     return route.fulfill({ json: snapshot });
   });
   await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
-  await expect(page.getByText('6 of 6 retained notices')).toBeVisible();
-  await expect(page.getByText('Runway Closure Restriction', { exact: true })).toHaveClass('notam-flair--caution');
+  await expect(page.getByText('7 of 7 retained notices')).toBeVisible();
+  await expect(page.getByText('RWY 12R/30L · Closure Restriction', { exact: true })).toHaveClass('notam-flair--caution');
   const procedure = page.locator('.notam-entry').filter({ hasText: 'RNAV (RNP) Z RWY 30L' });
-  await expect(procedure.locator('.notam-flairs')).toContainText('Inoperative Lighting Note');
+  await expect(procedure.locator('.notam-flairs')).toContainText('Minima Amended');
+  await expect(procedure.locator('.notam-flairs')).toContainText('Visibility Amended');
+  await expect(procedure.locator('.notam-flairs')).not.toContainText('RNAV (RNP) Z RWY 30L');
+  await expect(procedure.locator('.notam-flairs')).not.toContainText('Inoperative Lighting Note');
+  await expect(procedure.locator('.notam-readable')).toContainText('For inoperative ALS');
   await expect(procedure.locator('.notam-flairs')).not.toContainText(/unavailable/i);
+  const multiple = page.locator('.notam-entry').filter({ has: page.getByText('Multiple Approaches', { exact: true }) });
+  await expect(multiple.locator('.notam-flairs > span')).toHaveText(['Multiple Approaches', 'Minima Amended', 'Visibility Amended']);
+  await expect(multiple.locator('.notam-readable')).toContainText('ILS OR LOC RWY 09');
+  await expect(multiple.locator('.notam-readable')).toContainText('RNAV (GPS) RWY 09');
   await procedure.getByText('Show raw', { exact: true }).click();
   await expect(procedure.locator('.notam-raw[open] pre').first()).toHaveText(detailedNotices()[0]!.translations[0]!.text);
   for (const theme of ['dark', 'light']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     const colors = [];
-    for (const label of ['Runway', 'RNAV (RNP) Z RWY 30L', 'Minima Amended', 'Runway Closed']) {
+    for (const label of ['Approach', 'Minima Amended', 'RWY 09L/27R · Closed']) {
       const color = await page.locator('.notam-flairs').getByText(label, { exact: true }).first().evaluate(element => {
         const style = getComputedStyle(element);
         return { text: style.color, background: style.backgroundColor };
@@ -367,7 +420,7 @@ test('detailed tags distinguish closures, outages and procedure notes in both th
       expect(contrast(color.text, color.background), `${theme}: ${label}`).toBeGreaterThanOrEqual(4.5);
       colors.push(color.background);
     }
-    expect(new Set(colors).size).toBe(4);
+    expect(new Set(colors).size).toBe(3);
     expect(await page.locator('.airport-notams').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     await procedure.getByText('Show raw', { exact: true }).click();
     await procedure.locator('.notam-flairs').scrollIntoViewIfNeeded();
@@ -483,6 +536,38 @@ async function containedText(region: Locator) {
 
 test.describe('NOTAM reading layout', () => {
   test.use({ hasTouch: true });
+  for (const width of [320, 1280]) test(`expanded publisher formats retain units, scopes and conditions at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const names = ['explicit-units', 'newline-minima', 'conditional-rvr', 'short-climb-stage', 'escaped-airport'];
+    const records = names.map((name, i) => notice({ id: `175760000000009${i}`, sourceId: `NMS_ID_175760000000009${i}`,
+      classification: 'FDC', text: formats.cases.find(c => c.name === name)!.record.text, translations: [],
+      startsAt: Date.now() - 1000, endsAt: Date.now() + 86400_000 }));
+    await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
+    await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+    const airport = page.locator('.airport-notams'), entries = airport.locator('.notam-entry');
+    await expect(entries).toHaveCount(5);
+    const units = entries.filter({ hasText: '396FT' }).locator('.notam-minima').first();
+    await expect(units.locator('dt')).toHaveText(['DA', 'HAT', 'Vis']);
+    await expect(units.locator('dd')).toHaveText(['396FT', '388FT', '1-1/8SM']);
+    const grouped = entries.filter({ hasText: 'RNAV (GPS) Y RWY 6R' }).locator('.notam-minima');
+    await expect(grouped).toHaveCount(2);
+    await expect(grouped.first().locator('dd')).toHaveText(['474', '358', '3000']);
+    await expect(grouped.last().locator('dd')).toHaveText(['580', '464', '5000']);
+    await expect(grouped.last()).toContainText('CAT C/D');
+    const conditional = entries.filter({ hasText: 'S-ILS 25L CAT II' });
+    await expect(conditional.locator('.notam-minima dd')).toHaveText(['1200']);
+    await expect(conditional.locator('.notam-readable')).toContainText('RVR 1000 authorized with specific OPSPEC');
+    await expect(entries.locator('.notam-climb')).toHaveText(['Minimum climb: 500 ft/NM to 680', 'Then minimum climb: 280 ft/NM to 6300']);
+    const escaped = entries.filter({ hasText: "O'Hare" });
+    await expect(escaped).toHaveCount(1);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+      await containedText(airport);
+      await units.screenshot({ animations: 'disabled', path: testInfo.outputPath(`explicit-units-${theme}.png`) });
+    }
+    await escaped.getByText('Show raw', { exact: true }).click();
+    await expect(escaped.locator('.notam-raw pre')).toContainText('O&apos;HARE');
+  });
   for (const width of [320, 1440]) test(`aircraft scopes, staged climbs and RVR fields stay distinct at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({width,height:900});
     const names=['aircraft-specific-takeoff','staged-climb','unsupported-visibility-order','departure-na-alternative'];
@@ -597,7 +682,9 @@ test.describe('NOTAM reading layout', () => {
       await missed.screenshot({ animations: 'disabled', path: testInfo.outputPath(`missed-approach-${theme}.png`) });
     }
     await airport.getByText('Show raw', { exact: true }).click();
-    await expect(airport.locator('.notam-raw[open] pre').last()).toHaveText(record.text);
+    await expect(airport.locator('.notam-raw[open] pre')).toHaveText([record.translations[0]!.text]);
+    await expect(airport.getByText('Original NOTAM', { exact: true })).toBeVisible();
+    await expect(airport.getByText('Source body', { exact: true })).toHaveCount(0);
     await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     await page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).click();
     const canvas = page.getByLabel('PDF page 1');
@@ -659,8 +746,9 @@ test.describe('NOTAM reading layout', () => {
       .notam-readable p { margin-bottom: 2em !important; }` });
     await containedText(airport);
     await airport.getByText('Show raw', { exact: true }).click();
-    await expect(airport.locator('.notam-raw[open] pre').first()).toHaveText(record.translations[0]!.text);
-    await expect(airport.locator('.notam-raw[open] pre').last()).toHaveText(record.text);
+    await expect(airport.locator('.notam-raw[open] pre')).toHaveText([record.translations[0]!.text]);
+    await expect(airport.getByText('Original NOTAM', { exact: true })).toBeVisible();
+    await expect(airport.getByText('Source body', { exact: true })).toHaveCount(0);
     await containedText(airport);
   });
   test('loading, failed, empty and unavailable views retain readable status and recovery controls', async ({ page }, testInfo) => {

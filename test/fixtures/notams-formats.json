@@ -1,0 +1,2478 @@
+{
+  "description": "Unmodified source records selected from the sequential 1,000-airport capture; expected meanings are independently asserted in notams-formats.test.ts. These dated examples are regression evidence, not current operational information.",
+  "capturedAt": "2026-10-06T01:30:54.133Z",
+  "cases": [
+    {
+      "name": "rnav-departure",
+      "airport": "MYF",
+      "record": {
+        "id": "8940027084667843",
+        "sourceId": "NMS_ID_8940027084667843",
+        "classification": "FDC",
+        "number": "7327",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "MYF"
+        ],
+        "icaoLocations": [
+          "KMYF"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791214980000,
+        "updatedAt": 1791214980000,
+        "sourceUpdatedAt": "2026-10-05T15:43:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791396000000,
+        "endsAt": 1791403200000,
+        "effectiveStart": "202610071800",
+        "effectiveEnd": "202610072000",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID MONTGOMERY-GIBBS EXEC, SAN DIEGO, CA.\nPADRZ TWO DEPARTURE (RNAV)...\nDEPARTURE PROCEDURE GPS REQUIRED,\nOCN VORTAC OUT OF SERVICE. 2610071800-2610072000EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7327 MYF SID MONTGOMERY-GIBBS EXEC, SAN DIEGO, CA.\nPADRZ TWO DEPARTURE (RNAV)...\nDEPARTURE PROCEDURE GPS REQUIRED,\nOCN VORTAC OUT OF SERVICE. 2610071800-2610072000EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZLA/QPDCH/I/NBO/A/000/999/3248N11708W005\nA) KMYF\nB) 2502021852\nC) 2509141852EST\nE) MYF MONTGOMERY-GIBBS EXEC, SAN DIEGO, CA.\nPADRZ TWO DEPARTURE (RNAV)...\nDEPARTURE PROCEDURE GPS REQUIRED,\nOCN VORTAC U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "a3b31a300c45df63c327e19f91b89d3ed0699116c9a7822953ffd653d0a8981e"
+      }
+    },
+    {
+      "name": "rnav-arrival",
+      "airport": "IAH",
+      "record": {
+        "id": "1758721055263492",
+        "sourceId": "NMS_ID_1758721055263492",
+        "classification": "FDC",
+        "number": "4918",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "IAH"
+        ],
+        "icaoLocations": [
+          "KIAH"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1752071760000,
+        "updatedAt": 1752071760000,
+        "sourceUpdatedAt": "2025-07-09T14:36:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1752071400000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202507091430",
+        "effectiveEnd": "202612312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR GEORGE BUSH INTERCONTINENTAL/HOUSTON, HOUSTON,\nTX.  DOOBI THREE RNAV ARR... ADD NOTE: EXC FOR ACFT DEP SHV, PLANB\nTRANSITION IS ATC ASSIGNED ONLY. DO NOT FILE.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/4918 IAH STAR GEORGE BUSH INTERCONTINENTAL/HOUSTON, HOUSTON,\nTX.  DOOBI THREE RNAV ARR... ADD NOTE: EXC FOR ACFT DEP SHV, PLANB\nTRANSITION IS ATC ASSIGNED ONLY. DO NOT FILE. 2507091430-2612312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e832945ad9093e287b5d112ba16fd234d44491e940bd7535b4f4ae89aff18cb9"
+      }
+    },
+    {
+      "name": "arrival-abbreviation",
+      "airport": "IAH",
+      "record": {
+        "id": "2584082504581312",
+        "sourceId": "NMS_ID_2584082504581312",
+        "classification": "FDC",
+        "number": "8764",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "IAH"
+        ],
+        "icaoLocations": [
+          "KIAH"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1787919840000,
+        "updatedAt": 1787919840000,
+        "sourceUpdatedAt": "2026-08-28T12:24:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1787947200000,
+        "endsAt": 1803844800000,
+        "effectiveStart": "202608282000",
+        "effectiveEnd": "202702282000",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "STAR GEORGE BUSH INTERCONTINENTAL/HOUSTON, HOUSTON,\nTX. GILCO FIVE ARR...GIRLY TO KUGLE MEA RAISED TO 8000FT. HRV LEV\nAND SJI TRANSITION: GPS REQUIRED. LEV VOR U/S.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8764 IAH STAR STAR GEORGE BUSH INTERCONTINENTAL/HOUSTON, HOUSTON,\nTX. GILCO FIVE ARR...GIRLY TO KUGLE MEA RAISED TO 8000FT. HRV LEV\nAND SJI TRANSITION: GPS REQUIRED. LEV VOR U/S.\n\n 2608282000-2702282000"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A4144/26 NOTAMN Q) KZHU/QPACH/I/NBO/A/000/999/2959N09520W005 A) KIAH B) 2608282000 C) 2702282000 E) STAR STAR GEORGE BUSH INTERCONTINENTAL/HOUSTON, HOUSTON, TX. GILCO FIVE ARR...GIRLY TO KUGLE MEA RAISED TO 8000FT. HRV LEV AND SJI TRANSITION: GPS REQUIRED. LEV VOR U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "0a703a92cc9739dad8851a4df6a436f9b71bedc120e2362405012937edde7652"
+      }
+    },
+    {
+      "name": "wrapped-arrival",
+      "airport": "MCO",
+      "record": {
+        "id": "1775732033245700",
+        "sourceId": "NMS_ID_1775732033245700",
+        "classification": "FDC",
+        "number": "138",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "MCO"
+        ],
+        "icaoLocations": [
+          "KMCO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1775731980000,
+        "updatedAt": 1775732100000,
+        "sourceUpdatedAt": "2026-04-09T10:55:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1775732400000,
+        "endsAt": 1807779600000,
+        "effectiveStart": "202604091100",
+        "effectiveEnd": "202704150900",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR ORLANDO INTL ARPT, ORLANDO, FL. GTOUT ONE RNAV\nARRIVAL..CROSS NICCK AT 12000 AND 250KT.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0138 MCO STAR ORLANDO INTL ARPT, ORLANDO, FL. GTOUT ONE RNAV\nARRIVAL..CROSS NICCK AT 12000 AND 250KT. 2604091100-2704150900"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "01bced20adf7a2034a8807f972ad206bb462fc2cc2f7adb3b0d8280625efc96d"
+      }
+    },
+    {
+      "name": "arrival-prohibited",
+      "airport": "HNL",
+      "record": {
+        "id": "1766439325263366",
+        "sourceId": "NMS_ID_1766439325263366",
+        "classification": "FDC",
+        "number": "2652",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "HNL"
+        ],
+        "icaoLocations": [
+          "PHNL"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1766439240000,
+        "updatedAt": 1766439420000,
+        "sourceUpdatedAt": "2025-12-22T21:37:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1767221460000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202512312251",
+        "effectiveEnd": "202612312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR DANIEL K INOUYE INTL AIRPORT, HONOLULU HI.\nSHLAE ONE ARRIVAL NOT AUTHORIZED",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/2652 HNL STAR DANIEL K INOUYE INTL AIRPORT, HONOLULU HI.\nSHLAE ONE ARRIVAL NOT AUTHORIZED\n2512312251-2612312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6376e4f25dc753e25ab130895161c0035b7488122531095c26f2bedef799a78f"
+      }
+    },
+    {
+      "name": "prm-approach",
+      "airport": "ATL",
+      "record": {
+        "id": "1773417586385500",
+        "sourceId": "NMS_ID_1773417586385500",
+        "classification": "FDC",
+        "number": "8135",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ATL"
+        ],
+        "icaoLocations": [
+          "KATL"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1773417540000,
+        "updatedAt": 1773417720000,
+        "sourceUpdatedAt": "2026-03-13T16:02:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1773417480000,
+        "endsAt": 1800028680000,
+        "effectiveStart": "202603131558",
+        "effectiveEnd": "202701151558EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP HARTSFIELD/JACKSON ATLANTA INTL, ATLANTA, GA.\nRNAV (GPS) PRM RWY 9R, ORIG-A...\nLNAV/VNAV DA 1516/HAT 490 ALL CATS, VIS ALL CATS RVR 5000.  TEMPORARY CRANE 1305 MSL 3585FT N OF RWY 9R (2025-ASO-3650-NRA).  TEMPORARY CRANES UP TO 1268 MSL 2966FT N OF RWY 9R (2024-ASO-5839 THRU 5843-NRA).\n2603131558-2701151558EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8135 ATL IAP HARTSFIELD/JACKSON ATLANTA INTL, ATLANTA, GA.\nRNAV (GPS) PRM RWY 9R, ORIG-A...\nLNAV/VNAV DA 1516/HAT 490 ALL CATS, VIS ALL CATS RVR 5000.  TEMPORARY CRANE 1305 MSL 3585FT N OF RWY 9R (2025-ASO-3650-NRA).  TEMPORARY CRANES UP TO 1268 MSL 2966FT N OF RWY 9R (2024-ASO-5839 THRU 5843-NRA).\n2603131558-2701151558EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZTL/QPIXX/I/NBO/A/000/999/3338N08425W005\nA) KATL\nB) 2603131558\nC) 2610231558EST\nE) ATL HARTSFIELD/JACKSON ATLANTA INTL, ATLANTA, GA.\nRNAV (GPS) PRM RWY 9R, ORIG-A...\nLNAV/VNAV DA 1516/HAT 490 ALL CATS, VIS ALL CATS RVR 5000.  TEMPORARY CRANE 1305 MSL 3585FT N OF RWY 9R (2025-ASO-3650-NRA).  TEMPORARY CRANES UP TO 1268 MSL 2966FT N OF RWY 9R (2024-ASO-5839 THRU 5843-NRA)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "79baa7f59eafa66828cd1611234fb99d64c97226abef91ab78f029bc02f13404"
+      }
+    },
+    {
+      "name": "category-approach",
+      "airport": "ORD",
+      "record": {
+        "id": "1211918121141075",
+        "sourceId": "NMS_ID_1211918121141075",
+        "classification": "FDC",
+        "number": "331",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ORD"
+        ],
+        "icaoLocations": [
+          "KORD"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1778763300000,
+        "updatedAt": 1778763300000,
+        "sourceUpdatedAt": "2026-05-14T12:55:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1778763180000,
+        "endsAt": 1841921580000,
+        "effectiveStart": "202605141253",
+        "effectiveEnd": "202805141253EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP CHICAGO O'HARE INTL, CHICAGO, IL.\nILS OR LOC RWY 9L, AMDT 4B...\nILS RWY 9L SA CAT I, AMDT 4B... ILS RWY 9L CAT II/III, AMDT 4B... PROFILE NOTE: VGSI AND ILS GLIDEPATH NOT COINCIDENT (VGSI ANGLE 3.00/TCH 69).\n2605141253-2805141253EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0331 ORD IAP CHICAGO O'HARE INTL, CHICAGO, IL.\nILS OR LOC RWY 9L, AMDT 4B...\nILS RWY 9L SA CAT I, AMDT 4B... ILS RWY 9L CAT II/III, AMDT 4B... PROFILE NOTE: VGSI AND ILS GLIDEPATH NOT COINCIDENT (VGSI ANGLE 3.00/TCH 69).\n2605141253-2805141253EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAU/QPIXX/I/NBO/A/000/999/4158N08754W005\nA) KORD\nB) 2605131832\nC) 2612231826EST\nE) ORD CHICAGO O'HARE INTL, CHICAGO, IL.\nILS OR LOC RWY 9L, AMDT 4B...\nILS RWY 9L SA CAT I, AMDT 4B... ILS RWY 9L CAT II/III, AMDT 4B... PROFILE NOTE: VGSI AND ILS GLIDEPATH NOT COINCIDENT (VGSI ANGLE 3.00/TCH 69)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "3923c6508b3dff7f144ddb74faf8e46f99021eefad111fffe88166e989435561"
+      }
+    },
+    {
+      "name": "copter-bearing",
+      "airport": "JFK",
+      "record": {
+        "id": "1771346036066335",
+        "sourceId": "NMS_ID_1771346036066335",
+        "classification": "FDC",
+        "number": "4963",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "JFK"
+        ],
+        "icaoLocations": [
+          "KJFK"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1771345980000,
+        "updatedAt": 1771345980000,
+        "sourceUpdatedAt": "2026-02-17T16:33:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1771345980000,
+        "endsAt": 1822753980000,
+        "effectiveStart": "202602171633",
+        "effectiveEnd": "202710051633EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP JOHN F KENNEDY INTL, NEW YORK, NY.\nCOPTER RNAV (GPS) 027, ORIG-C...\nLNAV MDA 680/HAS 647. NUMEROUS OFFSHORE TEMPORARY BARGE CRANES/WIND TURBINES 345FT MSL 10NM SOUTHWEST OF JFK AIRPORT (2024-WTE-4148 THRU 4149-OE, 2024-WTE-4196 THRU 4197-OE, 2024-WTE-4236 THRU 4344-OE).\n2602171633-2710051633EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/4963 JFK IAP JOHN F KENNEDY INTL, NEW YORK, NY.\nCOPTER RNAV (GPS) 027, ORIG-C...\nLNAV MDA 680/HAS 647. NUMEROUS OFFSHORE TEMPORARY BARGE CRANES/WIND TURBINES 345FT MSL 10NM SOUTHWEST OF JFK AIRPORT (2024-WTE-4148 THRU 4149-OE, 2024-WTE-4196 THRU 4197-OE, 2024-WTE-4236 THRU 4344-OE).\n2602171633-2710051633EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZNY/QPIXX/I/NBO/A/000/999/4038N07346W005\nA) KJFK\nB) 2602171633\nC) 2710051633EST\nE) JFK JOHN F KENNEDY INTL, NEW YORK, NY.\nCOPTER RNAV (GPS) 027, ORIG-C...\nLNAV MDA 680/HAS 647. NUMEROUS OFFSHORE TEMPORARY BARGE CRANES/WIND TURBINES 345FT MSL 10NM SOUTHWEST OF JFK AIRPORT (2024-WTE-4148 THRU 4149-OE, 2024-WTE-4196 THRU 4197-OE, 2024-WTE-4236 THRU 4344-OE)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "72e48c01ecd58a2ec85212a3771ec48d68310ca097c9f719b3169fed95cdc8fb"
+      }
+    },
+    {
+      "name": "converging-approach",
+      "airport": "PHL",
+      "record": {
+        "id": "3446130471988900",
+        "sourceId": "NMS_ID_3446130471988900",
+        "classification": "FDC",
+        "number": "7288",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PHL"
+        ],
+        "icaoLocations": [
+          "KPHL"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791214140000,
+        "updatedAt": 1791214140000,
+        "sourceUpdatedAt": "2026-10-05T15:29:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791284400000,
+        "endsAt": 1791320400000,
+        "effectiveStart": "202610061100",
+        "effectiveEnd": "202610062100EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP PHILADELPHIA INTL, PHILADELPHIA, PA.\nILS V RWY 17 (CONVERGING), AMDT 8A ...\nCLIMB TO 880 THEN CLIMBING LEFT TURN TO 3000 ON HEADING 040.00 AND ON RBV VORTAC R-255 TO RBV VORTAC AND HOLD SW, LT, 52.11 INBOUND. ARD VOR/DME OUT OF SERVICE 2610061100-2610062100EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7288 PHL IAP PHILADELPHIA INTL, PHILADELPHIA, PA.\nILS V RWY 17 (CONVERGING), AMDT 8A ...\nCLIMB TO 880 THEN CLIMBING LEFT TURN TO 3000 ON HEADING 040.00 AND ON RBV VORTAC R-255 TO RBV VORTAC AND HOLD SW, LT, 52.11 INBOUND. ARD VOR/DME OUT OF SERVICE 2610061100-2610062100EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZDC/QXXXX/I/NBO/A/000/999/3952N07514W025\nA) KPHL\nB) 2609251149\nC) 2705071147EST\nE) IAP PHILADELPHIA INTL, PHILADELPHIA, PA.\nILS V RWY 17 (CONVERGING), AMDT 8A ...\nCLIMB TO 880 THEN CLIMBING LEFT TURN TO 3000 ON HEADING 040.00 AND ON RBV VORTAC R-255 TO RBV VORTAC AND HOLD SW, LT, 52.11 INBOUND. ARD VOR/DME OUT OF SERVICE"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "101a5c60aa126ac95c5066400c84ee0dd715e90ed025c9b47c7fb849e99d9b25"
+      }
+    },
+    {
+      "name": "letter-variant",
+      "airport": "SDF",
+      "record": {
+        "id": "6175676665569348",
+        "sourceId": "NMS_ID_6175676665569348",
+        "classification": "FDC",
+        "number": "5704",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SDF"
+        ],
+        "icaoLocations": [
+          "KSDF"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1790439900000,
+        "updatedAt": 1790439900000,
+        "sourceUpdatedAt": "2026-09-26T16:25:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790611200000,
+        "endsAt": 1798128000000,
+        "effectiveStart": "202609281600",
+        "effectiveEnd": "202612241600",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. RNAV (GPS) M RWY 17L, ORIG... PROCEDURE NA.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/5704 SDF SPECIAL IAP LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. RNAV (GPS) M RWY 17L, ORIG... PROCEDURE NA. 2609281600-2612241600"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A3965/26 NOTAMN Q) KZID/QXXXX////000/999/3810N08544W005 A) KSDF B) 2609281600 C) 2612241600 E) SPECIAL IAP LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. RNAV (GPS) M RWY 17L, ORIG... PROCEDURE NA."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "5673036d5c78db9ef8cf6c974a6138f4d4d0f6ae14f48d70eed4008d0271b24e"
+      }
+    },
+    {
+      "name": "tacan-vor",
+      "airport": "MEI",
+      "record": {
+        "id": "1758721800196829",
+        "sourceId": "NMS_ID_1758721800196829",
+        "classification": "FDC",
+        "number": "4810",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "MEI"
+        ],
+        "icaoLocations": [
+          "KMEI"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1758039600000,
+        "updatedAt": 1758039600000,
+        "sourceUpdatedAt": "2025-09-16T16:20:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1758039600000,
+        "endsAt": 1821111600000,
+        "effectiveStart": "202509161620",
+        "effectiveEnd": "202709161620EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP U.S. DOD KEY FLD, MERIDIAN, MS.\nHI - TACAN OR VOR-B, AMDT 4A...\nTACAN PORTION NA.\n2509161620-2709161620EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/4810 MEI IAP U.S. DOD KEY FLD, MERIDIAN, MS.\nHI - TACAN OR VOR-B, AMDT 4A...\nTACAN PORTION NA.\n2509161620-2709161620EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZME/QPIXX/I/NBO/A/000/999/3219N08845W005\nA) KMEI\nB) 2509161620\nC) 2709161620EST\nE) MEI KEY FLD, MERIDIAN, MS.\nHI - TACAN OR VOR-B, AMDT 4A...\nTACAN PORTION NA."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6b6e5b8a0bbe573598ae4cc6f950c943e60e839ddf60f3fd923005131695aafa"
+      }
+    },
+    {
+      "name": "permanent-arrival",
+      "airport": "FRG",
+      "record": {
+        "id": "5603031280280439",
+        "sourceId": "NMS_ID_5603031280280439",
+        "classification": "FDC",
+        "number": "2624",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "FRG"
+        ],
+        "icaoLocations": [
+          "KFRG"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1782990000000,
+        "updatedAt": 1782990000000,
+        "sourceUpdatedAt": "2026-07-02T11:00:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1783555200000,
+        "endsAt": null,
+        "effectiveStart": "202607090000",
+        "effectiveEnd": "PERM",
+        "endKind": "permanent",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SARDI ONE ARRIVAL.  DISREGARD NOTE: STAR LIMITED TO JET AND MULTI-ENGINE AIRCRAFT CAPABLE OF 210K OR GREATER.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/2624 FRG STAR SARDI ONE ARRIVAL.  DISREGARD NOTE: STAR LIMITED TO JET AND MULTI-ENGINE AIRCRAFT CAPABLE OF 210K OR GREATER.  2607090000-PERM"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A1268/26 NOTAMN Q) KZNY/QPACH/I/NBO/A/000/999/4043N07324W005 A) KFRG B) 2607090000 C) PERM E) STAR SARDI ONE ARRIVAL.  DISREGARD NOTE: STAR LIMITED TO JET AND MULTI-ENGINE AIRCRAFT CAPABLE OF 210K OR GREATER."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e85ae25852686f45d94e87aff389ecb5756d16595d980511939f84d125714186"
+      }
+    },
+    {
+      "name": "permanent-approach",
+      "airport": "MRI",
+      "record": {
+        "id": "2814139049357469",
+        "sourceId": "NMS_ID_2814139049357469",
+        "classification": "FDC",
+        "number": "2510",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "MRI"
+        ],
+        "icaoLocations": [
+          "PAMR"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1789166220000,
+        "updatedAt": 1789166220000,
+        "sourceUpdatedAt": "2026-09-11T22:37:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1789166040000,
+        "endsAt": null,
+        "effectiveStart": "202609112234",
+        "effectiveEnd": "PERM",
+        "endKind": "permanent",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "MERRILL FLD, ANCHORAGE, AK.  RNAV (GPS) Z  RWY 8, ORIG-B.  REMOVE NOTE:  CIRCLING RWY 17, 35, 5, AND 23 NA AT NIGHT.  ADD NOTE:  CIRCLING RWY 17, 5, AND 23 NA AT NIGHT.  ADD NOTE:  WHEN CIRCLING TO RWY 35 AT NIGHT, OPERATIONAL VGSI REQUIRED; REMAIN ON OR ABOVE VGSI GLIDEPATH UNTIL THRESHOLD.  THIS IS RNAV (GPS) Z RWY 8, ORIG-C.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/2510 MRI IAP MERRILL FLD, ANCHORAGE, AK.  RNAV (GPS) Z  RWY 8, ORIG-B.  REMOVE NOTE:  CIRCLING RWY 17, 35, 5, AND 23 NA AT NIGHT.  ADD NOTE:  CIRCLING RWY 17, 5, AND 23 NA AT NIGHT.  ADD NOTE:  WHEN CIRCLING TO RWY 35 AT NIGHT, OPERATIONAL VGSI REQUIRED; REMAIN ON OR ABOVE VGSI GLIDEPATH UNTIL THRESHOLD.  THIS IS RNAV (GPS) Z RWY 8, ORIG-C.  2609112234-PERM"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "82cccfe20e6db2f35610447185e3d056f90d4d1a86704927d8861346c497619a"
+      }
+    },
+    {
+      "name": "route-subject",
+      "airport": "CLT",
+      "record": {
+        "id": "5048242930876254",
+        "sourceId": "NMS_ID_5048242930876254",
+        "classification": "FDC",
+        "number": "1020",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "CLT"
+        ],
+        "icaoLocations": [
+          "KCLT"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1788523440000,
+        "updatedAt": 1788523440000,
+        "sourceUpdatedAt": "2026-09-04T12:04:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788523260000,
+        "endsAt": null,
+        "effectiveStart": "202609041201",
+        "effectiveEnd": "PERM",
+        "endKind": "permanent",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IRVVV SID FOR JET AIRCRAFT ONLY",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/1020 CLT ROUTE IRVVV SID FOR JET AIRCRAFT ONLY 2609041201-PERM"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A7694/26 NOTAMN Q) KZTL/QARLT////000/999/3512N08057W005 A) KCLT B) 2609041201 C) PERM E) ROUTE IRVVV SID FOR JET AIRCRAFT ONLY"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "34f47f31b3ab3bb187843a1a07e11ddfca249a494d0ffac89b56a830dfcb7ab1"
+      }
+    },
+    {
+      "name": "visual-subject",
+      "airport": "SDF",
+      "record": {
+        "id": "4812680199731523",
+        "sourceId": "NMS_ID_4812680199731523",
+        "classification": "FDC",
+        "number": "5702",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SDF"
+        ],
+        "icaoLocations": [
+          "KSDF"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1790439900000,
+        "updatedAt": 1790439900000,
+        "sourceUpdatedAt": "2026-09-26T16:25:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790611200000,
+        "endsAt": 1792108740000,
+        "effectiveStart": "202609281600",
+        "effectiveEnd": "202610152359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. GUIDED VISUAL RWY 17L, ORIG... PROCEDURE NA.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/5702 SDF VFP LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. GUIDED VISUAL RWY 17L, ORIG... PROCEDURE NA. 2609281600-2610152359"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A3964/26 NOTAMN Q) KZDV/QPICH////000/999/3913N10652W005 A) KSDF B) 2609281600 C) 2610152359 E) VFP LOUISVILLE MUHAMMAD ALI INTL, LOUISVILLE, KY. GUIDED VISUAL RWY 17L, ORIG... PROCEDURE NA."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "347c7257ba3051032b11f978b0b93c4746f986fdaa54668d3608680e899e9919"
+      }
+    },
+    {
+      "name": "special-subject",
+      "airport": "OME",
+      "record": {
+        "id": "8819061802588204",
+        "sourceId": "NMS_ID_8819061802588204",
+        "classification": "FDC",
+        "number": "0453",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OME"
+        ],
+        "icaoLocations": [
+          "PAOM"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1788374760000,
+        "updatedAt": 1788374760000,
+        "sourceUpdatedAt": "2026-09-02T18:46:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788426060000,
+        "endsAt": 1793264400000,
+        "effectiveStart": "202609030901",
+        "effectiveEnd": "202610290900EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NOME, NOME, AK.\n\nRNAV (RNP) M RWY 3, AMDT 1.\nAIRPORT MAGNETIC VARIATION REVISED FROM E11 DEGREES TO E6 DEGREES. ALL PUBLISHED MAGNETIC COURSES, BEARINGS, TRACKS, HEADINGS, AND ASSOCIATED MAGNETIC REFERENCES INCREASE BY 5 DEGREES. PROCEDURE GEOMETRY, WAYPOINT LOCATIONS, ALTITUDES, MINIMUMS, OBSTACLE CLEARANCE, CLIMB GRADIENTS, ALTITUDE CONSTRAINTS, AND OPERATIONAL USE ARE UNCHANGED.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0453 OME SPECIAL NOME, NOME, AK.\n\nRNAV (RNP) M RWY 3, AMDT 1.\nAIRPORT MAGNETIC VARIATION REVISED FROM E11 DEGREES TO E6 DEGREES. ALL PUBLISHED MAGNETIC COURSES, BEARINGS, TRACKS, HEADINGS, AND ASSOCIATED MAGNETIC REFERENCES INCREASE BY 5 DEGREES. PROCEDURE GEOMETRY, WAYPOINT LOCATIONS, ALTITUDES, MINIMUMS, OBSTACLE CLEARANCE, CLIMB GRADIENTS, ALTITUDE CONSTRAINTS, AND OPERATIONAL USE ARE UNCHANGED. 2609030901-2610290900EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A2954/26 NOTAMN Q) PAZA/QXXXX////000/999/6430N16526W005 A) PAOM B) 2609030901 C) 2610290900 E) SPECIAL NOME, NOME, AK.  RNAV (RNP) M RWY 3, AMDT 1. AIRPORT MAGNETIC VARIATION REVISED FROM E11 DEGREES TO E6 DEGREES. ALL PUBLISHED MAGNETIC COURSES, BEARINGS, TRACKS, HEADINGS, AND ASSOCIATED MAGNETIC REFERENCES INCREASE BY 5 DEGREES. PROCEDURE GEOMETRY, WAYPOINT LOCATIONS, ALTITUDES, MINIMUMS, OBSTACLE CLEARANCE, CLIMB GRADIENTS, ALTITUDE CONSTRAINTS, AND OPERATIONAL USE ARE UNCHANGED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "0673395eeaf0922cf42ff6534df7cc080d13045986556b3bafb7c2623866ac5f"
+      }
+    },
+    {
+      "name": "glideslope-outage",
+      "airport": "RAL",
+      "record": {
+        "id": "9073389980164908",
+        "sourceId": "NMS_ID_9073389980164908",
+        "classification": "DOMESTIC",
+        "number": "56",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "RAL"
+        ],
+        "icaoLocations": [
+          "KRAL"
+        ],
+        "accountability": "RAL",
+        "issuedAt": 1791242100000,
+        "updatedAt": 1791242220000,
+        "sourceUpdatedAt": "2026-10-05T23:17:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791298800000,
+        "endsAt": 1791316800000,
+        "effectiveStart": "202610061500",
+        "effectiveEnd": "202610062000",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 09 GP U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!RAL 10/056 RAL NAV ILS RWY 09 GP U/S 2610061500-2610062000"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "10/056 NOTAMN \r\nQ) KZLA/QIGAS/IV/NBO/A/000/999/3357N11726W025 \r\nA) KRAL \r\nB) 2610061500 \r\nC) 2610062000 \r\n\r\nE) ILS RWY 09 GP U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "2671ef6c6a6a1e0507775f09919601bbd03db9d15969836d3f2e217332344a54"
+      }
+    },
+    {
+      "name": "localizer-outage",
+      "airport": "SBY",
+      "record": {
+        "id": "2615873996810743",
+        "sourceId": "NMS_ID_2615873996810743",
+        "classification": "DOMESTIC",
+        "number": "63",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SBY"
+        ],
+        "icaoLocations": [
+          "KSBY"
+        ],
+        "accountability": "SBY",
+        "issuedAt": 1790784180000,
+        "updatedAt": 1790784180000,
+        "sourceUpdatedAt": "2026-09-30T16:03:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790784180000,
+        "endsAt": 1792195140000,
+        "effectiveStart": "202609301603",
+        "effectiveEnd": "202610162359EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 32 LOC U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!SBY 09/063 SBY NAV ILS RWY 32 LOC U/S 2609301603-2610162359EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/063 NOTAMN \r\nQ) KZDC/QILAS/IV/NBO/A/000/999/3820N07530W025 \r\nA) KSBY \r\nB) 2609301603 \r\nC) 2610162359EST \r\n\r\nE) ILS RWY 32 LOC U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e3de4ec565f05390734157a9ad8be59ad6a643449a611af0dde1765947f6f755"
+      }
+    },
+    {
+      "name": "combined-components",
+      "airport": "PAE",
+      "record": {
+        "id": "4836634084826266",
+        "sourceId": "NMS_ID_4836634084826266",
+        "classification": "DOMESTIC",
+        "number": "64",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PAE"
+        ],
+        "icaoLocations": [
+          "KPAE"
+        ],
+        "accountability": "PAE",
+        "issuedAt": 1783449660000,
+        "updatedAt": 1783449960000,
+        "sourceUpdatedAt": "2026-07-07T18:46:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1783490400000,
+        "endsAt": 1793455200000,
+        "effectiveStart": "202607080600",
+        "effectiveEnd": "202610311400",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 16R LOC/GP U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!PAE 07/064 PAE NAV ILS RWY 16R LOC/GP U/S 2607080600-2610311400"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "07/064 NOTAMN \r\nQ) KZSE/QICAS/IV/NBO/A/000/999/4754N12216W025 \r\nA) KPAE \r\nB) 2607080600 \r\nC) 2610311400 \r\n\r\nE) ILS RWY 16R LOC/GP U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "502ad24a0511895314f69880b56457a06b4004f5fead97d37f262d7f194f0b5d"
+      }
+    },
+    {
+      "name": "outer-marker",
+      "airport": "FRG",
+      "record": {
+        "id": "1773254941830870",
+        "sourceId": "NMS_ID_1773254941830870",
+        "classification": "DOMESTIC",
+        "number": "47",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "FRG"
+        ],
+        "icaoLocations": [
+          "KFRG"
+        ],
+        "accountability": "FRG",
+        "issuedAt": 1773254880000,
+        "updatedAt": 1773255300000,
+        "sourceUpdatedAt": "2026-03-11T18:55:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1773254880000,
+        "endsAt": 1824844260000,
+        "effectiveStart": "202603111848",
+        "effectiveEnd": "202710292111EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 14 OM U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FRG 03/047 FRG NAV ILS RWY 14 OM U/S 2603111848-2710292111EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "03/047 NOTAMN \nQ) KZNY/QIOAS/IV/BO/A/000/999/4043N07324W025 \nA) KFRG \nB) 2603111848 \nC) 2710292111EST \n\nE) ILS RWY 14 OM U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e401b205b6ff636acf4deea5cc3bdff3e79d5757235d735a686981b06f89aa51"
+      }
+    },
+    {
+      "name": "ils-dme",
+      "airport": "PGD",
+      "record": {
+        "id": "6428842278549021",
+        "sourceId": "NMS_ID_6428842278549021",
+        "classification": "DOMESTIC",
+        "number": "92",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PGD"
+        ],
+        "icaoLocations": [
+          "KPGD"
+        ],
+        "accountability": "PGD",
+        "issuedAt": 1782474420000,
+        "updatedAt": 1782474420000,
+        "sourceUpdatedAt": "2026-06-26T11:47:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1782474420000,
+        "endsAt": 1803067200000,
+        "effectiveStart": "202606261147",
+        "effectiveEnd": "202702192000EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 04 DME U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!PGD 06/092 PGD NAV ILS RWY 04 DME U/S 2606261147-2702192000EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "06/092 NOTAMR \r\nQ) KZMA/QICAS/IV/NBO/A/000/999/2655N08159W025 \r\nA) KPGD \r\nB) 2606261147 \r\nC) 2702192000EST \r\n\r\nE) ILS RWY 04 DME U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6981093049a7fe9a913fc36861ac93e75db8012de2a3ac873d75fa582a07a490"
+      }
+    },
+    {
+      "name": "unmonitored-ils",
+      "airport": "SGJ",
+      "record": {
+        "id": "1852014557658225",
+        "sourceId": "NMS_ID_1852014557658225",
+        "classification": "DOMESTIC",
+        "number": "17",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SGJ"
+        ],
+        "icaoLocations": [
+          "KSGJ"
+        ],
+        "accountability": "SGJ",
+        "issuedAt": 1782295500000,
+        "updatedAt": 1782295500000,
+        "sourceUpdatedAt": "2026-06-24T10:05:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1782295500000,
+        "endsAt": 1827864000000,
+        "effectiveStart": "202606241005",
+        "effectiveEnd": "202712032000EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV ILS RWY 31 NOT MNT",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!SGJ 06/017 SGJ NAV ILS RWY 31 NOT MNT 2606241005-2712032000EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "06/017 NOTAMR \r\nQ) KZJX/QICXX/IV/NBO/A/000/999/2957N08120W025 \r\nA) KSGJ \r\nB) 2606241005 \r\nC) 2712032000EST \r\n\r\nE) ILS RWY 31 NOT MNT"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "76ff332f1251415a494235b08f3a52a017ffdb57308a267f0f2503481268e59a"
+      }
+    },
+    {
+      "name": "qualified-closure",
+      "airport": "NYL",
+      "record": {
+        "id": "5597819202404168",
+        "sourceId": "NMS_ID_5597819202404168",
+        "classification": "MIL",
+        "number": "210",
+        "series": "M",
+        "year": "2026",
+        "locations": [
+          "NYL"
+        ],
+        "icaoLocations": [
+          "KNYL"
+        ],
+        "accountability": "KNYL",
+        "issuedAt": 1790034360000,
+        "updatedAt": 1790034360000,
+        "sourceUpdatedAt": "2026-09-21T23:46:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790087400000,
+        "endsAt": 1793426400000,
+        "effectiveStart": "202609221430",
+        "effectiveEnd": "202610310600",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TWY N CLSD. ARRIVALS/DEPARTURES AUTHORIZED FOR SMALL HELICOPTERS ONLY.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "NOT AVAILABLE"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "M0210/26 NOTAMN \r\nQ) ZLA/QXXXX/IV/NBO/A/000/999/3239N11436W005 \r\nA) KNYL \r\nB) 2609221430 \r\nC) 2610310600 \r\nE) TWY N CLSD. ARRIVALS/DEPARTURES AUTHORIZED FOR SMALL HELICOPTERS ONLY."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "81e2b351dc877198baa3adb98352a170feebb3975347b0007e62880a7d5e76a2"
+      }
+    },
+    {
+      "name": "runway-endpoints",
+      "airport": "JRF",
+      "record": {
+        "id": "3672407208660961",
+        "sourceId": "NMS_ID_3672407208660961",
+        "classification": "DOMESTIC",
+        "number": "20",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "JRF"
+        ],
+        "icaoLocations": [
+          "PHJR"
+        ],
+        "accountability": "JRF",
+        "issuedAt": 1791003180000,
+        "updatedAt": 1791003240000,
+        "sourceUpdatedAt": "2026-10-03T04:54:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791482400000,
+        "endsAt": 1791503940000,
+        "effectiveStart": "202610081800",
+        "effectiveEnd": "202610082359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TWY B4 BTN RWY 04L/22R AND RWY 04R/22L CLSD",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!JRF 10/020 JRF TWY B4 BTN RWY 04L/22R AND RWY 04R/22L CLSD 2610081800-2610082359"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "10/020 NOTAMN \r\nQ) PHZH/QMXLC/IV/M/A/000/999/2118N15804W005 \r\nA) PHJR \r\nB) 2610081800 \r\nC) 2610082359 \r\n\r\nE) TWY B4 BTN RWY 04L/22R AND RWY 04R/22L CLSDRWY 04R/22LRSTRCTN>0? TO|"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "9473aa0058132e7a830e46ee6b0cb69921a917b01343c4829596baad48a4ef47"
+      }
+    },
+    {
+      "name": "taxilane-endpoint",
+      "airport": "DVT",
+      "record": {
+        "id": "5519393607535210",
+        "sourceId": "NMS_ID_5519393607535210",
+        "classification": "DOMESTIC",
+        "number": "7",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DVT"
+        ],
+        "icaoLocations": [
+          "KDVT"
+        ],
+        "accountability": "DVT",
+        "issuedAt": 1791153000000,
+        "updatedAt": 1791153060000,
+        "sourceUpdatedAt": "2026-10-04T22:31:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791172800000,
+        "endsAt": 1791205200000,
+        "effectiveStart": "202610050400",
+        "effectiveEnd": "202610051300",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TWY A BTN TXL R10 AND TWY A4 CLSD",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DVT 10/007 DVT TWY A BTN TXL R10 AND TWY A4 CLSD 2610050400-2610051300"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "10/007 NOTAMN \r\nQ) KZAB/QMXLC/IV/M/A/000/999/3341N11204W005 \r\nA) KDVT \r\nB) 2610050400 \r\nC) 2610051300 \r\n\r\nE) TWY A BTN TXL R10 AND TWY A4 CLSDTWY A4RSTRCTN>0? TO|"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "37bfd346bfad2ead883f94797e222f31554b299dc9994c27c8544886142a7c98"
+      }
+    },
+    {
+      "name": "ramp-endpoint",
+      "airport": "JFK",
+      "record": {
+        "id": "1791127830026292",
+        "sourceId": "NMS_ID_1791127830026292",
+        "classification": "INTL",
+        "number": "8058",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "JFK"
+        ],
+        "icaoLocations": [
+          "KJFK"
+        ],
+        "accountability": "KJFK",
+        "issuedAt": 1791127800000,
+        "updatedAt": 1791127860000,
+        "sourceUpdatedAt": "2026-10-04T15:31:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791198000000,
+        "endsAt": 1791228600000,
+        "effectiveStart": "202610051100",
+        "effectiveEnd": "202610051930",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TWY Q5 BTN SOUTH HARDSTAND AND TWY Q CLSD",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA8058/26 NOTAMN\nQ) KZNY/QMXLC////000/999/4038N07346W005\nA) KJFK\nB) 2610051100\nC) 2610051930\nE) TWY Q5 BTN SOUTH HARDSTAND AND TWY Q CLSD\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "73bd47f4d545bc05d97457229a917b2136284d93d6aecdca952940d9fa215ae6"
+      }
+    },
+    {
+      "name": "partial-runway",
+      "airport": "JRF",
+      "record": {
+        "id": "1767546569664088",
+        "sourceId": "NMS_ID_1767546569664088",
+        "classification": "DOMESTIC",
+        "number": "4",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "JRF"
+        ],
+        "icaoLocations": [
+          "PHJR"
+        ],
+        "accountability": "JRF",
+        "issuedAt": 1767546480000,
+        "updatedAt": 1767546600000,
+        "sourceUpdatedAt": "2026-01-04T17:10:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1767546480000,
+        "endsAt": 1798711200000,
+        "effectiveStart": "202601041708",
+        "effectiveEnd": "202612311000",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "RWY 11/29 E 1090FT CLSD. DECLARED DIST: RWY 11 TORA 4910FT TODA 4910FT \n ASDA 4910FT LDA 3910FT. RWY 29 TORA 3910FT TODA 3910FT ASDA 3910FT LDA 0FT.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!JRF 01/004 JRF RWY 11/29 E 1090FT CLSD. DECLARED DIST: RWY 11 TORA 4910FT TODA 4910FT \n ASDA 4910FT LDA 3910FT. RWY 29 TORA 3910FT TODA 3910FT ASDA 3910FT LDA 0FT. 2601041708-2612311000"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "01/004 NOTAMN \nQ) PHZH/QMDCH/IV/NBO/A/000/999/2118N15804W005 \nA) PHJR \nB) 2601041708 \nC) 2612311000 \n\nE) RWY 11/29 EAST 1090FT CLSD. DECLARED DIST: RWY 11 TORA 4910FT TODA 4910FT ASDA 4910FT LDA 3910FT. RWY 29 TORA 3910FT TODA 3910FT ASDA 3910FT LDA 0FT."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "1d3ad97d1f29be0d5083c98a66548901011716bc2fe1118a701f0f3a4aba0f86"
+      }
+    },
+    {
+      "name": "atis-outage",
+      "airport": "OGD",
+      "record": {
+        "id": "1207229061297750",
+        "sourceId": "NMS_ID_1207229061297750",
+        "classification": "DOMESTIC",
+        "number": "010",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OGD"
+        ],
+        "icaoLocations": [
+          "KOGD"
+        ],
+        "accountability": "OGD",
+        "issuedAt": 1790871420000,
+        "updatedAt": 1790871420000,
+        "sourceUpdatedAt": "2026-10-01T16:17:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791252000000,
+        "endsAt": 1791266400000,
+        "effectiveStart": "202610060200",
+        "effectiveEnd": "202610060600",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SVC ATIS 125.55 U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!OGD 10/010 OGD SVC ATIS 125.55 U/S 2610060200-2610060600"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "7e56fa6ea91333019c9b4dd5352a33e6ac6fbf433e1fbd181daa88ca2edbba0e"
+      }
+    },
+    {
+      "name": "tower-closure",
+      "airport": "SQL",
+      "record": {
+        "id": "1885230605059626",
+        "sourceId": "NMS_ID_1885230605059626",
+        "classification": "DOMESTIC",
+        "number": "4",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SQL"
+        ],
+        "icaoLocations": [
+          "KSQL"
+        ],
+        "accountability": "SQL",
+        "issuedAt": 1791138840000,
+        "updatedAt": 1791138840000,
+        "sourceUpdatedAt": "2026-10-04T18:34:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791255600000,
+        "endsAt": 1791259200000,
+        "effectiveStart": "202610060300",
+        "effectiveEnd": "202610060400",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SVC TWR CLSD MNT CTAF 119.0",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!SQL 10/004 SQL SVC TWR CLSD MNT CTAF 119.0 2610060300-2610060400"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "bed870d5d4dfc40f9b0758ecf3e9ad77540283233fe6e5f17f838630b9f7a32b"
+      }
+    },
+    {
+      "name": "qualified-service",
+      "airport": "LVK",
+      "record": {
+        "id": "2505364323653109",
+        "sourceId": "NMS_ID_2505364323653109",
+        "classification": "DOMESTIC",
+        "number": "26",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "LVK"
+        ],
+        "icaoLocations": [
+          "KLVK"
+        ],
+        "accountability": "LVK",
+        "issuedAt": 1790737200000,
+        "updatedAt": 1790737440000,
+        "sourceUpdatedAt": "2026-09-30T03:04:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790737080000,
+        "endsAt": 1791934200000,
+        "effectiveStart": "202609300258",
+        "effectiveEnd": "202610132330",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SVC PCL ALL U/S EXC MEDIUM INTST ON CONS",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!LVK 09/026 LVK SVC PCL ALL U/S EXC MEDIUM INTST ON CONS 2609300258-2610132330"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "09/026 NOTAMN \r\nQ)KZOA/QXXXX/IV/NBO/A/000/999/3741N12149W005 \r\nA) KLVK \r\nB) 2609300258 \r\nC) 2610132330 \r\nE) SVC PCL ALL U/S EXC MEDIUM INTST ON CONS"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "1ea55dffd9722ede7e76ab42f40345367ae40534acc98d4cc86328a85d043695"
+      }
+    },
+    {
+      "name": "pointer",
+      "airport": "FFZ",
+      "record": {
+        "id": "1767285168335747",
+        "sourceId": "NMS_ID_1767285168335747",
+        "classification": "DOMESTIC",
+        "number": "1",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "FFZ"
+        ],
+        "icaoLocations": [
+          "KFFZ"
+        ],
+        "accountability": "FFZ",
+        "issuedAt": 1767285060000,
+        "updatedAt": 1767285120000,
+        "sourceUpdatedAt": "2026-01-01T16:32:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1767312000000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202601020000",
+        "effectiveEnd": "202612312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "AIRSPACE SEE PXR 01/005 UAS DLY 0000-2359",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FFZ 01/001 FFZ AIRSPACE SEE PXR 01/005 UAS DLY 0000-2359\n 2601020000-2612312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "bd8bc7c54c21956454d483814cd8d1d45763489544588f08eb2f7bd676a98044"
+      }
+    },
+    {
+      "name": "paired-altitudes",
+      "airport": "AWM",
+      "record": {
+        "id": "1758720843314818",
+        "sourceId": "NMS_ID_1758720843314818",
+        "classification": "FDC",
+        "number": "5794",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "AWM"
+        ],
+        "icaoLocations": [
+          "KAWM"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1742484420000,
+        "updatedAt": 1742484420000,
+        "sourceUpdatedAt": "2025-03-20T15:27:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1742484420000,
+        "endsAt": 1805556420000,
+        "effectiveStart": "202503201527",
+        "effectiveEnd": "202703201527EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP WEST MEMPHIS MUNI, WEST MEMPHIS, AR.\nRNAV (GPS) RWY 17, ORIG-B...\nRNAV (GPS) RWY 35, ORIG-B...\nCIRCLING CAT A MDA/HAA 680/467.\n2503201527-2703201527EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/5794 AWM IAP WEST MEMPHIS MUNI, WEST MEMPHIS, AR.\nRNAV (GPS) RWY 17, ORIG-B...\nRNAV (GPS) RWY 35, ORIG-B...\nCIRCLING CAT A MDA/HAA 680/467.\n2503201527-2703201527EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZME/QPIXX/I/NBO/A/000/999/3508N09014W005\nA) KAWM\nB) 2503201527\nC) 2703201527EST\nE) AWM WEST MEMPHIS MUNI, WEST MEMPHIS, AR.\nRNAV (GPS) RWY 17, ORIG-B...\nRNAV (GPS) RWY 35, ORIG-B...\nCIRCLING CAT A MDA/HAA 680/467."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "69d38b047efd6bb0f1706e7f4cc41e859b02ceb33276c3dc9f8a0fcbb5aadc3f"
+      }
+    },
+    {
+      "name": "category-and",
+      "airport": "LOT",
+      "record": {
+        "id": "1758719806670310",
+        "sourceId": "NMS_ID_1758719806670310",
+        "classification": "FDC",
+        "number": "9543",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "LOT"
+        ],
+        "icaoLocations": [
+          "KLOT"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1747076340000,
+        "updatedAt": 1747076340000,
+        "sourceUpdatedAt": "2025-05-12T18:59:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1747076280000,
+        "endsAt": 1810234680000,
+        "effectiveStart": "202505121858",
+        "effectiveEnd": "202705131858EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP LEWIS UNIVERSITY, CHICAGO/ROMEOVILLE, IL.\nRNAV (GPS) RWY 20, AMDT 1A...\nCIRCLING CAT C AND D MDA 1480/HAA 801.\nVDP NA.\nVISUAL SEGMENT - OBSTACLES.\n2505121858-2705131858EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/9543 LOT IAP LEWIS UNIVERSITY, CHICAGO/ROMEOVILLE, IL.\nRNAV (GPS) RWY 20, AMDT 1A...\nCIRCLING CAT C AND D MDA 1480/HAA 801.\nVDP NA.\nVISUAL SEGMENT - OBSTACLES.\n2505121858-2705131858EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAU/QPIXX/I/NBO/A/000/999/4136N08805W005\nA) KLOT\nB) 2305181055\nC) 2312281055EST\nE) LOT LEWIS UNIVERSITY, CHICAGO/ROMEOVILLE, IL.\nRNAV (GPS) RWY 20, AMDT 1A...\nCIRCLING CAT C AND D MDA 1480/HAA 801.\nVDP NA.\nVISUAL SEGMENT - OBSTACLES."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "38021f6de6164037773122480a0d4696322e2f4543a38773c0af55aa13485ce7"
+      }
+    },
+    {
+      "name": "explicit-units",
+      "airport": "APF",
+      "record": {
+        "id": "1759377279833607",
+        "sourceId": "NMS_ID_1759377279833607",
+        "classification": "FDC",
+        "number": "4618",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "APF"
+        ],
+        "icaoLocations": [
+          "KAPF"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1759377180000,
+        "updatedAt": 1759377180000,
+        "sourceUpdatedAt": "2025-10-02T03:53:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1759377600000,
+        "endsAt": 1817078340000,
+        "effectiveStart": "202510020400",
+        "effectiveEnd": "202707312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "IAP NAPLES MUNI, NAPLES, FL. RNAV (RNP) Z RWY 05\nORIG... RNP 0.15 DA 396FT/HAT 388FT, VIS 1-1/8SM ALL CATS.\nRNP 0.30 DA 465FT/HAT 457FT, VIS 1-3/8SM ALL CATS. \nTEMPORARY CRANE 155FT MSL 4662 FEET SW OF RWY 05. \n(2025-ASO-14986-OE).\nREASON: TEMPORARY CRANE THRU 7/2027. 2025-ASO-14986-OE",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/4618 APF IAP NAPLES MUNI, NAPLES, FL. RNAV (RNP) Z RWY 05\nORIG... RNP 0.15 DA 396FT/HAT 388FT, VIS 1-1/8SM ALL CATS.\nRNP 0.30 DA 465FT/HAT 457FT, VIS 1-3/8SM ALL CATS. \nTEMPORARY CRANE 155FT MSL 4662 FEET SW OF RWY 05. \n(2025-ASO-14986-OE).\nREASON: TEMPORARY CRANE THRU 7/2027. 2025-ASO-14986-OE\n2510020400-2707312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "984cf3954715146c3358adb124bc4c781593c7958f2625a57fa4b7b6eece43cd"
+      }
+    },
+    {
+      "name": "adjacent-fields",
+      "airport": "BTV",
+      "record": {
+        "id": "1776110157990785",
+        "sourceId": "NMS_ID_1776110157990785",
+        "classification": "FDC",
+        "number": "1797",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "BTV"
+        ],
+        "icaoLocations": [
+          "KBTV"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1776110100000,
+        "updatedAt": 1776110220000,
+        "sourceUpdatedAt": "2026-04-13T19:57:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1776110100000,
+        "endsAt": 1795463280000,
+        "effectiveStart": "202604131955",
+        "effectiveEnd": "202611231948EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP PATRICK LEAHY BURLINGTON INTL, BURLINGTON, VT.\nRNAV (GPS) RWY 1, AMDT 2A...\nLPV DA 712/HAT 378 VIS 1 SM.\nTOWER 450FT MSL 119FT AGL 2543FT N OF APCH END RWY 01.\n2604131955-2611231948EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/1797 BTV IAP PATRICK LEAHY BURLINGTON INTL, BURLINGTON, VT.\nRNAV (GPS) RWY 1, AMDT 2A...\nLPV DA 712/HAT 378 VIS 1 SM.\nTOWER 450FT MSL 119FT AGL 2543FT N OF APCH END RWY 01.\n2604131955-2611231948EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZBW/QPIXX/I/NBO/A/000/999/4428N07309W005\nA) KBTV\nB) 2604131955\nC) 2611231948EST\nE) BTV PATRICK LEAHY BURLINGTON INTL, BURLINGTON, VT.\nRNAV (GPS) RWY 1, AMDT 2A...\nLPV DA 712/HAT 378 VIS 1 SM.\nTOWER 450FT MSL 119FT AGL 2543FT N OF APCH END RWY 01."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "bfb3c77abb4685c3a9ef9d3d02e1332c9e1cf1eb2d264f81fe3a688f2696df76"
+      }
+    },
+    {
+      "name": "slash-fields",
+      "airport": "APA",
+      "record": {
+        "id": "7721060379289236",
+        "sourceId": "NMS_ID_7721060379289236",
+        "classification": "FDC",
+        "number": "108",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "APA"
+        ],
+        "icaoLocations": [
+          "KAPA"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1785343140000,
+        "updatedAt": 1785343140000,
+        "sourceUpdatedAt": "2026-07-29T16:39:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1785343140000,
+        "endsAt": 1796056740000,
+        "effectiveStart": "202607291639",
+        "effectiveEnd": "202611301639EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nCIRCLING CAT D MDA 6900/HAA 1015/VIS 3.\n2607291639-2611301639EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0108 APA IAP CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nCIRCLING CAT D MDA 6900/HAA 1015/VIS 3.\n2607291639-2611301639EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZDV/QPIXX/I/NBO/A/000/999/3934N10450W005\nA) KAPA\nB) 2607291639\nC) 2611301639EST\nE) APA CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nCIRCLING CAT D MDA 6900/HAA 1015/VIS 3."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6166c822b8b628dcdd308801d021e9ed833d73e62f6c17fbd01e8e5900e8465a"
+      }
+    },
+    {
+      "name": "colon-label",
+      "airport": "ICT",
+      "record": {
+        "id": "7450226147030537",
+        "sourceId": "NMS_ID_7450226147030537",
+        "classification": "FDC",
+        "number": "3587",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ICT"
+        ],
+        "icaoLocations": [
+          "KICT"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1789582860000,
+        "updatedAt": 1789583100000,
+        "sourceUpdatedAt": "2026-09-16T18:25:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1789582860000,
+        "endsAt": 1853086860000,
+        "effectiveStart": "202609161821",
+        "effectiveEnd": "202809201821EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP WICHITA DWIGHT D EISENHOWER NTL, WICHITA, KS.\nRNAV (RNP) Z RWY 1L, ORIG-D...\nRNP 0.30 DA:  1697/HAT 383 ALL CATS.\n2609161821-2809201821EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/3587 ICT IAP WICHITA DWIGHT D EISENHOWER NTL, WICHITA, KS.\nRNAV (RNP) Z RWY 1L, ORIG-D...\nRNP 0.30 DA:  1697/HAT 383 ALL CATS.\n2609161821-2809201821EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZKC/QPIXX/I/NBO/A/000/999/3738N09725W005\nA) KICT\nB) 2609161821\nC) 2809201821EST\nE) ICT WICHITA DWIGHT D EISENHOWER NTL, WICHITA, KS.\nRNAV (RNP) Z RWY 1L, ORIG-D...\nRNP 0.30 DA:  1697/HAT 383 ALL CATS."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "cd969de0ca0ce67f692bd111e1ccf4804a7ad9120bc1643d855c3197245878af"
+      }
+    },
+    {
+      "name": "minimums-na",
+      "airport": "FRG",
+      "record": {
+        "id": "1761581718177151",
+        "sourceId": "NMS_ID_1761581718177151",
+        "classification": "FDC",
+        "number": "7214",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "FRG"
+        ],
+        "icaoLocations": [
+          "KFRG"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1761581700000,
+        "updatedAt": 1761581760000,
+        "sourceUpdatedAt": "2025-10-27T16:16:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1761581460000,
+        "endsAt": 1824653460000,
+        "effectiveStart": "202510271611",
+        "effectiveEnd": "202710271611EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP REPUBLIC, FARMINGDALE, NY.\nRNAV (GPS) RWY 19, AMDT 3...\nLPV MINIMUMS NA ALL CATS.\nLNAV/VNAV MINIMUMS NA ALL CATS.\nCHANGE NOTE: RWY 19 HELICOPTER VISIBILITY REDUCTION BELOW 1 SM NOT AUTHORIZED.\n2510271611-2710271611EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 5/7214 FRG IAP REPUBLIC, FARMINGDALE, NY.\nRNAV (GPS) RWY 19, AMDT 3...\nLPV MINIMUMS NA ALL CATS.\nLNAV/VNAV MINIMUMS NA ALL CATS.\nCHANGE NOTE: RWY 19 HELICOPTER VISIBILITY REDUCTION BELOW 1 SM NOT AUTHORIZED.\n2510271611-2710271611EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZNY/QPIXX/I/NBO/A/000/999/4043N07324W005\nA) KFRG\nB) 2510271608\nC) 2606081606EST\nE) FRG REPUBLIC, FARMINGDALE, NY.\nRNAV (GPS) RWY 19, AMDT 3...\nLPV MINIMUMS NA ALL CATS.\nLNAV/VNAV MINIMUMS NA ALL CATS.\nCHANGE NOTE: RWY 19 HELICOPTER VISIBILITY REDUCTION BELOW 1 SM NOT AUTHORIZED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "ba7a945d6c2589e2a75df29a01ef2d6beec102e693c2080182bb8a41b225d2fd"
+      }
+    },
+    {
+      "name": "short-climb-stage",
+      "airport": "SMO",
+      "record": {
+        "id": "1770918358250917",
+        "sourceId": "NMS_ID_1770918358250917",
+        "classification": "FDC",
+        "number": "3308",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "SMO"
+        ],
+        "icaoLocations": [
+          "KSMO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1770918300000,
+        "updatedAt": 1770918420000,
+        "sourceUpdatedAt": "2026-02-12T17:47:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1770918180000,
+        "endsAt": 1833990180000,
+        "effectiveStart": "202602121743",
+        "effectiveEnd": "202802121743EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID SANTA MONICA MUNI, SANTA MONICA, CA.\nCHOII THREE DEPARTURE (RNAV)...\nTAKE-OFF MINIMUMS: RWY 03: STANDARD WITH MINIMUM CLIMB OF 500 FT/NM TO 680, THEN 280 FT/NM TO 6300.\nALL OTHER DATA REMAINS AS PUBLISHED. 2602121743-2802121743EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/3308 SMO SID SANTA MONICA MUNI, SANTA MONICA, CA.\nCHOII THREE DEPARTURE (RNAV)...\nTAKE-OFF MINIMUMS: RWY 03: STANDARD WITH MINIMUM CLIMB OF 500 FT/NM TO 680, THEN 280 FT/NM TO 6300.\nALL OTHER DATA REMAINS AS PUBLISHED. 2602121743-2802121743EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZLA/QPDCH/I/NBO/A/000/999/3400N11827W005\nA) KSMO\nB) 2602111946\nC) 2809231942EST\nE) SMO SANTA MONICA MUNI, SANTA MONICA, CA.\nCHOII THREE DEPARTURE (RNAV)...\nTKOF MNM: RWY 03: STANDARD WITH MINIMUM CLIMB OF 500 FT/NM TO 680, THEN 280 FT/NM TO 6300.\nALL OTHER DATA REMAINS AS PUBLISHED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "1d06536284cb5b9896d7ba3506ee991c0d70b275ce4a4b5778c4d3581a3c06b9"
+      }
+    },
+    {
+      "name": "newline-minima",
+      "airport": "LAX",
+      "record": {
+        "id": "6102543668843408",
+        "sourceId": "NMS_ID_6102543668843408",
+        "classification": "FDC",
+        "number": "8127",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "LAX"
+        ],
+        "icaoLocations": [
+          "KLAX"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1787744760000,
+        "updatedAt": 1787744820000,
+        "sourceUpdatedAt": "2026-08-26T11:47:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1787744760000,
+        "endsAt": 1796039160000,
+        "effectiveStart": "202608261146",
+        "effectiveEnd": "202611301146EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP LOS ANGELES INTL, LOS ANGELES, CA.\nRNAV (GPS) Y RWY 6R, AMDT 2A...\nLNAV/VNAV DA 474/HAT 358, RVR 3000 ALL CATS\n LNAV MDA 580/HAT 464 ALL CATS, CATS C/D RVR 5000. \nTEMP CRANE 263 MSL, 2430FT S OF RWY 6R (2025-AWP-3533-NRA).\n2608261146-2611301146EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8127 LAX IAP LOS ANGELES INTL, LOS ANGELES, CA.\nRNAV (GPS) Y RWY 6R, AMDT 2A...\nLNAV/VNAV DA 474/HAT 358, RVR 3000 ALL CATS\n LNAV MDA 580/HAT 464 ALL CATS, CATS C/D RVR 5000. \nTEMP CRANE 263 MSL, 2430FT S OF RWY 6R (2025-AWP-3533-NRA).\n2608261146-2611301146EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZLA/QPIXX/I/NBO/A/000/999/3356N11824W005\nA) KLAX\nB) 2608261146\nC) 2611301146EST\nE) LAX LOS ANGELES INTL, LOS ANGELES, CA.\nRNAV (GPS) Y RWY 6R, AMDT 2A...\nLNAV/VNAV DA 474/HAT 358, RVR 3000 ALL CATS\n LNAV MDA 580/HAT 464 ALL CATS, CATS C/D RVR 5000. \nTEMP CRANE 263 MSL, 2430FT S OF RWY 6R (2025-AWP-3533-NRA)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "4817b36862892b1b89fca71b7270deec15e424aae9d0ee61140fe58a5d84fde6"
+      }
+    },
+    {
+      "name": "conditional-rvr",
+      "airport": "LAX",
+      "record": {
+        "id": "7899663613243154",
+        "sourceId": "NMS_ID_7899663613243154",
+        "classification": "FDC",
+        "number": "748",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "LAX"
+        ],
+        "icaoLocations": [
+          "KLAX"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1778871540000,
+        "updatedAt": 1778871660000,
+        "sourceUpdatedAt": "2026-05-15T19:01:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1778871480000,
+        "endsAt": 1842029880000,
+        "effectiveStart": "202605151858",
+        "effectiveEnd": "202805151858EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP LOS ANGELES INTL, LOS ANGELES, CA.\nILS OR LOC RWY 25L, AMDT 15B...\nILS RWY 25L (CAT II-III), AMDT 15B... S-ILS 25L CAT II RVR 1200. CAT II NOTE: RVR 1000 AUTHORIZED WITH SPECIFIC OPSPEC, MSPEC, OR LOA APPROVAL AND USE OF AUTOLAND OR HUD TO TOUCHDOWN.\n2605151858-2805151858EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/0748 LAX IAP LOS ANGELES INTL, LOS ANGELES, CA.\nILS OR LOC RWY 25L, AMDT 15B...\nILS RWY 25L (CAT II-III), AMDT 15B... S-ILS 25L CAT II RVR 1200. CAT II NOTE: RVR 1000 AUTHORIZED WITH SPECIFIC OPSPEC, MSPEC, OR LOA APPROVAL AND USE OF AUTOLAND OR HUD TO TOUCHDOWN.\n2605151858-2805151858EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZLA/QPIXX/I/NBO/A/000/999/3356N11824W005\nA) KLAX\nB) 2605151846\nC) 2612251844EST\nE) LAX LOS ANGELES INTL, LOS ANGELES, CA.\nILS OR LOC RWY 25L, AMDT 15B...\nILS RWY 25L (CAT II-III), AMDT 15B... S-ILS 25L CAT II RVR 1200. CAT II NOTE: RVR 1000 AUTHORIZED WITH SPECIFIC OPSPEC, MSPEC, OR LOA APPROVAL AND USE OF AUTOLAND OR HUD TO TOUCHDOWN."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "28414e2d8fa9d8bcfcd093f4c637b9537152835f6d263b365043f8db3e1311fc"
+      }
+    },
+    {
+      "name": "adjacent-rvr",
+      "airport": "BZN",
+      "record": {
+        "id": "1788886266798949",
+        "sourceId": "NMS_ID_1788886266798949",
+        "classification": "INTL",
+        "number": "4009",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "BZN"
+        ],
+        "icaoLocations": [
+          "KBZN"
+        ],
+        "accountability": "KBZN",
+        "issuedAt": 1788886260000,
+        "updatedAt": 1788886260000,
+        "sourceUpdatedAt": "2026-09-08T16:51:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1788886080000,
+        "endsAt": 1852044480000,
+        "effectiveStart": "202609081648",
+        "effectiveEnd": "202809081648",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP BOZEMAN YELLOWSTONE INTL, BOZEMAN, MT. RNAV (RNP) Z RWY 30, AMDT 1... RNP 0.11 DA 4835/HAT 373, RNP 0.30 DA 4907/HAT 443 RVR 4500.",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA4009/26 NOTAMN\nQ) KZLC/QPICH/I/NBO/A/000/999/4546N11109W005\nA) KBZN\nB) 2609081648\nC) 2809081648\nE) IAP BOZEMAN YELLOWSTONE INTL, BOZEMAN, MT. RNAV (RNP) Z RWY 30, AMDT 1... RNP 0.11 DA 4835/HAT 373, RNP 0.30 DA 4907/HAT 443 RVR 4500.\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "87f9eb6ca06f196996f29fa61bd708ee222a601253d3817eda98535874f3d97c"
+      }
+    },
+    {
+      "name": "semicolon-minima",
+      "airport": "ITO",
+      "record": {
+        "id": "3322170393095565",
+        "sourceId": "NMS_ID_3322170393095565",
+        "classification": "FDC",
+        "number": "8904",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ITO"
+        ],
+        "icaoLocations": [
+          "PHTO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1781706660000,
+        "updatedAt": 1781706720000,
+        "sourceUpdatedAt": "2026-06-17T14:32:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1781706600000,
+        "endsAt": 1845037800000,
+        "effectiveStart": "202606171430",
+        "effectiveEnd": "202806191430EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP HILO INTL, HILO, HI.\nVOR/DME OR TACAN-A, AMDT 7D...\nCIRCLING CAT A VIS 1 1/4 SM; CIRCLING CAT B MDA 560/HAA 522, VIS 1 1/4 SM; CIRCLING CAT C MDA 860/HAA 822, VIS 2 1/2 SM.\nCIRCLING RWY 21 NA AT NIGHT.\nTERMINAL ROUTE: FROM ARBOR/17.00 DME (IF) TO PRASK/7.00 DME (FAF) MINIMUM ALTITUDE 2000.\n2606171430-2806191430EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8904 ITO IAP HILO INTL, HILO, HI.\nVOR/DME OR TACAN-A, AMDT 7D...\nCIRCLING CAT A VIS 1 1/4 SM; CIRCLING CAT B MDA 560/HAA 522, VIS 1 1/4 SM; CIRCLING CAT C MDA 860/HAA 822, VIS 2 1/2 SM.\nCIRCLING RWY 21 NA AT NIGHT.\nTERMINAL ROUTE: FROM ARBOR/17.00 DME (IF) TO PRASK/7.00 DME (FAF) MINIMUM ALTITUDE 2000.\n2606171430-2806191430EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) PHZH/QPIXX/I/NBO/A/000/999/1943N15502W005\nA) PHTO\nB) 2606171426\nC) 2701271426EST\nE) ITO HILO INTL, HILO, HI.\nVOR/DME OR TACAN-A, AMDT 7D...\nCIRCLING CAT A VIS 1 1/4 SM; CIRCLING CAT B MDA 560/HAA 522, VIS 1 1/4 SM; CIRCLING CAT C MDA 860/HAA 822, VIS 2 1/2 SM.\nCIRCLING RWY 21 NA AT NIGHT.\nTERMINAL ROUTE: FROM ARBOR/17.00 DME (IF) TO PRASK/7.00 DME (FAF) MINIMUM ALTITUDE 2000."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "9cea6ef86a53cd6aa663b3f2371dbedc95659992a73815153fda9fbfeca83621"
+      }
+    },
+    {
+      "name": "bare-ils",
+      "airport": "ALB",
+      "record": {
+        "id": "5399837004521144",
+        "sourceId": "NMS_ID_5399837004521144",
+        "classification": "FDC",
+        "number": "6081",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ALB"
+        ],
+        "icaoLocations": [
+          "KALB"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1790691360000,
+        "updatedAt": 1790691480000,
+        "sourceUpdatedAt": "2026-09-29T14:18:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790691360000,
+        "endsAt": 1805206560000,
+        "effectiveStart": "202609291416",
+        "effectiveEnd": "202703161416EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP ALBANY INTL, ALBANY, NY.\nILS OR LOC RWY 1, AMDT 11D...\nILS DA 534/HAT 250 ALL CATS. TEMPORARY CRANE 469FT MSL 3400FT NORTHWEST OF RWY 1 (2026-AEA-3431 THRU 3443-NRA).\n2609291416-2703161416EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/6081 ALB IAP ALBANY INTL, ALBANY, NY.\nILS OR LOC RWY 1, AMDT 11D...\nILS DA 534/HAT 250 ALL CATS. TEMPORARY CRANE 469FT MSL 3400FT NORTHWEST OF RWY 1 (2026-AEA-3431 THRU 3443-NRA).\n2609291416-2703161416EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZBW/QPIXX/I/NBO/A/000/999/4244N07348W005\nA) KALB\nB) 2609291416\nC) 2703161416EST\nE) ALB ALBANY INTL, ALBANY, NY.\nILS OR LOC RWY 1, AMDT 11D...\nILS DA 534/HAT 250 ALL CATS. TEMPORARY CRANE 469FT MSL 3400FT NORTHWEST OF RWY 1 (2026-AEA-3431 THRU 3443-NRA)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "9139d99e5ac4fb9c0a1398d72923b8cc2f9db48d02244cb71c3a76c06eb5921b"
+      }
+    },
+    {
+      "name": "runway-offset-obstacle",
+      "airport": "PTK",
+      "record": {
+        "id": "3553632631898478",
+        "sourceId": "NMS_ID_3553632631898478",
+        "classification": "DOMESTIC",
+        "number": "10",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PTK"
+        ],
+        "icaoLocations": [
+          "KPTK"
+        ],
+        "accountability": "PTK",
+        "issuedAt": 1783002540000,
+        "updatedAt": 1783002540000,
+        "sourceUpdatedAt": "2026-07-02T14:29:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1783002540000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202607021429",
+        "effectiveEnd": "202612312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN 2025-AGL-13087-NRA) 423939N0832449W (.26NM SW APCH END RWY 27L) 1134FT (165FT AGL) FLAGGED AND LGTD",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!PTK 07/010 PTK OBST CRANE (ASN 2025-AGL-13087-NRA) 423939N0832449W (.26NM SW APCH END RWY 27L) 1134FT (165FT AGL) FLAGGED AND LGTD 2607021429-2612312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "c2807f5b51a340b5ef6ce47d38aefd76cff41e9a8e993821ac4297da04f5e53a"
+      }
+    },
+    {
+      "name": "escaped-airport",
+      "airport": "ORD",
+      "record": {
+        "id": "6139465131323563",
+        "sourceId": "NMS_ID_6139465131323563",
+        "classification": "FDC",
+        "number": "4381",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "ORD"
+        ],
+        "icaoLocations": [
+          "KORD"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1783624260000,
+        "updatedAt": 1783624260000,
+        "sourceUpdatedAt": "2026-07-09T19:11:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1783624020000,
+        "endsAt": 1794268500000,
+        "effectiveStart": "202607091907",
+        "effectiveEnd": "202611092355",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP CHICAGO O&apos;HARE INTL, CHICAGO, IL. ILS Z RWY 10R (SA CAT I), ORIG-C ... ILS Z RWY 10R (SA CAT II AND III), ORIG-C ... PROCEDURE NA. TEMPORARY CRANES, UP TO 846 MSL, 1808FT SE OF RWY 10R (2024-AGL-15026 THRU 15039-NRA)",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/4381 ORD IAP CHICAGO O&apos;HARE INTL, CHICAGO, IL. ILS Z RWY 10R (SA CAT I), ORIG-C ... ILS Z RWY 10R (SA CAT II AND III), ORIG-C ... PROCEDURE NA. TEMPORARY CRANES, UP TO 846 MSL, 1808FT SE OF RWY 10R (2024-AGL-15026 THRU 15039-NRA) 2607091907-2611092355EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAU/QXXXX/I/NBO/A/000/999/4158N08754W025\nA) KORD\nB) 2607091906\nC) 2702181903EST\nE) IAP CHICAGO O'HARE INTL, CHICAGO, IL.\nILS Z RWY 10R (SA CAT I), ORIG-C ...\nILS Z RWY 10R (SA CAT II AND III), ORIG-C ...\nPROCEDURE NA. TEMPORARY CRANES, UP TO 846 MSL, 1808FT SE OF RWY 10R (2024-AGL-15026 THRU 15039-NRA)"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "5e795f5c9efb124aaa5e5b71bd006031872646e0773408fbe94ea9bfa8be2b83"
+      }
+    },
+    {
+      "name": "missing-altitude-label",
+      "airport": "APA",
+      "record": {
+        "id": "3783536168425005",
+        "sourceId": "NMS_ID_3783536168425005",
+        "classification": "FDC",
+        "number": "1550",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "APA"
+        ],
+        "icaoLocations": [
+          "KAPA"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1782755100000,
+        "updatedAt": 1782755100000,
+        "sourceUpdatedAt": "2026-06-29T17:45:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1782755040000,
+        "endsAt": 1802108640000,
+        "effectiveStart": "202606291744",
+        "effectiveEnd": "202702081744EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nS-LOC 35R MDA 6540/HAT 655 ALL CATS, VIS CATS C/D 1 3/8. \nSIDESTEP 35R MDA  6540/HAT 655 ALL CATS.\nCIRCLING CAT A 6540/HAA 655.\nTEMPORARY CRANE, 6231FT MSL, 2.1NM S OF RWY 35R (2025-ANM-2025-1007-OE).\n2606291744-2702081744EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/1550 APA IAP CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nS-LOC 35R MDA 6540/HAT 655 ALL CATS, VIS CATS C/D 1 3/8. \nSIDESTEP 35R MDA  6540/HAT 655 ALL CATS.\nCIRCLING CAT A 6540/HAA 655.\nTEMPORARY CRANE, 6231FT MSL, 2.1NM S OF RWY 35R (2025-ANM-2025-1007-OE).\n2606291744-2702081744EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZDV/QPIXX/I/NBO/A/000/999/3934N10450W005\nA) KAPA\nB) 2606291743\nC) 2702081743EST\nE) APA CENTENNIAL, DENVER, CO.\nILS OR LOC RWY 35R, AMDT 11B...\nS-LOC 35R MDA 6540/HAT 655 ALL CATS, VIS CATS C/D 1 3/8. \nSIDESTEP 35R MDA  6540/HAT 655 ALL CATS.\nCIRCLING CAT A 6540/HAA 655.\nTEMPORARY CRANE, 6231FT MSL, 2.1NM S OF RWY 35R (2025-ANM-2025-1007-OE)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e754aa47d52f288ae7817522b69993f31fd845cab7d30ed01871c0c53bbb4589"
+      }
+    },
+    {
+      "name": "missing-climb-unit",
+      "airport": "IWA",
+      "record": {
+        "id": "3916108519898144",
+        "sourceId": "NMS_ID_3916108519898144",
+        "classification": "FDC",
+        "number": "7314",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "IWA"
+        ],
+        "icaoLocations": [
+          "KIWA"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1787523660000,
+        "updatedAt": 1787524620000,
+        "sourceUpdatedAt": "2026-08-23T22:37:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1787572800000,
+        "endsAt": 1796077260000,
+        "effectiveStart": "202608241200",
+        "effectiveEnd": "202611302221EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "SID MESA GATEWAY, PHOENIX, AZ.\nBNYRD SIX DEPARTURE (RNAV)...\nFTHLS SIX DEPARTURE (RNAV)...\nIZZZO EIGHT DEPARTURE (RNAV)...\nJUDTH SEVEN DEPARTURE (RNAV)...\nKATMN SIX DEPARTURE (RNAV)...\nLALUZ SIX DEPARTURE (RNAV)...\nMAYSA SEVEN DEPARTURE (RNAV)...\nSNOBL SIX DEPARTURE (RNAV)...\nYOTES SIX DEPARTURE (RNAV)...\nTAKEOFF MINIMUMS: RWY 30R, 300-1 5/8 OR STANDARD WITH MINIMUM CLIMB OF 263 TO 1700.  TEMP CRANE 1.3NM NW OF RWY 30R, UP TO 230 AGL/1565 MSL (2026-AWP-5354-OE). ALL OTHER DATA REMAINS AS PUBLISHED. 2608241200-2611302221EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7314 IWA SID MESA GATEWAY, PHOENIX, AZ.\nBNYRD SIX DEPARTURE (RNAV)...\nFTHLS SIX DEPARTURE (RNAV)...\nIZZZO EIGHT DEPARTURE (RNAV)...\nJUDTH SEVEN DEPARTURE (RNAV)...\nKATMN SIX DEPARTURE (RNAV)...\nLALUZ SIX DEPARTURE (RNAV)...\nMAYSA SEVEN DEPARTURE (RNAV)...\nSNOBL SIX DEPARTURE (RNAV)...\nYOTES SIX DEPARTURE (RNAV)...\nTAKEOFF MINIMUMS: RWY 30R, 300-1 5/8 OR STANDARD WITH MINIMUM CLIMB OF 263 TO 1700.  TEMP CRANE 1.3NM NW OF RWY 30R, UP TO 230 AGL/1565 MSL (2026-AWP-5354-OE). ALL OTHER DATA REMAINS AS PUBLISHED. 2608241200-2611302221EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAB/undefined/NBO/A/000/999/3318N11139W005\nA) KIWA\nB) 2608232207\nC) 2704042204EST\nE) IWA MESA GATEWAY, PHOENIX, AZ.\nBNYRD SIX DEPARTURE (RNAV)...\nFTHLS SIX DEPARTURE (RNAV)...\nIZZZO EIGHT DEPARTURE (RNAV)...\nJUDTH SEVEN DEPARTURE (RNAV)...\nKATMN SIX DEPARTURE (RNAV)...\nLALUZ SIX DEPARTURE (RNAV)...\nMAYSA SEVEN DEPARTURE (RNAV)...\nSNOBL SIX DEPARTURE (RNAV)...\nYOTES SIX DEPARTURE (RNAV)...\nTAKEOFF MINIMUMS: RWY 30R, 300-1 5/8 OR STANDARD WITH MINIMUM CLIMB OF 263 TO 1700.  TEMP CRANE 1.3NM NW OF RWY 30R, UP TO 230 AGL/1565 MSL (2026-AWP-5354-OE). ALL OTHER DATA REMAINS AS PUBLISHED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "8898d37140131f5868aba0f244d2069a465350932a077418e694b9abdbaf9ce3"
+      }
+    },
+    {
+      "name": "invalid-coordinate",
+      "airport": "PTK",
+      "record": {
+        "id": "7450732768852589",
+        "sourceId": "NMS_ID_7450732768852589",
+        "classification": "DOMESTIC",
+        "number": "12",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PTK"
+        ],
+        "icaoLocations": [
+          "KPTK"
+        ],
+        "accountability": "PTK",
+        "issuedAt": 1783002600000,
+        "updatedAt": 1783002600000,
+        "sourceUpdatedAt": "2026-07-02T14:30:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1783002600000,
+        "endsAt": 1798761540000,
+        "effectiveStart": "202607021430",
+        "effectiveEnd": "202612312359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN 2025-AGL-13087-NRA) 423937N0832453N (.26NM SW APCH END RWY 27L) 1134FT (165FT AGL) FLAGGED AND LGTD",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!PTK 07/012 PTK OBST CRANE (ASN 2025-AGL-13087-NRA) 423937N0832453N (.26NM SW APCH END RWY 27L) 1134FT (165FT AGL) FLAGGED AND LGTD 2607021430-2612312359"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6163d9bedc04d71fd8c246d0124c875c16e559215512b4093de2290583f79ce1"
+      }
+    },
+    {
+      "name": "unknown-msl",
+      "airport": "OPF",
+      "record": {
+        "id": "1760701841832607",
+        "sourceId": "NMS_ID_1760701841832607",
+        "classification": "DOMESTIC",
+        "number": "46",
+        "series": "",
+        "year": "2025",
+        "locations": [
+          "OPF"
+        ],
+        "icaoLocations": [
+          "KOPF"
+        ],
+        "accountability": "OPF",
+        "issuedAt": 1760701800000,
+        "updatedAt": 1760701800000,
+        "sourceUpdatedAt": "2025-10-17T11:50:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1761220800000,
+        "endsAt": 1798059600000,
+        "effectiveStart": "202510231200",
+        "effectiveEnd": "202612232100",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN UNKNOWN) 255341N0801605W (0.47NM SE APCH END RWY 09R) \nUNKNOWN (111FT AGL) FLAGGED AND LGTD",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!OPF 10/046 OPF OBST CRANE (ASN UNKNOWN) 255341N0801605W (0.47NM SE APCH END RWY 09R) \nUNKNOWN (111FT AGL) FLAGGED AND LGTD 2510231200-2612232100"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "10/046 NOTAMN \nQ) KZMA//IV/M//000//2554N08016W005 \nA) KOPF \nB) 2510231200 \nC) 2612232100 \nE) CRANE LGT (ASN UNKNOWN) 255341N0801605W ( 0.47NM SE ( APCH END RWY 09R))( UNKNOWN) ( 111FT AGL) FLAGGED AND LGTD"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "91db3410a09799eebf6f17dbcd837457c5a92ba107954507ff5357c8d788116d"
+      }
+    },
+    {
+      "name": "conflicting-schedule",
+      "airport": "DAB",
+      "record": {
+        "id": "6939624076675018",
+        "sourceId": "NMS_ID_6939624076675018",
+        "classification": "DOMESTIC",
+        "number": "149",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DAB"
+        ],
+        "icaoLocations": [
+          "KDAB"
+        ],
+        "accountability": "DAB",
+        "issuedAt": 1790684580000,
+        "updatedAt": 1790684640000,
+        "sourceUpdatedAt": "2026-09-29T12:24:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790766000000,
+        "endsAt": 1797368400000,
+        "effectiveStart": "202609301100",
+        "effectiveEnd": "202612152100",
+        "endKind": "fixed",
+        "schedule": "Daily:1100-2100~DLY 1200-2100",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN 2026-ASO-269-OE) 291119N0810308W (0.6NM NNE DAB) 250FT (220FT AGL) FLAGGED AND LGTD DLY 1200-2100",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DAB 09/149 DAB OBST CRANE (ASN 2026-ASO-269-OE) 291119N0810308W (0.6NM NNE DAB) 250FT (220FT AGL) FLAGGED AND LGTD DLY 1200-2100 2609301100-2612152100"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6453cfddd8bc8dc7d7cee5954b48e7e9be979cb1e91d22b9b1a3726a8035c36f"
+      }
+    },
+    {
+      "name": "multipart",
+      "airport": "IAD",
+      "record": {
+        "id": "8832359922015464",
+        "sourceId": "NMS_ID_8832359922015464",
+        "classification": "FDC",
+        "number": "7644",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "IAD"
+        ],
+        "icaoLocations": [
+          "KIAD"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1787624460000,
+        "updatedAt": 1787624460000,
+        "sourceUpdatedAt": "2026-08-25T02:21:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1787624160000,
+        "endsAt": 1805166720000,
+        "effectiveStart": "202608250216",
+        "effectiveEnd": "202703160312",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "PART 1 OF 2 ODP WASHINGTON DULLES INTL, WASHINGTON, DC. TAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT 2... TAKE-OFF MINIMUMS: RWY 01L, 400-2 1/2 OR STD WITH A MINIMUM CLIMB OF 236FT PER NM TO 800. RWY 1C, 300-2 1/2 OR STD WITH A MINIMUM CLIMB OF 260FT PER NM TO 700. RWY 12, 300-2 1/4 OR STD WITH A MINIMUM CLIMB OF 225FT PER NM TO 700. ADD TAKEOFF OBSTACLE NOTE: RWY 1L, TEMPORARY CRANE 468FT FROM DER, 812FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). RWY 1C, TEMPORARY CRANE 1434FT FROM DER, 5161FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). TEMPORARY CRANES BEGINNING 1.82NM FROM DER, 2404FT LEFT OF CENTERLINE, 347FT AGL/604FT MSL (2026-AEA-758 THRU 765-OE). RWY 12, TEMPORARY CRANE 1.41NM FROM DER 617FT RIGHT OF CENTERLINE 176FT AGL/519FT MSL (2025-AEA-3606-OE). TEMPORARY CRANE 1.80NM FROM DER 3176FT RIGHT OF CENTERLINE 237FT AGL/595FT MSL (2025-AEA-14318 THRU 14321-OE). RWY 30, TEMPORARY DRILLING RIG 1040FT FROM DER 729FT LEFT OF CENTERLINE 23FT AGL/349FT MSL (2025-AEA-1623-NRA). TEMPORARY DRILLING RIG 1435FT FROM DER 707FT LEFT OF CENTERLINE 23FT AGL/350FT MSL (2025-AEA-1624-NRA). TEMPORARY CRANE 480FT MSL 1.08NM NORTH OF  END PART 1 OF 2\r\nPART 2 OF 2 RWY 1C (2024-AEA-2889-NRA). ALL OTHER DATA REMAINS AS PUBLISHED.  END PART 2 OF 2",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/7644 IAD PART 1 OF 2 ODP WASHINGTON DULLES INTL, WASHINGTON, DC. TAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT 2... TAKE-OFF MINIMUMS: RWY 01L, 400-2 1/2 OR STD WITH A MINIMUM CLIMB OF 236FT PER NM TO 800. RWY 1C, 300-2 1/2 OR STD WITH A MINIMUM CLIMB OF 260FT PER NM TO 700. RWY 12, 300-2 1/4 OR STD WITH A MINIMUM CLIMB OF 225FT PER NM TO 700. ADD TAKEOFF OBSTACLE NOTE: RWY 1L, TEMPORARY CRANE 468FT FROM DER, 812FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). RWY 1C, TEMPORARY CRANE 1434FT FROM DER, 5161FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). TEMPORARY CRANES BEGINNING 1.82NM FROM DER, 2404FT LEFT OF CENTERLINE, 347FT AGL/604FT MSL (2026-AEA-758 THRU 765-OE). RWY 12, TEMPORARY CRANE 1.41NM FROM DER 617FT RIGHT OF CENTERLINE 176FT AGL/519FT MSL (2025-AEA-3606-OE). TEMPORARY CRANE 1.80NM FROM DER 3176FT RIGHT OF CENTERLINE 237FT AGL/595FT MSL (2025-AEA-14318 THRU 14321-OE). RWY 30, TEMPORARY DRILLING RIG 1040FT FROM DER 729FT LEFT OF CENTERLINE 23FT AGL/349FT MSL (2025-AEA-1623-NRA). TEMPORARY DRILLING RIG 1435FT FROM DER 707FT LEFT OF CENTERLINE 23FT AGL/350FT MSL (2025-AEA-1624-NRA). TEMPORARY CRANE 480FT MSL 1.08NM NORTH OF 2608250216-2703160312EST END PART 1 OF 2\r\n!FDC 6/7644 IAD PART 2 OF 2 RWY 1C (2024-AEA-2889-NRA). ALL OTHER DATA REMAINS AS PUBLISHED. 2608250216-2703160312EST END PART 2 OF 2"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZDC/QPDCH/I/NBO/A/000/999/3856N07727W005\nA) KIAD\nB) 2608250216\nC) 2703160312EST\nE) IAD WASHINGTON DULLES INTL, WASHINGTON, DC.\nTAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT 2...\nTKOF MNM: RWY 01L, 400-2 1/2 OR STD WITH A MINIMUM CLIMB OF 236FT PER NM TO 800. RWY 1C, 300-2 1/2 OR STD WITH A MINIMUM CLIMB OF 260FT PER NM TO 700. RWY 12, 300-2 1/4 OR STD WITH A MINIMUM CLIMB OF 225FT PER NM TO 700.\nADD TAKEOFF OBSTACLE NOTE: RWY 1L, TEMPORARY CRANE 468FT FROM DER, 812FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). RWY 1C, TEMPORARY CRANE 1434FT FROM DER, 5161FT LEFT OF CENTERLINE, 386FT AGL/ 644FT MSL (2024-AEA-14005 THRU 14012-OE). TEMPORARY CRANES BEGINNING 1.82NM FROM DER, 2404FT LEFT OF CENTERLINE, 347FT AGL/604FT MSL (2026-AEA-758 THRU 765-OE). RWY 12, TEMPORARY CRANE 1.41NM FROM DER 617FT RIGHT OF CENTERLINE 176FT AGL/519FT MSL (2025-AEA-3606-OE). TEMPORARY CRANE 1.80NM FROM DER 3176FT RIGHT OF CENTERLINE 237FT AGL/595FT MSL (2025-AEA-14318 THRU 14321-OE). RWY 30, TEMPORARY DRILLING RIG 1040FT FROM DER 729FT LEFT OF CENTERLINE 23FT AGL/349FT MSL (2025-AEA-1623-NRA). TEMPORARY DRILLING RIG 1435FT FROM DER 707FT LEFT OF CENTERLINE 23FT AGL/350FT MSL (2025-AEA-1624-NRA). TEMPORARY CRANE 480FT MSL 1.08NM NORTH OF RWY 1C (2024-AEA-2889-NRA). ALL OTHER DATA REMAINS AS PUBLISHED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "d45f81a8ff07a78579eb1667928606b61fe13ad5ddeff13f3b0c2aa9f31457dc"
+      }
+    },
+    {
+      "name": "unsupported-heading",
+      "airport": "OAK",
+      "record": {
+        "id": "5963386619430334",
+        "sourceId": "NMS_ID_5963386619430334",
+        "classification": "FDC",
+        "number": "6268",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OAK"
+        ],
+        "icaoLocations": [
+          "KOAK"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1790737080000,
+        "updatedAt": 1790737140000,
+        "sourceUpdatedAt": "2026-09-30T02:59:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1790737080000,
+        "endsAt": 1793329080000,
+        "effectiveStart": "202609300258",
+        "effectiveEnd": "202610300258EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP OAKLAND SAN FRANCISCO BAY, OAKLAND, CA.\nILS OR LOC RWY 12, AMDT 8B...\nILS RWY 12 (SAT CAT I), AMDT 8B...\nRADAR OR DME REQUIRED EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nOSI VOR OUT OF SERVICE. 2609300258-2610300258EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/6268 OAK IAP OAKLAND SAN FRANCISCO BAY, OAKLAND, CA.\nILS OR LOC RWY 12, AMDT 8B...\nILS RWY 12 (SAT CAT I), AMDT 8B...\nRADAR OR DME REQUIRED EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nOSI VOR OUT OF SERVICE. 2609300258-2610300258EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZOA/QPIXX/I/NBO/A/000/999/3743N12213W005\nA) KOAK\nB) 2609300256\nC) 2705120255EST\nE) OAK OAKLAND SAN FRANCISCO BAY, OAKLAND, CA.\nILS OR LOC RWY 12, AMDT 8B...\nILS RWY 12 (SAT CAT I), AMDT 8B...\nRADAR OR DME REQUIRED EXCEPT FOR ACFT EQUIPPED WITH SUITABLE RNAV SYSTEM WITH GPS,\nOSI VOR U/S."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "a71b48578d2b5dc8fdfee777a8f26692a613eb3021d21fe40d7451ef0e03f90b"
+      }
+    },
+    {
+      "name": "newline-airport-heading",
+      "airport": "PTK",
+      "record": {
+        "id": "1770927599867091",
+        "sourceId": "NMS_ID_1770927599867091",
+        "classification": "FDC",
+        "number": "3540",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "PTK"
+        ],
+        "icaoLocations": [
+          "KPTK"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1770927540000,
+        "updatedAt": 1770928320000,
+        "sourceUpdatedAt": "2026-02-12T20:32:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1770926400000,
+        "endsAt": 1834776000000,
+        "effectiveStart": "202602122000",
+        "effectiveEnd": "202802212000",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "",
+        "lifecycle": "active",
+        "text": "STAR OAKLAND COUNTY INTERNATIONAL AIRPORT, PONTIAC,\nMI \n PETTE TWO ARRIVAL...\nHOSSA TRANSITION: MOCA 2800 HOSSA TO PETTE. \nQBURT TRANSITION: MOCA 2800 HAZIT TO PETTE. \nTORRR TRANSITION: MOCA 2800 HAZIT TO PETTE. \nWWODD TRANSITION: MOCA 2800 HAZIT TO PETTE.\nALL OTHER DATA REMAINS AS PUBLISHED.",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/3540 PTK STAR OAKLAND COUNTY INTERNATIONAL AIRPORT, PONTIAC,\nMI \n PETTE TWO ARRIVAL...\nHOSSA TRANSITION: MOCA 2800 HOSSA TO PETTE. \nQBURT TRANSITION: MOCA 2800 HAZIT TO PETTE. \nTORRR TRANSITION: MOCA 2800 HAZIT TO PETTE. \nWWODD TRANSITION: MOCA 2800 HAZIT TO PETTE.\nALL OTHER DATA REMAINS AS PUBLISHED.\n2602122000-2802212000"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "ff2ee4a0a76108bc8363d396421bd39ad66865f5ef5b205d099deec05b11ce4e"
+      }
+    },
+    {
+      "name": "spaced-footnote",
+      "airport": "4V0",
+      "record": {
+        "id": "7243287140772277",
+        "sourceId": "NMS_ID_7243287140772277",
+        "classification": "FDC",
+        "number": "8371",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "4V0"
+        ],
+        "icaoLocations": [],
+        "accountability": "FDC",
+        "issuedAt": 1778081400000,
+        "updatedAt": 1778081400000,
+        "sourceUpdatedAt": "2026-05-06T15:30:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1778081400000,
+        "endsAt": 1841239800000,
+        "effectiveStart": "202605061530",
+        "effectiveEnd": "202805061530EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP RANGELY, RANGELY, CO.\nRNAV (GPS) RWY 7, ORIG...\nLPV DA # 5614/HAT 365. LPV DA 6105/HAT 856.\n2605061530-2805061530EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8371 4V0 IAP RANGELY, RANGELY, CO.\nRNAV (GPS) RWY 7, ORIG...\nLPV DA # 5614/HAT 365. LPV DA 6105/HAT 856.\n2605061530-2805061530EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZDV/QPIXX/I/NBO/A/000/999/4005N10845W005\nA) 4V0\nB) 2605061530\nC) 2612161529EST\nE) 4V0 RANGELY, RANGELY, CO.\nRNAV (GPS) RWY 7, ORIG...\nLPV DA # 5614/HAT 365. LPV DA 6105/HAT 856."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "7c72e89a1e12112552a1c37c88ff2f3c3c1d2b283db9710098192d0af5aa7840"
+      }
+    }
+  ]
+}

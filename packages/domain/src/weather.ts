@@ -7,6 +7,8 @@ import type {
   MetarFeatureCollection,
 } from '@zlayer/contracts';
 import { normalizeIdentifier } from './features.js';
+import { metarObservationTokens } from './metar.js';
+import { clearSkyToken, uncertainCeilingToken, weatherCloud } from './weather-tokens.js';
 
 const CATEGORY_SEVERITY: Record<FlightCategory, number> = {
   VFR: 0,
@@ -124,8 +126,8 @@ function metarCategory(metar: MetarFeature, ceiling: MetarCeiling, visibility: n
   const knownCeiling = ceiling.status === 'unknown' ? ceiling.upperBoundFt : ceiling.heightFt;
   const category = flightCategoryForConditions(knownCeiling, typeof metar.properties.visib === 'string'
     ? visibilityForCategory(visibility, metar.properties.visib) : visibility);
-  // Partial observations can establish a restriction, but an unknown ceiling cannot establish VFR.
-  return ceiling.status === 'unknown' && category === 'VFR' ? undefined : category;
+  // Either known element may establish a restriction; both must be known for VFR.
+  return (ceiling.status === 'unknown' || visibility === undefined) && category === 'VFR' ? undefined : category;
 }
 
 /** The more restrictive of ceiling (feet AGL) and visibility (statute miles). */
@@ -251,11 +253,13 @@ function metarCeiling(metar: MetarFeature): MetarCeiling {
   const ceilings = clouds.filter(cloud => CEILING_COVERS.includes(String(cloud.cover).trim().toUpperCase()));
   const decoded = ceilingFromBases(ceilings.map(cloud => cloud.base));
   if (decoded?.status === 'measured') return decoded;
-  // Only observation groups count: remarks and appended trends describe other conditions.
-  const observation = rawOb?.toUpperCase().split(/\b(?:RMK|TEMPO|BECMG|NOSIG)\b/, 1)[0] ?? '';
-  const rawClouds = [...observation.matchAll(/(?:^|\s)(FEW|SCT|BKN|OVC|VV)(\d{3}|\/{3})(?:CB|TCU)?(?=\s|=|$)/g)];
-  const rawCeilings = rawClouds.filter(([, code]) => CEILING_COVERS.includes(code!));
-  const raw = ceilingFromBases(rawCeilings.map(([, , base]) => base === '///' ? undefined : Number(base)));
+  const observation = metarObservationTokens(rawOb);
+  const rawClouds = observation.flatMap(token => weatherCloud(token) ?? []);
+  const rawCeilings = rawClouds.filter(cloud => CEILING_COVERS.includes(cloud.cover));
+  const raw = ceilingFromBases([
+    ...rawCeilings.map(cloud => cloud.base),
+    ...(observation.some(uncertainCeilingToken) ? [undefined] : []),
+  ]);
   if (raw?.status === 'measured') return raw;
   if (decoded?.status === 'unknown' || raw?.status === 'unknown') {
     const bounds = [decoded, raw].flatMap(value => value?.status === 'unknown' && value.upperBoundFt !== undefined
@@ -266,29 +270,32 @@ function metarCeiling(metar: MetarFeature): MetarCeiling {
   const noCeiling = clouds.length
     ? clouds.every(cloud => NON_CEILING_COVERS.includes(String(cloud.cover).trim().toUpperCase()))
     : NON_CEILING_COVERS.includes(String(cover).trim().toUpperCase());
-  return { status: noCeiling || rawClouds.length || /(?:^|\s)(?:SKC|CLR|NSC|NCD|CAVOK)(?=\s|=|$)/.test(observation)
+  return { status: noCeiling || rawClouds.length || observation.some(clearSkyToken)
     ? 'none' : 'unknown' };
 }
 
 function metarVisibilitySm(metar: MetarFeature): number | undefined {
   const value = metar.properties.visib;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : undefined;
   if (typeof value !== 'string') return undefined;
   return parseVisibility(value);
 }
 
 export function parseVisibility(value: string): number | undefined {
-  const normalized = value.trim().toUpperCase().replace(/^[MP]/, '').replace(/\+$/, '');
-  const [wholeOrFraction, fraction] = normalized.split(/\s+/, 2);
-  if (!wholeOrFraction) return undefined;
+  const text = value.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (text.startsWith('M') && text.endsWith('+')) return undefined;
+  const normalized = text.replace(/^[MP]/, '').replace(/\+$/, '');
+  const fraction = /^(?:(\d+) )?(\d+)\/(\d+)$/.exec(normalized);
   if (fraction) {
-    const whole = Number.parseFloat(wholeOrFraction);
-    const remainder = parseFraction(fraction);
-    return Number.isFinite(whole) && remainder !== undefined ? whole + remainder : undefined;
+    const whole = Number(fraction[1] ?? 0), numerator = Number(fraction[2]), denominator = Number(fraction[3]);
+    // Improper fractions can be missing-space errors (11/2 vs 1 1/2).
+    // Never turn that ambiguity into a larger, more reassuring visibility.
+    return numerator > 0 && numerator < denominator && Number.isFinite(denominator)
+      ? finiteNumber(whole + numerator / denominator) : undefined;
   }
-  return wholeOrFraction.includes('/')
-    ? parseFraction(wholeOrFraction)
-    : finiteNumber(Number.parseFloat(wholeOrFraction));
+  // Retain provider numeric forms (.5, 1., 1e0), but require the entire field.
+  return /^(?:\d+(?:\.\d*)?|\.\d+)(?:E[+-]?\d+)?$/.test(normalized)
+    ? finiteNumber(Number(normalized)) : undefined;
 }
 
 /** Apply bounds to an already parsed distance; each report format owns validation. */
@@ -299,15 +306,6 @@ export function visibilityForCategory(miles: number | undefined, text: string): 
   const epsilon = Math.max(1, miles) * Number.EPSILON * 4;
   return value.startsWith('M') ? Math.max(0, miles - epsilon)
     : value.startsWith('P') || value.endsWith('+') ? miles + epsilon : miles;
-}
-
-function parseFraction(value: string): number | undefined {
-  const [numeratorText, denominatorText] = value.split('/', 2);
-  const numerator = Number(numeratorText);
-  const denominator = Number(denominatorText);
-  return Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0
-    ? numerator / denominator
-    : undefined;
 }
 
 function finiteNumber(value: number): number | undefined {

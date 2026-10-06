@@ -70,7 +70,8 @@ test('charted standalone obstacles replace the description while raw, search and
       const render = (charted?: ReadonlySet<string>) => renderToStaticMarkup(createElement(NotamList, { entries: [{ record }], now: NOTAM_NOW, charted }));
       const original = render(), mapped = render(new Set([notamChartKey(record)]));
       assert.match(original, /class="notam-readable"/);
-      assert.doesNotMatch(mapped, /class="notam-readable"/);
+      assert.match(mapped, /class="notam-readable"/);
+      assert.match(mapped, /Flagged and LGTD/);
       assert.match(mapped, /Location shown on chart/);
       assert.ok(mapped.includes(`<pre>${source}</pre>`));
       assert.match(mapped, /Schedule: DLY 1100-1300/);

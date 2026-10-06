@@ -811,8 +811,25 @@ browser storage access and JSON record I/O. This is ownership isolation for trus
 built-ins, not a sandbox for untrusted JavaScript.
 
 `storage.ui` provides the version-1 UI envelope; `storage.record` accepts a feature's
-versioned codec. Both support the existing action-time React helpers. Dynamic records,
-including per-document reader state, use the same scope. Optional `uiRetention`
+versioned codec. Both support the existing action-time React helpers.
+Before either writes, core serializes the value, checks its byte
+limit and passes the parsed JSON through the same decoder used on restore. Decoders
+must not write storage or mutate application state; they must accept the current
+encoded format as well as supported migrations.
+A rejected or throwing decoder leaves existing storage and retention untouched;
+optional persistence failure does not disable live state. Plugins still own content
+limits, source identity, freshness and replacement policy.
+
+`record.update(change, signal?)` performs a coordinated read/change/write under
+the record's Web Lock. All writers sharing that mutable record must use `update`;
+the callback synchronously merges the latest saved value. Live state may publish
+before awaiting the optional save. Missing/denied locks, failed reads or writes,
+invalid output, cancellation and the ten-second storage deadline return `false`
+without an uncoordinated fallback. Queued work cannot publish after cancellation.
+Reads of codecs without an explicit `version` field do not rewrite the record;
+legacy-key and explicit older-envelope migrations remain supported.
+
+Dynamic records, including per-document reader state, use the same scope. Optional `uiRetention`
 rules bound identities under an owner-selected prefix by last-write time; pruning
 runs on the first write and when adding an identity, not on every scroll write.
 Eviction removes matching legacy UI keys too, preventing old preferences from

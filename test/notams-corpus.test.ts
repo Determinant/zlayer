@@ -77,11 +77,11 @@ test('RSW, ONT and MSY note actions keep all obstacle, equipment and radial qual
 test('DFW and LAX qualified closures cannot claim unrestricted closure', () => {
   for (const name of ['qualified-taxiway', 'qualified-airport']) {
     const parsed = parseNotam(record(name));
-    assert.ok(parsed.flairs.some(f => f.label.endsWith('Closure Restriction') && f.tone === 'caution'));
-    assert.ok(!parsed.flairs.some(f => f.tone === 'danger'));
-    assert.match(parsed.flairs.find(f => f.label.endsWith('Closure Restriction'))!.evidence.text, /CLSD TO/);
+    assert.ok(parsed.facts.some(f => f.label.endsWith('Closure Restriction') && f.tone === 'caution'));
+    assert.ok(!parsed.facts.some(f => f.tone === 'danger'));
+    assert.match(parsed.facts.find(f => f.label.endsWith('Closure Restriction'))!.evidence.text, /CLSD TO/);
   }
-  assert.ok(parseNotam(notice({ text: 'RWY 09L CLSD' })).flairs.some(f => f.label === 'Runway Closed' && f.tone === 'danger'));
+  assert.ok(parseNotam(notice({ text: 'RWY 09L CLSD' })).facts.some(f => f.label === 'Runway Closed' && f.tone === 'danger'));
 });
 
 test('ambiguous IAD, EWR, missing-unit and multipart MIA clauses preserve prose instead of supplying meaning', () => {
@@ -126,7 +126,7 @@ test('compound grammar is atomic and notes or conditions cannot generate operati
   for (const prefix of ['IF AUTHORIZED:', 'WHEN ADVISED:', 'DISREGARD NOTE:', 'DELETE', 'NOTE:', 'CHANGE INOP NOTE TO READ:']) {
     const source = notice({ text: `IAP TEST, CA. ILS RWY 09L, AMDT 2... ${prefix} LNAV MDA 600/HAT 400. LPV DA 500/HAT 300. VIS RVR 4000.` });
     assert.ok(presentNotam(source).blocks.every(b => !['minima', 'minima-group'].includes(b.kind)), prefix);
-    assert.ok(parseNotam(source).flairs.every(f => !['Minima Amended', 'Visibility Amended'].includes(f.label)), prefix);
+    assert.ok(parseNotam(source).facts.every(f => !['Minima Amended', 'Visibility Amended'].includes(f.label)), prefix);
   }
 });
 

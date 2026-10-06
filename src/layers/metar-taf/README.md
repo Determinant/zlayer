@@ -181,9 +181,15 @@ distances keep their original bound for presentation; supplied METAR categories
 remain authoritative. METAR category derivation uses the same parsed distance as
 the visibility display, including numeric strings such as `.5`, `1.` and `1e0`.
 TAF retains its stricter decoded-visibility validation before applying shared bounds.
+Visibility must consume the complete supplied field; negative values, contradictory
+bounds, extra tokens and improper fractions remain unavailable. For example,
+`11/2` may have lost a space and is not interpreted as 5.5 SM. Both visibility and
+ceiling must be known to derive VFR; a known restrictive element still establishes
+a restriction when the other is missing. Supplied METAR categories keep precedence.
 The two rows above the raw text show Wind / Visibility, then Ceiling / Altimeter;
 there is no separate flight-category field. Missing values retain their grid slots.
-Altimeter settings come from the coded report body before `RMK`, preserving the
+Altimeter settings come from the coded observation body before trends, `RMK` or
+the report terminator, preserving the
 reported unit: `A2992` displays as `29.92 inHg`, and `Q1013` as `1013 hPa`.
 Missing or malformed pressure groups display “Unavailable”; sea-level pressure in
 remarks is not substituted. See the [AWC METAR guide](https://aviationweather.gov/help/data/#metars)
@@ -262,6 +268,62 @@ than guessed from the current date.
 See the [AWC API schema](https://aviationweather.gov/data/schema/openapi.yaml) and
 [ForeFlight flight categories](https://support.foreflight.com/hc/en-us/articles/204019615-What-do-the-colors-of-the-Flight-Category-dots-mean).
 
+## Report parsing
+
+Raw interpretation lives in `packages/domain/src/`; the plugin formats those
+results and owns report selection, freshness and display. AWC's decoded fields
+remain the primary input. Raw METAR interpretation supplies the existing cloud
+fallback and pressure setting; TAF parsing identifies source groups to match
+against AWC's decoded periods. It does not decode every weather element from text.
+
+| Module | Responsibility |
+| --- | --- |
+| `weather-tokens.ts` | Bounded, case-normalized lexical tokens with offsets into untouched source; complete cloud/clear-sky token recognition |
+| `metar.ts` | Observation, trend, remarks and end states; observation-only pressure extraction with source evidence |
+| `weather.ts` | METAR decoded/raw precedence, ceiling uncertainty, visibility bounds and category derivation |
+| `taf-parser.ts` | Initial text and change groups, atomic probability/time headers, remarks and end states |
+| `taf-conditions.ts` | Prevailing intervals, BECMG inheritance, temporary overlaps and category evaluation |
+| `taf.ts` | Source/decoded period alignment, raw reading lines and matched FM timestamps |
+
+Small lexical patterns recognize complete tokens; explicit states control their
+context. METAR ceiling and altimeter extraction share the same observation section.
+Once a trend (`TEMPO`, `BECMG`, `NOSIG`), remarks (`RMK`) or end marker (`=`) is
+entered, later cloud/pressure groups cannot become current observations. Casing and
+wrapped whitespace do not change these boundaries. A measured decoded ceiling and
+an AWC-supplied category retain their existing precedence; unknown bases remain
+unknown even when another measured layer establishes a restrictive bound.
+Documented `RMKAO1`/`RMKAO2` and `RMK/…` separator variants also start remarks;
+the attached text is preserved rather than repaired. In raw cloud fallback,
+damaged ceiling groups such as `BKN09` or `0VC003` establish uncertainty rather
+than a guessed height. They cannot be silently ignored to derive VFR from the
+remaining clouds. TAF uses the same uncertainty recognition.
+
+TAF change-header states require a complete FM time or change interval before
+accepting weather for that group. `PROB30 TEMPO` and `PROB 30 INTER`, including
+wrapped forms, consume their probability, optional qualifier and period as one
+header. Unsupported probabilities, malformed headers and empty change bodies
+preserve the source with neutral colors. Remarks cannot open another forecast
+group. After `=`, remarks may remain as metadata; additional forecast text stays
+uninterpreted. No partial header borrows a following group's time or category.
+Every source group retains its original character span.
+The documented damaged markers `BEC`, `BEMG`, `TEMP0`, `TEMP`, `TEMO`, `BE CMG`
+and `T EMPO` are recognized as invalid headers. They do not become weather on an
+otherwise colored prevailing line, even if the provider drops their periods.
+This bounded list detects uncertainty; it does not correct arbitrary spelling.
+
+The separate evaluator operates only after every source group matches the decoded
+period's kind, probability and published time bounds. FM begins with unknown
+conditions rather than inheriting omitted fields. BECMG carries unchanged elements
+forward; its transition can overlap both old and new prevailing conditions.
+Temporary changes evaluate against every overlapping prevailing period without
+modifying the baseline. Missing information and mismatched periods retain neutral
+colors; the original report and AWC fields are never rewritten.
+
+Interpretation is bounded to 64 KiB and 4,096 tokens per report, and 128 TAF source
+groups. Exceeding a bound keeps the complete raw report available: TAF remains
+neutral, and METAR's raw-derived fields stay unavailable while usable decoded
+fields remain intact. These are interpretation limits, not source truncation.
+
 ## Contracts and verification
 
 - [Source access policies](../../../docs/data/sources.md#awc-constraints-that-shape-the-system)
@@ -273,6 +335,23 @@ See the [AWC API schema](https://aviationweather.gov/data/schema/openapi.yaml) a
 - [Local verification](../../../docs/development/local-development.md#verification)
   covers the repository checks. Weather changes need demand/cancellation,
   stale-cache recovery and real map/card behavior checks as described above.
+- [Report grammar tests](../../../packages/domain/test/weather-reports.test.ts)
+  cover irreversible section boundaries, complete probability/time headers,
+  malformed groups, source-span preservation, missing fields and bounded fallback.
+  [TAF tests](../../../packages/domain/test/taf.test.ts) retain captured AWC reports
+  and explicit expected categories for inheritance, overlapping transitions,
+  international change groups and month/year rollover. [METAR view tests](../../../test/metar-view.test.ts)
+  retain captured US/international pressure and sky expectations alongside invalid
+  pressure and rendered-field cases. These fixed fixtures run offline through
+  `npm test`; source preservation complements independently specified meanings.
+- [Curated decoder corpus](../../../packages/domain/test/fixtures/weather-decoder/README.md)
+  adds pinned NASA, pyIEM, AVWX and python-metar evidence, with separately reviewed
+  adapter inputs and expected results. It distinguishes original report bodies,
+  upstream test strings and adapted excerpts, including intentional unknowns.
+  [The corpus test](../../../packages/domain/test/weather-decoder-corpus.test.ts)
+  runs in normal Node verification or alone with `npm run test:weather:corpus`.
+  Passing these cases does not establish complete decoding of all weather remarks
+  or validate upstream AWC decoding; the scope and remaining limits stay explicit.
 - [Map freshness tests](../../../test/metar-layer.test.ts) cover offline aging,
   future/undated/NIL reports, hidden-state reconciliation and timer cleanup without
   changing saved observations. [Station browser tests](../../../test/e2e/metar.spec.ts)

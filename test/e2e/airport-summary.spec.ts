@@ -10,6 +10,51 @@ for (const touch of [false, true]) test.describe(`airport map selection (${touch
     ? { hasTouch: true, deviceScaleFactor: 2, viewport: { width: 390, height: 844 } }
     : { hasTouch: false });
 
+  for (const status of ['active', 'upcoming'] as const) test(`airport markers and labels take precedence over ${status} TFRs`, async ({ page, context }) => {
+    const now = Date.now(), startsAt = now + (status === 'upcoming' ? 3600_000 : -3600_000), endsAt = now + 7200_000;
+    await context.route('**/api/notams/tfrs', route => route.fulfill({ json: {
+      schemaVersion: 1, source: 'FAA-TFR', checkedAt: now, notices: [{
+        id: '6/9000', title: 'Airport overlap fixture TFR', type: 'HAZARDS', facility: 'TST', state: 'CA',
+        modifiedAt: now - 1000, detailCheckedAt: now, startsAt, endsAt,
+        text: 'Invented TFR for browser verification. No operational use.',
+        areas: [{ id: '1', name: 'Area A', lower: 'SFC', upper: '3000 ft MSL',
+          windows: [{ startsAt, endsAt }], geometry: { type: 'Polygon', coordinates: [
+            [[-118.49, 33.98], [-118.41, 33.98], [-118.41, 34.06], [-118.49, 34.06], [-118.49, 33.98]],
+          ] } }],
+      }],
+    } }));
+    await context.route('**/api/weather/metars.geojson?*', route => route.fulfill({ json: { type: 'FeatureCollection', features: [] } }));
+    await page.addInitScript(() => {
+      localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-118.45, 34.02], zoom: 12 }));
+      localStorage.setItem('zlayer-ui:edge-tool', JSON.stringify({ version: 1, value: null }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+    const canvas = page.locator('.maplibregl-canvas'), box = (await canvas.boundingBox())!;
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const select = async (x: number, y: number) => touch ? page.touchscreen.tap(x, y) : page.mouse.click(x, y);
+    const details = page.getByRole('region', { name: 'TFR details', exact: true });
+    // Establish that the covering TFR is rendered and interactive before selecting the airport.
+    await expect(async () => {
+      await select(center.x - 80, center.y);
+      await expect(details).toBeVisible();
+    }).toPass();
+    await expect(details.getByText(status === 'active' ? 'Active' : 'Upcoming', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close TFR details', exact: true }).click();
+    await expect(page.locator('.notam-tfr-detail')).toHaveCount(0);
+    const airportCard = page.locator('.feature-details-panel .feature-card');
+    for (const label of [false, true]) {
+      await select(center.x, center.y + (label ? 26 : 0));
+      await expect(airportCard).toBeVisible();
+      await expect(airportCard).toContainText('KSMO TEST AIRPORT');
+      await expect(details).toHaveCount(0);
+      await page.getByRole('button', { name: 'Close detail', exact: true }).click();
+      await expect(airportCard).toBeHidden();
+    }
+    await select(center.x - 80, center.y);
+    await expect(details).toBeVisible();
+  });
+
   for (const tier of ['major', 'regional', 'local', 'weather']) test(`${tier} airport info opens from its marker and label`, async ({ page, context }) => {
     await context.route('**/nav/airports.geojson*', async route => {
       const response = await route.fetch();

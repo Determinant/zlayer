@@ -1,3 +1,4 @@
+import { notamFlairs, notamInterpretationNotes } from './flairs';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { isNotamAirportQuery, notamAirportKey, NOTAM_STALE_MS, type NotamAirportQuery, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
@@ -8,6 +9,7 @@ import type { NotamsApi, NotamMapPreview } from './public';
 import type { PlateNoticeContext } from '../plates/public';
 import { matchPlateNotams, type PlateNotamMatch } from './matcher';
 import { parseNotam } from './parser';
+import { airportNotamPriority } from './priority';
 import { presentNotam, type NotamBodyBlock } from './presentation';
 import { notamEndKind, notamValidity } from './validity';
 import { chartedNotamPresentation, notamChartKey } from './chart';
@@ -155,15 +157,23 @@ function ReadableBlock({ block, context }: { block: NotamBodyBlock; context?: st
 }
 function NotamEntry({ record, now, reason, charted }: { record: NotamRecord; now: number; reason?: string; charted: boolean }) {
   const parsed = useMemo(() => parseNotam(record), [record]);
+  const flairs = useMemo(() => notamFlairs(parsed), [parsed]);
+  const interpretationNotes = useMemo(() => notamInterpretationNotes(parsed), [parsed]);
   const graphical = useMemo(() => charted ? chartedNotamPresentation(record) : undefined, [record, charted]);
   const presentation = useMemo(() => graphical?.presentation ?? presentNotam(record), [record, graphical]);
   const validity = notamValidity(record, now);
   const endKind = notamEndKind(record);
+  const translations = record.translations.filter(translation => translation.text.trim());
+  const originals = translations.filter(translation => translation.type === 'LOCAL_FORMAT');
+  const body = record.text.replace(/\s+/g, ' ').trim();
+  // Compare complete words after whitespace folding; display the supplied text unchanged.
+  const showSourceBody = !originals.length || !!body && !originals.some(translation =>
+    ` ${translation.text.replace(/\s+/g, ' ').trim()} `.includes(` ${body} `));
   return <article className="notam-entry">
     <div className="notam-entry-heading"><strong>{classification(record)} · {displayNumber(record)}</strong>
       <span>{record.locations.join(', ') || record.icaoLocations.join(', ')}</span></div>
-    <div className="notam-flairs">{parsed.flairs.map(flair => <span key={flair.label} className={`notam-flair--${flair.tone}`} title={flair.evidence.text}>{flair.label}</span>)}
-      {parsed.unresolved && <span className="notam-flair--caution">Interpretation Limited</span>}
+    <div className="notam-flairs">{flairs.map(flair => <span key={flair.label} className={`notam-flair--${flair.tone}`} title={flair.evidence.map(source => source.text).join('\n')}>{flair.label}</span>)}
+      {interpretationNotes.map(note => <span key={note.label} className="notam-flair--caution" title={note.detail}>{note.label}</span>)}
       {validity !== 'within interval' && validity !== 'upcoming' && <span className={validity.startsWith('check') ? 'notam-flair--caution' : 'notam-flair--neutral'}>
         {validity.replace(/\b[a-z]/g, letter => letter.toUpperCase())}</span>}</div>
     {reason && <p className="notam-match-reason">{reason}</p>}
@@ -176,11 +186,12 @@ function NotamEntry({ record, now, reason, charted }: { record: NotamRecord; now
     </div>
     {record.schedule && <p className="notam-text">Schedule: {record.schedule}</p>}
     <details className="notam-raw"><summary>Show raw</summary>
-      {record.translations.length ? record.translations.map((translation, i) => <div key={i}>
-        <strong>{translation.type || 'Source translation'}</strong><pre>{translation.text}</pre></div>)
-        : <p>Complete translation unavailable. Source body shown below.</p>}
-      <strong>Source body</strong><pre>{record.text || 'No source body supplied.'}</pre>
-      <p>Source ID {record.sourceId} · Updated {formatTimestamp(record.updatedAt)}</p>
+      {translations.map((translation, i) => <div key={i}>
+        <strong>{translation.type === 'LOCAL_FORMAT' ? 'Original NOTAM' : translation.type || 'Source translation'}</strong>
+        <pre>{translation.text}</pre></div>)}
+      {!originals.length && <p>Original NOTAM unavailable. Source body shown below.</p>}
+      {showSourceBody && <><strong>Source body</strong><pre>{body ? record.text : 'No source body supplied.'}</pre></>}
+      <p>Updated {formatTimestamp(record.updatedAt)}</p>
     </details>
   </article>;
 }
@@ -218,7 +229,8 @@ export function AirportNotams({ api, query, active }: { api: NotamsApi; query: N
   useEffect(() => { setFilter('all'); setSubject('all'); setSearch(''); }, [key]);
   const records = useMemo(() => currentRecords(view.snapshot?.records ?? [], view.now)
     .filter(r => filter === 'other' || !['INTL', 'MIL'].includes(r.classification)), [view.snapshot, view.now, filter]);
-  const parsed = useMemo(() => records.map(record => ({ record, parsed: parseNotam(record) })), [records]);
+  const parsed = useMemo(() => records.map(record => ({ record, parsed: parseNotam(record) }))
+    .sort((a, b) => airportNotamPriority(a.parsed) - airportNotamPriority(b.parsed)), [records]);
   const subjects = [...new Set(parsed.map(p => p.parsed.subject ?? 'Other'))].sort();
   const shown = useMemo(() => parsed.filter(({ record, parsed }) => (filter === 'all' || (filter === 'other' ? !['D', 'FDC'].includes(classification(record))
     : classification(record) === filter)) && (subject === 'all' || (parsed.subject ?? 'Other') === subject) &&

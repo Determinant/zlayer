@@ -10,7 +10,7 @@ const minimum = '(?:STANDARD|STD|\\d+\\s*-\\s*(?:\\d+ \\d+/\\d+|\\d+/\\d+|\\d+))
 const option = new RegExp(`^(${minimum})(?: WITH (?:A )?MINIMUM CLIMB(?: GRADIENT)?(?: OF)? ` +
   '(\\d+(?:\\.\\d+)?)\\s*(?:FT/NM|FT PER NM|FEET PER NM) TO (\\d+))?' +
   '(?: (FOR CLIMB IN VISUAL CONDITIONS))?$');
-const stage = /^MINIMUM CLIMB(?: GRADIENT)?(?: OF)? (\d+(?:\.\d+)?)\s*(?:FT\/NM|FT PER NM|FEET PER NM) TO (\d+)$/;
+const stage = /^(?:MINIMUM CLIMB(?: GRADIENT)?(?: OF)? )?(\d+(?:\.\d+)?)\s*(?:FT\/NM|FT PER NM|FEET PER NM) TO (\d+)$/;
 
 /** Parse every alternative, or leave the entire clause as prose. Never borrow a prior runway. */
 export function takeoffMinimums(source: string): NotamTakeoff | undefined {

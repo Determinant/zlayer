@@ -19,7 +19,7 @@ type GestureOptions = {
   preview: (input: { route: RoutePlan; preview?: RouteDragPreview }) => void;
   onSelect: SelectFeature;
   contextActions?: (point: { x: number; y: number }) => MapContextAction[];
-  /** Optional area inspection shares click suppression with selection and route/tool gestures. */
+  /** Area inspection applies when no point is hit and shares route/tool click suppression. */
   primaryAction?: (point: { x: number; y: number }) => MapContextAction | undefined;
   onChooseNearby?: (features: NearbyFeature[], point: { x: number; y: number }, actions?: MapContextAction[]) => void;
   onCloseNearby?: () => void;
@@ -137,16 +137,16 @@ export class MapGestures {
       this.#clearClickSuppression();
       return;
     }
-    const action = this.options.primaryAction?.(event.point);
+    const features = this.#map.queryRenderedFeatures(event.point, {
+      layers: this.options.interactiveLayerIds(),
+    });
+    const feature = features.find(isPointFeature);
+    const action = !feature ? this.options.primaryAction?.(event.point) : undefined;
     if (action) {
       this.options.onCloseNearby?.();
       action.select();
       return;
     }
-    const features = this.#map.queryRenderedFeatures(event.point, {
-      layers: this.options.interactiveLayerIds(),
-    });
-    const feature = features.find(isPointFeature);
     const pointId = feature?.source === ROUTE_SOURCE_ID && typeof feature.properties.routePointId === 'string'
       ? feature.properties.routePointId : undefined;
     this.options.onSelect(feature ? this.#resolveFeature(feature) : undefined, pointId);

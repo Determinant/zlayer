@@ -7,13 +7,15 @@ import { tfrTiming } from './tfr-time';
 
 export type TfrState = { snapshot?: TfrSnapshot; now: number; loading: boolean; error?: string };
 export function createTfrClient(dependencies: { now?: () => number; load?: (signal: AbortSignal) => Promise<TfrSnapshot>;
-  storage?: Pick<typeof tfrSnapshot, 'read' | 'write'>; debounceMs?: number } = {}) {
+  storage?: Pick<typeof tfrSnapshot, 'read' | 'update'>; debounceMs?: number } = {}) {
   const now = dependencies.now ?? Date.now, storage = dependencies.storage ?? tfrSnapshot;
   const state = createLayerStore<TfrState>({ now: now(), loading: false });
   const load = dependencies.load ?? ((signal: AbortSignal) => requestJson('/api/notams/tfrs', isTfrSnapshot, 'TFRs', { signal, maxBytes: TFR_MAX_BYTES }));
   let refresh: OnDemandRefresh | undefined, timer: ReturnType<typeof setTimeout> | undefined;
   const validTime = (snapshot: TfrSnapshot) => snapshot.checkedAt <= now() + 30_000 &&
     snapshot.notices.every(n => n.detailCheckedAt === undefined || n.detailCheckedAt <= now() + 30_000);
+  const canReplace = (snapshot: TfrSnapshot, previous: TfrSnapshot | null | undefined) =>
+    !previous || !validTime(previous) || snapshot.checkedAt >= previous.checkedAt;
   function clock() {
     clearTimeout(timer);
     if (!refresh) return;
@@ -31,7 +33,7 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
     try {
       const saved = storage.read();
       if (saved && isTfrSnapshot(saved) && validTime(saved) &&
-        saved.checkedAt >= (state.getSnapshot().snapshot?.checkedAt ?? 0)) state.publish({ snapshot: saved, now: now(), loading: false });
+        canReplace(saved, state.getSnapshot().snapshot)) state.publish({ snapshot: saved, now: now(), loading: false });
     } catch { /* Optional offline restoration. */ }
     refresh = new OnDemandRefresh({ intervalMs: TFR_REFRESH_MS, debounceMs: dependencies.debounceMs ?? 100,
       onState(loading) { state.publish({ ...state.getSnapshot(), loading }); },
@@ -39,10 +41,11 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
       async refresh(_ids, signal) {
         const snapshot = await load(signal); signal.throwIfAborted();
         if (!isTfrSnapshot(snapshot) || !validTime(snapshot) ||
-          snapshot.checkedAt < (state.getSnapshot().snapshot?.checkedAt ?? 0)) throw new Error('Invalid TFR snapshot');
+          !canReplace(snapshot, state.getSnapshot().snapshot)) throw new Error('Invalid TFR snapshot');
         state.publish({ snapshot, now: now(), loading: false });
-        try { storage.write(snapshot); } catch { /* Online display survives storage failure. */ }
         clock();
+        try { await storage.update(saved => validTime(snapshot) && canReplace(snapshot, saved) ? snapshot : saved, signal); }
+        catch { /* Online display survives storage failure. */ }
       } });
     if (typeof window !== 'undefined') { window.addEventListener('online', demand); window.addEventListener('offline', demand); }
     demand(); clock();

@@ -60,6 +60,12 @@ class Routing(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b'fixture bytes')
         (root / 'app/current/sw.js').write_text('// worker fixture\n')
+        for product in ['far', 'aim']:
+            product_folder = root / 'faa' / product
+            product_folder.mkdir(parents=True)
+            (product_folder / 'index.html').write_text('<!doctype html><title>PWA fixture</title>')
+            (product_folder / 'manifest.webmanifest').write_text('{"start_url":"./"}')
+            (product_folder / 'service-worker.js').write_text('// product worker fixture\n')
 
         env = dict(os.environ, APP_DOMAIN=APP, CHARTS_DOMAIN=CHARTS,
                    APP_TLS_MODE='managed', CHARTS_TLS_MODE='managed',
@@ -186,14 +192,62 @@ class Routing(unittest.TestCase):
         self.assertEqual(len(self.upstream.requests), 6)
 
     def test_chart_cors_ranges_and_hidden_files(self):
+        origin = {'Origin': f'https://{APP}'}
+        for method in ['GET', 'HEAD']:
+            headers, body = self.read('/charts/cycles.json', method=method,
+                                      domain=CHARTS, headers=origin)
+            self.assertEqual(headers['access-control-allow-origin'], f'https://{APP}')
+            self.assertEqual(body, b'fixture bytes' if method == 'GET' else b'')
+        headers, _ = self.read('/charts/cycles.json', 304, domain=CHARTS,
+                              headers={**origin, 'If-None-Match': headers['etag']})
+        self.assertEqual(headers['access-control-allow-origin'], f'https://{APP}')
         headers, body = self.read('/charts/cycles.json', 206, domain=CHARTS,
-                                  headers={'Range': 'bytes=0-6'})
+                                  headers={**origin, 'Range': 'bytes=0-6'})
         self.assertEqual(body, b'fixture')
-        self.assertEqual(headers['access-control-allow-origin'], '*')
-        self.read('/charts/cycles.json', 204, method='OPTIONS', domain=CHARTS)
+        self.assertEqual(headers['access-control-allow-origin'], f'https://{APP}')
+        self.assertEqual(headers['content-range'], 'bytes 0-6/13')
+        headers, _ = self.read('/charts/cycles.json', 204, method='OPTIONS', domain=CHARTS,
+                              headers={**origin, 'Access-Control-Request-Method': 'GET',
+                                       'Access-Control-Request-Headers': 'Range'})
+        self.assertEqual(headers['access-control-allow-origin'], f'https://{APP}')
+        self.assertIn('Range', headers['access-control-allow-headers'])
+        headers, _ = self.read('/charts/missing.json', 404, domain=CHARTS, headers=origin)
+        self.assertEqual(headers['access-control-allow-origin'], f'https://{APP}')
         self.read('/charts/cycles.json', 405, method='POST', domain=CHARTS)
         for path in ['/charts/.secret', '/charts/.private/secret', '/charts/nested/.secret']:
             self.read(path, 404, domain=CHARTS)
+
+    def test_foreign_chart_origins_are_denied_before_delivery(self):
+        for domain, path, methods in [
+            (CHARTS, '/charts/cycles.json', ['GET', 'HEAD', 'OPTIONS']),
+            (APP, '/chart-data/cycles.json', ['GET', 'HEAD']),
+        ]:
+            for origin in ['https://other.example', 'null', f'http://{APP}',
+                           f'https://{APP}.other.example', f'https://{APP}:8443']:
+                for method in methods:
+                    with self.subTest(domain=domain, origin=origin, method=method):
+                        headers, body = self.read(path, 403, method=method, domain=domain,
+                                                  headers={'Origin': origin, 'Range': 'bytes=0-6'})
+                        self.assertEqual(headers['cache-control'], 'no-store')
+                        self.assertNotIn(b'fixture', body)
+                        self.assertNotEqual(headers.get('access-control-allow-origin'), origin)
+                        self.assertNotEqual(headers.get('access-control-allow-origin'), '*')
+            # Public direct reads and the app's own requests remain available.
+            for headers in [{}, {'Origin': f'https://{APP}'}]:
+                self.read(path, domain=domain, headers=headers)
+
+    def test_chart_host_own_pwas_remain_accessible(self):
+        for product in ['far', 'aim']:
+            for filename in ['', 'manifest.webmanifest', 'service-worker.js']:
+                for origin in [None, f'https://{CHARTS}']:
+                    for method in ['GET', 'HEAD']:
+                        with self.subTest(product=product, filename=filename, origin=origin, method=method):
+                            headers = {} if origin is None else {'Origin': origin}
+                            self.read(f'/{product}/{filename}', method=method, domain=CHARTS, headers=headers)
+                self.read(f'/{product}/{filename}', 403, domain=CHARTS,
+                          headers={'Origin': 'https://untrusted.example'})
+        # The chart host may also read its own data with an explicit Origin.
+        self.read('/charts/cycles.json', domain=CHARTS, headers={'Origin': f'https://{CHARTS}'})
 
 
 unittest.main(argv=[__file__], verbosity=2)

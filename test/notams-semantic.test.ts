@@ -16,8 +16,8 @@ test('captured obstacle, airport, facility, airspace and procedure families reta
   for (const { record: raw, expected, airport } of corpus.cases) {
     const record=raw as NotamRecord, parsed=parseNotam(record), context=`${airport} ${record.id}`;
     assert.equal(parsed.subject,expected.subject,context);
-    for (const label of expected.flairs ?? []) assert.ok(parsed.flairs.some(f=>f.label===label),`${context}: ${label}`);
-    for (const label of expected.forbidden ?? []) assert.ok(!parsed.flairs.some(f=>f.label===label),`${context}: false ${label}`);
+    for (const label of expected.facts ?? []) assert.ok(parsed.facts.some(f=>f.label===label),`${context}: ${label}`);
+    for (const label of expected.forbidden ?? []) assert.ok(!parsed.facts.some(f=>f.label===label),`${context}: false ${label}`);
     const mapped=chartedNotamPresentation(record);
     assert.equal(!!mapped,expected.mapped,context);
     const text=(mapped?.presentation ?? presentNotam(record)).searchText.toUpperCase();
@@ -35,7 +35,7 @@ test('mapping cannot erase negations, outage qualifications, unknown schedules o
     'NOT FLAGGED AND LGTD', 'U/S DLY SR-SS', 'U/S. ACFT AVOID WI 500FT.', 'LGTD ONLY WHEN ERECTED']) {
     const record=notice({text:`${point} ${tail}`}), mapped=chartedNotamPresentation(record)!;
     assert.ok(mapped.presentation.searchText.toUpperCase().replace(/\s+/g,' ').includes(tail),tail);
-    assert.ok(!parseNotam(record).flairs.some(f=>f.label==='Obstacle Light Outage'),tail);
+    assert.ok(!parseNotam(record).facts.some(f=>f.label==='Obstacle Light Outage'),tail);
     assert.deepEqual(auditMappedNotam(record),[],tail);
     assert.ok(auditMappedNotam(record,{blocks:[],sourceSpans:[],searchText:''}).length,`audit must detect erased ${tail}`);
   }
@@ -72,7 +72,7 @@ test('unrecognized conditional boundaries keep later minima as prose and never p
   for (const condition of ['EXC CAT A:', 'PROVIDED AUTHORIZED:', 'IF APPROVED:', 'ONLY WHEN AUTHORIZED:']) {
     const record=notice({text:`IAP TEST, CA. ILS RWY 09L, AMDT 1... ${condition} USE EXISTING PROCEDURE. DA 500/HAT 200. VIS RVR 4000.`});
     assert.ok(presentNotam(record).blocks.every(b=>!['minima','minima-group'].includes(b.kind)),condition);
-    assert.ok(!parseNotam(record).flairs.some(f=>['Minima Amended','Visibility Amended'].includes(f.label)),condition);
+    assert.ok(!parseNotam(record).facts.some(f=>['Minima Amended','Visibility Amended'].includes(f.label)),condition);
   }
 });
 
