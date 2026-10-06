@@ -587,6 +587,12 @@ route draft, saved map view, panel state, first-visit acknowledgement and
 preferences. It unregisters the app's service worker. Browser permissions and the
 installed home-screen icon remain browser-managed.
 
+An upgrade's [reset advisory](pwa-updates.md#reset-advisory) can offer **Reset now**
+directly, with the deletion consequences in the dialog and no additional typing.
+Both entry points use this same reset process. The completion screen uses the
+shared B612 typography, themed card and primary **Open ZLayer** action; opening
+the app again requires a connection and new offline downloads.
+
 The reset first navigates open workspaces to an isolated reset screen. Workspace
 locks, reset-screen acknowledgements and service-worker write tracking prevent
 background downloads or page persistence from recreating deleted data. Resident

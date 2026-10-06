@@ -10,9 +10,13 @@ import { offlineShell } from '../tools/offline-shell';
 test('built page and worker share a reproducible version that changes with source or commit', async t => {
   const root = await mkdtemp(join(tmpdir(), 'zlayer-version-'));
   const originalCommit = process.env.ZLAYER_GIT_COMMIT;
+  const originalAdvisory = process.env.ZLAYER_RESET_ADVISORY;
+  process.env.ZLAYER_RESET_ADVISORY = 'artcc-2026-10';
   t.after(async () => {
     if (originalCommit === undefined) delete process.env.ZLAYER_GIT_COMMIT;
     else process.env.ZLAYER_GIT_COMMIT = originalCommit;
+    if (originalAdvisory === undefined) delete process.env.ZLAYER_RESET_ADVISORY;
+    else process.env.ZLAYER_RESET_ADVISORY = originalAdvisory;
     await rm(root, { recursive: true, force: true });
   });
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
@@ -41,8 +45,10 @@ test('built page and worker share a reproducible version that changes with sourc
     const shell = JSON.parse(context.shellDefinition);
     assert.equal(shell.version, release);
     assert.equal(shell.displayVersion, displayVersion);
+    const advisory = /name="zlayer-reset-advisory" content="([^"]*)"/.exec(markup)?.[1];
+    assert.equal(shell.resetAdvisory, advisory || null);
     assert(shell.assets.includes('/'));
-    return { release, displayVersion };
+    return { release, displayVersion, advisory };
   };
 
   const first = await compile();
@@ -56,4 +62,17 @@ test('built page and worker share a reproducible version that changes with sourc
   const committed = await compile();
   assert.notEqual(committed.release, modified.release, 'even a commit with the same short prefix has a distinct internal ID');
   assert.equal(committed.displayVersion, `v${version}+gaaaaaaa.b${committed.release.slice(0, 8)}`);
+  assert.equal(committed.advisory, 'artcc-2026-10');
+  process.env.ZLAYER_RESET_ADVISORY = 'off';
+  const disabled = await compile();
+  assert.equal(disabled.advisory, '');
+  assert.notEqual(disabled.release, committed.release, 'deployment options are part of shell identity');
+  delete process.env.ZLAYER_RESET_ADVISORY;
+  assert.deepEqual(await compile(), disabled, 'ordinary builds leave reset advice off');
+  process.env.ZLAYER_RESET_ADVISORY = 'next-format';
+  const future = await compile();
+  assert.equal(future.advisory, 'next-format');
+  assert.notEqual(future.release, disabled.release);
+  process.env.ZLAYER_RESET_ADVISORY = 'invalid value';
+  await assert.rejects(compile(), /ZLAYER_RESET_ADVISORY/);
 });

@@ -10,6 +10,7 @@ import { observeVisibleViewport } from './core/ui/viewport';
 import { observePwaBack } from './core/ui/pwa-back';
 import { FirstVisit } from './shell/disclaimer';
 import { PwaUpdatePrompt } from './shell/pwa-update';
+import { pwaUpdates } from './pwa-updates';
 import { StartupScreen } from './shell/startup-screen';
 import './styles.css';
 import { observeTheme } from './core/theme/preference';
@@ -44,6 +45,7 @@ if (requested || new URL(location.href).searchParams.get('reset') === '1') {
   const start = async () => {
     if (resetPending()) { openResetScreen(); return; }
     view.render(<StartupScreen />);
+    await pwaUpdates.startupAdvisory();
     let App;
     try { ({ App } = await import('./app')); }
     catch {
@@ -52,7 +54,7 @@ if (requested || new URL(location.href).searchParams.get('reset') === '1') {
       return;
     }
     if (resetPending()) { openResetScreen(); return; }
-    view.render(<StrictMode><FirstVisit><App /><PwaUpdatePrompt /></FirstVisit></StrictMode>);
+    view.render(<StrictMode><FirstVisit><PwaUpdatePrompt><App /></PwaUpdatePrompt></FirstVisit></StrictMode>);
     void preparePwa();
     // Unloading the document releases this lock, including all of its workers.
     await new Promise(() => {});

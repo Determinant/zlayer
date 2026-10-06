@@ -29,7 +29,7 @@ test('a prepared release prompts both windows, waits for a click, and reloads on
     channel.port1.onmessage = event => { channel.port1.close(); resolve(event.data); };
     navigator.serviceWorker.controller!.postMessage({ type: 'app-release' }, [channel.port2]);
   }));
-  expect(workerVersion).toEqual({ release: originalRelease, displayVersion: originalVersion });
+  expect(workerVersion).toEqual({ release: originalRelease, displayVersion: originalVersion, resetAdvisory: 'artcc-2026-10' });
   await expect(page.getByLabel('App update', { exact: true })).toHaveCount(0);
   const input = page.getByRole('textbox', { name: 'Add route waypoint' });
   await input.fill('KSBA KSMO ');
@@ -260,4 +260,76 @@ test('a complete worker recovers when its install-time activation request is los
   await context.setOffline(true);
   await page.locator('.pwa-update-settings').getByRole('button', { name: 'Update now', exact: true }).click();
   await expect(page.locator(releaseSelector)).toHaveAttribute('content', release);
+});
+
+for (const entry of ['map', 'general', 'notifications'] as const) {
+  test(`reset advisory is offered once from ${entry}, and keeping data applies the update`, async ({ page, request, context }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+    await expect(page.getByRole('alertdialog', { name: 'Reset app data?' })).toHaveCount(0);
+    const route = page.getByRole('textbox', { name: 'Add route waypoint' });
+    await route.fill('KSBA KSMO ');
+    await route.press('Enter');
+    await expect(page.locator('[data-route-entry]')).toHaveCount(2);
+    await page.getByLabel('Settings and offline downloads').click();
+    await request.post('/__test/reset-advisory-update');
+    await page.getByRole('button', { name: 'Check for updates', exact: true }).click();
+    await expect(page.locator('.pwa-update-settings')).toContainText('Update available:');
+    const advisory = page.getByRole('alertdialog', { name: 'Reset app data?' });
+    await expect(advisory).toHaveCount(0);
+    if (entry === 'map') await page.getByLabel('Close settings').click();
+    else if (entry === 'notifications') await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+    const action = entry === 'map' ? page.getByLabel('App update', { exact: true })
+      : entry === 'general' ? page.locator('.pwa-update-settings')
+        : page.getByRole('tabpanel', { name: 'Notifications', exact: true });
+    // The installed shell and advisory metadata are available without a connection.
+    await context.setOffline(true);
+    await action.getByRole('button', { name: 'Update now', exact: true }).click();
+    await expect(advisory).toBeVisible();
+    await expect(advisory.getByRole('button', { name: 'Keep data and update' })).toBeFocused();
+    await expect(page.locator(releaseSelector)).not.toHaveAttribute('content', release);
+    await advisory.getByRole('button', { name: 'Keep data and update' }).click();
+    await expect(page.locator(releaseSelector)).toHaveAttribute('content', release);
+    await expect(page.locator('[data-route-entry]')).toHaveCount(2);
+    await expect(advisory).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator('[data-route-entry]')).toHaveCount(2);
+    await expect(advisory).toHaveCount(0);
+  });
+}
+
+test('legacy saved data offers an immediate reset after upgrading and the completion screen fits a phone', async ({ page, context }, testInfo) => {
+  await page.goto('/');
+  await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+  await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Offline', exact: true }).click();
+  await page.getByLabel('Find a state or territory').fill('California');
+  await page.locator('.region-row').getByRole('button', { name: 'Download', exact: true }).click();
+  await expect(page.locator('.download-card .offline-tag')).toHaveText('Saved');
+  // Old installed JavaScript has no advisory receipts or pre-reload dialog.
+  await page.evaluate(() => localStorage.removeItem('zlayer-reset-advisory:artcc-2026-10'));
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.reload();
+  const advisory = page.getByRole('alertdialog', { name: 'Reset app data?' });
+  await expect(advisory).toBeVisible();
+  await expect(advisory).toContainText('FIR information');
+  await expect(page.getByLabel('Type DELETE to confirm')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('reset-advisory-mobile.png') });
+  const other = await context.newPage();
+  await other.goto('/');
+  await expect(other.getByLabel('Settings and offline downloads')).toBeVisible();
+  await expect(other.getByRole('alertdialog', { name: 'Reset app data?' })).toHaveCount(0);
+  await context.setOffline(true);
+  await advisory.getByRole('button', { name: 'Reset now', exact: true }).click();
+  for (const window of [page, other]) await expect(window.getByRole('heading', { name: 'Local data cleared' })).toBeVisible();
+  expect(await page.evaluate(async () => ({ keys: Object.keys(localStorage), caches: await caches.keys() })))
+    .toEqual({ keys: [], caches: [] });
+  const open = page.getByRole('link', { name: 'Open ZLayer' });
+  const bounds = await open.boundingBox();
+  expect(bounds!.height).toBeGreaterThanOrEqual(44);
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(568);
+  await page.screenshot({ path: testInfo.outputPath('reset-complete-mobile.png') });
+  await other.screenshot({ path: testInfo.outputPath('reset-complete-desktop.png') });
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { PwaUpdates, pwaUpdates, watchPwaUpdates } from '../src/pwa-updates';
+import { ResetAdvisories } from '../src/reset-advisory';
 
 const current = '1111111111111111', next = '2222222222222222';
 const versionFor = (release: string) => `v0.1.0+g1234567.b${release.slice(0, 8)}`;
@@ -8,10 +9,10 @@ const versionFor = (release: string) => `v0.1.0+g1234567.b${release.slice(0, 8)}
 function fixture(t: TestContext, release = current) {
   let reloads = 0, checks = 0;
   const worker = Object.assign(new EventTarget(), {
-    state: 'activated', release,
+    state: 'activated', release, resetAdvisory: undefined as string | undefined,
     postMessage(_message: unknown, ports: MessagePort[] = []) {
       if (!ports[0]) return;
-      ports[0]!.postMessage({ release: this.release, displayVersion: versionFor(this.release) }); ports[0]!.close();
+      ports[0]!.postMessage({ release: this.release, displayVersion: versionFor(this.release), resetAdvisory: this.resetAdvisory }); ports[0]!.close();
     },
   });
   const container = Object.assign(new EventTarget(), { controller: worker });
@@ -20,10 +21,11 @@ function fixture(t: TestContext, release = current) {
     waiting: null as typeof worker | null,
     update: async () => { checks++; },
   });
-  const updates = new PwaUpdates({ id: current, version: versionFor(current) }, () => { reloads++; }, 100);
+  const advisories = new ResetAdvisories();
+  const updates = new PwaUpdates({ id: current, version: versionFor(current) }, () => { reloads++; }, 100, advisories);
   updates.connect(registration as unknown as ServiceWorkerRegistration, container as unknown as ServiceWorkerContainer);
   t.after(() => updates.disconnect());
-  return { updates, registration, worker, container, reloads: () => reloads, checks: () => checks };
+  return { updates, registration, worker, container, advisories, reloads: () => reloads, checks: () => checks };
 }
 
 test('reading a cached release alone never claims that the app is up to date', async t => {
@@ -143,7 +145,7 @@ test('installation must finish and control the page before the update is offered
   const { updates, worker, container, registration, reloads } = fixture(t);
   await updates.check();
   const installing = Object.assign(new EventTarget(), {
-    state: 'installing', release: next, postMessage: worker.postMessage,
+    state: 'installing', release: next, resetAdvisory: undefined, postMessage: worker.postMessage,
   });
   registration.installing = installing;
   registration.dispatchEvent(new Event('updatefound'));
@@ -184,7 +186,7 @@ test('checks coalesce and a failed download keeps the current app usable', async
   await new Promise(resolve => setImmediate(resolve));
   finish();
   await first;
-  registration.installing = Object.assign(new EventTarget(), { state: 'installing', release: next, postMessage: worker.postMessage });
+  registration.installing = Object.assign(new EventTarget(), { state: 'installing', release: next, resetAdvisory: undefined, postMessage: worker.postMessage });
   registration.dispatchEvent(new Event('updatefound'));
   registration.installing.state = 'redundant';
   registration.installing.dispatchEvent(new Event('statechange'));
@@ -249,7 +251,7 @@ test('foreground and reconnection checks are throttled, stop in the background, 
 test('an installed waiting update keeps recovery enabled and is retried after reconnecting', async t => {
   const { updates, registration, container, worker, reloads } = fixture(t);
   let activations = 0;
-  const waiting = Object.assign(new EventTarget(), { state: 'installing', release: next,
+  const waiting = Object.assign(new EventTarget(), { state: 'installing', release: next, resetAdvisory: undefined,
     postMessage(message: unknown, ports?: MessagePort[]) {
       if ((message as { type: string }).type === 'activate-update') activations++;
       else worker.postMessage.call(this, message, ports!);
@@ -280,4 +282,51 @@ test('an installed waiting update keeps recovery enabled and is retried after re
   assert.equal(reloads(), 0);
   await updates.apply();
   assert.equal(reloads(), 1);
+});
+
+test('an opt-in update asks once before reload, and keeping data revalidates the installed release', async t => {
+  const { updates, worker, reloads } = fixture(t, next);
+  worker.resetAdvisory = 'new-format';
+  await until(updates, () => updates.snapshot().availableRelease === next);
+  assert.equal(updates.snapshot().resetAdvisory, undefined, 'background detection never opens the dialog');
+  await Promise.all([updates.apply(), updates.apply()]);
+  assert.deepEqual(updates.snapshot().resetAdvisory, { id: 'new-format', updating: true });
+  assert.equal(reloads(), 0);
+  await updates.keepData();
+  assert.equal(reloads(), 1);
+});
+
+test('dismissing advice leaves data and the page alone; retrying the update does not ask again', async t => {
+  const { updates, worker, reloads } = fixture(t, next);
+  worker.resetAdvisory = 'new-format';
+  await until(updates, () => updates.snapshot().availableRelease === next);
+  await updates.apply();
+  updates.dismissAdvisory();
+  assert.equal(reloads(), 0);
+  await updates.apply();
+  assert.equal(reloads(), 1);
+  assert.equal(updates.snapshot().resetAdvisory, undefined);
+});
+
+test('compatible releases reuse the same advisory without asking again', async t => {
+  const { updates, worker, advisories, reloads } = fixture(t, next);
+  await advisories.startup('known-format', async () => false);
+  worker.resetAdvisory = 'known-format';
+  await until(updates, () => updates.snapshot().availableRelease === next);
+  await updates.apply();
+  assert.equal(reloads(), 1);
+  assert.equal(updates.snapshot().resetAdvisory, undefined);
+});
+
+test('the actual apply-time release controls the advisory, including deployment changes', async t => {
+  const { updates, worker, reloads } = fixture(t, next);
+  await until(updates, () => updates.snapshot().availableRelease === next);
+  worker.release = '3333333333333333';
+  worker.resetAdvisory = 'another-format';
+  await updates.apply();
+  assert.deepEqual(updates.snapshot().resetAdvisory, { id: 'another-format', updating: true });
+  assert.equal(reloads(), 0);
+  worker.postMessage = (_message, ports = []) => { ports[0]!.close(); };
+  await updates.keepData();
+  assert.equal(reloads(), 0, 'keeping data must not bypass worker readiness');
 });

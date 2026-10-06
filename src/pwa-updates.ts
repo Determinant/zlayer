@@ -1,3 +1,5 @@
+import { isResetAdvisory, resetAdvisories, type ResetAdvisories } from './reset-advisory';
+
 export interface PwaUpdateState {
   currentRelease: string;
   currentVersion: string;
@@ -9,9 +11,10 @@ export interface PwaUpdateState {
   applying: boolean;
   checked: boolean;
   error?: string | undefined;
+  resetAdvisory?: { id: string; updating: boolean } | undefined;
 }
 
-interface PwaRelease { id: string; version: string }
+interface PwaRelease { id: string; version: string; resetAdvisory?: string | undefined }
 
 /** Background activation stays automatic; this monitor reloads only on request. */
 export class PwaUpdates {
@@ -24,7 +27,8 @@ export class PwaUpdates {
   private connection = 0;
   private inspection: { worker: ServiceWorker; connection: number; request: Promise<boolean> } | undefined;
 
-  constructor(current: PwaRelease, private reload: () => void, private timeoutMs = 15_000) {
+  constructor(current: PwaRelease, private reload: () => void, private timeoutMs = 15_000,
+    private advisories: ResetAdvisories = resetAdvisories) {
     this.state = { currentRelease: current.id, currentVersion: current.version,
       dismissed: false, checking: false, downloading: false, applying: false, checked: false };
   }
@@ -155,8 +159,23 @@ export class PwaUpdates {
 
   dismiss = (): void => { this.publish({ dismissed: true }); };
 
+  async startupAdvisory(): Promise<void> {
+    const id = document.querySelector<HTMLMetaElement>('meta[name="zlayer-reset-advisory"]')?.content;
+    if (isResetAdvisory(id) && await this.advisories.startup(id)) {
+      this.publish({ resetAdvisory: { id, updating: false } });
+    }
+  }
+
+  dismissAdvisory = (): void => { this.publish({ resetAdvisory: undefined }); };
+
+  keepData = async (): Promise<void> => {
+    const updating = this.state.resetAdvisory?.updating;
+    this.dismissAdvisory();
+    if (updating) await this.apply();
+  };
+
   apply = async (): Promise<void> => {
-    if (!this.state.availableRelease || this.state.applying) return;
+    if (!this.state.availableRelease || this.state.applying || this.state.resetAdvisory) return;
     const connection = this.connection;
     this.publish({ applying: true, error: undefined });
     try {
@@ -165,6 +184,13 @@ export class PwaUpdates {
       const release = await readRelease(worker, this.timeoutMs);
       if (connection !== this.connection) return;
       if (worker !== this.container?.controller || release.id === this.state.currentRelease) throw new Error('Release changed');
+      const advise = release.resetAdvisory && await this.advisories.claim(release.resetAdvisory);
+      if (connection !== this.connection) return;
+      if (worker !== this.container?.controller) throw new Error('Release changed');
+      if (advise) {
+        this.publish({ applying: false, resetAdvisory: { id: release.resetAdvisory!, updating: true } });
+        return;
+      }
       // Navigation now uses the already-installed shell, including while offline.
       // Keep applying=true until navigation so a double tap cannot reload twice.
       this.reload();
@@ -198,14 +224,16 @@ async function readRelease(worker: ServiceWorker, timeoutMs: number): Promise<Pw
       channel.port1.onmessage = event => {
         const release: unknown = event.data?.release;
         const displayVersion: unknown = event.data?.displayVersion;
+        const advisory: unknown = event.data?.resetAdvisory;
+        const resetAdvisory = isResetAdvisory(advisory) ? advisory : undefined;
         if (typeof release !== 'string' || !/^(?:[a-f0-9]{16}|dev)$/.test(release)) {
           reject(new Error('Invalid app release')); return;
         }
         // Legacy workers report only the ID. Never compare truncated display hashes.
-        if (displayVersion === undefined) resolve({ id: release, version: release });
+        if (displayVersion === undefined) resolve({ id: release, version: release, resetAdvisory });
         else if (typeof displayVersion === 'string' && (release === 'dev' && displayVersion === 'dev' ||
           /^v\d+\.\d+\.\d+(?:-[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?\+g[a-f0-9]{7}\.b[a-f0-9]{8}$/.test(displayVersion) &&
-          displayVersion.endsWith(`.b${release.slice(0, 8)}`))) resolve({ id: release, version: displayVersion });
+          displayVersion.endsWith(`.b${release.slice(0, 8)}`))) resolve({ id: release, version: displayVersion, resetAdvisory });
         else reject(new Error('Invalid app version'));
       };
       worker.postMessage({ type: 'app-release' }, [channel.port2]);

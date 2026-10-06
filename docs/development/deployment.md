@@ -77,6 +77,29 @@ renewing source times; user offline weather remains browser-owned.
   Publish that archive before switching the shell, exclude private operations,
   credentials and runtime caches, and retain older archives with hashed assets.
 
+### Reset advisory option
+
+The frontend build accepts `ZLAYER_RESET_ADVISORY` as a shell environment variable:
+
+| Value | Behavior |
+| --- | --- |
+| Unset or `off` | Disables the advisory for this build. |
+| `artcc-2026-10` | Enables the current offline navigation format advisory. |
+| A stable lowercase ID, e.g. `navigation-v2` | Offers one reset advisory for that format change; use letters, digits and hyphens, up to 80 characters. |
+
+For the ARTCC upgrade, build with `ZLAYER_RESET_ADVISORY=artcc-2026-10 npm run build`.
+An ordinary `npm run build` leaves the advisory off. A Git push alone does not
+enable it: set the variable in the process that builds the deployed frontend.
+Keep the same ID in compatible follow-up builds so users skipping releases still
+receive the advice, and users who already handled it do not see it again. Use a new
+ID only when another format change merits another reset recommendation. Re-enabling
+an old ID respects its earlier receipt. Changing this setting requires rebuilding
+and deploying the shell; it is not an info-server or runtime-host setting.
+
+The [update guide](../features/pwa-updates.md#reset-advisory) owns the popup,
+legacy-client fallback and once-per-origin behavior. The advisory never deletes
+data automatically; **Reset now** is the user's explicit confirmation.
+
 ## Docker hosting and staged migration
 
 [`tools/hosting/compose.yaml`](../../tools/hosting/compose.yaml) runs one

@@ -19,6 +19,7 @@ process.env.VITE_ZLAYERS_AWC_FEED_URL = '';
 process.env.VITE_ZLAYERS_PROGS_FEED_URL = '';
 process.env.VITE_ZLAYERS_METAR_URL = '';
 process.env.VITE_ZLAYERS_TAF_URL = '';
+process.env.ZLAYER_RESET_ADVISORY = 'artcc-2026-10';
 // Exercise either app factory with local fixtures, never an inherited live endpoint.
 process.env.VITE_ZLAYERS_AWC_GRID_URL = process.env.ZLAYER_TEST_NATIVE_WEATHER === '1' ? '' : '/api/weather/grids/';
 process.env.VITE_ZLAYERS_BASEMAP_TILE_URL = `http://127.0.0.1:${port}/basemap.png`;
@@ -111,6 +112,7 @@ async function resetWeather() {
 }
 if (!benchmark) await resetWeather();
 let appRelease;
+let appResetAdvisory;
 let failAppInstall = false;
 let mismatchedAppHtml = false;
 let deferAppActivation = false;
@@ -184,6 +186,7 @@ const server = createServer(async (request, response) => {
       nativeFileRequests = 0;
       releaseGridGate?.(); gridHeldPath = gridGate = releaseGridGate = undefined;
       appRelease = undefined;
+      appResetAdvisory = undefined;
       failAppInstall = false;
       mismatchedAppHtml = false;
       deferAppActivation = false;
@@ -231,8 +234,9 @@ const server = createServer(async (request, response) => {
     } else if (path === '/__test/allow-chart-archives') {
       releaseChartArchives?.();
       chartArchiveGate = releaseChartArchives = undefined;
-    } else if (['/__test/app-update', '/__test/fail-app-update', '/__test/hold-app-update', '/__test/mismatched-app-update', '/__test/waiting-app-update'].includes(path)) {
+    } else if (['/__test/app-update', '/__test/reset-advisory-update', '/__test/fail-app-update', '/__test/hold-app-update', '/__test/mismatched-app-update', '/__test/waiting-app-update'].includes(path)) {
       appRelease = '2222222222222222';
+      appResetAdvisory = path === '/__test/reset-advisory-update' ? 'test-next-format' : undefined;
       failAppInstall = path === '/__test/fail-app-update';
       mismatchedAppHtml = path === '/__test/mismatched-app-update';
       deferAppActivation = path === '/__test/waiting-app-update';
@@ -351,6 +355,7 @@ const server = createServer(async (request, response) => {
       const nextRelease = mismatchedAppHtml && path !== '/sw.js' ? '3333333333333333' : appRelease;
       const nextVersion = originalVersion.replace(/\.b[a-f0-9]{8}$/, `.b${nextRelease.slice(0, 8)}`);
       body = Buffer.from(body.toString().replaceAll(originalVersion, nextVersion).replaceAll(originalRelease, nextRelease));
+      if (appResetAdvisory) body = Buffer.from(body.toString().replaceAll('artcc-2026-10', appResetAdvisory));
       if (deferAppActivation && path === '/sw.js') {
         // Lose the automatic install-time activation request. Recovery must find
         // the real waiting worker, without weakening complete-shell validation.

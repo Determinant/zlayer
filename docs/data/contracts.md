@@ -475,6 +475,14 @@ The flag is not tied to an app release or notice revision: ordinary updates,
 including notice edits, do not request acknowledgement again. Requiring renewed
 acknowledgement would need an explicit change to this persistence contract.
 
+Release reset advisories use `zlayer-reset-advisory:<id>` with the string `1` for
+each handled format-change ID. Fresh installs mark the current ID silently; older
+installs and update actions claim it before presenting the advisory, under a Web
+Lock when available. Receipts survive app releases and all dismissal choices;
+full local reset removes them. With denied local storage the receipt is session-only.
+The [update guide](../features/pwa-updates.md#reset-advisory) owns eligibility,
+legacy-upgrade handling and the build option.
+
 Restored presentation includes Layers, Settings and its region query/storage
 details, nested About, the selected map-edge toolbox, the active/stowed right panel,
 feature details and their Info/Plates tab or navaid identification, route details, and recommendations (aircraft filter, selection,

@@ -12,6 +12,13 @@ export function offlineShell(): Plugin {
     // Snapshot the final outputs so addAll never requests a discarded chunk.
     generateBundle: { order: 'post', handler(_options, bundle) {
       const identity = readBuildIdentity();
+      // Keep the same ID in compatible follow-up releases so skipped upgrades
+      // still receive the advice, without prompting existing users again.
+      const advisoryOption = process.env.ZLAYER_RESET_ADVISORY ?? 'off';
+      const resetAdvisory = advisoryOption === 'off' ? null : advisoryOption;
+      if (resetAdvisory !== null && !/^[a-z0-9][a-z0-9-]{0,79}$/.test(resetAdvisory)) {
+        throw new Error('ZLAYER_RESET_ADVISORY must be off or a lowercase identifier (letters, digits, hyphens; at most 80 characters)');
+      }
       const worker = bundle['sw.js'];
       if (!worker || worker.type !== 'chunk') throw new Error('Missing offline service worker');
       const publicAssets = ['manifest.webmanifest', 'icon.svg', 'logo.svg', 'logo-light.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
@@ -19,7 +26,7 @@ export function offlineShell(): Plugin {
       const assets = ['/', ...publicAssets.map(path => `/${encodeURI(path)}`), ...Object.keys(bundle)
         .filter(path => path.startsWith('assets/')).sort().map(path => `/${path}`)];
       const html = bundle['index.html'];
-      const hash = createHash('sha256').update(JSON.stringify(identity)).update(JSON.stringify(assets)).update(worker.code)
+      const hash = createHash('sha256').update(JSON.stringify({ ...identity, resetAdvisory })).update(JSON.stringify(assets)).update(worker.code)
         .update(html?.type === 'asset' ? html.source : '');
       for (const path of publicAssets) hash.update(readFileSync(new URL(`../public/${path}`, import.meta.url)));
       const version = hash.digest('hex').slice(0, 16);
@@ -29,10 +36,11 @@ export function offlineShell(): Plugin {
       if (!html || html.type !== 'asset') throw new Error('Missing application HTML');
       const markup = typeof html.source === 'string' ? html.source : Buffer.from(html.source).toString('utf8');
       html.source = markup.replace('</head>', `<meta name="zlayer-release" content="${version}" />` +
-        `<meta name="zlayer-version" content="${displayVersion}" /></head>`);
+        `<meta name="zlayer-version" content="${displayVersion}" />` +
+        `<meta name="zlayer-reset-advisory" content="${resetAdvisory ?? ''}" /></head>`);
       const marker = '__ZLAYER_OFFLINE_SHELL__';
       if (!worker.code.includes(marker)) throw new Error('Missing offline shell marker');
-      worker.code = worker.code.replace(marker, JSON.stringify({ version, displayVersion, assets }).replaceAll('"', '\\"'));
+      worker.code = worker.code.replace(marker, JSON.stringify({ version, displayVersion, resetAdvisory, assets }).replaceAll('"', '\\"'));
     } },
   };
 }

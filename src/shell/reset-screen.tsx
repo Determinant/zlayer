@@ -22,15 +22,17 @@ export function ResetScreen({ requested }: { requested: boolean }) {
     })().catch(error => { if (!disposed) setError(error instanceof Error ? error.message : 'Reset failed. Retry.'); });
     return () => { disposed = true; window.removeEventListener('storage', changed); };
   }, [attempt, requested]);
-  return <main className="reset-screen">
-    <h1>{!requested ? 'No reset requested' : done ? 'Local data cleared' : 'Reset ZLayer'}</h1>
-    {!requested ? <><p>No data has been deleted. Start a reset from Settings → General → Advanced.</p><a className="ui-button" href="/">Open ZLayer</a></> : done ? <>
-      <p>Saved downloads and workspace data have been removed. Reconnect before opening ZLayer.</p>
-      <a className="ui-button" href="/">Open ZLayer</a>
+  return <main className="reset-screen"><section className="reset-card" aria-labelledby="reset-title">
+    <img src="/icon.svg" alt="" width="44" height="44" />
+    <h1 id="reset-title">{!requested ? 'No reset requested' : done ? 'Local data cleared' : 'Reset ZLayer'}</h1>
+    {!requested ? <><p>No data has been deleted. Start a reset from Settings → General → Advanced.</p><a className="ui-button ui-button--primary" href="/">Open ZLayer</a></> : done ? <>
+      <p>Your saved downloads and workspace data have been removed.</p>
+      <p>Connect to the internet to reopen ZLayer, then download any regions you need offline.</p>
+      <a className="ui-button ui-button--primary" href="/">Open ZLayer</a>
     </> : <>
       <p role="status">{message}</p>
       {error && <><p role="alert">{error}</p>
-        <button className="ui-button" type="button" onClick={() => setAttempt(value => value + 1)}>Retry reset</button></>}
+        <button className="ui-button ui-button--primary" type="button" onClick={() => setAttempt(value => value + 1)}>Retry reset</button></>}
     </>}
-  </main>;
+  </section></main>;
 }

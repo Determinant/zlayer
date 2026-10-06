@@ -1,7 +1,8 @@
-import { useId, useSyncExternalStore } from 'react';
+import { useId, useSyncExternalStore, type ReactNode } from 'react';
 import { pwaUpdates, type PwaUpdateState } from '../pwa-updates';
 import './pwa-update.css';
 import type { WorkspaceNotification } from './use-notifications';
+import { ResetAdvisory } from './reset-advisory';
 
 function usePwaUpdate() {
   return useSyncExternalStore(pwaUpdates.subscribe, pwaUpdates.snapshot, pwaUpdates.snapshot);
@@ -21,25 +22,29 @@ export function useUpdateNotification(): WorkspaceNotification | undefined {
     action: { label: state.applying ? 'Updating…' : 'Update now', disabled: state.applying, run: () => { void pwaUpdates.apply(); } } };
 }
 
-export function PwaUpdatePrompt() {
+export function PwaUpdatePrompt({ children }: { children: ReactNode }) {
   const state = usePwaUpdate();
   const descriptionId = useId();
-  if (!state.availableRelease || state.dismissed) return null;
-  return <aside className="pwa-update" aria-label="App update">
-    <div role="status"><button className="ui-button ui-button--quiet pwa-update-dismiss" type="button"
-      disabled={state.applying} onClick={pwaUpdates.dismiss} aria-label="Dismiss update notification"
-      aria-describedby={`${descriptionId}-version ${descriptionId}-instructions`}>
-      <strong>Update available</strong>
-      <span id={`${descriptionId}-version`}>Version <code>{state.availableVersion}</code> is ready.</span>
-      <span id={`${descriptionId}-instructions`}>Reload to update. Your saved routes and downloads stay on this device.</span>
-      <small className="notification-dismiss-hint" aria-hidden="true">Tap to dismiss</small>
-    </button></div>
-    {state.error && <p role="alert">{state.error}</p>}
-    <div className="pwa-update-actions">
-      <UpdateButton state={state} />
-      <button className="ui-button ui-button--quiet" type="button" disabled={state.applying} onClick={pwaUpdates.dismiss}>Later</button>
-    </div>
-  </aside>;
+  return <>
+    {/* Legacy upgrades ask before mounting restored dialogs or starting data writes. */}
+    {(!state.resetAdvisory || state.resetAdvisory.updating) && children}
+    {state.resetAdvisory && <ResetAdvisory key={state.resetAdvisory.id} {...state.resetAdvisory} />}
+    {state.availableRelease && !state.dismissed && <aside className="pwa-update" aria-label="App update">
+      <div role="status"><button className="ui-button ui-button--quiet pwa-update-dismiss" type="button"
+        disabled={state.applying} onClick={pwaUpdates.dismiss} aria-label="Dismiss update notification"
+        aria-describedby={`${descriptionId}-version ${descriptionId}-instructions`}>
+        <strong>Update available</strong>
+        <span id={`${descriptionId}-version`}>Version <code>{state.availableVersion}</code> is ready.</span>
+        <span id={`${descriptionId}-instructions`}>Reload to update. Your saved routes and downloads stay on this device.</span>
+        <small className="notification-dismiss-hint" aria-hidden="true">Tap to dismiss</small>
+      </button></div>
+      {state.error && <p role="alert">{state.error}</p>}
+      <div className="pwa-update-actions">
+        <UpdateButton state={state} />
+        <button className="ui-button ui-button--quiet" type="button" disabled={state.applying} onClick={pwaUpdates.dismiss}>Later</button>
+      </div>
+    </aside>}
+  </>;
 }
 
 export function PwaUpdateSettings() {

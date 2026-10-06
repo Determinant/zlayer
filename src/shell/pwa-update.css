@@ -18,3 +18,6 @@
 }
 .pwa-update-dismiss > span { color: var(--text-description); }
 .pwa-update .pwa-update-dismiss:focus-visible { outline-offset: -3px; }
+.reset-advisory { width: min(460px, calc(100vw - 32px)); }
+.reset-advisory .confirmation-actions { grid-template-columns: 1fr; }
+.reset-advisory [role="alert"] { color: var(--text-ffc08f); }

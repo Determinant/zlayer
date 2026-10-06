@@ -16,7 +16,7 @@ const worker = self as unknown as ServiceWorkerGlobalScope;
 const development = worker.location.pathname.startsWith('/src/');
 // Keep the historical namespace so the ZLayer rename preserves stored downloads.
 const embeddedShell = '__ZLAYER_OFFLINE_SHELL__';
-const shellDefinition: { version: string; displayVersion: string; assets: string[] } = embeddedShell.startsWith('{')
+const shellDefinition: { version: string; displayVersion: string; resetAdvisory?: string | null; assets: string[] } = embeddedShell.startsWith('{')
   ? JSON.parse(embeddedShell) : { version: 'dev', displayVersion: 'dev', assets: [] };
 const shellCache = `${SHELL_CACHE_PREFIX}${shellDefinition.version}`;
 const shellPageUrl = `${worker.location.origin}/`;
@@ -192,7 +192,8 @@ worker.addEventListener('message', (event) => {
   }
   if (isRecord(event.data) && event.data.type === 'app-release') {
     // Preserve the opaque ID so already-open older clients can still offer this update.
-    event.ports[0]?.postMessage({ release: shellDefinition.version, displayVersion: shellDefinition.displayVersion });
+    event.ports[0]?.postMessage({ release: shellDefinition.version, displayVersion: shellDefinition.displayVersion,
+      resetAdvisory: shellDefinition.resetAdvisory ?? null });
     return;
   }
   if (isRecord(event.data) && event.data.type === 'forget-chart-memory' && typeof event.data.url === 'string') {
