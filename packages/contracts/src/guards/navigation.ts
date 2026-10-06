@@ -126,6 +126,8 @@ export function isGeoPointProperties(value: unknown): boolean {
     value.use,
     value.frequency,
     value.lowArtcc,
+    value.responsibleArtcc,
+    value.firId,
     value.metarStationId,
     value.metarObservedAt,
     value.rawMetar,

@@ -320,6 +320,8 @@ Interactive browser fixtures, served by Vite but excluded from ordinary builds:
   Airport buttons cover diagram-before-CS ordering, VFR-only airports and Alaska/Pacific books.
 - `/test/browser/routes.html`: real route interaction checks.
 - `/test/browser/route-map.html`: route labels, feature selection and map rendering.
+- `/test/browser/selection-order.html`: overlapping selected symbols, click order,
+  weather reattachment and ownship priority, exercised by `selection-order.spec.ts`.
 - `/test/browser/terrain.html`: route-corridor contours, altitude controls and terrain lifecycle.
 - `/test/browser/ownship.html`: GPS motion, projection, freshness and map controls.
 - `/test/browser/ahrs-geometry.html`: attitude-display geometry and clipping.

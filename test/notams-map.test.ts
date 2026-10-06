@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
-import { createNotamChartLayer, NOTAM_CHART_SOURCE } from '../src/layers/notams/map';
+import { createNotamChartLayer, NOTAM_CHART_SOURCE, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_AREA } from '../src/layers/notams/map';
 import { notice, NOTAM_NOW } from './fixtures/notams';
 import { notamChartKey } from '../src/layers/notams/chart';
 
@@ -18,6 +18,7 @@ function setup(t: test.TestContext) {
   }
   const layers = new Set<string>(), images = new Set<string>(), sources = new Set<string>();
   const listeners = new Set<(e: unknown) => void>();
+  const filters = new Map<string, unknown>();
   const writes: { data: FeatureCollection; resolve(): void; reject(error: unknown): void }[] = [];
   let visibility = 'none';
   const source = { setData: (data: FeatureCollection) => new Promise<void>((resolve, reject) => writes.push({ data, resolve, reject })) };
@@ -25,6 +26,8 @@ function setup(t: test.TestContext) {
     addSource(id: string) { sources.add(id); }, getSource: (id: string) => sources.has(id) ? source : undefined,
     addLayer(layer: { id: string }) { layers.add(layer.id); }, getLayer: (id: string) => layers.has(id),
     setLayoutProperty(_id: string, _key: string, value: string) { visibility = value; },
+    setFilter(id: string, filter: unknown) { filters.set(id, filter); },
+    setPaintProperty() {},
     addImage(id: string) { images.add(id); }, hasImage: (id: string) => images.has(id),
     removeImage: (id: string) => images.delete(id), removeSource: (id: string) => sources.delete(id), removeLayer: (id: string) => layers.delete(id),
     on(_type: string, listener: (e: unknown) => void) { listeners.add(listener); },
@@ -34,7 +37,7 @@ function setup(t: test.TestContext) {
   const layer = createNotamChartLayer(keys => { shown = keys; });
   layer.update({ records: [record], now: NOTAM_NOW }); layer.mount(map);
   t.after(() => layer.unmount());
-  return { layer, map, writes, layers, images, sources, listeners, visibility: () => visibility, shown: () => shown };
+  return { layer, map, writes, layers, images, sources, listeners, filters, visibility: () => visibility, shown: () => shown };
 }
 
 test('stowing hides immediately and a delayed populated source cannot reveal old markers', async t => {
@@ -101,4 +104,20 @@ test('cleanup continues after a failed layer removal and cancels pending retries
   h.layer.unmount();
   assert.equal(h.images.size + h.sources.size + h.listeners.size, 0);
   h.layer.unmount();
+});
+
+test('entry highlighting reuses accepted geometry, matches the current revision, and clears on removal', async t => {
+  const h = setup(t), records = [record];
+  h.writes[0]!.resolve(); await flush();
+  h.layer.update({ records, now: NOTAM_NOW });
+  h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(record) });
+  assert.equal(h.writes.length, 1, 'highlighting must not submit geometry');
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['==', ['get', 'kind'], 'obstacle'], ['==', ['get', 'noticeId'], record.id]]);
+  const stale = { ...record, revision: 'b'.repeat(64) };
+  h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(stale) });
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_POINT), ['all', ['==', ['get', 'kind'], 'obstacle'], ['==', ['get', 'noticeId'], '']]);
+  h.layer.update({ records, now: NOTAM_NOW, highlighted: notamChartKey(record) });
+  h.layer.update({ records: [], now: NOTAM_NOW, highlighted: notamChartKey(record) });
+  assert.equal(h.visibility(), 'none');
+  assert.deepEqual(h.filters.get(NOTAM_HIGHLIGHT_AREA), ['all', ['==', ['get', 'kind'], 'area'], ['==', ['get', 'noticeId'], '']]);
 });

@@ -159,6 +159,7 @@ export function App() {
     charts: { selection: renderedCharts, chartSelection, chartCacheState, activeChartTitle, activeChartCount },
     navigation: { data: mapNavigationData, navigationData, visibility, fixContext,
       identification: featureSelection.identificationMap, loadState,
+      focusedFeature: featureSelection.activeSidePanel === 'details' ? selected : undefined,
       inspectedCoordinate: selected?.properties.kind === 'coordinate' && !routePointForFeature(route.plan, selected) ? selected : undefined },
     routes: route.mapInput,
     selection: { resolveFeature: resolveMapFeature, onSelect: selectFeature,

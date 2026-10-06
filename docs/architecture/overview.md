@@ -198,15 +198,38 @@ Every dated manifest is validated against that requested cycle.
 3. Optional georeferenced IAP image
 4. Route-corridor terrain fill and contours, or viewport elevation shading
 5. AWC forecast grids/advisories/wind barbs, then radar, then WPC surface vectors and labels, below the fixed weather anchor
-6. Route lines, beneath navigation symbols
-7. FAA obstruction, airport, NAVAID, VFR waypoint and IFR fix symbols
-8. METAR airport circles
-9. Foreground terrain, selection, route and navaid-identification labels/interaction resources
-10. Optional GPS aircraft, accuracy and projection
+6. TFR and temporary NOTAM area fills/outlines
+7. Route lines, then ruler and navaid-identification connections
+8. Ordinary FAA airport/NAVAID/VFR/fix symbols, inspected points, METAR airport
+   circles and route waypoint circles, ordered by product slot
+9. Foreground terrain labels, obstruction/context-fix symbols, route labels/hold
+   arrows and navaid-identification/NOTAM labels and markers
+10. The selected entity's symbols while its details panel is unstowed
+11. Optional GPS aircraft, accuracy and projection
 
 The map host mounts charts, plates, terrain, navigation, weather, route, annotation and ownship slots in
-order. Explicit anchors keep route lines below navigation, and foreground resources
-are raised after mounting. Airways and SID/STARs appear through resolved route
+order. Fixed anchors keep imagery and weather below reference content. After every
+reconciliation, the host orders declared area geometry, lines, ordinary symbols,
+foreground labels/context markers, selected symbols, then ownship. Registration
+order resolves ties within a band; asynchronous imports never decide priority.
+Area shading is never painted over airport weather dots or route strokes, and
+reference lines cannot run over point symbols. Products recreating style layers use their
+band's host-owned insertion anchor to preserve order between reconciliations.
+Selection uses the original product's source, styling, zoom/filter rules and visibility;
+it cannot restore a disabled or failed source. Selected icons bypass symbol collisions,
+and their hit targets follow the same drawing order. This keeps a chosen navaid above
+a nearby airport's weather circle without raising every navaid. Stowing releases focus.
+
+The crosshair and its one identifier are a non-colliding HTML overlay above the map
+canvas, below shell panels and controls. Its open center leaves the native symbol
+visible; the crosshair passes pointer events through, while its label retains selection.
+Duplicate native names leave placement and hit testing as well as painting, so an
+invisible label cannot steal another entity's click. Point clicks follow rendered
+order before area inspection; route drag hit regions and ruler grips retain their
+separate gesture ownership. The [UI stacking contract](../features/shared-ui.md#layout-contract)
+keeps nearby choices and open map menus above panels, with app menus and modal
+dialogs above the isolated map workspace.
+Airways and SID/STARs appear through resolved route
 geometry; there is no standalone national airway layer. [Radar observations and recent history](../../src/layers/weather-awc/radar/README.md)
 use the weather slot. Satellite and PIREP observations remain planned. [WPC analysis and Progs](../../src/layers/weather-awc/progs/README.md)
 use the same weather slot and prepared server delivery.

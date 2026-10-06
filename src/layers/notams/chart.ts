@@ -10,7 +10,7 @@ import { presentNotam } from './presentation';
 type Properties = { kind: 'obstacle' | 'area' | 'area-label'; noticeId: string; label: string; timing: string;
   icon?: string; shape?: string; elevationMslFt?: number };
 export type NotamChartCollection = FeatureCollection<Point | Polygon, Properties>;
-export const notamChartKey = (record: NotamRecord) => `${record.id}:${record.revision}`;
+export { notamChartKey } from './public';
 
 export function notamChartFeatures(records: readonly NotamRecord[], now: number): NotamChartCollection {
   const features: NotamChartCollection['features'] = notamObstacleFeatures(records, now).features

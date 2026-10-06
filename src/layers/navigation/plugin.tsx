@@ -15,6 +15,7 @@ export function createNavigationPlugin() {
   const input = createLayerInput<NavigationControlsInput & {
     data: NavigationData; fixContext: FixMapContext;
     identification: NavaidIdentification | undefined; inspectedCoordinate: GeoPointFeature | undefined;
+    focusedFeature: GeoPointFeature | undefined;
   }>();
   const controlsInput = selectLayerStore(input, state => state && ({ catalog: state.catalog, visibility: state.visibility,
     fixDisplay: state.fixDisplay, navigationData: state.navigationData, loadState: state.loadState,
@@ -30,10 +31,11 @@ export function createNavigationPlugin() {
     definition: { id: 'navigation', title: 'Navigation' }, input,
     controls: [{ id: 'navigation', Component: Controls }],
     mapContribution: { id: 'navigation', async load() {
-      const [{ createNavigationLayer, createWaypointInspectionLayer }, { createNavaidIdentificationLayer }] =
+      const [{ createNavigationLayer, createWaypointInspectionLayer, createSelectionMarkerLayer }, { createNavaidIdentificationLayer }] =
         await Promise.all([import('./map'), import('./identification-layer')]);
       return [bindMapLayer(createNavigationLayer(), input.select(({ data, visibility, fixContext }) => ({ data, visibility, ...fixContext }))),
         bindMapLayer(createWaypointInspectionLayer(), input.select(state => state.inspectedCoordinate)),
+        bindMapLayer(createSelectionMarkerLayer(), input.select(state => state.focusedFeature)),
         bindMapLayer(createNavaidIdentificationLayer(), input.select(state => state.identification))];
     } },
   } satisfies LayerPlugin & PluginExports<NavigationApi> & { input: typeof input };

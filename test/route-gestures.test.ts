@@ -41,6 +41,7 @@ function setup(t: test.TestContext, navigationFeatures: MapGeoJSONFeature[] = []
     on: (name: string, handler: (event: unknown) => void) => handlers.set(name, handler),
     off: (name: string) => handlers.delete(name),
     getLayer: () => true,
+    removeLayer() {},
     getCenter: () => ({ lng: -122 }),
     unproject: (_point: unknown) => ({ lng: -122, lat: 37 }),
     project: (_coordinate: [number, number]) => ({ x: 150, y: 100 }),
@@ -813,8 +814,8 @@ test('workspace TFR inspection shares context-menu and long-press suppression wi
   const actions: import('../src/core/map/selection').MapContextAction[][] = [];
   const registry = new PluginRegistry<{ notams: import('../src/layers/notams/public').NotamsApi }>();
   const provider = registry.registration('notams', { publicApi: scope => ({
-    state: createLayerStore({ airports: {}, now: 0 }), charted: createLayerStore([]),
-    retain: () => () => {}, previewChart: () => ({ update() {}, release() {} }), retry() {},
+    state: createLayerStore({ queries: {}, now: 0 }), charted: createLayerStore([]),
+    retain: () => () => {}, previewChart: () => ({ update() {}, highlight: () => () => {}, release() {} }), retry() {},
     contextActions: scope.command(() => [{ id: 'notams:inspect-tfr', label: 'Inspect TFRs',
       select: scope.command(() => { inspections++; }) }]),
   }) });

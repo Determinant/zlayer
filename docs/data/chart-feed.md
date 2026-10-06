@@ -291,6 +291,13 @@ clients with stricter family guards require a compatible feed until updated.
 
 ### Navigation and supplement exports
 
+Airport navigation features optionally retain `responsibleArtcc` from NASR
+`APT_BASE.csv` `RESP_ARTCC_ID` for regional NOTAM lookup. It identifies the
+responsible Center, not a geometric boundary or a FIR alias. Rebuild and publish
+the hashed airport export to add the association; clients keep older exports
+readable and report the regional lookup unavailable when it is absent. An explicit
+`firId` may be supplied by a qualified source; clients do not derive it with a prefix.
+
 Navigation manifest schema 3 lists content-addressed files. Its `fixes` product
 contains all FAA fixes and includes `vfrWaypointCount`. ZLayer uses the same verified
 file for IFR fixes and VFR waypoints, selecting records by `properties.kind`. The

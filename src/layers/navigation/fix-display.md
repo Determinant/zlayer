@@ -55,7 +55,9 @@ describe chart/airway relevance, not measured flight frequency.
 
 Selected fixes and active-route fixes use an independent source with no category
 or background-toggle restriction, including below the airport-circle cutoff.
-Their symbols remain visible, while labels can move or declutter.
+Their symbols remain visible, while ordinary labels can move or declutter. An
+unstowed detail panel gives its selected fix the shared crosshair and persistent
+identifier, replacing the ordinary name until the panel is stowed.
 Context is deduplicated by feature identity, not identifier.
 Background copies are suppressed until the fix leaves the selection/route.
 
@@ -63,8 +65,9 @@ Route waypoint names use bright bold text on a 75%-opaque gray rectangular
 backing. Nameplates stay horizontal, prefer the right side of the marker, and
 fall back to the left when crowded. Their text and backing declutter together
 above map circles. Navigation and weather omit duplicate labels for the displayed
-route's feature IDs; clearing the route restores their ordinary labels. Selected
-fixes outside the displayed route retain their normal label styling.
+route's feature IDs; clearing the route restores their ordinary labels. The
+[detail-focus label](README.md#interaction-efficiency) applies to selected fixes
+both on and off the displayed route.
 
 Fix shape uses the FAA NASR attributes in both background and context layers.
 Waypoints (`WP`, `MW`, `NRS`) and fixes with an `RNAV` charting remark use a

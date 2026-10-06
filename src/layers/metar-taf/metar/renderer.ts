@@ -1,14 +1,16 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollectionResponse } from '@zlayer/contracts';
 import { labelLayer, withMapLabelKeys } from '../../../core/map/label';
+import { addFocusableLayer, focusedLayerId } from '../../../core/map/focus';
 import { AIRPORT_MIN_ZOOM } from '../../navigation/map-contract';
 
-export const METAR_LAYER_IDS = ['airports-weather-halo', 'airports-weather-points', 'airports-weather-labels'];
+export const METAR_FOCUS_LAYER_IDS = ['airports-weather-halo', 'airports-weather-points'].map(focusedLayerId);
+export const METAR_LAYER_IDS = ['airports-weather-halo', 'airports-weather-points', 'airports-weather-labels', ...METAR_FOCUS_LAYER_IDS];
 export const METAR_SOURCE_ID = 'metar-airports';
 
 export function installMetarLayers(map: MapLibreMap, data: FeatureCollectionResponse): void {
   map.addSource(METAR_SOURCE_ID, { type: 'geojson', data: withMapLabelKeys(data) });
-  map.addLayer({
+  addFocusableLayer(map, {
     id: 'airports-weather-halo',
     type: 'circle',
     source: 'metar-airports',
@@ -21,7 +23,7 @@ export function installMetarLayers(map: MapLibreMap, data: FeatureCollectionResp
       'circle-stroke-width': 1,
     },
   });
-  map.addLayer({
+  addFocusableLayer(map, {
     id: 'airports-weather-points',
     type: 'circle',
     source: 'metar-airports',

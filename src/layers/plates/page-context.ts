@@ -2,7 +2,13 @@ import { bookUrl, isNotamAirportQuery, type NotamAirportQuery, type ProcedureAir
 import type { ProcedureSelection } from './data';
 
 export type PlateNoticeContext = { key: string; status: 'resolved' | 'loading' | 'unavailable' | 'not-procedure';
-  airport?: NotamAirportQuery; airportName?: string; procedure?: ProcedureRecord; cycle: string; effectiveDate: string; expirationDate: string };
+  airport?: NotamAirportQuery; airportName?: string; procedure?: ProcedureRecord;
+  /** Stable list from the pinned catalog; coverage excludes deleted entries. */
+  procedures?: readonly ProcedureRecord[];
+  /** Exact indexed sections on a shared minimums page; never inferred nearby airports. */
+  choices?: PlateNoticeContext[]; sharedPage?: boolean;
+  cycle: string; effectiveDate: string; expirationDate: string };
+const sharedKinds = new Set(['takeoff-minimums', 'diverse-vector-area', 'radar-minimums']);
 
 export function procedureNoticeContext(selection: ProcedureSelection, airport: ProcedureAirport, procedure: ProcedureRecord,
   key = `${selection.catalog?.jsonSha256 ?? selection.catalog?.url}|${procedure.id}`): PlateNoticeContext {
@@ -10,8 +16,8 @@ export function procedureNoticeContext(selection: ProcedureSelection, airport: P
     ...(airport.icaoId ? { icaoId: airport.icaoId.trim().toUpperCase() } : {}) };
   const context = { key, cycle: selection.cycle, effectiveDate: selection.effectiveDate, expirationDate: selection.expirationDate };
   if (!isNotamAirportQuery(query)) return { ...context, status: 'unavailable' };
-  return { ...context, status: ['approach', 'departure', 'arrival'].includes(procedure.kind) ? 'resolved' : 'not-procedure',
-    airport: query, airportName: airport.name, procedure };
+  return { ...context, status: ['approach', 'departure', 'arrival'].includes(procedure.kind) || sharedKinds.has(procedure.kind) ? 'resolved' : 'not-procedure',
+    airport: query, airportName: airport.name, procedure, procedures: airport.procedures };
 }
 
 /** Exact published targets only. Never extend a plate's identity over unindexed pages. */
@@ -39,6 +45,16 @@ export function resolvePlateNoticeContext(selection: ProcedureSelection, pageInd
       original.searchParams.set('v', catalog.generatedAt);
       if (original.href === selection.document.url) matches.push({ airport, procedure });
     }
+  }
+  if (matches.length > 1 && matches.every(m => sharedKinds.has(m.procedure.kind))) {
+    const choices = matches.map(({ airport, procedure }) => ({
+      ...procedureNoticeContext(selection, airport, procedure, `${context.key}|${airport.id}|${procedure.id}`), sharedPage: true,
+    }));
+    // Opening a catalog entry explicitly selects that airport/section. After
+    // paging elsewhere, require a new selection from that page's own entries.
+    const selected = pageIndex === selection.document.pageIndex ? choices.find(c => c.procedure?.id === selection.procedure.id &&
+      matches.find(m => m.procedure.id === c.procedure!.id)?.airport.id === selection.airport.id) : undefined;
+    return { ...(selected ?? context), key: `${context.key}|selection:${selection.airport.id}:${selection.procedure.id}`, choices, sharedPage: true };
   }
   if (matches.length !== 1) return context;
   return procedureNoticeContext(selection, matches[0]!.airport, matches[0]!.procedure, context.key);

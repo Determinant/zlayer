@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { ExpressionSpecification, Map as MapLibreMap } from 'maplibre-gl';
 import type { NotamRecord } from '@zlayer/contracts';
 import { createObstructionSymbol } from '../../core/graphics/obstruction-symbol';
 import type { MapLayerModule } from '../../core/map/layer';
@@ -12,9 +12,15 @@ export const NOTAM_OBSTACLE_COLOR = '#ff9f43';
 export const NOTAM_AREA_FILL = 'notam-area-fill';
 export const NOTAM_AREA_LINE = 'notam-area-line';
 export const NOTAM_AREA_LABEL = 'notam-area-labels';
+export const NOTAM_HIGHLIGHT_AREA = 'notam-highlight-area';
+export const NOTAM_HIGHLIGHT_POINT = 'notam-highlight-point';
+export const NOTAM_HIGHLIGHT_LABEL = 'notam-highlight-label';
+const HIGHLIGHT_AREA_HALO = 'notam-highlight-area-halo', HIGHLIGHT_POINT_HALO = 'notam-highlight-point-halo';
+const HIGHLIGHT_COLOR = '#fff3cc';
 const AREA_PATTERN = 'notam-area-hatch';
-const layers = [NOTAM_AREA_FILL, NOTAM_AREA_LINE, NOTAM_AREA_LABEL, NOTAM_OBSTACLE_LAYER];
-type Input = { records: readonly NotamRecord[]; now: number };
+const highlights = [HIGHLIGHT_AREA_HALO, NOTAM_HIGHLIGHT_AREA, HIGHLIGHT_POINT_HALO, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_LABEL];
+const layers = [NOTAM_AREA_FILL, NOTAM_AREA_LINE, NOTAM_AREA_LABEL, NOTAM_OBSTACLE_LAYER, ...highlights];
+type Input = { records: readonly NotamRecord[]; now: number; highlighted?: string | undefined };
 const icons = (['low', 'tall', 'wind', 'unknown'] as const).flatMap(shape => [false, true].map(grouped => ({
   id: `notam-obstacle-${shape}-${grouped ? 'group' : 'single'}`, shape, grouped,
 })));
@@ -42,7 +48,23 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
   let scope: LayerScope | undefined;
   let collection = notamChartFeatures([], 0), key = '', pending = false, dirty = false;
   let records: readonly NotamRecord[] = [];
+  let now = NaN, highlighted: string | undefined, highlightId: string | undefined;
   let retry: ReturnType<typeof setTimeout> | undefined, retried = false;
+  const emphasize = () => {
+    if (!map || highlights.some(id => !map!.getLayer(id))) return;
+    const noticeId = highlighted ? records.find(record => notamChartKey(record) === highlighted)?.id ?? '' : '';
+    if (noticeId === highlightId) return;
+    highlightId = noticeId;
+    for (const id of highlights) {
+      const kind: ExpressionSpecification = id === NOTAM_HIGHLIGHT_LABEL ? ['in', ['get', 'kind'], ['literal', ['obstacle', 'area-label']]]
+        : ['==', ['get', 'kind'], id === HIGHLIGHT_AREA_HALO || id === NOTAM_HIGHLIGHT_AREA ? 'area' : 'obstacle'];
+      map.setFilter(id, ['all', kind, ['==', ['get', 'noticeId'], noticeId]]);
+    }
+    // The emphasized label replaces its ordinary label instead of doubling it.
+    for (const id of [NOTAM_AREA_LABEL, NOTAM_OBSTACLE_LAYER]) {
+      map.setPaintProperty(id, 'text-opacity', ['case', ['==', ['get', 'noticeId'], noticeId], 0, 1]);
+    }
+  };
   const visibility = (visible: boolean) => {
     for (const id of layers) if (map?.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     if (!visible) onShown([]);
@@ -66,8 +88,9 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
     });
   };
   return {
-    id: 'notam-graphics', slot: 'annotation', overlayLayerIds: [NOTAM_AREA_FILL, NOTAM_AREA_LINE],
+    id: 'notam-graphics', slot: 'annotation', areaLayerIds: [NOTAM_AREA_FILL, NOTAM_AREA_LINE, HIGHLIGHT_AREA_HALO, NOTAM_HIGHLIGHT_AREA],
     foregroundLayerIds: [NOTAM_AREA_LABEL, NOTAM_OBSTACLE_LAYER],
+    focusedLayerIds: [HIGHLIGHT_POINT_HALO, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_LABEL],
     mount(target) {
       map = target;
       scope = new LayerScope();
@@ -99,6 +122,24 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
         'text-justify': 'auto', 'symbol-sort-key': ['-', 0, ['get', 'elevationMslFt']],
       }, paint: { 'text-color': NOTAM_OBSTACLE_COLOR, 'text-halo-color': '#081220', 'text-halo-width': 1.6 } });
       scope.add(() => { if (target.getLayer(NOTAM_OBSTACLE_LAYER)) target.removeLayer(NOTAM_OBSTACLE_LAYER); });
+      for (const [id, color, width] of [[HIGHLIGHT_AREA_HALO, '#081220', 7], [NOTAM_HIGHLIGHT_AREA, HIGHLIGHT_COLOR, 3]] as const) {
+        map.addLayer({ id, source: NOTAM_CHART_SOURCE, type: 'line', filter: ['==', ['get', 'noticeId'], ''],
+          layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': color, 'line-width': width } });
+        scope.add(() => { if (target.getLayer(id)) target.removeLayer(id); });
+      }
+      for (const [id, color, width] of [[HIGHLIGHT_POINT_HALO, '#081220', 7], [NOTAM_HIGHLIGHT_POINT, HIGHLIGHT_COLOR, 2.5]] as const) {
+        map.addLayer({ id, source: NOTAM_CHART_SOURCE, type: 'circle', filter: ['==', ['get', 'noticeId'], ''],
+          layout: { visibility: 'none' }, paint: { 'circle-radius': 19, 'circle-opacity': 0,
+            'circle-stroke-color': color, 'circle-stroke-width': width } });
+        scope.add(() => { if (target.getLayer(id)) target.removeLayer(id); });
+      }
+      map.addLayer({ id: NOTAM_HIGHLIGHT_LABEL, source: NOTAM_CHART_SOURCE, type: 'symbol', filter: ['==', ['get', 'noticeId'], ''],
+        layout: { visibility: 'none', 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 13,
+          'text-variable-anchor': ['left', 'right', 'top', 'bottom'], 'text-radial-offset': 1.7, 'text-justify': 'auto',
+          'text-allow-overlap': true, 'text-ignore-placement': true },
+        paint: { 'text-color': HIGHLIGHT_COLOR, 'text-halo-color': '#081220', 'text-halo-width': 2 } });
+      scope.add(() => { if (target.getLayer(NOTAM_HIGHLIGHT_LABEL)) target.removeLayer(NOTAM_HIGHLIGHT_LABEL); });
+      emphasize();
       submission = createSourceSubmission(map, NOTAM_CHART_SOURCE, () => {
         visibility(false);
         if (!retried && collection.features.length) {
@@ -109,7 +150,12 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
       render();
     },
     update(input) {
+      highlighted = input.highlighted;
+      // Pointer/focus changes update filters only; parsing and worker geometry stay untouched.
+      if (records === input.records && now === input.now && !submission?.failed) { emphasize(); return; }
       records = input.records;
+      now = input.now;
+      emphasize();
       const next = notamChartFeatures(input.records, input.now), nextKey = JSON.stringify(next);
       if (key === nextKey && !submission?.failed) {
         if (submission && !pending) show();
@@ -124,6 +170,7 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
       clearTimeout(retry); retry = undefined;
       submission?.destroy(); submission = undefined; pending = false; dirty = false;
       onShown([]);
+      highlightId = undefined;
       map = undefined; scope?.dispose(); scope = undefined;
     },
   };

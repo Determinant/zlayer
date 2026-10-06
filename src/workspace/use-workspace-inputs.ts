@@ -24,7 +24,7 @@ type WorkspaceInputs = {
   clear: ReturnType<typeof useResourceWarning>['clear'];
   visibleBundles: readonly SavedBundle[];
   charts: Pick<ChartsInput, 'selection' | 'chartSelection' | 'chartCacheState' | 'activeChartTitle' | 'activeChartCount'>;
-  navigation: Pick<NavigationInput, 'data' | 'navigationData' | 'visibility' | 'fixContext' | 'identification' | 'loadState' | 'inspectedCoordinate'>;
+  navigation: Pick<NavigationInput, 'data' | 'navigationData' | 'visibility' | 'fixContext' | 'identification' | 'loadState' | 'inspectedCoordinate' | 'focusedFeature'>;
   routes: ReturnType<Layers['routes']['input']['require']>;
   selection: MapSelectionInput;
 };

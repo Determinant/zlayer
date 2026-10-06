@@ -4,6 +4,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import { createWaypointInspectionLayer } from '../src/layers/navigation/waypoint-inspection';
+import { focusedLayerId } from '../src/core/map/focus';
 
 test('inspection keeps labels with coordinates and hides failed or pending clears', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -24,7 +25,11 @@ test('inspection keeps labels with coordinates and hides failed or pending clear
     geometry: { type: 'Point', coordinates: [longitude, 37] }, properties: { ident, kind: 'waypoint' } });
   const settle = () => new Promise<void>(resolve => setImmediate(resolve));
   const fail = () => listeners.get('error')?.forEach(listener => listener({ sourceId: 'waypoint-inspection', error: new Error('Source failed') }));
-  const visibility = () => map.getLayoutProperty('waypoint-inspection-point', 'visibility');
+  const visibility = () => {
+    const value = map.getLayoutProperty('waypoint-inspection-point', 'visibility');
+    assert.equal(map.getLayoutProperty(focusedLayerId('waypoint-inspection-point'), 'visibility'), value);
+    return value;
+  };
   const layer = createWaypointInspectionLayer();
   layer.update(selected('FIRST', -122)); layer.mount(map); t.after(() => layer.unmount());
   uploads[0]!.accept(); await settle(); assert.equal(visibility(), 'visible');

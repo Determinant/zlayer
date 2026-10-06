@@ -60,6 +60,7 @@ test('airport third tab shows D/FDC with raw text, filters and no Plates depende
   await expect(page.getByText('RWY 09L · Lighting Unavailable', { exact: true })).toBeVisible();
   await page.getByText('Show raw', { exact: true }).first().click();
   await expect(page.locator('.notam-raw[open] pre').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Classification', { exact: true }).selectOption('FDC');
   await expect(page.getByText('1 of 2 retained notices')).toBeVisible();
   await page.getByRole('button', { name: 'Toggle Plates availability' }).click();
@@ -69,6 +70,112 @@ test('airport third tab shows D/FDC with raw text, filters and no Plates depende
   await expect(tabs).toHaveCount(0);
   await page.getByRole('button', { name: 'Enable NOTAM plugin' }).click();
   await expect(tabs.getByRole('tab', { name: 'NOTAM', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+for (const [width, height] of [[393, 900], [1280, 900], [640, 360]] as const) test(`airport ARTCC/FIR tabs stay fixed above scrolling notices at ${width}×${height}`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height });
+  const calls: string[] = [];
+  await page.route('**/api/notams/regions?**', route => {
+    const query = Object.fromEntries(new URL(route.request().url()).searchParams), now = Date.now();
+    calls.push(route.request().url()); expect(query).toEqual({ artccId: 'ZOA', firId: 'KZOA' });
+    const records = ['DOMESTIC', 'FDC', 'INTL'].map((classification, index) => notice({
+      id: String(100 + index).padStart(16, '0'), sourceId: String(100 + index).padStart(16, '0'), classification,
+      locations: ['ZOA'], icaoLocations: ['KZOA'], startsAt: now - 60_000, endsAt: now + 86_400_000,
+      text: index === 0 ? 'NAV GPS MAY NOT BE AVBL' : `AIRSPACE REGIONAL FIXTURE ${index}`, translations: [],
+    }));
+    const snapshot = { ...notamSnapshot(records), query, scope: 'region-location', associationCoverage: 'incomplete' };
+    snapshot.feed.checkedAt = snapshot.feed.watermark = now;
+    return route.fulfill({ json: snapshot });
+  });
+  await page.goto(`${origin}/test/browser/notams.html?region=1`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await expect(page.getByText('2 of 2 retained notices')).toBeVisible(); expect(calls).toHaveLength(0);
+  const areas = page.getByRole('tablist', { name: 'NOTAM area', exact: true });
+  await areas.getByRole('tab', { name: 'Airport', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(areas.getByRole('tab', { name: 'ARTCC / FIR', exact: true })).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: 'ARTCC / FIR', exact: true })).toBeVisible();
+  const regional = page.getByRole('region', { name: 'Regional NOTAMs', exact: true });
+  await expect(regional.getByText('3 of 3 retained notices')).toBeVisible();
+  await expect(regional.getByRole('button', { name: 'Filters', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await page.screenshot({ path: testInfo.outputPath('airport-regional-notams.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const scroller = page.locator('.feature-card-content');
+  const areaBox = (await areas.boundingBox())!;
+  await scroller.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await expect(areas).toBeInViewport({ ratio: 1 });
+  expect((await areas.boundingBox())!.y).toBe(areaBox.y);
+  await page.screenshot({ path: testInfo.outputPath('airport-regional-scrolled.png') });
+  await areas.getByRole('tab', { name: 'Airport', exact: true }).click();
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBe(0);
+  await expect(areas).toBeInViewport({ ratio: 1 });
+  await page.getByRole('tab', { name: 'Info', exact: true }).click();
+  await expect(areas).toHaveCount(0);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await areas.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBe(0);
+  await regional.getByRole('button', { name: 'Filters', exact: true }).click();
+  await regional.getByLabel('Classification', { exact: true }).selectOption('FDC');
+  await expect(regional.getByText('1 of 3 retained notices')).toBeVisible();
+  await regional.getByLabel('Classification', { exact: true }).selectOption('all');
+  await scroller.evaluate(element => { element.scrollTop = 80; });
+  const readingPosition = await scroller.evaluate(element => element.scrollTop);
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect(regional).not.toBeVisible();
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect(regional.getByText('3 of 3 retained notices')).toBeVisible();
+  expect(await scroller.evaluate(element => element.scrollTop)).toBe(readingPosition);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); window.dispatchEvent(new Event('offline'));
+  });
+  await expect(regional.getByText(/Offline/)).toBeVisible();
+  await expect(regional.getByText('3 of 3 retained notices')).toBeVisible();
+  await areas.getByRole('tab', { name: 'Airport', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Airport NOTAMs', exact: true }).getByText('2 of 2 retained notices')).toBeVisible();
+  await expect(regional).toHaveCount(0); expect(calls).toHaveLength(1);
+});
+test('airport with no published ARTCC/FIR association reports unavailable without a regional request', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/notams/regions?**', route => { calls++; return route.fulfill({ status: 500 }); });
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tab', { name: 'ARTCC / FIR', exact: true }).click();
+  await expect(page.getByText(/ARTCC\/FIR lookup is unavailable/)).toBeVisible();
+  await expect(page.getByText('No retained regional notices in this snapshot.')).toHaveCount(0);
+  expect(calls).toBe(0);
+});
+for (const width of [393, 1280]) test(`collapsed airport filters expose restrictions and clear together at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  const airport = page.getByRole('region', { name: 'Airport NOTAMs', exact: true });
+  const filters = airport.getByRole('button', { name: /^Filters/ });
+  await expect(airport.getByText('2 of 2 retained notices')).toBeVisible();
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await expect(airport.getByRole('searchbox')).toHaveCount(0);
+  await expect(airport.getByRole('button', { name: 'Refresh NOTAMs' })).toHaveCount(0);
+  await expect(airport.locator('.notam-entry').first()).toBeInViewport();
+  await page.screenshot({ path: testInfo.outputPath('airport-compact-notams.png') });
+  await filters.click();
+  await airport.getByLabel('Classification', { exact: true }).selectOption('D');
+  await airport.getByLabel('Subject', { exact: true }).selectOption('RWY');
+  await airport.getByRole('searchbox', { name: 'Search' }).fill('09L');
+  await expect(airport.getByText('1 of 2 retained notices')).toBeVisible();
+  await filters.click();
+  await expect(filters).toHaveText('Filters (3)');
+  await expect(airport.getByText('D · RWY · Search: “09L”', { exact: true })).toBeVisible();
+  await expect(airport.getByRole('searchbox')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('airport-active-filters.png') });
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await expect(airport.getByText('1 of 2 retained notices')).toBeVisible();
+  await airport.getByRole('button', { name: 'Clear NOTAM filters', exact: true }).click();
+  await expect(airport.getByText('2 of 2 retained notices')).toBeVisible();
+  await expect(filters).toHaveText('Filters');
+  await expect(airport.getByText('D · RWY · Search: “09L”', { exact: true })).toHaveCount(0);
+  await filters.focus(); await page.keyboard.press('Enter');
+  await expect(airport.getByLabel('Classification', { exact: true })).toHaveValue('all');
+  await expect(airport.getByLabel('Subject', { exact: true })).toHaveValue('all');
+  await expect(airport.getByRole('searchbox', { name: 'Search' })).toHaveValue('');
 });
 test('airport notices prioritize closures and navaid outages separately within each timing section and filters', async ({ page }) => {
   const now = Date.now();
@@ -99,6 +206,7 @@ test('airport notices prioritize closures and navaid outages separately within e
     }
   };
   await assertOrder([4, 6, 5, 3, 7, 8, 2, 1]);
+  await airport.getByRole('button', { name: 'Filters', exact: true }).click();
   await airport.getByLabel('Classification', { exact: true }).selectOption('D');
   await assertOrder([4, 6, 5, 3, 8, 2, 1]);
   await airport.getByLabel('Classification', { exact: true }).selectOption('all');
@@ -134,6 +242,7 @@ for (const width of [393, 1280]) test(`source conflicts remain visible offline a
   await airport.locator('pre').last().scrollIntoViewIfNeeded();
   await expect(airport.locator('pre').last()).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('source-issues.png') });
+  await airport.getByRole('button', { name: 'Filters', exact: true }).click();
   await airport.getByRole('searchbox').fill('unmatched search');
   await expect(airport.getByRole('heading', { name: /Source data needs review/ })).toBeVisible();
   await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
@@ -203,6 +312,7 @@ test('temporary obstacle map context follows open readers, filters, stow and plu
   await expect.poll(rendered).toBe(3);
   await expect(crane.locator('.notam-readable')).toHaveText('Flagged');
   await page.screenshot({ path: testInfo.outputPath('notam-obstacles-open.png') });
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   const search = page.getByRole('searchbox', { name: 'Search' });
   await search.fill('2026-AWP-3090-OE'); await expect(entries).toHaveCount(1); await expect.poll(rendered).toBe(1);
   await search.fill('Crane'); await expect.poll(rendered).toBe(2);
@@ -265,6 +375,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     expect(await page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.getStyle().layers
       .filter(layer => layer.id.startsWith('notam-tfr-')).map(layer => layer.type))).toEqual(['fill', 'line']);
     await page.getByRole('tab',{name:'NOTAM',exact:true}).click(); await expect.poll(displayed).toEqual(expected);
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('searchbox',{name:'Search'}).fill('nothing-matches'); await expect.poll(displayed).toEqual(expected);
     await page.getByRole('button',{name:'Stow fixture',exact:true}).click(); await expect.poll(displayed).toEqual(expected);
     await page.screenshot({animations:'disabled',path:testInfo.outputPath('tfr-active-upcoming.png')});
@@ -415,6 +526,64 @@ test('TFR restoration, refresh and detail expiry preserve colors until the sched
     const [r, g, b] = await pixel(); return r! > g! + 20 && r! > b! + 10;
   }).toBe(true);
 });
+for (const area of ['Airport', 'ARTCC / FIR'] as const) test(`${area} entry hover and keyboard focus highlight only its accepted map depiction`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  const now = Date.now();
+  const records = [
+    'AIRSPACE UAS WI AN AREA DEFINED AS .15NM RADIUS OF 370015N1220100W SFC-400FT AGL',
+    'OBST CRANE (ASN UNKNOWN) 370020N1220120W 350FT (200FT AGL) FLAGGED',
+    'NAV VOR U/S',
+  ].map((text, i) => notice({ id: `175760000000007${i}`, sourceId: `NMS_ID_175760000000007${i}`, text,
+    translations: [{ type: 'LOCAL_FORMAT', text }], startsAt: now - 1000, endsAt: now + 86_400_000 }));
+  await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
+  await page.route('**/api/notams/regions?**', route => route.fulfill({ json: {
+    ...notamSnapshot(records), query: { artccId: 'ZOA', firId: 'KZOA' }, scope: 'region-location',
+  } }));
+  await page.goto(`${origin}/test/browser/notams.html?map&region`);
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  await page.getByRole('tablist', { name: 'NOTAM area' }).getByRole('tab', { name: area, exact: true }).click();
+  const entries = page.locator('.airport-notams .notam-entry');
+  const boundary = entries.filter({ hasText: 'AIRSPACE' }), crane = entries.filter({ hasText: 'Flagged' }), uncharted = entries.filter({ hasText: 'VOR Unavailable' });
+  await expect(boundary).toHaveAttribute('tabindex', '0'); await expect(crane).toHaveAttribute('tabindex', '0');
+  await expect(uncharted).not.toHaveAttribute('tabindex');
+  const highlighted = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return ['notam-highlight-area', 'notam-highlight-point'].map(id => [...new Set(map.queryRenderedFeatures(undefined, { layers: [id] })
+      .map(f => f.properties.noticeId))].sort());
+  });
+  const before = await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    const source = map.getSource('notam-graphics') as GeoJSONSource, setData = source.setData.bind(source);
+    const audit = { writes: 0 }; Object.assign(window, { notamHighlightAudit: audit });
+    source.setData = (...args: Parameters<typeof setData>) => { audit.writes++; return setData(...args); };
+    return { center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing() };
+  });
+  await boundary.hover(); await expect.poll(highlighted).toEqual([[records[0]!.id], []]);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('highlight-area.png') });
+  await crane.hover(); await expect.poll(highlighted).toEqual([[], [records[1]!.id]]);
+  await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('highlight-obstacle.png') });
+  await uncharted.hover(); await expect.poll(highlighted).toEqual([[], []]);
+  await crane.focus(); await expect.poll(highlighted).toEqual([[], [records[1]!.id]]);
+  await crane.getByText('Show raw', { exact: true }).focus();
+  await expect.poll(highlighted).toEqual([[], [records[1]!.id]]);
+  await page.getByRole('button', { name: 'Filters', exact: true }).focus();
+  await expect.poll(highlighted).toEqual([[], []]);
+  expect(await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    return { center: map.getCenter().toArray(), zoom: map.getZoom(), bearing: map.getBearing() };
+  })).toEqual(before);
+  expect(await page.evaluate(() => (window as unknown as { notamHighlightAudit: { writes: number } }).notamHighlightAudit.writes)).toBe(0);
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await boundary.hover(); await expect.poll(highlighted).toEqual([[records[0]!.id], []]);
+  await page.getByRole('searchbox', { name: 'Search' }).fill('CRANE');
+  await expect(entries).toHaveCount(1); await expect.poll(highlighted).toEqual([[], []]);
+  await entries.first().focus(); await expect.poll(highlighted).toEqual([[], [records[1]!.id]]);
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  await expect.poll(highlighted).toEqual([[], []]);
+  expect(errors).toEqual([]);
+});
+
 test('temporary areas replace only mapped location prose and restore it when the chart detaches', async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -447,6 +616,7 @@ test('temporary areas replace only mapped location prose and restore it when the
   await page.screenshot({ animations: 'disabled', path: testInfo.outputPath('notam-areas.png') });
   await first.getByText('Show raw', { exact: true }).click();
   await expect(first.locator('.notam-raw pre').last()).toHaveText(circle);
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   const search = page.getByRole('searchbox', { name: 'Search' });
   await search.fill('370015N1220015W'); await expect(entries).toHaveCount(1); await expect.poll(areas).toBe(1);
   await page.getByRole('button', { name: 'Detach NOTAM chart', exact: true }).click();
@@ -525,7 +695,7 @@ test('plate bar shares data, follows actual pages, scrolls and leaves the PDF mo
   await canvas.evaluate(node => { node.setAttribute('data-notam-pdf-marker', 'same'); });
   await bar.click();
   await expect(page.getByRole('region', { name: 'Notices for displayed plate' })).toBeVisible();
-  await expect(page.getByText('Applies to this plate', { exact: true })).toBeVisible();
+  await expect(page.getByText('Related to this plate', { exact: true })).toBeVisible();
   await expect(canvas).toHaveAttribute('data-notam-pdf-marker', 'same');
   expect(notamRequests).toBe(1);
   await page.getByRole('button', { name: 'Disable NOTAM plugin' }).click();
@@ -553,7 +723,7 @@ test('offline staging notices keep one testing warning; stowing releases demand'
     window.dispatchEvent(new Event('offline'));
   });
   await expect(page.getByText('Offline', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Refresh NOTAMs' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Refresh NOTAMs' })).toHaveCount(0);
   await page.clock.fastForward(7 * 60_000);
   await expect(page.getByText('Testing with FAA staging data. Notices may be incomplete. Do not use for flight planning.', { exact: true })).toHaveCount(1);
   await expect(page.getByText('2 of 2 retained notices', { exact: true })).toBeVisible();
@@ -604,7 +774,7 @@ for (const recovery of ['retry', 'reconnect'] as const) {
       });
     }
     await expect(page.getByRole('button', { name: /NOTAM · 2 matched/ })).toBeVisible();
-    await expect(page.getByText('Applies to this plate', { exact: true })).toBeVisible();
+    await expect(page.getByText('Related to this plate', { exact: true })).toBeVisible();
     await expect(canvas).toHaveAttribute('data-notam-pdf-marker', 'same');
     expect(requests).toBeGreaterThanOrEqual(2);
   });
@@ -707,6 +877,7 @@ test.describe('NOTAM reading layout', () => {
         await section.screenshot({ animations: 'disabled', path: testInfo.outputPath(`${name}-${theme}.png`) });
       }
     }
+    await airport.getByRole('button', { name: 'Filters', exact: true }).click();
     await airport.getByRole('searchbox', { name: 'Search' }).fill('Not authorized');
     await expect(airport.locator('.notam-entry')).toHaveCount(1);
     await page.addStyleTag({ content: '.notam-readable * { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; }' });
@@ -805,6 +976,7 @@ test.describe('NOTAM reading layout', () => {
     await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
     const airport = page.getByRole('tabpanel', { name: 'NOTAM', exact: true }).getByRole('region', { name: 'Airport NOTAMs', exact: true });
     await expect(airport.getByText('1 of 1 retained notices')).toBeVisible();
+    await airport.getByRole('button', { name: 'Filters', exact: true }).click();
     const search = airport.getByRole('searchbox', { name: 'Search' });
     await search.fill('Runway 13');
     await expect(airport.locator('.notam-entry')).toHaveCount(1);
@@ -852,25 +1024,23 @@ test.describe('NOTAM reading layout', () => {
     await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
     const airport = page.getByRole('tabpanel', { name: 'NOTAM', exact: true }).getByRole('region', { name: 'Airport NOTAMs', exact: true });
     await expect(airport.getByText('Loading NOTAMs…', { exact: true })).toBeVisible();
-    const refresh = airport.getByRole('button', { name: 'Refresh NOTAMs' });
-    await expect(refresh).toBeDisabled();
+    await expect(airport.getByRole('button', { name: 'Refresh NOTAMs' })).toHaveCount(0);
     await containedText(airport);
     release();
     await expect(airport.getByRole('status')).toContainText('Unable to refresh NOTAMs');
-    await expect(refresh).toBeEnabled();
     await containedText(airport);
     await page.locator('.feature-card').screenshot({ animations: 'disabled', path: testInfo.outputPath('airport-error.png') });
     failing = false;
-    await refresh.click();
+    await page.getByRole('tab', { name: 'Info', exact: true }).click();
+    await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
     await expect(airport.getByText('No retained notices.', { exact: true })).toBeVisible();
-    await expect(refresh).toBeEnabled();
     const airportStatusFont = await airport.locator('.notam-list-status').first().evaluate(element => getComputedStyle(element).font);
     await page.getByRole('tab', { name: 'Plates', exact: true }).click();
     await page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).click();
     await expect(page.getByLabel('PDF page 1')).toBeVisible();
     await page.getByRole('button', { name: /NOTAM · 0 matched/ }).click();
     const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
-    const empty = plate.getByText('No matches in the retained notices.', { exact: true });
+    const empty = plate.getByText('No established matches. Review the airport NOTAMs below.', { exact: true });
     await expect(empty).toBeVisible();
     expect(await empty.evaluate(element => getComputedStyle(element).font)).toBe(airportStatusFont);
     for (const theme of ['dark', 'light']) {
@@ -926,16 +1096,15 @@ test.describe('NOTAM reading layout', () => {
       expect(await page.evaluate(() => document.fonts.check('700 14px B612'))).toBe(true);
       await expect(airport.getByRole('heading', { level: 3 })).toHaveText(['Active 1', 'Check timing 1', 'Upcoming 1']);
       const summary = airport.getByText('Show raw', { exact: true }).first();
-      const search = airport.getByRole('searchbox', { name: 'Search' });
-      const refresh = airport.getByRole('button', { name: 'Refresh NOTAMs' });
-      const searchBox = (await search.boundingBox())!, refreshBox = (await refresh.boundingBox())!;
-      expect(refreshBox.x).toBeGreaterThanOrEqual(searchBox.x + searchBox.width);
-      expect(Math.abs(refreshBox.y + refreshBox.height - searchBox.y - searchBox.height)).toBeLessThan(1);
-      expect(refreshBox.width).toBeGreaterThanOrEqual(44);
-      expect(refreshBox.height).toBeGreaterThanOrEqual(44);
-      await search.focus();
+      await page.getByRole('tablist', { name: 'NOTAM area', exact: true }).getByRole('tab', { name: 'Airport', exact: true }).focus();
       await page.keyboard.press('Tab');
-      await expect(refresh).toBeFocused();
+      await expect(page.locator('.feature-card-content')).toBeFocused();
+      await page.keyboard.press('Tab');
+      const filters = airport.getByRole('button', { name: 'Filters', exact: true });
+      await expect(filters).toBeFocused();
+      await page.keyboard.press('Enter');
+      const search = airport.getByRole('searchbox', { name: 'Search' });
+      await search.focus();
       await page.keyboard.press('Tab');
       await expect(summary).toBeFocused();
       await summary.press('Enter');
@@ -985,7 +1154,7 @@ test.describe('NOTAM reading layout', () => {
   }
 });
 
-for (const width of [393, 1280]) test(`plate counts expose interpretation, stale data and refresh failures before expansion at ${width}px`, async ({ page }, testInfo) => {
+for (const width of [393, 1280]) test(`plate counts stay compact while exposing stale data and refresh failures at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   const now = Date.now(); let failed = false, fresh = false;
   await page.route('**/api/notams/airports?**', route => {
@@ -998,15 +1167,15 @@ for (const width of [393, 1280]) test(`plate counts expose interpretation, stale
   await page.reload();
   await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   const row = page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).locator('.plate-notam-count');
-  await expect(row).toHaveText('NOTAM · 0 matched · Interpretation limited · Stale');
+  await expect(row).toHaveText('NOTAM · 0 matched · Stale');
   await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
   const toggle = page.locator('.plate-notam-toggle');
-  await expect(toggle).toContainText('NOTAM · 0 matched · Interpretation limited · Stale');
+  await expect(toggle).toContainText('NOTAM · 0 matched · Stale');
   await toggle.click();
   const plate = page.getByRole('region', { name: 'Notices for displayed plate', exact: true });
-  await plate.getByText('Review unmatched notices (1)', { exact: true }).click();
+  await plate.getByText('Show all airport NOTAMs (1)', { exact: true }).click();
   await expect(plate.getByText('ILS Unavailable', { exact: true })).toBeVisible();
-  await expect(plate.getByText(/Applicability to this plate could not be established/)).toBeVisible();
+  await expect(plate.getByText(/Matching is incomplete/)).toBeVisible();
   failed = true;
   await plate.getByRole('button', { name: 'Refresh NOTAMs', exact: true }).click();
   await expect(toggle).toContainText('Refresh failed · Stale');
@@ -1015,19 +1184,19 @@ for (const width of [393, 1280]) test(`plate counts expose interpretation, stale
   });
   await expect(toggle).toContainText('Offline');
   await toggle.click();
-  await expect(toggle).toContainText('Interpretation limited · Offline · Refresh failed · Stale');
+  await expect(toggle).toContainText('Offline · Refresh failed · Stale');
   await page.screenshot({ path: testInfo.outputPath('collapsed-uncertainty.png') });
   failed = false; fresh = true;
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true }); window.dispatchEvent(new Event('online'));
   });
-  await expect(toggle).toHaveText('NOTAM · 0 matched · Interpretation limited▾');
+  await expect(toggle).toHaveText('NOTAM · 0 matched▾');
   await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
   await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
-  await expect(row).toHaveText('NOTAM · 0 matched · Interpretation limited');
+  await expect(row).toHaveText('NOTAM · 0 matched');
 });
 
-test('a supported approach heading cannot hide a second unsupported heading in plate counts', async ({ page }) => {
+test('a matched plate keeps unsupported headings in the expanded view', async ({ page }) => {
   const now = Date.now();
   const record = notice({ classification: 'FDC', text: 'IAP TEST, CA. RNAV (GPS) Y RWY 09L, AMDT 2... SPECIAL ILS RWY 18... PROCEDURES NA.',
     startsAt: now - 60_000, endsAt: now + 86_400_000 });
@@ -1039,9 +1208,11 @@ test('a supported approach heading cannot hide a second unsupported heading in p
   });
   await page.reload(); await page.getByRole('tab', { name: 'Plates', exact: true }).click();
   await expect(page.getByRole('button', { name: /RNAV \(GPS\) Y RWY 09L/ }).locator('.plate-notam-count'))
-    .toHaveText('NOTAM · 1 matched · Interpretation limited');
+    .toHaveText('NOTAM · 1 matched');
   await page.getByRole('button', { name: 'Open saved plate', exact: true }).click();
-  await expect(page.locator('.plate-notam-toggle')).toContainText('1 matched · Interpretation limited');
+  await expect(page.locator('.plate-notam-toggle')).toContainText('1 matched');
+  await page.locator('.plate-notam-toggle').click();
+  await expect(page.getByRole('region', { name: 'Notices for displayed plate', exact: true }).getByText(/Matching is incomplete/)).toBeVisible();
 });
 
 for (const width of [393, 1280]) test(`TFR source review includes retained, unknown and unmappable details at ${width}px`, async ({ page }, testInfo) => {

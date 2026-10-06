@@ -25,7 +25,9 @@ editing. It does not restore an active input mode after reloading.
 The edge card shows great-circle nautical miles and initial A-to-B magnetic
 bearing, with true bearing directly beneath it. The rendered line follows the
 same great circle, including across the antimeridian, and shares the ID overlay's
-dark-blue dashes and white casing. The WMM2025 evaluator is shared with AHRS in
+dark-blue dashes and white casing. Lines use the shared map line band beneath entity
+symbols and labels; DOM endpoint grips remain above the canvas and below map
+menus/panels. The WMM2025 evaluator is shared with AHRS in
 `src/core/geo/magnetic-model.ts`. The catalog loader supplies validated, cached
 coefficients; the ruler needs no GPS or motion permission. It evaluates at A,
 zero ellipsoid height and the current date. Missing/expired coefficients or weak

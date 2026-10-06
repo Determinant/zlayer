@@ -36,6 +36,7 @@ await build({ plugins: benchmarkPlugins, build: { outDir: directory, rolldownOpt
     identificationTest: resolve('test/browser/identification.html'),
     edgePanelsTest: resolve('test/browser/edge-panels.html'),
     fixesTest: resolve('test/browser/fixes.html'),
+    selectionOrderTest: resolve('test/browser/selection-order.html'),
     weatherMapTest: resolve('test/browser/weather-map.html'),
     weatherProgsTest: resolve('test/browser/weather-progs.html'),
     weatherGridTest: resolve('test/browser/weather-grids.html'),

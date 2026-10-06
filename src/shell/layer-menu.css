@@ -16,6 +16,9 @@
   pointer-events: auto;
 }
 
+/* Open map menus clear panel bodies and their presented handles (up to 16). */
+.layer-menu:has(.layer-popover) { z-index: 17; }
+
 .active-layer-count {
   position: absolute;
   top: -5px;

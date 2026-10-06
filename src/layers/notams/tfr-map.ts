@@ -76,7 +76,7 @@ export function createTfrMapLayer(): MapLayerModule<TfrState> & { inspectAt(poin
     });
   }
   return {
-    id: 'notam-tfrs', slot: 'annotation', overlayLayerIds: layers, interactiveLayerIds: [TFR_FILL],
+    id: 'notam-tfrs', slot: 'annotation', areaLayerIds: layers, interactiveLayerIds: [TFR_FILL],
     inspectAt(point) {
       if (!map || !ready) return [];
       const hits = new Set(map.queryRenderedFeatures([point.x, point.y], { layers: [TFR_FILL] })

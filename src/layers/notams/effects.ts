@@ -1,5 +1,6 @@
 import { evidence, subjects, normalizeRunway, type NotamTarget, type NotamFact, type NotamFactKind, type NotamFlairTone, type NotamEvidence, type ParsedNotam } from './interpretation';
 import { operativePrefix } from './clauses';
+import { approachTitleIdentity } from './procedure-title';
 
 const MAX_FACTS = 20;
 const runwayId = '(?:0?[1-9]|[12]\\d|3[0-6])[LRCU]?';
@@ -11,11 +12,11 @@ const taxiwaySegment = `(?:TWY )?${taxiwayId}(?: BTN ${endpoint} AND ${endpoint}
 const taxiwayClosure = new RegExp(`^\\s*TWY ${taxiwaySegment}(?:, ${taxiwaySegment})* CLSD\\b`, 'i');
 const partialRunwayClosure = new RegExp(`^\\s*RWY ${runwayPair} (?:[NS][EW]?|[EW]) \\d+\\s*FT CLSD\\b`, 'i');
 /** Subject-bound facts; each interpretation keeps the full supporting source span. */
-export function notamEffects(content: string, body: string, header: number, subject: string | undefined, targets: NotamTarget[]) {
+export function notamEffects(content: string, body: string, header: number, subject: string | undefined, targets: NotamTarget[], multipart = false) {
   const facts: NotamFact[] = [];
   let factLimit = false;
   const subjectMatch = /^\s*([A-Z]+)\b/i.exec(content);
-  const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP'].includes(subject ?? '');
+  const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP', 'DVA'].includes(subject ?? '');
   function addFact(kind: NotamFactKind, label: string, tone: NotamFlairTone, source: NotamEvidence, scope?: string) {
     if (facts.some(f => f.kind === kind && f.label === label)) return;
     if (facts.length >= MAX_FACTS) { factLimit = true; return; }
@@ -63,7 +64,17 @@ export function notamEffects(content: string, body: string, header: number, subj
   }
   if (subject === 'AD') closure('Airport Closed', /^\s*AD\s+AP\s+CLSD\b/i.exec(content));
   let facilityTarget: ParsedNotam['facilityTarget'];
+  let categoryTarget: ParsedNotam['categoryTarget'];
   if (subject === 'NAV') {
+    const restriction = /^\s*NAV ILS RWY (\d{1,2}[LRC]?) ((?:SPECIAL AUTH |SA )?CAT (?:I|II|III)(?:\/(?:I|II|III))?) NA\b/i.exec(content);
+    if (restriction) {
+      const title = `ILS RWY ${restriction[1]} ${restriction[2]!.replace(/SPECIAL AUTH /i, 'SA ')}`;
+      const category = approachTitleIdentity(title)?.categories[0];
+      if (category) {
+        categoryTarget = { runway: normalizeRunway(restriction[1]!), ...category };
+        fact('restriction', `${restriction[2]} Not Authorized`, restriction, 'caution', `RWY ${restriction[1]}`);
+      }
+    }
     const aid = /^\s*NAV\s+(ILS|LOC|GP|GS|VOR\/DME|VORTAC|VOR|DME|TACAN|NDB)(?:\s+RWY\s+(\d{1,2}[LRC]?))?(?:\s+(LOC\/GP|LOC\/GS|LOC|GP|GS|DME|OM|IM|MM))?\s+(U\/S|NOT MNT)\b/i.exec(content);
     if (aid && (!aid[3] || aid[1]!.toUpperCase() === 'ILS')) {
       const component = aid[3]?.toUpperCase(), facility = component ?? aid[1]!.toUpperCase();
@@ -107,7 +118,7 @@ export function notamEffects(content: string, body: string, header: number, subj
   }
   if (procedureNotice) {
     // Quoted/deleted/conditional values are not evidence of an operative minimum.
-    const numericContent = operativePrefix(content);
+    const numericContent = multipart ? '' : operativePrefix(content);
     fact('minima', 'Minima Amended', /\b(?:DA|MDA)\s+\d+(?:\/|\b)/i.exec(numericContent));
     fact('visibility', 'Visibility Amended', /\b(?:VIS(?:IBILITY)?\s+(?:(?:ALL\s+)?CATS?\s+[A-D/ ]{0,16})?(?:RVR\s+)?\d|RVR\s+\d)/i.exec(numericContent));
     fact('sidestep', 'Sidestep Minima', /\bSIDESTEP\s+\d{1,2}[LRC]?\s+MDA\s+\d+/i.exec(numericContent));
@@ -123,5 +134,5 @@ export function notamEffects(content: string, body: string, header: number, subj
   }
   const reference = /\bSEE\s+((?:[A-Z0-9]{2,5}\s+)?\d+\/\d+)\b/i.exec(content);
   if (reference) fact('reference', `See NOTAM ${reference[1]!.replace(/\s+/g, ' ')}`, reference, 'neutral');
-  return { facts, factLimit, facilityTarget, runwayTargets: runway?.[1]?.split('/').map(normalizeRunway) ?? [] };
+  return { facts, factLimit, facilityTarget, categoryTarget, runwayTargets: runway?.[1]?.split('/').map(normalizeRunway) ?? [] };
 }

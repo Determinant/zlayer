@@ -4,6 +4,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollectionResponse, MetarFeature } from '@zlayer/contracts';
 import { createMetarLayer, featureWithMetar } from '../src/layers/metar-taf/metar/layer';
 import { MetarClient } from '../src/layers/metar-taf/metar/client';
+import { focusedLayerId } from '../src/core/map/focus';
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 test('pending empty and category-disabled replacements stay hidden through repeated environment callbacks', async t => {
@@ -39,7 +40,11 @@ test('pending empty and category-disabled replacements stay hidden through repea
   const product = createMetarLayer(client);
   product.map.update({ airports, enabled: true, airportsVisible: true }); product.map.mount(map);
   cleanup = () => product.map.unmount();
-  const visible = () => visibility.get('airports-weather-points');
+  const visible = () => {
+    const value = visibility.get('airports-weather-points');
+    assert.equal(visibility.get(focusedLayerId('airports-weather-points')), value);
+    return value;
+  };
   product.map.update({ airports: undefined, enabled: true, airportsVisible: true });
   document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('offline'));
   assert.equal(visible(), 'none'); assert.equal(uploads.length, 1);

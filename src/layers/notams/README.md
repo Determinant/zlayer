@@ -1,4 +1,4 @@
-# Airport and procedure NOTAMs
+# Airport, navaid and procedure NOTAMs
 
 [Documentation](../../../docs/README.md) / Plugins / notams
 
@@ -10,10 +10,10 @@ release work. Requirements below retain the intended scope; the implementation
 coverage and dated evidence distinguish supported behavior from remaining work.
 
 The plugin shows NOTAM (D) and Flight Data Center NOTAMs (FDC)
-in a third airport-detail tab, with concise flairs and a **Show raw** disclosure
+in an airport or navaid detail tab, with concise flairs and a **Show raw** disclosure
 for every entry. Relevant notices also appear in an expandable red **NOTAM**
 bar in the plate reader, especially amendments to IAPs, SIDs, and STARs.
-One data client and entry renderer serve both views.
+One data client and entry renderer serve the detail and plate views.
 
 Implemented in this tree:
 
@@ -27,17 +27,25 @@ Implemented in this tree:
   All defaults to D/FDC and unclassified records; Other also exposes retained
   international/military records. Those classes do not duplicate D/FDC plate counts.
 - Navigation's third tab and Plates' row counts/red disclosure use core controls.
-  The workspace's optional bridge composes the UI. The plate disclosure stays
-  focused on the displayed plate; the full airport list lives in the NOTAM tab.
+  The workspace's optional bridge composes the UI. The plate disclosure groups
+  related notices and offers the full airport list as a fallback.
+- Navaid details offer **Info | NOTAM**. Exact affected-location queries and
+  bounded station/component references show direct facility notices first, with
+  other records under the same location accessible separately. Airport-filed and
+  dependent-procedure coverage remains incomplete.
+- Airport NOTAMs offer **Airport | ARTCC / FIR** areas. Regional reads use only
+  published navigation associations and retain source classifications; missing
+  associations explicitly report unavailable.
 - Plates pins the catalog resource in new selections and resolves each book page
   by exact URL/hash/index. Legacy selections without that resource remain readable
   but report matching unavailable; reopening from the catalog supplies the pin.
 - The shared info server owns OAuth, all-class full sync, global deltas,
   durable quota admission, checksummed generations, local reads and feed health.
 
-Current interpretation limits: explicit IAP headings, named SID/STAR headings,
-all-IAP scope, runway identity and explicit runway ILS/LOC/glideslope outages are
-supported. Ambiguous procedure targets are review candidates; facility dependency
+Current interpretation limits: explicit IAP headings, named SID/STAR/ODP headings,
+takeoff/DVA/radar minimums, all-IAP scope, runway identity, explicit runway
+ILS/LOC/glideslope outages and scoped ILS category prohibitions are supported.
+Ambiguous procedure targets are review candidates; facility dependency
 graphs, broader regional applicability,
 multipart assembly and every publisher alias are not established. Simple daily
 and weekday/range UTC schedules with one time window are evaluated, including
@@ -49,6 +57,7 @@ release work.
 ## Contents
 
 - [Scope and ownership](#scope-and-ownership)
+- [Navaid detail tab](#navaid-detail-tab)
 - [Airport detail tab](#airport-detail-tab)
 - [Persistent TFR chart](#persistent-tfr-chart)
 - [Plate NOTAM bar](#plate-notam-bar)
@@ -57,6 +66,8 @@ release work.
 - [Production verification, October 5, 2026](#production-verification-october-5-2026)
 - [Collection and delivery](#collection-and-delivery)
 - [Airport query contract](#airport-query-contract)
+- [Navaid query contract](#navaid-query-contract)
+- [Regional query contract](#regional-query-contract)
 - [Info server integration](#info-server-integration)
 - [Normalized records](#normalized-records)
 - [Parsing and flairs](#parsing-and-flairs)
@@ -82,11 +93,13 @@ retain its other subjects when associated with that airport. Classification and
 subject keyword remain separate throughout the UI. The ICAO series letter is not
 the NOTAM classification and must not determine the D/FDC flair.
 
-Airport association is not a complete route briefing. ARTCC-wide, regional GPS,
-national, and nearby airspace notices require additional applicability rules;
-an airport location query or airport-point geometry alone does not establish that
-coverage. Document supported scope and qualify those rules before expanding
-it. The persistent TFR chart uses the separate FAA graphical source described below.
+Airport association is not a complete route briefing. The ARTCC/FIR area offers
+notices filed under the airport's published regional associations, including
+regional GPS notices when filed there. It does not establish flight applicability,
+geometric containment, adjacent-region or national coverage. Those require
+additional applicability rules; an airport location query or airport-point geometry
+alone does not establish that coverage. The persistent TFR chart uses the separate
+FAA graphical source described below.
 The temporary chart preview is limited to supported explicit point/area
 locations in an open reader. A general graphical NOTAM map, route-wide briefing, automatic
 route changes, and changes to printed PDF content remain outside this implementation.
@@ -119,6 +132,47 @@ The [info server integration](#info-server-integration) uses the existing
 `tools/info-server/` process and deployment. Collection and query contracts
 below define its NMS responsibilities.
 
+## Navaid detail tab
+
+Navaid details use **Info | NOTAM** with the same optional-provider, saved-tab,
+stowing, refresh, offline and raw-text behavior as airports. There is no Plates
+tab for a navaid. Missing published identity leaves the NOTAM tab available with
+an explicit unavailable message and makes no request.
+
+`navaid.ts` requires a published US navaid, its station `ident`, and its type.
+NASR `notamId` names the accountability office; it is not an affected-location
+alias. For example, the retained NASR EHF record has `notamId: BFL`, but its
+query is `navaidId=EHF`. The FAA's
+[NOTAM format](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap4_section_2.html)
+distinguishes accountability from the affected location. Do not invent a `K`
+prefix or use the nearest airport, feature ID or accountability office.
+
+Within records filed under that exact location, bounded NAV facility headings
+and COM facility VOICE headings associate with the selected type or a known
+component: VORTAC includes VOR/TACAN/DME; VOR/DME and NDB/DME include their
+components; TACAN includes DME. An explicit station identifier must agree.
+Runway ILS notices, unfamiliar headings and other same-identifier records remain
+under **Other notices filed under …**, retaining all classifications and raw text.
+Direct notices appear as a simple list with all retained classifications. Navaid
+readers omit classification, subject, search and manual refresh controls. The
+source status uses the full list width. Timing sections, raw disclosures and the
+other-location list remain available; airports retain their filters.
+
+Coverage is measured within this station's affected-location scope. Airport
+NOTAMs are a separate view; their absence from this list does not make station
+coverage incomplete. The FAA's
+[navaid filing rules](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap5_section_3.html)
+also allow airport-filed navaid notices. Neither this view nor its endpoint
+discovers all airport-filed notices or dependent procedures. The `navaid-location`
+scope expresses that boundary without a permanent **Incomplete coverage** status
+or explanatory paragraph in the navaid reader. That reader's
+status reflects source content/collection completeness, freshness, offline state
+and refresh failures. Actual source issues remain visible. Airport and plate
+coverage indicators continue to include their association limits. Empty results say
+there are no directly associated facility notices in this snapshot, never that
+the navaid is operational or unrestricted. This UI does not resolve the remaining
+plate-title/category discrepancies documented in the matching validation.
+
 ## Airport detail tab
 
 The tab order is **Info | Plates | NOTAM**. NOTAM is available for an identified
@@ -135,10 +189,40 @@ Temporary obstacle markers also disappear while stowed; retaining a cached query
 or a plate-row count does not retain a map preview.
 
 Default to **All**, showing D and FDC together. Offer classification and subject
-filters plus text search using core controls. Include Other/Unclassified so
-imperfect parsing never hides a notice. Show filtered and total counts, and reset
-transient search/filter restrictions on a different airport. These filters do not
-affect the plate bar's results or counts.
+filters plus text search using core controls behind a **Filters** disclosure,
+collapsed by default. Include Other/Unclassified so imperfect parsing never hides
+a notice. Keep the filtered/total count visible with the controls
+collapsed. Applied filters show a count on Filters, a readable summary when
+collapsed, and a **Clear** action; closing the disclosure must not clear them or
+silently hide the restriction. Reset filters and collapse the controls on a
+different airport or area. These filters do not affect the plate bar's results or counts.
+
+Compact **Airport / ARTCC–FIR** content tabs default to **Airport**. Use the shared
+keyboard-accessible tab control, since these switch between distinct lists.
+The area row belongs in the fixed detail header below Info/Plates/NOTAM, outside
+the single scroll body. It appears only with the NOTAM tab selected. Filters,
+source status and notices scroll together below it. Changing area starts that
+list at the top; stowing preserves its reading position. The plugin supplies
+the header and body together through `useAirportNotamView`; Navigation only
+hosts those slots and their content key.
+Geographic scope is separate from the D/FDC classification filter. The regional
+view uses the same entries, filters, freshness, offline storage, timing and chart
+preview lifecycle, with the same compact source-status and filter layout. Its
+**All** includes every retained classification, including
+international notices filed only under a FIR; it does not feed airport plate
+matching or counts. Only the visible area's query creates demand. Changing
+airports resets Area to Airport; stowing preserves the selection and releases demand.
+
+`region.ts` takes a US airport's `responsibleArtcc` from NASR
+`APT_BASE.csv` `RESP_ARTCC_ID` ([FAA field mapping](https://nfdc.faa.gov/webContent/28DaySub/TXT_to_CSV_Mapping.pdf)),
+and an explicit `firId` if the navigation source
+publishes one. The responsible Center is an administrative association, not a
+geometric boundary. Do not substitute Center frequency assignments, `lowArtcc`
+from another feature, the NOTAM accountability office, the nearest facility, or an
+invented ICAO prefix. The publisher must rebuild and publish the airport export
+to supply the new optional field; older exports remain readable and report
+ARTCC/FIR lookup unavailable. Missing or invalid identity makes no regional
+request and never presents an empty list as established coverage.
 
 Group notices into **Active**, **Check timing**, and **Upcoming** sections, omitting
 empty sections. Active contains notices within their effective interval and any
@@ -173,7 +257,7 @@ history is separate and bounded. Do not infer severity from FDC versus D.
 | Effect flairs | An at-a-glance body: scoped closures/outages, distinct minima/visibility/VDP/takeoff amendments, climb gradients and restrictions, only when established |
 | Body | Conservative formatting retaining every operational clause, condition, exception, value, and unit |
 | Validity | Start/end in device-local time with Zulu in parentheses, schedule, estimated/permanent qualifiers, and timing uncertainty using core time formatting |
-| Source state | Environment-specific source status and retry above the list, as described below |
+| Source state | Environment-specific source status above the list, as described below |
 | Raw disclosure | **Show raw** containing the complete local-format text labeled **Original NOTAM** and any separately labeled ICAO translation; **Source body** appears only when the original is unavailable or does not contain the complete body |
 
 Production snapshots show **FAA NOTAMs · Checked …** above each airport list or
@@ -181,6 +265,11 @@ expanded plate list, using the actual source-check time. Offline, stale,
 incomplete-coverage, request-failure and degraded-feed states remain explicit when
 present; production access alone does not establish freshness or completeness.
 The snapshot's environment controls the note, including for saved data.
+Airport, ARTCC/FIR and navaid detail lists have no manual refresh button. Visible
+online readers refresh automatically every three minutes. Reopening resumes
+demand and retries failed or due reads; a recent successful read retains its
+original refresh deadline. Source status and errors remain visible across these
+transitions. The plate reader retains its explicit refresh action.
 Keep feed status in this source header. Counts describe retained notices and
 matches without repeating generic completeness or coverage qualifiers. Empty
 airport lists say **No retained notices.** Empty plate lists say **No matches in
@@ -190,7 +279,7 @@ about current completeness.
 Staging snapshots retain one testing notice in the same position:
 **Testing with FAA staging data. Notices may be incomplete. Do not use for flight
 planning.** This replaces source-age, stale, incomplete and degraded-feed messages.
-Offline state, request failures, retry actions and procedure-specific
+Offline state, request failures, plate-reader retry actions and procedure-specific
 interpretation/review qualifiers remain visible.
 Empty staging results describe retained notices without implying current completeness.
 
@@ -232,7 +321,7 @@ meaning independently of color. Do not dim notice text in Upcoming sections.
 
 ### Temporary obstacle map context
 
-An open airport NOTAM tab previews supported obstacle/crane points from its filtered
+An open airport or ARTCC/FIR NOTAM tab previews supported obstacle/crane points from its filtered
 list, together with supported area boundaries. An expanded plate NOTAM panel
 previews the geometry in its displayed matches.
 Stowing/closing the host, switching tabs/airports/pages, collapsing the plate bar,
@@ -240,6 +329,9 @@ hiding the document or disabling NOTAMs releases that reader's preview. If two
 readers are visible, each owns a lease; releasing one cannot erase the other's
 context. Previews are session-only and do not create acquisition demand or a saved
 map overlay. Reopening uses the current retained snapshot and current timing.
+The map receives one union of notices by source ID across visible readers. Two
+airports showing the same ARTCC/FIR share its records and depict each notice once;
+adding or releasing a duplicate reader does not republish unchanged map input.
 
 The NOTAM plugin owns a separate lazy map contribution and GeoJSON source. It shares
 the obstruction glyph drawing primitive with DOF, using saturated orange, full-opacity
@@ -253,6 +345,21 @@ from AGL and retain upcoming, outside-schedule and uncertain-timing qualificatio
 There is no DOF zoom/height cutoff on these deliberately opened notices; short
 cranes stay visible. Labels may declutter while position symbols remain visible.
 No camera movement or new interaction mode is imposed.
+
+Hovering a depicted notice or focusing its entry/contents emphasizes that notice's
+map geometry: area boundaries gain a bright outline with a dark halo, obstacle
+points gain a ring, and their labels remain readable above neighboring symbols.
+The entry receives a subtle hover treatment and the shared keyboard focus ring.
+All points or areas belonging to that notice respond together. Unsupported or
+not-yet-accepted geometry offers no highlight interaction. Touch scrolling does
+not establish hover. The camera stays where the user left it.
+
+Each interaction belongs to its reader's preview lease and exact source revision.
+Pointer exit or focus leaving the entry releases that interaction; filtering,
+revision replacement, stow, area/tab changes and map failure also clear it.
+An old reader's cleanup cannot clear another reader's newer highlight. Emphasis
+changes only filters on layers sharing the accepted source; it does not parse,
+resubmit geometry, fetch data or animate the map.
 
 `obstacles.ts` accepts the explicit coordinate/altitude/height point format in
 [FAA 7930.2 §5-2-2](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap5_section_2.html).
@@ -335,6 +442,10 @@ change those colors. The key reads **Red: active or unknown schedule · Yellow:
 upcoming**, with a reminder that colors follow the saved schedule. Neither uses
 hatching. Temporary reader
 geometry excludes explicit TFR text so it cannot add a second, hatched TFR shape.
+TFR and temporary NOTAM fills/outlines share the map's area band: above imagery and
+weather shading, below route/reference lines and entity symbols. They cannot tint
+an airport's category dot or cover a point label. Temporary obstacle symbols and
+area labels retain their foreground band.
 Areas have no map labels. A left click or tap inside a published area opens the
 shared right-side detail panel with its identity, altitude limits, current/next
 window, complete raw NOTAM and a link to the FAA detail page. Overlapping areas
@@ -494,7 +605,7 @@ bar in the reader layout, not a mark drawn onto the source PDF.
 
 When relevant notices exist, the strip is red. Clicking expands the shared entry
 list inline. Use the same timing sections as the airport list, separating
-**Applies to this plate** from **Review applicability** within each section. This
+**Related to this plate** from **Review applicability** within each section. This
 keeps every upcoming notice after active and timing-review notices, regardless of
 its matching outcome. Within each applicability group, put **FDC** notices first
 so procedure amendments precede other notices; preserve newest-issued order and
@@ -508,13 +619,17 @@ Omit generic **Unconfirmed** and **Coverage limited** suffixes from the bar and
 procedure-row counts. An actual unresolved source record adds **Source data needs
 review**; otherwise detected incomplete content or association coverage adds
 **Coverage incomplete**, so a zero match count cannot imply complete coverage.
-Any unresolved interpretation adds **Interpretation limited**, including when
-that notice could not be matched to the plate. Both collapsed bar and procedure
+Interpretation gaps and unmatched procedure references belong in the expanded
+view. Omit **Matching incomplete** from compact summaries and do not highlight a
+zero count solely because interpretation is unresolved. Both collapsed bar and procedure
 rows share the same qualifiers: **Offline**, **Refresh failed**, and, for
 production, **Stale** or **Feed degraded** when applicable. Unrelated source-record
 issues do not degrade an otherwise complete airport query. Detailed feed status
 belongs in the expanded source header; notice-specific interpretation and
-applicability reasons remain with the entries.
+applicability reasons remain with the entries. The expanded bar always offers
+**Show all airport NOTAMs**, including with zero matches; it uses the same current
+airport snapshot and timing rules. Unmatched references are listed separately.
+The full list renders when opened, avoiding duplicate hidden readers on busy airports.
 Count each source notice once even if several clauses match. Multipart groups
 retain their individual parts' identities and counts.
 
@@ -538,18 +653,17 @@ and procedure-row counts wrap within their existing metadata layout.
 | Loading without a snapshot | Loading state, never a zero count |
 | Saved/stale snapshot | Retain match counts with collapsed freshness, offline and failure qualifiers; show source age in the expanded header |
 | Partial feed with a snapshot | Qualify counts with detected coverage/source issues; show feed status and recovery in the expanded list |
-| Unresolved interpretation | Qualify counts, alert even with zero matches, and make unmatched source notices available for review |
+| Unresolved interpretation | Keep compact counts unchanged; show matching limits, unmatched references and all airport notices in the expanded view, including with zero matches |
 | Unresolved page or failed query without data | Explicit unavailable matching state with recovery |
 
-The expanded strip shows notices for the displayed plate. The airport's NOTAM tab
-owns the full list; omit the **Show all airport NOTAMs** button and nested full-list
-fallback. A targeted **Review unmatched notices** disclosure contains only
-unresolved notices not already in the plate list, with an explicit statement that
-applicability could not be established. It does not create plate matches or chart
-overlays. Apply the staging presentation above; production keeps source freshness
+The expanded strip shows notices related to the displayed plate and offers
+**Show all airport NOTAMs** from the same snapshot. This fallback remains available
+when the match count is zero or another heading in a matched notice is unresolved;
+it does not create plate matches or chart overlays. Apply the staging presentation
+above; production keeps source freshness
 and actual incomplete states visible. Unresolved interpretation remains explicit in
 both environments, without repeating general regional/route-scope explanations.
-Counts beside IAP/SID/STAR rows in the Plates list use the same airport snapshot
+Counts beside supported procedure rows in the Plates list use the same airport snapshot
 and matcher, without a request per row.
 
 Support both side-reader and fullscreen `PanelSurface`. Use core focus/touch
@@ -572,9 +686,10 @@ hash/URL, page index or named destination, airport, and edition.
 Resolve indexed book pages through the owning catalog. Continuations share a
 procedure only when publisher identity and consecutive targets establish it, as
 current Plates grouping requires. Individual PDFs retain their explicit procedure
-target. Shared minimums documents require airport-specific context. Unresolved or
-ambiguous pages show matching unavailable; never carry a previous airport's
-confirmed notices onto another page.
+target. Shared minimums documents require airport/section context from the exact
+indexed page; offer the indexed choices when more than one section shares it.
+Other unresolved or ambiguous pages show matching unavailable; never carry a
+previous airport's confirmed notices onto another page.
 
 New selections pin the catalog resource alongside their document and procedure
 identity. The page resolver reads that exact catalog to obtain airport FAA/ICAO IDs,
@@ -1161,6 +1276,51 @@ record counts, safe failure code and next allowed attempt. Keep process health,
 freshness and completeness separate; a successful full sync cannot conceal later
 failed deltas. Health output excludes credentials and temporary content references.
 
+## Navaid query contract
+
+Use `GET`/`HEAD /api/notams/navaids?navaidId=…` with exactly one 2–5 character
+alphanumeric station identifier, trimmed and uppercased. Reject duplicate,
+malformed and foreign query parameters. `NotamNavaidSnapshot` is schema 1 with
+`scope: navaid-location`, the echoed `navaidId`, and the compatibility value
+`associationCoverage: incomplete`. Airport and navaid namespaces
+remain distinct in guards and cache keys, even when their identifier strings coincide.
+
+The exact station-location lookup is complete within that scope, not a combined
+station, airport and procedure search. Relevant/unscoped source issues and
+collection gaps still make `contentCoverage` incomplete. The navaid reader uses
+content/collection coverage for its status. Current guards accept either
+association value, but the server retains `incomplete` because already deployed
+schema-1 clients accept only that value.
+
+This endpoint reads the existing global generation's domestic affected-location
+index. It does not query accountability, invent ICAO aliases, filter source records
+by interpreted facility type, search dependent procedures or contact FAA. It
+retains all matching resolved records and relevant/unscoped source issues, with
+the same source-check times, continuity, content coverage, bounded response cache,
+compression, delivery limits and failure behavior as airport reads. Introducing
+the route changes neither source acquisition nor durable server generations.
+
+## Regional query contract
+
+Use `GET`/`HEAD /api/notams/regions?artccId=…&firId=…` with at least one published
+selector. `artccId` is a three-letter US Center identifier beginning with `Z`;
+`firId` is an explicit four-letter ICAO identifier. Trim and uppercase them;
+reject duplicate, malformed and foreign parameters. `NotamRegionSnapshot` is
+schema 1 with `scope: region-location`. Association coverage is complete for an
+explicit domestic ARTCC filing location; FIR-only reads remain incomplete because
+domestic notices may lack ICAO aliases. Content issues and collection gaps still
+qualify the returned content. Neither status establishes flight applicability.
+Its cache namespace remains distinct from airport and navaid queries.
+
+Read the existing domestic affected-location index for `artccId` and ICAO index
+for `firId`. Union by source identity; retain all classifications, source text,
+regional and unscoped source issues. Do not infer FIR aliases or match
+accountability. Regional reads use the same response limits, freshness, continuity,
+compression and bounded caches as airport reads, and never contact FAA. This
+establishes filing-location membership only, not geographic or route applicability,
+national notice coverage, or coverage of adjacent regions. The airport's regional
+association does not establish which other centers a flight will traverse.
+
 ## Info server integration
 
 Use `createInfoServer`, `info:serve`, `info:build` and `zlayer-info.service` for the
@@ -1172,7 +1332,7 @@ and query contracts above. No additional workspace or service framework is neede
 
 The explicitly composed `createNotamService` runs beside the existing weather
 updaters. A small surface is sufficient: `restore`, `refresh`, `readAirport`,
-`status`, and `close`. Use typed constructor options with injectable transport,
+`readNavaid`, `readRegion`, `status`, and `close`. Use typed constructor options with injectable transport,
 clock and cancellation for tests. Environment and credential-file loading belong
 in `main.ts`, not in parsers or request handlers.
 
@@ -1510,9 +1670,13 @@ Obstacle marking and conditional lighting details remain ordinary body content.
 Mapped obstacle readers always retain lighting status, marking and qualifications;
 badge visibility never licenses deleting that text. Parser issues distinguish an
 unclear subject, affected-procedure scope, procedure exceptions, unconfirmed
-facility dependencies and bounded interpretation. Entry badges state the relevant
-cause and expose its explanation. The collapsed plate bar retains its aggregate
-interpretation qualifier; it does not imply that these issues are source-feed failures.
+facility dependencies and bounded interpretation. Entry interpretation badges are
+reserved for operational exceptions and bounded reading limits (`procedure-exceptions`,
+`fact-limit`, `body-limit`). Subject, heading, target, multipart and facility-dependency
+issues remain internal and qualify plate coverage; they do not add generic “unclear”
+badges to correctly rendered notices. Source wording remains readable verbatim.
+The expanded plate bar explains these matching limits; compact counts omit the
+interpretation qualifier. These issues are separate from source-feed failures.
 
 Color expresses the kind of information, independently of D/FDC classification:
 
@@ -1545,18 +1709,24 @@ Parsing is bounded to 64 KiB of body text, 320-character heading prefixes, 16
 procedure targets and 20 deduplicated facts. Scan delimiters before applying
 the bounded heading grammar. Each IAP heading is checked independently, with or
 without an amendment; one supported heading cannot suppress another heading or
-an unsupported heading's interpretation warning. Familiar suffixes inside
+an unsupported heading's matching uncertainty. Familiar suffixes inside
 unsupported prefixes/compound headings do not establish a target. Scanning
 stops before narrative notes, exceptions and conditional procedure references.
 If limits are reached, retain the entire body/raw text and flag
 the relevant interpretation issue. Derived results are cached by
 record identity for repeated airport-list and plate matching; replacement records
-are parsed anew. Parser version 9 owns these derivations, not the wire schema.
+are parsed anew. Parser version 11 owns these derivations, not the wire schema.
 Recognized headings include RNAV departures/arrivals, `DEP`/`ARR` spellings,
 explicit arrival prohibitions, PRM and converging approaches, lettered variants,
 parenthesized or flat CAT qualifications and copter bearing titles. These
-qualifiers remain part of the procedure identity; unsupported prefixes, source
-typos and shared-amendment compound headings are not silently corrected.
+qualifiers remain part of the procedure identity. The documented
+[category spelling aliases](#procedure-title-spelling-aliases) produce comparison
+keys while preserving original headings and evidence. Complete comma-separated
+headings can share an amendment; per-heading amendments remain distinct. Bounded
+forms include `AMT 6`, `AMDT2`, `AMDT ORIG-B`, a contiguous `. ORIG...` clause,
+and omitted `RWY` only in an ILS category heading. A complete SID/STAR airport,
+city and state preamble can precede a title, including periods within airport names.
+Unknown prefixes and conditional/narrative references never become suffix matches.
 An exact associated FAA/ICAO prefix may precede a subject; unrelated prefixes
 remain unrecognized. Obstacle lighting includes plural objects and wind turbines,
 with negations and conditions preventing an unconditional outage/lighting claim.
@@ -1588,6 +1758,10 @@ agree. Conflicting windows and sunrise/sunset schedules remain **Check Schedule*
 Only verified part identifiers establish multipart groups; retain each part's raw
 source and expose missing parts. Cross-format translations are representations of
 one record, not additional independent notices.
+An initial `PART 1 OF N` envelope may precede an explicit IAP/ODP/SID/STAR subject.
+Recognize that part's headings only before `END PART`; retain a multipart coverage
+issue and suppress numeric minima/climb extraction. Do not infer a second part's
+subject or assemble numeric clauses across parts.
 
 ## Procedure matching
 
@@ -1599,9 +1773,16 @@ remain unchanged, and evidence offsets address the chosen original string.
 SID/STAR procedure headings may follow airport context on the same line; bounded
 sentence recognition stops before note, exception and incidental narrative.
 
-Matcher version 5 is a pure function of validated notices and exact plate context. Return
+Matcher version 8 is a pure function of validated notices and exact plate context. Return
 source ID, applicability outcome, affected clauses, and an explainable reason.
 Avoid numerical confidence scores suggesting unmeasured accuracy.
+
+Airport-wide reference coverage is cached once per immutable catalog procedure list
+and notice object, shared by plate rows and the reader across clock updates. Contexts
+retain the original catalog list; the matcher excludes deleted entries. Replacing
+the catalog or a notice object recomputes its coverage, including same-cycle source
+replacements. Weak keys release obsolete catalogs and notices with their owners.
+Time filtering and each displayed plate's match/amendment checks remain live.
 
 1. Resolve airports through published FAA/ICAO aliases and qualified associations.
    Never manufacture IDs by adding/removing `K`, equate accountability with the
@@ -1615,6 +1796,8 @@ Avoid numerical confidence scores suggesting unmeasured accuracy.
    Combined ILS/LOC titles match either named branch, retaining its own variant and
    subtype: `ILS Z OR LOC Z` matches ILS Z and LOC Z, while `ILS OR LOC Z` matches
    unlettered ILS and LOC Z. Qualifiers and runway sides apply to both branches.
+   Category spelling aliases use the same title grammar as target recognition;
+   category lists retain explicit boundaries so `CAT I/II` cannot become `CAT III`.
    Unsupported heading prefixes remain unresolved rather than becoming a recognized
    ILS/LOC/RNAV suffix.
 4. Handle multiple named procedures and explicit broad scopes such as all IAPs at
@@ -1624,6 +1807,9 @@ Avoid numerical confidence scores suggesting unmeasured accuracy.
    review for every candidate plate; an excluded title never becomes an applies match.
 5. Compare amendment number/date with the displayed plate. A mismatch requires
    review when the target otherwise agrees; it alone does not prove incorporation.
+   `ORIG`, `ORIG-A`, etc. compare with catalog `0`, `0A`, etc.; preserve different
+   letters and unknown metadata. Check every matching heading, so a later conflicting
+   amendment cannot be hidden by the first one.
 6. Include D runway/facility notices when explicit runway identity or a qualified
    dependency proves relevance. Preserve their actual effects without inventing
    minima or declaring whole procedures unavailable. Incomplete dependencies must
@@ -1635,11 +1821,32 @@ Avoid numerical confidence scores suggesting unmeasured accuracy.
    review; it never becomes an outage of the complete ILS. `NOT MNT` is a monitoring
    restriction, distinct from `U/S`. These notices do not establish a dependency for
    RNAV approaches. Unknown or absent facility/runway dependencies remain unresolved,
-   and unresolved interpretation also qualifies the collapsed bar's assurance.
+   and unresolved interpretation is explained in the expanded plate bar.
+   Explicit `NAV ILS RWY … [SPECIAL AUTH|SA] CAT … NA` associates only with the
+   stated runway and overlapping authorization/category on a published ILS plate.
+   It is not a whole-ILS outage. Coverage checks every requested category and
+   authorization across related, nondeleted plates. A CAT II match cannot hide an
+   absent CAT III reference: retain the valid match and list the missing category
+   in the expanded bar. The same rule applies to category-qualified IAP headings;
+   separate plates may together cover the requested categories.
+
+ODP is not synonymous with SID: complete generic takeoff headings map to
+`takeoff-minimums`, diverse-vector headings (including `(RADAR VECTORS)`) to
+`diverse-vector-area`, and named graphical ODPs to `departure`. A named ODP may
+omit the catalog's `(OBSTACLE)` suffix; its revision number stays significant.
+IAP `RADAR-1`/`RADAR 1` maps to `radar-minimums`; other radar numbers are not inferred.
+Unavailable amendment metadata on these minimums pages always requires review.
+
+These kinds use the same exact edition/page checks as approach, departure and
+arrival charts. On a shared minimums page, the reader offers only airport/section
+choices explicitly indexed to that page. Opening a catalog entry selects that
+section; paging to another shared page requires a new choice. Unindexed pages,
+unresolved named destinations and ambiguous ordinary approach pages cannot inherit
+the previous airport. See [Plates](../plates/README.md) for context ownership.
 
 | Outcome | Presentation |
 | --- | --- |
-| Applies to this plate | Unambiguous procedure/broad-scope match or proven runway/facility relationship; show reason and affected scope |
+| Related to this plate | Unambiguous procedure/broad-scope match or proven runway/facility relationship; show reason and affected scope |
 | Review applicability | Plausible association with missing context, ambiguous wording or amendment mismatch; uncertainty stays visible |
 | No established match | Keep the notice in airport results; do not attach it to an unrelated plate |
 
@@ -1649,15 +1856,75 @@ cannot disappear into a false zero-match assurance: expose unresolved procedure
 coverage and access to the full airport list. Matching is not a claim that every
 operationally applicable notice has been found.
 
+### Procedure-title spelling aliases
+
+`procedure-title.ts` owns complete-title recognition and canonical comparison keys.
+Only category tokens in a recognized qualification receive these equivalents:
+
+- `SAT CAT I` matches `SA CAT I` in an ILS heading. This is an observed FAA source
+  spelling, not a general `SAT` abbreviation or a fuzzy correction rule. The
+  [January 2018 FAA NOTAM publication](https://www.faa.gov/air_traffic/publications/atpubs/ntap_jan_18/part1_Section2.html),
+  EWR FDC 7/7214, uses both spellings for the same runway 22L procedure. KOAK
+  FDC 6/6268 supplies `ILS RWY 12 (SAT CAT I), AMDT 8B`; its
+  [cycle 2610 FAA plate](https://aeronav.faa.gov/d-tpp/2610/00294I12SAC1.PDF)
+  is titled `ILS RWY 12 (SA CAT I)` and carries amendment 8B. The alias does not
+  extend to `SAT CAT II`, arbitrary `SAT` tokens, or non-ILS headings.
+- Arabic category numbers `1`, `2`, `3` match Roman `I`, `II`, `III` only after
+  `CAT`. The same FAA publication includes OAK FDC 7/1264 with `SA CAT 1`.
+- Category lists separated by `/`, `AND` or `&` compare as the same set;
+  ascending hyphen ranges include every intervening category. Thus `CAT II-III`,
+  `CAT II AND III` and `CAT II/III` agree, as do `SA CAT I-II` and
+  `SA CAT I AND II`, both present in FAA source notices. A combined category
+  set has a distinct identity from a single category or a different set.
+
+Relevance is separate from identity equality: a notice for SA CAT I can address
+the SA CAT I portion of a combined SA CAT I/II plate. The reason states only the
+common category; authorization, PRM, facility, variant and runway must still agree.
+Multiple authorization groups on one plate remain distinct. `(CLOSE PARALLEL)`
+is an optional catalog spelling only within a complete PRM title, corroborated by
+the [ATL PRM chart](https://aeronav.faa.gov/d-tpp/2610/00026IPRM10.PDF).
+
+The [FAA AIM 5-4-5](https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap5_section_4.html)
+documents removal of `/DME` from titles in favor of chart equipment notes. A complete
+VOR/DME notice title can therefore produce a **review candidate** for a VOR catalog
+title differing only in that notation. This forward transition preserves HI/COPTER,
+variants, runway/circling letter and an OR TACAN branch; it does not merge identity
+keys or infer that DME is optional. The reverse transition and other facility
+subtypes are not generalized. The
+[HUM](https://aeronav.faa.gov/d-tpp/2610/05037COPTERV12.PDF) and
+[BIL](https://aeronav.faa.gov/d-tpp/2610/00048HVT28R.PDF) captured cases both show DME
+requirements on the printed charts. Missing catalog amendments remain unknown.
+
+SA remains part of the identity: [FAA category guidance](https://www.faa.gov/about/office_org/headquarters_offices/avs/offices/afx/afs/afs400/afs410/cat_ils_info)
+defines it as Special Authorization. Matching retains runway side, facility,
+variant, special qualifications and amendment checks. Unknown qualifiers and
+malformed titles receive no inferred alias. Canonical keys never replace source
+text, presentation headings, evidence offsets or server record identity; the
+captured KOAK regression checks both plate matches and unchanged source wording.
+
 ## Client lifecycle and offline behavior
 
-One stable client per workspace combines demand from airport NOTAM bodies, visible
-Plates lists, and open plate bars. Coalesce the same airport; allow different detail
-and reader airports concurrently. A collapsed bar still needs count/freshness
+One stable client per workspace combines demand from airport/navaid/regional NOTAM
+bodies, visible Plates lists, and open plate bars. Coalesce the same query; keep
+airport, navaid and regional namespaces separate and allow different detail and reader queries
+concurrently. A collapsed bar still needs count/freshness
 updates while visible. Stowed/hidden consumers retain state but release demand.
 
+Regional identity consists only of the normalized explicit ARTCC/FIR selectors,
+never the airport used to open the view. For example, KOAK, KSFO and KSJC with
+`artccId: ZOA` share one request/refresh schedule, one in-memory snapshot and one
+saved snapshot. The server response cache uses that same regional identity.
+Reopening the region through another airport reuses its snapshot and original
+refresh deadline. A refresh replaces that entry rather than appending another
+airport-specific copy. Different explicit selector sets remain distinct queries.
+
+Follow the same demand-driven lifecycle as [METAR/TAF](../metar-taf/README.md#demand-refresh-and-recovery):
+show saved data immediately, acquire while visible and online, release obsolete
+work on hiding/stowing, and resume demand on reopening or reconnecting. Retain
+usable data with its original source times and explicit errors after failed reads.
 Use core `requestJson`, `OnDemandRefresh`, connectivity observation and scoped
-storage. Refresh demanded snapshots on the three-minute product cadence; qualify
+storage. Detail demand uses zero debounce, like weather cards. Refresh demanded
+snapshots on the three-minute product cadence; qualify
 immediate reopen/reconnect reads against existing freshness. Browser reads never
 change upstream cadence. Reopening or adding another airport preserves each
 airport's next due read; the shared scheduler wakes at the earliest deadline.
@@ -1665,18 +1932,22 @@ Only completed reads establish throttling, so unloading during acquisition canno
 delay the first read after reactivation. Dispose timers/listeners and reject obsolete airport,
 edition, page or activation completions.
 
-Persist bounded validated airport snapshots. The client targets 24 airport
+Persist bounded validated airport, navaid and regional snapshots. The client targets 24 query
 entries and 64 MiB in memory, protecting visible demand even above those targets.
 Persistence independently limits the saved list to 24 complete snapshots and
 1,900,000 UTF-16 bytes within the scoped record's 2 MiB ceiling, preferring recent
 retrievals and skipping snapshots that do not fit.
-Every successful airport response merges only that airport into the latest saved
-list under core's record lock. Other windows' airports survive, and an older
+The mixed-scope `query-snapshots` record uses schema-1 snapshots. Restore the legacy
+`airport-snapshots` record as well, preferring the newer usable source check for
+each airport. Leave that legacy record intact for older clients; new responses
+write only `query-snapshots`. The count/byte caps apply to the new combined list.
+Every successful response merges only that query into the latest saved
+list under core's record lock. Other windows' queries survive, and an older
 response cannot replace a newer usable check from the same source environment.
-The recently retrieved airport moves first in the saved retention order; equal
+The recently retrieved query moves first in the saved retention order; equal
 checks may update feed health. The same count/byte caps apply after the merge.
 Live results publish before the optional save, and waiting for a save lock does
-not delay requests for other demanded airports. Missing/denied locks skip saving;
+not delay requests for other demanded queries. Missing/denied locks skip saving;
 teardown cancels queued writes and storage deadlines cannot block recovery.
 Restoration and live responses require a source-check time no more than 30 seconds
 ahead of the current clock. Restoration cannot replace newer usable live state;
@@ -1733,10 +2004,19 @@ time limitations. This README remains the canonical guide after implementation.
 
 ### Regression coverage
 
+- `test/notams-navaid.test.ts` covers retained NASR station/accountability
+  identities, component associations, unmatched-record preservation, navaid
+  snapshots from restored server generations, raw source issues, separate query
+  namespaces and the real client request paths. `test/notams-delivery.test.ts`
+  covers navaid GET/HEAD through the listener without FAA acquisition;
+  `test/notams-ui.test.ts` checks the two-tab composition and absent-provider
+  behavior. These focused Node checks do not establish browser layout correctness.
 - `test/notams-storage.test.ts` exercises actual scoped storage through save,
   client recreation, offline restoration and refresh, including count/byte bounds,
   future source times, clock rollback, rejected updates, denied writes and multiple
-  windows merging under a held lock. `test/notams-tfr-storage.test.ts` covers TFR
+  windows merging under a held lock. Legacy airport saves coexist with mixed
+  airport/navaid saves; current-cache entries take priority at equal check times
+  and the restoration capacity limit. `test/notams-tfr-storage.test.ts` covers TFR
   rollback, reactivation, cross-window regression, read-only restoration and
   cancelled saves. Core record tests cover unavailable locks/reads, queue timeout,
   cancellation and output validation.
@@ -1755,7 +2035,13 @@ time limitations. This README remains the canonical guide after implementation.
   refresh deadlines and cancellation across activations. Captured FDC rendering
   pairs cover collection-to-parser-to-plate matching in both arrival orders,
   unchanged raw text/evidence spans and rejection of conflicting translations.
-  Mixed IAP headings cover independent targets and unsupported target warnings.
+  Mixed IAP headings cover independent targets and unsupported target review candidates.
+- `test/notams-matching.test.ts` pins the cycle 2610 catalog and captured record
+  identities, checks complete expected plate sets and rejects wrong scopes/editions.
+  It covers hidden sibling misses, partial category coverage, shared catalog
+  coverage and source replacements, shared-page section choices, first-part
+  boundaries and the airport-list fallback. The offline inventory is
+  diagnostic evidence rather than a generated semantic oracle.
 - `test/notams-tfr-server.test.ts` covers isolated detail failures, independent
   publication and withdrawals, original retained-detail ages through restart,
   unchanged-index revalidation, legacy unknown ages, complete recovery and durable
@@ -1962,6 +2248,20 @@ collection cannot become complete merely by repairing records. The focused corpu
 tests retain independent expected meanings and deliberately corrupted examples;
 keep those tests when extending this replay. Do not replace them with generated
 parser-output snapshots or weaken an audit to make unfamiliar wording pass.
+
+The [cycle 2610 plate-matching review](validation/2026-10-05-matching-audit.md)
+records the initial gaps; the [implementation follow-up](validation/2026-10-05-matching-fixes.md)
+records the fixes and remaining source/catalog discrepancies. A content-preservation
+pass does not establish complete plate associations.
+The fixture also retains the complete byte-identical published cycle 2610 catalog
+in `plate-catalog-2610.json.gz` (about 1.4 MB), with its uncompressed hash/size and
+source URL in the manifest. Keeping airports outside the cohort preserves exact
+shared-page section context. `test/notams-matching.test.ts` checks independent
+captured match sets, scope/identity negatives, amendment conflicts and shared pages.
+`tools/audit-notam-matching.ts` replays catalog-entry matching offline and inventories
+every recognized heading, including misses hidden by a matching sibling. Its
+successful exit means the inventory completed, not that every match is correct.
+The dated reports give pinned sources, replay instructions and remaining limits.
 
 `tools/pack-notam-corpus.ts` packages an existing sequential capture offline:
 

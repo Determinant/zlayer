@@ -28,10 +28,20 @@ full-load and delta paths were exercised; see the NOTAM guide's
 Sustained combined weather/NMS capacity checks remain release work.
 
 `GET`/`HEAD /api/notams/airports?faaId=…&icaoId=…` reads the local dataset, accepting
-at least one named selector. These requests never contact FAA. `/api/notams/healthz`
+at least one named selector. `GET`/`HEAD /api/notams/navaids?navaidId=…` reads exact
+domestic affected-station locations from the same generation. Navaid snapshots
+keep a separate query namespace and complete station-location association coverage;
+source issues and collection gaps still qualify content coverage. Airport-filed
+notices and procedure dependencies are outside that query's scope.
+`GET`/`HEAD /api/notams/regions?artccId=…&firId=…` requires at least one published
+selector and unions domestic ARTCC and ICAO FIR locations without inventing aliases.
+Regional snapshots preserve all source classifications and relevant issues, with
+a separate cache namespace. Coverage describes filing membership, not flight
+applicability; FIR-only reads retain incomplete association coverage. These requests
+never contact FAA. `/api/notams/healthz`
 reports NOTAM readiness; `/api/weather/healthz` includes the same `notams` summary.
 Disabled/misconfigured collection or no bridged baseline returns 503 for airport
-queries. Retained snapshots return 200 with explicit source time and continuity.
+and navaid/regional queries. Retained snapshots return 200 with explicit source time and continuity.
 
 `GET`/`HEAD /api/notams/tfrs` reads a separately prepared national FAA graphical
 TFR snapshot. Its background adapter runs independently of NMS enablement and
@@ -371,8 +381,9 @@ proxy or tunnel before cutover, and through public HTTPS after activation:
 The bundle includes a read-only check for these routes and authenticated artifacts:
 `node tools/info-server/dist/check-info-api.js https://your-app.example disabled`.
 Use `staging` or `production` instead of `disabled` when that NOTAM environment
-is enabled; the check requires a ready, complete feed and a valid local airport
-response. Readiness requires model runs less than three hours old, grid source
+is enabled; the check requires a ready, complete feed and valid local airport
+and navaid/regional responses, including the echoed selectors. A missing navaid
+or regional route fails deployment readiness. Readiness requires model runs less than three hours old, grid source
 checks less than 90 minutes old and a remaining forecast horizon. Chart/coverage
 checks must be less than ten minutes old, with analysis less than six hours old
 and future forecast stops. National radar observations and source checks, motion

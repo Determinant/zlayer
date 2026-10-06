@@ -7,6 +7,9 @@ export const NOTAM_AIRPORT_MAX_BYTES = 16 * 1024 * 1024;
 export const NOTAM_MAX_ISSUE_VARIANTS = 8;
 export type NotamEnvironment = 'staging' | 'production';
 export type NotamAirportQuery = { faaId?: string; icaoId?: string };
+export type NotamNavaidQuery = { navaidId: string };
+export type NotamRegionQuery = { artccId?: string; firId?: string };
+export type NotamQuery = NotamAirportQuery | NotamNavaidQuery | NotamRegionQuery;
 export type NotamRecord = {
   id: string; sourceId: string; revision: string;
   classification: string; number: string; series: string; year: string;
@@ -39,7 +42,7 @@ export type NotamSourceIssue = {
   /** Bounded evidence samples; overflow remains unresolved until superseded. */
   variantsTruncated: boolean;
   locations: string[]; icaoLocations: string[];
-  /** Missing or over-limit associations must qualify every airport query. */
+  /** Missing or over-limit associations must qualify every location query. */
   unscoped: boolean;
 };
 export type NotamAirportSnapshot = {
@@ -50,6 +53,15 @@ export type NotamAirportSnapshot = {
   contentCoverage?: 'complete' | 'incomplete';
   issues?: NotamSourceIssue[];
 };
+export type NotamNavaidSnapshot = Omit<NotamAirportSnapshot, 'query' | 'scope' | 'associationCoverage'> & {
+  query: NotamNavaidQuery; scope: 'navaid-location';
+  /** Complete for the station location; accept the old fixed incomplete flag on saved/server responses. */
+  associationCoverage: 'complete' | 'incomplete';
+};
+export type NotamRegionSnapshot = Omit<NotamAirportSnapshot, 'query' | 'scope'> & {
+  query: NotamRegionQuery; scope: 'region-location';
+};
+export type NotamSnapshot = NotamAirportSnapshot | NotamNavaidSnapshot | NotamRegionSnapshot;
 
 const text = (v: unknown, max = 256 * 1024): v is string => typeof v === 'string' && v.length <= max;
 const time = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v < 8.64e15;
@@ -65,6 +77,22 @@ export function isNotamAirportQuery(v: unknown): v is NotamAirportQuery {
 }
 export function notamAirportKey(query: NotamAirportQuery): string {
   return `faa:${query.faaId ?? ''}|icao:${query.icaoId ?? ''}`;
+}
+export function isNotamNavaidQuery(v: unknown): v is NotamNavaidQuery {
+  return isRecord(v) && Object.keys(v).length === 1 && typeof v.navaidId === 'string' && /^[A-Z0-9]{2,5}$/.test(v.navaidId);
+}
+export function isNotamRegionQuery(v: unknown): v is NotamRegionQuery {
+  return isRecord(v) && Object.keys(v).every(k => k === 'artccId' || k === 'firId') &&
+    (v.artccId !== undefined || v.firId !== undefined) &&
+    (v.artccId === undefined || typeof v.artccId === 'string' && /^Z[A-Z]{2}$/.test(v.artccId)) &&
+    (v.firId === undefined || typeof v.firId === 'string' && /^[A-Z]{4}$/.test(v.firId));
+}
+export function isNotamQuery(v: unknown): v is NotamQuery {
+  return isNotamAirportQuery(v) || isNotamNavaidQuery(v) || isNotamRegionQuery(v);
+}
+export function notamQueryKey(query: NotamQuery): string {
+  return isNotamRegionQuery(query) ? `artcc:${query.artccId ?? ''}|fir:${query.firId ?? ''}`
+    : 'navaidId' in query ? `navaid:${query.navaidId}` : notamAirportKey(query);
 }
 export function isNotamRecord(v: unknown): v is NotamRecord {
   return isRecord(v) && typeof v.id === 'string' && /^\d{16}$/.test(v.id) &&
@@ -106,9 +134,21 @@ export function isNotamSourceIssue(v: unknown): v is NotamSourceIssue {
     new Set(v.variants.map(r => r.revision)).size === v.variants.length;
 }
 export function isNotamAirportSnapshot(v: unknown): v is NotamAirportSnapshot {
-  return isRecord(v) && v.schemaVersion === 1 && isNotamAirportQuery(v.query) &&
+  return isRecord(v) && v.scope === 'airport-location' && isNotamAirportQuery(v.query) && isSnapshotContent(v);
+}
+export function isNotamNavaidSnapshot(v: unknown): v is NotamNavaidSnapshot {
+  return isRecord(v) && v.scope === 'navaid-location' && isNotamNavaidQuery(v.query) && isSnapshotContent(v);
+}
+export function isNotamRegionSnapshot(v: unknown): v is NotamRegionSnapshot {
+  return isRecord(v) && v.scope === 'region-location' && isNotamRegionQuery(v.query) && isSnapshotContent(v);
+}
+export function isNotamSnapshot(v: unknown): v is NotamSnapshot {
+  return isNotamAirportSnapshot(v) || isNotamNavaidSnapshot(v) || isNotamRegionSnapshot(v);
+}
+function isSnapshotContent(v: Record<string, unknown>): boolean {
+  return v.schemaVersion === 1 &&
     isNotamFeedStatus(v.feed) && v.feed.generation !== null && v.feed.environment !== null &&
-    v.scope === 'airport-location' && ['complete', 'incomplete'].includes(String(v.associationCoverage)) &&
+    ['complete', 'incomplete'].includes(String(v.associationCoverage)) &&
     Array.isArray(v.records) && v.records.length <= NOTAM_AIRPORT_MAX_RECORDS && v.records.every(isNotamRecord) &&
     new Set(v.records.map(r => r.id)).size === v.records.length &&
     (v.contentCoverage === undefined && v.issues === undefined ||

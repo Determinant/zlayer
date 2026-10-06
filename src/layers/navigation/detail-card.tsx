@@ -20,7 +20,7 @@ export type FeatureDetailCardProps = {
   actions: ReactNode; identification: ReactNode | undefined; onIdentificationChange(open: boolean): void;
   info: DetailBody; elevation: DetailBody; plates: DetailBody | undefined;
   runways?: DetailBody | undefined;
-  notams?: DetailBody | undefined;
+  notams?: { header?: ReactNode; contentKey?: string; body: DetailBody } | undefined;
 };
 export function FeatureDetailCard({ feature, revision, placement, onClose, actions,
   identification, onIdentificationChange, info, elevation, plates, runways, notams }: FeatureDetailCardProps) {
@@ -35,6 +35,7 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
   const hasPlates = plates !== undefined;
   const tabs = DETAIL_TABS.filter(t => t.value === 'info' || t.value === 'plates' && hasPlates || t.value === 'notams' && notams);
   const hasTabs = tabs.length > 1;
+  const navaid = feature.properties.kind === 'navaid';
   const selectedTab = tabs.some(t => t.value === tab) ? tab : 'info';
   const activeTab = identification ? undefined : selectedTab;
   const detailRows = featureDetailRows(feature, false);
@@ -46,18 +47,21 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
   return (
     <DetailPanel panel={panel} label={`${label} details`} tab={placement}
       title={label} titleHint={label === ident ? undefined : ident} actions={actions}
-      onClose={onClose} closeLabel="Close detail" wide={hasTabs}
+      onClose={onClose} closeLabel="Close detail" wide={hasTabs && !navaid}
       className={`feature-details-panel${hasPlates ? ' has-plates' : ''}`}
       bodyClassName={`${hasPlates ? 'has-plates' : ''}${feature.properties.kind === 'coordinate' ? ' is-coordinate' : ''}`}
       icon={<><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10v.01" /></>}
-      contentLabel={identification ? 'Feature identification' : selectedTab === 'info' ? 'Feature information' : selectedTab === 'plates' ? 'Airport plates' : 'Airport NOTAMs'}
+      contentLabel={identification ? 'Feature identification' : selectedTab === 'info' ? 'Feature information' : selectedTab === 'plates' ? 'Airport plates'
+        : navaid ? 'Navaid NOTAMs' : 'Airport NOTAMs'}
+      contentKey={notams?.contentKey}
       header={<>
         <span className="eyebrow">{String(feature.properties.kind ?? 'FAA feature')}</span>
         <p>{featureSubtitle(feature)}</p>
         {feature.properties.kind !== 'coordinate' &&
           <p className="feature-edition">FAA {formatDate(String(feature.properties.dataRevision ?? revision))}</p>}
-        {hasTabs && <TabList id={tabsId} label="Airport detail" tabs={tabs} value={activeTab}
+        {hasTabs && <TabList id={tabsId} label={navaid ? 'Navaid detail' : 'Airport detail'} tabs={tabs} value={activeTab}
           onChange={next => { onIdentificationChange(false); setTab(next); }} className="feature-tabs" />}
+        {activeTab === 'notams' && notams?.header && <div className="feature-tabs">{notams.header}</div>}
       </>}>
       {identification && <div key="id" className="content-reveal">{identification}</div>}
       <div {...(hasTabs ? tabPanelProps(tabsId, 'info', activeTab) : { hidden: !!identification })}>
@@ -83,7 +87,7 @@ export function FeatureDetailCard({ feature, revision, placement, onClose, actio
         {activeTab === 'plates' && <div className="content-reveal">{plates(panel.open)}</div>}
       </div>}
       {notams && <div {...tabPanelProps(tabsId, 'notams', activeTab)}>
-        {activeTab === 'notams' && <div className="content-reveal">{notams(panel.open)}</div>}
+        {activeTab === 'notams' && <div className="content-reveal">{notams.body(panel.open)}</div>}
       </div>}
     </DetailPanel>
   );

@@ -451,7 +451,7 @@ function isPointFeature(feature: MapGeoJSONFeature): feature is MapPointFeature 
 
 function toPointFeature(feature: MapPointFeature): GeoPointFeature {
   // Route markers also carry navigation data. Do not persist their transient
-  // editing state when a selected/snapped point is reused in another route.
+  // editing and label state when a selected/snapped point is reused in another route.
   const properties = { ...feature.properties };
   // Tile encoding can turn a string GeoJSON ID into 0. Recover the original
   // identity so named points still match their navigation data and route entries.
@@ -460,7 +460,7 @@ function toPointFeature(feature: MapPointFeature): GeoPointFeature {
   delete properties.mapFeatureId;
   if (feature.source === ROUTE_SOURCE_ID) {
     for (const key of ['routeKind', 'routePointId', 'navigationLayer', 'editKind', 'editEntryId', 'planRevision', 'dragging', 'snapped',
-      'displayIdent', 'approachRole', 'holdLabelOnRight', 'approachPoint']) {
+      'mapLabelKey', 'displayIdent', 'approachRole', 'holdLabelOnRight', 'approachPoint']) {
       delete properties[key];
     }
   }

@@ -4,7 +4,9 @@ import { readFile, rm } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import { isNotamRecord, NOTAM_AIRPORT_MAX_RECORDS, NOTAM_REFRESH_MS, NOTAM_STALE_MS,
-  type NotamAirportQuery, type NotamAirportSnapshot, type NotamEnvironment, type NotamFeedStatus, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
+  type NotamAirportQuery, type NotamAirportSnapshot, type NotamNavaidQuery, type NotamNavaidSnapshot,
+  type NotamRegionQuery, type NotamRegionSnapshot,
+  type NotamEnvironment, type NotamFeedStatus, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { workerJob } from '../worker-job';
 import { createNotamSource, type NotamCredentials } from './client';
 import { NotamError, notamError } from './error';
@@ -202,6 +204,26 @@ export function createNotamService(options: NotamOptions | undefined,
   }
   return {
     restore, refresh, get status() { return status(); },
+    readRegion(query: NotamRegionQuery): NotamRegionSnapshot | undefined {
+      if (!current) return undefined;
+      const records = boundedUnion([query.artccId ? domestic.get(query.artccId) ?? [] : [],
+        query.firId ? icao.get(query.firId) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS);
+      const issues = boundedUnion([unscopedIssues, query.artccId ? domesticIssues.get(query.artccId) ?? [] : [],
+        query.firId ? icaoIssues.get(query.firId) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS - records.length);
+      const feed = status();
+      return { schemaVersion: 1, query, feed, scope: 'region-location',
+        associationCoverage: query.artccId ? 'complete' : 'incomplete', records, issues,
+        contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
+    },
+    readNavaid(query: NotamNavaidQuery): NotamNavaidSnapshot | undefined {
+      if (!current) return undefined;
+      const records = boundedUnion([domestic.get(query.navaidId) ?? []], NOTAM_AIRPORT_MAX_RECORDS);
+      const issues = boundedUnion([unscopedIssues, domesticIssues.get(query.navaidId) ?? []], NOTAM_AIRPORT_MAX_RECORDS - records.length);
+      const feed = status();
+      // Preserve the schema-1 value accepted by already deployed clients.
+      return { schemaVersion: 1, query, feed, scope: 'navaid-location', associationCoverage: 'incomplete', records, issues,
+        contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
+    },
     readAirport(query: NotamAirportQuery): NotamAirportSnapshot | undefined {
       if (!current) return undefined;
       const records = boundedUnion([query.faaId ? domestic.get(query.faaId) ?? [] : [],

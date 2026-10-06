@@ -39,12 +39,8 @@ export function notamFlairs(parsed: ParsedNotam): NotamFlair[] {
   return result;
 }
 
-const interpretationNotes: Record<NotamInterpretationIssue, { label: string; detail: string }> = {
-  subject: { label: 'Subject Unclear', detail: 'The subject could not be established from the source wording.' },
-  'procedure-target': { label: 'Affected Procedures Unclear', detail: 'The affected named procedures could not be established. Review applicability in the full notice.' },
+const interpretationNotes: Partial<Record<NotamInterpretationIssue, { label: string; detail: string }>> = {
   'procedure-exceptions': { label: 'Check Procedure Exceptions', detail: 'This all-approach notice includes exclusions or conditions. Review them for the displayed procedure.' },
-  'facility-dependency': { label: 'Procedure Applicability Unconfirmed', detail: 'The navigation facility notice does not establish which procedures depend on the affected facility or component.' },
-  headings: { label: 'Procedure Wording Unclear', detail: 'Some procedure headings could not be fully interpreted. Recognized headings do not establish the complete affected set.' },
   'fact-limit': { label: 'Additional Wording Needs Review', detail: 'The notice exceeds the supported number of derived facts. The complete source remains in the body and raw disclosure.' },
   'body-limit': { label: 'Additional Wording Needs Review', detail: 'The notice exceeds the supported interpretation length. The complete source remains available.' },
 };
@@ -52,8 +48,11 @@ const interpretationNotes: Record<NotamInterpretationIssue, { label: string; det
 export function notamInterpretationNotes(parsed: ParsedNotam): { label: string; detail: string }[] {
   const notes = new Map<string, string>();
   for (const issue of parsed.issues) {
-    if (issue === 'procedure-target' && parsed.issues.includes('headings')) continue;
-    const { label, detail } = interpretationNotes[issue];
+    // Subject/title/dependency coverage belongs to the plate's matching status.
+    // Individual notes describe a reading/operational limitation, not a parser state.
+    const note = interpretationNotes[issue];
+    if (!note) continue;
+    const { label, detail } = note;
     notes.set(label, [notes.get(label), detail].filter(Boolean).join(' '));
   }
   return [...notes].map(([label, detail]) => ({ label, detail }));

@@ -319,6 +319,10 @@ export type GeoPointProperties = Record<string, unknown> & {
   frequencies?: AirportFrequency[];
   terminalFrequencies?: AirportTerminalFrequency[];
   centerFrequencies?: AirportCenterFrequency[];
+  /** NASR APT_BASE.RESP_ARTCC_ID; responsibility is not a geometric boundary. */
+  responsibleArtcc?: string;
+  /** Explicit published FIR association, when supplied by the navigation source. */
+  firId?: string;
   /** Published VOR station alignment relative to true north; east positive. */
   stationDeclinationDeg?: number;
   longestRunwayFt?: number;

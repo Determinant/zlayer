@@ -21,9 +21,10 @@ export function useNotamsApi(registry: PluginRegistry<WorkspacePluginApis>): Not
       setApi({ state, charted, contextActions: point => connection.signal.aborted ? [] : provider.contextActions(point),
         retain: (query, online) => connection.signal.aborted ? () => {} : provider.retain(query, online),
         previewChart: () => {
-          if (connection.signal.aborted) return { update() {}, release() {} };
+          if (connection.signal.aborted) return { update() {}, highlight: () => () => {}, release() {} };
           const preview = provider.previewChart(), release = connection.add(preview.release);
-          return { update(records) { if (!connection.signal.aborted) preview.update(records); }, release };
+          return { update(records) { if (!connection.signal.aborted) preview.update(records); },
+            highlight: key => connection.signal.aborted ? () => {} : preview.highlight(key), release };
         },
         retry: () => { if (!connection.signal.aborted) provider.retry(); } });
     });

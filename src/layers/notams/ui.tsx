@@ -1,10 +1,11 @@
 import { notamFlairs, notamInterpretationNotes } from './flairs';
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { isNotamAirportQuery, notamAirportKey, NOTAM_STALE_MS, type NotamAirportQuery, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { isNotamAirportQuery, notamQueryKey, NOTAM_STALE_MS, type NotamAirportQuery, type NotamRegionQuery, type NotamQuery, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { useOnline } from '../../core/use-online';
 import { formatCheckedAt, formatTimestamp, formatTimestampPair } from '../../core/format/time';
 import { LoadingPlaceholder } from '../../core/ui/loading-placeholder';
+import { TabList, tabPanelProps } from '../../core/ui/tabs';
 import type { NotamsApi, NotamMapPreview } from './public';
 import type { PlateNoticeContext } from '../plates/public';
 import { matchPlateNotams, type PlateNotamMatch } from './matcher';
@@ -13,6 +14,9 @@ import { airportNotamPriority } from './priority';
 import { presentNotam, type NotamBodyBlock } from './presentation';
 import { notamEndKind, notamValidity } from './validity';
 import { chartedNotamPresentation, notamChartKey } from './chart';
+import { navaidNotamContext, partitionNavaidNotams, type NavaidNotamContext } from './navaid';
+export { airportNotamRegion } from './region';
+import type { GeoPointFeature } from '@zlayer/contracts';
 import './styles.css';
 
 const visible = () => document.visibilityState !== 'hidden';
@@ -25,11 +29,11 @@ export function airportNotamQuery(airport: { faaId?: unknown; icaoId?: unknown }
     ...(typeof airport.icaoId === 'string' && airport.icaoId.trim() ? { icaoId: airport.icaoId.trim().toUpperCase() } : {}) };
   return isNotamAirportQuery(query) ? query : undefined;
 }
-function useAirportNotams(api: NotamsApi, query: NotamAirportQuery | undefined, active: boolean) {
+function useNotams(api: NotamsApi, query: NotamQuery | undefined, active: boolean) {
   const online = useOnline(), visiblePage = useSyncExternalStore(subscribeVisibility, visible, () => false);
-  const state = useLayerSnapshot(api.state), key = query ? notamAirportKey(query) : '';
+  const state = useLayerSnapshot(api.state), key = query ? notamQueryKey(query) : '';
   useEffect(() => active && visiblePage && query ? api.retain(query, online) : undefined, [api, key, active, online, visiblePage]);
-  const entry = state.airports[key], snapshot = entry?.snapshot;
+  const entry = state.queries[key], snapshot = entry?.snapshot;
   const checked = snapshot?.feed.checkedAt;
   const fresh = checked !== null && checked !== undefined && state.now >= checked && state.now - checked < NOTAM_STALE_MS;
   const complete = (snapshot?.contentCoverage ?? snapshot?.feed.continuity) === 'complete' && snapshot?.associationCoverage === 'complete';
@@ -44,9 +48,10 @@ function useChartPreview(api: NotamsApi, entries: readonly { record: NotamRecord
     return () => { preview.release(); if (current.current === preview) current.current = undefined; };
   }, [api, active]);
   useEffect(() => { current.current?.update(entries.map(entry => entry.record)); }, [api, active, entries]);
-  return useMemo(() => new Set(active ? charted : []), [active, charted]);
+  const highlight = useCallback((key: string) => current.current?.highlight(key), []);
+  return { charted: useMemo(() => new Set(active ? charted : []), [active, charted]), highlight };
 }
-type View = ReturnType<typeof useAirportNotams>;
+type View = ReturnType<typeof useNotams>;
 const classification = (record: NotamRecord) => record.classification === 'DOMESTIC' || record.classification === 'DOM' ? 'D'
   : record.classification === 'FDC' ? 'FDC' : `Other · ${record.classification || 'Unclassified'}`;
 function displayNumber(record: NotamRecord): string {
@@ -67,8 +72,11 @@ function RefreshNotams({ view, api }: { view: View; api: NotamsApi }) {
     </svg>
   </button>;
 }
-function SourceStatus({ view }: { view: View }) {
-  const { snapshot, entry, online, now, fresh, complete, staging } = view;
+export function SourceStatus({ view }: { view: View }) {
+  const { snapshot, entry, online, now, fresh, staging } = view;
+  // Older responses mark every station incomplete; coverage here is the station's own notices.
+  const complete = snapshot?.scope === 'navaid-location'
+    ? (snapshot.contentCoverage ?? snapshot.feed.continuity) === 'complete' : view.complete;
   return <div className="notam-source">
     {staging ? <>
       <strong>Testing with FAA staging data. Notices may be incomplete. Do not use for flight planning.</strong>
@@ -90,7 +98,7 @@ export function NotamSourceIssues({ issues }: { issues: readonly NotamSourceIssu
       <p>{issue.reason === 'unsupported-lifecycle' ? 'The source does not establish whether this notice is active or cancelled.'
         : issue.reason === 'representation-limit' ? 'The source supplied more representations than can be safely combined.'
           : 'The source supplied different versions without a newer revision. No version has been chosen as authoritative.'}</p>
-      {issue.unscoped && <p>Airport applicability is uncertain. This warning is shown for all airports.</p>}
+      {issue.unscoped && <p>Location applicability is uncertain. This warning is shown for all locations.</p>}
       {issue.variantsTruncated && <p>Additional source versions were received. The retained examples below are not exhaustive.</p>}
       <details className="notam-raw"><summary>Review FAA source versions</summary>
         {issue.variants.map((record, index) => <div key={record.revision}>
@@ -155,7 +163,13 @@ function ReadableBlock({ block, context }: { block: NotamBodyBlock; context?: st
   </div>;
   return <p className={block.kind === 'context' ? 'notam-body-context' : 'notam-text'}>{block.text}</p>;
 }
-function NotamEntry({ record, now, reason, charted }: { record: NotamRecord; now: number; reason?: string; charted: boolean }) {
+type HighlightNotam = (key: string) => (() => void) | undefined;
+function NotamEntry({ record, now, reason, charted, highlight }: {
+  record: NotamRecord; now: number; reason?: string; charted: boolean; highlight?: HighlightNotam | undefined;
+}) {
+  const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
+  const interactive = charted && !!highlight, key = notamChartKey(record);
+  useEffect(() => interactive && (hovered || focused) ? highlight?.(key) : undefined, [interactive, hovered, focused, highlight, key]);
   const parsed = useMemo(() => parseNotam(record), [record]);
   const flairs = useMemo(() => notamFlairs(parsed), [parsed]);
   const interpretationNotes = useMemo(() => notamInterpretationNotes(parsed), [parsed]);
@@ -169,7 +183,9 @@ function NotamEntry({ record, now, reason, charted }: { record: NotamRecord; now
   // Compare complete words after whitespace folding; display the supplied text unchanged.
   const showSourceBody = !originals.length || !!body && !originals.some(translation =>
     ` ${translation.text.replace(/\s+/g, ' ').trim()} `.includes(` ${body} `));
-  return <article className="notam-entry">
+  return <article className={`notam-entry${interactive ? ' notam-entry--charted' : ''}`} tabIndex={interactive ? 0 : undefined}
+    onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true); }} onPointerLeave={() => setHovered(false)}
+    onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
     <div className="notam-entry-heading"><strong>{classification(record)} · {displayNumber(record)}</strong>
       <span>{record.locations.join(', ') || record.icaoLocations.join(', ')}</span></div>
     <div className="notam-flairs">{flairs.map(flair => <span key={flair.label} className={`notam-flair--${flair.tone}`} title={flair.evidence.map(source => source.text).join('\n')}>{flair.label}</span>)}
@@ -196,7 +212,9 @@ function NotamEntry({ record, now, reason, charted }: { record: NotamRecord; now
   </article>;
 }
 type NotamListEntry = { record: NotamRecord; reason?: string; outcome?: PlateNotamMatch['outcome'] };
-export function NotamList({ entries, now, charted }: { entries: readonly NotamListEntry[]; now: number; charted?: ReadonlySet<string> | undefined }) {
+export function NotamList({ entries, now, charted, highlight }: {
+  entries: readonly NotamListEntry[]; now: number; charted?: ReadonlySet<string> | undefined; highlight?: HighlightNotam | undefined;
+}) {
   const sections: { key: string; title: string; entries: NotamListEntry[] }[] = [
     { key: 'active', title: 'Active', entries: [] },
     { key: 'check', title: 'Check timing', entries: [] },
@@ -207,7 +225,8 @@ export function NotamList({ entries, now, charted }: { entries: readonly NotamLi
     sections[validity === 'upcoming' ? 2 : validity === 'within interval' ? 0 : 1]!.entries.push(entry);
   }
   const renderEntries = (items: readonly NotamListEntry[]) => items.map(({ record, reason }) =>
-    <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={now} charted={charted?.has(notamChartKey(record)) ?? false} {...(reason ? { reason } : {})} />);
+    <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={now} charted={charted?.has(notamChartKey(record)) ?? false}
+      highlight={highlight} {...(reason ? { reason } : {})} />);
   const populated = sections.filter(section => section.entries.length);
   if (!populated.length) return null;
   return <div className="notam-list">{populated.map(section =>
@@ -217,43 +236,94 @@ export function NotamList({ entries, now, charted }: { entries: readonly NotamLi
         const group = section.entries.filter(entry => entry.outcome === outcome)
           .sort((a, b) => Number(b.record.classification === 'FDC') - Number(a.record.classification === 'FDC'));
         return group.length ? <div key={outcome}>
-          <h4 className="notam-match-heading">{outcome === 'applies' ? 'Applies to this plate' : 'Review applicability'}</h4>
+          <h4 className="notam-match-heading">{outcome === 'applies' ? 'Related to this plate' : 'Review applicability'}</h4>
           {renderEntries(group)}
         </div> : null;
       }) : renderEntries(section.entries)}
     </section>)}</div>;
 }
-export function AirportNotams({ api, query, active }: { api: NotamsApi; query: NotamAirportQuery; active: boolean }) {
-  const view = useAirportNotams(api, query, active), [filter, setFilter] = useState('all'), [subject, setSubject] = useState('all'), [search, setSearch] = useState('');
-  const key = notamAirportKey(query);
-  useEffect(() => { setFilter('all'); setSubject('all'); setSearch(''); }, [key]);
-  const records = useMemo(() => currentRecords(view.snapshot?.records ?? [], view.now)
-    .filter(r => filter === 'other' || !['INTL', 'MIL'].includes(r.classification)), [view.snapshot, view.now, filter]);
+/** The host places area selection in its fixed header and notices in its scroll body. */
+export function useAirportNotamView({ api, query, region }: {
+  api: NotamsApi | undefined; query: NotamAirportQuery | undefined; region?: NotamRegionQuery | undefined;
+}) {
+  const [scope, setScope] = useState<'airport' | 'region'>('airport'), tabsId = useId();
+  useEffect(() => setScope('airport'), [query?.faaId, query?.icaoId]);
+  if (!api || !query) return undefined;
+  return {
+    contentKey: `${notamQueryKey(query)}:${scope}`,
+    header: <TabList id={tabsId} label="NOTAM area" size="slim" value={scope} onChange={setScope}
+      tabs={[{ value: 'airport', label: 'Airport' }, { value: 'region', label: 'ARTCC / FIR' }]} />,
+    body: (active: boolean) => <>
+      <div {...tabPanelProps(tabsId, 'airport', scope)}>
+        {scope === 'airport' && <LocationNotams key={notamQueryKey(query)} api={api} query={query} active={active} />}
+      </div>
+      <div {...tabPanelProps(tabsId, 'region', scope)}>
+        {scope === 'region' && (region ? <LocationNotams key={notamQueryKey(region)} api={api} query={region} region={region} active={active} />
+          : <p className="notam-list-status">ARTCC/FIR lookup is unavailable because this airport’s navigation data has no published regional association.</p>)}
+      </div>
+    </>,
+  };
+}
+export function NavaidNotams({ api, feature, active }: { api: NotamsApi; feature: GeoPointFeature; active: boolean }) {
+  const context = useMemo(() => navaidNotamContext(feature), [feature]);
+  return context ? <LocationNotams api={api} query={context.query} active={active} navaid={context} />
+    : <p className="notam-list-status">NOTAM lookup is unavailable for this navaid’s published identity.</p>;
+}
+function LocationNotams({ api, query, active, navaid, region }: {
+  api: NotamsApi; query: NotamQuery; active: boolean; navaid?: NavaidNotamContext; region?: NotamRegionQuery;
+}) {
+  const view = useNotams(api, query, active), [filter, setFilter] = useState('all'), [subject, setSubject] = useState('all'), [search, setSearch] = useState('');
+  const [otherOpen, setOtherOpen] = useState(false), [filtersOpen, setFiltersOpen] = useState(false), filtersId = useId();
+  const key = notamQueryKey(query);
+  useEffect(() => { setFilter('all'); setSubject('all'); setSearch(''); setOtherOpen(false); setFiltersOpen(false); }, [key]);
+  const current = useMemo(() => currentRecords(view.snapshot?.records ?? [], view.now), [view.snapshot, view.now]);
+  const partition = useMemo(() => navaid ? partitionNavaidNotams(current, navaid) : undefined, [current, navaid]);
+  const records = useMemo(() => partition?.related ?? current
+    .filter(r => region || filter === 'other' || !['INTL', 'MIL'].includes(r.classification)), [partition, current, filter, region]);
   const parsed = useMemo(() => records.map(record => ({ record, parsed: parseNotam(record) }))
     .sort((a, b) => airportNotamPriority(a.parsed) - airportNotamPriority(b.parsed)), [records]);
   const subjects = [...new Set(parsed.map(p => p.parsed.subject ?? 'Other'))].sort();
-  const shown = useMemo(() => parsed.filter(({ record, parsed }) => (filter === 'all' || (filter === 'other' ? !['D', 'FDC'].includes(classification(record))
+  const shown = useMemo(() => partition ? parsed : parsed.filter(({ record, parsed }) => (filter === 'all' || (filter === 'other' ? !['D', 'FDC'].includes(classification(record))
     : classification(record) === filter)) && (subject === 'all' || (parsed.subject ?? 'Other') === subject) &&
-    `${parsed.body} ${presentNotam(record).searchText} ${record.number} ${record.translations.map(t => t.text).join(' ')}`.toUpperCase().includes(search.toUpperCase())), [parsed, filter, subject, search]);
-  const charted = useChartPreview(api, shown, active && view.visiblePage);
-  return <section className="airport-notams" aria-label="Airport NOTAMs">
+    `${parsed.body} ${presentNotam(record).searchText} ${record.number} ${record.translations.map(t => t.text).join(' ')}`.toUpperCase().includes(search.toUpperCase())), [partition, parsed, filter, subject, search]);
+  const preview = useChartPreview(api, shown, active && view.visiblePage);
+  const activeFilters = [filter === 'all' ? '' : filter === 'other' ? 'Other / Unclassified' : filter,
+    subject === 'all' ? '' : subject, search ? `Search: “${search}”` : ''].filter(Boolean);
+  return <section className="airport-notams" aria-label={region ? 'Regional NOTAMs' : navaid ? 'Navaid NOTAMs' : 'Airport NOTAMs'}>
     <SourceStatus view={view} />
     <NotamSourceIssues issues={view.snapshot?.issues ?? []} />
-    <div className="notam-filters">
-      <label>Classification<select className="ui-input" aria-label="Classification" value={filter} onChange={e => setFilter(e.target.value)}>
-        <option value="all">All</option><option value="D">D</option><option value="FDC">FDC</option><option value="other">Other / Unclassified</option>
-      </select></label>
-      <label>Subject<select className="ui-input" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)}>
-        <option value="all">All subjects</option>{subjects.map(s => <option key={s}>{s}</option>)}</select></label>
-      <div className="notam-search-row">
-        <label>Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
-        <RefreshNotams view={view} api={api} />
+    {!navaid && <div className="notam-filter-controls">
+      <div className="notam-filter-toolbar">
+        <button type="button" className="ui-button ui-button--quiet ui-button--slim notam-filter-toggle"
+          aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(open => !open)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+          Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
+        </button>
+        {activeFilters.length > 0 && <button type="button" className="ui-button ui-button--quiet ui-button--slim" aria-label="Clear NOTAM filters"
+          onClick={() => { setFilter('all'); setSubject('all'); setSearch(''); }}>Clear</button>}
+        {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices</p>}
       </div>
-    </div>
+      {!filtersOpen && activeFilters.length > 0 && <p className="notam-list-status">{activeFilters.join(' · ')}</p>}
+      <div id={filtersId} hidden={!filtersOpen}>
+        {filtersOpen && <div className="notam-filters">
+          <label>Classification<select className="ui-input" aria-label="Classification" value={filter} onChange={e => setFilter(e.target.value)}>
+            <option value="all">All</option><option value="D">D</option><option value="FDC">FDC</option><option value="other">Other / Unclassified</option>
+          </select></label>
+          <label>Subject<select className="ui-input" aria-label="Subject" value={subject} onChange={e => setSubject(e.target.value)}>
+            <option value="all">All subjects</option>{subjects.map(s => <option key={s}>{s}</option>)}</select></label>
+          <label className="notam-search">Search<input type="search" className="ui-input" value={search} onChange={e => setSearch(e.target.value)} /></label>
+        </div>}
+      </div>
+    </div>}
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
-    {view.snapshot && <p className="notam-list-status">{shown.length} of {records.length} retained notices</p>}
-    <NotamList entries={shown} now={view.now} charted={charted} />
-    {view.snapshot && !shown.length && <p className="notam-list-status">{records.length ? 'No notices match these filters.' : 'No retained notices.'}</p>}
+    <NotamList entries={shown} now={view.now} {...preview} />
+    {view.snapshot && !shown.length && <p className="notam-list-status">{(partition?.related.length || records.length) ? 'No notices match these filters.'
+      : region ? 'No retained regional notices in this snapshot.' : navaid ? 'No directly associated facility notices in this snapshot.' : 'No retained notices.'}</p>}
+    {navaid && view.snapshot && <details className="notam-raw" open={otherOpen} onToggle={event => setOtherOpen(event.currentTarget.open)}>
+      <summary>Other notices filed under {navaid.query.navaidId} ({partition!.other.length})</summary>
+      <p className="notam-list-status">These location notices have not been associated with the selected navaid.</p>
+      {otherOpen && <NotamList entries={partition!.other.map(record => ({ record }))} now={view.now} />}
+    </details>}
   </section>;
 }
 /** Rows and the collapsed reader use exactly the same assurance qualifiers. */
@@ -262,7 +332,6 @@ function plateMatchLabel(view: View, result: ReturnType<typeof matchPlateNotams>
   const review = result.matches.filter(m => m.outcome === 'review').length;
   const labels = [`${result.matches.length} matched`];
   if (review) labels.push(`${review} review`);
-  if (result.unresolved) labels.push('Interpretation limited');
   if (view.snapshot.issues?.length) labels.push('Source data needs review');
   else if (!view.complete) labels.push('Coverage incomplete');
   if (!view.online) labels.push('Offline');
@@ -274,46 +343,81 @@ function plateMatchLabel(view: View, result: ReturnType<typeof matchPlateNotams>
   return labels.join(' · ');
 }
 export function PlateNotamCount({ api, context, active }: { api: NotamsApi; context: PlateNoticeContext; active: boolean }) {
-  const view = useAirportNotams(api, context.status === 'resolved' ? context.airport : undefined, active);
+  const view = useNotams(api, context.status === 'resolved' ? context.airport : undefined, active);
   const result = useMemo(() => matchPlateNotams(currentRecords(view.snapshot?.records ?? [], view.now), context), [view.snapshot, view.now, context]);
   if (context.status !== 'resolved') return null;
   const count = result.matches.length, sourceIssues = view.snapshot?.issues?.length ?? 0;
-  return <small className={`plate-notam-count${count || sourceIssues || result.unresolved ? ' has-notams' : ''}`}>NOTAM · {view.snapshot
+  return <small className={`plate-notam-count${count || sourceIssues ? ' has-notams' : ''}`}>NOTAM · {view.snapshot
     ? plateMatchLabel(view, result)
     : view.entry?.loading ? 'Checking…' : 'Unavailable'}</small>;
 }
-export function PlateNotams({ api, context, active, retryCatalog }: {
+type PlateNotamsProps = {
   api: NotamsApi; context: PlateNoticeContext; active: boolean; retryCatalog?: (() => void) | undefined;
+};
+export function PlateNotams(props: PlateNotamsProps) {
+  const { context } = props;
+  const [choice, setChoice] = useState<{ page: string; key: string }>();
+  const selected = choice?.page === context.key ? context.choices?.find(c => c.key === choice.key) : undefined;
+  const effective = selected ?? context;
+  const value = selected?.key ?? context.choices?.find(c => c.procedure?.id === context.procedure?.id &&
+    c.airport?.faaId === context.airport?.faaId)?.key ?? '';
+  const picker = context.choices && <label className="plate-notam-section">Airport / chart section
+      <select className="ui-input" value={value} onChange={event => setChoice({ page: context.key, key: event.target.value })}>
+        <option value="" disabled>Choose a section on this shared page</option>
+        {context.choices.map(c => <option key={c.key} value={c.key}>{c.airport?.icaoId ?? c.airport?.faaId} · {c.procedure?.name}</option>)}
+      </select>
+    </label>;
+  return <PlateNotamsForContext {...props} context={effective} pageKey={context.key} picker={picker} />;
+}
+
+/** Shared, testable reading path. A successful match never hides the airport list
+ * or another unassociated heading from the same notice. */
+export function PlateNotamResults({ records, result, now, charted, highlight }: {
+  records: readonly NotamRecord[]; result: ReturnType<typeof matchPlateNotams>; now: number; charted?: ReadonlySet<string> | undefined;
+  highlight?: HighlightNotam | undefined;
 }) {
-  const view = useAirportNotams(api, context.status === 'resolved' ? context.airport : undefined, active);
+  const [airportOpen, setAirportOpen] = useState(false);
+  return <>
+    <NotamList entries={result.matches} now={now} charted={charted} highlight={highlight} />
+    {!result.matches.length && <p className="notam-list-status">No established matches. Review the airport NOTAMs below.</p>}
+    {result.unresolved > 0 && <p className="notam-list-status">Matching is incomplete for {result.unresolved} airport notice(s). Other notices may be relevant to this plate.</p>}
+    {result.unmatchedTargets.length > 0 && <details className="notam-raw"><summary>Unmatched procedure references</summary>
+      {result.unmatchedTargets.map(({ record, titles }) => <p key={record.id}>{displayNumber(record)} · {titles.join('; ')}</p>)}
+    </details>}
+    <details className="notam-raw" onToggle={event => setAirportOpen(event.currentTarget.open)}><summary>Show all airport NOTAMs ({records.length})</summary>
+      {airportOpen && <NotamList entries={records.map(record => ({ record }))} now={now} />}
+    </details>
+  </>;
+}
+
+function PlateNotamsForContext({ api, context, active, retryCatalog, pageKey, picker }: PlateNotamsProps & {
+  pageKey: string; picker: ReactNode;
+}) {
+  const view = useNotams(api, context.status === 'resolved' ? context.airport : undefined, active);
   const [openKey, setOpenKey] = useState<string>(), id = useId();
-  const open = openKey === context.key;
-  const result = useMemo(() => matchPlateNotams(currentRecords(view.snapshot?.records ?? [], view.now), context), [view.snapshot, view.now, context]);
-  const charted = useChartPreview(api, result.matches, active && open && view.visiblePage && context.status !== 'not-procedure');
+  const open = openKey === pageKey;
+  const records = useMemo(() => currentRecords(view.snapshot?.records ?? [], view.now), [view.snapshot, view.now]);
+  const result = useMemo(() => matchPlateNotams(records, context), [records, context]);
+  const preview = useChartPreview(api, result.matches, active && open && view.visiblePage && context.status !== 'not-procedure');
   if (context.status === 'not-procedure') return null;
   const count = result.matches.length, sourceIssues = view.snapshot?.issues?.length ?? 0;
-  const matchedIds = new Set(result.matches.map(m => m.record.id));
-  const unmatched = result.unresolvedNotices.filter(record => !matchedIds.has(record.id));
   const label = context.status === 'loading' ? 'Loading plate context…' : !result.available ? 'Matching unavailable' : !view.snapshot ? view.entry?.loading ? 'Checking…' : 'Unavailable'
     : plateMatchLabel(view, result);
-  return <section className={`plate-notams${count || sourceIssues || result.unresolved ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
+  return <section className={`plate-notams${count || sourceIssues ? ' has-notams' : ''}`} aria-label="Plate NOTAMs">
     <button className="ui-button plate-notam-toggle" type="button" aria-expanded={open} aria-controls={id}
-      onClick={() => setOpenKey(open ? undefined : context.key)}><span>NOTAM · {label}</span><span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
+      onClick={() => setOpenKey(open ? undefined : pageKey)}><span>NOTAM · {label}</span><span aria-hidden="true">{open ? '▴' : '▾'}</span></button>
     {open && <div id={id} className="plate-notams-list panel-scroll" role="region" aria-label="Notices for displayed plate" tabIndex={0}>
+      {picker}
       {!result.available ? context.status === 'loading' ? <LoadingPlaceholder label="Loading plate context…" rows={1} />
         : retryCatalog ? <div className="notam-recovery"><p className="notam-list-status">The plate catalog could not be loaded. Matching is unavailable.</p>
           <button type="button" className="ui-button ui-button--compact" onClick={retryCatalog}>Retry plate catalog</button></div>
-          : <p className="notam-list-status">This page’s airport and procedure could not be established from its edition. Reopen an indexed IAP, SID or STAR from Plates.</p> : <>
+          : <p className="notam-list-status">This page’s airport and procedure could not be established from its edition. Choose an indexed section or reopen the procedure from Plates.</p> : <>
         <strong className="plate-notams-heading">{context.airport?.icaoId ?? context.airport?.faaId} · {context.procedure?.name}</strong>
+        {context.sharedPage && <p className="notam-list-status">Showing notices for the selected airport and chart section on this shared page.</p>}
         <div className="notam-source-row"><SourceStatus view={view} /><RefreshNotams view={view} api={api} /></div>
         <NotamSourceIssues issues={view.snapshot?.issues ?? []} />
-        <NotamList entries={result.matches} now={view.now} charted={charted} />
-        {!count && <p className="notam-list-status">No matches in the retained notices.</p>}
-        {result.unresolved > 0 && <p className="notam-list-status">{result.unresolved} notice(s) have unresolved interpretation.</p>}
-        {unmatched.length > 0 && <details className="notam-raw"><summary>Review unmatched notices ({unmatched.length})</summary>
-          <p className="notam-list-status">Applicability to this plate could not be established. Review the retained source before relying on the match count.</p>
-          <NotamList entries={unmatched.map(record => ({ record }))} now={view.now} />
-        </details>}
+        {!view.snapshot && view.entry?.loading && <LoadingPlaceholder label="Loading NOTAMs…" rows={2} />}
+        {view.snapshot && <PlateNotamResults key={context.key} records={records} result={result} now={view.now} {...preview} />}
       </>}
     </div>}
   </section>;

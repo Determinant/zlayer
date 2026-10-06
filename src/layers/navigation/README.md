@@ -20,8 +20,14 @@ belong to [Routes](../routes/README.md).
 to the right of Plates, independently of plate availability. Navigation has no
 required dependency on NOTAMs. The workspace discovers the enabled NOTAM provider
 through core's scoped plugin bridge and supplies its view as an optional detail
-body; Navigation imports no NOTAM implementation. Disabling NOTAMs removes its tab
-and releases notice demand while keeping Navigation usable.
+body, fixed header and content key. The airport area tabs occupy that header
+below the main tabs; their content key resets the scroll body when the area changes.
+Navigation imports no NOTAM implementation. Disabling NOTAMs removes its tab
+and releases notice demand while keeping Navigation usable. Navaids use the same
+host with **Info | NOTAM**, without Plates. Adding the NOTAM tab preserves the
+original compact navaid frame; long content scrolls inside its existing body. The
+[navaid NOTAM guide](../notams/README.md#navaid-detail-tab) owns affected-station
+identity, component associations and coverage limits.
 
 The NOTAM guide owns notice parsing, freshness and display. Navigation owns the
 tab host and saved selection; the validator accepts `info`, `plates` and `notams`.
@@ -37,10 +43,39 @@ can resume when the provider is enabled again. Stowing releases visible NOTAM de
 | [data.ts](data.ts) | Shared station-alignment supplementation for ID and route identification, restricted to the selected FAA cycle and exact station identity |
 | [use-data.ts](use-data.ts), [use-search.ts](use-search.ts) | Visible-data loading and search orchestration |
 | [map.ts](map.ts), [layer.ts](layer.ts), [renderer.ts](renderer.ts) | Map resource lifecycle and rendering |
+| [selection-marker.ts](selection-marker.ts) | Unstowed detail focus and the selected entity's identifier |
 | [detail-card.tsx](detail-card.tsx), [airport-runways.tsx](airport-runways.tsx), [airport-frequencies.ts](airport-frequencies.ts) | Feature details and airport metadata |
 | [fix-display.ts](fix-display.ts), [symbols.ts](symbols.ts), [identification-layer.ts](identification-layer.ts) | Fix classification, symbology and navaid-identification rendering |
 
 ## Interaction efficiency
+
+An unstowed feature-details panel marks its selected point with a compact, open-center
+crosshair. This applies to airports, navaids, fixes, VFR waypoints, route points and
+inspected coordinates, including search and restored selections. Stowing, closing,
+switching to another right-hand panel or disabling Navigation removes the crosshair;
+reopening details restores it. The white crosshair has a black outline, follows map
+movement without animation or intercepting clicks, and does not participate in
+symbol collisions. Clicking the selected entity's label preserves the selection.
+
+Every selected entity retains one identifier beside the crosshair, independent of zoom,
+background visibility, weather-source updates and label collisions. While it is
+present, core's selection label claim removes duplicate navigation, METAR, route and
+coordinate-inspection labels from display, collision placement and hit testing;
+stowing releases that claim and restores normal label
+placement. GPS identifiers use the same degrees/minutes formatting as the detail
+heading. Entity symbols and weather colors remain visible through the crosshair's
+open center.
+
+While details are unstowed, the selected entity's native symbol draws above ordinary
+symbols and labels, including overlapping airport weather circles; ownship remains
+above it. Clicks follow that drawing order. This applies uniformly to airports,
+navaids, fixes, VFR waypoints, route points and inspected coordinates. Focus shares
+each product's existing source, shape, colors, zoom rules and visibility, and cannot
+reveal failed or disabled source data. Stowing restores ordinary drawing order.
+The shared host owns the [drawing bands](../../../docs/architecture/overview.md#map-rendering-stack),
+including late plugin attachment and re-enabling.
+Navaid-identification connections share the line band beneath entity symbols;
+their reference markers and radial/distance labels remain in the foreground.
 
 Search ranks navigation independently of weather and enriches only the returned
 airport matches. Observation updates cannot rescore national navigation data.

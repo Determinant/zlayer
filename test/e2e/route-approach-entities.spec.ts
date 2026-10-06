@@ -64,6 +64,8 @@ test('an approach fix appears once in map selection and keeps the existing fix d
     const card = page.locator('.feature-card');
     await expect(card).toContainText('ZOA');
     await expect(card).toContainText('Coordinates');
+    await expect(page.locator('.selection-marker')).toHaveCount(1);
+    await expect(page.locator('.selection-marker-label')).toHaveText('FREZZ');
     await expect(page.getByRole('button', { name: 'Remove approach from KSNS', exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('zlayer-ui:selected-feature')!).value.id)).toBe('fix:FREZZ');
     await page.screenshot({ path: testInfo.outputPath('existing-fix-details.png') });

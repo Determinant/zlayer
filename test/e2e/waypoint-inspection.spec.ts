@@ -160,6 +160,10 @@ test('the app inspects an empty location, adopts saved terrain and retains eleva
   await expect(elevation).toContainText('ft MSL');
   await expect(page.locator('.route-token')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Remove .* from route$/ })).toHaveCount(0);
+  await expect(page.locator('.selection-marker')).toHaveCount(1);
+  const selectedLabel = await page.locator('.feature-card h2').innerText();
+  await expect(page.locator('.selection-marker-label')).toHaveText(selectedLabel);
+  expect(selectedLabel).toMatch(/°.*′.*°.*′/);
   await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
   const saved = await page.evaluate(async () => {
     const path = '/assets/terrain-storage-test.js';
@@ -171,5 +175,7 @@ test('the app inspects an empty location, adopts saved terrain and retains eleva
   await context.setOffline(true);
   await page.reload();
   await expect(elevation).toContainText('≈ 2,150 ft MSL');
+  await expect(page.locator('.selection-marker')).toHaveCount(1);
+  await expect(page.locator('.selection-marker-label')).toHaveText(selectedLabel);
   await expect(page.locator('.route-token')).toHaveCount(0);
 });

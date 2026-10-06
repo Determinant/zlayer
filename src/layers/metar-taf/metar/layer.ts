@@ -6,7 +6,8 @@ import type { LayerDefinition } from '../../../core/layers/plugin';
 import { type MapLayerModule, removeLayerResources } from '../../../core/map/layer';
 import { createLayerStore } from '../../../core/layers/store';
 import { createMetarClient, METAR_REFRESH_MS, type MetarClient, type MetarSnapshot } from './client';
-import { installMetarLayers, METAR_LAYER_IDS, METAR_SOURCE_ID, syncMetarMap } from './renderer';
+import { installMetarLayers, METAR_LAYER_IDS, METAR_FOCUS_LAYER_IDS, METAR_SOURCE_ID, syncMetarMap } from './renderer';
+import { focusedLayerId } from '../../../core/map/focus';
 import { metarReportSummary } from './summary';
 import { OnDemandRefresh } from '../../../core/layers/on-demand-refresh';
 import { visibleMetarStationIds } from './visible-stations';
@@ -150,7 +151,8 @@ export function createMetarLayer(client: MetarClient = createMetarClient()) {
   };
 
   const layer: MapLayerModule<MetarInput> = {
-    id: 'metar', slot: 'weather', overlayLayerIds: METAR_LAYER_IDS, interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels'],
+    id: 'metar', slot: 'weather', overlayLayerIds: METAR_LAYER_IDS, focusedLayerIds: METAR_FOCUS_LAYER_IDS,
+    interactiveLayerIds: ['airports-weather-points', 'airports-weather-labels', focusedLayerId('airports-weather-points')],
     mount(target) {
       map = target;
       following = false;

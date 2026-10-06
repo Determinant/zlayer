@@ -33,7 +33,8 @@ const TfrStatus = product.footer[0]!.Component;
 const metarClient = createMetarClient();
 const resource = (window as unknown as { notamFixtureResource: ProcedureResourceRecord }).notamFixtureResource;
 const savedSelection = (window as unknown as { notamFixtureSelection: ProcedureSelection }).notamFixtureSelection;
-const airport = { faaId: 'TST', icaoId: 'KTST' };
+const airport = { faaId: 'TST', icaoId: 'KTST', country: 'US',
+  ...(new URLSearchParams(location.search).has('region') ? { responsibleArtcc: 'ZOA', firId: 'KZOA' } : {}) };
 function MapFixture({ enabled }: { enabled: boolean }) {
   const target = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ features: NearbyFeature[]; point: { x: number; y: number }; actions: MapContextAction[] }>();

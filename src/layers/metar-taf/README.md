@@ -53,6 +53,12 @@ the document is hidden and reconcile immediately on resume. A current local repo
 with no manually selected alternative avoids scanning the nearby-report cache. The METAR map identity and saved
 visibility setting remain `metar`; the directory name describes the module's scope.
 
+An airport with unstowed details draws its weather circle in the shared selected-symbol
+band, retaining the current category color. The focus layers share the METAR source
+and its visibility/suppression lifetime, so refreshes, expiry, failures and disabling
+cannot leave a stale foreground weather circle. A selected nearby navaid rises above
+ordinary weather circles. See the [map stack](../../../docs/architecture/overview.md#map-rendering-stack).
+
 Map METAR demand comes from rendered airport circles. Loading national airport references
 for search does **not** fetch METAR for every airport. Manual camera movement pauses
 requests until movement settles, while retaining the last settled station scope,

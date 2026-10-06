@@ -43,6 +43,7 @@ test('publisher heading variants keep the complete written procedure identity', 
     'arrival-abbreviation': ['GILCO FIVE'], 'wrapped-arrival': ['GTOUT ONE'],
     'arrival-prohibited': ['SHLAE ONE'], 'newline-airport-heading': ['PETTE TWO'], 'prm-approach': ['RNAV (GPS) PRM RWY 9R'],
     'category-approach': ['ILS OR LOC RWY 9L', 'ILS RWY 9L SA CAT I', 'ILS RWY 9L CAT II/III'],
+    'sat-category-approach': ['ILS OR LOC RWY 12', 'ILS RWY 12 (SAT CAT I)'],
     'copter-bearing': ['COPTER RNAV (GPS) 027'], 'converging-approach': ['ILS V RWY 17 (CONVERGING)'],
     'letter-variant': ['RNAV (GPS) M RWY 17L'], 'tacan-vor': ['HI - TACAN OR VOR-B'],
     'permanent-arrival': ['SARDI ONE'], 'permanent-approach': ['RNAV (GPS) Z  RWY 8'],
@@ -52,11 +53,32 @@ test('publisher heading variants keep the complete written procedure identity', 
     assert.equal(parseNotam(record(name)).unresolved, false, name);
   }
   assert.equal(parseNotam(record('permanent-approach')).targets[0]!.amendment, 'ORIG-B', 'later THIS IS wording cannot replace the affected amendment');
-  for (const title of ['UNSUPPORTED RNAV (GPS) RWY 09', 'ILS RWY 09 (SAT CAT I)', 'RNAV (GPS) RWY 39']) {
+  for (const title of ['UNSUPPORTED RNAV (GPS) RWY 09', 'ILS RWY 09 (SAT CAT II)', 'RNAV (GPS) RWY 39']) {
     const parsed = parseNotam(notice({ text: `IAP TEST, CA. ${title}, AMDT 1... LNAV MDA 600/HAT 300.` }));
     assert.equal(parsed.targets.length, 0, title); assert.equal(parsed.unresolved, true, title);
   }
-  assert.equal(parseNotam(record('unsupported-heading')).unresolved, true);
+});
+
+test('KOAK 6/6268 matches the published SA CAT I amendment without changing the source heading', () => {
+  const source = record('sat-category-approach'), before = JSON.stringify(source);
+  const context = (name: string, amendmentNumber = '8B') => ({ status: 'resolved' as const,
+    airport: { faaId: 'OAK', icaoId: 'KOAK' }, key: 'test', cycle: '2610',
+    effectiveDate: '2026-10-01', expirationDate: '2026-10-29',
+    procedure: { ...testProcedure, name, source: { ...testProcedure.source, amendmentNumber } } });
+  for (const title of ['ILS OR LOC RWY 12', 'ILS RWY 12 (SA CAT I)']) {
+    const result = matchPlateNotams([source], context(title));
+    assert.equal(result.matches[0]?.outcome, 'applies', title);
+    assert.equal(result.unresolved, 0);
+  }
+  for (const title of ['ILS RWY 12 (SA CAT II)', 'ILS RWY 12 (CAT I)', 'ILS RWY 30 (SA CAT I)', 'ILS RWY 12R (SA CAT I)']) {
+    assert.equal(matchPlateNotams([source], context(title)).matches.length, 0, title);
+  }
+  assert.equal(matchPlateNotams([source], context('ILS RWY 12 (SA CAT I)', '8C')).matches[0]?.outcome, 'review');
+  const target = parseNotam(source).targets[1]!;
+  assert.equal(target.title, 'ILS RWY 12 (SAT CAT I)');
+  assert.equal(source.text.slice(target.evidence.start, target.evidence.end), target.title);
+  assert.ok(presentNotam(source).searchText.includes(target.title));
+  assert.equal(JSON.stringify(source), before);
 });
 
 test('amendment fallback cannot promote a later quoted or conditional title into an affected procedure', () => {
@@ -91,13 +113,15 @@ test('FDC subject recovery and collection equivalence require the entire body, i
 test('title states consume every qualifier and reject incomplete or invented compound identities', () => {
   for (const title of ['HI-ILS Z OR LOC Z RWY 09L', 'ILS PRM RWY 18L (CLOSE PARALLEL)',
     'RNAV (RNP) W RWY 04L', 'CONVERGING ILS RWY 19', 'ILS RWY 12L (SA CAT I) (CAT II-III)',
+    'ILS RWY 09 (SAT CAT I)', 'ILS RWY 09 SA CAT 1', 'ILS RWY 09 (CAT 2 & 3)',
     'COPTER RNAV (GPS) M 172', 'LOC BC RWY 27', 'VOR/DME OR TACAN-A', 'RADAR-1']) {
     assert.equal(isApproachTitle(title), true, title);
     const parsed = parseNotam(notice({ text: `IAP TEST, CA. ${title}, AMDT 1... PROCEDURE NA.` }));
     assert.deepEqual(parsed.targets.map(t => t.title), [title], title);
   }
   for (const title of ['SPECIAL ILS RWY 09', 'ILS OR RNAV RWY 09', 'RNAV (GPS OR RNP) RWY 09',
-    'ILS RWY 09 (CAT I', 'ILS RWY 09 CAT IV', 'ILS RWY 09 (SAT CAT I)', 'ILS RWY 09 CAT I EXC JETS',
+    'ILS RWY 09 (CAT I', 'ILS RWY 09 CAT IV', 'ILS RWY 09 (SAT CAT II)', 'ILS RWY 09 CAT I EXC JETS',
+    'RNAV (GPS) RWY 09 (SAT CAT I)', 'ILS RWY 09 (SAT CAT I-II)', 'ILS RWY 09 (CAT 4)', 'ILS RWY 09 (CAT III-II)',
     'VOR/DME RWY 00', 'RNAV (GPS) RWY 037', 'COPTER RNAV (RNP) 172', 'ILS RWY 09/LAND',
     'ILS RWY 09 (CAT I) UNKNOWN', 'ILS RWY 09 OR LOC RWY 18']) {
     assert.equal(isApproachTitle(title), false, title);

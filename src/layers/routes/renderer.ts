@@ -13,8 +13,9 @@ import { routePointKeys } from './selection';
 import { holdArrowImage } from './hold-arrow';
 import type { RoutePreview } from './map-preview';
 import { ROUTE_LINE_ANCHOR } from '../../core/map/layer';
-import { mapLabelKey, ROUTE_LABEL_IDS_STATE } from '../../core/map/label';
+import { mapLabelKey, ROUTE_LABEL_IDS_STATE, selectionLabelOpacity, selectionMatch } from '../../core/map/label';
 import { formatWaypointLabel } from '../../core/format/coordinates';
+import { addFocusableLayer, focusedLayerId } from '../../core/map/focus';
 
 const ROUTE_COLOR = '#33c6ff';
 const APPROACH_RGB = [237, 98, 217] as const;
@@ -66,13 +67,19 @@ export const ROUTE_LABEL_BACKGROUND_ID = 'route-label-background';
 export const HOLD_ARROW_IMAGE_ID = 'route-hold-arrow';
 const DRAG_LINE_LAYERS = ['route-line-halo', 'route-line', 'route-procedure-line',
   'route-approach-line', 'route-missed-line-background', 'route-missed-line'];
+export const ROUTE_FOCUS_LAYER_IDS = ['route-waypoint-halos', 'route-waypoints'].map(focusedLayerId);
+// Keep each drag copy beside its original pass: halos below strokes, missed
+// approach casing below dashes, and alternatives below the committed route.
+export const ROUTE_LINE_LAYER_IDS = [
+  'route-alternative-halo', 'route-alternative-line', 'route-alternative-procedure-line',
+  'route-line-halo', 'route-planning-connection', 'route-alternative-planning-connection',
+  'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line',
+  'route-missed-line-background', 'route-missed-line', ROUTE_LEG_HIT_LAYER_ID,
+].flatMap(id => DRAG_LINE_LAYERS.includes(id) ? [id, `${id}-drag`] : [id]);
 export const ROUTE_LAYER_IDS = [
-  ...DRAG_LINE_LAYERS.map(id => `${id}-drag`),
-  'route-alternative-halo', 'route-alternative-line', 'route-alternative-procedure-line', 'route-alternative-planning-connection',
-  'route-line-halo', 'route-line', 'route-procedure-line', 'route-approach-extension', 'route-approach-line',
-  'route-planning-connection',
-  'route-missed-line-background', 'route-missed-line', 'route-waypoint-halos', 'route-waypoints',
-  'route-waypoint-labels', 'route-hold-direction', ROUTE_WAYPOINT_HIT_LAYER_ID, ROUTE_LEG_HIT_LAYER_ID, 'route-insert-preview',
+  ...ROUTE_LINE_LAYER_IDS, 'route-waypoint-halos', 'route-waypoints',
+  'route-waypoint-labels', 'route-hold-direction', ROUTE_WAYPOINT_HIT_LAYER_ID, 'route-insert-preview',
+  ...ROUTE_FOCUS_LAYER_IDS,
 ];
 
 export function installRouteLayers(map: MapLibreMap): void {
@@ -187,7 +194,7 @@ export function installRouteLayers(map: MapLibreMap): void {
     layout: { 'line-join': 'round' },
     paint: { 'line-color': APPROACH_COLOR, 'line-dasharray': [2.5, 1.5], 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3 * APPROACH_LINE_SCALE, 11, 4 * APPROACH_LINE_SCALE] },
   }, ROUTE_LINE_ANCHOR);
-  map.addLayer({
+  addFocusableLayer(map, {
     id: 'route-waypoint-halos',
     type: 'circle',
     source: ROUTE_SOURCE_ID,
@@ -201,7 +208,7 @@ export function installRouteLayers(map: MapLibreMap): void {
       'circle-color': `rgba(${ROUTE_HALO_RGB.join(',')},0.84)`,
     },
   });
-  map.addLayer({
+  addFocusableLayer(map, {
     id: 'route-waypoints',
     type: 'circle',
     source: ROUTE_SOURCE_ID,
@@ -223,7 +230,9 @@ export function installRouteLayers(map: MapLibreMap): void {
     type: 'symbol',
     source: ROUTE_SOURCE_ID,
     minzoom: 3,
-    filter: ['==', ['get', 'routeKind'], 'waypoint'],
+    // Remove the whole label/background pair from placement and hit testing.
+    // Paint opacity alone leaves an invisible target beside the focus badge.
+    filter: ['all', ['==', ['get', 'routeKind'], 'waypoint'], ['!', selectionMatch()]],
     layout: {
       'icon-image': ROUTE_LABEL_BACKGROUND_ID,
       'icon-text-fit': 'both',
@@ -251,7 +260,10 @@ export function installRouteLayers(map: MapLibreMap): void {
       'text-optional': false,
     },
     paint: {
-      'icon-opacity': 0.75,
+      'icon-opacity': selectionLabelOpacity(0.75),
+      'icon-opacity-transition': { duration: 0 },
+      'text-opacity': selectionLabelOpacity(),
+      'text-opacity-transition': { duration: 0 },
       'text-color': '#f4f8fc',
     },
   });
@@ -445,6 +457,7 @@ function routeData(plan?: RoutePlan, preview?: RouteDragPreview, editable = true
       properties: {
         ...waypoint.feature.properties,
         mapFeatureId: waypoint.feature.id,
+        mapLabelKey: mapLabelKey(waypoint.feature),
         ...(editable ? { routePointId: pointKeys!.get(waypoint) } : {}),
         routeKind: 'waypoint',
         ident: waypoint.ident,

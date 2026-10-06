@@ -373,6 +373,25 @@ owns scope, freshness, backward compatibility and completeness rules; its
 [storage contract](../../src/layers/notams/README.md#storage-and-query-indexes)
 owns backend generation migration and quota preservation.
 
+`NotamNavaidSnapshot` shares validated records, feed status and source issues,
+with a separate `navaid-location` scope and `{ navaidId }` query. Its association
+coverage is complete for the exact station location. Airport-filed and
+dependent-procedure notices belong to their separate scope; source issues and
+collection gaps still qualify station content coverage. Guards retain support
+for older responses with the former fixed incomplete association flag.
+`NotamSnapshot` and `NotamQuery` keep query scopes and cache namespaces distinct. The
+[navaid query contract](../../src/layers/notams/README.md#navaid-query-contract)
+defines the separate endpoint and identity rules.
+
+`NotamRegionSnapshot` adds the separate `region-location` scope and
+`{ artccId?, firId? }` query, requiring at least one explicit regional identifier.
+Association coverage describes the exact filing location: domestic ARTCC reads
+are complete, while FIR-only reads remain incomplete without domestic aliases.
+Neither establishes flight applicability. Airport navigation features may provide `responsibleArtcc`
+(NASR `RESP_ARTCC_ID`) and an explicit `firId`; neither is inferred from radio
+frequencies or an identifier prefix. See the
+[regional query contract](../../src/layers/notams/README.md#regional-query-contract).
+
 ## TFR chart snapshots
 
 `TfrSnapshot` in `packages/contracts/src/tfrs.ts` owns schema 1 for

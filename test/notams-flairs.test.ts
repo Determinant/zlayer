@@ -70,18 +70,18 @@ test('mapped obstacle status remains readable independently of summary badge sel
   }
 });
 
-test('uncertainty identifies its cause without changing matching coverage', () => {
-  const cases: [string, string][] = [
-    ['UNKNOWN WORDING', 'Subject Unclear'],
-    ['NAV VOR U/S', 'Procedure Applicability Unconfirmed'],
-    ['ODP TEST. GENERAL DEPARTURE MINIMUMS.', 'Affected Procedures Unclear'],
+test('entry warnings leave subject, title and dependency coverage to plate matching', () => {
+  const cases: [string, string | null][] = [
+    ['UNKNOWN WORDING', null],
+    ['NAV VOR U/S', null],
+    ['ODP TEST. GENERAL DEPARTURE MINIMUMS.', null],
     ['IAP ALL IAPS NA EXCEPT RNAV.', 'Check Procedure Exceptions'],
-    ['IAP TEST. SPECIAL ILS RWY 09, AMDT 1...', 'Procedure Wording Unclear'],
+    ['IAP TEST. SPECIAL ILS RWY 09, AMDT 1...', null],
   ];
   for (const [text, label] of cases) {
     const parsed = parseNotam(notice({ text }));
     assert.equal(parsed.unresolved, true);
-    assert.deepEqual(notamInterpretationNotes(parsed).map(n => n.label), [label]);
+    assert.deepEqual(notamInterpretationNotes(parsed).map(n => n.label), label ? [label] : []);
   }
   assert.deepEqual(notamInterpretationNotes(parseNotam(notice({ text: 'NAV ILS RWY 09 U/S' }))), []);
 });

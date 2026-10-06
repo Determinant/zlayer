@@ -4,6 +4,17 @@ import { featureKey } from '@zlayer/domain';
 
 // The route owns these IDs; reference and weather layers omit duplicate names.
 export const ROUTE_LABEL_IDS_STATE = 'zlayer-route-label-ids';
+// An open feature detail owns one collision-free identifier beside its crosshair.
+export const SELECTION_LABEL_ID_STATE = 'zlayer-selection-label-id';
+
+export function selectionMatch(): ExpressionSpecification {
+  return ['==', ['coalesce', ['get', 'mapLabelKey'], '\u0000'],
+    ['coalesce', ['global-state', SELECTION_LABEL_ID_STATE], '']];
+}
+
+export function selectionLabelOpacity(opacity = 1): ExpressionSpecification {
+  return ['case', selectionMatch(), 0, opacity];
+}
 
 export function mapLabelKey(feature: GeoPointFeature): string {
   return feature.id ?? (typeof feature.properties.mapLabelKey === 'string' ? feature.properties.mapLabelKey
@@ -42,7 +53,8 @@ export function labelLayer(
     ...(filter ? { filter } : {}),
     layout: {
       'text-field': ['case',
-        ['in', ['coalesce', ['get', 'mapLabelKey'], ''], ['coalesce', ['global-state', ROUTE_LABEL_IDS_STATE], ['literal', []]]],
+        ['any', selectionMatch(),
+          ['in', ['coalesce', ['get', 'mapLabelKey'], ''], ['coalesce', ['global-state', ROUTE_LABEL_IDS_STATE], ['literal', []]]]],
         '', textField],
       'text-font': ['Noto Sans Bold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], minzoom, textSize[0], 12, textSize[1]],
@@ -51,6 +63,8 @@ export function labelLayer(
       'text-optional': true,
     },
     paint: {
+      'text-opacity': selectionLabelOpacity(),
+      'text-opacity-transition': { duration: 0 },
       'text-color': color,
       'text-halo-color': 'rgba(4, 10, 18, 0.96)',
       'text-halo-width': 1.5,

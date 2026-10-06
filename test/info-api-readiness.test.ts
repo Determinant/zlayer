@@ -11,6 +11,7 @@ import { resourceFor } from '../tools/info-server/routes';
 import { fixtureWeather } from './fixtures/info-server';
 import { advisorySnapshot, WEATHER_NOW } from './fixtures/awc-advisories';
 import { radarFixture } from './fixtures/radar';
+import { notamSnapshot } from './fixtures/notams';
 
 const HOUR = 3600_000, MINUTE = 60_000;
 function shiftRun(manifest: NativeManifest, hours: number) {
@@ -63,6 +64,8 @@ test('deployment readiness requires current weather as well as authenticated sav
   json('/api/weather/tafs.json?ids=KSFO', []);
   json('/api/notams/tfrs', { schemaVersion: 1, source: 'FAA-TFR', checkedAt: WEATHER_NOW, notices: [], issues: [] });
   json('/api/notams/airports?faaId=SFO&icaoId=KSFO', { error: 'disabled' });
+  json('/api/notams/navaids?navaidId=SAU', { error: 'disabled' });
+  json('/api/notams/regions?artccId=ZOA', { error: 'disabled' });
 
   type Edit = { path: string; update: (value: any) => void; error: RegExp };
   const edits: Edit[] = [
@@ -99,7 +102,7 @@ test('deployment readiness requires current weather as well as authenticated sav
       assert.ok(saved, `Unexpected readiness request: ${path}`);
       let body = saved.body;
       if (edit?.path === path) { const value = JSON.parse(body.toString()); edit.update(value); body = Buffer.from(JSON.stringify(value)); }
-      return new Response(Uint8Array.from(body), { status: path.startsWith('/api/notams/airports') ? 503 : 200,
+      return new Response(Uint8Array.from(body), { status: /^\/api\/notams\/(airports|navaids|regions)/.test(path) ? 503 : 200,
         headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
     });
     if (edit) await assert.rejects(checkInfoApi('https://info.test'), edit.error);
@@ -118,5 +121,28 @@ test('deployment readiness requires current weather as well as authenticated sav
       return new Response(Uint8Array.from(saved.body), { headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(saved.body) } });
     });
     await assert.rejects(checkInfoApi('https://info.test'), /No current storm motion observations/);
+  });
+  for (const failure of [undefined, 'missing-route', 'wrong-scope', 'wrong-station'] as const) await t.test(`navaid route readiness: ${failure ?? 'ready'}`, async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+    const airport = notamSnapshot([], { query: { faaId: 'SFO', icaoId: 'KSFO' } });
+    const navaid = { ...airport, scope: 'navaid-location', associationCoverage: 'complete', query: { navaidId: 'SAU' } };
+    const region = { ...airport, scope: 'region-location', associationCoverage: 'incomplete', query: { artccId: 'ZOA' } };
+    t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)), path = url.pathname + url.search;
+      const artifact = /^\/api\/weather\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
+      const saved = responses.get(path) ?? (artifact ? { body: Buffer.from('prepared grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
+      assert.ok(saved, `Unexpected readiness request: ${path}`);
+      const value = path === '/api/notams/healthz' ? airport.feed
+        : path.startsWith('/api/notams/airports') ? airport
+          : path.startsWith('/api/notams/navaids') ? failure === 'wrong-scope' ? airport
+            : failure === 'wrong-station' ? { ...navaid, query: { navaidId: 'SFO' } } : navaid
+              : path.startsWith('/api/notams/regions') ? region : undefined;
+      const body = value ? Buffer.from(JSON.stringify(value)) : saved.body;
+      return new Response(Uint8Array.from(body), { status: failure === 'missing-route' && path.startsWith('/api/notams/navaids') ? 404 : 200,
+        headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
+    });
+    if (failure) await assert.rejects(checkInfoApi('https://info.test', 'staging'), failure === 'missing-route' ? /HTTP 404/
+      : failure === 'wrong-scope' ? /Invalid navaid snapshot/ : /SAU/);
+    else assert.ok((await checkInfoApi('https://info.test', 'staging')).reads > 25);
   });
 });

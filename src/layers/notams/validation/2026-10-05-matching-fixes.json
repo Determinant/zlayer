@@ -1,0 +1,5621 @@
+{
+  "schemaVersion": 1,
+  "scope": "Retained D/FDC corpus against catalog-entry matching; no effective-time filter, no PDF-viewer/page qualification, no semantic pass/fail oracle.",
+  "sources": {
+    "corpus": {
+      "file": "snapshots.jsonl.gz",
+      "bytes": 21927242,
+      "sha256": "1f38af3b279ac4f5dc34a8912b7c61740995dd86f8069809a9f97d5a3db6a4ad",
+      "capture": {
+        "startedAt": "2026-10-06T01:30:54.133Z",
+        "finishedAt": "2026-10-06T01:34:52.708Z",
+        "reviewTime": 1791250254133,
+        "endpoint": "https://zlayer.tedyin.com/api/notams/airports",
+        "airportManifestSha256": "73c88901963de425d2b53f195fe7a56ed9a35d916fc242e855494edc74bfea66"
+      }
+    },
+    "catalog": {
+      "bytes": 16471924,
+      "sha256": "a580e518ba734e9c09152d557e7ac59b5bb2189334a8f3843680fffe7d522ee2",
+      "cycle": "2610",
+      "effectiveDate": "2026-10-01",
+      "expirationDate": "2026-10-29",
+      "generatedAt": "2026-10-01T18:16:18.461Z",
+      "sourceXml": {
+        "url": "https://aeronav.faa.gov/d-tpp/2610/xml_data/d-tpp_Metafile.xml",
+        "sha256": "1cacfe9868b801f53cb2b3ff45e7c7f67f210d7ce15472c414e6f0e02d34bff7"
+      }
+    }
+  },
+  "implementation": {
+    "parserVersion": 11,
+    "matcherVersion": 7
+  },
+  "totals": {
+    "airports": 1000,
+    "retainedRecords": 19469,
+    "eligibleRecords": 13666,
+    "notices": 2799,
+    "applies": 2406,
+    "reviewOnly": 379,
+    "noMatch": 14,
+    "recognizedTargets": 3318,
+    "unmatchedTargets": 19,
+    "unmatchedTargetNotices": 16,
+    "partialTargetNotices": 3,
+    "unresolvedNotices": 447,
+    "originalAmendmentSpellingNotices": 0,
+    "otherAmendmentReviewNotices": 392
+  },
+  "subjects": {
+    "IAP": {
+      "notices": 1904,
+      "applies": 1850,
+      "reviewOnly": 44,
+      "noMatch": 10
+    },
+    "ODP": {
+      "notices": 358,
+      "applies": 22,
+      "reviewOnly": 335,
+      "noMatch": 1
+    },
+    "SID": {
+      "notices": 490,
+      "applies": 488,
+      "reviewOnly": 0,
+      "noMatch": 2
+    },
+    "STAR": {
+      "notices": 47,
+      "applies": 46,
+      "reviewOnly": 0,
+      "noMatch": 1
+    }
+  },
+  "issues": {
+    "facility-dependency": 441,
+    "multipart": 5,
+    "headings": 1
+  },
+  "notes": {},
+  "reviewReasons": {
+    "Procedure matches; notice/displayed amendment differ. Review applicability.": 389,
+    "Procedure matches; the displayed plate amendment is unavailable. Review applicability.": 1,
+    "Possible VOR/DME title transition. Verify the chart equipment notes and procedure edition. Notice amendment 3B, displayed plate unknown. Review applicability.": 2,
+    "Possible VOR/DME title transition. Verify the chart equipment notes and procedure edition. Names COPTER VOR/DME RWY 12.": 1,
+    "Possible VOR/DME title transition. Verify the chart equipment notes and procedure edition. Notice amendment 5A, displayed plate 5D. Review applicability.": 3
+  },
+  "missingCatalog": [
+    "BCV",
+    "CPM",
+    "MZJ",
+    "L32",
+    "BDU",
+    "06C",
+    "E25",
+    "A39",
+    "HDH",
+    "O61",
+    "S70",
+    "7S5",
+    "F72",
+    "E60",
+    "K34",
+    "S03",
+    "89D",
+    "E63"
+  ],
+  "plateFamilies": {
+    "approach": {
+      "notices": 1895,
+      "withCatalogKind": 1895,
+      "matchedToKind": 1885,
+      "example": {
+        "airport": "ORD",
+        "id": "1211918121141075",
+        "number": "331",
+        "series": ""
+      }
+    },
+    "takeoff-minimums": {
+      "notices": 321,
+      "withCatalogKind": 320,
+      "matchedToKind": 320,
+      "example": {
+        "airport": "ORD",
+        "id": "1773778057291440",
+        "number": "9517",
+        "series": ""
+      }
+    },
+    "departure": {
+      "notices": 512,
+      "withCatalogKind": 512,
+      "matchedToKind": 510,
+      "example": {
+        "airport": "DFW",
+        "id": "1473554194899982",
+        "number": "4741",
+        "series": ""
+      }
+    },
+    "arrival": {
+      "notices": 47,
+      "withCatalogKind": 47,
+      "matchedToKind": 46,
+      "example": {
+        "airport": "DEN",
+        "id": "1758907194476230",
+        "number": "954",
+        "series": ""
+      }
+    },
+    "diverse-vector-area": {
+      "notices": 16,
+      "withCatalogKind": 16,
+      "matchedToKind": 16,
+      "example": {
+        "airport": "PHX",
+        "id": "1766432633908711",
+        "number": "2620",
+        "series": ""
+      }
+    },
+    "radar-minimums": {
+      "notices": 11,
+      "withCatalogKind": 11,
+      "matchedToKind": 11,
+      "example": {
+        "airport": "TUL",
+        "id": "7957708206273159",
+        "number": "2375",
+        "series": ""
+      }
+    }
+  },
+  "amendmentPairs": {
+    "23 / unknown": 1,
+    "8 / unknown": 15,
+    "3A / 4": 1,
+    "14 / unknown": 2,
+    "2 / 2A": 2,
+    "9B / unknown": 1,
+    "18 / unknown": 1,
+    "2 / unknown": 35,
+    "6 / unknown": 15,
+    "ORIG-C / 0B": 1,
+    "ORIG / unknown": 37,
+    "15 / unknown": 1,
+    "9 / unknown": 4,
+    "3A / unknown": 8,
+    "ORIG-A / unknown": 10,
+    "5A / unknown": 16,
+    "4A / unknown": 16,
+    "10 / unknown": 3,
+    "11A / unknown": 1,
+    "3 / unknown": 24,
+    "4 / unknown": 23,
+    "1A / unknown": 14,
+    "8B / unknown": 3,
+    "8A / unknown": 7,
+    "5B / unknown": 2,
+    "1 / unknown": 37,
+    "5A / 5": 4,
+    "7 / unknown": 18,
+    "10A / unknown": 2,
+    "9A / unknown": 3,
+    "6B / unknown": 2,
+    "7C / unknown": 1,
+    "1B / unknown": 5,
+    "5 / unknown": 23,
+    "7B / unknown": 3,
+    "12A / unknown": 1,
+    "3B / unknown": 6,
+    "7A / unknown": 5,
+    "6C / unknown": 2,
+    "ORIG-B / unknown": 4,
+    "2A / unknown": 10,
+    "4B / unknown": 5,
+    "6A / unknown": 6,
+    "1 / 1A": 1,
+    "ORIG-D / unknown": 1,
+    "4C / unknown": 2,
+    "19 / unknown": 1,
+    "13 / unknown": 1,
+    "1D / 1C": 1,
+    "2B / unknown": 5,
+    "8 / 8A": 1,
+    "5C / unknown": 1,
+    "5A / 5D": 3,
+    "11 / unknown": 1,
+    "10B / unknown": 1,
+    "5D / unknown": 1
+  },
+  "unmatchedTargets": [
+    {
+      "airport": "ORD",
+      "id": "6139465131323563",
+      "number": "4381",
+      "series": "",
+      "subject": "IAP",
+      "title": "ILS Z RWY 10R (SA CAT II AND III)",
+      "amendment": "ORIG-C",
+      "otherTitleMatched": true
+    },
+    {
+      "airport": "DFW",
+      "id": "1774036696711641",
+      "number": "1931",
+      "series": "",
+      "subject": "IAP",
+      "title": "ILS RWY 18R (SA CAT II-III)",
+      "amendment": "8A",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "DTW",
+      "id": "4663032831998988",
+      "number": "388",
+      "series": "",
+      "subject": "IAP",
+      "title": "ILS RWY 3R (SA CAT II-III)",
+      "amendment": "18",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "OAK",
+      "id": "1855151800098285",
+      "number": "7507",
+      "series": "",
+      "subject": "SID",
+      "title": "SILENT FOUR",
+      "amendment": null,
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "OAK",
+      "id": "9053365321339980",
+      "number": "7056",
+      "series": "",
+      "subject": "SID",
+      "title": "SILENT FOUR",
+      "amendment": null,
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "SDF",
+      "id": "6175676665569348",
+      "number": "5704",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (GPS) M RWY 17L",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "PVU",
+      "id": "2212501722826868",
+      "number": "6420",
+      "series": "",
+      "subject": "STAR",
+      "title": "TAYTR THREE",
+      "amendment": null,
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "OMA",
+      "id": "7821852843913538",
+      "number": "4273",
+      "series": "",
+      "subject": "IAP",
+      "title": "ILS RWY 32R (SA CAT I)",
+      "amendment": "1",
+      "otherTitleMatched": true
+    },
+    {
+      "airport": "ENA",
+      "id": "4633753939711969",
+      "number": "6295",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (GPS) N RWY 03",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "ENA",
+      "id": "4633753939711969",
+      "number": "6295",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (GPS) N RWY 21",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "ENA",
+      "id": "6021376725423257",
+      "number": "6829",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (GPS) M RWY 03",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "ENA",
+      "id": "6424710708731472",
+      "number": "6827",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (GPS) M RWY 21",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "RBG",
+      "id": "3047949783762453",
+      "number": "1630",
+      "series": "",
+      "subject": "IAP",
+      "title": "COPTER RNAV (GPS)M 172",
+      "amendment": "2",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "RBG",
+      "id": "3047949783762453",
+      "number": "1630",
+      "series": "",
+      "subject": "IAP",
+      "title": "COPTER RNAV(GPS)N 172",
+      "amendment": "2",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "RBG",
+      "id": "3047949783762453",
+      "number": "1630",
+      "series": "",
+      "subject": "IAP",
+      "title": "COPTER RNAV (GPS)P 172",
+      "amendment": "2",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "1B9",
+      "id": "1758720115517980",
+      "number": "4415",
+      "series": "",
+      "subject": "IAP",
+      "title": "COPTER RNAV (GPS) Y RWY 14",
+      "amendment": "1",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "BRO",
+      "id": "7206275068995558",
+      "number": "5690",
+      "series": "",
+      "subject": "IAP",
+      "title": "VOR OR TACAN-A",
+      "amendment": "1D",
+      "otherTitleMatched": true
+    },
+    {
+      "airport": "SIT",
+      "id": "4602804316393850",
+      "number": "9407",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (RNP) N RWY 29",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    },
+    {
+      "airport": "SIT",
+      "id": "7784357979496958",
+      "number": "9411",
+      "series": "",
+      "subject": "IAP",
+      "title": "RNAV (RNP) N RWY 11",
+      "amendment": "ORIG",
+      "otherTitleMatched": false
+    }
+  ],
+  "subjectOrHeadingIssues": [
+    {
+      "airport": "HIO",
+      "id": "7168297676339664",
+      "number": "6527",
+      "series": "",
+      "issues": [
+        "headings"
+      ],
+      "text": "ODP PORTLAND-HILLSBORO, PORTLAND, OR.\nTAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT ...\nADD TAKEOFF OBSTACLE NOTE: RWY 02, TEMPORARY CRANES BEGINNING 3380FT FROM DER, 321FT RIGHT OF CENTERLINE, UP TO 111 AGL/ 324FT MSL (2025-ANM-7058-OE). TEMP CRANE 3379FT FROM DER, 619FF RIGHT OF CENTERLINE, UP TO 111 AGL/322 MSL (2026-ANM-3271-OE).\nALL OTHER DATA REMAINS AS PUBLISHED. 2607171936-2702261936EST"
+    }
+  ],
+  "originalAmendmentSpellings": [],
+  "otherAmendmentReviews": [
+    {
+      "airport": "ORD",
+      "id": "1773778057291440",
+      "number": "9517",
+      "series": "",
+      "pairs": [
+        "23 / unknown"
+      ]
+    },
+    {
+      "airport": "DFW",
+      "id": "1739935073472695",
+      "number": "6684",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "DEN",
+      "id": "7549719402000197",
+      "number": "6919",
+      "series": "",
+      "pairs": [
+        "3A / 4"
+      ]
+    },
+    {
+      "airport": "LAS",
+      "id": "4760171363929926",
+      "number": "4964",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "LAS",
+      "id": "6065713302470762",
+      "number": "7843",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "LAX",
+      "id": "5742214651448996",
+      "number": "316",
+      "series": "",
+      "pairs": [
+        "14 / unknown"
+      ]
+    },
+    {
+      "airport": "CLT",
+      "id": "4683560367030345",
+      "number": "690",
+      "series": "",
+      "pairs": [
+        "2 / 2A"
+      ]
+    },
+    {
+      "airport": "CLT",
+      "id": "6071460139328270",
+      "number": "5333",
+      "series": "",
+      "pairs": [
+        "9B / unknown"
+      ]
+    },
+    {
+      "airport": "MIA",
+      "id": "1172994189139697",
+      "number": "1519",
+      "series": "",
+      "pairs": [
+        "18 / unknown"
+      ]
+    },
+    {
+      "airport": "DVT",
+      "id": "1984280825987184",
+      "number": "8747",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "PHX",
+      "id": "1766432633908711",
+      "number": "2620",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "PHX",
+      "id": "5167315702045540",
+      "number": "2471",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "JFK",
+      "id": "7245695448787713",
+      "number": "7857",
+      "series": "",
+      "pairs": [
+        "ORIG-C / 0B"
+      ]
+    },
+    {
+      "airport": "IAH",
+      "id": "3624806662002261",
+      "number": "7175",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "IAH",
+      "id": "7607014094140153",
+      "number": "2479",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "BOS",
+      "id": "1758722234673757",
+      "number": "9664",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "BOS",
+      "id": "1759932355324570",
+      "number": "7941",
+      "series": "",
+      "pairs": [
+        "15 / unknown"
+      ]
+    },
+    {
+      "airport": "SFO",
+      "id": "1033264623735386",
+      "number": "6496",
+      "series": "",
+      "pairs": [
+        "9 / unknown"
+      ]
+    },
+    {
+      "airport": "SFO",
+      "id": "5776067846205821",
+      "number": "7040",
+      "series": "",
+      "pairs": [
+        "9 / unknown"
+      ]
+    },
+    {
+      "airport": "MCO",
+      "id": "2263289198918567",
+      "number": "4146",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "PRC",
+      "id": "1758720873790987",
+      "number": "4228",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "PRC",
+      "id": "7055884715958565",
+      "number": "5981",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "MYF",
+      "id": "7402140683570426",
+      "number": "9249",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "SFB",
+      "id": "4036846051125813",
+      "number": "8257",
+      "series": "",
+      "pairs": [
+        "10 / unknown"
+      ]
+    },
+    {
+      "airport": "LGA",
+      "id": "5318914794757332",
+      "number": "3695",
+      "series": "",
+      "pairs": [
+        "10 / unknown"
+      ]
+    },
+    {
+      "airport": "IAD",
+      "id": "8832359922015464",
+      "number": "7644",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SLC",
+      "id": "1532962221231499",
+      "number": "8195",
+      "series": "",
+      "pairs": [
+        "11A / unknown"
+      ]
+    },
+    {
+      "airport": "GFK",
+      "id": "6833695987689369",
+      "number": "5557",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "DAB",
+      "id": "5042425994452766",
+      "number": "2424",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "DTW",
+      "id": "1776202248748470",
+      "number": "2453",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "HNL",
+      "id": "8659133792270508",
+      "number": "6595",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "HNL",
+      "id": "8720126883318472",
+      "number": "6598",
+      "series": "",
+      "pairs": [
+        "8B / unknown"
+      ]
+    },
+    {
+      "airport": "APA",
+      "id": "1417289621505358",
+      "number": "5644",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "APA",
+      "id": "2723785509335575",
+      "number": "7576",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "APA",
+      "id": "7169290404805196",
+      "number": "2500",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "TMB",
+      "id": "2116325358568124",
+      "number": "4824",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "HWO",
+      "id": "1773408835453160",
+      "number": "8001",
+      "series": "",
+      "pairs": [
+        "5B / unknown"
+      ]
+    },
+    {
+      "airport": "HWO",
+      "id": "5022242068224312",
+      "number": "7466",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "IWA",
+      "id": "4360497835619170",
+      "number": "7313",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "DCA",
+      "id": "5830130084380001",
+      "number": "6828",
+      "series": "",
+      "pairs": [
+        "8B / unknown"
+      ]
+    },
+    {
+      "airport": "DCA",
+      "id": "9804408327484192",
+      "number": "3250",
+      "series": "",
+      "pairs": [
+        "8B / unknown"
+      ]
+    },
+    {
+      "airport": "ANC",
+      "id": "1524240229261874",
+      "number": "4283",
+      "series": "",
+      "pairs": [
+        "5A / 5"
+      ]
+    },
+    {
+      "airport": "ANC",
+      "id": "3222674415217486",
+      "number": "7031",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "ANC",
+      "id": "5676539624860472",
+      "number": "4282",
+      "series": "",
+      "pairs": [
+        "5A / 5"
+      ]
+    },
+    {
+      "airport": "ANC",
+      "id": "7887930035422251",
+      "number": "4284",
+      "series": "",
+      "pairs": [
+        "5A / 5"
+      ]
+    },
+    {
+      "airport": "ANC",
+      "id": "9291618604013652",
+      "number": "4286",
+      "series": "",
+      "pairs": [
+        "5A / 5"
+      ]
+    },
+    {
+      "airport": "FLL",
+      "id": "1774437574428007",
+      "number": "3404",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "BNA",
+      "id": "1404406782694471",
+      "number": "129",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "BNA",
+      "id": "1774467719151163",
+      "number": "3883",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "BNA",
+      "id": "1775496630448501",
+      "number": "8610",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "BWI",
+      "id": "9975744143284156",
+      "number": "6549",
+      "series": "",
+      "pairs": [
+        "10A / unknown"
+      ]
+    },
+    {
+      "airport": "FRG",
+      "id": "1763741510695630",
+      "number": "501",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "FRG",
+      "id": "6641745270426009",
+      "number": "1016",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "TPA",
+      "id": "4549738155771556",
+      "number": "6167",
+      "series": "",
+      "pairs": [
+        "10A / unknown"
+      ]
+    },
+    {
+      "airport": "SAN",
+      "id": "3776096980525479",
+      "number": "3737",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SAN",
+      "id": "4635693064747641",
+      "number": "5323",
+      "series": "",
+      "pairs": [
+        "9A / unknown"
+      ]
+    },
+    {
+      "airport": "RDU",
+      "id": "4371447700730857",
+      "number": "4171",
+      "series": "",
+      "pairs": [
+        "6B / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "2045681060245991",
+      "number": "1600",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "3373053326638012",
+      "number": "9574",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "3732024846366708",
+      "number": "7412",
+      "series": "",
+      "pairs": [
+        "7C / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "5249762597294025",
+      "number": "5820",
+      "series": "",
+      "pairs": [
+        "1B / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "5331197859472628",
+      "number": "7393",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "PDX",
+      "id": "5442334380572492",
+      "number": "9573",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "OAK",
+      "id": "3525370049156406",
+      "number": "5325",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "FXE",
+      "id": "4156102195855590",
+      "number": "8122",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "HOU",
+      "id": "2890290702398621",
+      "number": "3405",
+      "series": "",
+      "pairs": [
+        "7B / unknown"
+      ]
+    },
+    {
+      "airport": "SEE",
+      "id": "1765288455381185",
+      "number": "6364",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "SEE",
+      "id": "3424550017575699",
+      "number": "6053",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "SDF",
+      "id": "5166059645809656",
+      "number": "8849",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "CMA",
+      "id": "1758776626562098",
+      "number": "1119",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "MEM",
+      "id": "1758720291193625",
+      "number": "5306",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "ORL",
+      "id": "7596458975354473",
+      "number": "6379",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "ORL",
+      "id": "9737601048703584",
+      "number": "1193",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "TEB",
+      "id": "1842259529461889",
+      "number": "8965",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "COS",
+      "id": "3077943275988378",
+      "number": "2199",
+      "series": "",
+      "pairs": [
+        "12A / unknown"
+      ]
+    },
+    {
+      "airport": "BUR",
+      "id": "2524695410731715",
+      "number": "2397",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "BUR",
+      "id": "4928968662149148",
+      "number": "5252",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "RHV",
+      "id": "1758719959694137",
+      "number": "9946",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "PIE",
+      "id": "1758720214663811",
+      "number": "7282",
+      "series": "",
+      "pairs": [
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "PIE",
+      "id": "5218002301737966",
+      "number": "2470",
+      "series": "",
+      "pairs": [
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "GYR",
+      "id": "1773066982682707",
+      "number": "5471",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "DJT",
+      "id": "1481100192000244",
+      "number": "4223",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "DJT",
+      "id": "7098752855649427",
+      "number": "7831",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "MYR",
+      "id": "6406915146257886",
+      "number": "8172",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "HIO",
+      "id": "1763591261639171",
+      "number": "9205",
+      "series": "",
+      "pairs": [
+        "7A / unknown"
+      ]
+    },
+    {
+      "airport": "HIO",
+      "id": "2289170106273468",
+      "number": "2844",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "HIO",
+      "id": "4771673797065802",
+      "number": "6912",
+      "series": "",
+      "pairs": [
+        "7A / unknown"
+      ]
+    },
+    {
+      "airport": "SJC",
+      "id": "1766166860933789",
+      "number": "1909",
+      "series": "",
+      "pairs": [
+        "6C / unknown"
+      ]
+    },
+    {
+      "airport": "SJC",
+      "id": "2718419039797363",
+      "number": "8158",
+      "series": "",
+      "pairs": [
+        "6C / unknown"
+      ]
+    },
+    {
+      "airport": "CVG",
+      "id": "5618215235547656",
+      "number": "8844",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "LAL",
+      "id": "9131779231739662",
+      "number": "7228",
+      "series": "",
+      "pairs": [
+        "2 / 2A"
+      ]
+    },
+    {
+      "airport": "PAO",
+      "id": "9463377310105024",
+      "number": "4899",
+      "series": "",
+      "pairs": [
+        "ORIG-B / unknown"
+      ]
+    },
+    {
+      "airport": "FCM",
+      "id": "1775082026622538",
+      "number": "7173",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "FMY",
+      "id": "8474035140696861",
+      "number": "8859",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "OPF",
+      "id": "1772552110249399",
+      "number": "2604",
+      "series": "",
+      "pairs": [
+        "9A / unknown"
+      ]
+    },
+    {
+      "airport": "TKI",
+      "id": "1775065902583103",
+      "number": "7055",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "TKI",
+      "id": "7083205668552292",
+      "number": "3061",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "1420197322315710",
+      "number": "5700",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "1758720512344028",
+      "number": "3808",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "1758720889067374",
+      "number": "1468",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "1775501703066891",
+      "number": "8659",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "1775655843461167",
+      "number": "9587",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "ABQ",
+      "id": "3006046810608222",
+      "number": "9342",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "EFD",
+      "id": "1772218118186779",
+      "number": "1294",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "EFD",
+      "id": "7931950140608406",
+      "number": "5600",
+      "series": "",
+      "pairs": [
+        "4B / unknown"
+      ]
+    },
+    {
+      "airport": "LOU",
+      "id": "3616618277216582",
+      "number": "4459",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "SUS",
+      "id": "2117571154356917",
+      "number": "7887",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SUS",
+      "id": "5359115027212438",
+      "number": "5681",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "PNS",
+      "id": "1758719947060241",
+      "number": "9591",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "PNS",
+      "id": "2854573159484817",
+      "number": "7052",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "BDN",
+      "id": "8958923957764484",
+      "number": "6181",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "POC",
+      "id": "7841604552882198",
+      "number": "95",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "PIT",
+      "id": "4959418087112076",
+      "number": "3711",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "PGD",
+      "id": "6500170633229838",
+      "number": "8851",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "TYS",
+      "id": "1444423242108365",
+      "number": "7310",
+      "series": "",
+      "pairs": [
+        "6 / unknown",
+        "ORIG-A / unknown",
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "TYS",
+      "id": "1760721466596297",
+      "number": "2586",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "TYS",
+      "id": "1764016564941065",
+      "number": "1206",
+      "series": "",
+      "pairs": [
+        "9 / unknown"
+      ]
+    },
+    {
+      "airport": "MSY",
+      "id": "1775480907307459",
+      "number": "8419",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "MSY",
+      "id": "2902298062588405",
+      "number": "6192",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "CHS",
+      "id": "2458255305832166",
+      "number": "6646",
+      "series": "",
+      "pairs": [
+        "4B / unknown"
+      ]
+    },
+    {
+      "airport": "CHS",
+      "id": "4207256318140197",
+      "number": "6637",
+      "series": "",
+      "pairs": [
+        "1 / 1A"
+      ]
+    },
+    {
+      "airport": "CHS",
+      "id": "6474814963473781",
+      "number": "6628",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "PNE",
+      "id": "1759932077215879",
+      "number": "7918",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "MKT",
+      "id": "7868000079105144",
+      "number": "1470",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "CFO",
+      "id": "9267100834582098",
+      "number": "5806",
+      "series": "",
+      "pairs": [
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "LAF",
+      "id": "1773166686775027",
+      "number": "6247",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "ADS",
+      "id": "9673102488453882",
+      "number": "7355",
+      "series": "",
+      "pairs": [
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "HWD",
+      "id": "8068617708069456",
+      "number": "6264",
+      "series": "",
+      "pairs": [
+        "1B / unknown"
+      ]
+    },
+    {
+      "airport": "HWD",
+      "id": "9406942425469864",
+      "number": "107",
+      "series": "",
+      "pairs": [
+        "1B / unknown"
+      ]
+    },
+    {
+      "airport": "LZU",
+      "id": "2507399749202430",
+      "number": "5419",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "RNM",
+      "id": "1758776765935127",
+      "number": "8377",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "LEE",
+      "id": "5751081879501015",
+      "number": "8140",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "LEE",
+      "id": "8684110129870021",
+      "number": "8205",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "WHP",
+      "id": "6668564769078771",
+      "number": "7010",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "ICT",
+      "id": "7291882689088610",
+      "number": "1272",
+      "series": "",
+      "pairs": [
+        "ORIG-D / unknown"
+      ]
+    },
+    {
+      "airport": "PUB",
+      "id": "1758721639963340",
+      "number": "3848",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "MCI",
+      "id": "8034137495019548",
+      "number": "6236",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "DED",
+      "id": "4353422135108566",
+      "number": "959",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "DED",
+      "id": "4382581189134874",
+      "number": "4460",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "BED",
+      "id": "1758776625687106",
+      "number": "511",
+      "series": "",
+      "pairs": [
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "TIX",
+      "id": "1758719970318933",
+      "number": "8444",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "SAV",
+      "id": "1765206668657758",
+      "number": "5965",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "PMP",
+      "id": "1773316712326931",
+      "number": "7182",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "PMP",
+      "id": "2816549441980290",
+      "number": "7648",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "GKT",
+      "id": "1758720051361513",
+      "number": "5737",
+      "series": "",
+      "pairs": [
+        "4B / unknown"
+      ]
+    },
+    {
+      "airport": "GKT",
+      "id": "1758747663380057",
+      "number": "67",
+      "series": "",
+      "pairs": [
+        "4B / unknown"
+      ]
+    },
+    {
+      "airport": "GKT",
+      "id": "2038810954916954",
+      "number": "7306",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "GTU",
+      "id": "6278364174287721",
+      "number": "9326",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "GKY",
+      "id": "1761671884039363",
+      "number": "7629",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "ONT",
+      "id": "1758719908553614",
+      "number": "3977",
+      "series": "",
+      "pairs": [
+        "9A / unknown"
+      ]
+    },
+    {
+      "airport": "EMT",
+      "id": "5992798445295124",
+      "number": "5696",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "EMT",
+      "id": "7618981709358318",
+      "number": "5688",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SJT",
+      "id": "3350044262966751",
+      "number": "3554",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SJT",
+      "id": "7278893953695424",
+      "number": "8834",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SJT",
+      "id": "8708809602350699",
+      "number": "8924",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "OMA",
+      "id": "1259118497604049",
+      "number": "4777",
+      "series": "",
+      "pairs": [
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "OMA",
+      "id": "7725361156439345",
+      "number": "5767",
+      "series": "",
+      "pairs": [
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "OXR",
+      "id": "8433574015863585",
+      "number": "7189",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "PLU",
+      "id": "1773408791809832",
+      "number": "7999",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "BIL",
+      "id": "1771443931922191",
+      "number": "6164",
+      "series": "",
+      "pairs": [
+        "4A / unknown",
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "BIL",
+      "id": "1771443948924532",
+      "number": "6166",
+      "series": "",
+      "pairs": [
+        "7A / unknown"
+      ]
+    },
+    {
+      "airport": "BIL",
+      "id": "2600069724318085",
+      "number": "7064",
+      "series": "",
+      "pairs": [
+        "4A / unknown",
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "JAX",
+      "id": "1764612996796517",
+      "number": "2959",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "JAX",
+      "id": "1774901905408662",
+      "number": "5956",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "JAX",
+      "id": "3334135154618112",
+      "number": "8936",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "JAX",
+      "id": "3900694250869241",
+      "number": "8938",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "JAX",
+      "id": "9591007699203392",
+      "number": "8937",
+      "series": "",
+      "pairs": [
+        "4C / unknown"
+      ]
+    },
+    {
+      "airport": "SBA",
+      "id": "1770655735821351",
+      "number": "1529",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SBA",
+      "id": "7119005729419622",
+      "number": "3699",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "TIW",
+      "id": "1758720036960673",
+      "number": "224",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "GSO",
+      "id": "8593296128497241",
+      "number": "4462",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "BFI",
+      "id": "1758720542917921",
+      "number": "9267",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "HEF",
+      "id": "5405859719802688",
+      "number": "1866",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "BHM",
+      "id": "6839068005853104",
+      "number": "5335",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "LYH",
+      "id": "5499570498026931",
+      "number": "8261",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "PWK",
+      "id": "8110453570077905",
+      "number": "8934",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "SPG",
+      "id": "1776418175631770",
+      "number": "3728",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "TUL",
+      "id": "7957708206273159",
+      "number": "2375",
+      "series": "",
+      "pairs": [
+        "19 / unknown"
+      ]
+    },
+    {
+      "airport": "JYO",
+      "id": "1758720194733566",
+      "number": "4174",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "JYO",
+      "id": "9615232977987112",
+      "number": "3052",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "TOA",
+      "id": "1344131989961849",
+      "number": "1861",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "FAT",
+      "id": "1758720265202776",
+      "number": "9748",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "FAT",
+      "id": "1758776646348456",
+      "number": "9749",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "FAT",
+      "id": "2217410302375578",
+      "number": "7294",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "FAT",
+      "id": "7666141446876908",
+      "number": "7293",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "CCR",
+      "id": "1774610745522445",
+      "number": "4682",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "TDZ",
+      "id": "1766610291016839",
+      "number": "2904",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "TTD",
+      "id": "1758720905566140",
+      "number": "5065",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "TTD",
+      "id": "3594921012560319",
+      "number": "7395",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "TTD",
+      "id": "3603453902359561",
+      "number": "0687",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "F70",
+      "id": "1759342997653523",
+      "number": "4025",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "F70",
+      "id": "2755630828557056",
+      "number": "4402",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "FUL",
+      "id": "5173704174940996",
+      "number": "6132",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "ARR",
+      "id": "1766526685180213",
+      "number": "2810",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "ORF",
+      "id": "3087978153315193",
+      "number": "7500",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "RNT",
+      "id": "1776392572437480",
+      "number": "3700",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "DVO",
+      "id": "1761662637653117",
+      "number": "7564",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "BTV",
+      "id": "1776109567694496",
+      "number": "1792",
+      "series": "",
+      "pairs": [
+        "13 / unknown"
+      ]
+    },
+    {
+      "airport": "BTL",
+      "id": "1758720343193807",
+      "number": "9426",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "DLH",
+      "id": "2458824417956669",
+      "number": "1009",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "BCT",
+      "id": "1761056236870529",
+      "number": "3788",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "BCT",
+      "id": "4602341242149674",
+      "number": "6025",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "GRR",
+      "id": "4808893189723892",
+      "number": "791",
+      "series": "",
+      "pairs": [
+        "1D / 1C"
+      ]
+    },
+    {
+      "airport": "MKC",
+      "id": "1774900377430242",
+      "number": "5930",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "MKC",
+      "id": "7154329782490918",
+      "number": "9986",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "MKC",
+      "id": "9619916247309676",
+      "number": "9588",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "HEG",
+      "id": "1764617528498447",
+      "number": "3014",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "BAZ",
+      "id": "9901932440405874",
+      "number": "9408",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "ODO",
+      "id": "1773066748377971",
+      "number": "5467",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "GIF",
+      "id": "1758776654876517",
+      "number": "2651",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "LNK",
+      "id": "1770742063731248",
+      "number": "1849",
+      "series": "",
+      "pairs": [
+        "2B / unknown"
+      ]
+    },
+    {
+      "airport": "LNK",
+      "id": "1770742207531823",
+      "number": "1855",
+      "series": "",
+      "pairs": [
+        "5 / unknown",
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "LNK",
+      "id": "1770828561041117",
+      "number": "2537",
+      "series": "",
+      "pairs": [
+        "5 / unknown",
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "LNK",
+      "id": "2913042019214944",
+      "number": "341",
+      "series": "",
+      "pairs": [
+        "ORIG-B / unknown"
+      ]
+    },
+    {
+      "airport": "X51",
+      "id": "1758721092012593",
+      "number": "6741",
+      "series": "",
+      "pairs": [
+        "ORIG-B / unknown"
+      ]
+    },
+    {
+      "airport": "POU",
+      "id": "1758720860486645",
+      "number": "8931",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "HMT",
+      "id": "1762785892007774",
+      "number": "4476",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "HMT",
+      "id": "2340785130710061",
+      "number": "4401",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "MHR",
+      "id": "7024300985032270",
+      "number": "7508",
+      "series": "",
+      "pairs": [
+        "8 / 8A"
+      ]
+    },
+    {
+      "airport": "HFD",
+      "id": "1769780732177986",
+      "number": "8815",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "BVY",
+      "id": "1758720562995859",
+      "number": "831",
+      "series": "",
+      "pairs": [
+        "3B / unknown"
+      ]
+    },
+    {
+      "airport": "JNX",
+      "id": "6517128626269395",
+      "number": "954",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "JNX",
+      "id": "9168200205407286",
+      "number": "4642",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "INF",
+      "id": "7589176862112995",
+      "number": "4376",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "1G3",
+      "id": "2553307133718914",
+      "number": "6289",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "MOB",
+      "id": "1770666979719910",
+      "number": "1614",
+      "series": "",
+      "pairs": [
+        "5B / unknown"
+      ]
+    },
+    {
+      "airport": "SGF",
+      "id": "1775225167411604",
+      "number": "7916",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "EUG",
+      "id": "1765213217853790",
+      "number": "6027",
+      "series": "",
+      "pairs": [
+        "7B / unknown"
+      ]
+    },
+    {
+      "airport": "DHN",
+      "id": "1763473335579448",
+      "number": "7825",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "HND",
+      "id": "1758720455742468",
+      "number": "3704",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "HND",
+      "id": "1758721012275737",
+      "number": "3703",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "VPZ",
+      "id": "1762517596630049",
+      "number": "3650",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "FTY",
+      "id": "9452099430603724",
+      "number": "9482",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "SFF",
+      "id": "6146716930439189",
+      "number": "6042",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "GAI",
+      "id": "6129804261711191",
+      "number": "7470",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SYR",
+      "id": "1761739331038511",
+      "number": "8063",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "TOI",
+      "id": "1767974545045178",
+      "number": "1836",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "SLN",
+      "id": "4763346856960480",
+      "number": "6369",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "ENA",
+      "id": "8233100660366751",
+      "number": "6298",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "FCI",
+      "id": "1758776667012913",
+      "number": "3583",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "GEG",
+      "id": "5412477113941330",
+      "number": "5077",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "GPT",
+      "id": "6721225082151235",
+      "number": "2729",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "BTR",
+      "id": "1758719803390189",
+      "number": "9593",
+      "series": "",
+      "pairs": [
+        "1B / unknown"
+      ]
+    },
+    {
+      "airport": "SAC",
+      "id": "1767723997953539",
+      "number": "982",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "SAC",
+      "id": "9129332554829552",
+      "number": "7049",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "GSP",
+      "id": "1758721229947460",
+      "number": "6747",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "BOW",
+      "id": "5987029347295431",
+      "number": "4247",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "PSM",
+      "id": "2877562226901565",
+      "number": "1100",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "HUF",
+      "id": "8218874186049267",
+      "number": "3934",
+      "series": "",
+      "pairs": [
+        "5C / unknown"
+      ]
+    },
+    {
+      "airport": "MMV",
+      "id": "1385510503633486",
+      "number": "6916",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "MMV",
+      "id": "2654766000502166",
+      "number": "1073",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "MFE",
+      "id": "1774285911269985",
+      "number": "2642",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "PWA",
+      "id": "1758776642353084",
+      "number": "9565",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "PWA",
+      "id": "1775748949183103",
+      "number": "272",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "EIK",
+      "id": "1758720067370139",
+      "number": "9667",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "SBD",
+      "id": "4308417903117000",
+      "number": "6434",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "GYH",
+      "id": "1758720195461097",
+      "number": "3784",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "MEI",
+      "id": "1758721800196829",
+      "number": "4810",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "ACK",
+      "id": "1758776624052174",
+      "number": "2447",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "VNC",
+      "id": "6317884152450430",
+      "number": "5337",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "PSP",
+      "id": "1758721446325668",
+      "number": "3472",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "PSP",
+      "id": "5218730264794392",
+      "number": "5980",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "SPB",
+      "id": "2848934117507473",
+      "number": "7398",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "IGQ",
+      "id": "1758720553766226",
+      "number": "9445",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "IGQ",
+      "id": "4793778842477732",
+      "number": "9619",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "ASH",
+      "id": "1774877308799178",
+      "number": "5722",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "SUZ",
+      "id": "1758721072247624",
+      "number": "3143",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "CVH",
+      "id": "1758722493833178",
+      "number": "4330",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "M01",
+      "id": "9545010519105768",
+      "number": "0445",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "MAF",
+      "id": "1763761015750643",
+      "number": "638",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "MAF",
+      "id": "4975375458590692",
+      "number": "2965",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "SCK",
+      "id": "2972101963543745",
+      "number": "5349",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "EKA",
+      "id": "7033937209389279",
+      "number": "5340",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "OKV",
+      "id": "6330538023913585",
+      "number": "8979",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "GVL",
+      "id": "1768573397739571",
+      "number": "4324",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "HHR",
+      "id": "1758720230635212",
+      "number": "1225",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "HHR",
+      "id": "1760106595099878",
+      "number": "9577",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "HHR",
+      "id": "4419220094395523",
+      "number": "5404",
+      "series": "",
+      "pairs": [
+        "5 / unknown",
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "HWV",
+      "id": "1758720530440546",
+      "number": "3809",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "MEB",
+      "id": "1758719941688758",
+      "number": "1610",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "MMK",
+      "id": "1758720871956188",
+      "number": "4738",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "TPF",
+      "id": "1612406304739423",
+      "number": "956",
+      "series": "",
+      "pairs": [
+        "7A / unknown"
+      ]
+    },
+    {
+      "airport": "TPF",
+      "id": "2662967561277205",
+      "number": "8311",
+      "series": "",
+      "pairs": [
+        "7A / unknown"
+      ]
+    },
+    {
+      "airport": "3R7",
+      "id": "1769181625615779",
+      "number": "6450",
+      "series": "",
+      "pairs": [
+        "2B / unknown"
+      ]
+    },
+    {
+      "airport": "VUO",
+      "id": "7815782624076461",
+      "number": "7401",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "HAF",
+      "id": "5701473204117446",
+      "number": "6495",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "HAF",
+      "id": "6056378565588013",
+      "number": "6265",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "CVO",
+      "id": "9017843329416240",
+      "number": "6160",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "UAO",
+      "id": "1761231479870422",
+      "number": "5292",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "UAO",
+      "id": "2349472699394350",
+      "number": "6908",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "BAF",
+      "id": "1758719796759078",
+      "number": "8397",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "BAF",
+      "id": "1764165682745388",
+      "number": "1837",
+      "series": "",
+      "pairs": [
+        "5 / unknown",
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "MAE",
+      "id": "4128464286970692",
+      "number": "7296",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "DVN",
+      "id": "1773239301654014",
+      "number": "6652",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "ACY",
+      "id": "2959856596505168",
+      "number": "7074",
+      "series": "",
+      "pairs": [
+        "4C / unknown"
+      ]
+    },
+    {
+      "airport": "XNA",
+      "id": "1775711050953727",
+      "number": "121",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "MRB",
+      "id": "5145501953248716",
+      "number": "0501",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "AZO",
+      "id": "1238095534654116",
+      "number": "9534",
+      "series": "",
+      "pairs": [
+        "9 / unknown"
+      ]
+    },
+    {
+      "airport": "SYI",
+      "id": "1758720438818093",
+      "number": "741",
+      "series": "",
+      "pairs": [
+        "5A / 5D"
+      ]
+    },
+    {
+      "airport": "SYI",
+      "id": "1758720874802820",
+      "number": "3616",
+      "series": "",
+      "pairs": [
+        "5A / 5D"
+      ]
+    },
+    {
+      "airport": "SYI",
+      "id": "4289916093402165",
+      "number": "6680",
+      "series": "",
+      "pairs": [
+        "5A / 5D"
+      ]
+    },
+    {
+      "airport": "IYS",
+      "id": "1776365359353722",
+      "number": "3545",
+      "series": "",
+      "pairs": [
+        "2B / unknown"
+      ]
+    },
+    {
+      "airport": "ACV",
+      "id": "1065146355189643",
+      "number": "6407",
+      "series": "",
+      "pairs": [
+        "8 / unknown"
+      ]
+    },
+    {
+      "airport": "DSV",
+      "id": "1010720366542408",
+      "number": "3663",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "RFD",
+      "id": "1758721562266306",
+      "number": "7398",
+      "series": "",
+      "pairs": [
+        "11 / unknown"
+      ]
+    },
+    {
+      "airport": "CLS",
+      "id": "1758776643082748",
+      "number": "8033",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "TCL",
+      "id": "2857358051493989",
+      "number": "7724",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "PIA",
+      "id": "4543944449249680",
+      "number": "8281",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "MIC",
+      "id": "4744534113429112",
+      "number": "5029",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "FOK",
+      "id": "4976324402139859",
+      "number": "6449",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "FOK",
+      "id": "5695655914477790",
+      "number": "935",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "ILG",
+      "id": "1761831096089925",
+      "number": "8799",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "ETB",
+      "id": "1758776659147325",
+      "number": "9057",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "EPH",
+      "id": "1758720596181720",
+      "number": "1682",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "EPH",
+      "id": "9485344092289748",
+      "number": "9258",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "TXW",
+      "id": "1758776648069776",
+      "number": "5830",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "MHT",
+      "id": "1292402932996339",
+      "number": "7465",
+      "series": "",
+      "pairs": [
+        "10B / unknown"
+      ]
+    },
+    {
+      "airport": "ABI",
+      "id": "9785266333938786",
+      "number": "7513",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "MRH",
+      "id": "1758719816774121",
+      "number": "3840",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "MRH",
+      "id": "1768492027422604",
+      "number": "3964",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "SMQ",
+      "id": "1758719882085233",
+      "number": "9759",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "DYL",
+      "id": "1758722873758704",
+      "number": "9419",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "AXH",
+      "id": "1527796843062141",
+      "number": "182",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "AXH",
+      "id": "4772605732982014",
+      "number": "184",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "EVV",
+      "id": "2212843903720087",
+      "number": "3790",
+      "series": "",
+      "pairs": [
+        "7B / unknown"
+      ]
+    },
+    {
+      "airport": "5G7",
+      "id": "1758720243026442",
+      "number": "9475",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "MQS",
+      "id": "1759506061710053",
+      "number": "5893",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "STP",
+      "id": "1758721574651984",
+      "number": "8685",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "STP",
+      "id": "5688240985756021",
+      "number": "942",
+      "series": "",
+      "pairs": [
+        "8A / unknown"
+      ]
+    },
+    {
+      "airport": "AGS",
+      "id": "1758776671077894",
+      "number": "6174",
+      "series": "",
+      "pairs": [
+        "14 / unknown"
+      ]
+    },
+    {
+      "airport": "PQL",
+      "id": "1758720400629736",
+      "number": "4213",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "SLE",
+      "id": "1758720554931809",
+      "number": "9805",
+      "series": "",
+      "pairs": [
+        "10 / unknown"
+      ]
+    },
+    {
+      "airport": "JST",
+      "id": "1772720027077526",
+      "number": "3951",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "LFT",
+      "id": "1758720078283011",
+      "number": "2840",
+      "series": "",
+      "pairs": [
+        "2B / unknown"
+      ]
+    },
+    {
+      "airport": "AMA",
+      "id": "1758720163605228",
+      "number": "857",
+      "series": "",
+      "pairs": [
+        "ORIG-B / unknown"
+      ]
+    },
+    {
+      "airport": "AMA",
+      "id": "1774016175745786",
+      "number": "1603",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "IKV",
+      "id": "4414693132203247",
+      "number": "4673",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "MWO",
+      "id": "1758720209295490",
+      "number": "6056",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "ABR",
+      "id": "4971403406126599",
+      "number": "4217",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "DLZ",
+      "id": "4690827007406040",
+      "number": "3943",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "INT",
+      "id": "1758720626507537",
+      "number": "9115",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "GCY",
+      "id": "1758720351245834",
+      "number": "6480",
+      "series": "",
+      "pairs": [
+        "5A / unknown"
+      ]
+    },
+    {
+      "airport": "PWG",
+      "id": "1760638928474671",
+      "number": "1925",
+      "series": "",
+      "pairs": [
+        "1B / unknown"
+      ]
+    },
+    {
+      "airport": "TYR",
+      "id": "8339410472846225",
+      "number": "742",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "DEW",
+      "id": "1257721195211385",
+      "number": "5080",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "DEW",
+      "id": "1758720135178497",
+      "number": "6349",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "STC",
+      "id": "1772807074065724",
+      "number": "4535",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "STC",
+      "id": "3946245562623846",
+      "number": "4192",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "AEX",
+      "id": "7038606685862495",
+      "number": "787",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "ALW",
+      "id": "1797989036829151",
+      "number": "6385",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "ALW",
+      "id": "7345565370910353",
+      "number": "6028",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "CYS",
+      "id": "2694601418183799",
+      "number": "524",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SWF",
+      "id": "1111484583687314",
+      "number": "7725",
+      "series": "",
+      "pairs": [
+        "6B / unknown"
+      ]
+    },
+    {
+      "airport": "42A",
+      "id": "1758776648605923",
+      "number": "4757",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "JCA",
+      "id": "9684591243509328",
+      "number": "9495",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "AJO",
+      "id": "1758721093142185",
+      "number": "2356",
+      "series": "",
+      "pairs": [
+        "3A / unknown"
+      ]
+    },
+    {
+      "airport": "ORE",
+      "id": "1774366264529600",
+      "number": "3015",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "MLU",
+      "id": "1758720562737901",
+      "number": "9575",
+      "series": "",
+      "pairs": [
+        "6A / unknown"
+      ]
+    },
+    {
+      "airport": "LVN",
+      "id": "1758722060548841",
+      "number": "5353",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "MTW",
+      "id": "1758776626350281",
+      "number": "7051",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "VBT",
+      "id": "1765927815770218",
+      "number": "1040",
+      "series": "",
+      "pairs": [
+        "2A / unknown"
+      ]
+    },
+    {
+      "airport": "CPU",
+      "id": "3623598422784989",
+      "number": "7504",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "CPU",
+      "id": "9368411923178916",
+      "number": "0653",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "UCP",
+      "id": "1758719994996262",
+      "number": "6435",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "STF",
+      "id": "9307348946123416",
+      "number": "4909",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "MEZ",
+      "id": "1762534986299912",
+      "number": "3758",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "VJI",
+      "id": "1758720558366962",
+      "number": "330",
+      "series": "",
+      "pairs": [
+        "4 / unknown"
+      ]
+    },
+    {
+      "airport": "U02",
+      "id": "1766069750137513",
+      "number": "838",
+      "series": "",
+      "pairs": [
+        "1A / unknown"
+      ]
+    },
+    {
+      "airport": "RMN",
+      "id": "9259631793845132",
+      "number": "9690",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SLG",
+      "id": "1775746369928000",
+      "number": "259",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "LPC",
+      "id": "1773768390881727",
+      "number": "9332",
+      "series": "",
+      "pairs": [
+        "2B / unknown"
+      ]
+    },
+    {
+      "airport": "VLL",
+      "id": "1758720297619555",
+      "number": "3933",
+      "series": "",
+      "pairs": [
+        "4B / unknown"
+      ]
+    },
+    {
+      "airport": "CTJ",
+      "id": "1758721383649165",
+      "number": "4162",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "GMJ",
+      "id": "1758720209358913",
+      "number": "9950",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "PUW",
+      "id": "1758721060285257",
+      "number": "9921",
+      "series": "",
+      "pairs": [
+        "5 / unknown"
+      ]
+    },
+    {
+      "airport": "SMX",
+      "id": "2249582453482681",
+      "number": "7380",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "T41",
+      "id": "1763068504989942",
+      "number": "6049",
+      "series": "",
+      "pairs": [
+        "6 / unknown"
+      ]
+    },
+    {
+      "airport": "4B0",
+      "id": "1761573282658553",
+      "number": "6990",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "4B0",
+      "id": "1763742859699469",
+      "number": "538",
+      "series": "",
+      "pairs": [
+        "ORIG / unknown"
+      ]
+    },
+    {
+      "airport": "ILE",
+      "id": "1759152004249594",
+      "number": "1602",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "ILE",
+      "id": "3288493860273367",
+      "number": "9253",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "CGC",
+      "id": "1773418066426113",
+      "number": "8147",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "4N1",
+      "id": "1758776639160198",
+      "number": "951",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    },
+    {
+      "airport": "SME",
+      "id": "1758823290484436",
+      "number": "494",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "RPD",
+      "id": "1758721235383896",
+      "number": "834",
+      "series": "",
+      "pairs": [
+        "ORIG-A / unknown"
+      ]
+    },
+    {
+      "airport": "LWA",
+      "id": "1758721239611228",
+      "number": "4580",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "DKB",
+      "id": "1759944991835691",
+      "number": "8196",
+      "series": "",
+      "pairs": [
+        "4A / unknown"
+      ]
+    },
+    {
+      "airport": "LCH",
+      "id": "1758720150728801",
+      "number": "521",
+      "series": "",
+      "pairs": [
+        "5D / unknown"
+      ]
+    },
+    {
+      "airport": "3B0",
+      "id": "1773408554383134",
+      "number": "7992",
+      "series": "",
+      "pairs": [
+        "3 / unknown"
+      ]
+    },
+    {
+      "airport": "FYV",
+      "id": "1772816018254664",
+      "number": "4650",
+      "series": "",
+      "pairs": [
+        "7 / unknown"
+      ]
+    },
+    {
+      "airport": "3S8",
+      "id": "1931953368156340",
+      "number": "3214",
+      "series": "",
+      "pairs": [
+        "1 / unknown"
+      ]
+    },
+    {
+      "airport": "RZR",
+      "id": "1758720502861366",
+      "number": "8644",
+      "series": "",
+      "pairs": [
+        "2 / unknown"
+      ]
+    }
+  ],
+  "categoryRestrictions": {
+    "notices": 35,
+    "matched": 32,
+    "unmatched": 3,
+    "references": [
+      {
+        "airport": "ORD",
+        "id": "9836803096492260",
+        "number": "823",
+        "series": "",
+        "runway": "28R",
+        "special": false,
+        "categories": [
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 28R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "ATL",
+        "id": "3716333602590449",
+        "number": "67",
+        "series": "",
+        "runway": "27L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 27L (CAT II)",
+          "ILS PRM RWY 27L (CAT II)"
+        ]
+      },
+      {
+        "airport": "CLT",
+        "id": "5775313096261254",
+        "number": "370",
+        "series": "",
+        "runway": "1R",
+        "special": false,
+        "categories": [
+          "II",
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 01R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "IAH",
+        "id": "6467016669270880",
+        "number": "78",
+        "series": "",
+        "runway": "9",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 09 (SA CAT I - II)"
+        ]
+      },
+      {
+        "airport": "SEA",
+        "id": "9284751817758788",
+        "number": "74",
+        "series": "",
+        "runway": "16C",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 16C (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "MSP",
+        "id": "3914065524252581",
+        "number": "80",
+        "series": "",
+        "runway": "12L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 12L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "MSP",
+        "id": "6967049624190327",
+        "number": "106",
+        "series": "",
+        "runway": "12L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 12L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "IAD",
+        "id": "5046155347974762",
+        "number": "45",
+        "series": "",
+        "runway": "1R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 01R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "IAD",
+        "id": "5156700708404104",
+        "number": "239",
+        "series": "",
+        "runway": "1C",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": []
+      },
+      {
+        "airport": "IAD",
+        "id": "6590796733313906",
+        "number": "245",
+        "series": "",
+        "runway": "19C",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 19C (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "SLC",
+        "id": "8689797789324943",
+        "number": "36",
+        "series": "",
+        "runway": "34L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 34L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "PHL",
+        "id": "5398887720417838",
+        "number": "53",
+        "series": "",
+        "runway": "27R",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 27R (SA CAT I - II)"
+        ]
+      },
+      {
+        "airport": "PHL",
+        "id": "8577344646362417",
+        "number": "25",
+        "series": "",
+        "runway": "27R",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 27R (SA CAT I - II)"
+        ]
+      },
+      {
+        "airport": "RDU",
+        "id": "7714822868073530",
+        "number": "82",
+        "series": "",
+        "runway": "23R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 23R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "OAK",
+        "id": "8075359483652029",
+        "number": "41",
+        "series": "",
+        "runway": "30",
+        "special": false,
+        "categories": [
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 30 (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "MEM",
+        "id": "9148552484867920",
+        "number": "52",
+        "series": "",
+        "runway": "36R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 36R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "COS",
+        "id": "4857832624817255",
+        "number": "104",
+        "series": "",
+        "runway": "35L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": []
+      },
+      {
+        "airport": "PIT",
+        "id": "1478725015990971",
+        "number": "363",
+        "series": "",
+        "runway": "28R",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 28R (SA CAT I - II)"
+        ]
+      },
+      {
+        "airport": "PIT",
+        "id": "2124646880620962",
+        "number": "45",
+        "series": "",
+        "runway": "10L",
+        "special": false,
+        "categories": [
+          "II",
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 10L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "PIT",
+        "id": "5805816642977545",
+        "number": "367",
+        "series": "",
+        "runway": "10L",
+        "special": false,
+        "categories": [
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 10L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "PIT",
+        "id": "7050725584159472",
+        "number": "360",
+        "series": "",
+        "runway": "10L",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 10L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "PIT",
+        "id": "8536763466388603",
+        "number": "46",
+        "series": "",
+        "runway": "28R",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 28R (SA CAT I - II)"
+        ]
+      },
+      {
+        "airport": "TYS",
+        "id": "7921494423353572",
+        "number": "16",
+        "series": "",
+        "runway": "23R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 23R (CAT II)"
+        ]
+      },
+      {
+        "airport": "CHS",
+        "id": "1302029604166094",
+        "number": "92",
+        "series": "",
+        "runway": "15",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 15 (CAT II)"
+        ]
+      },
+      {
+        "airport": "ICT",
+        "id": "3091692206498184",
+        "number": "80",
+        "series": "",
+        "runway": "1L",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": []
+      },
+      {
+        "airport": "AFW",
+        "id": "1783168519246359",
+        "number": "9",
+        "series": "",
+        "runway": "16L",
+        "special": false,
+        "categories": [
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 16L (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "ONT",
+        "id": "4471548135979731",
+        "number": "74",
+        "series": "",
+        "runway": "26R",
+        "special": false,
+        "categories": [
+          "II",
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 26R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "RIC",
+        "id": "3110648949864899",
+        "number": "22",
+        "series": "",
+        "runway": "34",
+        "special": false,
+        "categories": [
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 34 (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "TUL",
+        "id": "5476896288890716",
+        "number": "17",
+        "series": "",
+        "runway": "36R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 36R (CAT II)"
+        ]
+      },
+      {
+        "airport": "DLH",
+        "id": "5061381600911941",
+        "number": "14",
+        "series": "",
+        "runway": "9",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 09 (CAT II)"
+        ]
+      },
+      {
+        "airport": "EUG",
+        "id": "3423216626307970",
+        "number": "6",
+        "series": "",
+        "runway": "16R",
+        "special": false,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 16R (CAT II - III)"
+        ]
+      },
+      {
+        "airport": "GPT",
+        "id": "9527574722895848",
+        "number": "54",
+        "series": "",
+        "runway": "14",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS Z RWY 14 (SA CAT II)"
+        ]
+      },
+      {
+        "airport": "ALB",
+        "id": "4251916445342874",
+        "number": "1",
+        "series": "",
+        "runway": "1",
+        "special": true,
+        "categories": [
+          "II"
+        ],
+        "plates": [
+          "ILS RWY 01 (SA CAT II)"
+        ]
+      },
+      {
+        "airport": "HSV",
+        "id": "2244916197613792",
+        "number": "5",
+        "series": "",
+        "runway": "18R",
+        "special": false,
+        "categories": [
+          "II",
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 18R (CAT II)"
+        ]
+      },
+      {
+        "airport": "PWM",
+        "id": "6939224116124583",
+        "number": "20",
+        "series": "",
+        "runway": "11",
+        "special": false,
+        "categories": [
+          "II",
+          "III"
+        ],
+        "plates": [
+          "ILS RWY 11 (CAT II - III)"
+        ]
+      }
+    ]
+  },
+  "facilitySignatures": [
+    {
+      "signature": "NAV ILS RWY # OM U/S",
+      "notices": 109,
+      "example": {
+        "airport": "FRG",
+        "id": "1773254941830870",
+        "number": "47",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 14 OM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R IM U/S",
+      "notices": 31,
+      "example": {
+        "airport": "ORD",
+        "id": "1766414669031423",
+        "number": "117",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09R IM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L IM U/S",
+      "notices": 30,
+      "example": {
+        "airport": "ORD",
+        "id": "1767097242223344",
+        "number": "336",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09L IM U/S"
+    },
+    {
+      "signature": "NAV VOR U/S",
+      "notices": 17,
+      "example": {
+        "airport": "CLT",
+        "id": "5195184027598436",
+        "number": "171",
+        "series": ""
+      },
+      "text": "NAV VOR U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # IM U/S",
+      "notices": 16,
+      "example": {
+        "airport": "ATL",
+        "id": "1773749520916494",
+        "number": "278",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 28 IM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L OM U/S",
+      "notices": 14,
+      "example": {
+        "airport": "GFK",
+        "id": "1774454024906053",
+        "number": "452",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 35L OM U/S"
+    },
+    {
+      "signature": "NAV TACAN AZM U/S",
+      "notices": 12,
+      "example": {
+        "airport": "HNL",
+        "id": "1770671118049947",
+        "number": "122",
+        "series": ""
+      },
+      "text": "NAV TACAN AZM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # DME U/S",
+      "notices": 11,
+      "example": {
+        "airport": "PGD",
+        "id": "6428842278549021",
+        "number": "92",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 04 DME U/S"
+    },
+    {
+      "signature": "NAV VOR NOT MNT",
+      "notices": 9,
+      "example": {
+        "airport": "SEA",
+        "id": "8718879949749099",
+        "number": "59",
+        "series": ""
+      },
+      "text": "NAV VOR NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY #R OM U/S",
+      "notices": 9,
+      "example": {
+        "airport": "RYN",
+        "id": "1775821364441334",
+        "number": "108",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 06R OM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #C IM U/S",
+      "notices": 8,
+      "example": {
+        "airport": "ORD",
+        "id": "1767098036573491",
+        "number": "337",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09C IM U/S"
+    },
+    {
+      "signature": "NAV DME U/S",
+      "notices": 8,
+      "example": {
+        "airport": "TEB",
+        "id": "4112764881102125",
+        "number": "84",
+        "series": ""
+      },
+      "text": "NAV DME U/S"
+    },
+    {
+      "signature": "NAV VORTAC NOT MNT",
+      "notices": 7,
+      "example": {
+        "airport": "STL",
+        "id": "6467326905813401",
+        "number": "270",
+        "series": ""
+      },
+      "text": "NAV VORTAC NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # DME NOT MNT",
+      "notices": 7,
+      "example": {
+        "airport": "CFO",
+        "id": "2639337197305492",
+        "number": "1",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 17 DME NOT MNT"
+    },
+    {
+      "signature": "NAV VOR/DME U/S",
+      "notices": 6,
+      "example": {
+        "airport": "CCR",
+        "id": "6736726813505976",
+        "number": "29",
+        "series": ""
+      },
+      "text": "NAV VOR/DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R DME U/S",
+      "notices": 5,
+      "example": {
+        "airport": "ATL",
+        "id": "2644301254280140",
+        "number": "335",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 26R DME U/S"
+    },
+    {
+      "signature": "NAV VOT U/S",
+      "notices": 5,
+      "example": {
+        "airport": "IND",
+        "id": "7984718522268204",
+        "number": "153",
+        "series": ""
+      },
+      "text": "NAV VOT U/S"
+    },
+    {
+      "signature": "NAV VORTAC U/S",
+      "notices": 5,
+      "example": {
+        "airport": "PIE",
+        "id": "4328524186280759",
+        "number": "434",
+        "series": ""
+      },
+      "text": "NAV VORTAC U/S"
+    },
+    {
+      "signature": "NAV NDB U/S",
+      "notices": 5,
+      "example": {
+        "airport": "FFC",
+        "id": "7217641616773940",
+        "number": "18",
+        "series": ""
+      },
+      "text": "NAV NDB U/S"
+    },
+    {
+      "signature": "NAV VOR GND REC CHECKPOINT U/S",
+      "notices": 5,
+      "example": {
+        "airport": "DBQ",
+        "id": "7395780354248986",
+        "number": "58",
+        "series": ""
+      },
+      "text": "NAV VOR GND REC CHECKPOINT U/S"
+    },
+    {
+      "signature": "NAV LOC RWY # OM U/S",
+      "notices": 5,
+      "example": {
+        "airport": "BVI",
+        "id": "3876251149183854",
+        "number": "24",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 10 OM U/S"
+    },
+    {
+      "signature": "NAV VOR/DME NOT MNT",
+      "notices": 4,
+      "example": {
+        "airport": "DEN",
+        "id": "9029310811517140",
+        "number": "733",
+        "series": ""
+      },
+      "text": "NAV VOR/DME NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY #L UNUSABLE DA TO TDZ",
+      "notices": 4,
+      "example": {
+        "airport": "RDU",
+        "id": "4920704748255355",
+        "number": "455",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 23L UNUSABLE DA TO TDZ"
+    },
+    {
+      "signature": "NAV TACAN U/S",
+      "notices": 4,
+      "example": {
+        "airport": "CVG",
+        "id": "1758723083496329",
+        "number": "166",
+        "series": ""
+      },
+      "text": "NAV TACAN U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # LOC/DME U/S",
+      "notices": 4,
+      "example": {
+        "airport": "LOT",
+        "id": "3819415560917332",
+        "number": "14",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09 LOC/DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L DME NOT MNT",
+      "notices": 3,
+      "example": {
+        "airport": "PRC",
+        "id": "1537548176801058",
+        "number": "169",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 21L DME NOT MNT"
+    },
+    {
+      "signature": "NAV LOC TYPE DIRECTIONAL AID RWY # U/S",
+      "notices": 3,
+      "example": {
+        "airport": "SLC",
+        "id": "9822288398665172",
+        "number": "28",
+        "series": ""
+      },
+      "text": "NAV LOC TYPE DIRECTIONAL AID RWY 35 U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R LOC/GP/DME U/S",
+      "notices": 3,
+      "example": {
+        "airport": "ANC",
+        "id": "2086184498262078",
+        "number": "109",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 07R LOC/GP/DME U/S"
+    },
+    {
+      "signature": "NAV VOR #-# UNUSABLE",
+      "notices": 3,
+      "example": {
+        "airport": "MLB",
+        "id": "3036537167081836",
+        "number": "6",
+        "series": ""
+      },
+      "text": "NAV VOR 220-265 UNUSABLE"
+    },
+    {
+      "signature": "NAV ILS RWY # OM DECOMMISSIONED",
+      "notices": 3,
+      "example": {
+        "airport": "DPA",
+        "id": "2975748207987839",
+        "number": "019",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 10 OM DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV ILS RWY # LOC/DME NOT MNT",
+      "notices": 3,
+      "example": {
+        "airport": "GJT",
+        "id": "6977329018206236",
+        "number": "041",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 11 LOC/DME NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # LOC/GP/DME U/S",
+      "notices": 3,
+      "example": {
+        "airport": "OTZ",
+        "id": "2931600690764348",
+        "number": "17",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09 LOC/GP/DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # MM U/S",
+      "notices": 3,
+      "example": {
+        "airport": "MHT",
+        "id": "4326444609798738",
+        "number": "10",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 35 MM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L DME U/S",
+      "notices": 2,
+      "example": {
+        "airport": "ATL",
+        "id": "3793273078962625",
+        "number": "265",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09L DME U/S"
+    },
+    {
+      "signature": "NAV LOC TYPE DIRECTIONAL AID RWY # U/S DLY #-#",
+      "notices": 2,
+      "example": {
+        "airport": "SLC",
+        "id": "5544709586972715",
+        "number": "23",
+        "series": ""
+      },
+      "text": "NAV LOC TYPE DIRECTIONAL AID RWY 35 U/S DLY 1300-0001"
+    },
+    {
+      "signature": "NAV DME DECOMMISSIONED",
+      "notices": 2,
+      "example": {
+        "airport": "PDK",
+        "id": "1764615778881581",
+        "number": "2",
+        "series": ""
+      },
+      "text": "NAV DME DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV ILS RWY #R UNUSABLE DA TO TDZ",
+      "notices": 2,
+      "example": {
+        "airport": "STL",
+        "id": "7843523438407752",
+        "number": "87",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 30R UNUSABLE DA TO TDZ"
+    },
+    {
+      "signature": "NAV NDB DECOMMISSIONED",
+      "notices": 2,
+      "example": {
+        "airport": "TOI",
+        "id": "1758720593795445",
+        "number": "14",
+        "series": ""
+      },
+      "text": "NAV NDB DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV LOC RWY # LOC/DME U/S",
+      "notices": 2,
+      "example": {
+        "airport": "DLG",
+        "id": "8342296765659698",
+        "number": "146",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 19 LOC/DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R(Z) IM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "ORD",
+        "id": "1769087599282536",
+        "number": "864",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 10R(Z) IM U/S"
+    },
+    {
+      "signature": "NAV LOC RWY #R DME U/S",
+      "notices": 1,
+      "example": {
+        "airport": "BOS",
+        "id": "1546015476235964",
+        "number": "79",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 15R DME U/S"
+    },
+    {
+      "signature": "NAV LOC RWY #L DME U/S",
+      "notices": 1,
+      "example": {
+        "airport": "BOS",
+        "id": "4423155382254078",
+        "number": "80",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 33L DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L LOC/GP/DME U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MCO",
+        "id": "7425608112381929",
+        "number": "26",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 36L LOC/GP/DME U/S"
+    },
+    {
+      "signature": "NAV GBAS NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "EWR",
+        "id": "8773544122487524",
+        "number": "004",
+        "series": ""
+      },
+      "text": "NAV GBAS NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # UNUSABLE DA TO TDZ",
+      "notices": 1,
+      "example": {
+        "airport": "MSP",
+        "id": "6560666645330696",
+        "number": "76",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 22 UNUSABLE DA TO TDZ"
+    },
+    {
+      "signature": "NAV ILS RWY #L EWABE LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "HNL",
+        "id": "9280996978551970",
+        "number": "224",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 08L EWABE LOM U/S"
+    },
+    {
+      "signature": "NAV LOC TYPE DIRECTIONAL AID U/S",
+      "notices": 1,
+      "example": {
+        "airport": "VNY",
+        "id": "8386289068181915",
+        "number": "6",
+        "series": ""
+      },
+      "text": "NAV LOC TYPE DIRECTIONAL AID U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #L LOC/DME/GP NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "SPS",
+        "id": "3697765563434279",
+        "number": "29",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 33L LOC/DME/GP NOT MNT"
+    },
+    {
+      "signature": "NAV LOC RWY #R LOC/DME U/S DLY #-#",
+      "notices": 1,
+      "example": {
+        "airport": "SEE",
+        "id": "6926161422605942",
+        "number": "2",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 27R LOC/DME U/S DLY 0100-1400"
+    },
+    {
+      "signature": "NAV VOR UNUSABLE",
+      "notices": 1,
+      "example": {
+        "airport": "TEB",
+        "id": "8183111169107221",
+        "number": "17",
+        "series": ""
+      },
+      "text": "NAV VOR UNUSABLE"
+    },
+    {
+      "signature": "NAV ILS RWY #L PETEY LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "COS",
+        "id": "9791732292126116",
+        "number": "17",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 35L PETEY LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R LOC/DME U/S",
+      "notices": 1,
+      "example": {
+        "airport": "DWH",
+        "id": "2800868214597491",
+        "number": "34",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 17R LOC/DME U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # CALOO LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "FMY",
+        "id": "2377376597749225",
+        "number": "63",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 05 CALOO LOM U/S"
+    },
+    {
+      "signature": "NAV VOR/DME DECOMMISSIONED",
+      "notices": 1,
+      "example": {
+        "airport": "SGJ",
+        "id": "1764862274992365",
+        "number": "4",
+        "series": ""
+      },
+      "text": "NAV VOR/DME DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV LOC RWY # LOC U/S",
+      "notices": 1,
+      "example": {
+        "airport": "ABQ",
+        "id": "2939863432623468",
+        "number": "62",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 03 LOC U/S"
+    },
+    {
+      "signature": "NAV ECB DME NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "LOU",
+        "id": "6002777782925429",
+        "number": "492",
+        "series": ""
+      },
+      "text": "NAV ECB DME NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY #L IM NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "PIT",
+        "id": "2928948482741682",
+        "number": "368",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 10L IM NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY #R MM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "TYS",
+        "id": "3430548975872932",
+        "number": "6",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 23R MM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R OM NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "TYS",
+        "id": "9470333381904868",
+        "number": "074",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 23R OM NOT MNT"
+    },
+    {
+      "signature": "NAV RBJ NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "RYN",
+        "id": "1775780261550087",
+        "number": "102",
+        "series": ""
+      },
+      "text": "NAV RBJ NDB U/S"
+    },
+    {
+      "signature": "NAV UGS NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "UNI",
+        "id": "6889505653887486",
+        "number": "18",
+        "series": ""
+      },
+      "text": "NAV UGS NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # ALIBI LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "CXO",
+        "id": "2578133159224727",
+        "number": "649",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 14 ALIBI LOM U/S"
+    },
+    {
+      "signature": "NAV DINNS LOM NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "JAX",
+        "id": "6276595629155443",
+        "number": "11",
+        "series": ""
+      },
+      "text": "NAV DINNS LOM NDB U/S"
+    },
+    {
+      "signature": "NAV RWY # ILS U/S",
+      "notices": 1,
+      "example": {
+        "airport": "BKV",
+        "id": "2168023719989322",
+        "number": "1",
+        "series": ""
+      },
+      "text": "NAV RWY 09 ILS U/S"
+    },
+    {
+      "signature": "NAV TACAN AZM UNUSABLE",
+      "notices": 1,
+      "example": {
+        "airport": "GSO",
+        "id": "4615193742902321",
+        "number": "2",
+        "series": ""
+      },
+      "text": "NAV TACAN AZM UNUSABLE"
+    },
+    {
+      "signature": "NAV VOR # NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "LYH",
+        "id": "4434104488279070",
+        "number": "006",
+        "series": ""
+      },
+      "text": "NAV VOR 109.2 NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # LOC/DME/GP U/S",
+      "notices": 1,
+      "example": {
+        "airport": "RDM",
+        "id": "6576250693255581",
+        "number": "6",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 23 LOC/DME/GP U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R BATOL LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "BTL",
+        "id": "8745278050869127",
+        "number": "24",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 23R BATOL LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # PYKLA LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "DLH",
+        "id": "7677167235325325",
+        "number": "48",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09 PYKLA LOM U/S"
+    },
+    {
+      "signature": "NAV VOR GND REC CHECKPOINT FOR TWY A# U/S",
+      "notices": 1,
+      "example": {
+        "airport": "SGU",
+        "id": "3685772689350537",
+        "number": "020",
+        "series": ""
+      },
+      "text": "NAV VOR GND REC CHECKPOINT FOR TWY A1 U/S"
+    },
+    {
+      "signature": "NAV VOR GND REC CHECKPOINT FOR TWY B# U/S",
+      "notices": 1,
+      "example": {
+        "airport": "SGU",
+        "id": "7121345878450377",
+        "number": "019",
+        "series": ""
+      },
+      "text": "NAV VOR GND REC CHECKPOINT FOR TWY B1 U/S"
+    },
+    {
+      "signature": "NAV TACAN NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "MGM",
+        "id": "4346937790486853",
+        "number": "110",
+        "series": ""
+      },
+      "text": "NAV TACAN NOT MNT"
+    },
+    {
+      "signature": "NAV MARRA NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MGM",
+        "id": "6933596799438507",
+        "number": "54",
+        "series": ""
+      },
+      "text": "NAV MARRA NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # MISSI LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MFE",
+        "id": "4394980780076122",
+        "number": "69",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 14 MISSI LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # GP UNUSABLE",
+      "notices": 1,
+      "example": {
+        "airport": "GYH",
+        "id": "8838626726026561",
+        "number": "2",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 05 GP UNUSABLE"
+    },
+    {
+      "signature": "NAV ILS RWY # TUNNG LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "UOX",
+        "id": "9775270183090352",
+        "number": "25",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 09 TUNNG LOM U/S"
+    },
+    {
+      "signature": "NAV OTB VOR U/S",
+      "notices": 1,
+      "example": {
+        "airport": "TUP",
+        "id": "1760624104930539",
+        "number": "8",
+        "series": ""
+      },
+      "text": "NAV OTB VOR U/S"
+    },
+    {
+      "signature": "NAV DME NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "ECG",
+        "id": "1776022654967752",
+        "number": "4",
+        "series": ""
+      },
+      "text": "NAV DME NOT MNT"
+    },
+    {
+      "signature": "NAV LLW NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "ECG",
+        "id": "8561728785179368",
+        "number": "1",
+        "series": ""
+      },
+      "text": "NAV LLW NDB U/S"
+    },
+    {
+      "signature": "NAV LLW NDB NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "ECG",
+        "id": "9041229121203184",
+        "number": "16",
+        "series": ""
+      },
+      "text": "NAV LLW NDB NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # ENOLA LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MDT",
+        "id": "1928383641332830",
+        "number": "28",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 13 ENOLA LOM U/S"
+    },
+    {
+      "signature": "NAV LOC RWY # LOC NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "DLG",
+        "id": "9680646953040388",
+        "number": "175",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 19 LOC NOT MNT"
+    },
+    {
+      "signature": "NAV EQQ NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "CCO",
+        "id": "9173958782184394",
+        "number": "877",
+        "series": ""
+      },
+      "text": "NAV EQQ NDB U/S"
+    },
+    {
+      "signature": "NAV BMW NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "WDR",
+        "id": "1758720218171287",
+        "number": "5",
+        "series": ""
+      },
+      "text": "NAV BMW NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # LOC UNUSABLE WI .#NM",
+      "notices": 1,
+      "example": {
+        "airport": "CEW",
+        "id": "8872289342395627",
+        "number": "2",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 17 LOC UNUSABLE WI .4NM"
+    },
+    {
+      "signature": "NAV RNB NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MIV",
+        "id": "6712965298052148",
+        "number": "342",
+        "series": ""
+      },
+      "text": "NAV RNB NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # FITZY LOM DECOMMISSIONED",
+      "notices": 1,
+      "example": {
+        "airport": "MHT",
+        "id": "1347319105990504",
+        "number": "33",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 06 FITZY LOM DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV BUSHE LOM NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "AGS",
+        "id": "8907587590616871",
+        "number": "46",
+        "series": ""
+      },
+      "text": "NAV BUSHE LOM NDB U/S"
+    },
+    {
+      "signature": "NAV HANCO NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "HSA",
+        "id": "1765564565163722",
+        "number": "15",
+        "series": ""
+      },
+      "text": "NAV HANCO NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY #R LOC/DME/GP NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "DAY",
+        "id": "3649551592056432",
+        "number": "238",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 24R LOC/DME/GP NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY #L BRUNY LOM NOT MNT",
+      "notices": 1,
+      "example": {
+        "airport": "DAY",
+        "id": "6531060226224827",
+        "number": "241",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 06L BRUNY LOM NOT MNT"
+    },
+    {
+      "signature": "NAV ILS RWY # HUSSK LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "STC",
+        "id": "3394663933039366",
+        "number": "32",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 31 HUSSK LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # TRINA LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "ALW",
+        "id": "1758776649444915",
+        "number": "40",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 20 TRINA LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # SABAR LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "MLU",
+        "id": "3963213176724212",
+        "number": "029",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 04 SABAR LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # SABAR LOM DECOMMISSIONED",
+      "notices": 1,
+      "example": {
+        "airport": "MLU",
+        "id": "6332430439489656",
+        "number": "028",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 04 SABAR LOM DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV HEM NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "SRB",
+        "id": "1758720622038411",
+        "number": "447",
+        "series": ""
+      },
+      "text": "NAV HEM NDB U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # OUTER MARKER U/S",
+      "notices": 1,
+      "example": {
+        "airport": "CON",
+        "id": "3515318540635588",
+        "number": "037",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 35 OUTER MARKER U/S"
+    },
+    {
+      "signature": "NAV TACAN AZM DECOMMISSIONED",
+      "notices": 1,
+      "example": {
+        "airport": "PIR",
+        "id": "1758776608950652",
+        "number": "44",
+        "series": ""
+      },
+      "text": "NAV TACAN AZM DECOMMISSIONED"
+    },
+    {
+      "signature": "NAV ILS RWY # GP/DME U/S",
+      "notices": 1,
+      "example": {
+        "airport": "RMN",
+        "id": "9496604201703068",
+        "number": "003",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 33 GP/DME U/S"
+    },
+    {
+      "signature": "NAV GPQ NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "CTJ",
+        "id": "4997481554976315",
+        "number": "087",
+        "series": ""
+      },
+      "text": "NAV GPQ NDB U/S"
+    },
+    {
+      "signature": "NAV CSS NDB U/S",
+      "notices": 1,
+      "example": {
+        "airport": "I23",
+        "id": "8896050498702006",
+        "number": "3",
+        "series": ""
+      },
+      "text": "NAV CSS NDB U/S"
+    },
+    {
+      "signature": "NAV LOC RWY # BC UNUSABLE BEYOND #DEG LEFT OF COURSE",
+      "notices": 1,
+      "example": {
+        "airport": "SMX",
+        "id": "1776344476384328",
+        "number": "18",
+        "series": ""
+      },
+      "text": "NAV LOC RWY 12 BC UNUSABLE BEYOND 15DEG LEFT OF COURSE"
+    },
+    {
+      "signature": "NAV ILS RWY # IRESH LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "ILE",
+        "id": "7599278390912529",
+        "number": "11",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 01 IRESH LOM U/S"
+    },
+    {
+      "signature": "NAV ILS RWY # HOSSY LOM U/S",
+      "notices": 1,
+      "example": {
+        "airport": "HOT",
+        "id": "9609708549453376",
+        "number": "20",
+        "series": ""
+      },
+      "text": "NAV ILS RWY 05 HOSSY LOM U/S"
+    }
+  ]
+}

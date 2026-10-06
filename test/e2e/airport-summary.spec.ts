@@ -96,6 +96,7 @@ for (const touch of [false, true]) test.describe(`airport map selection (${touch
       await expect(facts).toContainText('170 ft');
       await expect(facts).toContainText('119.15 MHz');
       if (tier === 'weather') await expect(page.getByRole('region', { name: 'METAR', exact: true })).toContainText('KSMO TEST METAR');
+      await expect(page.locator('.selection-marker-label')).toHaveText('KSMO');
       const close = page.getByRole('button', { name: 'Close detail', exact: true });
       if (touch) await close.tap();
       else await close.click();

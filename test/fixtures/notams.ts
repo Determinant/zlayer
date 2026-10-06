@@ -1,4 +1,4 @@
-import type { NotamAirportSnapshot, NotamRecord, ProcedureAirport, ProcedureCatalog, ProcedureRecord, ProcedureResourceRecord } from '@zlayer/contracts';
+import type { NotamAirportSnapshot, NotamNavaidSnapshot, NotamRecord, ProcedureAirport, ProcedureCatalog, ProcedureRecord, ProcedureResourceRecord } from '@zlayer/contracts';
 
 /** Invented source examples; no onboarding credentials or live operational advice. */
 export const NOTAM_NOW = Date.parse('2026-10-04T12:00:00Z');
@@ -51,6 +51,9 @@ export function notamSnapshot(records: NotamRecord[] = [notice()], overrides: Pa
   return { schemaVersion: 1, query: { faaId: 'TST', icaoId: 'KTST' }, scope: 'airport-location', associationCoverage: 'complete', records,
     feed: { enabled: true, environment: 'staging', state: 'ready', generation: 'b'.repeat(64), checkedAt: NOTAM_NOW, watermark: NOTAM_NOW,
       fullSyncAt: NOTAM_NOW, recordCount: records.length, continuity: 'complete', error: null, nextAttemptAt: NOTAM_NOW + 180_000 }, ...overrides };
+}
+export function navaidSnapshot(records: NotamRecord[] = [], overrides: Partial<NotamNavaidSnapshot> = {}): NotamNavaidSnapshot {
+  return { ...notamSnapshot(records), query: { navaidId: 'TST' }, scope: 'navaid-location', associationCoverage: 'complete', ...overrides };
 }
 export const testProcedure: ProcedureRecord = { id: 'iap-test', kind: 'approach', name: 'RNAV (GPS) Y RWY 09L', sortOrder: 1,
   pdfName: 'test.pdf', pdfUrl: 'test.pdf', namedDestination: null,

@@ -102,7 +102,12 @@ test('map labels preserve timing uncertainty; cancelled and definitely expired r
 test('visible reader leases update independently and cannot resurrect after stow or provider reset', () => {
   const previews = createNotamMapPreviews(), first = notice({ text }), second = notice({ id: '1757600000000002', text });
   const airport = previews.open(), plate = previews.open();
-  airport.update([first, second]); plate.update([first]);
+  airport.update([first, second]);
+  const shared = previews.state.getSnapshot(), otherAirportRegion = previews.open();
+  otherAirportRegion.update([first, second]); plate.update([first]);
+  assert.equal(previews.state.getSnapshot(), shared, 'another reader of the same region does not republish map input');
+  otherAirportRegion.release();
+  assert.equal(previews.state.getSnapshot(), shared, 'releasing a duplicate reader leaves the existing depiction intact');
   assert.equal(previews.state.getSnapshot().length, 2);
   airport.update([first]); assert.equal(previews.state.getSnapshot().length, 1, 'filtering replaces that reader’s input');
   airport.release(); assert.deepEqual(previews.state.getSnapshot(), [first], 'another open reader keeps its context');
@@ -112,4 +117,23 @@ test('visible reader leases update independently and cannot resurrect after stow
   const reopened = previews.open(); reopened.update([second]); old.update([first]); old.release();
   assert.deepEqual(previews.state.getSnapshot(), [second]); reopened.release();
   assert.deepEqual(previews.state.getSnapshot(), []);
+});
+
+test('highlight leases follow accepted revisions and cannot clear another reader’s interaction', () => {
+  const previews = createNotamMapPreviews(), first = notice({ text }), second = notice({ id: '1757600000000002', text });
+  const airport = previews.open(), region = previews.open();
+  airport.update([first]); region.update([second]);
+  const firstKey = notamChartKey(first), secondKey = notamChartKey(second);
+  const leaveAirport = airport.highlight(firstKey);
+  assert.equal(previews.highlighted.getSnapshot(), undefined, 'pending geometry cannot be highlighted');
+  previews.show([firstKey, secondKey]);
+  assert.equal(previews.highlighted.getSnapshot(), firstKey);
+  const leaveRegion = region.highlight(secondKey);
+  leaveAirport(); assert.equal(previews.highlighted.getSnapshot(), secondKey);
+  region.update([]); assert.equal(previews.highlighted.getSnapshot(), undefined);
+  region.update([second]); assert.equal(previews.highlighted.getSnapshot(), undefined, 'filter removal releases the previous highlight');
+  region.highlight(secondKey); previews.show([]);
+  assert.equal(previews.highlighted.getSnapshot(), undefined, 'map failure/detachment clears emphasis');
+  previews.clear(); region.update([second]); region.highlight(secondKey); leaveRegion(); previews.show([secondKey]);
+  assert.equal(previews.highlighted.getSnapshot(), undefined, 'a released owner cannot resurrect emphasis');
 });

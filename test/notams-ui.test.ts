@@ -2,10 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NotamList, NotamSourceIssues } from '../src/layers/notams/ui';
+import { NotamList, NotamSourceIssues, NavaidNotams, SourceStatus } from '../src/layers/notams/ui';
+import { FeatureDetailsPanel } from '../src/workspace/feature-details-panel';
+import { MetarClient } from '../src/layers/metar-taf/metar/client';
+import { emptyRoutePlan } from '@zlayer/domain';
+import { createLayerStore } from '../src/core/layers/store';
+import type { NotamsApi } from '../src/layers/notams/public';
+import type { GeoPointFeature } from '@zlayer/contracts';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
-import { departureNotice, notice, NOTAM_NOW } from './fixtures/notams';
+import { departureNotice, notice, notamSnapshot, navaidSnapshot, NOTAM_NOW } from './fixtures/notams';
 
 type Entry = ComponentProps<typeof NotamList>['entries'][number];
 const entry = (number: string, overrides: Parameters<typeof notice>[0] = {}): Entry => ({
@@ -14,6 +20,52 @@ const entry = (number: string, overrides: Parameters<typeof notice>[0] = {}): En
 });
 const render = (entries: Entry[], now = NOTAM_NOW) => renderToStaticMarkup(createElement(NotamList, { entries, now }));
 const headings = (html: string) => [...html.matchAll(/<h3[^>]*>([^<]+)/g)].map(match => match[1]!.trim());
+
+test('navaid source status reports station content gaps and refresh failures, including with older coverage flags', () => {
+  const snapshot = navaidSnapshot([], { contentCoverage: 'complete', issues: [] });
+  snapshot.feed = { ...snapshot.feed, environment: 'production', collectionContinuity: 'complete', unresolvedRecords: 0, unscopedRecords: 0 };
+  const view: ComponentProps<typeof SourceStatus>['view'] = { snapshot, entry: { snapshot, loading: false }, online: true,
+    visiblePage: true, now: NOTAM_NOW, fresh: true, complete: false, staging: false };
+  const html = renderToStaticMarkup(createElement(SourceStatus, { view }));
+  assert.match(html, /FAA NOTAMs/); assert.doesNotMatch(html, /Incomplete coverage|Stale|Offline/);
+
+  const incomplete = { ...snapshot, contentCoverage: 'incomplete' as const, feed: { ...snapshot.feed,
+    collectionContinuity: 'incomplete' as const, continuity: 'incomplete' as const, state: 'degraded' as const } };
+  const warning = renderToStaticMarkup(createElement(SourceStatus, { view: { ...view, snapshot: incomplete,
+    online: false, fresh: false, entry: { snapshot: incomplete, loading: false, error: 'Unable to refresh NOTAMs.' } } }));
+  for (const text of ['Incomplete coverage', 'Stale', 'Offline', 'Unable to refresh NOTAMs', 'Feed update incomplete']) assert.ok(warning.includes(text));
+
+  const airport = notamSnapshot([], { query: { icaoId: 'KTST' }, associationCoverage: 'incomplete',
+    contentCoverage: 'complete', issues: [], feed: snapshot.feed });
+  assert.match(renderToStaticMarkup(createElement(SourceStatus, { view: { ...view, snapshot: airport } })), /Incomplete coverage/);
+  const legacy = navaidSnapshot([], { feed: snapshot.feed, associationCoverage: 'incomplete' });
+  assert.doesNotMatch(renderToStaticMarkup(createElement(SourceStatus, { view: { ...view, snapshot: legacy } })), /Incomplete coverage/);
+  legacy.feed = { ...legacy.feed, continuity: 'incomplete' };
+  assert.match(renderToStaticMarkup(createElement(SourceStatus, { view: { ...view, snapshot: legacy } })), /Incomplete coverage/);
+});
+
+test('navaid details compose exactly Info/NOTAM tabs and remain usable without the optional provider', () => {
+  const feature: GeoPointFeature = { type: 'Feature', id: 'navaid:TST', geometry: { type: 'Point', coordinates: [-122, 37] },
+    properties: { kind: 'navaid', ident: 'TST', type: 'VOR/DME', country: 'US', name: 'Test station' } };
+  const api: NotamsApi = { state: createLayerStore({ queries: {}, now: NOTAM_NOW }), charted: createLayerStore<readonly string[]>([]),
+    retain() { assert.fail('The Info tab must not demand NOTAMs'); }, retry() {}, contextActions: () => [],
+    previewChart() { assert.fail('The Info tab must not preview NOTAMs'); } };
+  const props: ComponentProps<typeof FeatureDetailsPanel> = {
+    feature, revision: '2026-10-01', metarClient: new MetarClient(new URL('https://example.test/metars')), procedureResource: undefined,
+    route: { plan: emptyRoutePlan(), navigationData: {}, update() {}, onIdentify() {}, onIdentificationPreview() {} },
+    features: { routes: false, weather: false, terrain: false, plates: true },
+    onIdentificationChange() {}, onClose() {}, onOpenProcedure() {},
+  };
+  const html = renderToStaticMarkup(createElement(FeatureDetailsPanel, { ...props, notamsApi: api }));
+  assert.match(html, /aria-label="Navaid detail"/);
+  assert.deepEqual([...html.matchAll(/role="tab"[^>]*>([^<]+)/g)].map(match => match[1]), ['Info', 'NOTAM']);
+  assert.match(html, /Test station/); assert.doesNotMatch(html, />Plates</);
+  const disabled = renderToStaticMarkup(createElement(FeatureDetailsPanel, props));
+  assert.match(disabled, /Test station/); assert.doesNotMatch(disabled, /role="tab"/);
+  const unavailable = renderToStaticMarkup(createElement(NavaidNotams, { api, active: true,
+    feature: { ...feature, properties: { ...feature.properties, country: undefined } } }));
+  assert.match(unavailable, /lookup is unavailable/);
+});
 test('source issues keep competing raw restrictions visible without presenting one as an operative notice', () => {
   const first = recordWithRevision(notice({ text: 'RWY 09L CLSD', translations: [] }));
   const second = recordWithRevision({ ...first, text: 'RWY 09L OPEN' });
@@ -21,9 +73,9 @@ test('source issues keep competing raw restrictions visible without presenting o
   const html = renderToStaticMarkup(createElement(NotamSourceIssues, { issues }));
   assert.match(html, /Source data needs review/); assert.match(html, /No version has been chosen as authoritative/);
   assert.match(html, /RWY 09L CLSD/); assert.match(html, /RWY 09L OPEN/);
-  assert.doesNotMatch(html, /notam-flair|Applies to this plate|notam-chart-note/);
+  assert.doesNotMatch(html, /notam-flair|Related to this plate|notam-chart-note/);
   const global = renderToStaticMarkup(createElement(NotamSourceIssues, { issues: [{ ...issues[0]!, unscoped: true, variantsTruncated: true }] }));
-  assert.match(global, /all airports/); assert.match(global, /not exhaustive/);
+  assert.match(global, /all locations/); assert.match(global, /not exhaustive/);
 });
 function assertBefore(html: string, first: string, second: string) {
   const start = html.indexOf(first), end = html.indexOf(second);
@@ -128,7 +180,7 @@ test('plate timing sections put upcoming applies matches after current review ca
   assert.deepEqual(headings(html), ['Active', 'Upcoming']);
   assertBefore(html, 'Review applicability', 'Upcoming');
   assertBefore(html, 'Review the displayed amendment.', 'Upcoming');
-  assertBefore(html, 'Upcoming', 'Applies to this plate');
+  assertBefore(html, 'Upcoming', 'Related to this plate');
   assertBefore(html, 'Upcoming', 'Future procedure restriction.');
 });
 

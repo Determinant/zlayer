@@ -57,9 +57,19 @@ Display scaling and browser chrome can change the available viewport.
   editor, and resizing preserves an in-progress edit.
 - Feature cards keep the identifier, append action and close control outside one
   scrollable body. Metadata, tabs and details remain reachable even in short windows.
+  An unstowed feature-details card marks its map point with an open-center crosshair;
+  every selected entity's identifier stays visible beside it. Stowing or closing the card
+  removes this focus marker. See [Navigation](../../src/layers/navigation/README.md#interaction-efficiency).
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
   Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
   advisory, Progs, radar, cloud, icing and wind controls use six content tabs in two rows inside its left toolbox.
+- Map chrome has one isolated stacking context below the search and route toolbars
+  and their menus. Crosshairs and ruler grips stay below panels/controls. Open
+  nearby-feature and Map Display menus clear panel bodies and presented edge tabs
+  (menu level 17, bodies through 14, presented tabs 16); otherwise choices can be
+  visible but unclickable where a menu overlaps details. Focused edge panels still
+  come forward within the panel band. Full-screen/modal surfaces use the browser's
+  top layer. Map drawing bands are owned by the [architecture guide](../architecture/overview.md#map-rendering-stack).
 - Chart/MBTiles status, GPS, Terrain, Glide and AWC Weather retain their compact contents and tuck away
   off the left edge. Clicking or tapping a tab toggles its panel open or closed, on
   desktop and touch devices alike. Moving across the map or hovering another tab
@@ -89,8 +99,8 @@ Display scaling and browser chrome can change the available viewport.
   [AHRS lifecycle](../../src/layers/ahrs/README.md#integration).
 - A right-click, or a stationary long press on touch screens, queries a small map
   radius and opens a nearby-feature chooser when airport, navaid or fix points
-  overlap. Ordinary clicks select a rendered point directly unless a TFR area
-  covers the position: a left click or tap there opens **TFR Details** in the
+  overlap. Ordinary clicks select the foremost rendered point directly, including
+  inside a TFR. Where no point is hit, a left click or tap in an area opens **TFR Details** in the
   right-side panel, listing overlapping restrictions without map labels.
   Empty-space context gestures open a temporary GPS waypoint with coordinates and
   terrain elevation, without editing the route. When a plugin contributes actions,
@@ -363,6 +373,11 @@ controller, labels, close callback and content; `wide` accommodates airport plat
 while features request opening on selection through that controller. Features keep their report content,
 tabs and demand decisions, without overriding the shared frame's width, header or
 scroll layout.
+An optional `contentKey` replaces only the scroll body when the feature selects
+a different content view, starting that view at the top. Keep the key stable
+while stowed so the reading position and mounted content survive. Airport NOTAM
+area tabs sit in the fixed header below the main tabs and use this key for
+Airport/ARTCC–FIR changes; their notices and filters share the existing scroll body.
 
 Content tabs use `core/ui/tabs.tsx`: `TabList` owns the shared native buttons,
 selected state, roving tab stop and Left/Right/Home/End navigation. Pair it with

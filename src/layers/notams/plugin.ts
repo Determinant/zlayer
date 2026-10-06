@@ -17,7 +17,8 @@ export function createNotamsPlugin() {
   const clearSelection = () => selection.publish([]);
   let inspectAt: ((point: { x: number; y: number }) => TfrAreaSelection[]) | undefined;
   const previews = createNotamMapPreviews();
-  const input = combineLayerStores(previews.state, client.state, (records, state) => ({ records, now: state.now }));
+  const content = combineLayerStores(previews.state, client.state, (records, state) => ({ records, now: state.now }));
+  const input = combineLayerStores(content, previews.highlighted, (content, highlighted) => ({ ...content, highlighted }));
   const stop = () => { clearSelection(); previews.clear(); client.stop(); tfrs.stop(); };
   return {
     definition: { id: 'notams', title: 'NOTAMs' }, storage: pluginStorage,
@@ -32,7 +33,7 @@ export function createNotamsPlugin() {
       }), state: scope.store(client.state), charted: scope.store(previews.charted), retain: scope.command((query, online) => scope.add(client.retain(query, online))),
         previewChart: scope.command(() => {
           const preview = previews.open();
-          return { update: scope.command(preview.update), release: scope.add(preview.release) };
+          return { update: scope.command(preview.update), highlight: scope.command(preview.highlight), release: scope.add(preview.release) };
         }),
         retry: scope.command(client.retry) };
     },

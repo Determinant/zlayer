@@ -10,6 +10,7 @@ import { PRIORITY_FIX_LAYER_ID, PRIORITY_FIX_SOURCE_ID } from '../src/layers/nav
 import { installMetarLayers } from '../src/layers/metar-taf/metar/renderer';
 import { createRouteLayer } from '../src/layers/routes/layer';
 import { CHART_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../src/core/map/layer';
+import { focusedLayerId } from '../src/core/map/focus';
 
 function mapFixture(t: test.TestContext) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
@@ -35,7 +36,10 @@ function mapFixture(t: test.TestContext) {
       if (failing.has(id)) queueMicrotask(() => fire('error', { sourceId: id, error: new Error('Source failed') }));
       else sources.set(id, data);
     } } : undefined; },
-    removeSource(id: string) { sources.delete(id); },
+    removeSource(id: string) {
+      assert.ok(![...layers.values()].some(layer => 'source' in layer && layer.source === id), `Layers still reference ${id}`);
+      sources.delete(id);
+    },
     addLayer(layer: LayerSpecification, beforeId?: string) {
       const index = beforeId ? order.indexOf(beforeId) : order.length;
       assert.ok(index >= 0, `Missing layer anchor: ${beforeId}`);
@@ -75,11 +79,13 @@ for (const repair of [false, true]) test(`navigation retries retained geometry o
   layer.update({ data: { airports }, visibility: DEFAULT_VISIBILITY }); await settle();
   const airportLayer = NAVIGATION_LAYERS.find(value => value.id === 'airports')!.layerIds[0]!;
   assert.equal(f.visibility.get(airportLayer), 'none');
+  assert.equal(f.visibility.get(focusedLayerId(airportLayer)), 'none');
   assert.equal(f.sources.get('nav-airports')!.features.length, 0);
   if (repair) f.failing.clear();
   t.mock.timers.tick(100); await settle();
   assert.equal(f.sources.get('nav-airports')!.features.length, repair ? 1 : 0);
   assert.equal(f.visibility.get(airportLayer), repair ? 'visible' : 'none');
+  assert.equal(f.visibility.get(focusedLayerId(airportLayer)), repair ? 'visible' : 'none');
   const count = f.writes.length;
   t.mock.timers.tick(10_000); await settle();
   assert.equal(f.writes.length, count, 'a persistent failure does not create a retry loop');
@@ -144,11 +150,13 @@ test('route lines stay below markers and waypoint labels stay above circles acro
         assert.ok(order.indexOf(line.id) < order.indexOf(marker), `${marker} must be above ${line.id}`);
       }
     }
-    const circles = [...layers.values()].filter(layer => layer.type === 'circle');
+    const focused = [...navigation.focusedLayerIds!, ...route.focusedLayerIds!];
+    const circles = [...layers.values()].filter(layer => layer.type === 'circle' && !focused.includes(layer.id));
     for (const label of [PRIORITY_FIX_LAYER_ID, 'route-waypoint-labels']) {
       for (const circle of circles) {
         assert.ok(order.indexOf(circle.id) < order.indexOf(label), `${label} must be above ${circle.id}`);
       }
+      for (const id of focused) assert.ok(order.indexOf(id) > order.indexOf(label), `${id} must be above ${label}`);
     }
     assert.ok(order.indexOf('route-hold-direction') > order.indexOf('route-waypoint-labels'),
       'hold arrows retain their collision priority when the host raises route labels');

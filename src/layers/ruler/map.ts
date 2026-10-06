@@ -12,7 +12,7 @@ export function createRulerMapLayer(product: RulerLayer, occupiedRects: () => Sc
   observeOccupiedRects?: (changed: () => void) => () => void): MapLayerModule<void> {
   let scope: LayerScope | undefined;
   return {
-    id: 'ruler', slot: 'route', overlayLayerIds: RULER_LAYER_IDS,
+    id: 'ruler', slot: 'route', lineLayerIds: RULER_LAYER_IDS,
     update() {},
     mount(map) {
       scope = new LayerScope();

@@ -17,7 +17,13 @@ export interface MapLayerModule<Input> {
   readonly id: string;
   readonly slot: LayerSlot;
   readonly interactiveLayerIds?: readonly string[];
+  /** Area fills/outlines above imagery and weather shading, below route geometry. */
+  readonly areaLayerIds?: readonly string[];
+  /** Route, measurement and reference lines, below point symbols. */
+  readonly lineLayerIds?: readonly string[];
   readonly foregroundLayerIds?: readonly string[];
+  /** Chosen point symbols, above ordinary foreground content and below ownship. */
+  readonly focusedLayerIds?: readonly string[];
   /** Unanchored style layers in drawing order, below all foreground layers. */
   readonly overlayLayerIds?: readonly string[];
   mount(map: MapLibreMap): void;
@@ -32,6 +38,9 @@ const slots: readonly LayerSlot[] = ['charts', 'plates', 'terrain', 'navigation'
 
 /** Host-owned insertion point for a module that recreates foreground layers. */
 export function foregroundLayerAnchor(moduleId: string): string { return `zlayer-foreground-${moduleId}`; }
+export function focusedLayerAnchor(moduleId: string): string { return `zlayer-focused-${moduleId}`; }
+export function areaLayerAnchor(moduleId: string): string { return `zlayer-area-${moduleId}`; }
+export function lineLayerAnchor(moduleId: string): string { return `zlayer-line-${moduleId}`; }
 
 export class MapLayerHost {
   readonly #mounted: MountableLayer[] = [];
@@ -77,26 +86,35 @@ export class MapLayerHost {
     }
     this.#mounted.sort((a, b) => ordered.indexOf(a) - ordered.indexOf(b));
     // Imports may finish in any order. Reorder style resources, never attachments.
+    for (const layer of [...this.#mounted]) this.#raise(layer, layer.areaLayerIds, areaLayerAnchor(layer.id));
+    for (const layer of [...this.#mounted]) this.#raise(layer, layer.lineLayerIds, lineLayerAnchor(layer.id));
     for (const layer of [...this.#mounted]) {
       try {
         for (const id of layer.overlayLayerIds ?? []) {
-          if (!layer.foregroundLayerIds?.includes(id) && this.map.getLayer(id)) this.map.moveLayer(id);
+          if (!layer.foregroundLayerIds?.includes(id) && !layer.focusedLayerIds?.includes(id) && this.map.getLayer(id)) this.map.moveLayer(id);
         }
       } catch (error) { this.#fail(layer, error); }
     }
-    // Context and route labels must stay above circles from every product.
-    for (const layer of [...this.#mounted]) {
-      try {
-        if (!layer.foregroundLayerIds?.length) continue;
-        const anchor = foregroundLayerAnchor(layer.id);
-        if (!this.map.getLayer(anchor)) {
-          this.map.addLayer({ id: anchor, type: 'background', paint: { 'background-opacity': 0 } });
-        } else this.map.moveLayer(anchor);
-        for (const id of layer.foregroundLayerIds) {
-          if (this.map.getLayer(id)) this.map.moveLayer(id, anchor);
-        }
-      } catch (error) { this.#fail(layer, error); }
+    // Explicit bands keep ordinary labels, panel focus and ownship independent
+    // of plugin registration and asynchronous import completion order.
+    const ordinary = this.#mounted.filter(layer => layer.slot !== 'ownship');
+    for (const layer of ordinary) this.#raise(layer, layer.foregroundLayerIds, foregroundLayerAnchor(layer.id));
+    for (const layer of ordinary) this.#raise(layer, layer.focusedLayerIds, focusedLayerAnchor(layer.id));
+    for (const layer of [...this.#mounted].filter(layer => layer.slot === 'ownship')) {
+      this.#raise(layer, layer.foregroundLayerIds, foregroundLayerAnchor(layer.id));
     }
+  }
+
+  #raise(layer: MountableLayer, ids: readonly string[] | undefined, anchor: string): void {
+    if (!ids?.length || !this.#mounted.includes(layer)) return;
+    try {
+      if (!this.map.getLayer(anchor)) {
+        this.map.addLayer({ id: anchor, type: 'background', paint: { 'background-opacity': 0 } });
+      } else this.map.moveLayer(anchor);
+      for (const id of ids) {
+        if (this.map.getLayer(id)) this.map.moveLayer(id, anchor);
+      }
+    } catch (error) { this.#fail(layer, error); }
   }
 
   update<Input>(layer: MapLayerModule<Input>, input: Input): void {
@@ -132,9 +150,10 @@ export class MapLayerHost {
     this.#scopes.delete(layer.id);
     try { layer.unmount(); }
     catch (error) { this.onError(layer.id, error); }
-    const anchor = foregroundLayerAnchor(layer.id);
-    try { if (layer.foregroundLayerIds?.length && this.map.getLayer(anchor)) this.map.removeLayer(anchor); }
-    catch (error) { this.onError(layer.id, error); }
+    for (const anchor of [areaLayerAnchor(layer.id), lineLayerAnchor(layer.id), foregroundLayerAnchor(layer.id), focusedLayerAnchor(layer.id)]) {
+      try { if (this.map.getLayer(anchor)) this.map.removeLayer(anchor); }
+      catch (error) { this.onError(layer.id, error); }
+    }
   }
 
   #fail(layer: MountableLayer, error: unknown): void {

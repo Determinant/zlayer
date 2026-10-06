@@ -87,7 +87,8 @@ const selection = procedureSelection(testCatalog, testAirport, testProcedure, te
 const context = procedureNoticeContext(selection, testAirport, testProcedure);
 test('partial approach headings preserve supported matches and expose every remaining interpretation gap', () => {
   const first = 'RNAV (GPS) Y RWY 09L, AMDT 2...', second = 'ILS RWY 18...';
-  const plate = (name: string) => ({ ...context, procedure: { ...testProcedure, name } });
+  const plate = (name: string) => ({ ...context, procedure: { ...testProcedure, name },
+    procedures: [testProcedure, { ...testProcedure, id: 'second-approach', name: 'ILS RWY 18' }] });
   for (const separator of [' ', '\n', '; ']) for (const headings of [[first, second], [second, first]]) {
     const record = notice({ classification: 'FDC', text: `IAP TEST, CA. ${headings.join(separator)} PROCEDURES NA.` });
     for (const title of ['RNAV (GPS) Y RWY 09L', 'ILS RWY 18']) {
@@ -96,8 +97,7 @@ test('partial approach headings preserve supported matches and expose every rema
       for (const target of result.matches[0]!.parsed.targets) assert.equal(record.text.slice(target.evidence.start, target.evidence.end), target.title);
     }
   }
-  for (const unsupported of ['SPECIAL ILS RWY 18, AMDT 3...', 'SPECIAL ASR RWY 18...', 'UNRECOGNIZED PROCEDURE, AMDT 3...',
-    'ILS RWY 18, RNAV (GPS) RWY 27, AMDT 3...']) {
+  for (const unsupported of ['SPECIAL ILS RWY 18, AMDT 3...', 'SPECIAL ASR RWY 18...', 'UNRECOGNIZED PROCEDURE, AMDT 3...']) {
     const record = notice({ classification: 'FDC', text: `IAP TEST, CA. ${first} ${unsupported}` });
     assert.equal(matchPlateNotams([record], plate('RNAV (GPS) Y RWY 09L')).matches[0]?.outcome, 'applies');
     const result = matchPlateNotams([record], plate('ILS RWY 18'));
@@ -135,6 +135,8 @@ test('combined ILS/LOC matches preserve the qualifier and each branch variant an
       excluded: ['ILS Y RWY 09L', 'LOC Y RWY 09L', 'COPTER ILS Z RWY 09L'] },
     { combined: 'ILS OR LOC/DME RWY 09L', included: ['ILS RWY 09L', 'LOC/DME RWY 09L'],
       excluded: ['ILS/DME RWY 09L', 'LOC RWY 09L', 'RNAV (GPS) RWY 09L'] },
+    { combined: 'ILS Z OR LOC Z RWY 09L (CAT II AND III)', included: ['ILS Z RWY 09L CAT II/III', 'LOC Z RWY 09L (CAT II-III)', 'LOC Z RWY 09L CAT II'],
+      excluded: ['ILS Z RWY 09L', 'LOC Z RWY 09L CAT I', 'ILS Y RWY 09L CAT II/III', 'ILS Z RWY 09R CAT II/III'] },
   ];
   const record = (name: string) => notice({ classification: 'FDC', text: `IAP TEST. ${name}, AMDT 2... MINIMA CHANGED.` });
   const plate = (name: string) => ({ ...context, procedure: { ...testProcedure, name } });
@@ -148,6 +150,33 @@ test('combined ILS/LOC matches preserve the qualifier and each branch variant an
       assert.equal(matchPlateNotams([record(combined)], plate(branch)).matches.length, 0, `${combined} notice on ${branch}`);
     }
   }
+});
+test('category spelling aliases match exact plate identities without merging different categories', () => {
+  const cases = [
+    { equivalent: ['ILS RWY 09L (SAT CAT I)', 'ILS RWY 9L (SA CAT I)', 'ILS RWY 09L SA CAT 1'],
+      excluded: ['ILS RWY 09L', 'ILS RWY 09L CAT I', 'ILS RWY 09L SA CAT II', 'ILS Z RWY 09L SA CAT I',
+        'ILS RWY 09R SA CAT I', 'RNAV (GPS) RWY 09L SA CAT I'] },
+    { equivalent: ['ILS RWY 09L (CAT II AND III)', 'ILS RWY 09L (CAT II-III)', 'ILS RWY 09L CAT II/III', 'ILS RWY 09L (CAT 2 & 3)'],
+      excluded: ['ILS RWY 09L SA CAT II/III', 'ILS RWY 09L CAT II', 'ILS RWY 09L CAT III', 'ILS RWY 09L CAT I-III'] },
+    { equivalent: ['ILS RWY 09L (SA CAT I AND II)', 'ILS RWY 09L (SA CAT I-II)', 'ILS RWY 09L SA CAT 1/2'],
+      excluded: ['ILS RWY 09L SA CAT III', 'ILS RWY 09L CAT I/II', 'ILS RWY 09L SA CAT I', 'ILS RWY 09L SA CAT II'] },
+    { equivalent: ['ILS RWY 09L CAT I', 'ILS RWY 09L CAT 1'], excluded: ['ILS RWY 09L SA CAT I', 'ILS RWY 09L CAT II'] },
+    { equivalent: ['ILS RWY 09L CAT II', 'ILS RWY 09L CAT 2'], excluded: ['ILS RWY 09L CAT I/I', 'ILS RWY 09L CAT I-III'] },
+    { equivalent: ['ILS RWY 09L CAT III', 'ILS RWY 09L CAT 3'], excluded: ['ILS RWY 09L CAT I/II', 'ILS RWY 09L CAT II/III'] },
+    { equivalent: ['ILS RWY 09L CAT I-III', 'ILS RWY 09L CAT 1/2/3'], excluded: ['ILS RWY 09L CAT I/III'] },
+  ];
+  const record = (name: string) => notice({ classification: 'FDC', text: `IAP TEST. ${name}, AMDT 2... PROCEDURE NA.` });
+  const plate = (name: string) => ({ ...context, procedure: { ...testProcedure, name } });
+  for (const { equivalent, excluded } of cases) for (const title of equivalent) {
+    const source = record(title);
+    assert.deepEqual(parseNotam(source).issues, [], title);
+    for (const alias of equivalent) assert.equal(matchPlateNotams([source], plate(alias)).matches[0]?.outcome, 'applies', `${title}: ${alias}`);
+    // A category subset is a distinct identity even when it is relevant to a
+    // combined plate. Scoped applicability has independent captured regressions.
+    for (const other of excluded) assert.notEqual(normalizeProcedureTitle(title), normalizeProcedureTitle(other), `${title}: ${other}`);
+  }
+  // Qualifier spelling normalization must never operate on named SID/STAR identities.
+  assert.notEqual(normalizeProcedureTitle('SAT ONE', true), normalizeProcedureTitle('SA ONE', true));
 });
 test('time interpretation never guesses schedules, estimated ends or permanent expiry', () => {
   assert.equal(notamValidity(notice({ startsAt: NOTAM_NOW + 1 }), NOTAM_NOW), 'upcoming');
@@ -243,7 +272,7 @@ test('one client coalesces consumers, preserves failure/offline data and release
   let calls = 0, time = NOTAM_NOW, fail = false;
   const client = createNotamsClient({ now: () => time, debounceMs: 0,
     storage: { read: () => [notamSnapshot()], async update() { throw new Error('Storage denied'); } },
-    load: async (query, signal) => { signal.throwIfAborted(); calls++; if (fail) throw new Error(); return notamSnapshot(undefined, { query }); } });
+    load: async (query, signal) => { assert.ok(isNotamAirportQuery(query)); signal.throwIfAborted(); calls++; if (fail) throw new Error(); return notamSnapshot(undefined, { query }); } });
   client.start(); t.after(client.stop);
   const a = client.retain({ faaId: 'TST', icaoId: 'KTST' }, true), b = client.retain({ faaId: 'TST', icaoId: 'KTST' }, true);
   await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(calls, 1);
@@ -252,19 +281,21 @@ test('one client coalesces consumers, preserves failure/offline data and release
   await new Promise(resolve => setTimeout(resolve, 10)); assert.equal(calls, 1);
   time += 180_000; fail = true; client.retain({ faaId: 'TST', icaoId: 'KTST' }, true);
   await new Promise(resolve => setTimeout(resolve, 20));
-  const entry = client.state.getSnapshot().airports[notamAirportKey({ faaId: 'TST', icaoId: 'KTST' })]!;
+  const entry = client.state.getSnapshot().queries[notamAirportKey({ faaId: 'TST', icaoId: 'KTST' })]!;
   assert.ok(entry.error); assert.equal(entry.snapshot?.feed.checkedAt, NOTAM_NOW);
 });
 test('reopening and adding airports preserve each demanded airport refresh deadline', async t => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: NOTAM_NOW });
   const calls: [string, number][] = [];
-  const client = createNotamsClient({ debounceMs: 0, storage: { read: () => [], async update() { return false; } },
-    load: async query => { calls.push([query.faaId!, Date.now() - NOTAM_NOW]); return notamSnapshot([], { query }); } });
+  const client = createNotamsClient({ storage: { read: () => [], async update() { return false; } },
+    load: async query => { assert.ok(isNotamAirportQuery(query)); calls.push([query.faaId!, Date.now() - NOTAM_NOW]); return notamSnapshot([], { query }); } });
   t.after(client.stop);
   const advance = async (ms: number) => { t.mock.timers.tick(ms); await flush(); };
   client.start();
   const first = client.retain({ faaId: 'TST' }, true);
-  await advance(0); first();
+  await advance(0);
+  assert.deepEqual(calls, [['TST', 0]], 'opening starts the initial read without an extra demand delay');
+  first();
   await advance(NOTAM_REFRESH_MS - 1000);
   const reopened = client.retain({ faaId: 'TST' }, true);
   const other = client.retain({ faaId: 'ANC' }, true);
@@ -299,7 +330,7 @@ test('reactivation replaces an aborted first read immediately and ignores its la
   const fresh = notamSnapshot([notice({ text: 'RWY 09L CLSD' })], { query });
   requests[1]!.finish(fresh); await flush();
   requests[0]!.finish(notamSnapshot([], { query })); await flush();
-  assert.equal(client.state.getSnapshot().airports[key]?.snapshot, fresh, 'late completion cannot replace the live snapshot');
+  assert.equal(client.state.getSnapshot().queries[key]?.snapshot, fresh, 'late completion cannot replace the live snapshot');
   release(); client.retain(query, true);
   t.mock.timers.tick(0); await flush();
   assert.equal(requests.length, 2, 'late cleanup must not erase the successful replacement deadline');
@@ -312,7 +343,7 @@ test('a late client response cannot replace an airport or resurrect an unloaded 
   await new Promise(resolve => setTimeout(resolve, 10)); client.stop(); client.start();
   finish(notamSnapshot(undefined, { query: { faaId: 'TST' } }));
   await new Promise(resolve => setTimeout(resolve, 10));
-  assert.equal(client.state.getSnapshot().airports[notamAirportKey({ faaId: 'TST' })]?.snapshot, undefined);
+  assert.equal(client.state.getSnapshot().queries[notamAirportKey({ faaId: 'TST' })]?.snapshot, undefined);
   client.stop();
 });
 

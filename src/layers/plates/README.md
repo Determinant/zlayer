@@ -22,8 +22,17 @@ expandable, scrollable red bar and procedure-row counts. Workspace composition
 obtains its data API through the bridge; Plates retains PDF lifecycle ownership.
 New `ProcedureSelection` values pin the catalog resource. `page-context.ts` resolves
 the displayed book page through that exact catalog, URL/hash and page index, carrying
-airport FAA/ICAO IDs and procedure/amendment metadata. Missing or ambiguous targets
-report matching unavailable. Legacy selections still open their PDF; reopening from
+airport FAA/ICAO IDs, procedure/amendment metadata and that airport's catalog entries
+for per-reference coverage checks. Approach, departure, arrival, takeoff minimums,
+DVA and radar minimums support matching context. A shared minimums page exposes only
+airport/section choices explicitly indexed to that physical page. Opening a catalog
+entry selects its section; paging elsewhere requires choosing that page's section.
+No context is inferred from a nearby page or inherited from the previous airport.
+Contexts share the airport's original catalog procedure list so NOTAM coverage is
+reused across plate rows and reader updates; the matcher excludes deleted entries.
+Missing or ambiguous ordinary targets report matching unavailable. Unresolved PDF
+named destinations remain unavailable until an exact page can be established.
+Legacy selections still open their PDF; reopening from
 the catalog supplies the missing pin. No newer edition is silently substituted.
 While the pinned catalog loads, the bar reports loading. A failed fetch exposes
 **Retry plate catalog** and retries on reconnect or reader reactivation, without

@@ -122,7 +122,8 @@ export function createNavaidIdentificationLayer(): MapLayerModule<NavaidIdentifi
   };
   const move = () => { if (input && (input.stations.length || input.radial)) refresh(); };
   return {
-    id: SOURCE, slot: 'annotation', overlayLayerIds: LAYERS, foregroundLayerIds: ['navaid-id-points', 'navaid-id-labels', 'navaid-id-references'],
+    id: SOURCE, slot: 'annotation', lineLayerIds: ['navaid-id-halo', 'navaid-id-lines'],
+    foregroundLayerIds: ['navaid-id-points', 'navaid-id-labels', 'navaid-id-references'],
     mount(target) {
       map = target;
       const data = identificationGeoJson(input, map);

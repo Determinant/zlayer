@@ -571,8 +571,9 @@ Changing the active plugin set reconciles attachments on the existing MapLibre
 instance. Unchanged adapters retain their resources and subscriptions; removed
 adapters detach immediately. Each added contribution imports independently, so a
 stalled import cannot suspend existing layers or other additions. Superseded lazy
-imports cannot attach. The host keeps drawing order using declared overlay IDs,
-foreground IDs and fixed insertion anchors, regardless of import completion order.
+imports cannot attach. The host keeps drawing order using declared area, line,
+overlay, foreground and focused IDs, plus fixed imagery/weather anchors, regardless
+of import completion order. See the [map stack](overview.md#map-rendering-stack).
 A fresh attachment preserves camera intent without replaying a previous fit request.
 Selection has its own always-mounted workspace contribution. Routes publishes an
 editing capability only while its renderer is healthy; failure or disabling revokes it,
@@ -599,10 +600,24 @@ the feature's contributions, while retaining its saved choices and assigned tab 
 - `unmount()`: cancel work, unsubscribe listeners, and remove owned layers before
   sources. Cleanup also works after partial initialization or repeated teardown.
 - `interactiveLayerIds`: optional hit targets for selection and route snapping.
+- `areaLayerIds`: area fills/outlines raised above imagery/weather shading and
+  below route/reference geometry. TFR and temporary NOTAM areas use this band.
+- `lineLayerIds`: route, ruler and identification lines raised above areas and
+  below point symbols. Preserve each renderer's halo/stroke/drag-pass order.
+  Recreated resources use `areaLayerAnchor(id)` or `lineLayerAnchor(id)`.
 - `overlayLayerIds`: unanchored style layers in drawing order. The host orders these
-  by slot and registration; layers inserted below a fixed anchor omit this list.
+  by slot and registration above area/line geometry; layers inserted below a fixed
+  imagery/weather anchor omit this list. Declare each resource in its appropriate band.
 - `foregroundLayerIds`: optional layers raised after each reconciliation, keeping
   context and route labels above waypoint circles and drag previews.
+- `focusedLayerIds`: optional selected-point layers raised above ordinary foreground
+  resources, with ownship's foreground layers raised last. Products use core's
+  `addFocusableLayer` to share the original source, paint and expression filter;
+  focus adds the shared selected-identity filter and omits duplicate text. Focus icons
+  bypass collisions without reserving label space. Include selectable focus layers
+  in `interactiveLayerIds`, retaining source/feature/route-occurrence identity.
+  Products own both layers' visibility, source recovery and removal before sources
+  or images. Recreated layers can use `focusedLayerAnchor(id)` as their insertion point.
 
 `MapLayerHost.reconcile` preserves adapter identity, mounts additions in slot order,
 orders their style layers, and detaches removals in reverse order. It isolates

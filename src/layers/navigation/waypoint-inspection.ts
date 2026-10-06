@@ -3,9 +3,12 @@ import type { GeoPointFeature } from '@zlayer/contracts';
 import { formatWaypointLabel } from '../../core/format/coordinates';
 import { removeLayerResources, type MapLayerModule } from '../../core/map/layer';
 import { createSourceSubmission } from '../../core/map/source-submission';
+import { mapLabelKey, selectionLabelOpacity, selectionMatch } from '../../core/map/label';
+import { addFocusableLayer, focusedLayerId } from '../../core/map/focus';
 
 const SOURCE = 'waypoint-inspection';
-const LAYERS = ['waypoint-inspection-point', 'waypoint-inspection-label'];
+const FOCUSED_POINT = focusedLayerId('waypoint-inspection-point');
+const LAYERS = ['waypoint-inspection-point', 'waypoint-inspection-label', FOCUSED_POINT];
 
 /** One selected coordinate, with no route membership or editing handles. */
 export function createWaypointInspectionLayer(): MapLayerModule<GeoPointFeature | undefined> {
@@ -26,6 +29,7 @@ export function createWaypointInspectionLayer(): MapLayerModule<GeoPointFeature 
     const version = active.begin();
     void active.submit(version, { type: 'FeatureCollection', features: selected ? [{ ...selected,
       properties: { ...selected.properties,
+        mapLabelKey: mapLabelKey(selected),
         inspectionLabel: formatWaypointLabel(selected.properties.ident ?? '').replaceAll('′', "'") },
     }] : [] }).then(accepted => {
       if (!accepted || !map) return;
@@ -35,16 +39,19 @@ export function createWaypointInspectionLayer(): MapLayerModule<GeoPointFeature 
   const retry = () => { if (submission?.failed && retryTimer === undefined) render(); };
   return {
     id: SOURCE, slot: 'navigation', overlayLayerIds: LAYERS, interactiveLayerIds: LAYERS, foregroundLayerIds: [LAYERS[1]!],
+    focusedLayerIds: [FOCUSED_POINT],
     mount(target) {
       map = target;
       retried = false;
       map.addSource(SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      map.addLayer({ id: LAYERS[0]!, type: 'circle', source: SOURCE,
+      addFocusableLayer(map, { id: LAYERS[0]!, type: 'circle', source: SOURCE,
         paint: { 'circle-radius': 6, 'circle-color': '#e9f7ff', 'circle-stroke-color': '#33c6ff', 'circle-stroke-width': 2 } });
       map.addLayer({ id: LAYERS[1]!, type: 'symbol', source: SOURCE,
+        filter: ['!', selectionMatch()],
         layout: { 'text-field': ['get', 'inspectionLabel'], 'text-font': ['Noto Sans Bold'], 'text-size': 13, 'text-anchor': 'left', 'text-offset': [1, 0],
           'text-allow-overlap': true },
-        paint: { 'text-color': '#f4f8fc', 'text-halo-color': '#14222f', 'text-halo-width': 2 } });
+        paint: { 'text-color': '#f4f8fc', 'text-halo-color': '#14222f', 'text-halo-width': 2,
+          'text-opacity': selectionLabelOpacity(), 'text-opacity-transition': { duration: 0 } } });
       submission = createSourceSubmission(map, SOURCE, () => {
         visibility(false);
         if (!retried) {

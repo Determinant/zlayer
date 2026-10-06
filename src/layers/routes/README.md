@@ -156,6 +156,14 @@ consumes the resulting plan rather than interpreting route text again.
 - Route waypoint markers and labels select their navigation feature, including
   airports whose background symbols are hidden at the current zoom. A tap or click
   opens details without editing the route, including in recommendation previews.
+  Selection restores source identity and strips route editing and label metadata
+  before reusing the feature in details or saved route pins.
+  An unstowed detail raises that point's existing marker/halo into the shared focus
+  band, below ownship. It shares route-source recovery and keeps the same occurrence
+  identity for clicks and editing; stowing restores ordinary drawing order.
+  Focus removes the displaced native label/background from collision placement
+  and hit testing. Route lines occupy the shared band above area fills and below
+  point symbols, retaining the original halo/stroke/drag-pass sequence.
 - Right-clicking empty map space (or holding on touch) opens a temporary GPS
   waypoint using the same coordinate details and actions. Its marker lasts while
   that point is selected; viewing or closing it does not change the route.

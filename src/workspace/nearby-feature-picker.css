@@ -1,6 +1,7 @@
 .nearby-feature-picker {
   position: absolute;
-  z-index: 12;
+  /* A context menu must clear presented panel bodies (13/14) and handles (16). */
+  z-index: 17;
   display: grid;
   width: min(290px, calc(100% - 24px));
   max-height: min(360px, calc(100% - 24px));

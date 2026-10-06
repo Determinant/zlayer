@@ -11,12 +11,17 @@ import type {
 } from '@zlayer/contracts';
 
 import { labelLayer, withMapLabelKeys } from '../../core/map/label';
+import { addFocusableLayer, focusedLayerId } from '../../core/map/focus';
 import { NAVIGATION_LAYERS, AIRPORT_MIN_ZOOM, AIRPORT_POINT_LAYER_IDS, VFR_WAYPOINT_MIN_ZOOM, type LayerVisibility } from './definitions';
 import { createNavigationIcon, FIX_ICON_IMAGE, NAVAID_ICON_IMAGE, NAVIGATION_ICON_IDS } from './symbols';
 import { priorityFixData } from './fix-display';
 
 export const PRIORITY_FIX_SOURCE_ID = 'nav-priority-fixes';
 export const PRIORITY_FIX_LAYER_ID = 'fixes-priority-icons';
+export const NAVIGATION_FOCUS_LAYER_IDS = [
+  ...['major', 'regional', 'local'].flatMap(tier => [`airports-${tier}-halo`, `airports-${tier}-points`]),
+  'vfr-waypoints-icons', 'navaids-icons', 'fixes-icons', PRIORITY_FIX_LAYER_ID,
+].map(focusedLayerId);
 
 export const INTERACTIVE_LAYER_IDS = [
   ...AIRPORT_POINT_LAYER_IDS,
@@ -27,6 +32,7 @@ export const INTERACTIVE_LAYER_IDS = [
   'navaids-icons',
   'fixes-icons',
   PRIORITY_FIX_LAYER_ID,
+  ...[...AIRPORT_POINT_LAYER_IDS, 'vfr-waypoints-icons', 'navaids-icons', 'fixes-icons', PRIORITY_FIX_LAYER_ID].map(focusedLayerId),
 ];
 
 const EMPTY_COLLECTION: FeatureCollectionResponse = {
@@ -84,7 +90,7 @@ export function installNavigationLayers(map: MapLibreMap): void {
     '#ffcf86',
   );
   // One placement decision and one zoom threshold for the VPxxx name and icon.
-  map.addLayer({
+  addFocusableLayer(map, {
     ...visualWaypoints,
     layout: {
       ...visualWaypoints.layout,
@@ -104,7 +110,7 @@ export function installNavigationLayers(map: MapLibreMap): void {
     undefined,
     [10, 13],
   );
-  map.addLayer({
+  addFocusableLayer(map, {
     ...navaids,
     layout: {
       ...navaids.layout,
@@ -131,7 +137,7 @@ export function installNavigationLayers(map: MapLibreMap): void {
     ['>=', ['zoom'], ['get', 'mapFixMinZoom']],
   );
   // Place each fix and its name together, including when resolving collisions.
-  map.addLayer({
+  addFocusableLayer(map, {
     ...fixes,
     layout: {
       ...fixes.layout,
@@ -147,7 +153,7 @@ export function installNavigationLayers(map: MapLibreMap): void {
   map.addSource(PRIORITY_FIX_SOURCE_ID, { type: 'geojson', data: priorityFixData([]) });
   const priority = labelLayer(PRIORITY_FIX_LAYER_ID, PRIORITY_FIX_SOURCE_ID, 3,
     ['get', 'ident'], '#d5fbff');
-  map.addLayer({
+  addFocusableLayer(map, {
     ...priority,
     layout: {
       ...priority.layout,
@@ -178,7 +184,7 @@ export function syncNavigationData(map: MapLibreMap, data: NavigationData, previ
 export function syncVisibility(map: MapLibreMap, visibility: LayerVisibility): void {
   for (const definition of NAVIGATION_LAYERS) {
     const value = visibility[definition.id] ? 'visible' : 'none';
-    for (const layerId of definition.layerIds) {
+    for (const layerId of definition.layerIds.flatMap(id => [id, focusedLayerId(id)])) {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', value);
     }
   }
@@ -190,7 +196,7 @@ function addAirportTier(
   minzoom: number,
   filter: ExpressionSpecification,
 ): void {
-  map.addLayer({
+  addFocusableLayer(map, {
     id: `airports-${tier}-halo`,
     type: 'circle',
     source: 'nav-airports',
@@ -203,7 +209,7 @@ function addAirportTier(
       'circle-stroke-width': 1,
     },
   });
-  map.addLayer({
+  addFocusableLayer(map, {
     id: `airports-${tier}-points`,
     type: 'circle',
     source: 'nav-airports',

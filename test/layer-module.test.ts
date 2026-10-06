@@ -68,20 +68,27 @@ test('reconciliation keeps healthy attachments alive and preserves order across 
   } as unknown as MapLibreMap;
   const module = (id: string, slot: LayerSlot): MapLayerModule<void> => ({
     id, slot, overlayLayerIds: [`${id}-point`], foregroundLayerIds: [`${id}-label`],
-    mount() { events.push(`mount:${id}`); order.push(`${id}-point`, `${id}-label`); }, update() {},
-    unmount() { events.push(`unmount:${id}`); map.removeLayer(`${id}-label`); map.removeLayer(`${id}-point`); },
+    focusedLayerIds: slot === 'ownship' ? [] : [`${id}-focused`],
+    mount() { events.push(`mount:${id}`); order.push(`${id}-point`, `${id}-label`, ...(this.focusedLayerIds ?? [])); }, update() {},
+    unmount() {
+      events.push(`unmount:${id}`);
+      for (const id of this.focusedLayerIds ?? []) map.removeLayer(id);
+      map.removeLayer(`${id}-label`); map.removeLayer(`${id}-point`);
+    },
   });
-  const route = module('route', 'route'), navigation = module('navigation', 'navigation');
+  const route = module('route', 'route'), navigation = module('navigation', 'navigation'), ownship = module('gps', 'ownship');
   const host = new MapLayerHost(map, (_id, error) => { throw error; });
-  host.reconcile([route]);
-  host.reconcile([navigation, route]);
-  assert.deepEqual(events, ['mount:route', 'mount:navigation']);
+  host.reconcile([ownship, route]);
+  host.reconcile([ownship, navigation, route]);
+  assert.deepEqual(events, ['mount:route', 'mount:gps', 'mount:navigation']);
   assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')), [
-    'navigation-point', 'route-point', 'navigation-label', 'route-label',
+    'navigation-point', 'route-point', 'gps-point', 'navigation-label', 'route-label', 'navigation-focused', 'route-focused', 'gps-label',
   ]);
-  host.reconcile([route]);
-  assert.deepEqual(events, ['mount:route', 'mount:navigation', 'unmount:navigation']);
-  assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')), ['route-point', 'route-label']);
+  host.reconcile([ownship, route]);
+  assert.deepEqual(events, ['mount:route', 'mount:gps', 'mount:navigation', 'unmount:navigation']);
+  assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')), ['route-point', 'gps-point', 'route-label', 'route-focused', 'gps-label']);
+  host.reconcile([route, navigation, ownship]);
+  assert.deepEqual(order.filter(id => !id.startsWith('zlayer-')).slice(-3), ['navigation-focused', 'route-focused', 'gps-label']);
   host.unmount();
   assert.deepEqual(order, []);
 });

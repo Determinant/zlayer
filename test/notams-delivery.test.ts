@@ -5,7 +5,7 @@ import { request as httpRequest, type ClientRequest, type IncomingMessage } from
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { isNotamAirportSnapshot } from '@zlayer/contracts';
+import { isNotamAirportSnapshot, isNotamNavaidSnapshot } from '@zlayer/contracts';
 import { createNotamResponder } from '../tools/info-server/notams/routes';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
@@ -16,7 +16,7 @@ import { notice, notamSnapshot, NOTAM_NOW } from './fixtures/notams';
 test('ten thousand airport readers share serialization and concurrent gzip without losing source fields', async () => {
   const records = [notice({ text: 'Quoted "source"\nUnicode: é 空 ✈\t', translations: [] })];
   let reads = 0, encodes = 0;
-  const snapshot = notamSnapshot(records), responder = createNotamResponder({
+  const snapshot = notamSnapshot(records), responder = createNotamResponder({ readRegion() { throw new Error('Unexpected regional query'); }, readNavaid() { throw new Error('Unexpected navaid query'); },
     get status() { return snapshot.feed; },
     readAirport(query) { reads++; return { ...snapshot, query }; },
   }, async body => { encodes++; return gzipSync(body); });
@@ -31,7 +31,7 @@ test('ten thousand airport readers share serialization and concurrent gzip witho
 
 test('cached replies follow freshness, recovery and backoff changes even when content identity is unchanged', () => {
   const snapshot = notamSnapshot([notice()]); let feed = snapshot.feed, reads = 0;
-  const responder = createNotamResponder({ get status() { return feed; }, readAirport(query) { reads++; return { ...snapshot, feed, query }; } });
+  const responder = createNotamResponder({ readRegion() { throw new Error('Unexpected regional query'); }, readNavaid() { throw new Error('Unexpected navaid query'); }, get status() { return feed; }, readAirport(query) { reads++; return { ...snapshot, feed, query }; } });
   const read = () => JSON.parse(responder.read('/api/notams/airports?faaId=TST', undefined).body.toString());
   assert.equal(read().feed.state, 'ready');
   feed = { ...feed, state: 'degraded', error: 'source-backoff', nextAttemptAt: NOTAM_NOW + 3600_000 };
@@ -42,7 +42,7 @@ test('cached replies follow freshness, recovery and backoff changes even when co
 
 test('airport delivery bounds both query cardinality and retained bytes including compressed encodings', async () => {
   const snapshot = notamSnapshot([]); let records = snapshot.records;
-  const responder = createNotamResponder({ get status() { return snapshot.feed; }, readAirport(query) { return { ...snapshot, records, query }; } },
+  const responder = createNotamResponder({ readRegion() { throw new Error('Unexpected regional query'); }, readNavaid() { throw new Error('Unexpected navaid query'); }, get status() { return snapshot.feed; }, readAirport(query) { return { ...snapshot, records, query }; } },
     async body => Buffer.from(body)); // Deliberately incompressible-sized output exercises the full retention budget.
   for (let i = 0; i < 300; i++) responder.read(`/api/notams/airports?faaId=${String(i).padStart(3, '0')}`, undefined);
   assert.ok(responder.stats.entries <= 128);
@@ -61,7 +61,7 @@ test('oversized multi-version evidence returns explicit unavailability and repea
   const collection = collectNotamRecords({ records: [] }, variants);
   const snapshot = notamSnapshot([], { issues: [...collection.issues!], contentCoverage: 'incomplete' }); let reads = 0;
   snapshot.feed = { ...snapshot.feed, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', unresolvedRecords: 1, unscopedRecords: 0 };
-  const responder = createNotamResponder({ get status() { return snapshot.feed; }, readAirport(query) { reads++; return { ...snapshot, query }; } });
+  const responder = createNotamResponder({ readRegion() { throw new Error('Unexpected regional query'); }, readNavaid() { throw new Error('Unexpected navaid query'); }, get status() { return snapshot.feed; }, readAirport(query) { reads++; return { ...snapshot, query }; } });
   for (let i = 0; i < 100; i++) {
     const response = responder.read('/api/notams/airports?faaId=TST', undefined);
     assert.equal(response.status, 503); assert.deepEqual(JSON.parse(response.body.toString()), { error: 'airport-size-limit' });
@@ -73,7 +73,7 @@ test('source issues round-trip exactly and malformed queries cannot read snapsho
   const { revision: _revision, ...facts } = notice();
   const collection = collectNotamRecords({ records: [recordWithRevision(facts)] }, [recordWithRevision({ ...facts, text: 'Different source version' })]);
   const snapshot = notamSnapshot([], { issues: [...collection.issues!], contentCoverage: 'incomplete' }); let reads = 0;
-  const responder = createNotamResponder({ get status() { return snapshot.feed; }, readAirport(query) { reads++; return { ...snapshot, query }; } });
+  const responder = createNotamResponder({ readRegion() { throw new Error('Unexpected regional query'); }, readNavaid() { throw new Error('Unexpected navaid query'); }, get status() { return snapshot.feed; }, readAirport(query) { reads++; return { ...snapshot, query }; } });
   const response = responder.read('/api/notams/airports?faaId=TST', undefined);
   assert.deepEqual(JSON.parse(response.body.toString()), { ...snapshot, query: { faaId: 'TST' } });
   for (const query of ['url=https://example.test', 'faaId=TST&faaId=TST', 'faaId=', 'icaoId=1234', 'faaId=TST&refresh=1']) {
@@ -118,6 +118,10 @@ test('real HTTP load and slow readers cannot trigger FAA calls or block local ov
       if (response.status === 200) break;
       assert.ok(retry < 99); await new Promise(resolve => setTimeout(resolve, 5));
     }
+    const station = await fetch(origin + '/api/notams/navaids?navaidId=AUX');
+    assert.equal(station.status, 200); assert.ok(isNotamNavaidSnapshot(await station.json()));
+    const stationHead = await fetch(origin + '/api/notams/navaids?navaidId=AUX', { method: 'HEAD' });
+    assert.equal(stationHead.status, 200); assert.equal(await stationHead.text(), '');
     await Promise.all(Array.from({ length: 200 }, async (_, i) => {
       const response = await fetch(origin + (i % 5 ? '/api/notams/airports?faaId=AUX' : '/api/notams/healthz'));
       assert.ok([200, 503].includes(response.status)); await response.arrayBuffer();

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, isRadarCatalog,
   isRadarContours, isRadarMotionCatalog, isRadarMotionSnapshot, isAwcAdvisorySnapshot,
-  isNotamFeedStatus, isNotamAirportSnapshot, isTafReport, isTfrSnapshot, TFR_STALE_MS, RADAR_MAX_AGE } from '@zlayer/contracts';
+  isNotamFeedStatus, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamRegionSnapshot, isTafReport, isTfrSnapshot, TFR_STALE_MS, RADAR_MAX_AGE } from '@zlayer/contracts';
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../src/layers/weather-awc/grids/model-terrain';
@@ -94,10 +94,18 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   if (notams === 'disabled') {
     assert.equal(feed.state, 'disabled'); assert.equal(feed.enabled, false);
     await read('/api/notams/airports?faaId=SFO&icaoId=KSFO', 503);
+    await read('/api/notams/navaids?navaidId=SAU', 503);
+    await read('/api/notams/regions?artccId=ZOA', 503);
   } else {
     assert.equal(feed.environment, notams); assert.equal(feed.state, 'ready'); assert.equal(feed.continuity, 'complete');
     const airport = (await read('/api/notams/airports?faaId=SFO&icaoId=KSFO')).json(); assert.ok(isNotamAirportSnapshot(airport));
     assert.equal(airport.feed.environment, notams); assert.equal(airport.feed.state, 'ready');
+    const navaid = (await read('/api/notams/navaids?navaidId=SAU')).json(); assert.ok(isNotamNavaidSnapshot(navaid), 'Invalid navaid snapshot');
+    assert.deepEqual(navaid.query, { navaidId: 'SAU' });
+    assert.equal(navaid.feed.environment, notams); assert.equal(navaid.feed.state, 'ready');
+    const region = (await read('/api/notams/regions?artccId=ZOA')).json(); assert.ok(isNotamRegionSnapshot(region), 'Invalid regional snapshot');
+    assert.deepEqual(region.query, { artccId: 'ZOA' });
+    assert.equal(region.feed.environment, notams); assert.equal(region.feed.state, 'ready');
   }
   return { origin, checkedAt: new Date().toISOString(), reads, notams, source: health.source, health };
 }

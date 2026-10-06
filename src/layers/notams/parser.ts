@@ -6,7 +6,7 @@ import { notamEffects } from './effects';
 export type { ParsedNotam, NotamTarget, NotamFact, NotamFlair, NotamFlairTone, NotamEvidence } from './interpretation';
 export { normalizeRunway } from './interpretation';
 
-export const NOTAM_PARSER_VERSION = 9;
+export const NOTAM_PARSER_VERSION = 11;
 const parsedRecords = new WeakMap<NotamRecord, ParsedNotam>();
 const MAX_PARSE_LENGTH = 64 * 1024;
 /** Only local-format identity headers; pointers and unfamiliar envelopes remain content. */
@@ -24,25 +24,31 @@ export function parseNotam(record: NotamRecord): ParsedNotam {
   const keyword = /^\s*([A-Z]+)\b/i.exec(localNotamContent(body, record))?.[1]?.toUpperCase();
   if (!keyword || !subjects[keyword]) body = qualifiedFdcLocalText(record) ?? body;
   // Local-format headers identify the notice; a SEE FDC pointer never changes its class.
-  const header = body.length - localNotamContent(body, record).length;
+  const local = localNotamContent(body, record);
+  // This establishes only the first-part subject/title. Presentation keeps all
+  // markers and no numeric interpretation crosses an unassembled part boundary.
+  const firstPart = /^\s*PART 1 OF (?:[2-9]|[1-9]\d)\s+(?=IAP\b|ODP\b|SID\b|STAR\b)/i.exec(local);
+  const header = body.length - local.length + (firstPart?.[0].length ?? 0);
   const content = body.slice(header, header + MAX_PARSE_LENGTH), subjectMatch = /^\s*([A-Z]+)\b/i.exec(content);
   const subjectKeyword = subjectMatch?.[1]?.toUpperCase(), subject = subjectKeyword && subjects[subjectKeyword] ? subjectKeyword : undefined;
-  const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP'].includes(subject ?? '');
+  const procedureNotice = ['IAP', 'SID', 'STAR', 'ODP', 'DVA'].includes(subject ?? '');
   const broad = subject === 'IAP' && /^\s*ALL\s+(?:IAPS|INSTRUMENT\s+APPROACH\s+PROCEDURES)\b/i.test(content.slice(subjectMatch?.[0].length ?? 0));
   const broadRestricted = broad && /\b(?:EXC|EXCEPT|EXCLUDING|OTHER\s+THAN|ONLY|IF|WHEN|UNLESS|PROVIDED)\b/i.test(content);
   const { targets, limited } = procedureNotice ? procedureTargets(content, subject, body, header) : { targets: [], limited: false };
-  const { facts, factLimit, facilityTarget, runwayTargets } = notamEffects(content, body, header, subject, targets);
+  const { facts, factLimit, facilityTarget, categoryTarget, runwayTargets } = notamEffects(content, body, header, subject, targets, !!firstPart);
   const issues: NotamInterpretationIssue[] = [];
   if (!subject) issues.push('subject');
   if (procedureNotice && !targets.length && !broad) issues.push('procedure-target');
   if (broadRestricted) issues.push('procedure-exceptions');
-  if (subject === 'NAV' && (!facilityTarget || !approachFacilities.has(facilityTarget.facility))) issues.push('facility-dependency');
+  if (subject === 'NAV' && !categoryTarget && (!facilityTarget || !approachFacilities.has(facilityTarget.facility))) issues.push('facility-dependency');
+  if (firstPart) issues.push('multipart');
   if (limited) issues.push('headings');
   if (factLimit) issues.push('fact-limit');
   if (body.length - header > MAX_PARSE_LENGTH) issues.push('body-limit');
   const result = { body, subject, facts, targets, broad, broadRestricted, procedureNotice,
     runwayTargets,
     ...(facilityTarget ? { facilityTarget } : {}),
+    ...(categoryTarget ? { categoryTarget } : {}),
     issues, unresolved: issues.length > 0 };
   parsedRecords.set(record, result);
   return result;

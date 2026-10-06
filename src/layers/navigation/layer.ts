@@ -3,11 +3,12 @@ import type { FeatureCollection } from 'geojson';
 import type { AirwayDataResponse, GeoPointFeature, NavigationData } from '@zlayer/contracts';
 import { featureKey } from '@zlayer/domain';
 import { NAVIGATION_LAYERS, DEFAULT_VISIBILITY, type LayerVisibility } from './definitions';
-import { installNavigationLayers, INTERACTIVE_LAYER_IDS, PRIORITY_FIX_LAYER_ID, PRIORITY_FIX_SOURCE_ID, syncNavigationData, syncVisibility } from './renderer';
+import { installNavigationLayers, INTERACTIVE_LAYER_IDS, NAVIGATION_FOCUS_LAYER_IDS, PRIORITY_FIX_LAYER_ID, PRIORITY_FIX_SOURCE_ID, syncNavigationData, syncVisibility } from './renderer';
 import { NAVIGATION_ICON_IDS } from './symbols';
 import { DEFAULT_FIX_DISPLAY, fixDisplayData, indexFixDisplay, priorityFixData, type FixDisplayIndex, type FixDisplaySettings } from './fix-display';
 import { type MapLayerModule, removeLayerResources } from '../../core/map/layer';
 import { withMapLabelKeys } from '../../core/map/label';
+import { focusedLayerId } from '../../core/map/focus';
 import { createSourceSubmission } from '../../core/map/source-submission';
 
 type NavigationInput = {
@@ -31,7 +32,9 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
     const ids = definition?.layerIds ?? [PRIORITY_FIX_LAYER_ID];
     const visible = !hidden && !!sources.get(id)?.data?.features.length && (!definition || input.visibility[definition.id]);
     const value = visible ? 'visible' : 'none';
-    for (const layer of ids) if (map?.getLayer(layer) && map.getLayoutProperty(layer, 'visibility') !== value) map.setLayoutProperty(layer, 'visibility', value);
+    for (const layer of ids.flatMap(id => [id, focusedLayerId(id)])) {
+      if (map?.getLayer(layer) && map.getLayoutProperty(layer, 'visibility') !== value) map.setLayoutProperty(layer, 'visibility', value);
+    }
   };
   const submit = (id: string, data: FeatureCollection, retry = false) => {
     const source = sources.get(id);
@@ -55,6 +58,7 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
     overlayLayerIds: [...NAVIGATION_LAYERS.find(layer => layer.id === 'airports')!.layerIds,
       'vfr-waypoints-icons', 'navaids-icons', 'fixes-icons'],
     foregroundLayerIds: [PRIORITY_FIX_LAYER_ID],
+    focusedLayerIds: NAVIGATION_FOCUS_LAYER_IDS,
     mount(target) {
       map = target;
       installNavigationLayers(map);
@@ -109,7 +113,7 @@ export function createNavigationLayer(): MapLayerModule<NavigationInput> {
       sources.clear();
       if (!map) return;
       map.off('moveend', retryFailed);
-      removeLayerResources(map, [...NAVIGATION_LAYERS.flatMap(layer => [...layer.layerIds]), PRIORITY_FIX_LAYER_ID],
+      removeLayerResources(map, [...NAVIGATION_LAYERS.flatMap(layer => [...layer.layerIds]), PRIORITY_FIX_LAYER_ID, ...NAVIGATION_FOCUS_LAYER_IDS],
         [...NAVIGATION_LAYERS.map(layer => `nav-${layer.id}`), PRIORITY_FIX_SOURCE_ID]);
       for (const id of NAVIGATION_ICON_IDS) if (map.hasImage(id)) map.removeImage(id);
       map = undefined;

@@ -13,10 +13,11 @@ export type NotamFact = { kind: NotamFactKind; label: string; tone: NotamFlairTo
   scope?: string };
 export type NotamFlair = { label: string; tone: NotamFlairTone; evidence: NotamEvidence[] };
 export type NotamInterpretationIssue = 'subject' | 'procedure-target' | 'procedure-exceptions' | 'facility-dependency'
-  | 'headings' | 'fact-limit' | 'body-limit';
+  | 'headings' | 'multipart' | 'fact-limit' | 'body-limit';
 export type NotamTarget = { title: string; amendment?: string; evidence: NotamEvidence };
 export type ParsedNotam = { body: string; subject: string | undefined; facts: NotamFact[];
   targets: NotamTarget[]; broad: boolean; broadRestricted: boolean; runwayTargets: string[];
+  categoryTarget?: { runway: string; special: boolean; values: string[] };
   facilityTarget?: { facility: string; runway: string; effect: 'unavailable' | 'unmonitored' }; procedureNotice: boolean;
   issues: NotamInterpretationIssue[]; unresolved: boolean };
 /** Dependencies established by a runway-specific navigation notice, not inferred from proximity. */

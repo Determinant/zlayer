@@ -5912,5 +5912,12 @@
       "records": 15,
       "issues": 0
     }
-  ]
+  ],
+  "plateCatalog": {
+    "file": "plate-catalog-2610.json.gz",
+    "bytes": 16471924,
+    "sha256": "a580e518ba734e9c09152d557e7ac59b5bb2189334a8f3843680fffe7d522ee2",
+    "url": "https://zlayer.tedyin.com/chart-data/2026-10-01/tpp/catalog.a580e518ba734e9c09152d557e7ac59b5bb2189334a8f3843680fffe7d522ee2.json",
+    "cycle": "2610"
+  }
 }
