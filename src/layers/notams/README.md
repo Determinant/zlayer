@@ -328,15 +328,19 @@ qualification remain separate, as tracked in the
 Enabling the NOTAM plugin starts a national TFR client independently of airport
 selection, search, open readers or stowed panels. Disabling it aborts requests,
 stops clocks and removes the map resources, context-menu action and details panel. Map reattachment
-uses the current snapshot. Active areas and areas with unconfirmed timing or
-retained older detail use solid red outlines with translucent red fill; confirmed
-upcoming areas use yellow. The key reads **Red: active or unconfirmed · Yellow:
-upcoming**. Neither uses hatching. Temporary reader
+uses the current snapshot. Colors follow the saved schedule: active areas and
+areas with an unknown schedule use solid red outlines with translucent red fill;
+upcoming areas use yellow. Detail age, refresh failures and server restarts do not
+change those colors. The key reads **Red: active or unknown schedule · Yellow:
+upcoming**, with a reminder that colors follow the saved schedule. Neither uses
+hatching. Temporary reader
 geometry excludes explicit TFR text so it cannot add a second, hatched TFR shape.
 Areas have no map labels. A left click or tap inside a published area opens the
 shared right-side detail panel with its identity, altitude limits, current/next
 window, complete raw NOTAM and a link to the FAA detail page. Overlapping areas
-are listed together. Right-click or long-press opens the shared map menu with
+are listed together. From/Until times show device-local time first with Zulu in
+parentheses, following the shared [date/time convention](../../../docs/features/date-time-display.md).
+Right-click or long-press opens the shared map menu with
 **Inspect TFRs** alongside applicable actions from other enabled plugins; releasing
 the long press does not select an action. Clicking or tapping an airport or another
 navigation/route point's marker or label opens that point's details, including
@@ -387,6 +391,17 @@ An unsupported schedule remains explicit as **Check source schedule**; its area
 uses conservative red inside overall validity. It is never described as known
 active. The client clock updates at boundaries and at least every 30 seconds.
 
+Clock and loading/error notifications reuse the prepared map input until its
+next schedule or detail-freshness boundary (or a clock rollback). Color changes
+use MapLibre feature state; detail becoming stale or fresh does not recolor areas.
+Geometry crosses the GeoJSON worker boundary only when drawable area membership
+or coordinates change, including expiry. Newly downloaded but
+identical coordinates reuse the accepted source even when check times change.
+Actual geometry replacements retain the source-acceptance/failure guard before
+inspection becomes available; remounts restore current colors on the new source.
+This prevents the independently acquired detail timestamps (often about a second
+apart) from hiding and re-tiling the entire national layer as each detail ages.
+
 The collector checks the index at least three minutes after the preceding round.
 It reuses details only with the same FAA ID/modification time and a known
 `detailCheckedAt` less than 15 minutes old. Changed, overdue or legacy details
@@ -435,9 +450,9 @@ list also carries `error: incomplete-details`, so schema-1 clients without issue
 support still qualify the snapshot. Reads and health status expose
 `detail-recheck-due` when any detail age is unknown or overdue and there is no
 other source error, even between collector rounds. The PWA independently
-qualifies old/unknown detail on its live clock, uses red for its drawable areas,
-and avoids an active/upcoming claim. Detail age appears separately from index
-age in the details panel and source-review disclosure. Source overload stops
+qualifies old/unknown detail on its live clock while retaining its schedule colors,
+and avoids an unqualified active/upcoming claim in the details panel. Detail age
+appears separately from index age in the details panel and source-review disclosure. Source overload stops
 further requests under
 the durable backoff; remaining uncached members are accounted for as issues.
 Cancellation, lost ownership, admission-write uncertainty and snapshot/progress
@@ -465,7 +480,11 @@ a dated source sample, not a promise about future FAA documents. Captured exampl
 in `test/fixtures/tfrs.json` and `test/notams-tfr.test.ts` cover identity, UTC,
 recurrence, geometry bounds, cache retention and HTTP/client lifecycle.
 `test/e2e/notams.spec.ts` exercises persistent solid red/yellow rendering,
-details, panel independence, disable/re-enable and map reattachment.
+details, panel independence, disable/re-enable and map reattachment. Its staggered
+detail-expiry check verifies no source submissions or hide/show changes, and reads
+the resulting color from the real drawing buffer. `test/notams-tfr-map.test.ts`
+covers idle and refreshed-source reuse, schedule/freshness transitions, geometry
+replacement, clock rollback, pending acceptance, bounded retry and cleanup.
 
 ## Plate NOTAM bar
 
@@ -758,6 +777,9 @@ pulls. Thus normal collection permits at most 480 data starts in a rolling day,
 one of which may be a bulk request, plus its one content fetch and token renewals.
 Actual cadence is slightly slower because the 30-second scheduler and response
 time can postpone the next eligible request.
+The short spacing wait rechecks its wall-clock deadline after waking. An early
+timer wake must wait the remaining interval, not abandon the content fetch after
+the daily bulk request has already consumed its allowance.
 
 Before dispatch, the journal reserves through a bounded 120-second dispatch
 window plus the applicable cooldown. The client refuses to send after that
@@ -793,8 +815,13 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    are excluded from the active airport index; their text may shrink to a terse
    cancellation rendering without affecting active coverage. A cancellation
    message is distinct from an original-ID tombstone. Their references never
-   remove another source ID. An equal-order active/inactive disagreement becomes
-   an unresolved source record; neither lifecycle is chosen as authoritative. Newer source revisions follow the usual ordering. Envelope, source-ID,
+   remove another source ID. An original-ID `canceled` timestamp matching the
+   source update instant, including fractional precision, establishes cancellation
+   over a rendering that omits that field. Source ID, classification, notice
+   number/series/year and change type must agree. Absence of the optional field
+   cannot resurrect this tombstone. Missing, invalid or mismatched cancellation
+   evidence and active/NOTAMC disagreements remain unresolved. Newer source
+   revisions follow the usual ordering. Envelope, source-ID,
    record-bound and lifecycle validation always precede reconciliation.
 
    Active records retain stricter content checks. At equal ordering, the
@@ -802,9 +829,22 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    update-time fractional-zero spellings do not make a conflict. Decimal notice
    and referred numbers compare without leading zero padding; composite identifiers
    remain exact. Translations are optional representations grouped by type, not
-   an ordered list of required fields. Shared types must have the same text after
-   whitespace normalization and removal of the observed literal `<pre>` wrapper.
-   For recognized ICAO NOTAMN layouts only, paired domestic/international header
+   an ordered list of required fields. Shared types compare after whitespace
+   normalization and removal of the observed literal `<pre>` wrapper. A complete
+   shared native notice can establish the record independently of its auxiliary
+   ICAO renderings: each DOMESTIC/FDC record must retain exactly one distinct
+   `LOCAL_FORMAT` text, both texts must agree, and its identity, complete body,
+   interval and end qualifier must account for both records. Domestic evidence
+   additionally checks the issuing office, location and local notice number;
+   its body may include the separately supplied matching schedule. FDC evidence
+   uses the qualified forms below. Other core fields still have to agree.
+   Captured source pairs demonstrate different ICAO Q codes/radii, omitted
+   subject words, headers and conversion artifacts for that same native notice.
+   Retain those original ICAO renderings without treating them as distinct native
+   revisions or claiming that their individual fields are equivalent.
+
+   Without that complete native witness, recognized ICAO NOTAMN layouts retain
+   the stricter comparison: paired domestic/international header
    numbers may differ across those two formats; different numbers, series or years
    within one format are conflicts. Missing Q-line traffic/purpose/scope values may be
    supplemented. All supplied values must agree; FIR, code, altitude, coordinates
@@ -812,9 +852,10 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    replacement/cancellation references receive no such relaxation. Arbitrary
    markup, case and punctuation are not discarded. Missing types do not withdraw
    previously supplied translations. Retain earlier raw spellings and append new
-   types or compatible ICAO variants within the existing record limits. Every
-   retained variant constrains later comparisons, so an empty qualifier cannot
-   override a populated value. Alternate renderings can also differ in issue time;
+   types or qualified auxiliary ICAO variants within the existing record limits.
+   Every retained core/native variant constrains later comparisons; without a
+   native witness an empty ICAO qualifier cannot override a populated value.
+   Alternate renderings can also differ in issue time;
    retain the earliest supplied issue time without changing update ordering,
    effective times or freshness. Hash the combined normalized record. Never carry
    old translations into a newer revision. An E)-only body and a full ICAO body
@@ -823,6 +864,17 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    complete raw translation, including any F)/G) suffix. Missing structured referred
    metadata may be supplemented; two supplied references must agree. References
    never identify another source ID for deletion.
+
+   FNSE ICAO associations are also optional evidence: a missing list can be
+   supplemented from the same revision, while two populated lists must name the
+   same set. No domestic-to-ICAO alias is invented. The demonstrated
+   `Daily:HHMM-HHMM~DLY HHMM-HHMM` schedule equals its readable `DLY` form only
+   when both supplied windows agree, using the same rule as validity display.
+   The raw schedule stays intact. Derived end kinds are compared after combining
+   compatible optional evidence: a matching retained `EST` suffix can qualify
+   a representation whose missing local translation caused a fixed-end default.
+   Different end instants, conflicting suffixes and unknown/permanent ends are
+   not converted into estimated ends by this reconciliation.
 
    FDC bodies may include or omit the subject (`IAP`, `SID`, `STAR`, `ODP`,
    `ROUTE`, `VFP`, `SPECIAL`) and trailing validity interval. Reconcile those forms
@@ -916,7 +968,7 @@ Within a batch, group records by source ID and retain the newest qualified sourc
 ordering; equal-order variants must all constrain reconciliation. A sparse
 representation cannot erase a disagreement between richer representations.
 
-Unfamiliar same-order content, active/inactive disagreements, unknown lifecycle
+Unfamiliar same-order content, unqualified active/inactive disagreements, unknown lifecycle
 values, and representations that cannot fit the bounded merged record become
 `NotamSourceIssue` entries. They are excluded from resolved records, matching and
 map symbols. Preserve their raw bodies/translations and reason. Their presence
@@ -1027,6 +1079,14 @@ and revisions from its retained source text/translations. Atomically republish i
 manifest when an upgrade changes the content; retain source times, continuity and
 quota history. The same validity interpretation applies to saved browser snapshots.
 This avoids revision conflicts with unchanged source records after a normalizer fix.
+Restoration also reconsiders each complete retained issue through the same
+collection rules. Only an issue whose entire saved evidence now reconciles becomes
+a resolved record. Truncated evidence, unknown lifecycle and genuine disagreements
+remain issues. Save the resulting authenticated generation without changing its
+collection timestamps or completeness flag; an incomplete collection still needs
+its ordinary replay/rebase. The separate request-admission journal is unchanged.
+This makes corrected interpretation available for old issues even when their IDs
+no longer occur in the delta overlap, without another FAA request or a quota reset.
 Capacity accounting includes current, preceding and
 replacement generations, raw text, indexes and temporary work. Insufficient
 capacity rejects publication; it never justifies a truncated dataset. If admission
@@ -1891,7 +1951,14 @@ airport, record ID, revision and failing audit.
 
 This is broad preservation coverage, not an assertion that every notice has a
 complete structured interpretation. Unsupported wording may correctly remain
-prose, and source conflicts remain unresolved. The focused corpus/formats/semantic
+prose, and the reader replay preserves its captured source conflicts. The separate
+`test/notams-reconciliation.test.ts` exercises the exact retained conflict pairs
+through collection in both arrival orders, duplicate replay and authenticated
+restart, checking raw evidence, source times, valid cancellations and unchanged
+admission. It follows those repaired records through XML delta replay, empty
+updates, backoff, airport response caching and another restart. It also verifies
+that changed core content and truncated evidence stay unresolved and an incomplete
+collection cannot become complete merely by repairing records. The focused corpus/formats/semantic
 tests retain independent expected meanings and deliberately corrupted examples;
 keep those tests when extending this replay. Do not replace them with generated
 parser-output snapshots or weaken an audit to make unfamiliar wording pass.

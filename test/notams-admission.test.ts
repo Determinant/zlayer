@@ -83,6 +83,31 @@ test('normal global collection spaces every actual request, reuses its token and
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
+test('an early timer wake cannot abandon an admitted bulk download at the content-spacing boundary', async () => {
+  const directory = await temporary(); let now = NOTAM_NOW, waits = 0;
+  const calls: { path: string; started: number; finished: number }[] = [];
+  const store = new NotamStore(directory, 'production', () => now);
+  try {
+    await store.restore();
+    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+      signal: new AbortController().signal,
+      wait: async ms => { waits++; now += waits === 2 ? ms - 1 : ms; },
+      fetch: async input => {
+        const path = new URL(String(input)).pathname, started = now; now += 25;
+        calls.push({ path, started, finished: now });
+        if (path === '/v1/auth/token') return token();
+        if (path.endsWith('/il')) return Response.json({ status: 'Success', data: { url: '/v1/content/fixture' } });
+        return new Response('complete bulk');
+      } });
+    const path = join(directory, 'bulk.tmp'); await source.download('bulk', path);
+    assert.equal(await readFile(path, 'utf8'), 'complete bulk');
+    assert.deepEqual(calls.map(call => call.path), ['/v1/auth/token', '/nmsapi/v1/notams/il', '/nmsapi/v1/content/fixture']);
+    assert.ok(calls.every((call, i) => !i || call.started - calls[i - 1]!.finished >= 1000));
+    assert.equal(store.nextBulkAt, calls[1]!.finished + NOTAM_DAY_MS);
+    assert.equal(waits, 3, 'the remaining millisecond is waited without another data request');
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('a rejected bearer cannot cause an immediate retry and renews only on the next data slot', async () => {
   const directory = await temporary(); let now = NOTAM_NOW, tokens = 0, pulls = 0;
   const store = new NotamStore(directory, 'production', () => now);

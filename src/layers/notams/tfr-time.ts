@@ -1,4 +1,4 @@
-import { TFR_DETAIL_REFRESH_MS, type TfrArea, type TfrNotice, type TfrWindow } from '@zlayer/contracts';
+import { TFR_DETAIL_REFRESH_MS, type TfrArea, type TfrNotice, type TfrSnapshot, type TfrWindow } from '@zlayer/contracts';
 
 export function tfrDetailFresh(notice: TfrNotice, now: number): boolean {
   return notice.detailCheckedAt !== undefined && now >= notice.detailCheckedAt && now - notice.detailCheckedAt < TFR_DETAIL_REFRESH_MS;
@@ -32,4 +32,18 @@ export function tfrTiming(notice: TfrNotice, area: TfrArea, now: number): {
   const next = active ?? windows.sort((a,b) => a.start - b.start)[0];
   return next ? { status: active ? 'active' : 'upcoming', boundary: active ? next.end : next.start,
     startsAt: next.start, endsAt: Number.isFinite(next.end) ? next.end : null } : undefined;
+}
+
+/** The next schedule or detail-freshness change, independent of UI age labels. */
+export function tfrNextChange(snapshot: TfrSnapshot | undefined, now: number): number {
+  let next = Infinity;
+  const consider = (time: number) => { if (time > now) next = Math.min(next, time); };
+  for (const notice of snapshot?.notices ?? []) {
+    if (notice.detailCheckedAt !== undefined) {
+      consider(notice.detailCheckedAt);
+      consider(notice.detailCheckedAt + TFR_DETAIL_REFRESH_MS);
+    }
+    for (const area of notice.areas) consider(tfrTiming(notice, area, now)?.boundary ?? Infinity);
+  }
+  return next;
 }

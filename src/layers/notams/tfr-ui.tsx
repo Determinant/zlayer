@@ -23,15 +23,15 @@ export function createTfrDetails(store: LayerStore<TfrState>, selection: LayerSt
     return <DetailPanel panel={panel} title="TFR Details" label="TFR details" onClose={clear}
       closeLabel="Close TFR details" contentLabel="TFR details" icon={null}>
       <div className="notam-tfr-detail">
-        <p className="notam-tfr-legend">Red: active or unconfirmed · Yellow: upcoming</p>
+        <p className="notam-tfr-legend">Red: active or unknown schedule · Yellow: upcoming. Colors follow the saved schedule.</p>
         {areas.map(({ notice, area, timing, issue }) => <section key={`${notice.id}:${area.id}`}>
           <h3>{notice.id} · {notice.type}</h3>
           <p>{notice.title}</p><p>{area.name} · {area.lower}–{area.upper}</p>
           {issue && <p>FAA detail refresh failed. Showing retained detail.</p>}
           <small>{notice.detailCheckedAt === undefined ? 'Detail age unconfirmed' : `Detail · ${formatCheckedAt(notice.detailCheckedAt, now)}`}</small>
           <p>{issue || !tfrDetailFresh(notice, now) ? 'Check FAA source for current boundaries and timing' : timing.status === 'upcoming' ? 'Upcoming' : timing.status === 'unknown' ? 'Check source schedule' : 'Active'}</p>
-          <p>From {formatTimestampPair(timing.startsAt, { now })}</p>
-          <p>Until {timing.endsAt === null ? 'Further notice' : formatTimestampPair(timing.endsAt, { now })}</p>
+          <p>From {formatTimestampPair(timing.startsAt, { now, primary: 'local' })}</p>
+          <p>Until {timing.endsAt === null ? 'Further notice' : formatTimestampPair(timing.endsAt, { now, primary: 'local' })}</p>
           <details className="notam-raw"><summary>Show raw</summary><pre>{notice.text}</pre></details>
           <a href={`https://tfr.faa.gov/tfr3/?page=detail_${notice.id.replace('/', '_')}`} target="_blank" rel="noopener noreferrer">FAA notice</a>
         </section>)}

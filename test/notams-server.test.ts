@@ -101,7 +101,7 @@ test('representation tolerance still rejects changed notice content and bounds c
   const { previous, next } = representationPair();
   for (const overrides of [
     { number: '43' }, { number: '00/42' }, { text: 'RWY 09R CLSD' },
-    { effectiveEnd: '202610051300' }, { lifecycle: 'cancelled' as const },
+    { effectiveEnd: '202610051300' },
     { translations: [{ ...next.translations[0]!, text: next.translations[0]!.text.replace('09L', '09R') }] },
     { translations: [{ type: 'OTHER:ICAO', text: '<div>different wording</div>' }] },
   ]) assert.throws(() => mergeNotamRecords([previous], [normalized(notice({ ...next, ...overrides }))]), NotamRevisionConflict);
@@ -219,10 +219,16 @@ test('duplicate inactive records do not depend on presentation or cancel other s
     assert.equal(mergeNotamRecords([next], saved)[0], next, 'either representation proves the same inactive state');
     const active = normalized(notice({ id: '1757600000000002', sourceId: '1757600000000002' }));
     assert.ok(mergeNotamRecords([previous, active], [next]).includes(active), 'references never delete another source ID');
-    assert.throws(() => mergeNotamRecords(saved, [normalized(notice())]), NotamRevisionConflict,
-      'same-revision active data cannot resurrect a tombstone or cancellation message');
-    assert.throws(() => mergeNotamRecords([normalized(notice())], [next]), NotamRevisionConflict,
-      'an ambiguous same-revision lifecycle change must still fail');
+    if (lifecycle === 'cancelled') {
+      assert.equal(mergeNotamRecords(saved, [normalized(notice())])[0], previous,
+        'omitting the cancellation field cannot resurrect its timestamped original-ID tombstone');
+      assert.equal(mergeNotamRecords([normalized(notice())], [next])[0], next,
+        'the matching cancellation timestamp establishes the inactive source state');
+    } else {
+      assert.throws(() => mergeNotamRecords(saved, [normalized(notice())]), NotamRevisionConflict);
+      assert.throws(() => mergeNotamRecords([normalized(notice())], [next]), NotamRevisionConflict,
+        'a NOTAMC message is not the original-ID tombstone');
+    }
   }
 });
 test('unresolved records and independent updates commit atomically and survive checksummed restoration', async () => {

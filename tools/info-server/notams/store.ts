@@ -7,7 +7,7 @@ import { isRecord, isNotamRecord, isNotamSourceIssue, type NotamRecord, type Not
 import { acquireNotamLock } from './lock';
 import { NotamError } from './error';
 import { upgradeNotamRecord } from './normalize';
-import { NO_NOTAM_ISSUES } from './collection';
+import { collectNotamRecords, NO_NOTAM_ISSUES } from './collection';
 
 export const NOTAM_DAY_MS = 86_400_000;
 export const NOTAM_GENERATION_MAX_BYTES = 256 * 1024 * 1024;
@@ -232,12 +232,26 @@ export class NotamStore {
     } } finally { stream.destroy(); }
     if (records.length !== manifest.count || issues.length !== (manifest.issueCount ?? 0) || hash.digest('hex') !== manifest.generation) throw new NotamError('invalid-checkpoint');
     const upgraded = records.map(upgradeNotamRecord);
-    // Unresolved variants are source evidence. Do not silently clear their issues
-    // during a derivation upgrade or while restoring a checkpoint.
-    if (upgraded.some((record, index) => record !== records[index])) {
-      const next = sealManifest({ ...manifest, ...await this.saveRecords(upgraded, issues) });
+    const upgradedIssues = issues.map(issue => {
+      const variants = issue.variants.map(upgradeNotamRecord);
+      if (variants.every((record, index) => record === issue.variants[index])) return issue;
+      // A changed derivation replaces its old copy; it is not another source
+      // variant. Upgrades may also make two saved derivations identical.
+      return { ...issue, variants: [...new Map(variants.map(record => [record.revision, record])).values()] };
+    });
+    const changed = upgraded.some((record, index) => record !== records[index]) ||
+      upgradedIssues.some((issue, index) => issue !== issues[index]);
+    const original = { records: changed ? upgraded : records, issues: upgradedIssues };
+    // Authenticate the entire saved dataset first, then reconsider complete
+    // evidence using the current interpretation. Omitted overflow evidence is
+    // never sufficient. This changes no source boundary or admission allowance.
+    const reconciled = collectNotamRecords(original, upgradedIssues.filter(issue => !issue.variantsTruncated)
+      .flatMap(issue => issue.variants));
+    if (changed || reconciled !== original) {
+      const nextIssues = reconciled.issues ?? NO_NOTAM_ISSUES;
+      const next = sealManifest({ ...manifest, ...await this.saveRecords(reconciled.records, nextIssues), issueCount: nextIssues.length });
       await atomicNotamFile(join(this.directory, name), JSON.stringify(next));
-      return { ...next, records: upgraded, issues };
+      return { ...next, records: reconciled.records, issues: nextIssues };
     }
     this.remember(records, issues, { generation: manifest.generation, count: manifest.count, bytes: manifest.bytes });
     return { ...manifest, records, issues };

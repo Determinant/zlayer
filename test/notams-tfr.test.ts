@@ -112,18 +112,27 @@ test('unmappable and partially interpreted TFRs have individual source review in
   assert.equal(tfrReviewNotices({ snapshot: data, now: at('2027-01-01T00:00Z'), loading: false }).length, 4);
 });
 
-test('unknown or old TFR detail age qualifies timing even with a fresh national index', () => {
+test('TFR detail age and refresh issues qualify source review without changing schedule colors', () => {
   const data = snapshot(); data.notices = data.notices.slice(1, 2);
   const notice = data.notices[0]!, now = data.checkedAt;
   const state = { snapshot: data, now, loading: false };
-  assert.equal(tfrFeatures(state).features[0]!.properties.status, 'upcoming');
+  const features = tfrFeatures(state);
+  assert.equal(features.features[0]!.properties.status, 'upcoming');
+  assert.equal(features.features[0]!.properties.color, '#ffd54a');
   assert.equal(tfrDetailFresh(notice, now + TFR_DETAIL_REFRESH_MS - 1), true);
   for (const detailCheckedAt of [undefined, now - TFR_DETAIL_REFRESH_MS, now + 1]) {
     if (detailCheckedAt === undefined) delete notice.detailCheckedAt; else notice.detailCheckedAt = detailCheckedAt;
     assert.ok(isTfrSnapshot(data)); assert.equal(tfrDetailFresh(notice, now), false);
-    assert.equal(tfrFeatures(state).features[0]!.properties.status, 'unknown');
+    assert.deepEqual(tfrFeatures(state), features);
     assert.equal(tfrReviewNotices(state).length, 1);
   }
+  notice.detailCheckedAt = now;
+  const { id, modifiedAt, title, type, facility, state: region } = notice;
+  data.issues = [{ id, modifiedAt, title, type, facility, state: region, reason: 'detail-unavailable', retainedCheckedAt: now }];
+  data.error = 'incomplete-details';
+  assert.ok(isTfrSnapshot(data));
+  assert.deepEqual(tfrFeatures(state), features, 'a failed detail refresh retains the saved schedule color');
+  assert.ok(tfrReviewNotices(state)[0]!.reasons.includes('FAA detail unavailable'));
   notice.detailCheckedAt = -1; assert.equal(isTfrSnapshot(data), false);
 });
 
@@ -135,7 +144,8 @@ test('the live TFR clock qualifies detail age at its deadline without another re
   t.after(() => client.stop()); client.start(); t.mock.timers.tick(0); await new Promise(resolve => setImmediate(resolve));
   assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'upcoming');
   t.mock.timers.tick(1000);
-  assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'unknown');
+  assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.status, 'upcoming');
+  assert.equal(tfrFeatures(client.state.getSnapshot()).features[0]!.properties.color, '#ffd54a');
   assert.equal(tfrReviewNotices(client.state.getSnapshot())[0]!.reasons[0], 'Detail needs recheck');
 });
 
@@ -218,7 +228,7 @@ test('TFR issue guards require honest retained-detail identity, freshness and le
   data.error = 'incomplete-details';
   assert.ok(isTfrSnapshot(data));
   const state = { snapshot: data, now: data.checkedAt, loading: false };
-  assert.equal(tfrFeatures(state).features.find(f => f.properties.noticeId === notice.id)!.properties.status, 'unknown');
+  assert.equal(tfrFeatures(state).features.find(f => f.properties.noticeId === notice.id)!.properties.color, '#ff4d55');
   assert.equal(selectedTfrAreas(state, [{ noticeId: notice.id, areaId: notice.areas[0]!.id }])[0]!.issue?.retainedCheckedAt, data.checkedAt - 60_000);
   assert.ok(isTfrSnapshot({ ...data, issues: [{ ...data.issues[0], modifiedAt: notice.modifiedAt }] }), 'a periodic recheck can fail with unchanged index metadata');
   for (const overrides of [{ retainedCheckedAt: null }, { retainedCheckedAt: data.checkedAt + 1 },

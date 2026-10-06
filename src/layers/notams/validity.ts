@@ -33,12 +33,15 @@ export function notamEndKind(record: EndEvidence): NotamRecord['endKind'] {
 }
 
 export type NotamValidity = 'upcoming' | 'within interval' | 'outside schedule' | 'past end' | 'check schedule' | 'check validity';
-function scheduleActive(schedule: string, now: number): boolean | undefined {
+/** The two supplied daily windows must agree before the machine wrapper can be
+ * compared with, or interpreted as, its readable schedule. Keep source text raw. */
+export function notamSchedule(schedule: string): string {
   const raw = schedule.trim().toUpperCase();
-  // NMS may supply both machine and readable forms. Accept only identical windows.
   const daily = /^DAILY:(\d{4})-(\d{4})~DLY\s+(\d{4})-(\d{4})$/.exec(raw);
-  const normalized = daily && daily[1] === daily[3] && daily[2] === daily[4] ? `DLY ${daily[1]}-${daily[2]}` : raw;
-  const match = /^(DLY|DAILY|MON|TUE|WED|THU|FRI|SAT|SUN)(?:-(MON|TUE|WED|THU|FRI|SAT|SUN))?\s+(\d{4})-(\d{4})$/.exec(normalized);
+  return daily && daily[1] === daily[3] && daily[2] === daily[4] ? `DLY ${daily[1]}-${daily[2]}` : raw;
+}
+function scheduleActive(schedule: string, now: number): boolean | undefined {
+  const match = /^(DLY|DAILY|MON|TUE|WED|THU|FRI|SAT|SUN)(?:-(MON|TUE|WED|THU|FRI|SAT|SUN))?\s+(\d{4})-(\d{4})$/.exec(notamSchedule(schedule));
   if (!match) return undefined;
   const minutes = (value: string, end: boolean) => value === '2400' && end ? 1440
     : Number(value.slice(0, 2)) < 24 && Number(value.slice(2)) < 60 ? Number(value.slice(0, 2)) * 60 + Number(value.slice(2)) : NaN;

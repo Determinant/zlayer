@@ -14,9 +14,15 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
   let token: { value: string; expiresAt: number } | undefined;
   let renewing: Promise<string> | undefined;
   async function reserve(kind: 'auth' | 'content' | 'bulk' | 'delta', signal: AbortSignal) {
-    const spacing = options.store.nextAnyAt - now();
-    if (spacing > 1500) throw new NotamError('source-backoff', options.store.nextAnyAt);
-    if (spacing > 0) await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
+    // Timers may wake before the wall-clock admission boundary. Recheck it so
+    // a one-millisecond early wake cannot waste an already admitted daily bulk.
+    for (;;) {
+      signal.throwIfAborted();
+      const spacing = options.store.nextAnyAt - now();
+      if (spacing > 1500) throw new NotamError('source-backoff', options.store.nextAnyAt);
+      if (spacing <= 0) break;
+      await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
+    }
     signal.throwIfAborted(); return options.store.reserve(kind, 120_000);
   }
   async function request(url: string, init: RequestInit, reservation: NotamReservation): Promise<Response> {

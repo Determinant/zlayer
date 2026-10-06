@@ -1,9 +1,9 @@
-import { isTfrSnapshot, TFR_DETAIL_REFRESH_MS, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot } from '@zlayer/contracts';
+import { isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot } from '@zlayer/contracts';
 import { requestJson } from '../../core/data/request-json';
 import { createLayerStore } from '../../core/layers/store';
 import { OnDemandRefresh } from '../../core/layers/on-demand-refresh';
 import { tfrSnapshot } from './storage';
-import { tfrTiming } from './tfr-time';
+import { tfrNextChange } from './tfr-time';
 
 export type TfrState = { snapshot?: TfrSnapshot; now: number; loading: boolean; error?: string };
 export function createTfrClient(dependencies: { now?: () => number; load?: (signal: AbortSignal) => Promise<TfrSnapshot>;
@@ -20,11 +20,7 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
     clearTimeout(timer);
     if (!refresh) return;
     const time = now(); state.publish({ ...state.getSnapshot(), now: time });
-    const boundaries = state.getSnapshot().snapshot?.notices.flatMap(n => [
-      ...n.areas.map(a => tfrTiming(n,a,time)?.boundary ?? Infinity),
-      ...(n.detailCheckedAt !== undefined && n.detailCheckedAt + TFR_DETAIL_REFRESH_MS > time ? [n.detailCheckedAt + TFR_DETAIL_REFRESH_MS] : []),
-    ]) ?? [];
-    const delay = boundaries.reduce((delay, t) => Math.min(delay, Math.max(1,t-time)), 30_000);
+    const delay = Math.min(30_000, Math.max(1, tfrNextChange(state.getSnapshot().snapshot, time) - time));
     timer = setTimeout(clock, delay);
   }
   function demand() { refresh?.setDemand(['national'], typeof navigator === 'undefined' || navigator.onLine !== false); }

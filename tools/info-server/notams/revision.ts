@@ -3,7 +3,7 @@ import { isNotamRecord, type NotamRecord } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
 import { fdcBodyForms } from '../../../src/layers/notams/source-text';
-import { notamTime } from '../../../src/layers/notams/validity';
+import { notamEndKind, notamSchedule, notamTime } from '../../../src/layers/notams/validity';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
 export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
@@ -26,6 +26,30 @@ function translationsByType(record: NotamRecord) {
     values.add(translationContent(text)); types.set(type, values);
   }
   return types;
+}
+function completeLocalNotice(record: NotamRecord, text: string): boolean {
+  const body = translationContent(record.text);
+  if (record.classification === 'FDC') return !!fdcBodyForms(record, text)?.has(body);
+  if (record.classification !== 'DOMESTIC' || record.series) return false;
+  const match = /^!([A-Z0-9]{1,8}) (\d{2})\/(\d+) ([A-Z0-9]{3,5}) (.+) (\d{10})-(\d{10}(?:EST)?|PERM)$/.exec(text);
+  if (!match || match[1] !== record.accountability || !record.locations.includes(match[4]!) ||
+    (numberContent(record.number) !== numberContent(match[3]!) && record.number !== `${match[2]}/${match[3]}`)) return false;
+  const compact = (time: number | null) => time !== null && time % 60_000 === 0
+    ? new Date(time).toISOString().replace(/\D/g, '').slice(2, 12) : undefined;
+  const end = match[7]!, permanent = end === 'PERM', estimated = end.endsWith('EST');
+  if (compact(record.startsAt) !== match[6] ||
+    (permanent ? record.endsAt !== null || record.effectiveEnd !== 'PERM' : compact(record.endsAt) !== end.replace(/EST$/, '')) ||
+    record.endKind !== (permanent ? 'permanent' : estimated ? 'estimated' : 'fixed')) return false;
+  const schedule = notamSchedule(record.schedule);
+  return match[5] === body || !!schedule && match[5] === `${body} ${schedule}`;
+}
+function sharedLocalNotice(previous: NotamRecord, next: NotamRecord): boolean {
+  const before = translationsByType(previous).get('LOCAL_FORMAT'), after = translationsByType(next).get('LOCAL_FORMAT');
+  // One complete native notice must account for both records. Unrelated or
+  // internally contradictory local translations cannot qualify this witness.
+  if (before?.size !== 1 || after?.size !== 1) return false;
+  const text = [...before][0]!;
+  return after.has(text) && completeLocalNotice(previous, text) && completeLocalNotice(next, text);
 }
 function compatibleIcao(a: string, b: string): boolean {
   if (a === b) return true;
@@ -82,6 +106,21 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
   return contentFields.filter(field => {
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
     if (field === 'effectiveEnd') return effectiveEndContent(previous) !== effectiveEndContent(next);
+    if (field === 'schedule') return notamSchedule(previous.schedule) !== notamSchedule(next.schedule);
+    if (field === 'icaoLocations') {
+      // FNSE's optional association is absent from some renderings. Absence
+      // cannot withdraw a supplied association at the same source revision.
+      return previous.icaoLocations.length > 0 && next.icaoLocations.length > 0 &&
+        !isDeepStrictEqual([...previous.icaoLocations].sort(), [...next.icaoLocations].sort());
+    }
+    if (field === 'endKind' && previous.endKind !== next.endKind) {
+      // This is a derivation, not an independently versioned source field.
+      // A missing optional translation cannot disprove its matching EST suffix.
+      if (![previous.endKind, next.endKind].every(kind => kind === 'fixed' || kind === 'estimated')) return true;
+      const translations = [...previous.translations, ...next.translations];
+      return notamEndKind({ ...previous, translations }) !== 'estimated' ||
+        notamEndKind({ ...next, translations }) !== 'estimated';
+    }
     if (field === 'text') return equivalentBody(previous, next) === undefined;
     if (field === 'referred') {
       if (!previous.referred || !next.referred) return false;
@@ -95,6 +134,20 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
       return [...before].some(([type, values]) => {
         const incoming = after.get(type);
         if (!incoming || isDeepStrictEqual(values, incoming)) return false;
+        // A qualified superset already accounts for every sparse rendering.
+        // Check either order because checkpoint variants are sorted by digest.
+        // An unqualified union of conflicting ICAO strings is not such evidence.
+        if (type === 'OTHER:ICAO') {
+          const richer = [...incoming].every(text => values.has(text)) ? previous
+            : [...values].every(text => incoming.has(text)) ? next : undefined;
+          const local = richer && translationsByType(richer).get('LOCAL_FORMAT');
+          if (richer && local?.size === 1 && completeLocalNotice(richer, [...local][0]!)) return false;
+        }
+        // Captured native notices have multiple generated ICAO renderings,
+        // including different Q geometry, headers and conversion artifacts.
+        // A complete shared local notice plus matching core fields establishes
+        // the notice; retain the auxiliary renderings without inventing equality.
+        if (type === 'OTHER:ICAO' && sharedLocalNotice(previous, next)) return false;
         return type !== 'OTHER:ICAO' || [...values].some(a => [...incoming].some(b => !compatibleIcao(a, b)));
       });
     }
@@ -103,6 +156,14 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
 }
 
 export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
+  // A timestamped original-ID cancellation is positive source evidence. An
+  // omitted optional canceled field at that same revision is not a resurrection.
+  for (const [cancelled, active] of [[previous, next], [next, previous]] as const) {
+    if (cancelled.id === active.id && cancelled.classification === active.classification &&
+      numberContent(cancelled.number) === numberContent(active.number) && cancelled.series === active.series && cancelled.year === active.year &&
+      cancelled.changeType === active.changeType && cancelled.lifecycle === 'cancelled' && active.lifecycle === 'active' && !active.canceledAt &&
+      notamTime(cancelled.canceledAt) === cancelled.updatedAt && fraction(cancelled.canceledAt) === fraction(cancelled.sourceUpdatedAt)) return cancelled;
+  }
   // These records have no active-airport membership. NMS can replace their text
   // with a terse cancellation rendering at the same source revision. Preserve
   // the retained raw record; presentation differences cannot break continuity.
@@ -119,9 +180,13 @@ export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord)
   const issued = [previous.issuedAt, next.issuedAt].filter((time): time is number => time !== null);
   const issuedAt = issued.length ? Math.min(...issued) : null;
   const text = equivalentBody(previous, next)!, referred = previous.referred ?? next.referred;
-  if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred) return previous;
+  const icaoLocations = previous.icaoLocations.length ? previous.icaoLocations : next.icaoLocations;
+  const translations = added.length ? [...previous.translations, ...added] : previous.translations;
+  const endKind = notamEndKind({ ...previous, translations });
+  if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred &&
+    icaoLocations === previous.icaoLocations && endKind === previous.endKind) return previous;
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, translations: [...previous.translations, ...added] });
+  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, translations });
   if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
   return merged;
 }

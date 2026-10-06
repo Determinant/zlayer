@@ -1,4 +1,4 @@
-import type { NotamRecord, NotamSourceIssue } from '@zlayer/contracts';
+import { TFR_DETAIL_REFRESH_MS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { test, expect, type Locator } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,7 @@ import { contrast } from '../../tools/theme/color';
 import { procedureSelection } from '../../src/layers/plates/data';
 import corpus from '../fixtures/notams-corpus.json' with { type: 'json' };
 import formats from '../fixtures/notams-formats.json' with { type: 'json' };
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 
 let server: ViteDevServer, origin: string, directory: string, pdf: Buffer;
 let catalog: typeof testCatalog, resource: typeof testResource;
@@ -257,9 +257,9 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     const displayed = () => page.evaluate(() => {
       const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
       return map?.getLayer('notam-tfr-fill') ? [...new Map(map.queryRenderedFeatures(undefined,{layers:['notam-tfr-fill']})
-        .map(f=>[f.properties.noticeId,{id:f.properties.noticeId,color:f.properties.color,status:f.properties.status}])).values()].sort((a,b)=>a.id.localeCompare(b.id)) : [];
+        .map(f=>[f.properties.noticeId,{id:f.properties.noticeId,color:f.state.color}])).values()].sort((a,b)=>a.id.localeCompare(b.id)) : [];
     });
-    const expected = [{id:'6/9000',color:'#ff4d55',status:'active'},{id:'6/9001',color:'#ffd54a',status:'upcoming'},{id:'6/9003',color:'#ff4d55',status:'active'}];
+    const expected = [{id:'6/9000',color:'#ff4d55'},{id:'6/9001',color:'#ffd54a'},{id:'6/9003',color:'#ff4d55'}];
     await expect.poll(displayed).toEqual(expected);
     expect(await page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.getPaintProperty('notam-tfr-fill','fill-pattern'))).toBeUndefined();
     expect(await page.evaluate(() => (window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.getStyle().layers
@@ -330,6 +330,90 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await containedText(details);
     expect(errors).toEqual([]);
   });
+});
+test('TFR restoration, refresh and detail expiry preserve colors until the schedule changes', async ({ page }) => {
+  const now = Date.now();
+  await page.clock.install({ time: now });
+  let requests = 0;
+  const records = [-122.03, -122.017].map((lon, i) => ({ id: `6/900${i}`, modifiedAt: now - TFR_DETAIL_REFRESH_MS - 120_000,
+    detailCheckedAt: now - TFR_DETAIL_REFRESH_MS + 60_000 + i * 1000,
+    title: 'Synthetic TFR', type: 'HAZARDS', facility: 'TST', state: 'CA', text: 'Test only',
+    startsAt: i ? now + 3600_000 : now - 3600_000, endsAt: now + 7200_000,
+    areas: [{ id: '1', name: 'Area A', lower: 'SFC', upper: '3000 ft MSL', geometry: { type: 'Polygon',
+      coordinates: [[[lon - .004, 37.001], [lon + .004, 37.001], [lon + .004, 37.009], [lon - .004, 37.009], [lon - .004, 37.001]]] },
+      windows: [{ startsAt: i ? now + 3600_000 : now - 3600_000, endsAt: now + 7200_000 }] }] }));
+  const savedAt = now - TFR_DETAIL_REFRESH_MS - 60_000;
+  await page.addInitScript(snapshot => localStorage.setItem('zlayer-plugin:notams:tfr-snapshot', JSON.stringify(snapshot)),
+    { schemaVersion: 1, source: 'FAA-TFR', checkedAt: savedAt, notices: records.map(record => ({ ...record, detailCheckedAt: savedAt })) });
+  let release!: () => void;
+  const responseReady = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/notams/tfrs', async route => {
+    requests++;
+    await responseReady;
+    return route.fulfill({ json: { schemaVersion: 1, source: 'FAA-TFR', checkedAt: now, notices: records } });
+  });
+  await page.goto(`${origin}/test/browser/notams.html?map&tfr-status`);
+  await page.getByRole('button', { name: 'Stow fixture', exact: true }).click();
+  const footer = page.locator('.notam-tfr-status');
+  await expect(footer).toContainText('2 need source review');
+  const colors = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
+    return map?.getLayer('notam-tfr-fill') ? [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-fill'] })
+      .map(f => f.state.color))].sort() : [];
+  });
+  await expect.poll(colors).toEqual(['#ff4d55', '#ffd54a']);
+  const pixel = () => page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    const canvas = map.getCanvas(), gl = canvas.getContext('webgl2')!, p = map.project([-122.017, 37.005]);
+    const pixel = new Uint8Array(4), scale = canvas.width / canvas.clientWidth;
+    gl.readPixels(Math.round(p.x * scale), Math.round(canvas.height - p.y * scale), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    return [...pixel];
+  });
+  await expect.poll(async () => {
+    const [r, g, b] = await pixel(); return g! > b! + 10 && r! >= g! - 10;
+  }).toBe(true);
+  await page.evaluate(() => {
+    const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
+    const audit = { submissions: 0, hidden: 0, colors: [] as string[] };
+    Object.assign(window, { tfrRenderAudit: audit });
+    const source = map.getSource('notam-tfrs') as GeoJSONSource, setData = source.setData.bind(source);
+    source.setData = data => { audit.submissions++; return setData(data); };
+    const setLayout = map.setLayoutProperty.bind(map), setState = map.setFeatureState.bind(map);
+    map.setLayoutProperty = (id, name, value, options) => {
+      if (id.startsWith('notam-tfr-') && name === 'visibility' && value === 'none') audit.hidden++;
+      return setLayout(id, name, value, options);
+    };
+    map.setFeatureState = (feature, state) => {
+      if (feature.source === 'notam-tfrs') audit.colors.push(state.color);
+      return setState(feature, state);
+    };
+  });
+  // An app/server restart restores stale detail while the fresh response is pending.
+  release();
+  await expect(footer).not.toContainText('need source review');
+  await expect.poll(colors).toEqual(['#ff4d55', '#ffd54a']);
+  expect(await page.evaluate(() => (window as unknown as { tfrRenderAudit: unknown }).tfrRenderAudit))
+    .toEqual({ submissions: 0, hidden: 0, colors: [] });
+  // Cross each separately acquired detail's deadline, as the live national feed does.
+  const elapsed = await page.evaluate(() => Date.now()) - now;
+  await page.clock.fastForward(59_000 - elapsed);
+  await page.clock.runFor(3000);
+  await expect(footer).toContainText('2 need source review');
+  await expect.poll(colors).toEqual(['#ff4d55', '#ffd54a']);
+  expect(await page.evaluate(() => (window as unknown as { tfrRenderAudit: unknown }).tfrRenderAudit))
+    .toEqual({ submissions: 0, hidden: 0, colors: [] });
+  expect(requests).toBe(1);
+  await expect.poll(async () => {
+    const [r, g, b] = await pixel(); return g! > b! + 10 && r! >= g! - 10;
+  }).toBe(true);
+  // Stale data still follows actual activation times, including the drawing buffer.
+  await page.clock.fastForward(now + 3600_000 - await page.evaluate(() => Date.now()));
+  await expect.poll(colors).toEqual(['#ff4d55']);
+  expect(await page.evaluate(() => (window as unknown as { tfrRenderAudit: unknown }).tfrRenderAudit))
+    .toEqual({ submissions: 0, hidden: 0, colors: ['#ff4d55'] });
+  await expect.poll(async () => {
+    const [r, g, b] = await pixel(); return r! > g! + 20 && r! > b! + 10;
+  }).toBe(true);
 });
 test('temporary areas replace only mapped location prose and restore it when the chart detaches', async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
@@ -998,8 +1082,8 @@ for (const width of [393, 1280]) test(`TFR source review includes retained, unkn
   await footer.getByText('5 need source review', { exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
     const map = (window as unknown as { notamMapAudit?: { map: MapLibreMap } }).notamMapAudit?.map;
-    return map?.getLayer('notam-tfr-fill') ? [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-fill'] }).map(f => f.properties.status))] : [];
-  })).toEqual(['unknown']);
+    return map?.getLayer('notam-tfr-fill') ? [...new Set(map.queryRenderedFeatures(undefined, { layers: ['notam-tfr-fill'] }).map(f => f.state.color))] : [];
+  })).toEqual(['#ff4d55']);
   const point = await page.evaluate(() => {
     const map = (window as unknown as { notamMapAudit: { map: MapLibreMap } }).notamMapAudit.map;
     map.jumpTo({ center: [-122.03,37.004] });
@@ -1007,7 +1091,7 @@ for (const width of [393, 1280]) test(`TFR source review includes retained, unkn
   });
   await page.mouse.click(point.x, point.y);
   const details = page.getByRole('region', { name: 'TFR details', exact: true });
-  await expect(details).toContainText('Red: active or unconfirmed · Yellow: upcoming');
+  await expect(details).toContainText('Red: active or unknown schedule · Yellow: upcoming. Colors follow the saved schedule.');
   await expect(details).toContainText('FAA detail refresh failed. Showing retained detail.');
   await expect(details).toContainText('Check source schedule');
   await expect(details.getByText('Active', { exact: true })).toHaveCount(0);
