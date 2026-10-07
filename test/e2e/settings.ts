@@ -21,3 +21,8 @@ export async function publishCycles(page: Page, cycles = ['2026-09-03', '2026-08
   const response = await page.request.post('/__test/available-cycles', { data: { cycles } });
   expect(response.ok()).toBe(true);
 }
+
+export async function openPluginSettings(page: Page) {
+  await page.getByLabel('Settings and offline downloads').click();
+  await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
+}

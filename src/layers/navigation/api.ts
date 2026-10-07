@@ -13,14 +13,20 @@ import { isInsideChartCoverage } from '../../workspace/catalog/catalog';
 import { fetchJson } from '../../core/data/fetch-json';
 import { navigationDocumentGuard, airwayDocumentGuard, type SourceFeatureCollection } from '../../core/data/references';
 import { ResourceCache } from '../../core/data/resource-cache';
+import { createTaskLimiter } from '../../core/data/task-limiter';
 
 import { browsingCatalog, routingCatalog, bundleForFeature, regionalBundles, regionalCatalogKey,
   navigationSourceKey, type CatalogReadSource } from '../../workspace/read-context';
 import { OFFLINE_REGIONS } from '../../offline/regions';
 
-const navigationSources = new ResourceCache<SourceFeatureCollection>();
-const navigationViews = new ResourceCache<FeatureCollectionResponse>();
-const airwayCache = new ResourceCache<AirwayDataResponse>();
+// Optional ready entries cannot keep national editions alive by themselves.
+// Live consumers retain the exact source graph behind each derived view.
+const navigationSources = new ResourceCache<SourceFeatureCollection>(24, true);
+const navigationViews = new ResourceCache<FeatureCollectionResponse>(24, true);
+const airwayCache = new ResourceCache<AirwayDataResponse>(24, true);
+const sourceOwners = new WeakMap<object, readonly object[]>();
+const readReference = createTaskLimiter(2);
+const referenceLifetime = new AbortController().signal;
 
 export type NavigationIssue = {
   layer: NavigationLayerId;
@@ -89,7 +95,7 @@ export async function fetchNavigation(
   return navigationViews.get(cacheKey, async () => {
     const source = await navigationSources.get(JSON.stringify([revision, layer.url, layer.jsonSha256,
       layer.sourceCount, layer.cacheOnly]),
-      () => fetchJson(layer.url, navigationDocumentGuard(layer, revision), `Navigation layer ${layer.id}`, { policy: layer.cacheOnly ? 'cache-only' : 'cache-first' }));
+      () => readReference(referenceLifetime, () => fetchJson(layer.url, navigationDocumentGuard(layer, revision), `Navigation layer ${layer.id}`, { policy: layer.cacheOnly ? 'cache-only' : 'cache-first' })));
     const selected = layer.subset ? source.features.filter(feature =>
       (feature.properties.kind === 'vfr-waypoint') === (layer.subset === 'vfr-waypoints')) : source.features;
     if (layer.subset && selected.length !== layer.count) throw new Error(`Navigation ${layer.id} count disagrees with fixes`);
@@ -105,6 +111,7 @@ export async function fetchNavigation(
         truncated: false,
       },
     };
+    sourceOwners.set(collection, [source]);
     return collection;
   });
 }
@@ -120,12 +127,12 @@ export async function fetchAirways(
   revision: string,
 ): Promise<AirwayDataResponse> {
   const cacheKey = JSON.stringify([revision, resource]);
-  return airwayCache.get(cacheKey, () => fetchJson(
+  return airwayCache.get(cacheKey, () => readReference(referenceLifetime, () => fetchJson(
     resource.url,
     airwayDocumentGuard(resource, revision),
     'FAA airways',
     { policy: resource.cacheOnly ? 'cache-only' : 'cache-first' },
-  ));
+  )));
 }
 
 
@@ -133,7 +140,7 @@ const regionalCache = new WeakMap<CatalogReadSource, ResourceCache<NavigationRes
 async function fetchRegionalNavigation(scope: CatalogReadSource, id: NavigationLayerId,
   charts: readonly ChartRecord[]): Promise<NavigationResult> {
   let cache = regionalCache.get(scope);
-  if (!cache) { cache = new ResourceCache(); regionalCache.set(scope, cache); }
+  if (!cache) { cache = new ResourceCache(24, true); regionalCache.set(scope, cache); }
   const key = JSON.stringify([id, charts.map(chart => chart.bounds)]);
   return cache.get(key, async (): Promise<NavigationResult> => {
     const browsing = browsingCatalog(scope);
@@ -169,8 +176,14 @@ async function fetchRegionalNavigation(scope: CatalogReadSource, id: NavigationL
           dataRevision: catalog.revision, dataSourceKey } });
       }
     }
-    return { collection: { type: 'FeatureCollection', features: [...features.values()],
-      meta: { revision: routingCatalog(scope).revision, layer: id, returned: features.size, truncated: false } }, issues };
+    const collection: FeatureCollectionResponse = { type: 'FeatureCollection', features: [...features.values()],
+      meta: { revision: routingCatalog(scope).revision, layer: id, returned: features.size, truncated: false } };
+    const result = { collection, issues };
+    // Map consumers retain the collection, not this cache's result wrapper.
+    // Keep both reusable identities alive together; the weak-key cycle is still
+    // collectible once no consumer owns either object.
+    sourceOwners.set(collection, [result, ...loaded.values()]);
+    return result;
   // Keep successful source requests, but never memoize a partial composition:
   // reconnect, repair and subsequent searches must be able to retry missing data.
   }, result => result.issues.length === 0);

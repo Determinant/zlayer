@@ -1,9 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-
-async function selectAirport(page: Page, id: string) {
-  await page.getByLabel('Search FAA navigation data').fill(id);
-  await page.locator('.search-results button').filter({ hasText: id }).click();
-}
+import { test, expect } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
 
 for (const touch of [false, true]) test.describe(`airport map selection (${touch ? 'phone touch' : 'mouse'})`, () => {
   test.use(touch

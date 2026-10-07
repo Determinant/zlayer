@@ -2,31 +2,41 @@ import { useCallback, useEffect, useState } from 'react';
 import { externalErrorCode, type ResourceErrorCode } from '../core/data/errors';
 
 type WarningTitle = 'Map layer unavailable' | 'Chart unavailable';
-type ResourceWarning = { title: WarningTitle; message: string; key: string };
+type ResourceWarning = { title: WarningTitle; message: string; key: string; resource: string; dismissalKey?: string };
 
 export function useResourceWarning(online: boolean) {
-  const [warning, setWarning] = useState<ResourceWarning>();
+  const [warnings, setWarnings] = useState<readonly ResourceWarning[]>([]);
 
-  const report = useCallback((title: WarningTitle, message: string, code?: ResourceErrorCode) => {
+  const report = useCallback((title: WarningTitle, message: string, code?: ResourceErrorCode, resource = message) => {
     const category = code ?? externalErrorCode(message);
     const key = category === 'request' || category === 'http' ? 'request' : `${title}:${message}`;
     if (key === 'request' && !navigator.onLine) return;
-    setWarning(current => {
-      // A stream of failed tiles must not obscure a storage/integrity failure.
-      if (current && (current.key === key || (current.key !== 'request' && key === 'request'))) return current;
-      return { title, message, key };
+    setWarnings(current => {
+      if (current.some(warning => warning.title === title && warning.resource === resource && warning.key === key)) return current;
+      const warning = { title, message, key, resource, ...(key === 'request' ? { dismissalKey: 'request' } : {}) };
+      // Map callers use source IDs, not tile URLs/messages: retain one warning
+      // per live source while one resource recovering cannot hide another.
+      // The bubble stays grouped; storage/integrity failures take precedence.
+      return key === 'request' ? [...current, warning]
+        : [warning, ...current.filter(warning => warning.key === 'request')];
     });
   }, []);
   const clear = useCallback((title?: WarningTitle) => {
-    setWarning(current => !title || current?.title === title ? undefined : current);
+    setWarnings(current => title ? current.filter(warning => warning.title !== title) : []);
+  }, []);
+  const recover = useCallback((title: WarningTitle, resource: string) => {
+    setWarnings(current => {
+      const retained = current.filter(warning => warning.key !== 'request' || warning.title !== title || warning.resource !== resource);
+      return retained.length === current.length ? current : retained;
+    });
   }, []);
 
   useEffect(() => {
-    if (!online) setWarning(current => current?.key === 'request' ? undefined : current);
+    if (!online) setWarnings(current => current.filter(warning => warning.key !== 'request'));
   }, [online]);
 
   return {
-    warning: !online && warning?.key === 'request' ? undefined : warning,
-    report, clear,
+    warning: warnings.find(warning => online || warning.key !== 'request'),
+    report, clear, recover,
   };
 }

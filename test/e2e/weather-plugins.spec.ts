@@ -1,11 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openPluginSettings as settings } from './settings';
 
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
 
-async function settings(page: Page) {
-  await page.getByLabel('Settings and offline downloads').click();
-  await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
-}
 const row = (page: Page, id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
 
 test('Map Display groups METAR and advisories under one AWC Weather heading with either plugin loaded', async ({ page }, testInfo) => {

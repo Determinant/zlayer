@@ -140,6 +140,7 @@ test('warm terrain pans publish cached vectors before moveend and unchanged cove
   const f = fixture(t); await f.render(); await f.finish(0);
   f.move([tile(1)]); await f.render(); await f.finish(1);
   f.writes.length = 0; f.move([tile(0)]);
+  await settled(); // Cooperative preparation publishes without waiting for moveend.
   assert.equal(f.data().features[0]!.properties.elevation, 4000);
   assert.equal(f.data(TERRAIN_LABEL_SOURCE).features.length, 1);
   assert.equal(f.writes.length, 2);

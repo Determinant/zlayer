@@ -8,7 +8,9 @@ import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDi
 
 import { withAbort } from '../../../core/data/abort';
 import { createTaskLimiter } from '../../../core/data/task-limiter';
-import { weatherCheckedAt } from '../../../core/data/request-json';
+import { readJsonResponse, weatherCheckedAt } from '../../../core/data/request-json';
+import { SharedWeatherRequests } from '../shared-request';
+import { CacheSaveRetry, METAR_CACHE_WEIGHT, ReportBudget, reportWeight, savedReports } from '../cache-budget';
 
 export { observationTime, reportStationId };
 
@@ -46,9 +48,12 @@ export class MetarClient {
   readonly #reports = new Map<string, MetarFeature>();
   readonly #pending = new Map<string, StationRequest>();
   readonly #run = createTaskLimiter(2);
+  readonly #nearbyRequests = new SharedWeatherRequests(this.#run);
   #metars: MetarFeatureCollection | undefined;
   #snapshot: MetarSnapshot | undefined;
   #dirty = false;
+  readonly #budget = new ReportBudget(METAR_CACHE_WEIGHT);
+  readonly #saveRetry = new CacheSaveRetry();
   readonly #areas = new Map<string, NearbyCheck>();
   readonly #listeners = new Set<() => void>();
   readonly #endpoint: URL;
@@ -64,7 +69,10 @@ export class MetarClient {
           // Discard the retired adapter's raw-less sensor records, not coded weather.
           if (report.properties.source === 'NWS' && report.properties.sourceVersion !== 1) continue;
           const id = reportStationId(report);
-          if (id) { this.#stations.set(id, { report }); this.#reports.set(id, report); }
+          if (id) {
+            try { this.#budget.accept(id, report); } catch { continue; }
+            this.#stations.set(id, { report }); this.#reports.set(id, report);
+          }
         }
       }
     } catch {
@@ -96,6 +104,11 @@ export class MetarClient {
   }
 
   async refreshNearby(point: PointGeometry['coordinates'], signal: AbortSignal): Promise<void> {
+    return this.#nearbyRequests.run(nearbyStationBoxes(point).join(';'), signal,
+      sharedSignal => this.#refreshNearby(point, sharedSignal));
+  }
+
+  async #refreshNearby(point: PointGeometry['coordinates'], signal: AbortSignal): Promise<void> {
     const boxes = nearbyStationBoxes(point);
     if (!boxes.length) return;
     signal.throwIfAborted();
@@ -202,8 +215,9 @@ export class MetarClient {
     for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted();
       try {
+        const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(this.#options.timeoutMs ?? 20_000)]);
         const response = await (this.#options.fetch ?? fetch)(url, {
-          signal: AbortSignal.any([signal, AbortSignal.timeout(this.#options.timeoutMs ?? 20_000)]),
+          signal: requestSignal,
           cache: 'no-store',
         });
         if (response.status === 204) return { collection: { type: 'FeatureCollection', features: [] },
@@ -212,8 +226,9 @@ export class MetarClient {
           await response.body?.cancel();
           throw new MetarHttpError(response.status);
         }
-        const body: unknown = await response.json();
+        const body = await readJsonResponse(response, 'AWC METAR', undefined, requestSignal);
         if (!isMetarFeatureCollection(body)) throw new Error('AWC METAR returned invalid GeoJSON');
+        for (const report of body.features) reportWeight(report);
         return { collection: body, checkedAt: weatherCheckedAt(response, this.#now()) };
       } catch (error) {
         signal.throwIfAborted();
@@ -241,6 +256,7 @@ export class MetarClient {
     const report = preferred === previous ? previous
       : previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
     if (report && report !== previous) {
+      this.#budget.accept(id, report);
       this.#reports.set(id, report); this.#metars = undefined; this.#dirty = true;
     }
     this.#stations.delete(id);
@@ -254,6 +270,7 @@ export class MetarClient {
     while (this.#stations.size > MAX_CACHED_STATIONS) {
       const id = this.#stations.keys().next().value!;
       this.#stations.delete(id);
+      this.#budget.delete(id);
       if (this.#reports.delete(id)) { this.#metars = undefined; this.#dirty = true; }
     }
     this.#snapshot = undefined;
@@ -262,11 +279,11 @@ export class MetarClient {
 
   #persist(): void {
     if (!this.#dirty) return;
-    try {
-      // Persist only changed reports, never transient checks or failures.
-      cacheSlot.write(JSON.stringify(this.snapshot().metars), this.#options.storage);
-      this.#dirty = false;
-    } catch { /* In-memory caching continues when browser storage is unavailable. */ }
+    if (this.#saveRetry.run(this.#now(), () => {
+      // Bound the optional recent projection before allocating its JSON string.
+      const features = savedReports([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : []));
+      cacheSlot.write(JSON.stringify({ type: 'FeatureCollection', features }), this.#options.storage);
+    })) this.#dirty = false;
   }
 }
 

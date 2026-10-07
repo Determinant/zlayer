@@ -445,3 +445,174 @@ test('legacy filtered indices migrate offline without decompressing their nation
   assert.equal(stored.has(url.href), false);
   assert.equal(namespace(INDEX_CACHE).stored.size, 1);
 });
+
+async function publishedFixture() {
+  const { readFile } = await import('node:fs/promises');
+  const manifest = JSON.parse(await readFile(new URL('./fixtures/obstructions/publisher-v1.json', import.meta.url), 'utf8')) as ObstructionManifest;
+  const bytes = new Uint8Array(await readFile(new URL('./fixtures/obstructions/publisher-v1.bin', import.meta.url)));
+  return { manifest, bytes };
+}
+
+for (const layout of ['plugin index', 'legacy index', 'legacy gzip'] as const) {
+  test(`compact-index adoption migrates a saved ${layout} offline and preserves it when publication fails`, async t => {
+    const { stored, namespace } = cacheFixture(t);
+    const indices = namespace(INDEX_CACHE);
+    const { manifest, blob, bytes } = fixture();
+    const binary = (await parseObstructions(blob, manifest)).snapshot();
+    const sha256 = createHash('sha256').update(new Uint8Array(binary)).digest('hex');
+    const advertised: ObstructionManifest = { ...manifest, index: { format: 'zlayer-obstructions', version: 1,
+      path: `obstacles-index-${sha256}.bin`, sha256, count: 1, bytes: binary.byteLength,
+      source: { sha256: manifest.dataset.sha256, count: manifest.dataset.count, lastModified: manifest.source.lastModified! } } };
+    const manifestUrl = `https://charts.test/adoption/${encodeURIComponent(layout)}/manifest.json`;
+    const url = new URL(manifest.dataset.path, manifestUrl);
+    const fetch = t.mock.method(globalThis, 'fetch', async (request: string) =>
+      request === manifestUrl ? Response.json(manifest) : new Response(new Uint8Array(bytes)));
+    let oldKey: string;
+    const oldStore = layout === 'plugin index' ? indices.stored : stored;
+    if (layout === 'plugin index') {
+      await loadObstructions(manifestUrl);
+      oldKey = [...indices.stored.keys()][0]!;
+    } else if (layout === 'legacy index') {
+      url.searchParams.set('zlayer-obstruction-index', [OBSTRUCTION_INDEX_VERSION,
+        manifest.dataset.bytes, manifest.dataset.uncompressedBytes, manifest.dataset.count].join('-'));
+      oldKey = url.href;
+      stored.set(oldKey, new Response(binary, { headers: { 'content-length': String(binary.byteLength),
+        [VERIFIED_SHA256_HEADER]: sha256,
+        'x-zlayer-obstruction-source': [manifest.dataset.sha256, manifest.dataset.bytes,
+          manifest.dataset.uncompressedBytes, manifest.dataset.count].join(':'),
+      } }));
+    } else {
+      oldKey = url.href;
+      stored.set(oldKey, new Response(new Uint8Array(bytes)));
+    }
+    // The committed client accepts this manifest but keeps its previous cache identity.
+    stored.set(manifestUrl, Response.json(advertised));
+    fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
+    if (layout !== 'legacy gzip') t.mock.method(globalThis, 'DecompressionStream', function () {
+      throw new Error('Saved numeric indices must not decompress the national source');
+    });
+    const put = indices.cache.put;
+    const save = t.mock.method(indices.cache, 'put', async () => { throw new Error('quota'); });
+    assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+    assert.equal(oldStore.has(oldKey), true, 'failed publication preserves the only saved bytes');
+    save.mock.mockImplementation(put);
+    assert.equal((await loadObstructions(manifestUrl)).index.size, 1);
+    assert.equal(oldStore.has(oldKey), false, 'successful publication retires the old identity');
+    assert.equal(indices.stored.size, 1);
+    assert.equal((await loadObstructions(manifestUrl)).index.size, 1, 'the migrated artifact reopens offline');
+  });
+}
+
+test('compact-index migration rejects different or corrupt saved bytes without erasing them', async t => {
+  const { stored, namespace } = cacheFixture(t);
+  const indices = namespace(INDEX_CACHE);
+  const { manifest, blob, bytes } = fixture();
+  const binary = (await parseObstructions(blob, manifest)).snapshot();
+  const sha256 = createHash('sha256').update(new Uint8Array(binary)).digest('hex');
+  const manifestUrl = 'https://charts.test/adoption/mismatch/manifest.json';
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: string) =>
+    url === manifestUrl ? Response.json(manifest) : new Response(new Uint8Array(bytes)));
+  await loadObstructions(manifestUrl);
+  const key = [...indices.stored.keys()][0]!, saved = indices.stored.get(key)!;
+  const advertised: ObstructionManifest = { ...manifest, index: { format: 'zlayer-obstructions', version: 1,
+    path: `obstacles-index-${sha256}.bin`, sha256, count: 1, bytes: binary.byteLength,
+    source: { sha256: manifest.dataset.sha256, count: manifest.dataset.count, lastModified: manifest.source.lastModified! } } };
+  fetch.mock.mockImplementation(async () => { throw new TypeError('offline'); });
+  const different = binary.slice(0);
+  new DataView(different).setFloat64(16, 1, true); // Another valid position, same format/count.
+  for (const corruptReceipt of [false, true]) {
+    const headers = new Headers(saved.headers);
+    if (!corruptReceipt) headers.set(FILE_DIGEST, createHash('sha256').update(new Uint8Array(different)).digest('hex'));
+    indices.stored.set(key, new Response(different, { headers }));
+    stored.set(manifestUrl, Response.json(advertised));
+    await assert.rejects(loadObstructions(manifestUrl), /offline/);
+    assert.equal(indices.stored.has(key), true);
+    assert.equal(indices.stored.size, 1, 'no new artifact is published from a mismatched candidate');
+  }
+  indices.stored.set(key, saved);
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 1, 'repairing the old saved bytes enables migration');
+});
+
+test('the publisher numeric artifact loads and caches without reading the national GeoJSON', async t => {
+  cacheFixture(t);
+  const { manifest, bytes } = await publishedFixture();
+  assert.ok(isObstructionManifest(manifest));
+  const manifestUrl = 'https://charts.test/published/manifest.json', requests: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    requests.push(url);
+    if (url === manifestUrl) return Response.json(manifest);
+    assert.equal(url, new URL(manifest.index!.path, manifestUrl).href);
+    return new Response(bytes);
+  });
+  t.mock.method(globalThis, 'DecompressionStream', function () { throw new Error('Unexpected decompression'); });
+  const result = await loadObstructions(manifestUrl);
+  assert.equal(result.index.byteLength, 2 * 34);
+  const points = result.index.query([-117, 35, -116, 37], [], 13).features;
+  assert.deepEqual(points.map(p => p.id), ['06-000002', '06-000003']);
+  assert.deepEqual(points[0]!.geometry.coordinates, [-116.75, 36.123456789]);
+  assert.equal(points[1]!.properties.icon, 'obstruction-wind-group-strobe');
+  assert.equal(points[1]!.properties.label, '-166 UC\n(2000)');
+  assert.equal((await loadObstructions(manifestUrl)).index.size, 2);
+  assert.equal(requests.filter(url => url !== manifestUrl).length, 1);
+});
+
+test('advertised obstruction indices reject mismatched parent identity, counts and corrupted bytes without GeoJSON fallback', async t => {
+  const { manifest, bytes } = await publishedFixture();
+  const index = manifest.index!;
+  for (const patch of [{ version: 2 }, { path: '../index.bin' }, { bytes: index.bytes + 1 },
+    { source: { ...index.source, sha256: 'a'.repeat(64) } }, { source: { ...index.source, count: 1 } },
+    { source: { ...index.source, lastModified: '2025-01-01' } }]) {
+    assert.equal(isObstructionManifest({ ...manifest, index: { ...index, ...patch } }), false);
+  }
+  let current = manifest;
+  const fetch = t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('manifest.json')) return Response.json(current);
+    assert.ok(url.endsWith('.bin'), 'invalid advertised data must not silently fall back to the full source');
+    return new Response(bytes.slice(0, -1));
+  });
+  await assert.rejects(loadObstructions('https://charts.test/bad-index/manifest.json'), /size mismatch/);
+  current = { ...manifest, index: { ...index, sha256: 'f'.repeat(64), path: `obstacles-index-${'f'.repeat(64)}.bin` } };
+  fetch.mock.mockImplementation(async (url: string) => url.endsWith('manifest.json') ? Response.json(current) : new Response(bytes));
+  await assert.rejects(loadObstructions('https://charts.test/bad-hash/manifest.json'), /SHA-256 mismatch/);
+  const duplicate = bytes.slice(); duplicate.set(duplicate.slice(8, 16), 42);
+  const sha256 = createHash('sha256').update(duplicate).digest('hex');
+  current = { ...manifest, index: { ...index, sha256, path: `obstacles-index-${sha256}.bin` } };
+  fetch.mock.mockImplementation(async (url: string) => url.endsWith('manifest.json') ? Response.json(current) : new Response(duplicate));
+  await assert.rejects(loadObstructions('https://charts.test/duplicate-index/manifest.json'), /Duplicate/);
+});
+
+test('obstruction allocation policy rejects excessive source and retained counts before downloading', async t => {
+  const { OBSTRUCTION_MAX_RECORDS, OBSTRUCTION_MAX_SOURCE_RECORDS } = await import('../src/layers/obstructions/data');
+  assert.throws(() => new ObstructionIndex(OBSTRUCTION_MAX_SOURCE_RECORDS + 1), /memory limit/);
+  const { manifest } = await publishedFixture();
+  const count = OBSTRUCTION_MAX_RECORDS + 1;
+  for (const current of [
+    { ...manifest, index: undefined, dataset: { ...manifest.dataset, count: OBSTRUCTION_MAX_SOURCE_RECORDS + 1 } },
+    { ...manifest, dataset: { ...manifest.dataset, count }, index: { ...manifest.index!, count, bytes: 8 + 34 * count,
+      source: { ...manifest.index!.source, count } } },
+  ]) {
+    assert.ok(isObstructionManifest(current), 'schema support is distinct from application allocation admission');
+    const requested: string[] = [];
+    t.mock.method(globalThis, 'fetch', async (url: string) => { requested.push(url); return Response.json(current); });
+    await assert.rejects(loadObstructions('https://charts.test/over-limit/manifest.json'), /memory limit/);
+    assert.deepEqual(requested, ['https://charts.test/over-limit/manifest.json']);
+  }
+});
+
+test('numeric restoration allocates exact retained column capacity without growth or shrink copies', async t => {
+  const { bytes } = await publishedFixture();
+  const lengths: number[] = [], Original = Float64Array;
+  t.mock.method(globalThis, 'Float64Array', function (length: number) { lengths.push(length); return new Original(length); });
+  const restored = ObstructionIndex.restore(bytes.buffer, 3);
+  assert.equal(restored.size, 2);
+  assert.deepEqual(lengths.filter(size => size > 0), [2, 2, 4], 'one ID-validation scratch plus exact ID and coordinate columns');
+});
+
+test('a streamed source exceeding eligible capacity cannot finalize a truncated index', async () => {
+  const { OBSTRUCTION_MAX_RECORDS } = await import('../src/layers/obstructions/data');
+  const index = new ObstructionIndex(OBSTRUCTION_MAX_RECORDS + 1);
+  for (let i = 0; i < OBSTRUCTION_MAX_RECORDS; i++) index.add(feature(`06-${String(i).padStart(6, '0')}`));
+  assert.throws(() => index.add(feature('07-000000')), /memory limit/);
+  assert.throws(() => index.finish(), /count/);
+  assert.throws(() => index.snapshot(), /incomplete/);
+});

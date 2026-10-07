@@ -1,12 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
+import { openPluginSettings as settings } from './settings';
 import { mockGps, countWatches, sendFix } from './ownship-fixture';
 
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
 
-async function settings(page: Page) {
-  await page.getByLabel('Settings and offline downloads').click();
-  await page.getByRole('tab', { name: 'Plugins', exact: true }).click();
-}
 const row = (page: Page, id: string) => page.locator(`.plugin-row[data-plugin="${id}"]`);
 const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!));
 const pluginIds = ['charts', 'glide', 'terrain', 'plates', 'notams', 'obstructions', 'navigation', 'metar', 'weather-awc', 'routes', 'ruler', 'ownship', 'ahrs'];

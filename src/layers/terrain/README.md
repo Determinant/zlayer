@@ -462,12 +462,26 @@ The synthetic terrain fixture is excluded from ordinary production builds.
 
 ## Preparation performance
 
-First-time decoding and geometry generation run in the terrain worker. Ordinary
+Per-tile elevation decoding and contour generation run in the terrain worker. Ordinary
 map draws reuse cached textures/vectors; altitude changes update a 512-stop
 palette and label expression once per animation frame. Contour work scales with
 the simplified grid and crossings; corridor masking uses nearby legs.
 Route fills encode band/opacity bytes, with vector contours as the sole outline
 implementation. Route and Viewport share numeric copying and cancellation yields.
+
+Joining the visible Route contours runs in cancellable main-thread batches with
+a soft 4 ms budget and a real task yield between batches. The job retains one
+active snapshot and replaces one pending snapshot with the latest demand. Route,
+source and lifecycle changes cancel obsolete publication; unchanged tile coverage
+does not repeat preparation. Complete contours publish atomically through the
+existing source receipt. The job borrows cached coordinate arrays, creates no
+second geometry cache, and releases temporary join indexes on cancellation.
+
+The [October 6 preparation measurements](../../../docs/verification/render-preparation-2026-10-06.md)
+compare synchronous, cooperative and worker-copy costs. Copying the complete
+cached geometry into a worker retained a substantial main-thread pause, so this
+path keeps the cache's existing ownership. A future move would need to move the
+cache itself or change the geometry representation, not add another object copy.
 
 Run `node --import=tsx tools/benchmark-terrain.ts` from the repository root.
 It compares Route and Viewport on smooth/dense synthetic ridges at zooms 9, 11

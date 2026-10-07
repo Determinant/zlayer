@@ -3,7 +3,9 @@ import { isTafReport, type PointGeometry, type TafReport } from '@zlayer/contrac
 import { normalizeIdentifier } from '@zlayer/domain';
 import { NEARBY_STATION_RADIUS_NM, nearbyStationBoxes, nearbyStations, stationDistance } from '../nearby-stations';
 
-import { weatherCheckedAt } from '../../../core/data/request-json';
+import { readJsonResponse, weatherCheckedAt } from '../../../core/data/request-json';
+import { SharedWeatherRequests } from '../shared-request';
+import { CacheSaveRetry, TAF_CACHE_WEIGHT, ReportBudget, reportWeight, savedReports } from '../cache-budget';
 
 export const TAF_REFRESH_MS = 5 * 60_000;
 const cacheSlot = pluginStorage.slot('tafs', 'zlayers.tafs.v1');
@@ -15,7 +17,10 @@ type Options = { fetch?: typeof fetch; storage?: Pick<Storage, 'getItem' | 'setI
 export class TafClient {
   readonly #stations = new Map<string, CachedTaf>();
   readonly #areas = new Map<string, NearbyCheck>();
+  readonly #requests = new SharedWeatherRequests();
   #dirty = false;
+  readonly #budget = new ReportBudget(TAF_CACHE_WEIGHT);
+  readonly #saveRetry = new CacheSaveRetry();
 
   constructor(readonly endpoint: URL, readonly options: Options = {}) {
     try {
@@ -23,7 +28,10 @@ export class TafClient {
       if (Array.isArray(saved)) {
         for (const report of saved.filter(isTafReport).slice(-MAX_CACHED_STATIONS)) {
           const id = normalizeIdentifier(report.icaoId);
-          if (id) this.#stations.set(id, { report });
+          if (id) {
+            try { this.#budget.accept(id, report); } catch { continue; }
+            this.#stations.set(id, { report });
+          }
         }
       }
     } catch { /* Storage is optional; the session cache still works. */ }
@@ -43,6 +51,11 @@ export class TafClient {
   }
 
   async refreshNearby(point: PointGeometry['coordinates'], signal: AbortSignal): Promise<void> {
+    return this.#requests.run(JSON.stringify([this.endpoint.href, 'nearby', nearbyStationBoxes(point)]), signal,
+      sharedSignal => this.#refreshNearby(point, sharedSignal));
+  }
+
+  async #refreshNearby(point: PointGeometry['coordinates'], signal: AbortSignal): Promise<void> {
     const boxes = nearbyStationBoxes(point);
     if (!boxes.length) return;
     signal.throwIfAborted();
@@ -81,9 +94,17 @@ export class TafClient {
       this.#areas.set(key, { ...previous, error: error instanceof Error ? error.message : 'Unable to load nearby TAFs' });
     }
     while (this.#areas.size > MAX_CACHED_STATIONS) this.#areas.delete(this.#areas.keys().next().value!);
+    this.#trim();
   }
 
   async refresh(stationId: string, signal: AbortSignal): Promise<void> {
+    const id = normalizeIdentifier(stationId);
+    if (!id || !/^[A-Z0-9]{4}$/.test(id)) return;
+    return this.#requests.run(JSON.stringify([this.endpoint.href, 'station', id]), signal,
+      sharedSignal => this.#refresh(id, sharedSignal));
+  }
+
+  async #refresh(stationId: string, signal: AbortSignal): Promise<void> {
     const id = normalizeIdentifier(stationId);
     if (!id || !/^[A-Z0-9]{4}$/.test(id)) return;
     signal.throwIfAborted();
@@ -107,15 +128,17 @@ export class TafClient {
   }
 
   async #request(url: URL, signal: AbortSignal): Promise<{ reports: TafReport[]; checkedAt: number }> {
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(this.options.timeoutMs ?? 20_000)]);
     const response = await (this.options.fetch ?? fetch)(url, {
-      cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(this.options.timeoutMs ?? 20_000)]),
+      cache: 'no-store', signal: requestSignal,
     });
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error(`AWC TAF: HTTP ${response.status}`);
     }
-    const body: unknown = response.status === 204 ? [] : await response.json();
+    const body: unknown = response.status === 204 ? [] : await readJsonResponse(response, 'AWC TAF', undefined, requestSignal);
     if (!Array.isArray(body) || !body.every(isTafReport)) throw new Error('AWC TAF returned invalid data');
+    for (const report of body) reportWeight(report);
     signal.throwIfAborted();
     return { reports: body, checkedAt: weatherCheckedAt(response, (this.options.now ?? Date.now)()) };
   }
@@ -128,7 +151,11 @@ export class TafClient {
       (!received || previous && newestFirst(previous, received, now) <= 0)) return;
     const preferred = previous && (!received || newestFirst(previous, received, now) < 0) ? previous : received;
     const report = previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
-    if (report !== previous) this.#dirty = true;
+    if (report !== previous) {
+      if (report) this.#budget.accept(id, report);
+      else this.#budget.delete(id);
+      this.#dirty = true;
+    }
     this.#stations.delete(id);
     this.#stations.set(id, {
       ...(report ? { report } : {}), checkedAt, missing: !received || preferred !== received,
@@ -140,17 +167,17 @@ export class TafClient {
       const id = this.#stations.keys().next().value!;
       if (this.#stations.get(id)?.report) this.#dirty = true;
       this.#stations.delete(id);
+      this.#budget.delete(id);
     }
   }
 
   #save(): void {
     this.#trim();
     if (!this.#dirty) return;
-    try {
-      // Revalidate restored forecasts rather than persisting a claim of freshness.
-      cacheSlot.write(JSON.stringify([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : [])), this.options.storage);
-      this.#dirty = false;
-    } catch { /* In-memory caching continues when storage is unavailable. */ }
+    if (this.#saveRetry.run((this.options.now ?? Date.now)(), () => {
+      const reports = savedReports([...this.#stations.values()].flatMap(entry => entry.report ? [entry.report] : []));
+      cacheSlot.write(JSON.stringify(reports), this.options.storage);
+    })) this.#dirty = false;
   }
 }
 

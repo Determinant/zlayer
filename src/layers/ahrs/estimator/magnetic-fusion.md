@@ -5,6 +5,10 @@ joint 30-state covariance. Raw fields use all three axes when qualified. Browser
 orientation/compass observations use heading only. No source assigns absolute
 north or substitutes GPS ground track for aircraft heading.
 
+This replaces the former twenty-second yaw-bias-only aid: qualified raw vectors
+aid observable attitude and bias directions through the joint reference. The
+[calibration policy](#recovery-frames-and-calibration-gestures) owns reference resets.
+
 ## Raw field model and initialization
 
 Raw fields are divided by the initial field magnitude, retained as a fixed scale.

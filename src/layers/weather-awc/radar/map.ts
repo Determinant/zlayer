@@ -5,6 +5,7 @@ import type { WeatherController } from '../controller';
 import { currentRadar } from './time';
 import { RADAR_COLORS } from './palette';
 import { radarFeatures } from './geometry';
+import { RADAR_NATIONAL_WEIGHT, RADAR_SELECTED_BYTES, RADAR_TERMINAL_LIMIT, RADAR_TERMINAL_WEIGHT, radarWeight } from './budget';
 
 const SOURCE = 'weather-awc-radar', LAYER = 'weather-awc-radar-fill';
 type Group = { source: string; key: string; shown: string[]; loading: boolean; error?: string | undefined;
@@ -68,7 +69,7 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
     const state = controller.getSnapshot();
     const candidates = state.preferences.awcEnabled && state.preferences.awcRadar ? currentRadar(state.radar.snapshot, state.selectedTime, state.now) : [];
     const composite = candidates.find(file => file.site === 'CONUS'), bounds = composite ? map.getBounds() : undefined;
-    const selected = !composite ? [] : candidates.filter(file => {
+    const visible = !composite ? [] : candidates.filter(file => {
       if (file.site === 'CONUS') return true;
       if (map.getZoom() < 7) return false;
       // MapLibre can expose a viewport outside ±180° while drawing a repeated
@@ -77,7 +78,10 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
       const shift = 360 * Math.round(((bounds!.getWest() + bounds!.getEast()) / 2 - (west + east) / 2) / 360);
       return west + shift < bounds!.getEast() && east + shift > bounds!.getWest() && south < bounds!.getNorth() && north > bounds!.getSouth();
     });
-    const next = selected.map(file => file.sha256).join('/');
+    const terminalLimited = visible.reduce((bytes, file) => bytes + file.byteLength, 0) > RADAR_SELECTED_BYTES;
+    // Preflight before loading any terminal file; never show an arbitrary subset.
+    const selected = terminalLimited ? visible.filter(file => file.site === 'CONUS') : visible;
+    const next = `${terminalLimited}/${selected.map(file => file.sha256).join('/')}`;
     if (next === identity && retry === state.radarRetry && (!state.radarDisplay.error || attemptedCatalog === state.radar.snapshot)) return;
     attemptedCatalog = state.radar.snapshot; retry = state.radarRetry; identity = next;
     const keep = new Set(selected.map(file => file.sha256));
@@ -86,21 +90,38 @@ export function mountRadarMap(map: Map, controller: WeatherController, before: (
       const files = selected.filter(file => (file.site === 'CONUS') === (group === national));
       const key = files.map(file => file.sha256).join('/');
       // A terminal change must preserve even a pending national submission.
-      if (key === group.key && !group.error) continue;
+      const admissionError = group !== national && terminalLimited ? RADAR_TERMINAL_LIMIT : undefined;
+      if (key === group.key && group.error === admissionError) continue;
       group.active?.abort(); group.active = undefined;
       group.key = key; group.shown = []; group.loading = !!files.length;
-      group.error = undefined;
+      group.error = admissionError;
       if (group.submission.failed || !files.length) remove(group);
       group.submission.invalidate();
       if (!files.length) continue;
       const task = group.active = new AbortController();
       const version = group.submission.begin();
       void (async () => {
+        let weight = 0, overBudget = false;
         const results = await Promise.allSettled(files.map(async file => {
           const value = await load(file, task.signal);
-          task.signal.throwIfAborted(); memory.set(file.sha256, value); return { file, value };
+          task.signal.throwIfAborted();
+          const nextWeight = weight + radarWeight(value, file);
+          if (nextWeight > (group === national ? RADAR_NATIONAL_WEIGHT : RADAR_TERMINAL_WEIGHT)) {
+            overBudget = true;
+            throw new Error('Radar geometry exceeds the memory limit');
+          }
+          weight = nextWeight;
+          memory.set(file.sha256, value); return { file, value };
         }));
         if (task.signal.aborted || destroyed) return;
+        if (overBudget) {
+          for (const file of files) memory.delete(file.sha256);
+          remove(group);
+          group.loading = false;
+          group.error = group === national ? 'National radar unavailable: geometry exceeds the memory limit.' : RADAR_TERMINAL_LIMIT;
+          publish();
+          return;
+        }
         const ready: { file: RadarFile; value: RadarContours }[] = [], failed: string[] = [];
         results.forEach((result, index) => { if (result.status === 'fulfilled') ready.push(result.value); else failed.push(files[index]!.site); });
         ensure(group);

@@ -16,7 +16,7 @@ import { notamObstacles } from '../src/layers/notams/obstacles';
 import { localNotamContent, parseNotam } from '../src/layers/notams/parser';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NotamList } from '../src/layers/notams/ui';
+import { NotamRaw, NotamList } from '../src/layers/notams/ui';
 import { auditNotam, auditMappedNotam, auditRenderedNotam } from '../tools/audit-notams';
 import manifest from './fixtures/notams-us-artcc/manifest.json' with { type: 'json' };
 import unsupported from './fixtures/notams-us-artcc/unsupported.json' with { type: 'json' };
@@ -161,7 +161,7 @@ test('captured Bull Fire TFR keeps the published four-vertex national geometry',
   const abbreviated = render();
   assert.match(abbreviated, /TFR 6\/7106 shown on chart/); assert.match(abbreviated, /SFC–10000 ft MSL/);
   assert.doesNotMatch(abbreviated, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
-  assert.match(abbreviated, /BULL FIRE/); assert.match(abbreviated, /Show raw/);
+  assert.match(renderToStaticMarkup(createElement(NotamRaw, { record: source })), /BULL FIRE/); assert.match(abbreviated, /Show raw/);
   assert.match(render([]), /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/, 'detachment restores the full readable notice');
 });
 

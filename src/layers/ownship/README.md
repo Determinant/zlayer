@@ -273,3 +273,12 @@ positions first acquired on screen for its teal planning ring; completed ranges
 remain cached while panning away from that same position. It takes MSL altitude from its
 planning slider, not the browser's raw altitude. Removing Ownship revokes the
 store connection and clears dependent rings.
+
+Map source updates become rendered only after current worker acceptance. Loss of
+live validity hides previous geometry immediately until the stale/empty update is
+accepted; source errors also hide all ownship layers. Each distinct geometry gets
+one automatic retry after 100 ms, with no permanent-failure render loop. New
+geometry or remount can recover, and unmount cancels the retry and acceptance.
+The acceptance gate uses constant paint opacity with zero-duration/zero-delay
+transitions. Layout visibility would reload MapLibre source tiles; paint gating
+keeps unchanged GPS fixes idle while still hiding failed/live output immediately.

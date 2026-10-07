@@ -30,3 +30,14 @@ test('retention failures reject the shared request and leave the resource retrya
   assert.equal(await cache.get('resource', async () => 2), 2);
   assert.equal(await cache.get('resource', async () => 99), 2);
 });
+
+test('weak ready retention preserves active consumers and reloads collected optional values', async t => {
+  const cache = new ResourceCache<{ value: number }>(2, true);
+  const live = await cache.get('large', async () => ({ value: 1 }));
+  assert.equal(await cache.get('large', async () => ({ value: 2 })), live);
+  // Model collection deterministically: callers still own their original object.
+  t.mock.method(WeakRef.prototype, 'deref', () => undefined);
+  const next = await cache.get('large', async () => ({ value: 3 }));
+  assert.equal(live.value, 1); assert.equal(next.value, 3);
+  await assert.rejects(new ResourceCache<number>(1, true).get('bad', async () => 1), /requires an object/);
+});

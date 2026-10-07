@@ -120,6 +120,11 @@ contract. Product details live in [layer recovery and freshness](../architecture
 [workspace persistence](../architecture/workspace-persistence.md), [PDF handling](../../src/layers/plates/README.md)
 and [recording storage](../../src/layers/ahrs/recording.md).
 
+After a feature or refactor batch, include the
+[periodic repository cleanup](local-development.md#periodic-repository-cleanup):
+consolidate completed notes and repeated test setup while retaining design
+rationale, unresolved evidence and distinct regression coverage.
+
 ## Where to look
 
 - [Architecture](../architecture/overview.md): runtime, rendering order and chart I/O invariant.

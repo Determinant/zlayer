@@ -163,6 +163,7 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
   record: NotamRecord; now: number; reason?: string; charted: boolean; tfr?: TfrNotice | undefined; highlight?: HighlightNotam | undefined;
 }) {
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
+  const [rawOpen, setRawOpen] = useState(false);
   const interactive = (charted || !!tfr) && !!highlight, key = notamChartKey(record);
   useEffect(() => interactive && (hovered || focused) ? highlight?.(key) : undefined, [interactive, hovered, focused, highlight, key]);
   const parsed = useMemo(() => parseNotam(record), [record]);
@@ -177,12 +178,6 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
   const presentation = useMemo(() => graphical?.presentation ?? presentNotam(record), [record, graphical]);
   const validity = notamValidity(record, now);
   const endKind = notamEndKind(record);
-  const translations = record.translations.filter(translation => translation.text.trim());
-  const originals = translations.filter(translation => translation.type === 'LOCAL_FORMAT');
-  const body = record.text.replace(/\s+/g, ' ').trim();
-  // Compare complete words after whitespace folding; display the supplied text unchanged.
-  const showSourceBody = !originals.length || !!body && !originals.some(translation =>
-    ` ${translation.text.replace(/\s+/g, ' ').trim()} `.includes(` ${body} `));
   return <article className={`notam-entry${interactive ? ' notam-entry--charted' : ''}`} tabIndex={interactive ? 0 : undefined}
     onPointerEnter={event => { if (event.pointerType !== 'touch') setHovered(true); }} onPointerLeave={() => setHovered(false)}
     onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
@@ -204,21 +199,32 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
         : `${formatTimestampPair(record.endsAt, { now, primary: 'local' })}${endKind === 'estimated' ? ' (estimated)' : endKind === 'unknown' ? ' (unconfirmed)' : ''}`}</span></div>
     </div>
     {record.schedule && <p className="notam-text">Schedule: {record.schedule}</p>}
-    <details className="ui-note ui-disclosure notam-raw"><summary>Show raw</summary>
-      {translations.map((translation, i) => <div key={i}>
-        <strong>{translation.type === 'LOCAL_FORMAT' ? 'Original NOTAM' : translation.type || 'Source translation'}</strong>
-        <pre>{translation.text}</pre></div>)}
-      {!originals.length && <p>Original NOTAM unavailable. Source body shown below.</p>}
-      {showSourceBody && <><strong>Source body</strong><pre>{body ? record.text : 'No source body supplied.'}</pre></>}
-      <p>Updated {formatTimestamp(record.updatedAt)}</p>
+    <details className="ui-note ui-disclosure notam-raw" onToggle={event => setRawOpen(event.currentTarget.open)}><summary>Show raw</summary>
+      {rawOpen && <NotamRaw record={record} />}
     </details>
   </article>;
+}
+export function NotamRaw({ record }: { record: NotamRecord }) {
+  const translations = record.translations.filter(translation => translation.text.trim());
+  const originals = translations.filter(translation => translation.type === 'LOCAL_FORMAT');
+  const body = record.text.replace(/\s+/g, ' ').trim();
+  // Compare complete words after whitespace folding; display supplied text unchanged.
+  const showSourceBody = !originals.length || !!body && !originals.some(translation =>
+    ` ${translation.text.replace(/\s+/g, ' ').trim()} `.includes(` ${body} `));
+  return <>{translations.map((translation, i) => <div key={i}>
+    <strong>{translation.type === 'LOCAL_FORMAT' ? 'Original NOTAM' : translation.type || 'Source translation'}</strong>
+    <pre>{translation.text}</pre></div>)}
+    {!originals.length && <p>Original NOTAM unavailable. Source body shown below.</p>}
+    {showSourceBody && <><strong>Source body</strong><pre>{body ? record.text : 'No source body supplied.'}</pre></>}
+    <p>Updated {formatTimestamp(record.updatedAt)}</p></>;
 }
 type NotamListEntry = { record: NotamRecord; reason?: string; outcome?: PlateNotamMatch['outcome'] };
 export function NotamList({ entries, now, charted, chartedTfrs = [], highlight }: {
   entries: readonly NotamListEntry[]; now: number; charted?: ReadonlySet<string> | undefined; highlight?: HighlightNotam | undefined;
   chartedTfrs?: readonly TfrNotice[] | undefined;
 }) {
+  const [page, setPage] = useState(0);
+  const pageSize = 50, pages = Math.ceil(entries.length / pageSize), currentPage = Math.min(page, Math.max(0, pages - 1));
   const sections: { key: string; title: string; entries: NotamListEntry[] }[] = [
     { key: 'active', title: 'Active', entries: [] },
     { key: 'check', title: 'Check timing', entries: [] },
@@ -228,22 +234,34 @@ export function NotamList({ entries, now, charted, chartedTfrs = [], highlight }
     const validity = notamValidity(entry.record, now);
     sections[validity === 'upcoming' ? 2 : validity === 'within interval' ? 0 : 1]!.entries.push(entry);
   }
+  // Page the established section/applicability order, not the source order.
+  const ordered = sections.flatMap(section => section.entries.some(entry => entry.outcome)
+    ? (['applies', 'review'] as const).flatMap(outcome => section.entries.filter(entry => entry.outcome === outcome)
+      .sort((a, b) => Number(b.record.classification === 'FDC') - Number(a.record.classification === 'FDC')))
+    : section.entries);
+  const mounted = new Set(ordered.slice(currentPage * pageSize, (currentPage + 1) * pageSize));
   const renderEntries = (items: readonly NotamListEntry[]) => items.map(({ record, reason }) =>
     <NotamEntry key={`${record.id}:${record.revision}`} record={record} now={now} charted={charted?.has(notamChartKey(record)) ?? false}
       tfr={chartedTfrReference(record, chartedTfrs)} highlight={highlight} {...(reason ? { reason } : {})} />);
-  const populated = sections.filter(section => section.entries.length);
+  const populated = sections.filter(section => section.entries.some(entry => mounted.has(entry)));
   if (!populated.length) return null;
-  return <div className="ui-panel-content notam-list">{populated.map(section =>
+  return <div className="ui-panel-content notam-list">
+    {pages > 1 && <nav className="notam-pages" aria-label="NOTAM pages">
+      <button type="button" className="ui-button ui-button--slim" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous notices</button>
+      <span className="ui-note" role="status">{currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, entries.length)} of {entries.length} notices</span>
+      <button type="button" className="ui-button ui-button--slim" disabled={currentPage + 1 === pages} onClick={() => setPage(currentPage + 1)}>Next notices</button>
+    </nav>}
+    {populated.map(section =>
     <section key={section.key} className={`notam-section notam-section--${section.key}`} aria-label={section.title}>
       <h3 className="ui-section-title notam-section-heading">{section.title}{' '}<span className="ui-meta notam-section-count">{section.entries.length}</span></h3>
       {section.entries.some(entry => entry.outcome) ? (['applies', 'review'] as const).map(outcome => {
-        const group = section.entries.filter(entry => entry.outcome === outcome)
+        const group = section.entries.filter(entry => mounted.has(entry) && entry.outcome === outcome)
           .sort((a, b) => Number(b.record.classification === 'FDC') - Number(a.record.classification === 'FDC'));
         return group.length ? <div key={outcome}>
           <h4 className="ui-section-title notam-match-heading">{outcome === 'applies' ? 'Related to this plate' : 'Review applicability'}</h4>
           {renderEntries(group)}
         </div> : null;
-      }) : renderEntries(section.entries)}
+      }) : renderEntries(section.entries.filter(entry => mounted.has(entry)))}
     </section>)}</div>;
 }
 /** The host places area selection in its fixed header and notices in its scroll body. */
@@ -321,7 +339,7 @@ function LocationNotams({ api, query, active, navaid, region }: {
     </div>}
     {view.entry?.loading && !view.snapshot && <LoadingPlaceholder label="Loading NOTAMs…" rows={3} />}
     <div className="location-notam-results">
-      <NotamList entries={shown} now={view.now} {...preview} />
+      <NotamList key={`${key}:${filter}:${subject}:${search}`} entries={shown} now={view.now} {...preview} />
       {view.snapshot && !shown.length && <p className="ui-note notam-list-status">{(partition?.related.length || records.length) ? 'No notices match these filters.'
         : region ? 'No retained regional notices in this snapshot.' : navaid ? 'No directly associated facility notices in this snapshot.' : 'No retained notices.'}</p>}
       {navaid && view.snapshot && <details className="ui-note ui-disclosure notam-raw" open={otherOpen} onToggle={event => setOtherOpen(event.currentTarget.open)}>

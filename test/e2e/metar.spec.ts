@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
 import { countWatches, mockGps, sendFix } from './ownship-fixture';
 
 const now = Date.parse('2026-09-17T18:00:00Z');
@@ -14,10 +15,6 @@ const report = (id: string, lon: number, lat: number, time = now) => ({
 });
 const nearby = [report('KBUR', -118.36, 34.20), report('KLAX', -118.40, 33.94), report('KTOA', -118.34, 33.80)];
 const collection = (features: ReturnType<typeof report>[]) => ({ type: 'FeatureCollection', features });
-async function selectAirport(page: Page, id: string) {
-  await page.getByLabel('Search FAA navigation data').fill(id);
-  await page.locator('.search-results button').filter({ hasText: id }).click();
-}
 
 test('flight-category legend stays mounted through GPS position and track updates', async ({ page, context }) => {
   await page.clock.install({ time: now });

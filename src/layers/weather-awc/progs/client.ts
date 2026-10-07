@@ -15,6 +15,8 @@ const charts = pluginStorage.files('progs-charts', {
 export class ProgsClient {
   private known = new Map<SurfaceProduct, Map<string, SurfaceArtifact>>();
   constructor(readonly baseUrl: string) {}
+  /** Call after cancelling acquisition. Saved catalogs/files remain available. */
+  release() { this.known.clear(); }
   private artifact(product: SurfaceProduct, sourceHash: string, checkedAt: number, signal: AbortSignal) {
     return { url: new URL(`${product}.json`, this.baseUrl).href, identity: JSON.stringify([2, product, sourceHash, checkedAt]),
       retention: { group: 'progs' },

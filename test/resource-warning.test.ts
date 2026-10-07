@@ -35,8 +35,10 @@ function setup(t: test.TestContext, online = true) {
   });
   const render = () => hooks.render(() => {
     const warnings = useResourceWarning(connection.onLine);
-    const onError = useCallback((message: string, code?: ResourceErrorCode) => warnings.report('Chart unavailable', message, code), [warnings.report]);
-    useChartCache(undefined, onError);
+    const onError = useCallback((message: string, code?: ResourceErrorCode, url?: string) =>
+      warnings.report('Chart unavailable', message, code, url), [warnings.report]);
+    const onRecovered = useCallback((url: string) => warnings.recover('Chart unavailable', url), [warnings.recover]);
+    useChartCache(undefined, onError, true, onRecovered);
     const notifications = useNotifications(warnings.warning ? [{ id: 'resource', ...warnings.warning }] : []);
     return { ...warnings, warning: notifications.visible.length ? warnings.warning : undefined,
       notices: notifications.notices, dismiss: () => notifications.dismiss(notifications.notices[0]!) };
@@ -44,7 +46,10 @@ function setup(t: test.TestContext, online = true) {
   const chartError = (message: string, url = 'https://charts.test/a.mbtiles', code?: ResourceErrorCode) => {
     serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'chart-archive-error', url, message, code } }));
   };
-  return { render, connection, chartError };
+  const chartReady = (url = 'https://charts.test/a.mbtiles') => {
+    serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'chart-archive-ready', url } }));
+  };
+  return { render, connection, chartError, chartReady };
 }
 
 test('offline tile and uncached chart failures stay quiet, including worker messages', t => {
@@ -145,4 +150,81 @@ test('a stream of failed tiles does not replace an actionable warning', t => {
   chartError('Chart archive SHA-256 mismatch');
   render().report('Map layer unavailable', 'basemap: Failed to fetch');
   assert.ok(render().warning?.message.includes('SHA-256 mismatch'));
+});
+
+test('confirmed tile recovery removes its dismissed notice and allows a later failure to surface', t => {
+  const { render } = setup(t);
+  const message = 'zlayer-basemap: Failed to fetch';
+  render().report('Map layer unavailable', message);
+  render().dismiss();
+  assert.equal(render().notices.length, 1);
+  render().recover('Map layer unavailable', 'other-source: Failed to fetch');
+  assert.equal(render().notices.length, 1);
+  render().recover('Map layer unavailable', message);
+  assert.equal(render().notices.length, 0);
+  render().report('Map layer unavailable', message);
+  assert.ok(render().warning);
+});
+
+test('late map tile recovery preserves chart warnings and non-request failures', t => {
+  const { render, chartError } = setup(t);
+  const message = 'zlayer-basemap: Failed to fetch';
+  render();
+  chartError(message);
+  render().recover('Map layer unavailable', message);
+  assert.equal(render().warning?.title, 'Chart unavailable');
+  render().report('Map layer unavailable', message, 'invalid-data');
+  render().recover('Map layer unavailable', message);
+  assert.ok(render().warning);
+});
+
+test('VFR/IFR archive recovery uses exact resource identity and preserves other pending failures and dismissal', t => {
+  const { render, chartError, chartReady } = setup(t);
+  const vfr = 'https://charts.test/vfr.mbtiles?sha256=old', ifr = 'https://charts.test/ifr.mbtiles?sha256=old';
+  render();
+  chartError('Failed to fetch VFR', vfr);
+  chartError('Failed to fetch IFR', ifr);
+  render().dismiss();
+  chartReady('https://charts.test/vfr.mbtiles?sha256=new');
+  assert.match(render().notices[0]!.message, /VFR/);
+  chartReady(vfr);
+  assert.match(render().notices[0]!.message, /IFR/, 'IFR is still unavailable after VFR recovers');
+  assert.equal(render().warning, undefined, 'dismissal covers the continuing request condition');
+  render().report('Map layer unavailable', 'basemap: Failed to fetch');
+  chartReady(ifr);
+  assert.match(render().notices[0]!.message, /basemap/);
+  render().recover('Map layer unavailable', 'basemap: Failed to fetch');
+  assert.equal(render().notices.length, 0);
+  chartError('Failed to fetch IFR', ifr);
+  assert.ok(render().warning, 'a later outage is a new occurrence');
+});
+
+test('archive availability does not dismiss storage or integrity warnings', t => {
+  const { render, chartError, chartReady } = setup(t);
+  render();
+  chartError('Storage unavailable', undefined, 'storage');
+  chartReady();
+  assert.match(render().warning!.message, /Storage unavailable/);
+  chartError('Checksum mismatch', undefined, 'invalid-data');
+  chartReady();
+  assert.match(render().warning!.message, /Checksum mismatch/);
+});
+
+test('one source warning survives a tile-error storm and clears independently with its source', t => {
+  const { render } = setup(t);
+  const first = 'zlayer-basemap: AJAXError: Service Unavailable (503): https://tiles.test/0';
+  render().report('Map layer unavailable', first, 'http', 'zlayer-basemap');
+  render().dismiss();
+  const report = render().report;
+  for (let i = 1; i < 5000; i++) report('Map layer unavailable',
+    `zlayer-basemap: AJAXError: Service Unavailable (503): https://tiles.test/${i}`, 'http', 'zlayer-basemap');
+  report('Map layer unavailable', 'terrain: Failed to fetch', 'request', 'terrain');
+  assert.equal(render().notices[0]!.message, first, 'the representative message remains stable');
+  assert.equal(render().warning, undefined, 'changing tile URLs cannot reset dismissal');
+  render().recover('Map layer unavailable', 'zlayer-basemap');
+  assert.equal(render().notices[0]!.message, 'terrain: Failed to fetch', 'one recovery retires every failure from that source');
+  render().recover('Map layer unavailable', 'terrain');
+  assert.equal(render().notices.length, 0);
+  report('Map layer unavailable', first, 'http', 'zlayer-basemap');
+  assert.ok(render().warning, 'a new source failure can surface again');
 });

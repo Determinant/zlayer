@@ -37,7 +37,7 @@ test('catalog refreshes update an existing map and preserve the user camera', ()
   input.set({ catalog });
   let props: ComponentProps<typeof MapCanvas> = {
     contributions: [], orientation: createOwnshipLayer(createGpsService()), focusTarget: undefined,
-    onViewportChange() {}, onReady() {}, onError(message) { assert.fail(message); },
+    onViewportChange() {}, onError(message) { assert.fail(message); },
   };
   const catalogs = [catalog, { ...catalog }, { ...catalog, revision: '2026-10-01' }];
   const render = () => hooks.render(() => MapCanvas(props));

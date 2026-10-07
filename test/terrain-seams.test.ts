@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { segmentsForTile, type Point, type Segment } from '../src/layers/terrain/geometry';
 import { terrainIsolines } from '../src/layers/terrain/isolines';
-import { terrainBorder, stitchTerrainContours } from '../src/layers/terrain/seams';
+import { terrainBorder, stitchTerrainContours, prepareTerrainContours } from '../src/layers/terrain/seams';
 
 function fixture(width: number, height: number, center: Point, size = 32, x = 1320, dropEdge = false) {
   const z = 13, y = 3190, scale = 2 ** z;
@@ -60,4 +60,24 @@ test('missing neighbors and missing elevation samples leave real gaps open', () 
 test('a peak crossing the antimeridian closes without a world-spanning segment', () => {
   const path = assertClosedPeak(fixture(2, 1, [0.985, 0.5], 32, 8191).stitch());
   for (let i = 1; i < path.length; i++) assert.ok(Math.abs(path[i]![0] - path[i - 1]![0]) < 1);
+});
+
+test('cooperative stitching preserves gaps, corners and antimeridian geometry across task boundaries', async t => {
+  let clock = 0;
+  t.mock.method(performance, 'now', () => clock += 5);
+  for (const f of [fixture(2, 2, [0.985, 0.985]), fixture(2, 1, [0.985, 0.5], 32, 1320, true), fixture(2, 1, [0.985, 0.5], 32, 8191)]) {
+    const before = structuredClone(f.parts);
+    const result = await prepareTerrainContours(f.parts.flatMap(p => p.lines), f.parts.map(p => p.border), f.segments, new AbortController().signal);
+    assert.deepEqual(result, f.stitch());
+    assert.deepEqual(f.parts, before);
+  }
+});
+
+test('cooperative stitching accepts cancellation between batches without mutating cached geometry', async t => {
+  let clock = 0;
+  t.mock.method(performance, 'now', () => clock += 5);
+  const f = fixture(2, 2, [0.985, 0.985]), before = structuredClone(f.parts), controller = new AbortController();
+  setTimeout(() => controller.abort(), 0);
+  await assert.rejects(prepareTerrainContours(f.parts.flatMap(p => p.lines), f.parts.map(p => p.border), f.segments, controller.signal), { name: 'AbortError' });
+  assert.deepEqual(f.parts, before);
 });

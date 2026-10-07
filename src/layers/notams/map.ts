@@ -4,7 +4,7 @@ import { createObstructionSymbol } from '../../core/graphics/obstruction-symbol'
 import type { MapLayerModule } from '../../core/map/layer';
 import { LayerScope } from '../../core/layers/scope';
 import { createSourceSubmission } from '../../core/map/source-submission';
-import { notamChartFeatures, notamChartKey } from './chart';
+import { notamChartFeatures, notamChartKey, createNotamChartSelector } from './chart';
 import type { NotamAreaReferences } from './area-references';
 
 export const NOTAM_CHART_SOURCE = 'notam-graphics';
@@ -65,6 +65,7 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
   let map: MapLibreMap | undefined, submission: ReturnType<typeof createSourceSubmission> | undefined;
   let scope: LayerScope | undefined;
   let collection = notamChartFeatures([], 0), key = '', pending = false, dirty = false;
+  const selectFeatures = createNotamChartSelector();
   let records: readonly NotamRecord[] = [];
   let references: NotamAreaReferences | undefined;
   let now = NaN, highlighted: string | undefined, highlightId: string | undefined;
@@ -188,8 +189,14 @@ export function createNotamChartLayer(onShown: (keys: readonly string[]) => void
       references = input.references;
       now = input.now;
       emphasize();
-      const next = notamChartFeatures(input.records, input.now, references), nextKey = JSON.stringify(next);
+      const next = selectFeatures(input.records, input.now, references);
+      if (next === collection && !submission?.failed) {
+        if (submission && !pending) show();
+        return;
+      }
+      const nextKey = next === collection ? key : JSON.stringify(next);
       if (key === nextKey && !submission?.failed) {
+        collection = next;
         if (submission && !pending) show();
         return;
       }

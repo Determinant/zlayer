@@ -4,13 +4,31 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { FeatureCollection } from 'geojson';
 import { createNotamChartLayer, NOTAM_CHART_SOURCE, NOTAM_HIGHLIGHT_POINT, NOTAM_HIGHLIGHT_AREA, NOTAM_HIGHLIGHT_RADIAL } from '../src/layers/notams/map';
 import { notice, NOTAM_NOW } from './fixtures/notams';
-import { notamChartKey } from '../src/layers/notams/chart';
+import { notamChartKey, notamChartFeatures, createNotamChartSelector } from '../src/layers/notams/chart';
 import { createNotamAreaReferences } from '../src/layers/notams/area-references';
 import { isFeatureCollectionResponse } from '@zlayer/contracts';
 import navaids from './fixtures/notams-us-artcc/zny-navaids.json';
 
 const record = notice({ text: 'OBST CRANE (ASN UNKNOWN) 370015N1220015W (1NM E TST) 350FT (200FT AGL) FLAGGED' });
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+test('chart selection reuses unchanged timing and rebuilds for boundaries, rollback, records and references', () => {
+  const select = createNotamChartSelector(), start = NOTAM_NOW;
+  const timed = { ...record, startsAt: start + 1000, endsAt: start + 5000 };
+  const first = select([timed], start);
+  assert.equal(select([timed], start + 500), first, 'a new wrapper array does not rebuild geometry');
+  const active = select([timed], start + 1000);
+  assert.notEqual(active, first); assert.deepEqual(active, notamChartFeatures([timed], start + 1000));
+  assert.equal(select([timed], start + 2000), active);
+  const past = select([timed], start + 5000); assert.equal(past.features.length, 0);
+  assert.deepEqual(select([timed], start), first, 'rollback recomputes upcoming geometry');
+  const changed = select([{ ...timed, text: timed.text.replace('370015N', '370025N') }], start);
+  assert.notDeepEqual(changed, first);
+  assert.notEqual(select([timed], start, () => undefined), first, 'reference identity participates');
+  const unknown = { ...timed, schedule: 'UNKNOWN' };
+  const unknownCollection = select([unknown], start + 1500);
+  assert.equal(select([unknown], start + 2000), unknownCollection);
+});
 function setup(t: test.TestContext) {
   const context = new Proxy({}, { get: (_target, key) => key === 'getImageData' ? () => ({}) : () => {} });
   for (const [key, value] of Object.entries({ document: { createElement: () => ({ getContext: () => context }) },

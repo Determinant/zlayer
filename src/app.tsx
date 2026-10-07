@@ -98,8 +98,10 @@ export function App() {
     { feature: GeoPointFeature; nonce: number } | undefined
   >();
   const [query, setQuery] = useState('');
-  const { warning, report, clear } = useResourceWarning(online);
-  const reportChartError = useCallback((message: string, code?: ResourceErrorCode) => report('Chart unavailable', message, code), [report]);
+  const { warning, report, clear, recover } = useResourceWarning(online);
+  const reportChartError = useCallback((message: string, code?: ResourceErrorCode, url?: string) =>
+    report('Chart unavailable', message, code, url), [report]);
+  const recoverChartError = useCallback((url: string) => recover('Chart unavailable', url), [recover]);
   useEffect(() => {
     if (!loaded.navigation) setQuery('');
   }, [loaded.navigation]);
@@ -128,7 +130,7 @@ export function App() {
   const {
     state: chartCacheState,
     retry: retryChartCache,
-  } = useChartCache(context?.charts, reportChartError, !!loaded.charts);
+  } = useChartCache(context?.charts, reportChartError, !!loaded.charts, recoverChartError);
   const renderedCharts = chartCacheState === 'ready' ? chartSelection : NO_CHARTS;
   const visibleFeatureCount = useMemo(
     () => countVisibleFeatures(navigationData, visibility),
@@ -241,10 +243,10 @@ export function App() {
                 focusTarget={focusTarget}
                 onViewportChange={setViewport}
                 onViewChange={setMapView}
-                onReady={() => clear('Map layer unavailable')}
                 onIdleChange={startup.complete ? undefined : setMapIdle}
                 onStartupFailure={mapStartupFailed}
-                onError={(message, code) => report('Map layer unavailable', message, code)}
+                onError={(message, code, resource) => report('Map layer unavailable', message, code, resource)}
+                onErrorRecovered={resource => recover('Map layer unavailable', resource)}
               />
             </Suspense>
           </ErrorBoundary>

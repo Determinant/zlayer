@@ -12,10 +12,10 @@ import { catalogRefresh, stopRefresh } from './catalog-refresh';
 export type WeatherClients = {
   advisories: Pick<AdvisoryClient, 'restore' | 'refresh'>;
   grids?: GridClient;
-  progs?: Pick<ProgsClient, 'restore' | 'refresh'>;
+  progs?: Pick<ProgsClient, 'restore' | 'refresh'> & Partial<Pick<ProgsClient, 'release'>>;
   radar?: Pick<RadarClient, 'restore' | 'refresh' | 'load'>;
   motion?: Pick<RadarMotionClient, 'restore' | 'refresh' | 'load'>;
-  coverage?: Pick<ProgsCoverageClient, 'restore' | 'refresh' | 'load'>;
+  coverage?: Pick<ProgsCoverageClient, 'restore' | 'refresh' | 'load'> & Partial<Pick<ProgsCoverageClient, 'release'>>;
 };
 type ProductGroup = 'advisories' | 'progs' | 'radar' | 'motion' | 'coverage';
 
@@ -27,6 +27,7 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
   let schedulers: Partial<Record<ProductGroup, OnDemandRefresh>> = {};
   let progsRestore: AbortController | undefined;
   let restored = false;
+  let progsEnabled = false, coverageEnabled = false;
   const productState = (product: AwcAdvisoryProduct, patch: AdvisoryState) =>
     publish({ products: { ...read().products, [product]: patch } });
   const progsState = (product: SurfaceProduct, patch: SurfaceState) =>
@@ -123,6 +124,18 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
       schedulers.coverage?.setDemand(['coverage'], active && p.awcProgs && p.awcProgsCoverage);
       schedulers.radar?.setDemand(['radar'], active && p.awcRadar);
       schedulers.motion?.setDemand(['motion'], active && p.awcRadar && p.awcRadarMotion);
+      // Explicit disable releases decoded data. Hidden pages and timeline gaps
+      // merely suspend demand and retain the selected product's working set.
+      const nextProgs = p.awcEnabled && p.awcProgs;
+      const nextCoverage = nextProgs && p.awcProgsCoverage;
+      if (progsEnabled && !nextProgs) {
+        progsRestore?.abort(); progsRestore = undefined;
+        progsClient?.release?.();
+        publish({ retainedProgsTimes: read().progs.forecast.snapshot?.frames.map(frame => frame.validTime) ?? read().retainedProgsTimes,
+          progs: { analysis: { loading: false }, forecast: { loading: false } }, progsRenderError: undefined });
+      }
+      if (coverageEnabled && !nextCoverage) coverageClient?.release?.();
+      progsEnabled = nextProgs; coverageEnabled = nextCoverage;
     },
     retry(groups: ProductGroup[]) { for (const group of groups) schedulers[group]?.setDemand([], false); },
     detach,

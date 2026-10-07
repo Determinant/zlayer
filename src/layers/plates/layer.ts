@@ -11,6 +11,7 @@ export type PlatesSnapshot = {
   mapSelection?: ProcedureSelection;
   mapImageRestored?: boolean;
   mapRestoreError?: string;
+  mapRenderError?: string;
 };
 
 /** Selection belongs to the plates product, independently of the map or airport card. */
@@ -27,7 +28,7 @@ export function createPlatesController(persist = false) {
     /** Release live rendering without deleting the selected document or its saved intent. */
     dispose() {
       restoration?.abort(); restoration = undefined;
-      const { mapImage, mapRestoreError: _error, ...current } = store.getSnapshot();
+      const { mapImage, mapRestoreError: _error, mapRenderError: _renderError, ...current } = store.getSnapshot();
       if (mapImage) mapImage.canvas.width = mapImage.canvas.height = 0;
       store.publish({ ...current, requestId: current.requestId + 1 });
     },
@@ -53,7 +54,7 @@ export function createPlatesController(persist = false) {
         mappedPlateRecord.write(image.selection);
         plateSelectionRecord.write(null);
       }
-      const { mapRestoreError: _error, ...next } = current;
+      const { mapRestoreError: _error, mapRenderError: _renderError, ...next } = current;
       store.publish({ ...next, selection: undefined, mapImage: image, mapSelection: image.selection, mapImageRestored: false });
       if (current.mapImage && current.mapImage !== image) current.mapImage.canvas.width = current.mapImage.canvas.height = 0;
     },
@@ -85,13 +86,22 @@ export function createPlatesController(persist = false) {
       const { mapRestoreError, ...next } = store.getSnapshot();
       if (mapRestoreError) store.publish(next);
     },
+    mapRenderFailed(image: PlateMapImage, error: unknown) {
+      const current = store.getSnapshot();
+      if (current.mapImage !== image || current.mapRenderError) return;
+      store.publish({ ...current, mapRenderError: error instanceof Error && error.message ? error.message : 'Unable to display this plate.' });
+    },
+    retryMapRender() {
+      const { mapRenderError, ...next } = store.getSnapshot();
+      if (mapRenderError) store.publish(next);
+    },
     hideFromMap(image = store.getSnapshot().mapImage) {
       const current = store.getSnapshot();
       if ((image && image !== current.mapImage) || (!current.mapSelection && !current.mapImage)) return;
       restoration?.abort();
       if (persist) mappedPlateRecord.write(null);
       const { mapImage: _removed, mapSelection: _selection,
-        mapImageRestored: _restored, mapRestoreError: _error, ...next } = current;
+        mapImageRestored: _restored, mapRestoreError: _error, mapRenderError: _renderError, ...next } = current;
       store.publish(next);
       if (image) image.canvas.width = image.canvas.height = 0;
     },

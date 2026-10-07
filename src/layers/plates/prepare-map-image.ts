@@ -8,6 +8,7 @@ import { mercator, unmercator, type PlateMapImage } from './map-image';
 const MAX_PIXELS = 4_194_304;
 const MAX_SIDE = 3072;
 const GRID = 24;
+const MESH_SLICE_MS = 4;
 
 export async function preparePlateMapImage(pdf: PDFDocumentProxy, pageIndex: number,
   selection: ProcedureSelection, signal: AbortSignal): Promise<PlateMapImage> {
@@ -71,11 +72,19 @@ export async function preparePlateMapImage(pdf: PDFDocumentProxy, pageIndex: num
       (vertex.target[1] - north) / dy * canvas.height];
     // Reproject a fine mesh to Mercator; four-corner stretching loses the FAA
     // Lambert projection's scale and curvature, especially at high latitudes.
+    let sliceStarted = performance.now();
     for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
       const a = vertices[y * (GRID + 1) + x]!, b = vertices[y * (GRID + 1) + x + 1]!;
       const c = vertices[(y + 1) * (GRID + 1) + x]!, d = vertices[(y + 1) * (GRID + 1) + x + 1]!;
       triangle(output, source, [a, b, c]);
       triangle(output, source, [b, d, c]);
+      if ((y !== GRID - 1 || x !== GRID - 1) && performance.now() - sliceStarted >= MESH_SLICE_MS) {
+        // A task boundary lets input and cancellation run; a resolved promise
+        // would keep the entire mesh in the same main-thread task.
+        await withAbort(new Promise<void>(resolve => setTimeout(resolve, 0)), signal);
+        signal.throwIfAborted();
+        sliceStarted = performance.now();
+      }
     }
     signal.throwIfAborted();
     return { selection, canvas, coordinates: [unmercator([west, north]), unmercator([east, north]),

@@ -45,6 +45,18 @@ test('ignores one-character searches', () => {
   assert.deepEqual(searchNavigation([collection('airports', [airport])], 'K'), []);
 });
 
+test('bounded ranking preserves score, identifier and stable edition order for custom limits', () => {
+  const features = Array.from({ length: 1000 }, (_, i) => feature(`edition:${i}`, 'airports', {
+    ident: i % 3 ? `AB${String(i % 23).padStart(2, '0')}` : 'AB', name: i % 2 ? 'AIRPORT' : 'AB AIRPORT',
+  }));
+  const source = [collection('airports', features.slice(0, 500)), collection('airports', features.slice(500))];
+  const reference = features.map(feature => ({ feature, layer: 'airports' as const, score: featureIdent(feature) === 'AB' ? 100 : 80 }))
+    .sort((a, b) => b.score - a.score || featureIdent(a.feature).localeCompare(featureIdent(b.feature)));
+  for (const limit of [-1, 0, NaN, 1, 3.5, 10, 2000, Infinity]) {
+    assert.deepEqual(searchNavigation(source, ' ab ', limit), reference.slice(0, Math.max(0, limit)), String(limit));
+  }
+});
+
 function feature(
   id: string,
   layer: NavigationLayerId,

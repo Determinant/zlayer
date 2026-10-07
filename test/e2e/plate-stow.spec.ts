@@ -1,11 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
 import { PDFDocument } from 'pdf-lib';
 import { openSidePanel } from './side-panel-fixture';
-
-async function selectAirport(page: Page, ident: string) {
-  await page.getByLabel('Search FAA navigation data').fill(ident);
-  await page.locator('.search-results button').filter({ hasText: ident }).click();
-}
 
 async function ready(page: Page) {
   await expect(page.locator('.procedure-page-stage')).toHaveAttribute('aria-busy', 'false');
@@ -104,6 +100,9 @@ test.describe('stowable plate panel', () => {
 });
 
 test('stowing retains a later PDF page and Escape returns focus to the handle', async ({ page }) => {
+  // The generated PDF is served by Playwright; a service-worker transfer would
+  // bypass that route and request a nonexistent fixture-server file.
+  await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
   const pdf = await PDFDocument.create();
   pdf.addPage([200, 300]);
   pdf.addPage([200, 300]);

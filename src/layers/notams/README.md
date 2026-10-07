@@ -317,7 +317,9 @@ the list; timing-section spacing belongs to the shared list so both hosts agree.
 Filters stack when the available panel width cannot fit both fields. Long source
 numbers, translation labels, procedure titles, schedules and raw text must wrap
 without widening either scroller, including with expanded text spacing. Keep
-native controls at core's text-entry and touch sizes. **Show raw** is a native,
+readable prose's line breaks while collapsing inter-word whitespace so preserved
+spaces cannot hang beyond a wrapped line; raw source disclosures retain verbatim
+spacing. Keep native controls at core's text-entry and touch sizes. **Show raw** is a native,
 keyboard-operable disclosure with a visible focus ring and at least a 32 px
 pointer / 44 px touch target. Flairs use semantic theme tokens; their text conveys
 meaning independently of color. Do not dim notice text in Upcoming sections.
@@ -584,7 +586,9 @@ qualification remain separate, as tracked in the
 Enabling the NOTAM plugin starts a national TFR client independently of airport
 selection, search, open readers or stowed panels. Disabling it aborts requests,
 stops clocks and removes the map resources, context-menu action and details panel. Map reattachment
-uses the current snapshot. Colors follow the saved schedule: active areas and
+uses the current snapshot. A hidden page retains that snapshot but suspends
+requests and the schedule clock. Foreground return immediately reconciles time
+(including offline use and clock rollback), then resumes online refresh. Colors follow the saved schedule: active areas and
 areas with an unknown schedule use solid red outlines with translucent red fill;
 upcoming areas use yellow. Detail age, refresh failures and server restarts do not
 change those colors. The key reads **Red: active or unknown schedule · Yellow:
@@ -2307,8 +2311,8 @@ time limitations. This README remains the canonical guide after implementation.
   omissions. It checks geometry, source/readers and the supplied ZOA 6/7169 and
   Bull Fire cases. `test/notams-coordinate-recovery.test.ts` checks corroborated
   hemisphere repair, numeric carries, ambiguous tokens and source-point handling.
-  See the [ARTCC audit](validation/2026-10-06-artcc-areas.md)
-  and [fixture contract](../../../test/fixtures/notams-us-artcc/README.md).
+  The [fixture contract](../../../test/fixtures/notams-us-artcc/README.md) owns
+  capture provenance, geometry counts, reviewed omissions and replay instructions.
 - `test/notams-server.test.ts` covers AIXM variants, durable admission, generation
   restoration, bulk-to-delta publication, cancellations, failed replacement recovery,
   equivalent raw representations, checksummed source issues, legacy incomplete-checkpoint
@@ -2383,12 +2387,6 @@ the resulting behavior and fail-closed limits.
 
 Evidence from the audited tree:
 
-- `npm run verify` passed checks, 2,227 Node tests across root/contracts/domain,
-  and the production PWA build; `npm run info:build` passed separately. The
-  collector/admission/delivery/collection suites include 72 targeted cases.
-- All 27 current NOTAM Chromium cases passed in the matching Playwright container
-  with external networking disabled. These focused cases skipped native weather
-  preparation; they do not replace the full browser/weather/graphics gate.
 - An offline replay of all 79,090 captured production records reconciled all three
   captured FDC pairs, retained an unfamiliar issue alongside an independent update,
   and verified version-2 publication, restart and unchanged admission history.
@@ -2402,22 +2400,19 @@ Evidence from the audited tree:
   round then made exactly one token and one data request through fake transport.
   Separate stalled-reader tests verified local 503 admission and reachable health.
 
-The replacement subsequently passed 149 targeted backend tests covering weather,
-NMS and graphical TFR behavior, plus static checks and the server build. Its built
-worker passed a bootstrap/delta check using fake transport. An isolated candidate
-passed the API/artifact readiness checker with NMS disabled. Deployment acceptance
+The built worker was checked with fake bootstrap/delta transport; API/artifact
+readiness was checked separately with NMS disabled. Deployment acceptance
 requires advancing complete checkpoints, complete airport content coverage, and
 restart recovery that preserves source timestamps and the NMS admission journal
 without extra source requests. The graphical TFR snapshot and its separate
 admission state must also survive handoff and restart. Release identity, activation
 timing and host-specific rollout results belong in private operations.
 
-The full browser gate has failures in the broad panel/plate/plugin/glide suites;
-that broad run was stopped after recorded failures, before the matrix completed.
-The earlier full run also used the superseded NOTAM coverage-label expectations,
-which pass in the current focused run. A clean full browser gate, sustained
-combined native-weather/NMS capacity and a complete live daily reconciliation
-remain unqualified. The validation environment used an 8 GiB memory limit; the
+The October 5 browser run predates later fixture repairs and does not establish
+current pass/fail status; use the [verification commands](../../../docs/development/local-development.md#verification).
+Sustained combined native-weather/NMS capacity and a complete live daily
+reconciliation remain unqualified by this audit. The validation environment used
+an 8 GiB memory limit; the
 checked-in systemd unit defaults to 4 GiB, so that observation does not qualify
 the default capacity. The separate graphical
 TFR adapter has independent durable admission and validation. Its additional
@@ -2479,8 +2474,9 @@ source span and checks map output, including 37 notices with exact 60-second
 carries. `obstructions.json` pins counts and every omitted ID/revision with its
 reviewed reason. `obstruction-references.json` pins the necessary navigation
 subset, retaining all alias candidates and the full published source hashes.
-The [obstruction audit](validation/2026-10-06-airport-obstructions.md) explains
-these limits. No fixture source records were rewritten to repair coordinates.
+No fixture source records were rewritten to repair coordinates. The pinned
+[omission inventory](../../../test/fixtures/notams-us1000/obstructions.json) owns
+individual IDs and reasons; punctuation alone cannot close instruction scope.
 
 This is broad preservation coverage, not an assertion that every notice has a
 complete structured interpretation. Unsupported wording may correctly remain
@@ -2496,9 +2492,9 @@ tests retain independent expected meanings and deliberately corrupted examples;
 keep those tests when extending this replay. Do not replace them with generated
 parser-output snapshots or weaken an audit to make unfamiliar wording pass.
 
-The [cycle 2610 plate-matching review](validation/2026-10-05-matching-audit.md)
-records the initial gaps; the [implementation follow-up](validation/2026-10-05-matching-fixes.md)
-records the fixes and remaining source/catalog discrepancies. A content-preservation
+The cycle 2610 [baseline inventory](validation/2026-10-05-matching-audit.json) and
+[follow-up inventory](validation/2026-10-05-matching-fixes.json) retain source hashes,
+per-heading outcomes and remaining catalog discrepancies. A content-preservation
 pass does not establish complete plate associations.
 The fixture also retains the complete byte-identical published cycle 2610 catalog
 in `plate-catalog-2610.json.gz` (about 1.4 MB), with its uncompressed hash/size and
@@ -2508,7 +2504,16 @@ captured match sets, scope/identity negatives, amendment conflicts and shared pa
 `tools/audit-notam-matching.ts` replays catalog-entry matching offline and inventories
 every recognized heading, including misses hidden by a matching sibling. Its
 successful exit means the inventory completed, not that every match is correct.
-The dated reports give pinned sources, replay instructions and remaining limits.
+Reproduce the inventory without network access:
+
+```sh
+node --import=tsx tools/audit-notam-matching.ts test/fixtures/notams-us1000 test/fixtures/notams-us1000/plate-catalog-2610.json.gz /tmp/notam-matching.json
+```
+
+The follow-up inventory retains 19 unassociated headings in 16 notices, including
+three notices with a matching sibling. Missing titles, SA authorization differences,
+unknown amendments and dependency gaps remain explicit; no catalog metadata is
+inferred from a PDF inspected during a review.
 
 `tools/pack-notam-corpus.ts` packages an existing sequential capture offline:
 
@@ -2528,8 +2533,8 @@ To inspect the retained data, use `gzip -dc test/fixtures/notams-us1000/snapshot
 
 ### Broad airport presentation audit
 
-The [structural audit](validation/2026-10-05-structural-audit.md) and its
-[semantic follow-up](validation/2026-10-05-semantic-audit.md) cover all of the
+The [structural inventory](validation/2026-10-05-structural-audit.json) and
+[semantic inventory](validation/2026-10-05-semantic-audit.json) cover all of the
 FAA's top 100 airports by CY2025 passenger boardings, plus eight GA airports.
 The dated [airport manifest](../../../test/fixtures/notams-airports-2026-10-05.json)
 retains ranking provenance and explicit FAA/ICAO pairs. Recheck rankings and airport
@@ -2562,7 +2567,9 @@ These checks still do not prove route applicability or completeness of FAA
 collection. The generation command rejects stale/degraded/mixed captures,
 different airport cohorts, content failures and repeated source generations. It
 requires at least two fresh, complete, distinct generations and reports newly seen
-record versions separately. A new capture timestamp alone is not temporal coverage.
+record versions separately. A new capture timestamp alone is not temporal coverage. The October 5 semantic
+captures contained the same degraded generation and added no record versions;
+that retained evidence does not complete this temporal qualification.
 Keep unsupported clauses visible; never supply missing altitude types, gradient
 units, RNP labels or ambiguous radio-altitude/multipart meaning to improve counts.
 
@@ -2606,20 +2613,13 @@ this sample does not complete full verification or installed-device qualificatio
 
 ### Local implementation evidence — 2026-10-04
 
-- Replaying the saved KSJC staging airport response derived specific tags for all
-  30 D/FDC records. These observed source forms informed the grammar and synthetic
-  fixtures; the replay did not establish operational completeness.
-- Focused Chromium checks used invented notices and a synthetic three-page PDF.
-  The host browser lacked its GLib dependency, so they used the matching Playwright
-  container with networking disabled. Fixture runs did not spend FAA quota or change
-  the live collector's state. Earlier browser passes predate the simplified staging
-  notice and timing sections and do not validate those later presentation changes.
-- Live staging full-load and delta evidence is recorded in the source qualification
-  section above. Production was not enabled, and temporary plaintext credential
-  copies used for this exercise were removed; durable admission state is retained.
-
-The full browser verification gate was not completed. These historical results do
-not complete the broader release matrix below or qualify shared deployment capacity.
+Replaying the saved KSJC staging airport response derived specific tags for all
+30 D/FDC records. These observed source forms informed the grammar and synthetic
+fixtures; the replay did not establish operational completeness. Browser checks
+used invented notices and a synthetic three-page PDF, without FAA acquisition.
+Live staging full-load and delta evidence is recorded in the source qualification
+section above. These samples do not qualify shared deployment capacity or complete
+the broader release matrix below.
 
 ### Release qualification matrix
 
@@ -2720,3 +2720,18 @@ These are qualification work, not assumptions to hide in the UI:
   [time formats](../../../docs/features/date-time-display.md), and
   [workspace persistence](../../../docs/architecture/workspace-persistence.md)
   own existing host contracts.
+
+## Reader working set
+
+Notice lists mount at most 50 complete entries per page in the existing timing
+and applicability order. Previous/Next notices expose the full retained list;
+section counts, filtering, search, matching and chart preview still cover all
+records. Changing filters resets the page. Raw translations/source text mount
+only while **Show raw** is open and are released on close or page change.
+Unmounting an entry also releases its hover/focus chart highlight.
+
+Temporary chart rendering retains one prepared collection per adapter. Clock
+updates compare record identities, reference identity and per-notice validity
+states before geometry preparation/serialization. Schedule transitions, expiry,
+clock rollback and changed source/reference data invalidate that result; unchanged
+validity keeps the same collection. No second national geometry cache is added.

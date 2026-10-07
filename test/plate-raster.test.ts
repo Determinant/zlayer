@@ -6,6 +6,22 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { preparePlateMapImage } from '../src/layers/plates/prepare-map-image';
 import type { ProcedureSelection } from '../src/layers/plates/data';
 
+async function plateBytes(rotation = 0) {
+  const document = await PDFDocument.create();
+  const page = document.addPage([200, 200]);
+  page.setRotation(degrees(rotation));
+  page.drawRectangle({ width: 200, height: 200, color: rgb(0, 0, 1) });
+  page.drawRectangle({ x: 0, y: 150, width: 50, height: 50, color: rgb(1, 0, 0) });
+  page.drawRectangle({ x: 150, y: 150, width: 50, height: 50, color: rgb(0, 1, 0) });
+  page.node.set(PDFName.of('VP'), document.context.obj([{ BBox: [0, 0, 200, 200], Measure: {
+    Type: 'Measure', Subtype: 'GEO', Bounds: [0, 0, 1, 0, 1, 1, 0, 1],
+    LPTS: [0, 0, 1, 0, 1, 1, 0, 1], GPTS: [35, -122, 35, -121, 36, -121, 36, -122],
+    GCS: { Type: 'GEOGCS', WKT: PDFString.of('GEOGCS["WGS 84",DATUM["WGS_1984",' +
+      'SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]') },
+  } }]));
+  return document.save();
+}
+
 test('reprojected plates stay upright, bounded and opaque across mesh seams, including rotated PDFs', async t => {
   const original = globalThis.document;
   globalThis.document = { createElement: () => createCanvas(1, 1) } as unknown as Document;
@@ -14,19 +30,7 @@ test('reprojected plates stay upright, bounded and opaque across mesh seams, inc
     document: { url: 'https://test/plate.pdf', nativeUrl: 'https://test/plate.pdf', pageIndex: 0, source: 'faa-individual' },
     cycle: '2609', effectiveDate: '2026-09-03', expirationDate: '2026-10-01' };
   for (const rotation of [0, 90]) {
-    const document = await PDFDocument.create();
-    const page = document.addPage([200, 200]);
-    page.setRotation(degrees(rotation));
-    page.drawRectangle({ width: 200, height: 200, color: rgb(0, 0, 1) });
-    page.drawRectangle({ x: 0, y: 150, width: 50, height: 50, color: rgb(1, 0, 0) });
-    page.drawRectangle({ x: 150, y: 150, width: 50, height: 50, color: rgb(0, 1, 0) });
-    page.node.set(PDFName.of('VP'), document.context.obj([{ BBox: [0, 0, 200, 200], Measure: {
-      Type: 'Measure', Subtype: 'GEO', Bounds: [0, 0, 1, 0, 1, 1, 0, 1],
-      LPTS: [0, 0, 1, 0, 1, 1, 0, 1], GPTS: [35, -122, 35, -121, 36, -121, 36, -122],
-      GCS: { Type: 'GEOGCS', WKT: PDFString.of('GEOGCS["WGS 84",DATUM["WGS_1984",' +
-        'SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]') },
-    } }]));
-    const task = getDocument({ data: await document.save(), useSystemFonts: true });
+    const task = getDocument({ data: await plateBytes(rotation), useSystemFonts: true });
     try {
       const image = await preparePlateMapImage(await task.promise, 0, selection, new AbortController().signal);
       const { width, height } = image.canvas;
@@ -42,4 +46,45 @@ test('reprojected plates stay upright, bounded and opaque across mesh seams, inc
       image.canvas.width = image.canvas.height = 0;
     } finally { await task.destroy(); }
   }
+});
+
+test('plate mesh yields to cancellation and releases both canvases without publishing a partial image', async t => {
+  const controller = new AbortController(), released: Set<string>[] = [];
+  let draws = 0;
+  const originalDocument = globalThis.document;
+  t.after(() => { globalThis.document = originalDocument; });
+  globalThis.document = { createElement() {
+    const canvas = createCanvas(1, 1);
+    const reset = new Set<string>(); released.push(reset);
+    // napi-canvas substitutes a default size for zero; observe the release
+    // assignments, which real browser canvases honor as zero backing storage.
+    for (const dimension of ['width', 'height']) {
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(canvas), dimension)!;
+      Object.defineProperty(canvas, dimension, { get: () => descriptor.get!.call(canvas), set(value: number) {
+        if (value === 0) reset.add(dimension);
+        descriptor.set!.call(canvas, value);
+      } });
+    }
+    if (released.length === 2) {
+      const context = canvas.getContext('2d'), original = context.drawImage.bind(context);
+      t.mock.method(context, 'drawImage', (...args: Parameters<typeof original>) => {
+        original(...args); draws++;
+        if (draws === 1) {
+          // Force the time budget to expire, then let an actual task deliver
+          // the abort while the mesh is suspended between cells.
+          let now = performance.now();
+          t.mock.method(performance, 'now', () => now += 5);
+          setTimeout(() => controller.abort(), 0);
+        }
+      });
+    }
+    return canvas;
+  } } as unknown as Document;
+  const task = getDocument({ data: await plateBytes(), useSystemFonts: true });
+  try {
+    await assert.rejects(preparePlateMapImage(await task.promise, 0, {} as ProcedureSelection, controller.signal), { name: 'AbortError' });
+    assert.ok(draws > 0 && draws < 24 * 24 * 2, 'cancellation interrupts the mesh');
+    assert.equal(released.length, 2);
+    for (const reset of released) assert.deepEqual([...reset].sort(), ['height', 'width'], 'backing stores released');
+  } finally { await task.destroy(); }
 });

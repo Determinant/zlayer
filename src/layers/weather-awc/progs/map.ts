@@ -90,6 +90,11 @@ export function mountProgsMap(map: Map, controller: WeatherController, before: s
   const update = () => {
     if (destroyed) return;
     const state = controller.getSnapshot(), selection = controller.surfaceSelection();
+    if (!state.preferences.awcEnabled || !state.preferences.awcProgs) {
+      submission.invalidate(); key = ''; shown = undefined;
+      clearResources(); controller.setProgsRenderError(undefined);
+      return;
+    }
     if (isobars !== state.preferences.awcProgsIsobars) {
       isobars = state.preferences.awcProgsIsobars;
       for (const id of ISOBAR_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', shown && isobars ? 'visible' : 'none');

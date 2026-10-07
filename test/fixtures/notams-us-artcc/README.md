@@ -33,7 +33,10 @@ revision and reviewed reason. `wider-review.json` accounts for other coordinate
 or area prose, including route instructions and regulatory material without a
 standalone footprint. `obstacles.json` separately accounts for every OBST notice,
 including five unrecoverable coordinate cases. These lists are omissions, never
-claims of successful map depiction.
+claims of successful map depiction. Of 264 standalone OBST notices, 121 depict
+points and 138 depict areas. The five remaining coordinate defects are shortened
+longitude `113242W`, two copies of latitude `4355616N`, latitude `34424250.39N`,
+and longitude `11920545W` conflicting with its published 34 NM annotation.
 
 The parser-refactor replay accounts for 1,107 areas, 86 national-TFR descriptions
 and 24 reviewed boundary omissions among 1,219 explicit-area candidates (the
@@ -71,5 +74,6 @@ node --import=tsx --import=./test/helpers/assets.ts --test test/notams-artcc.tes
 The replay checks all source/readers, source immutability, exact scope identities,
 geometry publication, radii, closed rings and holes, complete multi-area admission,
 obstructions and all reviewed omissions. `npm run test:notams:corpus` additionally
-runs the independent 1,000-airport reader and obstruction replay. See the
-[dated review](../../../src/layers/notams/validation/2026-10-06-artcc-areas.md).
+runs the independent 1,000-airport reader and obstruction replay. The
+[NOTAM guide](../../../src/layers/notams/README.md#verification) owns current
+parser, map-publication and reader requirements.

@@ -13,7 +13,7 @@ import { VIEWPORT_MIN_ZOOM } from './viewport';
 import { TerrainVectorCache, type TerrainVectors } from './vector-cache';
 import type { CatalogReadSource } from '../../workspace/read-context';
 import { terrainSources, terrainSourceKey, packagesForTerrainTile } from './sources';
-import { stitchTerrainContours } from './seams';
+import { TerrainContourJob } from './contour-job';
 import { TerrainCorridorJob } from './corridor-job';
 import type { FeatureCollection } from 'geojson';
 import { createSourceSubmission } from '../../core/map/source-submission';
@@ -46,6 +46,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   let coverage = new Map<string, Tile>();
   let coverageKey = '';
   let published: TerrainVectors[] | undefined;
+  const contours = new TerrainContourJob(() => status());
   let vectorTimer: ReturnType<typeof setTimeout> | undefined;
   let appliedAltitude: number | null | undefined, appliedInterval: number | undefined;
   type VectorSource = { submission: ReturnType<typeof createSourceSubmission>; data?: FeatureCollection;
@@ -135,13 +136,15 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     if (published?.length === visible.length && visible.every((tile, index) => tile === published![index])) return;
     published = visible;
     syncTerrainLabels(map, visible.flatMap(tile => tile.labels), submit);
-    syncTerrainContours(map, stitchTerrainContours(visible.flatMap(tile => tile.lines), visible.flatMap(tile => tile.borders ?? []), segments), submit);
+    contours.request(visible, segments, lines => {
+      if (map) syncTerrainContours(map, lines, submit);
+    });
   };
   const status = () => {
     const sourceLoading = TERRAIN_SOURCES.some(source => map?.getSource(source) && !map.isSourceLoaded(source));
     const state: TerrainStatus['state'] = !enabled() ? 'idle'
-      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() || corridor.failed || [...vectorSources.values()].some(source => source.failed) ? 'error'
-        : pending || vectorTimer || sourceLoading || hasMissingVectors() || needsCorridor() ? 'loading' : 'ready';
+      : (map?.getZoom() ?? 0) < minimumZoom() ? 'zoom' : hasVisibleFailure() || corridor.failed || contours.failed || [...vectorSources.values()].some(source => source.failed) ? 'error'
+        : pending || vectorTimer || contours.pending || sourceLoading || hasMissingVectors() || needsCorridor() ? 'loading' : 'ready';
     const overview = terrainTileZoom(map?.getZoom() ?? 0) < 10;
     const next = JSON.stringify([state, interval, overview, mode()]);
     if (next !== previousStatus) { previousStatus = next; onStatus({ state, interval, overview, coverage: mode() }); }
@@ -184,7 +187,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     const nextCorridorKey = JSON.stringify(nextSegments);
     const nextKey = `${mode()}/${input.enabled}/${nextCorridorKey}`;
     if (nextKey !== key) {
-      key = nextKey; revision++; cancel(); segments = nextSegments;
+      key = nextKey; revision++; cancel(); contours.clear(); segments = nextSegments;
       corridorKey = nextCorridorKey; corridor.resetFailure(); workerError = undefined;
       if (!enabled()) { corridor.cancel(); client?.dispose(); client = undefined; }
       clearTimeout(vectorTimer); vectorTimer = undefined;
@@ -206,6 +209,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
   // cannot reappear from MapLibre's raster cache after a later pan.
   const retry = () => {
     retryVectorSources();
+    if (contours.failed) { published = undefined; syncVectors(); }
     if (failedTiles.size) { key = ''; refresh(); }
     else if (corridor.failed) { corridor.resetFailure(); workerError = undefined; refreshView(); }
   };
@@ -304,7 +308,7 @@ export function createTerrainLayer(onStatus: (status: TerrainStatus) => void = (
     },
     unmount() {
       disposeVectorSources();
-      corridor.clear(); corridorKey = ''; workerError = undefined;
+      corridor.clear(); contours.clear(); corridorKey = ''; workerError = undefined;
       revision++; cancel(); client?.dispose(); client = undefined;
       clearTimeout(vectorTimer); vectorTimer = undefined; tiles.clear(); coverage.clear(); coverageKey = ''; published = undefined;
       colors.cancel(); appliedAltitude = undefined; appliedInterval = undefined;

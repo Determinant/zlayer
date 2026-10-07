@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
 
 test.use({ locale: 'en-US', timezoneId: 'America/Los_Angeles' });
 
@@ -12,10 +13,6 @@ const report = { icaoId: 'KSBA', issueTime: '2026-09-17T17:20:00Z', validTimeFro
     { timeFrom: from + 7200, timeTo: from + 10800, fcstChange: 'TEMPO', visib: 2, clouds: [{ cover: 'BKN', base: 800 }] },
     { timeFrom: from + 10800, timeTo: from + 86400, fcstChange: 'FM', visib: 0.5, vertVis: 200, clouds: [] },
   ] };
-async function selectAirport(page: Page, id: string) {
-  await page.getByLabel('Search FAA navigation data').fill(id);
-  await page.locator('.search-results button').filter({ hasText: id }).click();
-}
 
 test('TAF periods follow METAR with category colors, wrap on phones, and survive an offline reload', async ({ page, context }, testInfo) => {
   await page.clock.install({ time: now });

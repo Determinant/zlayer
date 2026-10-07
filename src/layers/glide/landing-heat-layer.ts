@@ -2,6 +2,11 @@ import type { CustomLayerInterface, Map as MapLibreMap } from 'maplibre-gl';
 import { project } from '../../core/geo/route-corridor';
 import type { LandingHeatTile, LandingHeatUpdate } from './landing-heat-tiles';
 
+// Soft CPU limit, checked between atomic tiles; the byte limit also bounds
+// driver submissions when uploads return before the GPU has consumed them.
+const UPLOAD_SLICE_MS = 4;
+const UPLOAD_BYTES = 4 * 1024 * 1024;
+
 const vertexSource = `#version 300 es
 layout(location = 0) in vec2 a_position;
 uniform mat4 u_matrix;
@@ -138,13 +143,14 @@ export function createLandingHeatLayer(id: string, onFailureChange: () => void =
       finally { for (const shader of shaders) gl.deleteShader(shader); }
     },
     render(gl, options) {
-      if (!visible || !map || !program || !uniforms || gl.isContextLost()) return;
+      if (!visible || !map || !program || !uniforms || document.hidden || gl.isContextLost()) return;
       const bounds = map.getBounds(), nw = project([bounds.getWest(), bounds.getNorth()]), se = project([bounds.getEast(), bounds.getSouth()]);
       const zoom = map.getZoom();
       gl.useProgram(program); gl.activeTexture(gl.TEXTURE0); gl.uniform1i(uniforms.image, 0);
       gl.disable(gl.CULL_FACE); gl.disable(gl.DEPTH_TEST); gl.disable(gl.STENCIL_TEST);
       gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      let attempted = false;
+      let attempted = false, pending = false, uploadedBytes = 0;
+      const started = performance.now();
       try {
         for (const resident of residents.values()) {
           const [w, n, e, s] = resident.extent;
@@ -153,7 +159,15 @@ export function createLandingHeatLayer(id: string, onFailureChange: () => void =
           if (first > last) continue;
           if (!resident.gpu) {
             if (resident.blocked) continue;
+            const bytes = resident.pending!.vertices.byteLength + resident.pending!.levels.reduce((sum, level) => sum + level.rgba.byteLength, 0);
+            // Always admit one tile so a large body can make progress. Continue
+            // drawing ready residents after admission closes for this frame.
+            if (attempted && (uploadedBytes + bytes > UPLOAD_BYTES || performance.now() - started >= UPLOAD_SLICE_MS)) {
+              pending = true;
+              continue;
+            }
             attempted = true;
+            uploadedBytes += bytes;
             if (!uploadResident(gl, resident)) {
               if (gl.isContextLost()) return;
               resident.failures = Math.min(2, resident.failures + 1); resident.blocked = true;
@@ -175,6 +189,7 @@ export function createLandingHeatLayer(id: string, onFailureChange: () => void =
         // allocations return normally and always leave its VAO unbound.
         gl.bindVertexArray(null);
         if (attempted) { reportFailure(); scheduleRetry(); }
+        if (pending && retryable()) map?.triggerRepaint();
       }
     },
     onRemove() {
@@ -192,9 +207,13 @@ export function createLandingHeatLayer(id: string, onFailureChange: () => void =
       if (!retryable()) return;
       pause();
       let changed = false;
-      for (const resident of residents.values()) if (resident.blocked) { resident.blocked = false; changed = true; }
+      for (const resident of residents.values()) {
+        if (resident.blocked) { resident.blocked = false; changed = true; }
+        else if (resident.pending) changed = true;
+      }
       // Failure remains visible until a later upload actually succeeds. New
-      // camera/recovery demand permits one attempt, not another polling loop.
+      // camera/recovery demand also resumes a slice interrupted by page hiding.
+      // It permits one frame, not another polling loop.
       if (changed) map?.triggerRepaint();
     },
     keys: () => [...residents.keys()],

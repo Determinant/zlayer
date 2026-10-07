@@ -1,4 +1,11 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
+
+// These client lifecycle cases own intercepted report responses. WebKit cannot
+// intercept the worker's requests; service-worker bypass is covered in taf.spec.ts.
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
+});
 
 const now = Date.parse('2026-09-17T18:00:00Z');
 const stations = [
@@ -15,10 +22,6 @@ const taf = ({ id, coordinates }: typeof stations[number]) => ({
   validTimeFrom: now / 1000, validTimeTo: now / 1000 + 86400,
   rawTAF: `TAF ${id} 171800Z 1718/1818 28010KT P6SM SCT030`, fcsts: [],
 });
-async function selectAirport(page: Page, id: string) {
-  await page.getByLabel('Search FAA navigation data').fill(id);
-  await page.locator('.search-results button').filter({ hasText: id }).click();
-}
 
 test('combined airport reports keep independent selections and refresh schedules, and reset together on airport changes', async ({ page, context }) => {
   await page.clock.install({ time: now });

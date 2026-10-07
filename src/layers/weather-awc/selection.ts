@@ -79,6 +79,7 @@ export function reconcileWeatherTime(state: WeatherState, now: number, times = f
   if (next.selectedTime !== null && !times(next).includes(next.selectedTime) &&
     ![...Object.values(next.grid.products), ...Object.values(next.wind.products)].some(product => product.manifest?.frames.some(frame => frame.validTime === next.selectedTime)) &&
     !next.progs.forecast.snapshot?.frames.some(frame => frame.validTime === next.selectedTime) &&
+    !(next.progs.forecast.snapshot === undefined && next.retainedProgsTimes?.includes(next.selectedTime)) &&
     !next.coverage.snapshot?.frames.some(frame => frame.validTime === next.selectedTime) &&
     !(next.selectedTime <= next.now && radarTimes(next.radar.snapshot, next.now).some(time => time <= next.selectedTime!))) {
     next.selectedTime = null;

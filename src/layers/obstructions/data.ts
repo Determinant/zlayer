@@ -3,6 +3,7 @@ import { InvalidDataError } from '../../core/data/errors';
 import { project, segmentsForTile, corridorDistance, corridorOpacity, type Segment } from '../../core/geo/route-corridor';
 import { obstructionIcon, obstructionMinZoom, OBSTRUCTION_MIN_ZOOM, OBSTRUCTION_ICONS } from './definitions';
 import type { ObstructionCollection, ObstructionFeature, ObstructionManifest } from './types';
+import { DOWNLOAD_MEMORY_LIMIT } from '../../core/storage/download-file';
 
 const integer = (value: unknown, min: number, max: number): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
@@ -16,7 +17,15 @@ export function isObstructionManifest(value: unknown): value is ObstructionManif
   return typeof data.sha256 === 'string' && /^[a-f0-9]{64}$/.test(data.sha256)
     && data.path === `obstacles-${data.sha256}.geojson.gz` && data.format === 'geojson' && data.compression === 'gzip'
     && integer(data.bytes, 1, 250_000_000) && integer(data.uncompressedBytes, 1, 1_500_000_000)
-    && integer(data.count, 1, 5_000_000);
+    && integer(data.count, 1, 5_000_000)
+    && (value.index === undefined || isRecord(value.index) && value.index.format === 'zlayer-obstructions'
+      && value.index.version === OBSTRUCTION_INDEX_VERSION && typeof value.index.sha256 === 'string'
+      && /^[a-f0-9]{64}$/.test(value.index.sha256)
+      && value.index.path === `obstacles-index-${value.index.sha256}.bin`
+      && integer(value.index.count, 0, data.count)
+      && value.index.bytes === HEADER_BYTES + RECORD_BYTES * value.index.count
+      && isRecord(value.index.source) && value.index.source.sha256 === data.sha256
+      && value.index.source.count === data.count && value.index.source.lastModified === value.source.lastModified);
 }
 
 export function isObstructionFeature(value: unknown): value is ObstructionFeature {
@@ -35,6 +44,14 @@ const INDEX_ZOOM = 7, GRID = 2 ** INDEX_ZOOM;
 // Bump when the retained fields, symbol mapping, or minimum-height policy changes.
 export const OBSTRUCTION_INDEX_VERSION = 1;
 const HEADER_BYTES = 8, RECORD_BYTES = 34;
+// Application support policy, not a browser/OOM estimate. Reuse the established
+// 8 MiB artifact allowance for both retained columns and legacy ID scratch.
+export const OBSTRUCTION_MAX_RECORDS = Math.floor((DOWNLOAD_MEMORY_LIMIT - HEADER_BYTES) / RECORD_BYTES);
+export const OBSTRUCTION_MAX_SOURCE_RECORDS = DOWNLOAD_MEMORY_LIMIT / Float64Array.BYTES_PER_ELEMENT;
+
+export function checkObstructionAllocation(count: number, limit: number): void {
+  if (!integer(count, 0, limit)) throw new InvalidDataError('Obstruction dataset exceeds the supported memory limit');
+}
 
 function columns(capacity: number) {
   return { ids: new Float64Array(capacity), coordinates: new Float64Array(capacity * 2),
@@ -51,6 +68,7 @@ export class ObstructionIndex {
   #data = columns(0);
   readonly #cells = new Map<number, number[]>();
   constructor(readonly expectedCount: number) {
+    checkObstructionAllocation(expectedCount, OBSTRUCTION_MAX_SOURCE_RECORDS);
     // Validate uniqueness for the entire export, including filtered records.
     // Sorting packed IDs at finish avoids a national-size JS Set during loading.
     this.#sourceIds = new Float64Array(expectedCount);
@@ -61,6 +79,7 @@ export class ObstructionIndex {
     return Object.values(this.#data).reduce((sum, values) => sum + values.byteLength, this.#sourceIds?.byteLength ?? 0);
   }
   #resize(capacity: number): void {
+    checkObstructionAllocation(capacity, OBSTRUCTION_MAX_RECORDS);
     const next = columns(capacity);
     for (const key of Object.keys(next) as (keyof typeof next)[]) {
       next[key].set(this.#data[key].subarray(0, next[key].length));
@@ -74,16 +93,18 @@ export class ObstructionIndex {
     // Eight base-36 digits fit exactly in a double. Avoid retaining hundreds of
     // thousands of JS strings/objects after streaming the national dataset.
     const id = parseInt(value.id.replace('-', ''), 36);
-    this.#sourceIds[this.#count++] = id;
     const [lon, lat] = value.geometry.coordinates as [number, number], p = value.properties;
     // The route and every zoom tier share this floor. Validate first, then drop
     // records that can never be displayed before allocating/indexing their data.
-    if (obstructionMinZoom(p.heightAglFt) === undefined) return;
-    this.#append(id, lon, lat, p.heightAglFt, p.elevationMslFt,
-      OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType)), p.verified ? 1 : 0);
+    if (obstructionMinZoom(p.heightAglFt) !== undefined) {
+      this.#append(id, lon, lat, p.heightAglFt, p.elevationMslFt,
+        OBSTRUCTION_ICONS.indexOf(obstructionIcon(p.heightAglFt, p.quantity, p.lightingCode, p.structureType)), p.verified ? 1 : 0);
+    }
+    this.#sourceIds[this.#count++] = id;
   }
   #append(id: number, lon: number, lat: number, height: number, elevation: number, symbol: number, verified: number): void {
-    if (this.#size === this.#data.ids.length) this.#resize(Math.min(this.expectedCount, Math.max(1024, this.#size * 2)));
+    checkObstructionAllocation(this.#size + 1, OBSTRUCTION_MAX_RECORDS);
+    if (this.#size === this.#data.ids.length) this.#resize(Math.min(this.expectedCount, OBSTRUCTION_MAX_RECORDS, Math.max(1024, this.#size * 2)));
     const index = this.#size++, data = this.#data;
     data.ids[index] = id;
     data.coordinates[index * 2] = lon; data.coordinates[index * 2 + 1] = lat;
@@ -130,7 +151,9 @@ export class ObstructionIndex {
     if (count > sourceCount || buffer.byteLength !== HEADER_BYTES + count * RECORD_BYTES) {
       throw new InvalidDataError('Invalid obstruction index size');
     }
+    checkObstructionAllocation(count, OBSTRUCTION_MAX_RECORDS);
     const index = new ObstructionIndex(count);
+    index.#data = columns(count);
     for (let offset = HEADER_BYTES; offset < buffer.byteLength; offset += RECORD_BYTES) {
       const id = view.getFloat64(offset, true), lon = view.getFloat64(offset + 8, true), lat = view.getFloat64(offset + 16, true);
       const height = view.getInt32(offset + 24, true), elevation = view.getInt32(offset + 28, true);

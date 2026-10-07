@@ -16,6 +16,7 @@ import znyTfrs from '../fixtures/notams-us-artcc/zny-tfrs.json' with { type: 'js
 import znyRegion from '../fixtures/notams-us-artcc/zny-hover.json' with { type: 'json' };
 import znyNavaids from '../fixtures/notams-us-artcc/zny-navaids.json' with { type: 'json' };
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { mapTouchInput } from './touch-input';
 
 let server: ViteDevServer, origin: string, directory: string, pdf: Buffer;
 let catalog: typeof testCatalog, resource: typeof testResource;
@@ -56,6 +57,31 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto(`${origin}/test/browser/notams.html`);
 });
+test('large NOTAM lists page complete notices, search every record and mount raw text on demand', async ({ page }) => {
+  const now = Date.now();
+  const records = Array.from({ length: 101 }, (_, i) => notice({ id: String(1757600000000000 + i),
+    sourceId: `NMS_ID_${1757600000000000 + i}`, number: String(1000 + i), startsAt: now - 1000, endsAt: now + 86_400_000,
+    text: i === 100 ? 'TWY Z CLSD LASTPAGE' : `TWY A CLSD NOTICE ${i}` }));
+  await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records,
+    { query: Object.fromEntries(new URL(route.request().url()).searchParams) }) }));
+  await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
+  const reader = page.getByRole('region', { name: 'Airport NOTAMs', exact: true });
+  await expect(reader.locator('.notam-entry')).toHaveCount(50);
+  await expect(reader.locator('pre')).toHaveCount(0);
+  await reader.getByText('Show raw', { exact: true }).first().click();
+  await expect(reader.locator('pre')).not.toHaveCount(0);
+  await reader.getByRole('button', { name: 'Next notices' }).click();
+  await expect(reader.getByRole('status')).toHaveText('51–100 of 101 notices');
+  await expect(reader.locator('pre')).toHaveCount(0);
+  await reader.getByRole('button', { name: 'Next notices' }).click();
+  await expect(reader.locator('.notam-entry')).toHaveCount(1);
+  await reader.getByRole('button', { name: 'Filters', exact: true }).click();
+  await reader.getByRole('searchbox', { name: 'Search' }).fill('LASTPAGE');
+  await expect(reader.getByText('1 of 101 retained notices')).toBeVisible();
+  await expect(reader.locator('.notam-entry')).toHaveCount(1);
+  await expect(reader.getByRole('navigation', { name: 'NOTAM pages' })).toHaveCount(0);
+});
+
 test('airport third tab shows D/FDC with raw text, filters and no Plates dependency', async ({ page }) => {
   const tabs = page.getByRole('tablist', { name: 'Airport detail' });
   await expect(tabs.getByRole('tab')).toHaveText(['Info', 'Plates', 'NOTAM']);
@@ -286,7 +312,7 @@ test('temporary obstacle map context follows open readers, filters, stow and plu
     'OBST TOWER LGT (ASR UNKNOWN) 370010N1220030W (1NM W TST) 1500FT (1200FT AGL) U/S',
     'IAP TEST AIRPORT, CA. RNAV (GPS) Y RWY 09L, AMDT 2... PERM CRANE (06-000846) 439FT MSL (4A) 370005.50N/1220010.50W.',
   ].map((text, i) => notice({ id: `175760000000003${i}`, sourceId: `NMS_ID_175760000000003${i}`, text,
-    classification: i === 2 ? 'FDC' : 'DOMESTIC', startsAt: now - 1000, endsAt: now + 86_400_000 }));
+    number: `103${i}`, translations: [], classification: i === 2 ? 'FDC' : 'DOMESTIC', startsAt: now - 1000, endsAt: now + 86_400_000 }));
   await page.route('**/api/notams/airports?**', route => route.fulfill({ json: notamSnapshot(records) }));
   await page.goto(`${origin}/test/browser/notams.html?map`);
   const rendered = () => page.evaluate(() => {
@@ -302,11 +328,11 @@ test('temporary obstacle map context follows open readers, filters, stow and plu
   await page.getByRole('tab', { name: 'NOTAM', exact: true }).click();
   await expect.poll(rendered).toBe(3);
   const entries = page.locator('.airport-notams .notam-entry');
-  const crane = entries.filter({ hasText: '2026-AWP-3090-OE' });
+  const crane = entries.filter({ has: page.locator('.notam-entry-heading', { hasText: '1030' }) });
   await expect(crane.locator('.notam-chart-note')).toHaveText('Location shown on chart');
   await expect(crane.locator('.notam-readable')).toHaveText('Flagged');
-  await expect(entries.filter({ hasText: 'ASR UNKNOWN' }).locator('.notam-readable')).toHaveText('LGT U/S');
-  await expect(entries.filter({ hasText: '06-000846' }).locator('.notam-readable')).toContainText('RNAV (GPS) Y');
+  await expect(entries.filter({ has: page.locator('.notam-entry-heading', { hasText: '1031' }) }).locator('.notam-readable')).toHaveText('LGT U/S');
+  await expect(entries.filter({ has: page.locator('.notam-entry-heading', { hasText: '1032' }) }).locator('.notam-readable')).toContainText('RNAV (GPS) Y');
   await crane.getByText('Show raw', { exact: true }).click();
   await expect(crane.locator('.notam-raw pre').last()).toHaveText(records[0]!.text);
   await crane.getByText('Show raw', { exact: true }).click();
@@ -388,6 +414,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await page.getByRole('searchbox',{name:'Search'}).fill('nothing-matches'); await expect.poll(displayed).toEqual(expected);
     await page.getByRole('button',{name:'Stow fixture',exact:true}).click(); await expect.poll(displayed).toEqual(expected);
     await page.screenshot({animations:'disabled',path:testInfo.outputPath('tfr-active-upcoming.png')});
+    const mapBounds = await page.locator('.maplibregl-canvas').boundingBox();
     const point = await page.evaluate(() => {
       const p=(window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map.project([-122.03,37.004]); return {x:p.x,y:p.y};
     });
@@ -410,11 +437,11 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await expect(details).toBeHidden();
     const menu = page.getByRole('menu', { name: 'Map actions' });
     if (touch) {
-      const session = await page.context().newCDPSession(page);
-      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+      const session = await mapTouchInput(page);
+      await session.send('touchStart', [point]);
       await expect(menu).toBeVisible();
-      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      await session.detach();
+      await session.send('touchEnd', []);
+      await session.close();
     } else await page.mouse.click(point.x, point.y, { button: 'right' });
     await expect(menu).toBeVisible();
     await expect(details).toBeHidden();
@@ -425,6 +452,10 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
     await expect(details).toContainText('May be out of date');
     await page.getByRole('button', { name: 'Close TFR details', exact: true }).click();
     await expect(details).toHaveCount(0);
+    expect(await page.locator('.maplibregl-canvas').boundingBox(), 'closing a sliding panel must not scroll the map workspace').toEqual(mapBounds);
+    // Clearing the detail highlight updates MapLibre's filters. Wait for the
+    // source tiles to become queryable again before sending the next map click.
+    await expect.poll(displayed).toEqual(expected);
     if (touch) await page.touchscreen.tap(point.x, point.y);
     else await page.mouse.click(point.x, point.y);
     await expect(details).toBeVisible();
@@ -439,6 +470,7 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
       const map=(window as unknown as {notamMapAudit:{map:MapLibreMap}}).notamMapAudit.map;
       map.resize(); map.jumpTo({center:[-122.03,37.005]});
     });
+    await expect.poll(displayed).toEqual(expected);
     if (touch) await page.touchscreen.tap(195, 422);
     else await page.mouse.click(195, 422);
     await expect(page.locator('.notam-tfr-detail')).toContainText('6/9000');
@@ -1043,7 +1075,7 @@ async function containedText(region: Locator) {
   const overflow = await region.evaluate(root => [...root.querySelectorAll<HTMLElement>('*'), root].filter(element =>
     element.clientWidth > 0 && element.scrollWidth > element.clientWidth + 1 &&
     !element.matches('input, select'))
-    .map(element => `${element.tagName}.${element.className}`));
+    .map(element => `${element.tagName}.${element.className} ${element.clientWidth}/${element.scrollWidth}: ${element.textContent?.slice(0, 250)}`));
   expect(overflow).toEqual([]);
 }
 

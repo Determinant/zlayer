@@ -49,6 +49,16 @@ Charts appear on the same page once preparation succeeds; catalog refreshes do n
 restart cache preparation. Persistent failures expose **Retry chart cache**, and
 reconnection or a new controlling worker starts a fresh attempt.
 
+Transient map-tile warnings use the workspace's shared tile recovery lifecycle for
+VFR sectionals, IFR low/high and chart overlays, just like other map sources. The
+service worker also reports whole-file archive availability after a fresh verified
+read, with bounded status history suppressing repeats from resident and reopened
+range reads. Its ordered
+failure/ready messages identify the complete archive URL, including digest and byte
+count, so an unrelated archive or same-cycle replacement cannot clear a pending
+request warning. Archive availability alone does not dismiss storage, integrity or
+rendering errors. See [Notifications](../../../docs/features/shared-ui.md#notifications).
+
 ## Contracts and verification
 
 The [rendering pipeline benchmark](benchmark.md) measures built-app cold/warm
@@ -71,8 +81,9 @@ pixel/locality guards and records measurement limits separately from timings.
 ## Preparation limits
 
 Package downloads remain shared whole-file reads. Decode admission is serialized
-before posting to the reusable SQLite worker. Cancelling a queued package skips
-its decode; cancelling the active decode terminates that worker, and the next live
+before reading a whole package into memory or posting to the reusable SQLite
+worker. Thus waiting readers retain no package byte buffer; at most one read/decode
+is active. Cancelling a queued package skips both its read and decode; cancelling the active decode terminates that worker, and the next live
 package creates a replacement. Unloading aborts pending reads/admission as well.
 A package's signal represents the reader pool's shared demand, not one tile reader.
 Cancelling an individual tile stops its wait immediately while another tile can

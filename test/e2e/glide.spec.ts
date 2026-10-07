@@ -4,7 +4,12 @@ import type { GeoJSONSource } from 'maplibre-gl';
 
 // This UI case uses routed airport/terrain fixtures. A controlling worker can
 // bypass Playwright routing, so keep the fixture responses in the page context.
-const routedAppTest = test.extend({ serviceWorkers: 'block' });
+const routedAppTest = test.extend({
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
+    await use(page);
+  },
+});
 
 async function airports(context: BrowserContext) {
   await context.route('**/nav/airports.geojson*', async route => {
@@ -789,10 +794,10 @@ test('clearing a point while terrain loads cannot restore its pin or range', asy
   } finally { release(); }
 });
 
-test.describe('touch point planning', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'Physical long-press injection uses Chromium CDP.');
-  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
-  test('long press opens Glide without route/GPS and point selection is session-only', async ({ page, context }, testInfo) => {
+routedAppTest.describe('touch point planning', () => {
+  routedAppTest.skip(({ browserName }) => browserName !== 'chromium', 'Physical long-press injection uses Chromium CDP.');
+  routedAppTest.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  routedAppTest('long press opens Glide without route/GPS and point selection is session-only', async ({ page, context }, testInfo) => {
     await airports(context);
     await page.addInitScript(() => {
       if (!localStorage.getItem('zlayers-map-view-v1')) localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center: [-119.78, 34.43], zoom: 9 }));

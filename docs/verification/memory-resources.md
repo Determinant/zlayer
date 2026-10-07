@@ -5,8 +5,11 @@
 This guide records allocation limits, cache behavior and remaining resource work.
 Unless separately dated, measurements come from the September 20, 2026 reviews
 starting at `3940014`; they do not measure a later build or physical-device RAM.
-The reporter confirmed that bounded obstruction decompression substantially
-reduced iPhone crashes, but occasional terminations remain unexplained.
+The September reporter confirmed that bounded obstruction decompression
+substantially reduced iPhone crashes; occasional terminations were unexplained
+at that time. On October 6 the user reported that the last committed PWA currently
+appears stable on iPhone. The current review concerns bounded allocation and
+cleanup during repeated use; the older incidents do not establish a current OOM.
 
 ## Contents
 
@@ -15,7 +18,7 @@ reduced iPhone crashes, but occasional terminations remain unexplained.
 - [Retained data and decompression](#retained-data-and-decompression)
 - [Resource limits by path](#resource-limits-by-path)
 - [AHRS session memory and scrolling](#ahrs-session-memory-and-scrolling)
-- [Publisher preprocessing is the largest next reduction](#publisher-preprocessing-is-the-largest-next-reduction)
+- [Publisher preprocessing](#publisher-preprocessing)
 - [Reproducing the obstruction comparison](#reproducing-the-obstruction-comparison)
 - [Rendering and cache behavior](#rendering-and-cache-behavior)
 - [Recorded rendering comparisons](#recorded-rendering-comparisons)
@@ -40,6 +43,23 @@ route-history consumer cancellation, data-hook reactivation and browser chart-wo
 cleanup/restart when disabling and re-enabling Charts. These resource-count checks
 do not establish a total device heap or GPU budget; long sessions on physical
 iPhone/iPad remain a separate validation task.
+
+Memory hygiene can be checked without knowing a device's termination threshold:
+
+- Large optional caches need explicit byte/count bounds or weak ownership; active
+  displayed data has a named owner. A disk-storage quota is not a decoded-RAM cap.
+- Read/decode admission precedes large allocations. Obsolete requests cancel,
+  pending work stays bounded, and late results cannot restore released resources.
+- Canvas backing stores, bitmaps, GPU objects, workers, listeners and timers have
+  explicit release paths on replacement, failure and final detach. Stowed readers
+  deliberately remain active owners so reopening does not repeat preparation.
+- Repeat the same load/replace/disable/close workload after warmup. Resource counts
+  and retained cache bytes should return to their intended idle bounds instead of
+  increasing per cycle. A browser allocator's retained high-water mark alone is
+  not proof of a leak; inspect live ownership and outstanding work as well.
+
+Physical-device measurements can refine peak-overlap budgets. They are not a
+prerequisite for checking these invariants or fixing an identified cleanup gap.
 
 ## iPhone download constraint: KVGT, 2026-09-21
 
@@ -114,6 +134,47 @@ measurement or reproduces the original device termination.
 
 ## Retained data and decompression
 
+### Combined iPhone capture: optional capacity measurement
+
+The device-specific portion of PL-2/AW-3/TR-2 needs a physical iPhone and Safari
+Web Inspector on a paired Mac. It supplements the local allocation/ownership and
+repeated-use checks above. Desktop WebKit timings do not establish device RAM,
+energy, or a safe allocation ceiling. Keep native weather resolution and existing
+budgets unless evidence supports changing them.
+
+For every capture, record model, iOS/Safari version, browser or installed-PWA
+mode, build commit, viewport/DPR, exact route/camera, saved editions, PDF URL/hash
+and page, weather catalog hashes/valid times/altitudes, online/offline state,
+temperature and low-power mode. Use the same artifacts across comparisons.
+
+1. Start a fresh process with charts and navigation; capture an idle baseline.
+   Use Safari's memory timeline and heap snapshots, plus device/process memory
+   and energy instruments where available. Record which measurement each number
+   represents; JS heap excludes workers, canvas backing stores and GPU resources.
+2. Enable Terrain and Glide over the same populated route and allow demand to
+   settle. Record both workers and their independent decoded DEM working sets;
+   a shared stored-file download is not shared decoded memory.
+3. Enable native Cloud, wind barbs and Progs pressure/coverage; add radar. Change
+   wind altitude across an interpolation boundary, then switch Cloud to Icing
+   and vary altitude/time. Record peak during replacement and settled memory.
+4. Open a large saved PDF book, zoom the reader, and show an IAP on the map.
+   Reopen the same book, then switch to a different book and replace the map IAP.
+   Capture PDF worker count, live document identities and canvas pixel dimensions
+   during overlap, including delayed destruction. Compare same-document sharing
+   with distinct-document overlap. Repeat the reported KVGT workload when its
+   exact original artifact is available.
+5. Repeat replacement ten times, then hide the IAP, close the reader, disable
+   Progs, Terrain and Glide, and idle for 60 seconds. Capture the retained heap,
+   remaining workers/resources and process trend. Repeat after background/return
+   and offline reload. Keep a separate warm run and fresh-process cold run.
+
+Record each stage as `scenario | artifacts | peak process | peak JS heap |
+settled process | workers | canvas pixels | frame/input stalls | energy | notes`.
+Retain raw traces, screenshots and termination logs with the build identity. A
+missing metric remains “not measured.” Decide whether to coordinate heavy
+preparation, reduce optional retention or change ownership from the measured
+overlap; do not lower image or weather resolution solely to pass a desktop test.
+
 ### Filter obstruction records before retaining them
 
 The September 18 FAA DOF snapshot contains 656,056 records. The existing display
@@ -127,8 +188,8 @@ rules, including route context, never show structures below 500 ft AGL:
 | 1,500–1,999 ft | 192 |
 | 2,000 ft and above | 33 |
 
-The worker now validates every record, but allocates display columns and spatial
-cells only for the 23,769 eligible records. Columns grow with the eligible count
+The legacy GeoJSON worker path validates every record, but allocates display columns
+and spatial cells only for the 23,769 eligible records in that captured source. Columns grow with the eligible count
 and are trimmed after loading. Coordinates remain Float64; heights, elevations,
 symbols, verification flags, labels and query order retain their previous values.
 Duplicate validation covers **all** source IDs using a temporary Float64 array
@@ -198,16 +259,26 @@ after later editions replace them.
 
 | Path | Existing controls | Remaining considerations |
 | --- | --- | --- |
-| Terrain | Four render jobs, four DEM downloads, 128 decoded 256×256 Float32 DEMs (32 MiB), plus up to 32 geographic source grids (8 MiB); route/cell filtering before fetching; max pooling before contour work; explicit bitmap/canvas cleanup; worker termination on removal | Raster textures and normally 128 cached vector-tile results are additional memory. Current screen coverage stays resident if an unusually large viewport exceeds that budget. Vector results are count-bounded, not byte-bounded. Corridor union shares the terrain worker, with one job in flight and one completed outline cached on the main thread; that cache is released on unmount. |
+| Terrain | Four render jobs, four DEM downloads, 128 decoded 256×256 Float32 DEMs (32 MiB), plus up to 32 geographic source grids (8 MiB); route/cell filtering before fetching; max pooling before contour work; explicit bitmap/canvas cleanup; worker termination on removal | Raster textures and cached vector-tile results are additional memory. The vector cache normally caps 128 entries and 32 MiB of estimated JS storage; current screen coverage stays resident if an unusually large viewport exceeds those budgets. Cooperative contour stitching borrows cached coordinates with one active and one latest pending snapshot; temporary seams/join indexes/output add working memory and are released on cancellation. Corridor union shares the terrain worker, with one job in flight and one completed outline cached on the main thread; that cache is released on unmount. |
 | Modern chart packages | Spatial packages; 16 reader slots; 4 MiB fast-reader file limit; one SQLite decoder; copied tile buffers only when transferring; consumed bitmaps closed | Up to roughly 64 MiB of compressed package payloads, plus in-flight buffers, SQLite high-water heap and MapLibre textures. Idle readers/decoder remain for reuse until Charts is disabled or the map is destroyed; then the pools and workers are disposed. |
 | Legacy charts | Six reader slots; SQLite workers terminated on eviction, disabling Charts or destroying the map; whole-file requests coalesced; one large transfer per execution context through core; completed archive Blobs capped at 16 MiB; source images decoded sequentially during composition | Large new downloads use local files as described above. Reader limits are not a total memory budget. Low-zoom overviews use ordered batches of at most 16 compressed tile rows and release decoded images sequentially. Total composition time still grows with legacy-sheet coverage. Publisher-generated overviews/packages are preferable. |
-| PDF plates | File/Blob range reads with auto-fetch disabled; disk-backed large downloads and one transfer per page; serialized render jobs; each canvas capped at 8,388,608 pixels/32 MiB and 8,192 px per side; render buffers/pages/tasks released | The display plus replacement canvas can total 64 MiB, before PDF.js, fonts and document resources. Download work is shared and can continue after closing a viewer. |
+| PDF plates | File/Blob range reads with auto-fetch disabled; disk-backed large downloads and one transfer per page; serialized render jobs; each canvas capped at 8,388,608 pixels/32 MiB and 8,192 px per side; render buffers/pages/tasks released; detached display canvases zeroed immediately | The display plus replacement canvas can total 64 MiB, before PDF.js, fonts and document resources. Download work is shared and can continue after closing a viewer. Stowed readers remain mounted and retain their display. |
 | IAP on-map | One static MapLibre canvas source; each reprojection canvas capped at 4,194,304 pixels/16 MiB and 3,072 px per side; temporary and replaced canvases released | Preparation uses both a source and output canvas. The existing map plate, PDF viewer and GPU texture can overlap those allocations. The per-canvas cap is not a total plate-memory limit. Pans and zooms reuse the static texture. |
-| Reference caches | Successful requests coalesced; failures retryable; generally 24 ready entries per ResourceCache; regional caches use WeakMap ownership | National navigation, airways, procedures and history still use whole-document parsing. Concurrent loads and multiple editions can overlap; entry counts do not bound bytes. |
-| METAR/TAF | Station/area caches bounded; visible-demand refresh and aborts; handlers removed on unmount | Weather snapshots/joins still allocate per update, now with the early airport filter. |
+| Reference caches | Navigation/airways share two cold read slots; source/view/airway/regional ready caches keep up to 24 weak references each, with no strong ownership of optional ready graphs. Active derived views own their source graphs. Other ResourceCaches retain up to 24 ready entries by default. | National navigation, airways, procedures and history still use whole-document parsing. Active consumers, MapLibre copies and two admitted loads can overlap; these controls are not a process RAM cap. Collection can require a later reparse. |
+| METAR/TAF | Decoded response, individual report and aggregate cache admission; bounded optional saved projections and storage-denial backoff; visible-demand refresh and aborts | [Report bounds](../../src/layers/metar-taf/README.md#memory-and-persistence-bounds) preserve accepted reports on over-budget replacements. Response parsing and map joins are additional transient owners. |
 | AWC Weather | One admitted forecast decode/conversion per page, with two scalar acquisitions and one independent wind job, each capped at 16 MiB compressed input; 96 MiB decoded neighborhood and up to 48 MiB of nearby full-domain rasters; temperature shares wind data; core isolates persistent category budgets and protects complete same-altitude numeric cohorts from self-eviction | Wind interpolation can overlap two boundary levels, one incoming level and its output (about 101.6 MiB). Displayed/replacement bundles, terrain, decoder scratch, compressed inputs and raster/GPU copies are additional. These are working-set controls, not a total process RAM cap. [AWC grid budgets](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets) own the persistent ceilings, allocation and eviction details. |
 | AHRS | Sensor lifecycle tied to activity/visibility; bounded recording buffer (2 Mi characters), 128 Ki-character chunks, one storage writer; capture stops when storage falls behind. GPX/debug exports read 64 KiB pieces in a worker and append to an OPFS temporary file; unavailable/full storage falls back to at most 8 MiB. Repeated downloads reuse the recent URL; a different export releases the prior fallback payload first. | Estimator matrices produce short-lived allocations. Limits bound application buffers, not total browser memory; long-session capture/export still needs physical iPhone measurement. |
 | Map | One resize owner; sources/layers removed on detach; terrain/chart bitmap cleanup covered by graphics tests | MapLibre caches and framebuffer size scale with viewport/device density. No new global density or tile-cache limits were imposed without an allocation profile. |
+
+The [PDF ownership policy](../../src/layers/plates/README.md#iaps-on-the-map)
+also counts retiring parsers: replacement workers wait for teardown, cancellation
+removes queued admission, and rejected task cleanup still terminates the explicitly
+owned worker. The [radar admission policy](../../src/layers/weather-awc/radar/README.md#preparation-and-display)
+bounds selected encoded bytes and validated geometry separately; national coverage
+can remain visible with an explicit terminal-coverage warning. Obstruction numeric
+restores allocate exact retained column capacity and reject unsupported counts
+before download/allocation. These controls preserve native detail for admitted data
+and require no physical-device measurement to enforce.
 
 ## AHRS session memory and scrolling
 
@@ -274,7 +345,7 @@ estimator evidence;
 [deployment readiness](../development/deployment.md#verification-and-remaining-release-gates)
 owns the outstanding physical-device checks.
 
-## Publisher preprocessing is the largest next reduction
+## Publisher preprocessing
 
 The national obstacle source measured in the September 20 review required
 16,568,035 gzip bytes and 277,404,929 decoded JSON bytes for validation. Filtering
@@ -285,10 +356,22 @@ the fields already consumed by the map, preserving all coordinates and values.
 It produced **5,481,374 JSON bytes / 384,679 gzip bytes** (Node gzip level 9).
 This is an experiment, not a published artifact or new supported feed contract.
 
-The `faa-regs` publisher should supply an additional, versioned map artifact with
-an explicit height floor/field contract, digest, source identity and counts. Keep
-the complete canonical DOF available separately. A client can then validate the
-small map artifact directly and fall back to the current feed for older publishers.
+The October implementation adds a binary version-1 numeric artifact to `faa-regs`
+and a matching ZLayer loader, while retaining complete canonical DOF separately.
+The [publisher index contract](../../src/layers/obstructions/README.md#publisher-numeric-index)
+owns its exact parent identity, validation, allocation limits and legacy compatibility.
+Only older manifests without the artifact use full-source conversion; an invalid
+advertised artifact fails explicitly.
+
+The scheduled publisher was updated and the numeric artifact published on
+October 7, 2026 (UTC). The October 1 FAA source contains 657,181 records; its
+23,888 eligible records occupy 812,200 bytes. Parsing the authoritative source
+with the legacy client produced a byte-for-byte identical index. The public
+manifest and artifact were downloaded and validated with the client parser after
+publication. This validates the producer/feed/client format, not deployment of a
+new frontend build or physical-device memory use. The earlier JSON projection
+above remains historical evidence, not the binary format or a measurement of the
+new implementation.
 Spatial partitions would also let a future lower-height display fetch only nearby
 records. Do not silently filter the canonical dataset or lose safety-significant
 height/verification information.
@@ -410,6 +493,32 @@ Zero means below timer precision. Bursts of eight distinct updates now submit ei
 primary-source writes instead of one. WebKit burst p95 rose from 42 to 50 ms despite
 a lower median. These results support removing the unconditional frame delay, not
 universal tail-latency improvement or physical input-to-display timing.
+
+### Scoped plugin profiling (2026-10-03)
+
+The measurements below accompanied the plugin recovery implementation in
+`9bc964add2899b1432436e3f2706fb66d2e2187b`, following review of baseline
+`9834c102e30097aab71296be586b7b3e179cbce1`. They retain the decisions made at that
+time; the [current resource limits](#resource-limits-by-path) own present behavior.
+The completed review's recovery, gesture and lifecycle requirements now live in
+the owning plugin guides and regression cases.
+
+Reproduce the workloads with
+`node --expose-gc --import=tsx tools/benchmark-plugin-review.ts` from the repository
+root. Running the current tool measures the current implementation, not that revision.
+Run on 2026-10-03, Node 24.15.0, Linux x64. Each scenario uses a fresh process and
+collected baseline. These are synthetic local CPU/retention measurements, not
+whole-app peaks, actual worker round-trip latency, GPU usage, download/storage
+latency, target-device budgets or flight qualification. Array-buffer and heap
+figures are separate; neither is total process memory.
+
+| Scenario | Recorded result | Decision |
+| --- | --- | --- |
+| Terrain: 128 copies of a production-generated dense 64² contour tile, four visible, saturated 40 MiB decoded budgets plus four 512² RGBA buffers | Entry-only: 321,250,800 heap bytes. New size budget: 44,638,968 heap bytes, 17 retained tiles including all four visible. Both: 46,153,728 array-buffer bytes. | Bound offscreen vector retention. The 32 MiB estimate is not a literal heap cap; visible data can exceed it and revisiting evicted tiles can recompute vectors. |
+| Glide: production planner, 12 synthetic flat-terrain airports; 40 structured clones per payload | Full 8,410 bytes / median 0.048 ms; acknowledged 3,288 bytes / median 0.014 ms. | Modest in this fixture, but omitting unchanged geometry removes the repeated cost without changing calculations. |
+| AWC: 512² scalar decode/validation + raster, and two wind brackets/output/terrain held together | 2,838,080 heap + 24,647,881 array-buffer bytes; cold decode 22.96 ms, raster 12.29 ms, wind interpolation 29.02 ms. | Keep current compact bands, worker admission and bracket retention. Synthetic smooth fields compress unusually well; no network/persistence claim. |
+| AHRS: 12 simulated seconds at 120 Hz, GPS once/second | IMU p95 0.378 ms with current GPS, 0.405 ms with 250 ms delayed GPS. GPS median 0.520 vs 3.947 ms; delayed maximum 11.094 ms. Retained heap about 2.5 MB and array buffers about 10.7 MB in each run. | Delayed replay costs more, as expected. No numerical/history rewrite justified by this bounded desktop sample. Magnetic/flight/device tails are not measured. |
+| Calibration: completed 120 Hz IMU window waiting for GPS; 1,000 unchanged reads | Median 0.160 ms, p95 0.254 ms, max 1.965 ms. | Leave diagnostics uncached; duplicate reads are small here and new sensor evidence still requires work. |
 
 ## Validation and device boundary
 

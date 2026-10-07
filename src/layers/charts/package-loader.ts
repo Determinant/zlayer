@@ -22,20 +22,20 @@ export function releasePackageDecoder(): void {
 export async function openPackageReader(url: string, signal?: AbortSignal) {
   signal = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
   signal.throwIfAborted();
-  // The controlling service worker coalesces, verifies, and persists this full
-  // GET before returning bytes. Do not replace it with per-tile/range fetches.
-  // The signal belongs to the shared archive open; the service worker retains
-  // ownership of any whole-file download after local demand ends.
-  const bytes = await readManagedFile(url, { byteLength: Number(new URL(url).searchParams.get('bytes')),
-    maximumBytes: MAX_FAST_PACKAGE_BYTES, label: 'Chart package', signal,
-    responseError(response) {
-      const code = response.headers.get('x-zlayer-error-code');
-      return new ResourceError(isResourceErrorCode(code) ? code : response.status === 507 ? 'storage' : 'request',
-        `Unable to load chart package: ${response.status}`);
-    },
-  });
   const activeSignal = signal;
   return decode(activeSignal, async () => {
+    // The controlling service worker coalesces, verifies, and persists this full
+    // GET before returning bytes. Do not replace it with per-tile/range fetches.
+    // The signal belongs to the shared archive open; the service worker retains
+    // ownership of any whole-file download after local demand ends.
+    const bytes = await readManagedFile(url, { byteLength: Number(new URL(url).searchParams.get('bytes')),
+      maximumBytes: MAX_FAST_PACKAGE_BYTES, label: 'Chart package', signal,
+      responseError(response) {
+        const code = response.headers.get('x-zlayer-error-code');
+        return new ResourceError(isResourceErrorCode(code) ? code : response.status === 507 ? 'storage' : 'request',
+          `Unable to load chart package: ${response.status}`);
+      },
+    });
     if (!decoder || decoder.retired) decoder = new WorkerClient<PackageDecoder>(
       new Worker(new URL('./package-worker.ts', import.meta.url), { type: 'module' }),
       'Unable to initialize chart package reader', { retireOnError: true });

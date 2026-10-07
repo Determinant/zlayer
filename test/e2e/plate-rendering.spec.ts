@@ -20,6 +20,57 @@ async function ready(page: Page) {
   await expect(page.locator('.procedure-page-loading')).toHaveCount(0);
 }
 
+test('repeated plate open and close releases the display canvas and PDF worker', async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    const state = { live: 0, peak: 0, created: 0 };
+    const report = () => { document.body.dataset.pdfWorkers = JSON.stringify(state); };
+    window.Worker = class extends NativeWorker {
+      pdf: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.pdf = String(url).includes('pdf.worker');
+        if (this.pdf) { state.created++; state.peak = Math.max(state.peak, ++state.live); report(); }
+      }
+      override terminate() {
+        if (this.pdf) { state.live--; this.pdf = false; report(); }
+        super.terminate();
+      }
+    };
+  });
+  const workers = () => page.locator('body').getAttribute('data-pdf-workers').then(value =>
+    JSON.parse(value ?? '{}') as { live: number; peak: number; created: number });
+  const opener = await selectPlate(page);
+  for (let cycle = 0; cycle < 6; cycle++) {
+    await ready(page);
+    expect(await workers()).toEqual({ live: 1, peak: 1, created: cycle + 1 });
+    const canvas = (await page.locator('.procedure-page-stage canvas').elementHandle())!;
+    try {
+      expect(await canvas.evaluate((element: HTMLCanvasElement) => element.width * element.height)).toBeGreaterThan(0);
+      if (cycle === 0) {
+        const dimensions = await canvas.evaluate((element: HTMLCanvasElement) => [element.width, element.height]);
+        await page.getByRole('button', { name: 'Hide KSBA plate', exact: true }).click();
+        await expect(page.locator('.procedure-page-stage canvas')).toBeHidden();
+        expect(await canvas.evaluate((element: HTMLCanvasElement) => [element.width, element.height])).toEqual(dimensions);
+        expect((await workers()).live).toBe(1);
+        await page.getByRole('button', { name: 'Show KSBA plate', exact: true }).click();
+        await ready(page);
+      }
+      await page.getByRole('button', { name: 'Close plate', exact: true }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.locator('.procedure-page-stage canvas')).toHaveCount(0);
+      // Retain the detached DOM node to prove explicit backing-store release,
+      // independently of browser GC timing or total process-memory reporting.
+      expect(await canvas.evaluate((element: HTMLCanvasElement) => [element.width, element.height])).toEqual([0, 0]);
+      await expect.poll(async () => (await workers()).live).toBe(0);
+    } finally { await canvas.dispose(); }
+    if (cycle < 5) {
+      await page.getByRole('button', { name: 'Show KSBA details', exact: true }).click();
+      await opener.click();
+    }
+  }
+});
+
 test('plate loading keeps the same panel through renderer preparation and PDF downloads', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'); });
   let releaseModule!: (route: Route) => void;
@@ -71,7 +122,8 @@ test('a plate can close before its renderer loads without reopening or losing fo
   await ready(page);
 });
 
-test('external browser magnification sharpens the PDF without resizing its layout or fetching it again', async ({ page, context }, testInfo) => {
+test('external browser magnification sharpens the PDF without resizing its layout or fetching it again', async ({ page, context, browserName }, testInfo) => {
+  test.skip(browserName !== 'chromium', 'Native page magnification requires CDP; PDF gesture handling is covered across engines.');
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await selectPlate(page);

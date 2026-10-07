@@ -64,6 +64,8 @@ Display scaling and browser chrome can change the available viewport.
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
   Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
   advisory, Progs, radar, cloud, icing and wind controls use six content tabs in two rows inside its left toolbox.
+- The workspace clips sliding panels without becoming a scroll container. Panel
+  bodies own scrolling; focusing or closing a panel must not shift the map frame.
 - Map chrome has one isolated stacking context below the search and route toolbars
   and their menus. Crosshairs and ruler grips stay below panels/controls. Open
   nearby-feature and Map Display menus clear panel bodies and presented edge tabs
@@ -166,6 +168,24 @@ through rerenders and repeated tile failures. Changed notices and conditions tha
 resolve and recur appear again. Resolved notices leave the list. Dismissals are
 session-only and reset on reload; Notifications is a current-status view, not a
 persistent event history. The Settings tab rail scrolls on narrow screens.
+
+Map tile request warnings resolve after successful tile loading leaves no failed
+tiles in that source's current demand, removing both the bubble and its
+Notifications entry. A source becoming idle does not prove recovery: MapLibre also
+considers failed requests settled. Discarding old tiles while an outage continues
+does not reset dismissal. Recovery clears only matching request warnings,
+preserving unrelated chart, storage, integrity and rendering errors.
+Each map source retains one request warning, independent of individual tile URLs;
+the tracker holds weak references to outstanding tiles without retaining their
+data or an error-message history. Retired tiles are pruned even when MapLibre caches
+them without an abort event, and tile identity survives world-wrap changes.
+Removing a source retires its request warning and tile tracking before a replacement
+can reuse that source ID. Ordinary metadata updates do not clear failed tiles.
+This applies to every map source, including VFR/IFR charts. Whole-file chart
+requests additionally resolve through verified archive-read status from the service
+worker, keyed by the complete URL including content identity. Pending requests are
+retained independently behind one dismissible request bubble: recovery of one source
+cannot hide another failure, and dismissal lasts until the request condition ends.
 
 App-update bubbles likewise dismiss through their body or **Later**. Available
 updates remain in Notifications and General's App updates section; update dismissal

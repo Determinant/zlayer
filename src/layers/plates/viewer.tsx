@@ -85,6 +85,16 @@ export default function ProcedureViewer({ selection, onShowOnMap, Notice }: Proc
   const [pixelRatio, setPixelRatio] = useState(displayPixelRatio);
   const [availableSize, setAvailableSize] = useState({ width: 0, height: 0 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const attachCanvas = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
+    if (!canvas) return;
+    return () => {
+      // Closing or replacing the canvas releases its backing store without
+      // waiting for collection of the detached DOM node. Stowing keeps it mounted.
+      canvas.width = canvas.height = 0;
+      canvasRef.current = null;
+    };
+  }, []);
   const { document: source } = selection;
   const { viewer, cacheState, downloadProgress, selectedPageIndex } = useProcedureDocument(source, savedPage, setPageIndex, error => {
     mapPreparation.current?.abort(error);
@@ -226,7 +236,7 @@ export default function ProcedureViewer({ selection, onShowOnMap, Notice }: Proc
         <strong>Unable to render this plate</strong>
         <span>{viewer.error}</span>
       </div> : <>
-        <canvas ref={canvasRef} aria-label={`PDF page ${pageIndex + 1}`} aria-hidden={!ready}
+        <canvas ref={attachCanvas} aria-label={`PDF page ${pageIndex + 1}`} aria-hidden={!ready}
           style={painted ? { width: painted.width * zoom / painted.zoom, height: painted.height * zoom / painted.zoom } : undefined} />
         {!ready && <ProcedurePageLoading source={source} progress={downloadProgress} />}
       </>}

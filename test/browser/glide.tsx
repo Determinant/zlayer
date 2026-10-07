@@ -75,7 +75,8 @@ function Fixture() {
       if (!alive) return;
       host.mount([...modules, selection]);
       map.addSource('fixture-route', { type: 'geojson', data: routeData([[-120.1, 34.43], [-119.4, 34.43]]) });
-      map.addLayer({ id: 'fixture-route', type: 'line', source: 'fixture-route', paint: { 'line-color': '#a557c4', 'line-width': 2 } });
+      // Keep this context line outside the green/purple heat-pixel probe.
+      map.addLayer({ id: 'fixture-route', type: 'line', source: 'fixture-route', paint: { 'line-color': '#555555', 'line-width': 2 } });
       window.glideAudit = { map, remount: () => host.mount([...modules, selection]),
         route: coordinates => {
           displayed.publish(coordinates ? [{ ...emptyRoutePlan(), approachExtensions: [coordinates] }] : []);

@@ -1,10 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { selectNavigationResult as selectAirport } from './navigation-search';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-
-async function selectAirport(page: Page, ident: string) {
-  await page.getByLabel('Search FAA navigation data').fill(ident);
-  await page.locator('.search-results button').filter({ hasText: ident }).click();
-}
 
 test.describe('airport details on touch screens', () => {
   test.use({ hasTouch: true });

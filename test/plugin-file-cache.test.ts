@@ -525,8 +525,10 @@ test('a stalled optional cache read releases decode admission after its deadline
   });
   t.mock.method(globalThis, 'fetch', async (url: string) => { started.push(url); return new Response('ok'); });
   const stalled = files.load({ ...request('stalled'), run: limiter });
-  const following = files.load({ ...request('following'), run: limiter });
   await reading.promise;
+  // Resource locks are independent; establish that the first job owns the
+  // decode slot before asking whether its deadline releases the queued job.
+  const following = files.load({ ...request('following'), run: limiter });
   assert.equal(started.length, 0);
   t.mock.timers.tick(10_000);
   assert.deepEqual(await Promise.all([stalled, following]), ['ok', 'ok']);

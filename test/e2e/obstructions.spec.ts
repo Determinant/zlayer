@@ -1,5 +1,62 @@
-import { test, expect } from '@playwright/test';
+import { test } from './persistent-webkit';
+import { expect } from '@playwright/test';
 import type { Map as MapLibreMap } from 'maplibre-gl';
+import { readFile } from 'node:fs/promises';
+
+for (const upgrade of [false, true]) test(upgrade
+  ? 'an older obstruction snapshot migrates offline after compact-index adoption'
+  : 'publisher numeric obstructions render through the real worker and reopen from the derived cache', async ({ page }) => {
+  const manifest = JSON.parse(await readFile(new URL('../fixtures/obstructions/publisher-v1.json', import.meta.url), 'utf8'));
+  const bytes = await readFile(new URL('../fixtures/obstructions/publisher-v1.bin', import.meta.url));
+  let reads = 0;
+  await page.route('**/obstacles/manifest.json', route => route.fulfill({ json: manifest }));
+  await page.route('**/obstacles/*.bin', route => { reads++; return route.fulfill({ body: bytes, contentType: 'application/octet-stream' }); });
+  await page.route('**/obstacles/*.gz', route => route.abort());
+  await page.goto('/test/browser/obstructions.html?zoom=10&route=none');
+  const status = page.locator('output[data-state]');
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await page.evaluate(() => {
+    const { map } = (window as unknown as { obstructionMapAudit: { map: MapLibreMap } }).obstructionMapAudit;
+    map.fitBounds([[-117, 36], [-116.5, 36.4]], { duration: 0 });
+    map.setZoom(10);
+  });
+  await expect(status).toHaveAttribute('data-count', '2');
+  await expect.poll(() => page.locator('body').getAttribute('data-rendered-obstructions').then(value => JSON.parse(value ?? '[]').sort()))
+    .toEqual(['06-000002', '06-000003']);
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open('zlayers-plugin-files-v1:obstructions:indices');
+    return (await cache.keys()).length;
+  })).toBe(1);
+  let publishedKey: string | undefined;
+  if (upgrade) {
+    // Same binary/receipt, exact key written by the committed client, which
+    // ignores the optional index field even when its cached manifest includes it.
+    publishedKey = await page.evaluate(async manifest => {
+      const cache = await caches.open('zlayers-plugin-files-v1:obstructions:indices');
+      const [current] = await cache.keys();
+      const response = (await cache.match(current!))!;
+      const source = manifest.dataset;
+      const url = new URL(current!.url);
+      url.searchParams.set('zlayer-file-identity', JSON.stringify([
+        `1:${[source.sha256, source.bytes, source.uncompressedBytes, source.count].join(':')}`, 'derived',
+      ]));
+      await cache.put(url.href, response);
+      await cache.delete(current!);
+      return current!.url;
+    }, manifest);
+    await page.route('**/obstacles/manifest.json', route => route.abort());
+  }
+  await page.route('**/obstacles/*.bin', route => route.abort());
+  await page.getByRole('button', { name: 'Remount' }).click();
+  await expect(status).toHaveAttribute('data-state', 'ready');
+  await expect(status).toHaveAttribute('data-count', '2');
+  if (upgrade) await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open('zlayers-plugin-files-v1:obstructions:indices');
+    return (await cache.keys()).map(key => key.url);
+  })).toEqual([publishedKey]);
+  expect(reads).toBe(1);
+  await expect(page.getByTestId('errors')).toBeEmpty();
+});
 
 test('obstructions fade in the route corridor and follow route/toggle/remount changes', async ({ page }, testInfo) => {
   const errors: string[] = [], downloads: string[] = [];
@@ -12,6 +69,8 @@ test('obstructions fade in the route corridor and follow route/toggle/remount ch
   await page.getByRole('button', { name: 'Restore route' }).click();
   await expect(status).toHaveAttribute('data-state', 'ready');
   await expect(status).toHaveAttribute('data-count', '7');
+  await expect.poll(() => page.evaluate(async () =>
+    (await (await caches.open('zlayers-plugin-files-v1:obstructions:indices')).keys()).length)).toBe(1);
   await expect.poll(() => page.locator('body').getAttribute('data-rendered-obstructions').then(value => JSON.parse(value ?? '[]').length)).toBe(7);
   const features = JSON.parse((await page.locator('body').getAttribute('data-published-obstructions'))!);
   expect(features.find((feature: { id: string }) => feature.id === '06-000001').properties.routeOpacity).toBe(1);

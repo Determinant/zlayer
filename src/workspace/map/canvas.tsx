@@ -19,9 +19,9 @@ export function MapCanvas({ contributions, orientation, initialView, focusTarget
         container: containerRef.current, contributions, orientation, ...(initialView ? { initialView } : {}),
         onViewportChange: bounds => callbacks.current.onViewportChange(bounds),
         onViewChange: view => callbacks.current.onViewChange?.(view),
-        onReady: () => callbacks.current.onReady(),
         onIdleChange: idle => callbacks.current.onIdleChange?.(idle),
-        onError: (message, code) => callbacks.current.onError(message, code),
+        onError: (message, code, resource) => callbacks.current.onError(message, code, resource),
+        onErrorRecovered: resource => callbacks.current.onErrorRecovered?.(resource),
       });
       runtimeRef.current = runtime;
       return () => { runtime.destroy(); runtimeRef.current = undefined; };

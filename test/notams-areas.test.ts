@@ -7,7 +7,7 @@ import type { GeoPointFeature, NavigationData } from '@zlayer/contracts';
 import { notamArea, notamAreaDefinition } from '../src/layers/notams/areas';
 import { createNotamAreaReferences } from '../src/layers/notams/area-references';
 import { chartedNotamPresentation, notamChartFeatures, notamChartKey } from '../src/layers/notams/chart';
-import { NotamList } from '../src/layers/notams/ui';
+import { NotamRaw, NotamList } from '../src/layers/notams/ui';
 import { notamBlockText, presentNotam } from '../src/layers/notams/presentation';
 import { notice, NOTAM_NOW } from './fixtures/notams';
 import { auditMappedNotam } from '../tools/audit-notams';
@@ -233,7 +233,8 @@ test('geometry receipt controls shortened text; raw, search, altitude and schedu
   assert.ok(original.includes('325151.50N0970622W')); assert.ok(!original.includes('shown on chart'));
   assert.doesNotMatch(mapped.slice(0, mapped.indexOf('<details')).replace(/<[^>]*>/g, ''), /325151.50N0970622W/);
   assert.match(mapped, /Area shown on chart/); assert.match(mapped, /SFC-400FT AGL/); assert.match(mapped, /DLY 1100-0300/);
-  assert.ok(mapped.includes(`<pre>${text}</pre>`));
+  assert.doesNotMatch(mapped, /<pre>/);
+  assert.ok(renderToStaticMarkup(createElement(NotamRaw, { record })).includes(`<pre>${text}</pre>`));
   assert.ok(presentNotam(record).searchText.includes('325151.50N0970622W'));
   assert.equal(render(new Set([record.id + ':old-revision'])), original);
   assert.equal(notamChartFeatures([{ ...record, lifecycle: 'cancelled' }], NOTAM_NOW).features.length, 0);

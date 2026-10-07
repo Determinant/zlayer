@@ -108,6 +108,9 @@ reader gestures, saved view state and map placement actions:
 - Only the current page renders; closing/changing documents cancels obsolete rendering.
   Document-load, target-resolution and page-render failures release the PDF.js loading
   task and worker; cleanup rejections do not create an unhandled promise rejection.
+  Removing the display canvas on close, replacement or render failure zeroes its
+  dimensions immediately, releasing its backing store independently of DOM garbage
+  collection. Stowing keeps the mounted reader and bitmap available for reopening.
 - A newly opened plate fills the available reading width at 100% zoom and starts
   at the top; taller pages scroll vertically. The width fit follows panel resizing,
   fullscreen and rotation. A stable scrollbar gutter keeps vertical overflow from
@@ -124,7 +127,8 @@ reader gestures, saved view state and map placement actions:
   it restores 100% width fit, the original orientation and the top of the current
   page, keeping the selected page and fullscreen mode.
 - Two-finger pinch and trackpad gestures change viewer zoom from 50–400%, anchored
-  at the gesture. The current bitmap previews the movement; PDF.js redraws after
+  at the gesture within native scroll bounds (a page that fits cannot scroll past
+  its edges). The current bitmap previews the movement; PDF.js redraws after
   release. Ctrl/Meta-wheel uses the same anchored bitmap preview; a burst ends
   after 150 ms without a zoom change. Ordinary wheel scrolling stays native, and
   modified wheel events suppress browser zoom inside the loaded viewer.
@@ -214,11 +218,25 @@ pixels (16 MiB of RGBA data) per canvas and 3,072 pixels per side. The temporary
 PDF render canvas is released after reprojection. Replacing or removing an
 overlay releases its canvas and map source. The same verified PDF cache supports
 offline reuse; a selected overlay retains its document against automatic cleanup.
+
+The 24 × 24 reprojection mesh runs in batches with a soft 4 ms budget, yielding
+through an event-loop task so input and cancellation can run. Each pair of
+triangles completes together; only the completed canvas is published. Cancellation
+releases both preparation canvases. This bounds mesh submission bursts, not PDF.js
+rendering or deferred GPU work. See the [preparation measurements](../../../docs/verification/render-preparation-2026-10-06.md).
+
 The reader and map restoration share one live PDF.js document and worker for the
 same URL, SHA-256 and byte length, even when displaying different pages. Sharing
 only the cached Blob is insufficient: PDF.js allocates a book-sized backing buffer
 for each range-backed document. Closing either consumer releases only its own
-reference; the last consumer destroys the worker. Publishing a completed map image
+reference; the last consumer retires the parser and destroys its owned worker.
+New parser creation waits for all retiring tasks to settle; cancelled waiting opens
+never create workers. Each task receives an explicitly owned public `PDFWorker`,
+which is destroyed even if PDF.js task cleanup rejects. If worker termination
+itself fails, parser admission fails closed. An unsettled teardown continues to
+block replacement allocation while callers retain cancellation; active readers of
+other books are unaffected. No private PDF.js worker internals are used.
+Publishing a completed map image
 does not wait for worker teardown. Session failures remain observable after the
 document opens: pending PDF reads stop with the original error, the reader leaves
 its busy state, and map restoration exposes Retry/Hide. Closing one consumer still
@@ -289,6 +307,9 @@ A successful online open must reopen offline through PDF.js, including approach,
 named-minimums and supplement pages. Test cancellation, corrupt bytes, denied storage,
 source failures and keyboard focus. Complete regional saves must also survive restart
 and browser eviction checks; see [release checks](../../../docs/features/offline-storage.md#release-checks).
+The repeated-open/close browser regression checks six cycles of real PDF worker
+creation/termination and verifies that each detached display canvas has zero
+dimensions. Stow regressions verify that deliberate live-reader reuse remains intact.
 
 ## References
 
@@ -296,3 +317,10 @@ and browser eviction checks; see [release checks](../../../docs/features/offline
 - [FAA d-TPP XML definitions](https://aeronav.faa.gov/d-tpp/Metafile_XML_Definitions.pdf)
 - [PDF.js viewer parameters](https://github.com/mozilla/pdf.js/wiki/Viewer-options)
 - [PDF.js named-destination API](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFDocumentProxy.html)
+
+Map installation errors retain the prepared canvas and show **Retry IAP** /
+**Hide IAP from map**. Retry installs that same image without reloading the PDF.
+Only a successfully installed source and layer become inspectable; partial
+resources are independently released. Recovery of an already fitted image does
+not repeat the camera action. Replacement releases the previous canvas, so an
+installation failure shows the error control until retry or hide.

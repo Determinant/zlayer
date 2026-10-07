@@ -15,6 +15,20 @@ type Properties = { kind: 'obstacle' | 'area' | 'area-label' | 'activity' | 'rad
 export type NotamChartCollection = FeatureCollection<Point | Polygon | MultiPolygon, Properties>;
 export { notamChartKey } from './public';
 
+/** One renderer-owned result. Clock ticks compare small validity states instead
+ * of rebuilding and serializing unchanged geometry; rollback uses the same path. */
+export function createNotamChartSelector() {
+  let previous: readonly NotamRecord[] = [], references: NotamAreaReferences | undefined;
+  let timing: string[] = [], collection: NotamChartCollection | undefined;
+  return (records: readonly NotamRecord[], now: number, nextReferences?: NotamAreaReferences) => {
+    const nextTiming = records.map(record => notamValidity(record, now));
+    if (collection && references === nextReferences && previous.length === records.length &&
+      records.every((record, i) => record === previous[i] && nextTiming[i] === timing[i])) return collection;
+    previous = records; references = nextReferences; timing = nextTiming;
+    return collection = notamChartFeatures(records, now, nextReferences);
+  };
+}
+
 export function notamChartFeatures(records: readonly NotamRecord[], now: number, references?: NotamAreaReferences): NotamChartCollection {
   const features: NotamChartCollection['features'] = notamObstacleFeatures(records, now, references).features
     .map(feature => ({ ...feature, properties: { ...feature.properties, noticeIds: [feature.properties.noticeId], kind: 'obstacle' } }));

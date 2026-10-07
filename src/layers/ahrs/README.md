@@ -30,8 +30,6 @@ Detailed equations live in [gravity/acceleration fusion](estimator/gravity-aidin
 [magnetic fusion and calibration](estimator/magnetic-fusion.md) and
 [uncertainty](estimator/uncertainty.md). See [validation](validation.md) for numerical
 evidence and remaining checks, and [recordings](recording.md) for capture/replay.
-Historical pointers for the [superseded steady-window tilt method](estimator/steady-tilt.md)
-and [superseded magnetic drift aid](estimator/magnetic-drift.md) identify their replacements.
 
 ## Display principles
 

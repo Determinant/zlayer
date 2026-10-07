@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement, type ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NotamList, NotamSourceIssues, NavaidNotams, SourceStatus } from '../src/layers/notams/ui';
+import { NotamRaw, NotamList, NotamSourceIssues, NavaidNotams, SourceStatus } from '../src/layers/notams/ui';
 import { FeatureDetailsPanel } from '../src/workspace/feature-details-panel';
 import { MetarClient } from '../src/layers/metar-taf/metar/client';
 import { emptyRoutePlan } from '@zlayer/domain';
@@ -93,7 +93,8 @@ test('airport and plate entries share readable runway options and keep exact raw
     assertBefore(html, 'Runway 31', '210 ft/NM');
     assertBefore(html, 'All other data remains as published.', 'Show raw');
     assert.match(html.replace(/<[^>]*>/g, ''), /Until [^<]+\(estimated\)/);
-    const raw = html.slice(html.indexOf('<details'));
+    assert.doesNotMatch(html, /<pre>/, 'closed raw disclosures mount no source body');
+    const raw = renderToStaticMarkup(createElement(NotamRaw, { record }));
     assert.match(raw, /Original NOTAM/);
     assert.doesNotMatch(raw, /LOCAL_FORMAT|Source body/);
     assert.ok(raw.includes(`<pre>${record.translations[0]!.text}</pre>`));
@@ -103,7 +104,7 @@ test('airport and plate entries share readable runway options and keep exact raw
 test('raw disclosure omits repeated bodies despite wrapping and preserves the exact original', () => {
   const record = notice();
   for (const text of [record.text, ` \n${record.text.replaceAll(' ', ' \n ')}\t`, record.translations[0]!.text, '']) {
-    const raw = render([{ record: { ...record, text } }]).split('<details')[1]!;
+    const raw = renderToStaticMarkup(createElement(NotamRaw, { record: { ...record, text } }));
     assert.ok(raw.includes(`<pre>${record.translations[0]!.text}</pre>`));
     assert.equal((raw.match(/<pre>/g) ?? []).length, 1);
     assert.doesNotMatch(raw, /Source body/);
@@ -114,7 +115,7 @@ test('raw disclosure retains different body wording even when another translatio
   const record = notice();
   for (const text of [record.text.replace('09L', '09R'), `${record.text} EXC SAT`, record.text.slice(0, -2)]) {
     const icao = { type: 'OTHER:ICAO', text: `A) KTST E) ${text}` };
-    const raw = render([{ record: { ...record, text, translations: [...record.translations, icao] } }]).split('<details')[1]!;
+    const raw = renderToStaticMarkup(createElement(NotamRaw, { record: { ...record, text, translations: [...record.translations, icao] } }));
     assert.match(raw, /Original NOTAM/);
     assert.match(raw, /Source body/);
     for (const source of [record.translations[0]!.text, icao.text, text]) assert.ok(raw.includes(`<pre>${source}</pre>`));
@@ -124,7 +125,7 @@ test('raw disclosure retains different body wording even when another translatio
 test('raw disclosure falls back to the source body when the local original is missing or empty', () => {
   const record = notice();
   for (const translations of [[], [{ type: 'LOCAL_FORMAT', text: ' \n ' }], [{ type: 'OTHER:ICAO', text: record.text }]]) {
-    const raw = render([{ record: { ...record, translations } }]).split('<details')[1]!;
+    const raw = renderToStaticMarkup(createElement(NotamRaw, { record: { ...record, translations } }));
     assert.match(raw, /Original NOTAM unavailable/);
     assert.match(raw, /Source body/);
     assert.ok(raw.includes(`<pre>${record.text}</pre>`));

@@ -94,20 +94,28 @@ NOTAMs owns a separate warm-colored overlay tied to its open readers.
 ## Source and lifecycle
 
 The module reads `${chartRoot()}/obstacles/manifest.json`, independently of the
-selected chart cycle, then resolves its immutable gzip GeoJSON dataset. The source
+selected chart cycle, then resolves its advertised immutable numeric index, or
+the gzip GeoJSON dataset for older manifests. The source
 date displayed in Layers comes from `source.lastModified`, not the build time.
 
 Loading starts when enabled at zoom 7 or above, or with resolved route legs at any zoom.
 A dedicated worker checks SHA-256, compressed and decoded sizes, feature count,
-coordinates, heights, codes, and identifiers. It streams the large national JSON
-into compact numeric arrays and a spatial index. Only eligible features in the padded viewport buffer
+coordinates, heights, codes, and identifiers. For older manifests it streams national JSON into compact numeric arrays; published
+indices skip the national parse and source-ID scratch. Both paths rebuild the
+spatial index and validate every retained numeric record and duplicate ID. Only eligible features in the padded viewport buffer
 are sent to MapLibre; the national file never enters React or a map source.
 
 After validating the complete source, the worker persists only the filtered numeric
 index through core's per-plugin `files.derive()` cache (`obstructions:indices`). Downloads still use `transferFile` for bounded
 disk writes, scheduling and cleanup; the full gzip is temporary. Existing filtered snapshots and gzip
 caches migrate without downloading again and are removed only after a successful
-index save. Storage failures leave the validated in-memory index usable. Core owns hashing,
+index save. When an older client has cached a manifest advertising `index` while
+still saving a locally derived snapshot, the next client migrates that source-only
+cache identity offline. Both numeric cache layouts and a bounded saved gzip are
+eligible only when the resulting bytes match the advertised index digest and size.
+A corrupt or different candidate remains saved until an authenticated replacement
+is published; a failed save never removes the only offline copy. No data reset is
+required for this transition. Storage failures leave the validated in-memory index usable. Core owns hashing,
 publication, corruption repair and eviction: four files / 32 MiB, with an 8 MiB
 per-file ceiling and a 14-day unused lifetime. Shared reference JSON and explicit
 regional saves retain their existing ownership and retention.
@@ -117,10 +125,17 @@ eligible record, with explicit little-endian numbers and Float64 coordinates.
 Its cache key includes the source URL/digest, published sizes/count and index
 version. Every read checks source identity, snapshot SHA-256, length, record fields
 and duplicate IDs, then rebuilds the small spatial grid without gzip or JSON parsing.
-Invalid snapshots rebuild from the original source; temporary read failures retain
+Invalid snapshots reload the manifest-selected artifact; temporary read failures retain
 the stored entry. Bump `OBSTRUCTION_INDEX_VERSION` when retained fields, symbol
-mapping or the height floor changes. Snapshot reads/writes are limited to core's
-8 MiB memory ceiling; larger future indices remain usable without persistence.
+mapping or the height floor changes. Numeric restores allocate exactly the retained count, avoiding doubling and final
+shrink copies. Snapshot reads/writes and retained columns use an 8 MiB allowance:
+at most 246,723 eligible records. Legacy validation separately allows 8 MiB of
+Float64 source IDs (1,048,576 source records). Counts are checked before allocation
+and published loads check admission before downloading. Streaming checks the
+retained limit before growing arrays; excessive data fails without truncating
+eligible obstructions. These are explicit application support limits, not iPhone
+RAM measurements. Spatial buckets, viewport features and replacement overlap are
+additional bounded owners; the previous valid index survives replacement failure.
 
 Each worker attachment still revalidates the rolling manifest, with its validated
 saved copy as the offline fallback. Reconnection revalidates the manifest too;
@@ -139,3 +154,35 @@ separate from explicitly saved regional packs.
 geometry. `test/e2e/obstructions.spec.ts` exercises the real worker, map, zoom
 tiers with and without routes, pending route updates, toggle persistence, cache reuse, and failed-download
 recovery. `/test/browser/obstructions.html` is the visual fixture.
+
+## Publisher numeric index
+
+The `faa-regs` publisher emits an optional `index` beside the authoritative gzip
+GeoJSON after validating the entire source, including duplicates and invalid
+records below the 500 ft floor. Both artifacts come from the same source traversal.
+`index` contains `format: "zlayer-obstructions"`, `version: 1`,
+`path: "obstacles-index-<sha256>.bin"`, `sha256`, `bytes`, and retained `count`.
+Its `source` repeats the parent dataset's `sha256` and `count`, and the exact
+`source.lastModified` when present. Local source files do not invent a date.
+The client authenticates this identity, byte length/digest, header count and every
+record. A malformed advertised artifact is an explicit failure. Saved legacy gzip
+may supply an exactly matching index within the source-allocation limit; only
+manifests without `index` download GeoJSON. The existing derived cache owns
+both paths, with the published artifact identity included in its key.
+
+The binary format is identical to the local version-1 index: little-endian UInt32
+version and count, then 34 bytes per record: Float64 packed base-36 OAS ID,
+Float64 longitude, Float64 latitude, Int32 height AGL, Int32 elevation MSL,
+UInt8 symbol, UInt8 verified. Symbol ordinal is `shape * 4 + group * 2 + strobe`:
+shape 0/1/2 means low/tall/wind; tall begins at 1,000 ft, wind matches
+`WINDMILL` or `WIND TURBINE`, group means quantity > 1, and strobe means H/S.
+Records retain source ordering; duplicate checks do not assume sorted IDs.
+Zero eligible records produce a valid 8-byte index. Changes to fields, symbol
+semantics or the height floor require a new index version.
+
+Publisher implementation lives in the sibling `faa-regs` checkout's
+`build-obstacles.ts` and `lib/obstacle-index.ts`; publishing a new feed is a separate
+operation. `test/fixtures/obstructions/publisher-v1.*` records a synthetic CSV and
+actual publisher output used by client interoperability tests. Legacy conversion,
+offline cache reuse and code-upgrade migration (including denied publication), malformed parent/artifact identities, duplicate retained IDs,
+pre-download admission and exact allocation are covered by `test/obstructions.test.ts`.

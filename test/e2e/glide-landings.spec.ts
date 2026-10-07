@@ -1,4 +1,5 @@
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test } from './persistent-webkit';
+import { expect, type BrowserContext, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { terrainPng } from './terrain-fixture.mjs';

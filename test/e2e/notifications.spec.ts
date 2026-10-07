@@ -69,3 +69,79 @@ test('dismissed resource failures retain details and changed failures surface ag
   await expect(bubble).toContainText('invalid metadata');
   await expect(bubble).toHaveAccessibleDescription(/Chart archive has invalid metadata/);
 });
+
+test.describe('basemap recovery', () => {
+  test.use({ serviceWorkers: 'block' });
+  test('a recovered tile removes its dismissed warning from Notifications without reloading', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({
+      chartBase: '', ownshipEnabled: false, metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
+    })));
+    let fail = true;
+    await page.route('**/basemap.png', async route => {
+      if (fail) await route.abort('failed');
+      else await route.continue();
+    });
+    await page.goto('/');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+    const bubble = page.getByRole('button', { name: 'Dismiss Map layer unavailable', exact: true });
+    await expect(bubble).toContainText('zlayer-basemap');
+    await bubble.click();
+    await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+    const panel = page.getByRole('tabpanel', { name: 'Notifications', exact: true });
+    await expect(panel).toContainText('zlayer-basemap');
+    await page.getByLabel('Close settings').click();
+
+    // Leave and revisit the failed tile so MapLibre requests it again.
+    fail = false;
+    const zoom = () => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!).zoom as number);
+    const initialZoom = await zoom();
+    await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await expect.poll(zoom).toBe(initialZoom + 1);
+    await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+    await expect.poll(zoom).toBe(initialZoom);
+    await page.getByLabel('Settings and offline downloads').click();
+    await expect(panel.getByRole('heading', { name: 'Map layer unavailable', exact: true })).toHaveCount(0);
+    await expect(bubble).toHaveCount(0);
+  });
+});
+
+test('verified VFR and IFR archive recovery clears only its own pending request notice', async ({ page, request }) => {
+  try {
+    await request.post('/__test/add-ifr-charts');
+    const root = '/chart-data/2026-09-03/mbtiles';
+    const manifest = await (await request.get(`${root}/manifest.json`)).json();
+    const urls: string[] = ['vfr-sectional', 'ifr-low', 'ifr-high'].map(kind => {
+      const archive = manifest.archives.find((archive: { kind: string }) => archive.kind === kind);
+      return `${root}/${archive.file}?sha256=${archive.sha256}&bytes=${archive.byteLength}`;
+    });
+    await page.addInitScript(() => localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({
+      chartBase: '', ownshipEnabled: false, metarEnabled: false, terrainEnabled: false, obstructionsEnabled: false,
+    })));
+    await page.goto('/');
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    await page.getByLabel('Settings and offline downloads').click();
+    await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
+    const panel = page.getByRole('tabpanel', { name: 'Notifications', exact: true });
+    const notice = panel.getByRole('heading', { name: 'Chart unavailable', exact: true });
+    const read = (url: string) => page.evaluate(async url => {
+      const response = await fetch(url);
+      await response.arrayBuffer();
+      return response.status;
+    }, url);
+    // A real server outage leaves navigator.onLine true and exercises the worker's
+    // failure messages, verified whole-file reads and recovery messages end to end.
+    await request.post('/__test/disconnect');
+    for (const url of urls) expect(await read(url)).toBe(503);
+    await expect(notice).toBeVisible();
+    await request.post('/__test/reset');
+    await request.post('/__test/add-ifr-charts');
+    for (const url of urls.slice(0, -1)) {
+      expect(await read(url)).toBe(200);
+      await expect(notice).toBeVisible();
+    }
+    expect(await read(urls.at(-1)!)).toBe(200);
+    await expect(notice).toHaveCount(0);
+  } finally { await request.post('/__test/reset'); }
+});

@@ -47,6 +47,8 @@ export type WeatherState = {
   radarMotion: RadarMotionState;
   radarMotionDisplay: { loading: boolean; cells: number; stations: number; oldest?: number; newest?: number; error?: string };
   progs: SurfaceStates;
+  /** Inactive selection metadata survives release of decoded pressure charts. */
+  retainedProgsTimes?: readonly number[] | undefined;
   progsRetry: number;
   coverage: ProgsCoverageState;
   coverageDisplay: { loading: boolean; validTime?: number; error?: string };

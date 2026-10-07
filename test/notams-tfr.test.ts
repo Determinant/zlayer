@@ -18,6 +18,40 @@ const examples = corpus.cases.map(c => parseTfrDetail(c.xml,parseTfrIndex([c.ind
 const snapshot = (): TfrSnapshot => ({ schemaVersion: 1, source: 'FAA-TFR', checkedAt: at('2026-10-05T21:00Z'),
   notices: structuredClone(examples).map(notice => ({ ...notice, detailCheckedAt: at('2026-10-05T21:00Z') })) });
 
+test('hidden TFR clients pause requests and clock, reconcile offline return and reject late hidden work', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const doc = Object.assign(new EventTarget(), { visibilityState: 'hidden' });
+  const win = new EventTarget(), nav = { onLine: true };
+  for (const [key, value] of Object.entries({ document: doc, window: win, navigator: nav })) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+    t.after(() => { if (original) Object.defineProperty(globalThis, key, original); else Reflect.deleteProperty(globalThis, key); });
+  }
+  const saved = snapshot(); let time = saved.checkedAt, calls = 0, writes = 0;
+  let signal: AbortSignal | undefined, finish: ((value: TfrSnapshot) => void) | undefined;
+  const client = createTfrClient({ now: () => time, debounceMs: 0,
+    storage: { read: () => saved, async update() { writes++; return true; } },
+    load: next => { calls++; signal = next; return new Promise(resolve => { finish = resolve; }); } });
+  t.after(() => client.stop());
+  client.start(); time += 60_000; t.mock.timers.tick(60_000);
+  assert.equal(calls, 0); assert.equal(client.state.getSnapshot().now, saved.checkedAt);
+  doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); t.mock.timers.tick(0);
+  assert.equal(calls, 1); assert.equal(client.state.getSnapshot().now, time);
+  doc.visibilityState = 'hidden'; doc.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(signal!.aborted, true); assert.equal(client.state.getSnapshot().loading, false);
+  finish!({ ...saved, checkedAt: time }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(writes, 0); assert.equal(client.state.getSnapshot().snapshot, saved);
+  time -= 120_000; nav.onLine = false;
+  doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); t.mock.timers.tick(0);
+  assert.equal(calls, 1); assert.equal(client.state.getSnapshot().now, time, 'offline return reconciles clock rollback');
+  nav.onLine = true; win.dispatchEvent(new Event('online')); t.mock.timers.tick(0);
+  assert.equal(calls, 2);
+  client.stop(); const stopped = client.state.getSnapshot();
+  time += 100_000; doc.dispatchEvent(new Event('visibilitychange')); win.dispatchEvent(new Event('online')); t.mock.timers.tick(100_000);
+  finish!(saved); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(client.state.getSnapshot(), stopped); assert.equal(calls, 2);
+});
+
 test('FAA TFR source identity, UTC times, altitude datums and merged geometry are retained', () => {
   const fire = examples[0]!, sf = examples[1]!;
   assert.equal(fire.id,'6/6654'); assert.equal(fire.startsAt,at('2026-10-01T16:00Z'));

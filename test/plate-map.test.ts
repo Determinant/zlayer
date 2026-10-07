@@ -67,6 +67,48 @@ test('actions captured for a previous overlay cannot hide its replacement', () =
   assert.equal(product.getSnapshot().mapImage, second);
 });
 
+test('a failed plate installation retains the prepared canvas for explicit retry and cleans partial resources', t => {
+  const product = createPlatesController(), next = image('retry');
+  const sources = new Set<string>(), layers = new Set<string>();
+  let fail = true, fits = 0;
+  let onError: ((event: { sourceId: string; error: Error }) => void) | undefined;
+  const map = {
+    on(_event: string, fn: typeof onError) { onError = fn; }, off() { onError = undefined; },
+    getSource: (id: string) => sources.has(id), getLayer: (id: string) => layers.has(id),
+    addSource(id: string) { assert.equal(sources.size, 0); sources.add(id); },
+    addLayer({ id }: { id: string }) { layers.add(id); if (fail) throw new Error('GPU unavailable'); },
+    removeLayer: (id: string) => layers.delete(id), removeSource: (id: string) => sources.delete(id),
+    fitBounds() { fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
+  } as unknown as MapLibreMap;
+  const adapter = createPlateMapLayer(product); adapter.mount(map);
+  product.open(next.selection); product.showOnMap(next, product.getSnapshot().requestId);
+  assert.equal(product.getSnapshot().mapRenderError, 'GPU unavailable');
+  assert.equal(product.getSnapshot().mapImage, next);
+  assert.equal(next.canvas.width, 400);
+  assert.equal(adapter.imageAt({ x: -119.5, y: 34.5 }), undefined);
+  assert.equal(sources.size + layers.size, 0);
+  product.open(next.selection); assert.equal(sources.size, 0, 'unrelated selection changes do not retry');
+  fail = false; product.retryMapRender();
+  assert.equal(sources.size + layers.size, 2); assert.equal(fits, 1);
+  assert.equal(adapter.imageAt({ x: -119.5, y: 34.5 }), next);
+  onError!({ sourceId: 'plates-image', error: new Error('Source failed') });
+  assert.equal(sources.size + layers.size, 0);
+  product.retryMapRender(); assert.equal(fits, 1, 'recovery does not repeat the camera action');
+  t.mock.method(console, 'error', () => {});
+  const remove = map.removeSource.bind(map);
+  let failedCleanup = false;
+  t.mock.method(map, 'removeSource', (id: string) => {
+    if (!failedCleanup) { failedCleanup = true; throw new Error('Transient cleanup failure'); }
+    return remove(id);
+  });
+  onError!({ sourceId: 'plates-image', error: new Error('Source failed again') });
+  assert.equal(sources.size, 1);
+  product.hideFromMap(next);
+  assert.equal(sources.size + layers.size, 0, 'hide retries leftover cleanup even when no image was committed');
+  adapter.unmount(); assert.equal(onError, undefined);
+  assert.equal(sources.size + layers.size, 0);
+});
+
 test('map inspection identifies only the current footprint and restores after reattachment', () => {
   const product = createPlatesController();
   let layer = createPlateMapLayer(product);

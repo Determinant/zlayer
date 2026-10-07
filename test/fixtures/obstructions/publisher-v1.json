@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-06T00:00:00Z",
+  "horizontalDatum": "WGS84",
+  "source": {
+    "name": "Synthetic publisher interoperability fixture",
+    "lastModified": "2026-10-06T00:00:00Z"
+  },
+  "dataset": {
+    "path": "obstacles-196fd210ca30018846e8c797f27e8f922cd396d8b0fd7829d62584f5fadaffad.geojson.gz",
+    "format": "geojson",
+    "compression": "gzip",
+    "sha256": "196fd210ca30018846e8c797f27e8f922cd396d8b0fd7829d62584f5fadaffad",
+    "bytes": 370,
+    "count": 3,
+    "verifiedCount": 2,
+    "unverifiedCount": 1,
+    "bbox": [
+      -116.8,
+      36.123456789,
+      -116.75,
+      36.25
+    ],
+    "uncompressedBytes": 1268
+  },
+  "index": {
+    "path": "obstacles-index-f5d1e61dc1bd64bfc6c1811ac8f7d97649bf22c3aaf10a58b2ed5172a5c22097.bin",
+    "format": "zlayer-obstructions",
+    "version": 1,
+    "sha256": "f5d1e61dc1bd64bfc6c1811ac8f7d97649bf22c3aaf10a58b2ed5172a5c22097",
+    "count": 2,
+    "bytes": 76,
+    "source": {
+      "sha256": "196fd210ca30018846e8c797f27e8f922cd396d8b0fd7829d62584f5fadaffad",
+      "count": 3,
+      "lastModified": "2026-10-06T00:00:00Z"
+    }
+  }
+}

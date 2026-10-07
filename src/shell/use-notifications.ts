@@ -4,11 +4,12 @@ export interface WorkspaceNotification {
   id: string;
   title: string;
   message: string;
+  dismissalKey?: string;
   tone?: 'offline' | 'error';
   action?: { label: string; run(): void; disabled?: boolean };
 }
 function identity(notice: WorkspaceNotification) {
-  return JSON.stringify([notice.id, notice.title, notice.message]);
+  return JSON.stringify(notice.dismissalKey ? [notice.id, notice.dismissalKey] : [notice.id, notice.title, notice.message]);
 }
 
 /** Dismissal belongs to the current occurrence, never to the underlying condition. */

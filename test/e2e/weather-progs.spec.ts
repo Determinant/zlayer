@@ -74,7 +74,7 @@ test('NDFD pixels follow chart times beneath pressure features, clear at gaps an
     await page.evaluate(longitude => window.progsMapAudit.map.jumpTo({ center: [longitude, 37.3] }), longitude);
     await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
     expect(await page.evaluate(() => window.progsMapAudit.state().coverageDisplay.error)).toBeUndefined();
-    expect(await coveragePixels(await page.screenshot(), blue)).toBeGreaterThan(1000);
+    await expect.poll(async () => coveragePixels(await page.screenshot(), blue)).toBeGreaterThan(1000);
   }
   await page.evaluate(() => window.progsMapAudit.recover());
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().coverageDisplay.validTime)).toBe(Date.parse('2026-09-23T00:00:00Z'));

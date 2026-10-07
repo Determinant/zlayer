@@ -386,6 +386,16 @@ worker snapshots cannot restart failed uploads. Hiding or teardown cancels the
 retry timer, and a hidden document does no retry work. Successful upload or removal
 of the failed asset clears its error. GPU error checks run only around new uploads.
 
+Cold visible uploads admit at most 4 MiB of vertex/mip bytes per frame and stop
+admission after a soft 4 ms CPU slice. One complete tile always makes progress,
+even if it alone exceeds either limit. Ready tiles continue drawing while the
+remaining visible bodies wait. Only eligible deferred uploads request another
+frame; warm draws, offscreen bodies, hidden documents and blocked failures do not
+create a repaint loop. This trades a short progressive reveal for a smaller
+single-frame burst without changing pixels, meshes or residency limits. Driver
+submission time is not GPU completion time; [browser measurements](../../../docs/verification/render-preparation-2026-10-06.md)
+do not replace physical-device memory and energy checks.
+
 Clipping geometry is independent of mip resolution: every level uses the same
 20 NM corridor and regional ownership mesh, including holes. Smaller resident
 source rectangles own overlapping draw geometry, and each tile integrates all its

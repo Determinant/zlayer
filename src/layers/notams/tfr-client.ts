@@ -16,14 +16,18 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
     snapshot.notices.every(n => n.detailCheckedAt === undefined || n.detailCheckedAt <= now() + 30_000);
   const canReplace = (snapshot: TfrSnapshot, previous: TfrSnapshot | null | undefined) =>
     !previous || !validTime(previous) || snapshot.checkedAt >= previous.checkedAt;
+  const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
   function clock() {
-    clearTimeout(timer);
-    if (!refresh) return;
+    clearTimeout(timer); timer = undefined;
+    if (!refresh || !visible()) return;
     const time = now(); state.publish({ ...state.getSnapshot(), now: time });
     const delay = Math.min(30_000, Math.max(1, tfrNextChange(state.getSnapshot().snapshot, time) - time));
     timer = setTimeout(clock, delay);
   }
-  function demand() { refresh?.setDemand(['national'], typeof navigator === 'undefined' || navigator.onLine !== false); }
+  function demand() {
+    refresh?.setDemand(['national'], visible() && (typeof navigator === 'undefined' || navigator.onLine !== false));
+    clock();
+  }
   function start() {
     if (refresh) return;
     try {
@@ -44,11 +48,13 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
         catch { /* Online display survives storage failure. */ }
       } });
     if (typeof window !== 'undefined') { window.addEventListener('online', demand); window.addEventListener('offline', demand); }
-    demand(); clock();
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', demand);
+    demand();
   }
   function stop() {
     refresh?.destroy(); refresh = undefined; clearTimeout(timer); timer = undefined;
     if (typeof window !== 'undefined') { window.removeEventListener('online', demand); window.removeEventListener('offline', demand); }
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', demand);
     state.publish({ ...state.getSnapshot(), loading: false });
   }
   return { state, start, stop };

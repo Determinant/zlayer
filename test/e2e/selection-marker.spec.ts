@@ -1,11 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { selectNavigationResult as search } from './navigation-search';
 import { openSidePanel } from './side-panel-fixture';
 
 const marker = (page: Page) => page.locator('.selection-marker');
-async function search(page: Page, ident: string) {
-  await page.getByLabel('Search FAA navigation data').fill(ident);
-  await page.locator('.search-results button').filter({ hasText: ident }).click();
-}
 
 for (const touch of [false, true]) test.describe(`selection focus (${touch ? 'touch' : 'mouse'})`, () => {
   test.use({ hasTouch: touch, viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 900 } });

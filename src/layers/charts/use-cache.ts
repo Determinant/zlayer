@@ -9,7 +9,8 @@ export type ChartCacheState = 'preparing' | 'ready' | 'unavailable';
 
 const PREPARATION_RETRY_DELAYS = [1_000, 3_000, 10_000];
 
-export function useChartCache(charts: readonly ChartRecord[] | undefined, onError: (message: string, code?: ResourceErrorCode) => void, active = true): {
+export function useChartCache(charts: readonly ChartRecord[] | undefined,
+  onError: (message: string, code?: ResourceErrorCode, url?: string) => void, active = true, onRecovered?: (url: string) => void): {
   state: ChartCacheState;
   retry: () => void;
 } {
@@ -51,19 +52,26 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined, onErro
   useEffect(() => {
     if (!active) return;
     const receiveMessage = (event: MessageEvent<unknown>) => {
+      if (isChartArchiveReadyMessage(event.data)) { onRecovered?.(event.data.url); return; }
       if (!isChartArchiveErrorMessage(event.data)) return;
       const message = event.data;
       const chart = charts?.find((candidate) => candidate.url === message.url);
-      onError(`${chart?.title ?? 'Chart archive'} could not be cached: ${message.message}`, message.code);
+      onError(`${chart?.title ?? 'Chart archive'} could not be cached: ${message.message}`, message.code, message.url);
     };
 
     navigator.serviceWorker?.addEventListener('message', receiveMessage);
     return () => {
       navigator.serviceWorker?.removeEventListener('message', receiveMessage);
     };
-  }, [active, charts, onError]);
+  }, [active, charts, onError, onRecovered]);
 
   return { state, retry };
+}
+
+function isChartArchiveReadyMessage(value: unknown): value is { type: 'chart-archive-ready'; url: string } {
+  if (!value || typeof value !== 'object') return false;
+  const message = value as Record<string, unknown>;
+  return message.type === 'chart-archive-ready' && typeof message.url === 'string';
 }
 
 function isChartArchiveErrorMessage(

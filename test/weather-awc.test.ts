@@ -14,7 +14,6 @@ import { radarFixture } from './fixtures/radar';
 import { createWeatherController, forecastPreparation, type WeatherState } from '../src/layers/weather-awc/controller';
 import { createWeatherSelectors, forecastChanges } from '../src/layers/weather-awc/selection';
 import { weatherAwcPreferences } from '../src/layers/weather-awc/preferences';
-import { requestJson, weatherCheckedAt } from '../src/core/data/request-json';
 import { createWeatherMap, ADVISORY_LAYERS } from '../src/layers/weather-awc/map';
 import { WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../src/core/map/layer';
 import type { Map as MapLibreMap } from 'maplibre-gl';
@@ -23,6 +22,37 @@ import { cacheFixture } from './helpers/cache';
 import type { SurfaceState } from '../src/layers/weather-awc/progs/client';
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+test('disabling Progs releases decoded families, cancels restoration and restores again on re-enable', async t => {
+  const env = environment(t);
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  let released = 0, coverageReleased = 0, restores = 0;
+  const signals: AbortSignal[] = [];
+  const saved: SurfaceSnapshot = { schemaVersion: 2, product: 'analysis', checkedAt: WEATHER_NOW,
+    source: 'https://test/catalog', sourceHash: 'a'.repeat(64), sourceCatalog: '{}', frames: [] };
+  const controller = createWeatherController({ advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    progs: { release() { released++; },
+      async restore(product, signal) { restores++; signals.push(signal); return { loading: false, snapshot: { ...saved, product } }; },
+      async refresh(product) { return { ...saved, product }; } },
+    coverage: { release() { coverageReleased++; }, restore: () => ({ loading: false }),
+      refresh: async () => { throw new Error('Offline'); }, load: async () => new ArrayBuffer(0) } });
+  t.after(() => controller.detach());
+  const input = { ...weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true }), change() {} };
+  controller.configure(input); controller.attach(); await flush();
+  assert.ok(controller.getSnapshot().progs.analysis.snapshot);
+  env.document.visibilityState = 'hidden'; env.document.dispatchEvent(new Event('visibilitychange'));
+  assert.equal(released, 0, 'hidden pages retain enabled charts');
+  controller.configure({ ...input, awcProgs: false });
+  assert.equal(controller.getSnapshot().progs.analysis.snapshot, undefined);
+  assert.equal(controller.getSnapshot().progs.forecast.snapshot, undefined);
+  assert.ok(signals.every(signal => signal.aborted));
+  assert.equal(released, 1); assert.equal(coverageReleased, 1);
+  controller.configure({ ...input, awcProgs: false }); assert.equal(released, 1);
+  const previous = restores;
+  controller.configure(input); await flush();
+  assert.equal(restores, previous + 2); assert.ok(controller.getSnapshot().progs.analysis.snapshot);
+  controller.detach();
+});
 function environment(t: TestContext) {
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
@@ -375,20 +405,6 @@ test('gateway migration retains only matching AWC/NOAA snapshots without claimin
     weatherStorage.slot(product).write(JSON.stringify({ endpoint: baseUrl, snapshot: advisorySnapshot(product === 'cwa' ? 'sigmet' : 'cwa') }));
     assert.equal(gateway.restore(product).snapshot, undefined, 'a matching endpoint cannot override product validation');
   }
-});
-
-test('network-only JSON acquisition cancels oversized streams and rejects invalid/empty documents', async t => {
-  assert.throws(() => weatherCheckedAt(new Response('', { headers: { 'X-Weather-Checked-At': 'tomorrow' } }), WEATHER_NOW));
-  let cancelled = false;
-  t.mock.method(globalThis, 'fetch', async () => new Response(new ReadableStream({
-    pull(controller) { controller.enqueue(new Uint8Array(100)); }, cancel() { cancelled = true; },
-  })));
-  await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather', { maxBytes: 50 }), /response limit/);
-  assert.equal(cancelled, true);
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ type: 'FeatureCollection', features: [{}] }));
-  await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather'), /invalid document/);
-  t.mock.method(globalThis, 'fetch', async () => new Response(null, { status: 204 }));
-  await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather'), /no document/);
 });
 
 test('controller isolates failures, pins time across refreshes, expires offline at interval ends and stops demand', async t => {

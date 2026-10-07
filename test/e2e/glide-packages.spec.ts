@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test } from './persistent-webkit';
+import { expect, type Page } from '@playwright/test';
 import type { GeoJSONSource } from 'maplibre-gl';
 import { heatPixels } from './glide-heat';
 import { terrainPng } from './terrain-fixture.mjs';
@@ -47,7 +48,7 @@ test('published glide overview renders without detail downloads; detail retains 
   await expect(page.getByTestId('errors')).toBeEmpty();
 });
 
-test('real service-worker region downloads retain shared glide archives and detect offline eviction', async ({ page, context }) => {
+test('real service-worker region downloads retain shared glide archives and detect offline eviction', async ({ page, context, request }) => {
   await page.goto('/');
   await page.getByLabel('Settings and offline downloads').click();
   await page.getByRole('tab', { name: 'Offline', exact: true }).click();
@@ -65,19 +66,29 @@ test('real service-worker region downloads retain shared glide archives and dete
     return [...new Set(files)].sort();
   });
   const files = await savedGlide(); expect(files).toHaveLength(12);
-  await context.setOffline(true);
-  await page.reload();
-  await expect(region('us-NV').locator('.offline-tag')).toHaveText('Saved');
-  await region('us-CA').getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(region('us-CA').locator('.offline-tag')).toHaveCount(0);
-  expect(await savedGlide()).toEqual(files);
-  await page.evaluate(async () => {
-    for (const name of await caches.keys()) {
-      const cache = await caches.open(name);
-      for (const key of await cache.keys()) if (key.url.includes('/glide/detail/')) await cache.delete(key);
-    }
-  });
-  await region('us-NV').getByRole('button', { name: 'Verify saved files', exact: true }).click();
-  await expect(region('us-NV').locator('.offline-tag')).not.toHaveText('Saved');
+  // WebKit's network emulation also blocks service-worker responses. Disconnect
+  // the origin instead and prove that a new page can start from the saved shell.
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  await request.post('/__test/disconnect');
+  try {
+    await expect(request.get('/')).rejects.toThrow();
+    const offline = await context.newPage();
+    await offline.addInitScript(() => Object.defineProperty(navigator, 'onLine', { get: () => false }));
+    await page.close();
+    page = offline;
+    await page.goto('/');
+    await expect(region('us-NV').locator('.offline-tag')).toHaveText('Saved');
+    await region('us-CA').getByRole('button', { name: 'Remove', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(region('us-CA').locator('.offline-tag')).toHaveCount(0);
+    expect(await savedGlide()).toEqual(files);
+    await page.evaluate(async () => {
+      for (const name of await caches.keys()) {
+        const cache = await caches.open(name);
+        for (const key of await cache.keys()) if (key.url.includes('/glide/detail/')) await cache.delete(key);
+      }
+    });
+    await region('us-NV').getByRole('button', { name: 'Verify saved files', exact: true }).click();
+    await expect(region('us-NV').locator('.offline-tag')).not.toHaveText('Saved');
+  } finally { await request.post('/__test/reset'); }
 });

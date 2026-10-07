@@ -58,6 +58,9 @@
   letter-spacing: normal; word-spacing: normal;
 }
 .notam-readable p { margin: 0; font-size: inherit; line-height: inherit; }
+/* Readable prose preserves line breaks without hanging preserved spaces past
+   the line edge when users increase word/letter spacing. Raw text stays verbatim. */
+.notam-readable .notam-text { white-space: pre-line; }
 .notam-readable .notam-body-context, .notam-readable .notam-amendment {
   color: var(--text-secondary); font-size: var(--ui-text-compact); line-height: var(--ui-line-height);
 }
@@ -137,3 +140,5 @@
 .notam-tfr-status section + section { border-top: 1px solid var(--border-subtle); margin-top: 8px; padding-top: 8px; }
 .notam-tfr-status-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .panel-footer.notam-tfr-status small { letter-spacing: normal; text-transform: none; }
+
+.notam-pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }

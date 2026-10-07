@@ -9,6 +9,8 @@ export type ObstructionManifest = {
   source: { name: string; lastModified?: string };
   dataset: { path: string; format: 'geojson'; compression: 'gzip'; sha256: string;
     bytes: number; uncompressedBytes: number; count: number };
+  index?: { path: string; format: 'zlayer-obstructions'; version: 1; sha256: string; bytes: number; count: number;
+    source: { sha256: string; count: number; lastModified?: string } };
 };
 export type ObstructionProperties = {
   heightAglFt: number; elevationMslFt: number; quantity: number;

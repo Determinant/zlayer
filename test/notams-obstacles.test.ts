@@ -7,7 +7,7 @@ import { notamObstacles, notamObstacleFeatures } from '../src/layers/notams/obst
 import { createNotamMapPreviews } from '../src/layers/notams/map-state';
 import { chartedNotamPresentation, notamChartKey } from '../src/layers/notams/chart';
 import { notamBlockText, presentNotam } from '../src/layers/notams/presentation';
-import { NotamList } from '../src/layers/notams/ui';
+import { NotamRaw, NotamList } from '../src/layers/notams/ui';
 import { notice, NOTAM_NOW } from './fixtures/notams';
 
 const text = 'OBST CRANE (ASN 2025-ASO-10959-NRA) 333831N0842606W (0.5NM NW ATL) 1209FT (200FT AGL) FLAGGED AND LGTD';
@@ -181,7 +181,8 @@ test('charted standalone obstacles replace the description while raw, search and
       assert.match(mapped, /class="(?:[^"]*\s)?notam-readable(?:\s[^"]*)?"/);
       assert.match(mapped, /Flagged and LGTD/);
       assert.match(mapped, /Location shown on chart/);
-      assert.ok(mapped.includes(`<pre>${source}</pre>`));
+      assert.doesNotMatch(mapped, /<pre>/);
+      assert.ok(renderToStaticMarkup(createElement(NotamRaw, { record })).includes(`<pre>${source}</pre>`));
       assert.match(mapped, /Schedule: DLY 1100-1300/);
       assert.match(mapped, />From<.*>Until</);
       assert.ok(presentNotam(record).searchText.includes('2025-ASO-10959-NRA'));

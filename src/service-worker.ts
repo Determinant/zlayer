@@ -31,6 +31,8 @@ const resetHolds = new Set<() => void>();
 const pendingWork = new Set<Promise<unknown>>();
 const resetScreens = new Set<string>();
 let preparingPwa: Promise<void> | undefined;
+let archiveNotifications = Promise.resolve();
+const readyArchives = new Set<string>();
 
 function trackWork<T>(work: Promise<T>): Promise<T> {
   pendingWork.add(work);
@@ -91,7 +93,7 @@ worker.addEventListener('fetch', (event) => {
     && url.searchParams.has('sha256');
   if (onChartFeed && (archive || glideMetadata) && ['GET', 'HEAD'].includes(event.request.method)) {
     event.waitUntil(trackWork(noteCacheAccess(CHART_CACHE, event.request.url)));
-    respond(chartArchiveResponse(event.request));
+    respond(chartArchiveResponse(event.request, work => event.waitUntil(trackWork(work))));
     return;
   }
   // Weather products own their persistent caches and must see actual refresh failures,
@@ -366,14 +368,15 @@ function isChartManifest(pathname: string): boolean {
     pathname.endsWith('/mbtiles/packages/manifest.json');
 }
 
-async function chartArchiveResponse(request: Request): Promise<Response> {
+async function chartArchiveResponse(request: Request, keepAlive: (work: Promise<void>) => void): Promise<Response> {
   try {
     const cache = await openFileCache(chartArchiveCache);
     const key = new Request(request.url, { method: 'GET' });
     const read = request.method === 'HEAD' ? chartArchives.ensureStored.bind(chartArchives) : chartArchives.load.bind(chartArchives);
     const archive = await read(cache, key, (error) => {
-      void publishChartArchiveError(key.url, error);
-    });
+      keepAlive(publishChartArchiveStatus({ type: 'chart-archive-error', url: key.url,
+        message: error.message, code: resourceErrorCode(error) }));
+    }, () => keepAlive(publishChartArchiveStatus({ type: 'chart-archive-ready', url: key.url })));
     if (request.method === 'HEAD') return headResponse(archive);
     const range = request.headers.get('range');
     return range
@@ -390,11 +393,25 @@ async function chartArchiveResponse(request: Request): Promise<Response> {
   }
 }
 
-async function publishChartArchiveError(url: string, error: Error): Promise<void> {
-  const clients = await worker.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  for (const client of clients) {
-    client.postMessage({ type: 'chart-archive-error', url, message: error.message, code: resourceErrorCode(error) });
-  }
+function publishChartArchiveStatus(message: { type: 'chart-archive-error' | 'chart-archive-ready'; url: string;
+  message?: string; code?: ReturnType<typeof resourceErrorCode> }): Promise<void> {
+  if (message.type === 'chart-archive-ready') {
+    const announced = readyArchives.delete(message.url);
+    readyArchives.add(message.url);
+    if (announced) return Promise.resolve();
+    // Large legacy files reopen outside the resident Blob budget on range reads.
+    // Bound status history separately so those reads do not repeatedly broadcast.
+    if (readyArchives.size > 128) readyArchives.delete(readyArchives.values().next().value!);
+  } else readyArchives.delete(message.url);
+  // Preserve failure/recovery order even when client enumeration completes late.
+  // A fresh verified load reports once; resident range reads do not broadcast.
+  archiveNotifications = archiveNotifications.then(async () => {
+    const clients = await worker.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clients) {
+      try { client.postMessage(message); } catch { /* A closing window cannot block the others. */ }
+    }
+  }).catch(() => { readyArchives.delete(message.url); });
+  return archiveNotifications;
 }
 
 function headResponse(archive: FileArchive): Response {

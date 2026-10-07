@@ -37,6 +37,7 @@ export class WholeFileCache {
     cache: ArchiveCache,
     key: Request,
     onError?: ArchiveErrorHandler,
+    onReady?: () => void,
   ): Promise<FileArchive> {
     const cached = this.#requests.get(key.url);
     if (cached) {
@@ -52,11 +53,14 @@ export class WholeFileCache {
         this.#ready.set(key.url, archive.blob.size);
         this.#residentBytes += archive.blob.size;
         this.#evictColdArchives();
+        // Status observers are optional; they cannot fail a verified read.
+        try { onReady?.(); } catch { /* The next fresh read can report readiness again. */ }
       },
       (error: unknown) => {
         this.#requests.delete(key.url);
         this.#ready.delete(key.url);
-        onError?.(error instanceof Error ? error : new Error('Unable to cache archive'));
+        try { onError?.(error instanceof Error ? error : new Error('Unable to cache archive')); }
+        catch { /* Preserve the original read failure. */ }
       },
     );
     return request;
@@ -70,14 +74,14 @@ export class WholeFileCache {
   }
 
   /** Explicit saves must restore storage even when a reader still holds the Blob. */
-  async ensureStored(cache: ArchiveCache, key: Request, onError?: ArchiveErrorHandler): Promise<FileArchive> {
-    const archive = await this.load(cache, key, onError);
+  async ensureStored(cache: ArchiveCache, key: Request, onError?: ArchiveErrorHandler, onReady?: () => void): Promise<FileArchive> {
+    const archive = await this.load(cache, key, onError, onReady);
     let stored: Response | undefined;
     try { stored = await cache.match(key); }
     catch (error) {
       if (!(error instanceof InvalidDataError) && !isUnreadableFile(error)) throw error;
       this.forget(key.url);
-      return this.load(cache, key, onError);
+      return this.load(cache, key, onError, onReady);
     }
     discardResponseBody(stored);
     if (stored?.status !== 200 || !verificationReceipt(stored.headers, {

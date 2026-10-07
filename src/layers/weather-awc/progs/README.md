@@ -325,3 +325,11 @@ authentication, optional saves and offline restoration. Browser checks cover
 distinct analysis/forecast coverage pixels, layer order, gaps, retries, style
 recovery, wrapped worlds, legend/preferences and a full offline app reload with
 the origin disconnected.
+
+Explicitly disabling Progs (or master weather) cancels its acquisition and
+restoration, removes pressure-chart map sources/layers/symbol images, and releases
+decoded chart families and retained coverage bytes. Disabling coverage alone
+releases its byte cache and decoded image. Saved catalogs/files remain available
+for offline re-enable; inactive pressure-chart valid times remain lightweight
+selection metadata. Hiding the page or selecting a forecast gap does not evict
+the enabled pressure-chart family.

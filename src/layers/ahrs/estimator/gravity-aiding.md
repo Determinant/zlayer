@@ -7,6 +7,9 @@ There is no GPS/gravity exclusion timer, receipt-based suppression, acceleromete
 subsampling, or navigation restart before a force observation. Rejected GPS fixes
 cannot starve accelerometer corrections.
 
+This replaces the former twenty-second steady-window tilt method. The joint
+model preserves the ambiguity between gravity and sustained acceleration.
+
 ## State and dynamics
 
 The 30-component error state is ordered as position, velocity, right/body attitude

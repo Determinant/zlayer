@@ -49,8 +49,12 @@ async function gesture(page: Page, type: string, scale: number) {
 }
 
 test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until gesture idle', async ({ page }) => {
+  // Anchor preservation needs scrollable content. In a taller viewport this
+  // square fixture fits completely and native scroll bounds clamp the preview.
+  await page.setViewportSize({ width: 744, height: 850 });
   await openPlate(page);
   const result = await page.locator('.procedure-page-stage').evaluate(async stage => {
+    if (stage.scrollHeight <= stage.clientHeight) throw new Error('The anchor fixture must scroll vertically');
     const canvas = stage.querySelector('canvas')!;
     const before = canvas.getBoundingClientRect();
     const x = before.left + before.width * .45, y = before.top + before.height * .35;
@@ -58,9 +62,9 @@ test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until ge
     // The viewer allocates one detached 2D canvas immediately before page.render.
     // Observe starts, including cancelled renders whose bitmap never reaches the DOM.
     const original = HTMLCanvasElement.prototype.getContext;
-    let renderBuffers = 0;
+    const buffers = new Set<HTMLCanvasElement>();
     HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: Parameters<typeof original>) {
-      if (args[0] === '2d' && !this.isConnected && this.width >= width) renderBuffers++;
+      if (args[0] === '2d' && !this.isConnected && this.width >= width) buffers.add(this);
       return original.apply(this, args);
     } as typeof original;
     const previews = [];
@@ -71,11 +75,11 @@ test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until ge
         // React commits and renderer effects get separate frames between events.
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
         const rect = canvas.getBoundingClientRect();
-        previews.push({ cancelled: event.defaultPrevented, width: canvas.width, renderBuffers,
+        previews.push({ cancelled: event.defaultPrevented, width: canvas.width, renderBuffers: buffers.size,
           x: rect.left + rect.width * .45, y: rect.top + rect.height * .35 });
       }
       await new Promise(resolve => setTimeout(resolve, 250));
-      return { width, x, y, previews, renderBuffers };
+      return { width, x, y, previews, renderBuffers: buffers.size };
     } finally {
       HTMLCanvasElement.prototype.getContext = original;
     }
@@ -116,8 +120,10 @@ test('touch pinch changes PDF zoom around the fingers and redraws sharply after 
   expect(await gesture(page, 'gesturechange', 2)).toBe(true);
   await expect(page.locator('.procedure-zoom-controls')).toContainText('200%');
   expect(await touch(page, 'touchend', [])).toBe(true);
+  // Pinch completion can precede the render effect; wait for the new backing
+  // pixels instead of observing the brief idle state before that effect starts.
+  await expect.poll(() => canvas.evaluate((element: HTMLCanvasElement) => element.width)).toBeGreaterThan(initial * 1.9);
   await ready(page);
-  expect(await canvas.evaluate((element: HTMLCanvasElement) => element.width)).toBeGreaterThan(initial * 1.9);
   expect(await page.evaluate(() => visualViewport?.scale)).toBe(1);
   expect(await page.locator('.procedure-page-stage').evaluate(element => getComputedStyle(element).touchAction)).toBe('pan-x pan-y');
   expect(pdfRequests).toEqual([]);

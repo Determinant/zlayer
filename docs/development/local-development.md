@@ -196,6 +196,9 @@ maps to an image account without a writable home directory.
 
 The container's fixture port is isolated from host development servers. For a
 native run with an occupied fixture port, set `ZLAYER_TEST_PORT` to a free port.
+Keep container networking enabled: with `--network=none`, Chromium reports
+`navigator.onLine === false` even when loopback HTTP works, so an uncached chart
+feed cannot start. Offline scenarios control connectivity within their own tests.
 
 `npm run verify` runs import-boundary checks, strict TypeScript, tests and the production build.
 `npm run check:imports` separately checks source ownership, persistence migration entries,
@@ -350,6 +353,27 @@ Vite's `/api/weather/` proxy. Backend development is an explicit opt-in describe
 under [data and proxies](#data-and-proxies).
 The [grid guide](../../src/layers/weather-awc/grids/README.md) owns numeric meanings,
 worker budgets, source identity and offline behavior.
+
+## Periodic repository cleanup
+
+Do this after a completed feature or refactor batch, and revisit the whole
+repository before a release when several batches have accumulated. Include
+untracked notes and new tests in the review; do not remove unrelated local work.
+
+1. Inventory docs and test files. Give each retained doc a purpose and owner:
+   current contract, design rationale, unfinished proposal, unique evidence or
+   fixture provenance/license. Follow the [documentation rules](../README.md#keeping-the-docs-useful)
+   when merging duplicates, removing completed worklists or updating links.
+2. Compare candidate tests using the [coverage rules below](#maintaining-test-coverage).
+   Record the surviving scenario for any removed assertion in the change description.
+   Share repeated setup when it represents the same operation; keep meaningful
+   assertions visible in the tests and preserve fixture isolation and engine coverage.
+3. Recheck local file/section links and source comments referencing moved docs.
+   Retain measured comparisons with their original source, method and limitations;
+   keep routine audit inventories and run logs in ignored `tmp/`.
+4. Run affected suites and repository checks. Test counts help detect accidental
+   loss but do not prove equivalent coverage. The [full precommit gate](#verification)
+   still applies before committing.
 
 ## Maintaining test coverage
 

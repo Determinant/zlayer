@@ -89,6 +89,19 @@ avoids a download, not those render costs. Decoded memory retains only the selec
 scans; there is no retained history of indexed map sources or GPU buffers.
 File reads/validation use two core admission slots, and validated files reach the renderer before
 optional cache publication finishes.
+Before acquisition, the visible scan set is limited to 32 MiB of declared file
+bytes. A set exceeding that bound loads only the national composite and explicitly
+reports terminal coverage unavailable, with a zoom-in recovery hint. Validated
+geometry has separate admission weights of 96 MiB national / 32 MiB terminal,
+counting encoded text allowance, vertices, rings and per-polygon display wrappers.
+Exceeding a geometry bound clears the affected group and reports it unavailable;
+it never displays an arbitrary subset as complete terminal coverage. An unchanged
+national scan remains available when terminals are limited. View changes, a new
+catalog or explicit retry can recover. All prepared vertices and rings are retained
+for admitted scans; there is no resolution downgrade or additional decoded cache.
+These are application admission weights, not measured heap or GPU limits; the two
+active decodes and renderer replacement copies remain additional transient owners.
+
 Within weather, radar draws above all advisory and grid layers, directly below
 Progs, preserving fronts, pressure centers, isobars and chart labels above echoes.
 The insertion point is resolved when radar first appears, so loading order and
@@ -251,11 +264,10 @@ new file requests, source-free browser requests, style recovery, saved catalog/f
 restoration after a full app reload with the origin disconnected, forecast
 hiding/expiration and six slim tabs at phone sizes.
 [Fixture provenance](../../../../test/fixtures/radar/README.md) records the captures.
-The [September 25 rendering measurement](validation/2026-09-25-rendering.md)
-records the native geometry size, before/after timings and remaining costs; it is
-desktop evidence, not a physical-device qualification.
-The [server contour reduction measurement](validation/2026-09-25-contours.md)
-records the subsequent bounded simplification and its processing/rendering costs.
+`test/weather-radar-contours.test.ts` compares rings and hole ownership with D3,
+including index-bucket boundaries, small echoes/holes, adjacent thresholds and the
+0.1-cell displacement bound. Its exact-threshold plateau case rejects a distant
+same-row point erroneously claimed by D3's repeated-vertex containment check.
 
 `test/weather-radar-motion.test.ts` adds captured STI decoding, empty/new-cell
 handling, identity rejection, historical alignment, unchanged publication and
@@ -263,3 +275,56 @@ restoration cases. These cases belong to the regular Node suite; their presence
 does not establish a current pass. The browser suite covers reflectivity, history
 and layer ordering; storm-motion browser rendering and physical-device qualification
 remain separate coverage gaps.
+
+### Recorded pipeline comparisons — September 25, 2026
+
+These two desktop comparisons explain the renderer and contour choices above.
+They measure different source scans and stages; they are not mobile budgets.
+
+**Polygon features and 8px source buffer.** The MRMS scan observed at
+2026-09-25 16:34:40Z contained 10,578,811 decoded JSON bytes, eight threshold
+features, 16,379 polygons, 28,604 rings and 564,770 closed-ring positions.
+Prepared SHA-256: `fb18f1b0140fdecd2ec1c22d1e93a027b68034dd1ecfd2744e1d6600178bc9c9`;
+source SHA-256: `269d29aa469c9933065d3010f7f7252d2d0b76ed166142b499e33c34bbefae9c`.
+Playwright 1.63.0-noble headless Chromium, Node 24.20, MapLibre 6.9.0 and the Vite
+fixture used 1280×900, DPR 1, center [−96, 38], eight fill layers, opacity 0.75,
+antialiasing and tolerance 0.2px. Three alternating submissions per variant/zoom:
+
+| Zoom | Original / changed source acceptance, ms | Original / changed map idle, ms |
+| --- | --- | --- |
+| 4 | 943, 919, 905 / 406, 432, 437 | 1166, 1078, 1051 / 525, 531, 533 |
+| 7 | 940, 932, 890 / 402, 426, 413 | 1067, 1051, 1017 / 450, 467, 467 |
+
+Median submission-to-idle fell from 1078 to 531 ms at zoom 4 and 1051 to 467 ms
+at zoom 7. Of 1,152,000 pixels, 784 and 133 changed respectively; no new tile-edge
+seams were observed. Geometry was unchanged. Timing includes transfer/indexing/
+visible-tile work, excludes acquisition, saved-file reads, validation and JSON
+parsing, and does not isolate GPU work. Reproduce via `/test/browser/weather-progs.html`
+with its controller disabled and a scan already in memory: add fresh sources and
+eight threshold layers, await idle, time `setData` through the next idle, then remove
+the sources/layers. Compare the original MultiPolygons/default buffer with
+`radarFeatures([scan])`/buffer 8; capture canvas pixels on a render event after idle.
+The retained MRMS fixture can produce a new scan via `prepareRadar`; it differs
+from this hash-identified live sample, whose online retention was temporary.
+
+**Server contour reduction.** `node --import=tsx tools/benchmark-radar.ts` compares
+pinned D3 with the current pipeline on the captured September 24 MRMS/TDWR fields:
+
+| Capture | Positions before / after | Contour + projection + serialization before / after |
+| --- | ---: | ---: |
+| MRMS CONUS | 679,527 / 420,289 | 5144 / 2625 ms |
+| TOKC | 45,452 / 41,794 | 135 / 30 ms |
+| TATL | 7,944 / 7,136 | 16 / 13 ms |
+
+MRMS decode stayed at 390 ms; optimized extraction/simplification took 2037/523 ms.
+Geometry JSON fell from 12,766,197 to 7,943,392 bytes, excluding the small feature
+wrapper. Lossless cleanup alone left 587,821 positions; further reduction uses the
+bounded tolerance. TDWR polar crossings retain their separate projection policy.
+A Chromium 153.0.8010.12 software-rendered comparison in Playwright 1.63 used
+1024×768, DPR 1, center [−97, 37], the same eight threshold layers, buffer 8,
+tolerance 0.2 and opacity 0.75. With data preloaded, three alternating fresh-source
+runs measured median setData-to-idle 634→451 ms at zoom 4 and 517→350 ms at zoom 7.
+Another Chromium regression suite ran concurrently. Of 786,432 pixels, 442/609
+changed at those zooms; 86/82 changed by more than 32 in an RGB channel. No map
+errors were observed; small edge differences remain expected, and this sample
+does not cover every storm geometry, zoom or device.

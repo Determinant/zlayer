@@ -15,6 +15,14 @@ budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs
 The [info server](../../../tools/info-server/README.md) owns source acquisition
 and shared prepared data.
 
+The [October 6 preparation measurements](../../../docs/verification/render-preparation-2026-10-06.md)
+separate prepared JSON decoding/validation from MapLibre source submission. The
+worker-copy experiment remains benchmark-only: copying parsed coordinate graphs
+added latency and transient ownership, and left the larger source-submission
+pause unchanged. Production keeps checksum validation and cache publication in
+their existing owner. This is a measured limit, not a claim that large scans fit
+the interaction budget.
+
 `controller.ts` owns shared preferences, selection and display receipts.
 `product-refresh.ts` owns advisory/Progs restoration and product refresh demand;
 `clock.ts` owns expiry and app-resume events. Periodic clock work stops when
@@ -204,6 +212,7 @@ reads never acquire sources or run conversion. Feed overrides remain
 for archived data and fixtures. See [local development](../../../docs/development/local-development.md#data-and-proxies)
 and the [server deployment guide](../../../tools/info-server/README.md#deployment).
 
-[Historical validation records](validation/README.md) retain source investigations
-and measurements from earlier implementations. Current behavior belongs in these
-guides; current verification follows the repository's precommit checks.
+The dated JSON artifacts under [`validation/`](validation/) retain source-access
+research, independent GRIB values, horizon samples and earlier encoding/timeline/
+rendering measurements. Their source identities and scope describe those earlier
+implementations; the guides above own current delivery and rendering contracts.

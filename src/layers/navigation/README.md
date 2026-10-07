@@ -188,3 +188,22 @@ layout and offline restoration.
 - [Local verification](../../../docs/development/local-development.md#verification)
   covers repository checks; [graphics checks](../../../docs/verification/graphics-compatibility.md#run-the-checks)
   cover the rendered symbols and map behavior.
+
+Reference acquisition admits at most two cold navigation/airway reads across
+editions before whole-document parsing. Equal requests still share pending work.
+Ready source, view, airway and regional caches retain at most 24 weak references
+each: they cannot keep an unused national edition alive. Active map, search and
+route consumers own their collections; a derived collection retains the exact
+source graphs needed for reuse. Garbage collection can discard optional reuse
+and cause a later saved-file read/parse. This is not a cap on active references,
+MapLibre copies, or total process memory, and map visibility never evicts saved
+files or invalidates another consumer. A live regional collection also retains its
+cached result wrapper, so a map consumer that keeps only the collection still shares
+it with later readers. That weak-key ownership cycle and its source data are
+collectible once no consumer retains the result or collection. The GC regression
+in `test/navigation-ownership.test.ts` checks both reuse and eventual release.
+
+Search scans features once and retains only the requested top results in a bounded
+heap, preserving score, identifier ordering and stable source/edition ties. It does
+not create a second normalized national search index. Weather enrichment still
+follows ranking.

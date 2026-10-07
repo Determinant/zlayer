@@ -16,7 +16,7 @@ type NotificationInputs = {
   chartCacheState: ChartCacheState;
   retryChartCache(): void;
   feedIssues: readonly CatalogIssue[] | undefined;
-  warning: { title: string; message: string } | undefined;
+  warning: { title: string; message: string; dismissalKey?: string } | undefined;
 };
 
 /** Keep notice wording, precedence and recovery actions together. */
@@ -39,6 +39,6 @@ export function workspaceNotifications({ connectionFailures, pluginTitle, retryC
   if (feedIssues?.length) notices.push({ id: 'feeds', title: 'Feed issues',
     message: feedIssues.map(issue => `${issue.product}: ${issue.message}`).join(' '),
     action: { label: 'Reload feeds', run: () => window.location.reload() } });
-  if (warning) notices.push({ id: 'resource', title: warning.title, message: warning.message, tone: 'error' });
+  if (warning) notices.push({ id: 'resource', ...warning, tone: 'error' });
   return notices;
 }

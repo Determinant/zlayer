@@ -151,6 +151,33 @@ components to the runway panel, using the selected airport's own observation fro
 the shared METAR cache. Renderer-independent component calculations live in the
 domain package; the runway component adds no request loop beyond map/card demand.
 
+## Memory and persistence bounds
+
+Both clients consume at most 4 MiB of decoded JSON per response through core's
+bounded reader, including endpoint overrides. HTTP 204, source-check timestamps,
+timeouts and shared cancellation retain their existing meanings. Every report is
+limited to a 128 KiB admission weight and 32 nesting levels, including preserved
+upstream fields. Weights account for strings/JSON escaping, array members and
+object overhead without first serializing the report; they are policy estimates,
+not exact browser heap measurements. Accepted object weights are weakly cached.
+
+Retained report weights are capped at 16 MiB for METAR and 4 MiB for TAF, alongside
+the 5,000/200 station limits. A replacement that exceeds a bound fails visibly and
+preserves the previous valid report and source check. Byte pressure does not evict
+another station that an active consumer may need. A saturated cache can therefore
+reject new reports until smaller replacements or ordinary count eviction release
+capacity; this deliberately favors explicit unavailable state over silent loss of
+accepted reports. Refreshes remain retryable and cached reports keep their times.
+
+Optional saved records have a 2 MiB UTF-16 ceiling, checked before restore parsing.
+Before serialization, each client selects complete recent reports within that
+ceiling; it never truncates report text or copies the entire live cache to another
+worker. Storage denial keeps one dirty state and defers retries for five minutes,
+doubling to at most one hour after repeated failures. Refresh-driven retries save
+the latest state; clock rollback allows recovery. There are no retry timers or
+queued JSON snapshots. These limits cover report ownership, not renderer copies
+or the transient bounded response parse.
+
 ## Source access and report presentation
 
 Blank `VITE_ZLAYERS_METAR_URL` and `VITE_ZLAYERS_TAF_URL` use the same-origin
@@ -332,10 +359,15 @@ fields remain intact. These are interpretation limits, not source truncation.
 
 ## Contracts and verification
 
-- [Historical NOAA/NWS source comparison](validation/2026-09-23-source-comparison/README.md)
-  retains the unused direct-source observation and TAF captures with their original
-  provenance. The [NOAA bulk METAR fixture](../../../test/fixtures/nws/README.md)
-  remains active regression input for the shared report parser and display.
+- The [September 23 NOAA/NWS captures](validation/2026-09-23-source-comparison/)
+  retain the retired direct-source experiment's original bytes: KSFO's 17:56 UTC
+  observation compares raw aviation groups with rounded metric fields; KSFO TAF
+  pairs cover the 17:27 issuance and 20:33 `AAA` amendment; PAFA's 17:20 pair covers
+  PAFA/FAI issuing-office lookup. JSON bulletins and IWXXM XML remain unchanged.
+  Current clients use AWC; the amended KSFO sample also feeds the cache benchmark.
+  The [NOAA bulk METAR fixture](../../../test/fixtures/nws/README.md) remains active
+  parser/display regression input. [Source choices](../../../docs/data/sources.md#source-choices-and-unresolved-alternatives)
+  explain the direct-source limits.
 - [Source access policies](../../../docs/data/sources.md#awc-constraints-that-shape-the-system)
   describe upstream limits, gateway routing and source comparisons.
 - [METAR](../../../docs/data/contracts.md#metar),
@@ -369,3 +401,17 @@ fields remain intact. These are interpretation limits, not source truncation.
 - [Plugin browser regressions](../../../test/e2e/weather-plugins.spec.ts) cover
   independent weather/navigation activation, persisted disabled state, report and
   runway-wind removal, stopped refresh requests, and cached reports when re-enabled.
+
+Nearby requests coalesce by normalized area within each product. METAR nearby
+reads share the existing two admitted station-batch slots; TAF direct and nearby
+reads share two slots and duplicate station identifiers coalesce after normalization.
+Each consumer cancels its own wait; the last consumer cancels queued/active work.
+METAR and TAF retain separate data, freshness and failure policies.
+
+`node tools/benchmark-weather-cache.mjs chromium` (or `webkit`) measures changed
+JSON serialization and synchronous localStorage calls using 5,000 METAR and 200
+TAF synthetic stations expanded from captured report shapes. Results go to ignored
+`tmp/weather-cache-profile/`. This is not a captured national cache, worst-case
+TAF group payload, durable-write latency or physical-device RAM/energy evidence.
+The production persistence policy still skips unchanged content and flushes once
+per refresh; native-device capture remains necessary before replacing that policy.

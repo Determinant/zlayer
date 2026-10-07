@@ -83,3 +83,46 @@ for (const pending of ['acquisition', 'submission']) test(`terminal changes pres
   assert.equal(sources.size, 0); assert.equal(layers.size, 0);
   assert.deepEqual(state.radarDisplay, { loading: false, sites: [] });
 });
+
+for (const limit of ['encoded', 'geometry'] as const) test(`radar ${limit} admission preserves national coverage and recovers after zooming out`, async t => {
+  const fixture = radarFixture(Date.now());
+  const national = fixture.catalog.files.find(file => file.site === 'CONUS')!;
+  const terminal = fixture.catalog.files.find(file => file.site !== 'CONUS')!;
+  const second = { ...terminal, site: 'TAAA', sha256: 'f'.repeat(64), path: 'second.json' };
+  const terminals = [terminal, second].map(file => ({ ...file, byteLength: limit === 'encoded' ? 16 * 1024 * 1024 : 4 * 1024 * 1024 }));
+  const state: Pick<WeatherState, 'preferences' | 'radar' | 'radarRetry' | 'radarDisplay' | 'selectedTime' | 'now'> = {
+    preferences: weatherAwcPreferences.select({ awcEnabled: true, awcRadar: true }),
+    radar: { snapshot: { ...fixture.catalog, files: [national, ...terminals] }, loading: false },
+    radarRetry: 0, radarDisplay: { loading: false, sites: [] }, selectedTime: null, now: fixture.catalog.checkedAt,
+  };
+  const loaded: string[] = [], submitted: string[] = [];
+  const sources = new Map<string, { setData(): Promise<void> }>();
+  const layers = new Set<string>();
+  let zoom = 7;
+  const map = {
+    getBounds: () => ({ getWest: () => -180, getEast: () => 180, getSouth: () => -90, getNorth: () => 90 }), getZoom: () => zoom,
+    getSource: (id: string) => sources.get(id), getLayer: (id: string) => layers.has(id),
+    addSource(id: string) { sources.set(id, { async setData() { submitted.push(id); } }); },
+    removeSource: (id: string) => sources.delete(id), addLayer: ({ id }: { id: string }) => layers.add(id),
+    removeLayer: (id: string) => layers.delete(id), setLayoutProperty() {}, on() {}, off() {},
+  } as unknown as MapLibreMap;
+  const controller = {
+    getSnapshot: () => state, setRadarDisplay(display: WeatherState['radarDisplay']) { state.radarDisplay = display; },
+    async loadRadar(file: RadarFile) {
+      loaded.push(file.site);
+      const value = JSON.parse(fixture.files.get(file.site === 'CONUS' ? national.path : terminal.path)!.toString()) as RadarContours;
+      if (file.site !== 'CONUS') value.features[0]!.geometry.coordinates = [[Array.from({ length: 300_000 }, () => [-122, 37])]];
+      return value;
+    },
+  } as unknown as WeatherController;
+  const renderer = mountRadarMap(map, controller, () => 'weather'); t.after(() => renderer.destroy());
+  renderer.update(); await flush();
+  assert.deepEqual(state.radarDisplay.sites, ['CONUS']);
+  assert.match(state.radarDisplay.error!, /Terminal radar unavailable.*memory limit/);
+  assert.deepEqual(submitted, [NATIONAL], 'over-budget terminal geometry never reaches the renderer');
+  if (limit === 'encoded') assert.deepEqual(loaded, ['CONUS'], 'declared aggregate bytes prevent terminal reads before decode');
+  zoom = 6; renderer.update(); await flush();
+  assert.equal(state.radarDisplay.error, undefined);
+  assert.deepEqual(state.radarDisplay.sites, ['CONUS']);
+  assert.equal(loaded.filter(site => site === 'CONUS').length, 1);
+});

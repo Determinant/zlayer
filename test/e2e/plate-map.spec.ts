@@ -3,6 +3,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { expectMapPlate, hideMapPlate } from './plate-map-fixture';
 import { gridFixture } from '../fixtures/awc-grids';
 import { WEATHER_NOW } from '../fixtures/awc-advisories';
+import { mapTouchInput } from './touch-input';
 
 test.use({ hasTouch: true });
 
@@ -143,27 +144,27 @@ test('touch gestures preserve the IAP, and a long press offers the plate panel a
   await page.screenshot({ path: testInfo.outputPath('iap-mobile.png') });
   const point = await center(page);
   const menu = page.getByRole('menu', { name: 'Map actions' });
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [
+  const touch = await mapTouchInput(page);
+  await touch.send('touchStart', [
     { x: point.x - 25, y: point.y, id: 1 }, { x: point.x + 25, y: point.y, id: 2 },
-  ] });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [
+  ]);
+  await touch.send('touchMove', [
     { x: point.x - 35, y: point.y, id: 1 }, { x: point.x + 35, y: point.y, id: 2 },
-  ] });
+  ]);
   await page.waitForTimeout(650); // A held two-finger gesture must never remove the plate.
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await expectMapPlate(page);
   await expect(menu).toHaveCount(0);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x + 18, y: point.y }] });
+  await touch.send('touchStart', [point]);
+  await touch.send('touchMove', [{ x: point.x + 18, y: point.y }]);
   await page.waitForTimeout(650); // Exceed the hold threshold while a moved finger remains down.
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await expectMapPlate(page);
   await expect(menu).toHaveCount(0);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await touch.send('touchStart', [point]);
   await expect(menu).toBeVisible();
   await expectMapPlate(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await expect(menu).toBeVisible();
   await expectMapPlate(page);
   await expect(page.getByRole('dialog', { name: 'Nearby map features' })).toHaveCount(0);
@@ -178,13 +179,13 @@ test('touch gestures preserve the IAP, and a long press offers the plate panel a
   await expectMapPlate(page);
   await reader.getByRole('button', { name: 'Close plate' }).tap();
   await expect(reader).toHaveCount(0);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await touch.send('touchStart', [point]);
   await expect(menu).toBeVisible();
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await menu.getByRole('menuitem', { name: 'Hide IAP from map' }).tap();
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page, null);
-  await cdp.detach();
+  await touch.close();
 });
 
 test('a long press near the map edge cannot activate the menu underneath the released finger', async ({ page }, testInfo) => {
@@ -198,8 +199,8 @@ test('a long press near the map edge cannot activate the menu underneath the rel
   }
   const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
   const point = { x: box.x + box.width - 20, y: box.y + box.height - 80 };
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  const touch = await mapTouchInput(page);
+  await touch.send('touchStart', [point]);
   const menu = page.getByRole('menu', { name: 'Map actions' });
   await expect(menu).toBeVisible();
   const hide = menu.getByRole('menuitem', { name: 'Hide IAP from map' });
@@ -208,22 +209,22 @@ test('a long press near the map edge cannot activate the menu underneath the rel
   expect(point.x).toBeLessThan(bounds.x + bounds.width);
   expect(point.y).toBeGreaterThan(bounds.y);
   expect(point.y).toBeLessThan(bounds.y + bounds.height);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await expect(menu).toBeVisible();
   await expectMapPlate(page);
   await page.screenshot({ path: testInfo.outputPath('iap-menu-edge.png') });
   await page.touchscreen.tap(box.x + 30, box.y + 100);
   await expect(menu).toHaveCount(0);
   await expectMapPlate(page);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await touch.send('touchStart', [point]);
   await expect(menu).toBeVisible();
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await touch.send('touchEnd', []);
   await expect(menu.getByRole('menuitem').first()).toBeFocused();
   await menu.getByRole('menuitem', { name: 'Show plate panel' }).press('ArrowDown');
   await expect(hide).toBeFocused();
   await page.keyboard.press('Enter');
   await expectMapPlate(page, null);
-  await cdp.detach();
+  await touch.close();
 });
 
 test('paging through a book cannot patch a different page under the selected approach name', async ({ page }) => {

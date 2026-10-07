@@ -7,7 +7,7 @@ import { difference, joinOutboundCourse, selfCrosses } from '../src/approach-pat
 import fixture from './fixtures/approach-maneuvers.json' with { type: 'json' };
 
 // Unmodified FAA CIFP 2609 records. Plate comparisons are documented in
-// docs/reviews/iap-depiction-2026-09-21.md.
+// docs/evidence/approaches/2026-09-21/maneuver-review/README.md.
 const data: unknown = fixture;
 assert.ok(isApproachRoutesData(data));
 const procedure = (id: string) => data.procedures.find(p => p.id === id)!;

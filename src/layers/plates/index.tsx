@@ -66,7 +66,7 @@ function PlatesPanel({ layer, Notice }: { layer: PlatesController; Notice?: Comp
 }
 
 function PlateMapControl({ layer }: { layer: PlatesController }) {
-  const { mapImage, mapSelection, mapRestoreError } = useLayerSnapshot(layer);
+  const { mapImage, mapSelection, mapRestoreError, mapRenderError } = useLayerSnapshot(layer);
   useEffect(() => {
     if (!mapSelection) return;
     return retainActiveFiles([mapSelection.document.url]);
@@ -81,12 +81,14 @@ function PlateMapControl({ layer }: { layer: PlatesController }) {
   }, [layer, mapSelection, mapImage, mapRestoreError]);
   if (!mapSelection) return null;
   return <>
-    {!mapImage && <aside className="plate-map-control" aria-label="IAP on map" aria-busy={!mapRestoreError}>
+    {(!mapImage || mapRenderError) && <aside className="plate-map-control" aria-label="IAP on map" aria-busy={!mapRestoreError && !mapRenderError}>
       <span><strong>{mapSelection.airport.id} · {mapSelection.procedure.name}</strong>
         <small>Effective {formatDateRange(mapSelection.effectiveDate, mapSelection.expirationDate)}</small>
-        {mapRestoreError ? <small role="alert" title={mapRestoreError}>IAP could not be restored. Retry or hide it.</small>
+        {mapRenderError ? <small role="alert" title={mapRenderError}>IAP could not be displayed. Retry or hide it.</small>
+          : mapRestoreError ? <small role="alert" title={mapRestoreError}>IAP could not be restored. Retry or hide it.</small>
           : <small>Restoring IAP…</small>}</span>
       {mapRestoreError && <button type="button" className="ui-button plate-map-retry" onClick={layer.retryMapRestore}>Retry IAP</button>}
+      {mapRenderError && <button type="button" className="ui-button plate-map-retry" onClick={layer.retryMapRender}>Retry IAP</button>}
       <button className="ui-button ui-button--icon" type="button" onClick={() => layer.hideFromMap(mapImage)} aria-label="Hide IAP from map" title="Hide IAP from map">×</button>
     </aside>}
   </>;

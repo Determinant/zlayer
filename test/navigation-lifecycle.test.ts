@@ -4,6 +4,7 @@ import { setImmediate as tick } from 'node:timers/promises';
 import test from 'node:test';
 import type { CatalogResponse, ChartRecord } from '@zlayer/contracts';
 import { Hooks, hookModule } from './helpers/hooks';
+import { fetchNavigation } from '../src/layers/navigation/api';
 
 const loader = registerHooks({ resolve(specifier, context, next) {
   return specifier === 'react' ? { url: hookModule, shortCircuit: true } : next(specifier, context);
@@ -28,6 +29,25 @@ function setup(t: test.TestContext) {
   t.after(() => { hooks.unmount(); globals.window = original; });
   return hooks;
 }
+
+test('cold navigation editions share two read slots while duplicate consumers share one request', async t => {
+  const releases: (() => void)[] = [];
+  let active = 0, peak = 0, calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls++; active++; peak = Math.max(peak, active);
+    await new Promise<void>(resolve => releases.push(resolve)); active--;
+    return Response.json(document('SHARED'));
+  });
+  const reads = Array.from({ length: 8 }, (_, i) => {
+    const current = catalog(`https://charts.test/admission/${i}`);
+    return fetchNavigation(current.navigation[0]!, current.revision, []);
+  });
+  const duplicate = fetchNavigation(catalog('https://charts.test/admission/0').navigation[0]!, '2026-09-03', []);
+  await tick(); assert.equal(calls, 2);
+  for (let i = 0; i < 4; i++) { releases.splice(0).forEach(release => release()); await tick(); }
+  const values = await Promise.all(reads);
+  assert.equal(await duplicate, values[0]); assert.equal(calls, 8); assert.equal(peak, 2);
+});
 
 test('an old navigation request cannot replace a newer export; coverage is part of identity', async t => {
   const hooks = setup(t);

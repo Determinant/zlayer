@@ -258,6 +258,23 @@ Tests that explicitly construct their own density and touch contexts run once pe
 engine under `@explicit-density`; WebKit's 2× project runs the remaining cases at
 its own density. This preserves the explicit 1×/2×/3× resize and phone/tablet
 scenarios without repeating identical WebKit contexts.
+The matrix includes Glide's off-field heat renderer and published packages as
+well as airport ranges: retained textures, polygon holes, source replacement
+and offline reuse exercise its custom WebGL layer in every engine.
+Glide's cache-persistence cases use a fresh persistent WebKit profile. In the
+Playwright 1.63 Linux ephemeral profile, terminating the last worker owning a
+cache can discard its entries; a disk-backed profile preserves them. The fixture
+keeps the project's viewport, touch and density settings. Offline shell checks
+disconnect the fixture origin instead of enabling WebKit network emulation,
+which also rejects service-worker responses. Native held-touch injection uses
+Chromium CDP; the other engines exercise the DOM gesture handlers explicitly.
+Firefox graphics use Mozilla's `dom.storageManager.prompt.testing` and
+`.allow` preferences to accept the native persistence prompt while exercising
+real `StorageManager` and offline files. Without these, the Linux automation run
+left `persist()` pending even with Playwright permission grants. These are
+[browser test preferences](https://searchfox.org/firefox-main/source/modules/libpref/init/all.js),
+not application storage overrides.
+
 To run only the graphics suites independently on Linux:
 
 ```sh

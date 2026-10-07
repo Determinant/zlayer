@@ -13,7 +13,7 @@ import { occupiedMapRegions, observeOccupiedMapRegions } from './occupied-region
 import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
-import { mapErrorMessage } from './errors';
+import { mapErrorMessage, MapTileErrors } from './errors';
 import { createViewReporter } from './view-reporter';
 import { MapNavigationControl } from './navigation-control';
 import { LayerScope } from '../../core/layers/scope';
@@ -47,12 +47,10 @@ export class MapRuntime {
   readonly #context: Omit<MapContributionContext, 'signal' | 'preserveView'>;
   readonly #scope = new LayerScope();
   readonly #layerHost: MapLayerHost;
-  readonly #onReady: MapRuntimeOptions['onReady'];
   readonly #onError: MapRuntimeOptions['onError'];
   readonly #reportIdle: (idle: boolean) => void;
 
   constructor(options: MapRuntimeOptions) {
-    this.#onReady = options.onReady;
     this.#onError = options.onError;
 
     // MapLibre observes and throttles container resizes itself. A second
@@ -88,18 +86,36 @@ export class MapRuntime {
         'bottom-right',
       );
 
+      const tileErrors = new MapTileErrors();
+      const { onErrorRecovered } = options;
+      const recovered = (sourceId: string | undefined) => { if (sourceId !== undefined) onErrorRecovered?.(sourceId); };
+      const clearErrors = () => { for (const sourceId of tileErrors.clear()) recovered(sourceId); };
+      this.#scope.add(clearErrors);
       this.#map.on('style.load', () => {
+        clearErrors();
         this.#layerHost.unmount();
         this.#styleReady = true;
-        this.#onReady();
         this.#installLayers();
       });
       this.#map.on('error', (event) => {
         const message = mapErrorMessage(event);
-        if (message) this.#onError(message, resourceErrorCode(event.error));
+        if (message) {
+          const resource = tileErrors.failed(event, message);
+          this.#onError(message, resourceErrorCode(event.error), resource);
+        }
         // A terminal tile error can settle a source after its last render. Ask
         // for the final frame/idle event so offline startup cannot stay "busy".
         if (!idle) this.#map.triggerRepaint();
+      });
+      this.#map.on('sourcedata', event => {
+        // MapLibre reports source removal as metadata after deleting getSource's
+        // entry, before disconnecting tile events. Retire that source's condition
+        // here so a same-ID replacement cannot inherit failed tiles.
+        recovered(event.sourceDataType === 'metadata' && event.sourceId && !this.#map.getSource(event.sourceId)
+          ? tileErrors.removeSource(event.sourceId) : tileErrors.loaded(event));
+      });
+      this.#map.on('sourcedataabort', event => {
+        recovered(tileErrors.removed(event));
       });
       this.#context = {
         map: this.#map,
@@ -191,7 +207,6 @@ export class MapRuntime {
     }
     const modules = (this.#contributions ?? []).flatMap(contribution => this.#attachments.get(contribution)?.modules ?? []);
     this.#layerHost.reconcile(modules);
-    if (!this.#layerHost.hasFailures() && [...this.#attachments.values()].every(attachment => attachment.modules)) this.#onReady();
     this.#reportIdle(false);
     this.#map.triggerRepaint();
   }

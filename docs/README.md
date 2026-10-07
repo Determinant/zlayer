@@ -37,6 +37,7 @@ The same engineering and feature contracts apply to human and AI contributors.
 | Debug offline data, stale state or restoration | [Offline storage](features/offline-storage.md), [workspace persistence](architecture/workspace-persistence.md) | [Committed-snapshot rationale](adr/0005-offline-snapshot-authority.md), [PWA updates](features/pwa-updates.md) |
 | Investigate rendering, memory or device failures | [Graphics compatibility](verification/graphics-compatibility.md), [memory and resources](verification/memory-resources.md) | [Responsive checks](features/shared-ui.md), [retained evidence](evidence/README.md) |
 | Verify or release a change | [Verification commands](development/local-development.md#verification) | [Deployment contract and remaining release gates](development/deployment.md) |
+| Clean up after a feature or refactor batch | [Periodic repository cleanup](development/local-development.md#periodic-repository-cleanup) | [Documentation ownership](#keeping-the-docs-useful), [evidence retention](evidence/README.md#retention-rules) |
 | Add, consolidate or remove tests | [Maintaining test coverage](development/local-development.md#maintaining-test-coverage) | [Graphics/browser matrix](verification/graphics-compatibility.md), the owning [plugin guide](#plugin-guides) |
 
 ## Product and direction
@@ -106,6 +107,7 @@ guides stay in that same folder or its implementation subfolders.
 
 - [Graphics compatibility](verification/graphics-compatibility.md): rendering requirements and browser matrix.
 - [Memory and resources](verification/memory-resources.md): limits, investigations and preprocessing opportunities.
+- [October 6 rendering preparation measurements](verification/render-preparation-2026-10-06.md): Terrain, Plates, Glide and AWC Weather burst profiling and implementation decisions.
 
 Plugin-specific validation lives with its plugin, including
 [approach coverage](../src/layers/routes/approach-coverage.md) and
@@ -127,11 +129,7 @@ current guide and should be linked from the affected ADR without erasing the ori
 
 ## Reviews and evidence
 
-- [Review consolidation map](reviews/README.md): canonical homes for earlier reviews
-  and guidance for retaining future standalone investigations.
-- [Sequential plugin code review](reviews/2026-10-03-plugin-code-review.md): completed
-  static review of all 12 plugins, implemented fixes and assessed cleanup recommendations;
-  includes per-plugin scope and pending runtime verification.
+- [October 3 plugin profiling](verification/memory-resources.md#scoped-plugin-profiling-2026-10-03): retained Terrain, Glide, weather and AHRS comparisons from the completed review.
 - [Evidence](evidence/README.md): retained audits and images, their purpose and retention rules.
 
 Resolved findings and lasting guidelines belong in the owning feature, architecture
@@ -153,6 +151,9 @@ with historical results. Scratch scans and intermediate downloads belong in igno
   private operations checkout. Public guides own hosting contracts and reusable
   configuration; see the [deployment boundary](development/deployment.md#public-configuration-and-private-operations).
 - Keep proposals visibly planned and update the roadmap when implementation status changes.
+- Put one-off validation writeups in ignored `tmp/`. Keep executable checks in tests,
+  source provenance with fixtures, and concise findings or reproduction steps in
+  the owning guide; completed work does not need a separate validation report.
 - Remove routine test counts, rerun logs and obsolete status summaries once their
   useful lessons are in current guides or regression cases. Retain measured
   comparisons only with the source, method and limitations needed to interpret

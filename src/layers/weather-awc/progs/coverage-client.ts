@@ -11,6 +11,8 @@ const files = pluginStorage.files('progs-coverage', { maxEntries: 32, maxBytes: 
 export class ProgsCoverageClient {
   private known = new Map<string, ArrayBuffer>();
   constructor(readonly baseUrl: string) {}
+  /** Call after cancelling acquisition; this releases only optional live bytes. */
+  release() { this.known.clear(); }
   restore(): ProgsCoverageState {
     try {
       const saved: unknown = JSON.parse(pluginStorage.slot('progs-coverage').read() ?? 'null');

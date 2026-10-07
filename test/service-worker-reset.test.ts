@@ -5,6 +5,43 @@ import { CHART_CACHE, VERIFIED_SHA256_HEADER } from '../src/core/storage/cache-n
 
 const shellHtml = '<meta name="zlayer-release" content="dev">';
 
+test('archive failure and verified recovery are ordered, coalesced and kept in the worker lifetime', async t => {
+  const { onFetch, onMessage, clients, client } = await workerFixture(t);
+  const messages: Array<{ type: string; url: string }> = [];
+  t.mock.method(client, 'postMessage', (message: { type: string; url: string }) => { messages.push(message); });
+  let release!: () => void;
+  const enumeration = new Promise<void>(resolve => { release = resolve; });
+  let enumerations = 0;
+  t.mock.method(clients, 'matchAll', async () => { if (++enumerations === 1) await enumeration; return [client]; });
+  const pending: Promise<unknown>[] = [];
+  const url = `https://charts.tedyin.com/charts/ifr.mbtiles?bytes=3&sha256=${'a'.repeat(64)}`;
+  const read = (range?: string) => {
+    let result!: Promise<Response>;
+    onFetch({ request: new Request(url, range ? { headers: { range } } : {}), respondWith: work => { result = work; },
+      waitUntil: work => { pending.push(work); } });
+    return result;
+  };
+  t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('Failed to fetch'); });
+  assert.deepEqual(await Promise.all([read(), read()].map(async work => (await work).status)), [503, 503]);
+  await (await caches.open(CHART_CACHE)).put(url, new Response('ifr', { headers: {
+    'content-length': '3', [VERIFIED_SHA256_HEADER]: 'a'.repeat(64),
+  } }));
+  assert.equal((await read()).status, 200, 'notification delivery must not delay a usable response');
+  assert.deepEqual(messages, [], 'late failure enumeration holds recovery delivery in order');
+  release();
+  await Promise.all(pending);
+  assert.deepEqual(messages.map(({ type, url }) => ({ type, url })), [
+    { type: 'chart-archive-error', url }, { type: 'chart-archive-ready', url },
+  ]);
+  assert.equal((await read('bytes=0-1')).status, 206);
+  await Promise.all(pending);
+  assert.equal(messages.length, 2, 'resident range reads must not broadcast repeatedly');
+  onMessage({ data: { type: 'forget-chart-memory', url }, source: client, ports: [], waitUntil: () => {} });
+  assert.equal((await read('bytes=1-2')).status, 206);
+  await Promise.all(pending);
+  assert.equal(messages.length, 2, 'reopening a healthy nonresident archive must not rebroadcast readiness');
+});
+
 test('large chart downloads without writable storage return an actionable error and cancel the body', async t => {
   const { onFetch } = await workerFixture(t);
   let cancelled = false;
