@@ -1,3 +1,4 @@
+import { WeatherSourceError } from './source-error';
 import type { Worker } from 'node:worker_threads';
 import { availableParallelism } from 'node:os';
 import { normalizeAdvisories, isSourceCollection } from '../../src/layers/weather-awc/source';
@@ -128,9 +129,12 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
     const product = advisory[1] as AwcAdvisoryProduct, endpoint = product === 'sigmet' ? 'airsigmet' : product;
     // Leave one scheduler interval to replace the 60-second advisory response.
     const input = await cache.get(advisoryResource(product), 20_000, shutdown);
-    const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
-    if (!collections.every(isSourceCollection)) throw new Error('Invalid advisory collection');
-    return json(normalizeAdvisories(product, collections, input.checkedAt, `https://aviationweather.gov/api/data/${endpoint}`), input.checkedAt);
+    try {
+      const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
+      if (!collections.every(isSourceCollection)) throw new WeatherSourceError('Invalid advisory collection');
+      return json(normalizeAdvisories(product, collections, input.checkedAt, `https://aviationweather.gov/api/data/${endpoint}`), input.checkedAt);
+    }
+    catch { throw new WeatherSourceError('Invalid advisory source'); }
   }
   async function catalog(product: AwcGridProduct): Promise<Payload> {
     const manifest = await discover(read, product, shutdown, now());

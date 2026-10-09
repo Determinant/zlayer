@@ -18,6 +18,7 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
       const checkedAt = (options.now ?? Date.now)();
       const response = await fetcher(resource.url, { signal, redirect: 'error', headers: {
         'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1', 'Accept-Encoding': 'identity',
+        ...(resource.revalidate ? { 'Cache-Control': 'no-cache' } : {}),
         ...(resource.range ? { Range: resource.range } : {}),
       } }).catch(() => { throw new HttpError(502, 'Upstream connection failed', 5); });
       try {

@@ -65,11 +65,13 @@ for (const touch of [false, true]) {
         await page.mouse.down();
       }
       const direction = move === 0 ? 1 : -1;
+      let dropPoint = { x: current.x, y: current.y };
       // Cross the browser's touch slop on the first move, then use small steps
       // that keep the previous preview inside the snap radius. Wait for each
       // render to catch a GPS waypoint snapping to its own moving marker.
       for (let step = 1; step <= 6; step++) {
         const point = { x: current.x + direction * (step + 1) * 10, y: current.y - direction * (step + 1) * 7 };
+        dropPoint = point;
         if (session) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point] });
         else await page.mouse.move(point.x, point.y);
         await page.waitForFunction(point => {
@@ -87,11 +89,17 @@ for (const touch of [false, true]) {
       } else await page.mouse.up();
       await expect(page.getByLabel('Edits')).toHaveText(String(move + 2));
       await expect(page.getByLabel('Route', { exact: true })).toHaveText(/^KSBA \d{6}N\d{7}W KSMX$/);
-      await page.waitForFunction(entryId => {
+      // Clearing the preview can briefly expose the previous committed snapshot.
+      // Start the next drag only after the new coordinates have rendered.
+      await page.waitForFunction(({ entryId, point }) => {
         const map = (window as unknown as { routeMapAudit: { map: MapLibreMap } }).routeMapAudit.map;
         return map.queryRenderedFeatures({ layers: ['route-waypoints'] })
-          .some(feature => feature.properties.editEntryId === entryId && !feature.properties.dragging);
-      }, entryId);
+          .some(feature => {
+            if (feature.properties.editEntryId !== entryId || feature.properties.dragging || feature.geometry.type !== 'Point') return false;
+            const projected = map.project(feature.geometry.coordinates as [number, number]);
+            return Math.hypot(projected.x - point.x, projected.y - point.y) < 1.5;
+          });
+      }, { entryId, point: dropPoint });
     }
     await expect(page.getByRole('alert')).toBeEmpty();
   });

@@ -67,13 +67,14 @@ export function createNotamService(options: NotamOptions | undefined,
     const fresh = current && now() >= current.checkedAt && now() - current.checkedAt < NOTAM_STALE_MS;
     const collectionContinuity = current?.complete && now() >= current.watermark && now() - current.watermark + OVERLAP_MS < NOTAM_DAY_MS ? 'complete' : 'incomplete';
     const unresolvedRecords = current?.issues?.length ?? 0;
+    const blockingRecords = indexes.sourceIssues.blocking;
     const continuity = collectionContinuity === 'complete' && !unresolvedRecords ? 'complete' : 'incomplete';
     return { enabled, environment, state: !enabled ? 'disabled' : !configurationValid ? 'unavailable'
-      : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || continuity !== 'complete' ? 'degraded' : 'ready',
+      : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || collectionContinuity !== 'complete' || blockingRecords ? 'degraded' : 'ready',
       generation: current?.generation ?? null, checkedAt: current?.checkedAt ?? null, watermark: current?.watermark ?? null,
       fullSyncAt: current?.fullSyncAt ?? null, recordCount: (current?.records.length ?? 0) + unresolvedRecords,
-      collectionContinuity, unresolvedRecords, unscopedRecords: indexes.unscopedCount,
-      continuity, error: current?.incompleteReason ?? error ?? (unresolvedRecords ? 'unresolved-records' : null),
+      collectionContinuity, unresolvedRecords, blockingRecords, unscopedRecords: indexes.unscopedCount,
+      continuity, error: current?.incompleteReason ?? error ?? (blockingRecords ? 'unresolved-records' : null),
       nextAttemptAt: store && initialized ? Math.max(retryAt, store.nextDataAt, !current && !candidate ? store.nextBulkAt : 0) : null };
   }
   function restore(): Promise<void> {
@@ -200,6 +201,7 @@ export function createNotamService(options: NotamOptions | undefined,
   }
   return {
     restore, refresh, get status() { return status(); },
+    get sourceIssues() { return current ? indexes.sourceIssues : null; },
     get reconciliation() { return reconciliation?.status(current?.fullSyncAt ?? null, acquiringBulk || !!candidate) ?? null; },
     readRegion(query: NotamRegionQuery): NotamRegionSnapshot | undefined {
       if (!current) return undefined;

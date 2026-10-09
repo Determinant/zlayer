@@ -138,18 +138,61 @@ selected bulletins remain readable and labeled until selection or the feed chang
 ## Acquisition, freshness and persistence
 
 `source.ts` normalizes advisories on the server. The shared guard in
-`packages/contracts/src/awc-weather.ts` validates complete snapshots. G-AIRMET uses
-one pinned lookup instant for all five frames and rejects mixed cycles or partial
-packages. Unsupported geometry, bad validity, transfer-limit flags and results at
-the conservative 400-record ceiling reject a replacement. Empty GeoJSON collections
+`packages/contracts/src/awc-weather.ts` validates snapshots and explicit coverage. G-AIRMET uses
+one pinned lookup instant for all five frames and rejects mixed cycles, invalid
+forecast times or missing frame documents. Transfer-limit flags, malformed
+collection envelopes and results at the conservative 400-record ceiling reject
+a replacement. Empty GeoJSON collections
 are successful; a missing advisory document is not an empty snapshot.
+
+Member interpretation is separate from envelope completeness. Unsupported geometry,
+bad interval validity or malformed fields become source issues while valid neighbors
+publish. Complete snapshots use schema 1; partial snapshots use schema 2 with
+nonempty issues, so old clients cannot treat them as complete. Enabled partial
+families show **Coverage incomplete** outside the collapsed status disclosure;
+the disclosure lists unavailable entries and their raw evidence. Oversized evidence
+is explicitly labeled as an excerpt. All-invalid is partial, never a successful
+empty result. Recovery replaces the complete family and clears its issues.
+
+`source-geometry.ts` prepares fill and outline together from validated source paths,
+preserving polygon holes and disconnected pieces when splitting at the date line.
+Declared polygon rings may omit the repeated first coordinate: preparation appends
+that supplied coordinate before topology validation, with the same edge and aggregate
+10,000-coordinate limits. It does not close line geometry, snap nearby endpoints,
+reorder vertices, or invent locations. Fewer than three distinct corners, zero area,
+ambiguous closing edges and invalid topology still become source issues. Each ring unwraps independently;
+each hole must have exactly one longitude-world placement contained by its exterior.
+Full-area containment rejects holes crossing a concave exterior, and intersecting
+or nested holes are unsupported. Empty, crossing or retraced rings are rejected
+when canonicalization would change their boundary instead of silently repairing them.
+Starting vertex, winding and equivalent longitude
+worlds cannot change the covered area. Uncontained or empty holes become explicit
+source issues instead of being silently discarded by clipping. It bounds source longitudes to
+±540°, latitudes to ±90° and geometry to 10,000 points; ambiguous 180° edges remain
+unsupported. Canonical wire geometry stays within ±180°, and changed records retain
+their original geometry JSON. The [October 8 capture](../../../test/fixtures/cwa-dateline-2026-10-08.json)
+contains seven CWAs including Anchorage 103 with longitudes below −180°.
+`weather-advisory-source.test.ts` verifies all seven publish, the Alaska boundary
+does not span the world, wide and date-line polygon holes survive changes of ring
+representation, and malformed neighbors remain
+accounted for. `advisory-text.ts` owns display labels independently of source preparation.
+The [October 9 Anchorage 202 capture](../../../test/fixtures/cwa-open-ring-2026-10-09.json)
+records a four-corner polygon without a repeated closing point. Its raw geometry,
+properties and bulletin remain unchanged as evidence; the canonical fill and outline
+both include the completed closing edge. Source and HTTP regressions cover recovery,
+holes, disconnected polygons, date-line closing edges and unchanged strict wire guards.
+Transformed polygons publish their original boundary as separate canonical lines;
+the map draws that `outlineGeometry` while using clipped polygons for fill and
+picking. Closing edges introduced by clipping must not appear as source boundaries.
+Both outputs derive from the same closed source rings before clipping, so a normalized
+outline cannot omit an edge that is present in the filled advisory.
 
 The September 24, 2026 [CWA regression fixture](../../../test/fixtures/awc-cwa-null-hazard.json)
 preserves the [17:54 UTC AWC response](https://aviationweather.gov/api/data/cwa?format=geojson&date=2026-09-24T17%3A54%3A00Z):
 Houston CWA 103 has `hazard: null` alongside a classified Kansas City advisory.
 It verifies complete-family delivery, source preservation and exclusive expiry.
-Malformed hazard types, blank hazard strings and invalid validity still reject
-the replacement; the missing-hazard fallback applies only to CWA.
+Malformed hazard types, blank hazard strings and invalid interval validity become
+explicit source issues; the missing-hazard fallback applies only to CWA.
 
 The browser reads normalized advisory snapshots, serially refreshing enabled families every
 five minutes after completion while mounted, visible and online. Each request has

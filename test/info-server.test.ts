@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createInfoServer } from '../tools/info-server/server';
-import { HttpError, InvalidForecastSourceError, advisoryResource, modelResource, resourceFor } from '../tools/info-server/routes';
+import { HttpError, InvalidForecastSourceError, advisoryResource, modelResource, resourceFor, type Resource } from '../tools/info-server/routes';
 import { createUpstream, digest, type Payload } from '../tools/info-server/upstream';
 import { sourceBlocks, sourceRecordKey } from '../tools/info-server/source-records';
 import { advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
 import cwaNullHazard from './fixtures/awc-cwa-null-hazard.json';
+import cwaOpenRing from './fixtures/cwa-open-ring-2026-10-09.json';
 import { isAwcAdvisorySnapshot } from '@zlayer/contracts';
 
 const icing = 'dafs/prod/dafs.20260923/dafs.t00z.ifi.3km.conus.f001.grib2';
@@ -210,6 +211,7 @@ test('server applies entry budgets independently of bytes and reports capacity e
   assert.equal(app.cache.has(resources[1]!), false);
   assert.equal(app.cache.has(resources[2]!), true);
   const health = await (await fetch(`http://127.0.0.1:${address.port}/api/weather/healthz`)).json();
+  assert.equal(health.notamSourceIssues, null, 'cold collection cannot claim zero source issues');
   assert.deepEqual(health.cache, { entries: 2, bytes: 14, updating: 0, maxBytes: 1024 * 1024, maxEntries: 2,
     expiredRemovals: 0, capacityEvictions: 1 });
   app.cache.retain(resources.map(resource => resource.key));
@@ -372,6 +374,77 @@ test('gateway serves and caches the complete CWA family when AWC omits a hazard 
   assert.equal(cached.headers.get('x-weather-cache'), 'HIT');
   assert.deepEqual(await cached.json(), snapshot);
   assert.equal(calls, 1);
+});
+
+test('gateway publishes and caches an implicitly closed CWA with its complete outline and raw evidence', async t => {
+  let calls = 0;
+  const app = await http(t, async () => { calls++; return Response.json(cwaOpenRing.collection); });
+  const response = await fetch(app.origin + '/api/weather/advisories/cwa.json');
+  assert.equal(response.status, 200);
+  const snapshot: unknown = await response.json();
+  assert.ok(isAwcAdvisorySnapshot(snapshot));
+  assert.equal(snapshot.schemaVersion, 1); assert.equal(snapshot.issues, undefined);
+  assert.equal(snapshot.advisories.length, 1);
+  const notice = snapshot.advisories[0]!, raw = cwaOpenRing.collection.features[0]!;
+  assert.deepEqual(JSON.parse(notice.sourceGeometry!), raw.geometry);
+  assert.deepEqual(notice.outlineGeometry, { type: 'LineString',
+    coordinates: [...raw.geometry.coordinates[0]!, raw.geometry.coordinates[0]![0]!] });
+  assert.deepEqual(await (await fetch(app.origin + '/api/weather/advisories/cwa.json')).json(), snapshot);
+  assert.equal(calls, 1, 'viewer reads reuse the prepared snapshot');
+});
+
+test('upstream revalidation obtains changed source bytes while local reuse and request sharing remain bounded', async t => {
+  let now = WEATHER_NOW, revision = 1, intermediaryRevision = 1, calls = 0;
+  const load = createUpstream({ signal, spacing: 0, now: () => now, fetch: async (_input, init) => {
+    calls++;
+    if (new Headers(init?.headers).get('cache-control') === 'no-cache') intermediaryRevision = revision;
+    return Response.json({ revision: intermediaryRevision });
+  } });
+  const url = 'https://aviationweather.gov/api/data/progchart';
+  const resource: Resource = { key: url, url, kind: 'surface', upstream: 'awc', ttl: 300_000,
+    maxBytes: 16 * 1024, revalidate: true };
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 64 * 1024, now: () => now, load });
+  await cache.restore();
+  const first = await cache.get(resource, 150_000);
+  revision = 2; now += 1000;
+  assert.deepEqual((await cache.get(resource, 150_000)).body, first.body);
+  assert.equal(calls, 1, 'revalidation does not bypass local source cadence');
+  now += 150_000;
+  const refreshed = await Promise.all(Array.from({ length: 3 }, () => cache.get(resource, 150_000)));
+  for (const value of refreshed) {
+    assert.deepEqual(JSON.parse(value.body.toString()), { revision: 2 });
+    assert.equal(value.checkedAt, now);
+  }
+  assert.equal(calls, 2, 'shared consumers make one source acquisition');
+  assert.notEqual(refreshed[0]!.sha256, first.sha256);
+});
+
+test('rejected source observations share bounded recovery and cannot invalidate a newer replacement', async t => {
+  let now = WEATHER_NOW, calls = 0;
+  const url = 'https://aviationweather.gov/api/data/progchart';
+  const resource: Resource = { key: url, url, kind: 'surface', upstream: 'awc', ttl: 300_000, maxBytes: 16 * 1024 };
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 64 * 1024, now: () => now,
+    load: async () => { calls++; return { ...payload(String(calls)), checkedAt: now }; } });
+  await cache.restore();
+  const rejected = await cache.get(resource);
+  const cause = new HttpError(502, 'Rejected catalog generation', 30);
+  await cache.reject(resource, rejected, cause);
+  assert.equal(await cache.read(resource), undefined);
+  now += 20_000;
+  await cache.reject(resource, rejected, cause);
+  await assert.rejects(cache.get(resource), /Rejected catalog/);
+  assert.equal(calls, 1, 'duplicate consumers share the original retry deadline');
+  now += 10_000;
+  const recovered = await Promise.all(Array.from({ length: 4 }, () => cache.get(resource)));
+  assert.equal(calls, 2); assert.ok(recovered.every(value => value.body.toString() === '2'));
+  await cache.reject(resource, rejected, cause);
+  assert.equal((await cache.get(resource)).body.toString(), '2', 'late rejection cannot discard a replacement');
+  const next = { ...recovered[0]!, checkedAt: now + 1000 };
+  now += 1000;
+  const publication = cache.put(resource, next);
+  await cache.reject(resource, recovered[0]!, cause); await publication;
+  assert.equal((await cache.get(resource)).checkedAt, now, 'same bytes rechecked later have a distinct acquisition identity');
+  assert.equal(calls, 2);
 });
 
 test('only METAR/TAF reports accept 204; advisory emptiness requires a complete GeoJSON document', async () => {

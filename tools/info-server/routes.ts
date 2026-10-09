@@ -4,6 +4,8 @@ export const MiB = 1024 * 1024;
 export type Resource = {
   key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
   ttl: number; maxBytes: number; range?: string; indexHash?: string; multipleGribs?: true;
+  /** Ask intermediary caches to revalidate on acquisition; local TTL still applies. */
+  revalidate?: true;
 };
 export class HttpError extends Error {
   status: number;

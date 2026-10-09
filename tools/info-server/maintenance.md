@@ -30,6 +30,30 @@ satisfying this deployment gate. The NOTAM allowances below waive no weather err
 Progs exposes its next attempt; chart and grid failure logs report transitions
 instead of repeating identical errors on every retry.
 
+`notamSourceIssues` summarizes the committed generation's source ambiguity without
+new acquisition: total, association-only, unresolved content, unscoped, blocking
+and nonblocking counts, plus at most 16 samples and an explicit truncation flag.
+Samples identify the differing fields, raw ICAO alternatives, affected supported
+queries, impact, operator action and source events that can clear the issue.
+Association-only means the existing filing-scope proof supplies usable matching
+content while source aliases disagree; it does not resolve those aliases or remove
+the durable issue. Cold collection reports null. `source-issues.ts` uses the same
+proof for publication and readiness: an issue is nonblocking only when complete,
+scoped evidence establishes usable content and none of the disputed ICAO/FIR
+associations selects a supported query. All other issues block readiness.
+`blockingRecords` governs feed state/error and the release probe; legacy responses
+without it treat every unresolved record as blocking. Aggregate health retains
+nonblocking ambiguity in `readiness.warnings`, independently of its blocking
+`problems`. Source coverage and legacy `continuity` remain partial/incomplete.
+For example, the captured October 9 `49D`/`PA49D` pair has
+matching content and filing location but conflicting FAA ICAO-location fields;
+the schema allows both values, so neither may be selected by a format guess.
+Neither matches the supported four-letter ICAO/FIR query grammar, so this specific
+disagreement requires no operator action and does not block readiness. PJOH/PACV
+does affect supported queries and remains blocking. Neither classification clears
+the retained evidence or changes timestamps; a newer reconciled source revision
+or qualified full-snapshot withdrawal can clear the issue.
+
 `notamReconciliation` reports the last completed full sync, its age, a pending
 replacement, the last attempt/failure, and the next budget-eligible attempt. A
 24-hour interval plus ten minutes for download/bridge is the warning threshold.
@@ -75,6 +99,23 @@ do not infer it passed from these checks. Recovery/health tests live in
 `info-advisories.test.ts`. Existing persistence, lifecycle, delivery and weather
 worker tests cover their respective boundaries.
 
+Changes to health classification must exercise the retained source fixture through
+feed status, HTTP health and scoped reads, aggregate readiness, and the artifact
+probe. Diagnostics alone do not establish the decision is correct. Regressions
+include metadata-only evidence, supported disputed queries, substantive conflicts,
+truncated/unscoped evidence, a blocking issue beyond the diagnostic sample limit,
+and independent collection/freshness/reconciliation failures.
+
+Reliability qualification must cover successive refreshes at realistic feed sizes,
+not only a healthy startup. `notams-tfr-scheduling.test.ts` checks both clocks over
+repeated 90-notice rounds and restart, as well as near-timeout queues that must
+yield to index checks. Progs tests exercise retained publication through malformed
+inputs, upstream outages and catalog regression, recovery at the retry deadline,
+same-cycle corrections, and restart. Cache tests cover shared quarantine deadlines
+and delayed rejection racing a newer observation. Real overload, source outages
+and unresolved source ambiguity must remain visible; these checks do not promise
+permanent green health or waive the existing release gate.
+
 For an offline overlap replay:
 
 ```bash
@@ -114,7 +155,9 @@ does not waive reconciliation errors or missing diagnostic status.
 
 A compatible rollout may also supply `--allow-unresolved-notams=N` for a captured
 pre-existing source ambiguity. The probe still requires fresh, continuous
-collection and reports the retained issue count in `warnings`. A deployment must
+collection and reports the blocking issue count in `warnings`. Proven nonblocking
+metadata needs no allowance and is reported separately as
+`notam-association-metadata:N`. A deployment must
 independently compare source IDs against its stopped baseline; a numeric allowance
 alone does not prove the candidate preserved the same ambiguity.
 This source-issue allowance also cannot waive reconciliation failures.

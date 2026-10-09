@@ -1,10 +1,12 @@
 import { isDeepStrictEqual } from 'node:util';
-import { isNotamRecord, type NotamRecord } from '@zlayer/contracts';
+import { isNotamRecord, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
 import { fdcBodyForms } from '../../../src/layers/notams/source-text';
-import { notamEndKind, notamSchedule, notamTime } from '../../../src/layers/notams/validity';
+import { notamEndKind, notamTime } from '../../../src/layers/notams/validity';
 import { notamCancellationExpiresAt } from './policy';
+import { sharedIcaoNotice } from './notice-evidence';
+import { parseNotamSchedule, equalNotamSchedules, notamBodySchedule, notamScheduleFits } from '../../../src/layers/notams/schedule';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
 export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
@@ -41,8 +43,10 @@ function completeLocalNotice(record: NotamRecord, text: string): boolean {
   if (compact(record.startsAt) !== match[6] ||
     (permanent ? record.endsAt !== null || record.effectiveEnd !== 'PERM' : compact(record.endsAt) !== end.replace(/EST$/, '')) ||
     record.endKind !== (permanent ? 'permanent' : estimated ? 'estimated' : 'fixed')) return false;
-  const schedule = notamSchedule(record.schedule);
-  return match[5] === body || !!schedule && match[5] === `${body} ${schedule}`;
+  if (match[5] === body) return true;
+  const schedule = parseNotamSchedule(record.schedule);
+  return schedule.kind !== 'empty' && match[5]!.startsWith(`${body} `) &&
+    equalNotamSchedules(schedule, parseNotamSchedule(match[5]!.slice(body.length + 1)));
 }
 function sharedLocalNotice(previous: NotamRecord, next: NotamRecord): boolean {
   const before = translationsByType(previous).get('LOCAL_FORMAT'), after = translationsByType(next).get('LOCAL_FORMAT');
@@ -52,53 +56,20 @@ function sharedLocalNotice(previous: NotamRecord, next: NotamRecord): boolean {
   const text = [...before][0]!;
   return after.has(text) && completeLocalNotice(previous, text) && completeLocalNotice(next, text);
 }
-const weekday = '(?:MON|TUE|WED|THU|FRI|SAT|SUN)';
-const days = `(?:DLY|DAILY|${weekday}(?:-${weekday})?(?: ${weekday}(?:-${weekday})?)*)`;
-const schedulePattern = new RegExp(`^(${days})(?: (\\d{4}-\\d{4}))?$`);
-const scheduleSuffix = new RegExp(` (${days}) (\\d{4}-\\d{4})$`);
-const additionalSchedule = new RegExp(`\\b(?:DLY|DAILY|${weekday}|\\d{4}-\\d{4})\\b`);
-function scheduleParts(value: string): { days: number; hours: string | undefined } | undefined {
-  const match = schedulePattern.exec(value);
-  if (!match) return undefined;
-  const hours = match[2];
-  if (hours) {
-    const [start, end] = hours.split('-');
-    const clock = /^(?:[01]\d|2[0-3])[0-5]\d$/;
-    if (!clock.test(start!) || !(clock.test(end!) || end === '2400') || start === end) return undefined;
-  }
-  let mask = 0;
-  if (match[1] === 'DLY' || match[1] === 'DAILY') mask = 127;
-  else for (const range of match[1]!.split(' ')) {
-    const [first, last = first] = range.split('-'), names = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    for (let day = names.indexOf(first!); ; day = (day + 1) % 7) {
-      mask |= 1 << day;
-      if (day === names.indexOf(last!)) break;
-    }
-  }
-  return { days: mask, hours };
-}
 function equivalentSchedule(previous: NotamRecord, next: NotamRecord): string | undefined {
-  const before = notamSchedule(previous.schedule), after = notamSchedule(next.schedule);
-  if (before === after) return previous.schedule;
-  // Optional schedule metadata can omit days/hours already supplied by the
-  // identical complete native body. Every populated part must agree with that
-  // body's terminal schedule; presence alone never makes a version authoritative.
+  const before = parseNotamSchedule(previous.schedule), after = parseNotamSchedule(next.schedule);
+  if (equalNotamSchedules(before, after)) return previous.schedule;
+  // Equality of meaning needs no notice-specific exception. Supplementing an
+  // omission does: both records must be witnessed by the same complete notice.
   if (previous.classification !== 'DOMESTIC' || next.classification !== 'DOMESTIC' || !sharedLocalNotice(previous, next)) return undefined;
   const body = previous.text.replace(/\s+/g, ' ').trim();
   if (body !== next.text.replace(/\s+/g, ' ').trim()) return undefined;
-  const suffix = scheduleSuffix.exec(body);
-  if (!suffix) return undefined;
-  const prefix = body.slice(0, suffix.index);
-  if (additionalSchedule.test(prefix) || /\b(?:EXC|EXCEPT|NOT|BEFORE|AFTER|UNTIL|BTN|AND|OR)$/.test(prefix)) return undefined;
-  const witness = scheduleParts(`${suffix[1]} ${suffix[2]}`);
-  if (!witness) return undefined;
-  const a = scheduleParts(before), b = scheduleParts(after);
-  for (const [raw, parts] of [[before, a], [after, b]] as const) {
-    if (raw && (!parts || parts.days !== witness.days || parts.hours && parts.hours !== witness.hours)) return undefined;
-  }
-  // Retain the fuller source spelling, not a synthesized schedule, so later
-  // sparse replays cannot erase supplied hours or hide a subsequent disagreement.
-  return !before || !a?.hours && b?.hours ? next.schedule : previous.schedule;
+  const witness = notamBodySchedule(body);
+  if (!witness || !notamScheduleFits(before, witness) || !notamScheduleFits(after, witness)) return undefined;
+  // Preserve the most complete original field. Never synthesize a schedule or
+  // replace retained hours with a later sparse rendering at the same revision.
+  return before.kind === 'empty' || before.kind === 'weekly' && !before.window && after.kind === 'weekly' && after.window
+    ? next.schedule : previous.schedule;
 }
 function compatibleIcao(a: string, b: string): boolean {
   if (a === b) return true;
@@ -119,6 +90,7 @@ function compatibleIcao(a: string, b: string): boolean {
 }
 function equivalentBody(previous: NotamRecord, next: NotamRecord): string | undefined {
   if (previous.text === next.text) return previous.text;
+  if (sharedIcaoNotice(previous, next)) return previous.text.length <= next.text.length ? previous.text : next.text;
   if (previous.text.replace(/\s+/g, ' ').trim() === next.text.replace(/\s+/g, ' ').trim() &&
     sharedLocalNotice(previous, next)) return previous.text;
   const localBefore = translationsByType(previous).get('LOCAL_FORMAT'), localAfter = translationsByType(next).get('LOCAL_FORMAT');
@@ -198,7 +170,7 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
         // including different Q geometry, headers and conversion artifacts.
         // A complete shared local notice plus matching core fields establishes
         // the notice; retain the auxiliary renderings without inventing equality.
-        if (type === 'OTHER:ICAO' && sharedLocalNotice(previous, next)) return false;
+        if (type === 'OTHER:ICAO' && (sharedLocalNotice(previous, next) || sharedIcaoNotice(previous, next))) return false;
         return type !== 'OTHER:ICAO' || [...values].some(a => [...incoming].some(b => !compatibleIcao(a, b)));
       });
     }
@@ -254,6 +226,33 @@ export class NotamRevisionConflict extends NotamError {
   readonly related: NotamRevisionConflict[] = [];
   constructor(readonly previous: NotamRecord, readonly next: NotamRecord,
     readonly fields: ReturnType<typeof notamContentDifferences>) { super('revision-conflict'); }
+}
+
+/** Content can be certain in the agreed filing scope while auxiliary airport
+ * associations remain disputed. Keep the durable source issue and all its raw
+ * variants; this projection cannot establish a disputed ICAO alias or repair a
+ * substantive content/lifecycle conflict. */
+export function resolveNotamFilingScope(issue: NotamSourceIssue): NotamRecord | undefined {
+  if (issue.reason !== 'revision-conflict' || issue.variantsTruncated || issue.unscoped || issue.variants.length < 2 ||
+    issue.variants.some(r => r.lifecycle !== 'active' || !r.locations.length || r.icaoLocationVariants)) return;
+  const sets = [...new Map(issue.variants.filter(r => r.icaoLocations.length).map(r =>
+    [[...r.icaoLocations].sort().join(','), r.icaoLocations])).values()];
+  if (sets.length < 2) return;
+  const withoutAssociation = (record: NotamRecord) => {
+    const { revision: _revision, ...facts } = record;
+    return recordWithRevision({ ...facts, icaoLocations: [] });
+  };
+  let resolved = withoutAssociation(issue.variants[0]!);
+  try {
+    for (const variant of issue.variants.slice(1)) {
+      if (compareNotamRevision(resolved, variant) !== 0) return;
+      resolved = mergeSameNotamRevision(resolved, withoutAssociation(variant));
+    }
+  } catch (cause) { if (cause instanceof NotamError) return; throw cause; }
+  const { revision: _revision, ...facts } = resolved;
+  const record = recordWithRevision({ ...facts,
+    icaoLocations: sets[0]!.filter(code => sets.every(set => set.includes(code))), icaoLocationVariants: sets });
+  return isNotamRecord(record) ? record : undefined;
 }
 
 export function mergeNotamRecords(previous: readonly NotamRecord[], updates: readonly NotamRecord[]): readonly NotamRecord[] {

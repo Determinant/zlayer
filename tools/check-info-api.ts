@@ -20,9 +20,10 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     assert.equal(feed.environment, notams);
     assert.equal(feed.collectionContinuity ?? feed.continuity, 'complete');
     const issues = feed.unresolvedRecords ?? 0;
-    assert.ok(issues <= maxIssues, 'Unexpected unresolved NOTAM source records');
-    assert.equal(feed.state, issues ? 'degraded' : 'ready');
-    assert.equal(feed.error, issues ? 'unresolved-records' : null);
+    const blocking = feed.blockingRecords ?? issues;
+    assert.ok(blocking <= maxIssues, 'Unexpected unresolved NOTAM source records affecting content or queries');
+    assert.equal(feed.state, blocking ? 'degraded' : 'ready');
+    assert.equal(feed.error, blocking ? 'unresolved-records' : null);
     fresh(feed.checkedAt!, INFO_FRESHNESS.notams, 'NOTAM source check', 0);
   }
   let reads = 0;
@@ -110,6 +111,7 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   for (const product of ['gairmet', 'sigmet', 'cwa']) {
     const snapshot = (await read(`/api/weather/advisories/${product}.json`)).json();
     assert.ok(isAwcAdvisorySnapshot(snapshot) && snapshot.product === product, `${product}: invalid advisory snapshot`);
+    assert.equal(snapshot.issues?.length ?? 0, 0, `${product}: incomplete advisory coverage`);
     fresh(snapshot.checkedAt, INFO_FRESHNESS.advisory, `${product} source check`);
   }
   const reports = (await read('/api/weather/metars.geojson?ids=KSFO')).json(); assert.ok(isMetarFeatureCollection(reports));
@@ -127,7 +129,10 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     checkFeed(feed);
     assert.ok(isRecord(health.notamReconciliation), 'NOTAM reconciliation status missing');
     assert.equal(health.notamReconciliation.error, null, 'NOTAM reconciliation failed');
-    if (feed.unresolvedRecords) warnings.push(`unresolved-notam-records:${feed.unresolvedRecords}`);
+    const blocking = feed.blockingRecords ?? feed.unresolvedRecords ?? 0;
+    if (blocking) warnings.push(`unresolved-notam-records:${blocking}`);
+    const metadata = (feed.unresolvedRecords ?? 0) - blocking;
+    if (metadata) warnings.push(`notam-association-metadata:${metadata}`);
     assert.ok(feed.fullSyncAt !== null);
     if (options.allowOverdueFullSync && feed.fullSyncAt <= Date.now() && !freshAt(feed.fullSyncAt, Date.now(), INFO_FRESHNESS.fullSync, 0)) {
       warnings.push('full-sync-overdue');

@@ -6,13 +6,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { isRecord, isNotamAirportSnapshot, isNotamSourceIssue, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
+import { isRecord, isNotamRecord, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamSourceIssue, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
+import { resolveNotamFilingScope } from '../tools/info-server/notams/revision';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { createNotamService } from '../tools/info-server/notams/service';
 import { createNotamResponder } from '../tools/info-server/notams/routes';
 import { aixm } from './fixtures/notams';
+import associationCapture from './fixtures/notams-association-2026-10-09.json';
+import { NotamIndex } from '../tools/info-server/notams/index';
+import { createInfoServer } from '../tools/info-server/server';
 
 // These were already present in the frozen reader corpus. Reader preservation
 // alone did not exercise whether collection could reconcile their source facts.
@@ -28,16 +32,93 @@ const representationIssues = renderings.issues;
 const cancellations: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-cancellation-2026-10-06.json', import.meta.url), 'utf8'));
 assert.ok(isRecord(cancellations) && typeof cancellations.checkedAt === 'number' &&
   Array.isArray(cancellations.issues) && cancellations.issues.every(isNotamSourceIssue));
+const schedules: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-schedule-2026-10-08.json', import.meta.url), 'utf8'));
+assert.ok(isRecord(schedules) && typeof schedules.checkedAt === 'number' &&
+  Array.isArray(schedules.issues) && schedules.issues.every(isNotamSourceIssue));
+const evidence: unknown = JSON.parse(readFileSync(new URL('./fixtures/notams-evidence-2026-10-08.json', import.meta.url), 'utf8'));
+assert.ok(isRecord(evidence) && typeof evidence.checkedAt === 'number' &&
+  Array.isArray(evidence.issues) && evidence.issues.every(isNotamSourceIssue));
+const miami = evidence.issues.find(i => i.locations.includes('MIA'))!;
+const joh = evidence.issues.find(i => i.locations.includes('JOH'))!;
 const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values(),
-  ...representationIssues, ...cancellations.issues];
-const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt, cancellations.checkedAt);
+  ...representationIssues, ...cancellations.issues, ...schedules.issues, miami];
+const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt, cancellations.checkedAt, schedules.checkedAt, evidence.checkedAt);
 function changed(record: NotamRecord, fields: Partial<NotamRecord>) {
   const { revision: _revision, ...facts } = { ...record, ...fields };
   return recordWithRevision(facts);
 }
 
+test('multipart equivalence requires a complete identified notice and exact whole-body evidence', () => {
+  const [single, multipart] = miami.variants;
+  const altered = (transform: (text: string) => string) => changed(multipart!, {
+    translations: multipart!.translations.map(t => ({ ...t, text: transform(t.text) })),
+  });
+  for (const variant of [
+    altered(text => text.replace('A3051/26', 'A3052/26')),
+    altered(text => text.replace('PART 1 OF 2', 'PART 1 OF 3')),
+    altered(text => text.replace('END PART 1 OF 2', 'END PART 2 OF 2')),
+    altered(text => text.replace('END PART 2 OF 2', '')),
+    altered(text => text.replace('A) KMIA', 'A) KXXX')),
+    altered(text => text.replace('B) 2610081110', 'B) 2610081210')),
+    altered(text => text.replace('C) 2711131110', 'C) 2711141110')),
+    altered(text => text.replace('356FT', '357FT')),
+    changed(multipart!, { text: multipart!.text.replace('356FT', '357FT') }),
+    changed(multipart!, { translations: [] }),
+    changed(multipart!, { series: 'B' }),
+  ]) for (const order of [[single!, variant], [variant, single!]]) {
+    assert.equal(collectNotamRecords({ records: [] }, order).issues?.length, 1);
+  }
+  const repeated = changed(multipart!, { text: [single!.text, single!.text, single!.text].join('\n') });
+  assert.equal(collectNotamRecords({ records: [] }, [repeated, single!]).records[0]?.text, single!.text);
+  const incomplete = altered(text => text.replace(/A3051\/26 NOTAMN[^]*?END PART 1 OF 2\s*/, ''));
+  assert.equal(collectNotamRecords({ records: [] }, [single!, incomplete]).issues?.length, 1);
+});
+
+test('association disputes qualify filing-scope content without asserting an airport alias or erasing source evidence', async () => {
+  for (const variants of [joh.variants, [...joh.variants].reverse()]) {
+    const issue = collectNotamRecords({ records: [] }, variants).issues![0]!;
+    const projected = resolveNotamFilingScope(issue)!;
+    assert.ok(isNotamRecord(projected));
+    assert.ok(!isNotamRecord({ ...projected, icaoLocations: ['PACV'] }), 'a disputed alias cannot become a canonical association');
+    assert.ok(!isNotamRecord({ ...projected, icaoLocationVariants: [['PJOH'], ['PJOH']] }));
+    assert.equal(projected.text, 'NAV VOR/DME NOT MNT');
+    assert.deepEqual(projected.locations, ['JOH']); assert.deepEqual(projected.icaoLocations, []);
+    assert.deepEqual(new Set(projected.icaoLocationVariants!.flat()), new Set(['PJOH', 'PACV']));
+    assert.equal(projected.updatedAt, variants[0]!.updatedAt);
+    assert.equal(resolveNotamFilingScope({ ...issue, variantsTruncated: true }), undefined);
+    assert.equal(resolveNotamFilingScope({ ...issue, variants: [variants[0]!, changed(variants[1]!, { text: 'NAV VOR/DME U/S' })] }), undefined);
+    assert.equal(resolveNotamFilingScope({ ...issue, variants: [variants[0]!, changed(variants[1]!, { locations: ['XXX'] })] }), undefined);
+  }
+  const directory = await mkdtemp(join(tmpdir(), 'notam-association-scope-'));
+  const state = join(directory, 'production'), store = new NotamStore(state, 'production', () => now);
+  await store.restore(); await store.reserve('bulk');
+  await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [joh],
+    complete: true, checkedAt: now, watermark: now, baselineAt: now, fullSyncAt: now });
+  const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();
+  const service = createNotamService({ enabled: true, environment: 'production', directory,
+    credentials: { clientId: 'fixture', clientSecret: 'fixture' } }, {
+    signal: new AbortController().signal, now: () => now, fetch: async () => assert.fail('Projection must not acquire source data'),
+  });
+  try {
+    await service.restore();
+    const station = service.readNavaid({ navaidId: 'JOH' })!;
+    assert.ok(isNotamNavaidSnapshot(station));
+    assert.equal(station.contentCoverage, 'complete'); assert.equal(station.records.length, 1); assert.deepEqual(station.issues, []);
+    assert.equal(station.feed.unresolvedRecords, 1, 'global association uncertainty is not falsely cleared');
+    assert.equal(station.feed.blockingRecords, 1, 'disputed supported ICAO queries still block readiness');
+    assert.equal(station.feed.state, 'degraded');
+    assert.equal(station.feed.error, 'unresolved-records');
+    for (const icaoId of ['PJOH', 'PACV']) {
+      const airport = service.readAirport({ icaoId })!;
+      assert.equal(airport.contentCoverage, 'incomplete'); assert.deepEqual(airport.records, []);
+      assert.deepEqual(airport.issues?.[0]?.variants, joh.variants);
+    }
+    assert.equal(await readFile(join(state, 'budget.json'), 'utf8'), budget);
+  } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('captured source pairs reconcile in both arrival orders without losing raw translations or source time', () => {
-  assert.equal(issues.length, 22);
+  assert.equal(issues.length, 24);
   for (const issue of issues) for (const variants of [issue.variants, [...issue.variants].reverse()]) {
     let collection = collectNotamRecords({ records: [] }, [variants[0]!]);
     collection = collectNotamRecords(collection, variants.slice(1));
@@ -58,6 +139,74 @@ test('captured source pairs reconcile in both arrival orders without losing raw 
     }
     assert.equal(collectNotamRecords(collection, [...variants, ...variants]), collection, `${issue.id}: idempotent replay`);
   }
+});
+
+test('captured filing-scope content remains usable while health distinguishes association uncertainty from content conflicts', async () => {
+  const issue: unknown = associationCapture.issues[0]; assert.ok(isNotamSourceIssue(issue));
+  const directory = await mkdtemp(join(tmpdir(), 'notam-issue-kinds-'));
+  const at = Date.parse(associationCapture.checkedAt), store = new NotamStore(join(directory, 'production'), 'production', () => at);
+  await store.restore(); await store.reserve('bulk');
+  const generation = await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [issue],
+    complete: true, checkedAt: at, watermark: at, baselineAt: at, fullSyncAt: at });
+  await store.close();
+  const app = await createInfoServer({ directory: join(directory, 'weather'), startUpdates: false, now: () => at,
+    notams: { enabled: true, environment: 'production', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    fetch: async () => assert.fail('Source diagnostics must not acquire FAA data') });
+  const service = app.notams;
+  try {
+    await service.restore();
+    await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
+    const address = app.server.address(); assert.ok(address && typeof address !== 'string');
+    const origin = `http://127.0.0.1:${address.port}`;
+    const filed = service.readAirport({ faaId: '49D' })!;
+    assert.equal(filed.contentCoverage, 'complete'); assert.equal(filed.records.length, 1);
+    assert.deepEqual(filed.issues, []);
+    assert.equal(filed.records[0]!.text, issue.variants[0]!.text);
+    assert.equal(filed.records[0]!.updatedAt, issue.variants[0]!.updatedAt);
+    assert.deepEqual(new Set(filed.records[0]!.icaoLocationVariants!.flat()), new Set(['49D', 'PA49D']));
+    assert.equal(service.status.unresolvedRecords, 1, 'uncertain associations are retained, not declared resolved');
+    assert.equal(service.status.blockingRecords, 0); assert.equal(service.status.state, 'ready');
+    assert.equal(service.status.error, null); assert.equal(service.status.continuity, 'incomplete');
+    assert.deepEqual(await (await fetch(origin + '/api/notams/healthz')).json(), service.status);
+    assert.deepEqual(await (await fetch(origin + '/api/notams/airports?faaId=49D')).json(), filed);
+    const health = await (await fetch(origin + '/api/weather/healthz')).json();
+    assert.deepEqual(health.notams, service.status);
+    assert.equal(health.readiness.sources.notams.available, true); assert.equal(health.readiness.sources.notams.fresh, true);
+    assert.equal(health.readiness.sources.notams.coverage, 'partial'); assert.equal(health.readiness.sources.notams.error, null);
+    assert.ok(health.readiness.problems.every((p: { product: string }) => !p.product.startsWith('notams')));
+    assert.deepEqual(health.readiness.warnings, [{ product: 'notams', reason: 'association-metadata', severity: 'warning' }]);
+    assert.deepEqual(health.notamSourceIssues, service.sourceIssues);
+    assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0,
+      blocking: 0, nonBlocking: 1,
+      samples: [{ id: issue.id, kind: 'association', reason: 'revision-conflict', locations: ['49D'], blocking: false,
+        fields: ['icaoLocations'], icaoLocationVariants: issue.variants.map(v => v.icaoLocations), affectedIcaoQueries: [], affectedLocationQueries: [],
+        variantsTruncated: false, unscoped: false, impact: 'metadata-only', operatorAction: 'none',
+        resolution: 'A newer reconciled source revision or qualified full-snapshot withdrawal can clear the retained issue.' }], samplesTruncated: false });
+    const index = new NotamIndex(); index.publish(generation);
+    const contradictory = collectNotamRecords({ records: [] }, [issue.variants[0]!, changed(issue.variants[1]!, {
+      text: issue.variants[1]!.text.replace('U/S', 'AVBL'),
+    })]);
+    index.publish({ ...generation, ...contradictory });
+    assert.equal(index.sourceIssues.associationOnly, 0); assert.equal(index.sourceIssues.contentUnresolved, 1);
+    assert.equal(index.sourceIssues.blocking, 1); assert.equal(index.sourceIssues.nonBlocking, 0);
+    assert.equal(index.read('49D').records.length, 0, 'substantive disagreement cannot borrow the filing-scope qualification');
+    index.publish({ ...generation, issues: Array.from({ length: 20 }, (_, id) => ({ ...issue, id: String(id) })) });
+    assert.equal(index.sourceIssues.total, 20); assert.equal(index.sourceIssues.samples.length, 16);
+    assert.equal(index.sourceIssues.samplesTruncated, true, 'diagnostic samples stay bounded independently of complete counts');
+    index.publish({ ...generation, issues: [...Array.from({ length: 16 }, (_, id) => ({ ...issue, id: String(id) })), joh] });
+    assert.equal(index.sourceIssues.blocking, 1); assert.equal(index.sourceIssues.nonBlocking, 16);
+    assert.ok(index.sourceIssues.samples.every(sample => !sample.blocking), 'readiness uses all evidence, not the bounded samples');
+    index.publish({ ...generation, issues: [joh] });
+    assert.deepEqual(index.sourceIssues.samples[0]!.affectedIcaoQueries, ['PACV', 'PJOH']);
+    assert.equal(index.sourceIssues.samples[0]!.impact, 'association-queries');
+    for (const patch of [{ variantsTruncated: true }, { unscoped: true }, { icaoLocations: [...issue.icaoLocations, 'KXXX'] },
+      { locations: [...issue.locations, 'SFO'] }]) {
+      index.publish({ ...generation, issues: [{ ...issue, ...patch }] });
+      assert.equal(index.sourceIssues.blocking, 1, 'incomplete or additional retained evidence cannot qualify for metadata-only');
+    }
+    index.publish({ ...generation, issues: [] });
+    assert.equal(index.sourceIssues.total, 0, 'a new committed generation clears resolved diagnostics');
+  } finally { await app.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('native schedule evidence supplements missing metadata and retains supplied hours through sparse replays', () => {

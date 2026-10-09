@@ -26,7 +26,8 @@ type Options = { directory: string; maxBytes: number; maxEntries?: number;
 export class WeatherCache {
   private entries = new Map<string, Entry>();
   private pending = new Map<string, Promise<Payload>>();
-  private failures = new Map<string, { until: number; error: HttpError }>();
+  private failures = new Map<string, { until: number; error: HttpError; rejected?: string }>();
+  private observers = new Map<string, Set<(payload: Payload) => void>>();
   private retained = new Set<string>();
   private publication: Promise<void> = Promise.resolve();
   private bytes = 0;
@@ -96,6 +97,30 @@ export class WeatherCache {
     expiredRemovals: this.expiredRemovals, capacityEvictions: this.capacityEvictions }; }
   storedSize(resource: Resource): number { const entry = this.entries.get(resource.key); return entry ? storedBytes(entry) : 0; }
 
+  /** Product summaries follow authenticated cache publications, regardless of
+   * which reader initiated acquisition. Callbacks run in the publication turn. */
+  observe(resource: Resource, published: (payload: Payload) => void, signal: AbortSignal): void {
+    if (signal.aborted) return;
+    const observers = this.observers.get(resource.key) ?? new Set();
+    observers.add(published); this.observers.set(resource.key, observers);
+    signal.addEventListener('abort', () => {
+      observers.delete(published);
+      if (!observers.size) this.observers.delete(resource.key);
+    }, { once: true });
+  }
+  private observed(entry: Entry, payload: Payload): void {
+    if (this.entries.get(entry.resource.key) !== entry) return;
+    for (const published of this.observers.get(entry.resource.key) ?? []) {
+      try { published(payload); }
+      catch (cause) { this.options.log?.(`Cache publication observer failed: ${String(cause)}`); }
+    }
+  }
+  isCurrent(resource: Resource, payload: Pick<Payload, 'checkedAt' | 'sha256'>): boolean {
+    const entry = this.entries.get(resource.key);
+    return this.has(resource) && entry?.checkedAt === payload.checkedAt && entry.sha256 === payload.sha256;
+  }
+  failure(resource: Resource): HttpError | undefined { return this.failures.get(resource.key)?.error; }
+
   /** Published and building generations cannot be evicted by disposable source reads. */
   private readonly retentions = new Map<string, Set<string>>();
   retain(keys: Iterable<string>, owner = 'grids') {
@@ -106,6 +131,24 @@ export class WeatherCache {
   async discard(resource: Resource): Promise<void> {
     const entry = this.entries.get(resource.key);
     if (entry) await this.remove(entry);
+  }
+
+  /** A transport-valid observation can still fail its owner's source contract.
+   * Quarantine that exact observation, never a newer replacement. Consumers
+   * share one retry deadline instead of repeatedly reusing rejected bytes. */
+  reject(resource: Resource, payload: Pick<Payload, 'checkedAt' | 'sha256'>, error: HttpError): Promise<void> {
+    const rejected = `${payload.checkedAt}:${payload.sha256}`;
+    const task = this.publication.catch(() => {}).then(async () => {
+      const entry = this.entries.get(resource.key);
+      if (entry && (entry.checkedAt !== payload.checkedAt || entry.sha256 !== payload.sha256)) return;
+      if (this.failures.get(resource.key)?.rejected === rejected) return;
+      if (this.failures.size >= 5000) this.failures.delete(this.failures.keys().next().value!);
+      this.failures.set(resource.key, { error, rejected,
+        until: (this.options.now ?? Date.now)() + Math.max(5, error.retryAfter) * 1000 });
+      if (entry) await this.remove(entry);
+    });
+    this.publication = task;
+    return task;
   }
 
   /** After server shutdown, wait for outstanding reads/writes to release their files. */
@@ -133,7 +176,9 @@ export class WeatherCache {
         at += bytesRead;
       }
       if (digest(body) !== entry.sha256) throw new Error('Damaged cache body');
-      return { body, status: entry.status, headers: entry.headers, checkedAt: entry.checkedAt, sha256: entry.sha256 };
+      const payload = { body, status: entry.status, headers: entry.headers, checkedAt: entry.checkedAt, sha256: entry.sha256 };
+      this.observed(entry, payload);
+      return payload;
     } catch {
       if (this.entries.get(resource.key) !== entry) return this.read(resource, maxAgeMs);
       await this.remove(entry); return undefined;
@@ -284,6 +329,8 @@ export class WeatherCache {
       sha256: payload.sha256, bytes: payload.body.length, offset: metadata.length + 4, used: previous?.used ?? (this.options.now ?? Date.now)(), file,
       ...encoding, immutable: preparedRoute(resource)?.type === 'artifact', verified: true };
     this.entries.set(resource.key, entry); this.bytes += storedBytes(entry);
+    this.failures.delete(resource.key);
+    this.observed(entry, payload);
     if (previous) await this.remove(previous);
   }
 

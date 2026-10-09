@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 import { inspectWeather } from './weather-inspection';
 import { advisorySource, WEATHER_NOW } from '../fixtures/awc-advisories';
+import captured from '../fixtures/cwa-dateline-2026-10-08.json' with { type: 'json' };
 
 test.beforeEach(async ({ request }) => {
   await request.post('/__test/reset');
@@ -8,7 +9,7 @@ test.beforeEach(async ({ request }) => {
     sigmet: advisorySource('sigmet'), cwa: advisorySource('cwa') } });
 });
 
-async function enable(page: Page) {
+async function enable(page: Page, cwaStatus = 'Checked') {
   await page.clock.install({ time: WEATHER_NOW });
   await page.goto('/');
   await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
@@ -19,9 +20,62 @@ async function enable(page: Page) {
   await expect(page.getByRole('region', { name: 'Weather timeline' })).toBeVisible();
   await page.locator('.awc-source-status > summary').click();
   await expect(page.locator('.awc-toolbox [data-product="gairmet"]')).toContainText('Checked');
-  await expect(page.locator('.awc-toolbox [data-product="cwa"]')).toContainText('Checked');
+  await expect(page.locator('.awc-toolbox [data-product="cwa"]')).toContainText(cwaStatus);
 }
 async function requests(request: APIRequestContext) { return (await (await request.get('/__test/awc-counts')).json()).requests as number; }
+
+test('partial advisory coverage remains visible with usable neighbors, survives reload and clears on recovery', async ({ page, request }, testInfo) => {
+  const cwa = advisorySource('cwa'), bad = structuredClone(cwa.features[0]!);
+  bad.properties.seriesId = '102'; bad.geometry = { type: 'LineString', coordinates: [[0, 95], [1, 95]] };
+  const fixtures = { gairmet: [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour)), sigmet: advisorySource('sigmet') };
+  await request.post('/__test/awc', { data: { ...fixtures, cwa: { ...cwa, features: [...cwa.features, bad] } } });
+  await enable(page, 'Coverage incomplete');
+  const status = page.locator('.awc-toolbox [data-product="cwa"]');
+  await expect(status).toContainText('1 shown');
+  await status.getByText('Review unavailable source entries (1)', { exact: true }).click();
+  await expect(status).toContainText('ZOA · 102'); await expect(status).toContainText('Boundary unavailable');
+  await expect(status.locator('pre')).toContainText('SYNTHETIC CWA TEST');
+  await page.locator('.awc-source-status > summary').click();
+  const warning = page.getByRole('status').filter({ hasText: 'CWA coverage incomplete' });
+  await expect(warning).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('awc-partial-coverage.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await warning.scrollIntoViewIfNeeded(); await expect(warning).toBeInViewport();
+  expect(await page.locator('.map-edge-awc .edge-panel-body').evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('awc-partial-coverage-phone.png'), animations: 'disabled' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(async () => {
+    await inspectWeather(page);
+    await expect(page.getByRole('article', { name: 'CWA 101', exact: true })).toContainText('coverage is incomplete');
+  }).toPass();
+  await request.post('/__test/awc', { data: { failure: true } });
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'AWC Weather toolbox', exact: true })).toBeVisible();
+  await expect(warning).toBeVisible(); await expect(status).toContainText('Refresh failed');
+  await request.post('/__test/awc', { data: { ...fixtures, cwa } });
+  await page.clock.fastForward(5 * 60_000 + 1_000);
+  await expect(warning).toHaveCount(0);
+  await page.locator('.awc-source-status > summary').click();
+  await expect(status).toContainText('Checked'); await expect(status).not.toContainText('Review unavailable');
+});
+
+for (const center of [[179, 55], [-178.5, 56.9]]) {
+  test(`captured date-line CWA geometry renders and picks at ${center[0]} longitude`, async ({ page, request }, testInfo) => {
+    const cwa = advisorySource('cwa'), raw = captured.collection.features.find(f => f.properties.cwsu === 'ZAN')!;
+    const feature = cwa.features[0]!;
+    feature.geometry = { type: 'Polygon', coordinates: raw.geometry.coordinates };
+    Object.assign(feature.properties, { cwsu: 'ZAN', seriesId: '103', cwaText: 'SYNTHETIC DATE-LINE CWA TEST' });
+    await request.post('/__test/awc', { data: { gairmet: [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour)),
+      sigmet: advisorySource('sigmet'), cwa } });
+    await page.addInitScript(center => localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1, center, zoom: 5 })), center);
+    await enable(page);
+    await expect(async () => {
+      await inspectWeather(page);
+      await expect(page.getByRole('article', { name: 'CWA 103', exact: true })).toContainText('ZAN');
+    }).toPass();
+    await page.screenshot({ path: testInfo.outputPath('awc-date-line.png'), animations: 'disabled' });
+  });
+}
 
 test('CWA with no hazard classification remains checked, visible and inspectable', async ({ page, request }) => {
   const cwa = advisorySource('cwa');

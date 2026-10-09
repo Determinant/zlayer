@@ -59,7 +59,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     }
     return encoded;
   }
-  let tfrResponse: { checkedAt: number; error: string | undefined; body: Buffer; encoded?: Promise<Buffer> } | undefined;
+  let tfrResponse: { snapshot: ReturnType<typeof tfrs.read>; body: Buffer; encoded?: Promise<Buffer> } | undefined;
   void notams.restore();
   const upstream = createUpstream({ ...options, signal: shutdown.signal });
   const cache = new WeatherCache({ directory: options.directory, maxBytes: options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES, now: options.now, signal: shutdown.signal,
@@ -118,8 +118,8 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       }
       if (request.url === '/api/notams/tfrs' && request.headers.range === undefined) {
         const snapshot = tfrs.read();
-        if (snapshot && (tfrResponse?.checkedAt !== snapshot.checkedAt || tfrResponse.error !== snapshot.error)) {
-          tfrResponse = { checkedAt: snapshot.checkedAt, error: snapshot.error, body: Buffer.from(JSON.stringify(snapshot)) };
+        if (snapshot && tfrResponse?.snapshot !== snapshot) {
+          tfrResponse = { snapshot, body: Buffer.from(JSON.stringify(snapshot)) };
         }
         const saved = snapshot ? tfrResponse : undefined;
         const payload = saved?.body ?? Buffer.from(JSON.stringify({ error: 'tfrs-unavailable' }));
@@ -134,7 +134,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
         response.setHeader('Content-Type', 'application/json');
         const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
           radar: radar.status, radarMotion: motion.status, advisories: advisories.status, notams: notams.status,
-          notamReconciliation: notams.reconciliation, tfrs: tfrs.status };
+          notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, tfrs: tfrs.status };
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ...data,
           readiness: assessInfoHealth(data, (options.now ?? Date.now)()), runtime: metrics.status,
           delivery: { ...deliveries }, cache: cache.stats, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;

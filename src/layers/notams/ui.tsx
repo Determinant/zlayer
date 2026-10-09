@@ -188,6 +188,8 @@ function NotamEntry({ record, now, reason, charted, tfr, highlight }: {
       {validity !== 'within interval' && validity !== 'upcoming' && <span className={validity.startsWith('check') ? 'ui-badge notam-flair--caution' : 'ui-badge notam-flair--neutral'}>
         {validity.replace(/\b[a-z]/g, letter => letter.toUpperCase())}</span>}</div>
     {reason && <p className="notam-match-reason">{reason}</p>}
+    {record.icaoLocationVariants && <p className="ui-note">Filed under {record.locations.join(', ')}.
+      {' '}Airport association remains unconfirmed.</p>}
     {tfr ? <p className="notam-chart-note">TFR {tfr.id} shown on chart · {[...new Set(tfr.areas.map(a => `${a.lower}–${a.upper}`))].join('; ')}.
       {' '}Select its boundary on the map for details.</p> : <>
       {presentation.blocks.length > 0 && <NotamBody blocks={presentation.blocks} />}
@@ -216,6 +218,7 @@ export function NotamRaw({ record }: { record: NotamRecord }) {
     <pre>{translation.text}</pre></div>)}
     {!originals.length && <p>Original NOTAM unavailable. Source body shown below.</p>}
     {showSourceBody && <><strong>Source body</strong><pre>{body ? record.text : 'No source body supplied.'}</pre></>}
+    {record.icaoLocationVariants && <p>Conflicting FAA airport associations: {record.icaoLocationVariants.map(set => set.join(', ')).join(' / ')}</p>}
     <p>Updated {formatTimestamp(record.updatedAt)}</p></>;
 }
 type NotamListEntry = { record: NotamRecord; reason?: string; outcome?: PlateNotamMatch['outcome'] };

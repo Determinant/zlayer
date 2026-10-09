@@ -2,13 +2,21 @@ import { createHash } from 'node:crypto';
 import { mkdir, open, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
-import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
+import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, TFR_DETAIL_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
 import { atomicStateFile } from '../state-file';
 import { acquireNotamLock } from './lock';
 import { parseTfrDetail, parseTfrIndex } from './tfr-normalize';
 import { retryAfterAt } from '../retry-after';
 import { tfrDetailFresh } from '../../../src/layers/notams/tfr-time';
 
+const REQUEST_TIMEOUT_MS = 30_000, REQUEST_SPACING_MS = 1000;
+const REQUEST_SLOT_MS = REQUEST_TIMEOUT_MS + REQUEST_SPACING_MS;
+// A deferred queue cannot start before admission, the scheduler tick and the
+// next index download. Every detail ahead of it consumes a separate request slot.
+const NEXT_ROUND_MS = TFR_REFRESH_MS + 30_000 + REQUEST_SLOT_MS;
+// Include index requests interleaved with a worst-case serial detail queue.
+const queueTime = (count: number) => count * REQUEST_SLOT_MS +
+  Math.ceil(count * REQUEST_SLOT_MS / (TFR_REFRESH_MS - REQUEST_SLOT_MS)) * REQUEST_SLOT_MS;
 const INDEX = 'https://tfr.faa.gov/tfrapi/getTfrList';
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 type Budget = { schemaVersion: 1; source: 'FAA-TFR'; nextAt: number; backoffAt: number; failed: boolean };
@@ -22,6 +30,12 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   const directory = join(options.directory, 'tfrs'), file = join(directory, 'snapshot.json');
   let lock: Awaited<ReturnType<typeof acquireNotamLock>> | undefined, budget: Budget | undefined;
   let snapshot: TfrSnapshot | undefined, error: string | undefined, requestAt = 0;
+  // Index admission and detail work have different clocks. The persisted budget
+  // remains a conservative restart barrier; a running owner polls the index on
+  // its own deadline, including while a large detail queue is being acquired.
+  let nextIndexAt = 0, nextDetailAt = Infinity, admissionAt = 0;
+  let index: ReturnType<typeof parseTfrIndex> = [];
+  let view: { published: TfrSnapshot; value: TfrSnapshot } | undefined;
   let pending: Promise<void> | undefined, restoring: Promise<void> | undefined;
   let restored = false, stopped = false;
   const details = new Map<string, TfrNotice>();
@@ -49,6 +63,24 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     held(); const data = JSON.stringify(value);
     if (!isTfrSnapshot(value) || Buffer.byteLength(data) > TFR_MAX_BYTES) throw new Error('TFR snapshot too large');
     await atomicStateFile(path, JSON.stringify({ sha256: digest(data), data })); held();
+  }
+  async function publish(checkedAt: number, members: typeof index, failures: ReadonlyMap<string, TfrSourceIssue>) {
+    const previous = new Map(snapshot?.notices.map(notice => [notice.id, notice]));
+    const notices: TfrNotice[] = [], issues: TfrSourceIssue[] = [];
+    for (const entry of members) {
+      const detail = details.get(entry.id), failure = failures.get(entry.id);
+      if (!failure && detail?.modifiedAt === entry.modifiedAt) notices.push({ ...detail, ...entry });
+      else {
+        const retained = previous.get(entry.id);
+        if (retained) notices.push(retained);
+        issues.push({ ...entry, reason: failure?.reason ?? 'detail-unavailable', retainedCheckedAt: retained?.detailCheckedAt ?? null });
+      }
+    }
+    notices.sort((a, b) => a.id.localeCompare(b.id));
+    const candidate: TfrSnapshot = { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices, issues,
+      ...(issues.length ? { error: 'incomplete-details' } : {}) };
+    await saveSnapshot(file, candidate);
+    snapshot = candidate;
   }
   function restore(): Promise<void> {
     return restoring ??= (async () => {
@@ -80,6 +112,8 @@ export function createTfrService(options: { directory: string; signal: AbortSign
             budget = content as Budget;
           } finally { await handle.close(); }
         }
+        nextIndexAt = Math.max(budget!.nextAt, (snapshot?.checkedAt ?? -TFR_REFRESH_MS) + TFR_REFRESH_MS);
+        admissionAt = budget!.nextAt;
         if (budget?.failed) error = 'refresh-failed';
         try {
           const partial = await savedSnapshot(join(directory, 'details.json'));
@@ -100,10 +134,10 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     const spacing = requestAt - now();
     if (spacing > 0) await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
     held();
-    const started = now(), dispatchBy = started + 30_000;
+    const started = now(), dispatchBy = started + REQUEST_TIMEOUT_MS;
     await saveBudget({ ...budget!, failed: true, nextAt: dispatchBy + TFR_REFRESH_MS });
     held(); if (now() > dispatchBy) throw new Error('TFR reservation expired');
-    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(30_000)]);
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
     let response: Response | undefined;
     try {
       response = await fetcher(url, { signal: requestSignal, redirect: 'error', headers: {
@@ -128,60 +162,102 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       return { text: new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)), checkedAt: started };
     } finally {
       await response?.body?.cancel().catch(() => {});
-      requestAt = Math.max(started, now()) + 1000;
+      requestAt = Math.max(started, now()) + REQUEST_SPACING_MS;
       // During shutdown retain the already durable conservative crash margin.
       if (!signal.aborted && budget) await saveBudget({ ...budget, nextAt: Math.max(started, now()) + TFR_REFRESH_MS });
     }
   }
-  async function collect() {
-    const checkedAt = now(), index = parseTfrIndex(JSON.parse((await download(INDEX, 1024 * 1024)).text));
-    if (index.some(n => n.modifiedAt > checkedAt + 60_000)) throw new Error('TFR index from future');
+  async function checkIndex(failures: Map<string, TfrSourceIssue>) {
+    const input = await download(INDEX, 1024 * 1024), checkedAt = input.checkedAt;
+    const members = parseTfrIndex(JSON.parse(input.text));
+    if (members.some(n => n.modifiedAt > checkedAt + 60_000)) throw new Error('TFR index from future');
     // A regressed index cannot establish either current detail or withdrawals.
     // Include unresolved revisions and private progress in the high-water mark.
     const published = new Map(snapshot?.notices.map(n => [n.id, n]));
     const revisions = new Map(snapshot?.issues?.map(issue => [issue.id, issue.modifiedAt]));
-    if (index.some(n => n.modifiedAt < Math.max(details.get(n.id)?.modifiedAt ?? 0, published.get(n.id)?.modifiedAt ?? 0, revisions.get(n.id) ?? 0))) {
+    if (members.some(n => n.modifiedAt < Math.max(details.get(n.id)?.modifiedAt ?? 0, published.get(n.id)?.modifiedAt ?? 0, revisions.get(n.id) ?? 0))) {
       throw new Error('TFR index regressed');
     }
-    const present = new Set(index.map(n => n.id));
+    // A complete validated index establishes membership immediately. Missing or
+    // changed details remain explicit uncertainty until acquired; successful
+    // detail work cannot postpone withdrawals or the index's freshness clock.
+    await publish(checkedAt, members, failures);
+    index = members;
+    nextIndexAt = checkedAt + TFR_REFRESH_MS;
+    error = undefined;
+    const present = new Set(members.map(n => n.id));
     for (const id of details.keys()) if (!present.has(id)) details.delete(id);
-    const notices: TfrNotice[] = [], issues: TfrSourceIssue[] = [];
-    for (const entry of index) {
-      held(); const saved = details.get(entry.id);
-      let record: TfrNotice, downloaded = false, reason: TfrSourceIssue['reason'] = 'detail-unavailable';
+    for (const id of failures.keys()) if (!present.has(id)) failures.delete(id);
+  }
+  async function collect() {
+    const failures = new Map(snapshot?.issues?.map(issue => [issue.id, issue]));
+    if (!index.length || now() >= nextIndexAt) await checkIndex(failures);
+    const attempted = new Set<string>();
+    // Plan the deferred queue against every expiry, not just the first one.
+    // Bringing its oldest member forward also spreads a cluster of deadlines.
+    // Required acquisitions consume time before the next admitted round too.
+    // Replan after each request; never retry a member inside the same round.
+    for (;;) {
+      held();
+      if (now() >= nextIndexAt) await checkIndex(failures);
+      const time = now();
+      const waiting = index.filter(entry => !attempted.has(`${entry.id}:${entry.modifiedAt}`));
+      const unresolved = new Set(snapshot?.issues?.map(issue => issue.id));
+      const required = waiting.filter(entry => {
+        const saved = details.get(entry.id);
+        return unresolved.has(entry.id) || saved?.modifiedAt !== entry.modifiedAt || !tfrDetailFresh(saved, time);
+      });
+      const requiredIds = new Set(required.map(entry => entry.id));
+      const reusable = waiting.filter(entry => !requiredIds.has(entry.id)).sort((a, b) =>
+        details.get(a.id)!.detailCheckedAt! - details.get(b.id)!.detailCheckedAt! || a.id.localeCompare(b.id));
+      const bringForward = reusable.some((entry, position) =>
+        details.get(entry.id)!.detailCheckedAt! + TFR_DETAIL_REFRESH_MS <=
+          time + NEXT_ROUND_MS + queueTime(required.length + position + 1));
+      const entry = bringForward ? reusable[0] : required[0];
+      if (!entry) break;
+      attempted.add(`${entry.id}:${entry.modifiedAt}`);
+      let record: TfrNotice, reason: TfrSourceIssue['reason'] = 'detail-unavailable';
       try {
-        if (saved?.modifiedAt === entry.modifiedAt && tfrDetailFresh(saved, now())) record = { ...saved, ...entry };
-        else {
-          const detail = await download(`https://tfr.faa.gov/download/detail_${entry.id.replace('/', '_')}.xml`, 2 * 1024 * 1024);
-          reason = 'detail-invalid'; record = { ...parseTfrDetail(detail.text, entry), detailCheckedAt: detail.checkedAt }; downloaded = true;
-        }
+        const detail = await download(`https://tfr.faa.gov/download/detail_${entry.id.replace('/', '_')}.xml`, 2 * 1024 * 1024);
+        reason = 'detail-invalid'; record = { ...parseTfrDetail(detail.text, entry), detailCheckedAt: detail.checkedAt };
       } catch (cause) {
         // Cancellation, lost ownership and uncertain admission writes still abort
-        // publication. Source/detail failures qualify just this index member.
+        // publication. A source/detail failure qualifies only this index member.
         held(); if (!budget) throw cause;
-        const retained = published.get(entry.id);
-        issues.push({ ...entry, reason, retainedCheckedAt: retained?.detailCheckedAt ?? null });
-        if (retained) notices.push(retained);
+        failures.set(entry.id, { ...entry, reason,
+          retainedCheckedAt: snapshot?.notices.find(notice => notice.id === entry.id)?.detailCheckedAt ?? null });
+        await publish(snapshot!.checkedAt, index, failures);
         continue;
       }
-      // This private cache preserves completed work after another detail fails.
-      // It is never served as a complete national snapshot.
-      if (downloaded) await saveSnapshot(join(directory, 'details.json'),
-        { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices: [...details.values()].filter(n => n.id !== entry.id).concat(record) });
-      details.set(entry.id, record); notices.push(record);
+      // The private cache preserves completed work after another detail fails;
+      // only the completed index membership becomes a national HTTP result.
+      await saveSnapshot(join(directory, 'details.json'),
+        { schemaVersion: 1, source: 'FAA-TFR', checkedAt: snapshot!.checkedAt, notices: [...details.values()].filter(n => n.id !== entry.id).concat(record) });
+      details.set(entry.id, record);
+      failures.delete(entry.id);
+      await publish(snapshot!.checkedAt, index, failures);
     }
-    notices.sort((a,b) => a.id.localeCompare(b.id));
-    const candidate: TfrSnapshot = { schemaVersion: 1, source: 'FAA-TFR', checkedAt, notices, issues,
-      ...(issues.length ? { error: 'incomplete-details' } : {}) };
-    await saveSnapshot(file, candidate);
-    await saveBudget({ ...budget!, failed: false, nextAt: now() + TFR_REFRESH_MS });
-    snapshot = candidate; error = undefined;
+    // A completed round can replace its provisional crash margin with the next
+    // index admission. Restart must not add a second interval after detail work.
+    // In-flight, failed or interrupted writes retain their conservative margin.
+    await saveBudget({ ...budget!, failed: false, nextAt: Math.max(nextIndexAt, requestAt) });
+    // A healthy detail queue may need another round before the next index poll.
+    // Plan its earliest deadline against the whole queue plus one scheduler tick.
+    // Failed members retry on index cadence, never in a tight detail-only loop.
+    const deadlines = snapshot?.issues?.length ? [] : [...details.values()]
+      .map(notice => (notice.detailCheckedAt ?? 0) + TFR_DETAIL_REFRESH_MS).sort((a, b) => a - b);
+    nextDetailAt = deadlines.length ? Math.max(now(), Math.min(...deadlines.map((deadline, position) =>
+      deadline - 30_000 - queueTime(position + 1)))) : Infinity;
   }
+  const nextAttempt = () => Math.max(admissionAt, budget?.backoffAt ?? 0, Math.min(nextIndexAt, nextDetailAt));
   function refresh(): Promise<void> {
     if (pending) return pending;
-    if (!restored || !budget || stopped || signal.aborted || now() < Math.max(budget.nextAt, budget.backoffAt)) return Promise.resolve();
+    if (!restored || !budget || stopped || signal.aborted || now() < nextAttempt()) return Promise.resolve();
     pending = collect().catch(() => {
       if (signal.aborted) return;
+      nextIndexAt = Math.max(nextIndexAt, budget?.nextAt ?? now() + TFR_REFRESH_MS);
+      admissionAt = nextIndexAt;
+      nextDetailAt = Infinity;
       error = 'refresh-failed'; options.log?.('TFR refresh failed; retaining published snapshot');
     }).finally(() => { pending = undefined; });
     return pending;
@@ -191,9 +267,16 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   return { restore, refresh,
     close: async () => { stopped = true; lifetime.abort(); await restoring; await pending; await lock?.release(); lock = undefined; },
     read: (): TfrSnapshot | undefined => {
+      if (!snapshot) return;
       const error = sourceError();
-      return snapshot ? { ...snapshot, ...(error ? { error } : {}) } : undefined;
+      // Stable identity covers detail publications as well as index/error changes.
+      // HTTP encoding must not use the independently advancing index time as a
+      // content revision, or it will keep serving superseded XML evidence.
+      if (view?.published !== snapshot || view.value.error !== error) {
+        view = { published: snapshot, value: { ...snapshot, ...(error ? { error } : {}) } };
+      }
+      return view.value;
     },
     get status() { return { ready: !!snapshot, checkedAt: snapshot?.checkedAt ?? null, loading: !!pending, error: sourceError() ?? null, unresolvedRecords: snapshot?.issues?.length ?? 0,
-      nextAttemptAt: budget ? Math.max(budget.nextAt, budget.backoffAt) : null }; } };
+      nextAttemptAt: budget ? nextAttempt() : null }; } };
 }

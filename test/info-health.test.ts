@@ -61,6 +61,16 @@ test('coverage readiness separates unpublished forecast stops from missing image
   value.progsCoverage.validTimes!.unshift(NOTAM_NOW - 7 * 3600_000);
   assert.equal(assessInfoHealth(value, NOTAM_NOW).ready, true, 'an older forecast stop cannot stand in for the explicit analysis time');
 });
+test('advisory coverage issues remain distinct from source availability and freshness', () => {
+  const value = healthy();
+  value.advisories.cwa = { ready: true, checkedAt: NOTAM_NOW, unresolvedRecords: 1, error: 'incomplete-advisories' };
+  const status = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(status.sources['advisory.cwa']?.available, true);
+  assert.equal(status.sources['advisory.cwa']?.fresh, true);
+  assert.equal(status.sources['advisory.cwa']?.coverage, 'partial');
+  assert.ok(status.problems.some(p => p.product === 'advisory.cwa' && p.reason === 'incomplete-advisories'));
+  assert.equal(status.sources.clouds?.fresh, true); assert.equal(status.sources.icing?.fresh, true);
+});
 test('fresh deltas and available weather cannot hide an overdue or failed full sync', () => {
   const value = healthy(); value.notams.fullSyncAt = NOTAM_NOW - INFO_FRESHNESS.fullSync;
   let status = assessInfoHealth(value, NOTAM_NOW);
@@ -73,6 +83,31 @@ test('fresh deltas and available weather cannot hide an overdue or failed full s
   assert.equal(assessInfoHealth(value, NOTAM_NOW).ready, true);
   assert.equal(freshAt(NOTAM_NOW + 1, NOTAM_NOW, 100, 0), false);
   assert.equal(freshAt(NaN, NOTAM_NOW, 100), false);
+});
+test('nonblocking NOTAM metadata remains visible without masking operational or content failures', () => {
+  const value = healthy();
+  Object.assign(value.notams, { unresolvedRecords: 1, blockingRecords: 0, unscopedRecords: 0, recordCount: 1,
+    continuity: 'incomplete', collectionContinuity: 'complete' });
+  const warning = { product: 'notams', reason: 'association-metadata', severity: 'warning' };
+  const status = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(status.ready, true); assert.equal(status.state, 'ready'); assert.deepEqual(status.problems, []);
+  assert.deepEqual(status.warnings, [warning]); assert.equal(status.sources.notams?.coverage, 'partial');
+  for (const patch of [
+    { checkedAt: NOTAM_NOW - INFO_FRESHNESS.notams }, { generation: null },
+    { collectionContinuity: 'incomplete' as const }, { error: 'source-http-502' },
+    { fullSyncAt: NOTAM_NOW - INFO_FRESHNESS.fullSync },
+  ]) {
+    const failure = assessInfoHealth({ ...value, notams: { ...value.notams, ...patch } }, NOTAM_NOW);
+    assert.equal(failure.ready, false, JSON.stringify(patch)); assert.deepEqual(failure.warnings, [warning]);
+  }
+  assert.equal(assessInfoHealth({ ...value, notamReconciliation: { state: 'failed', error: 'source-http-502', nextAttemptAt: NOTAM_NOW } }, NOTAM_NOW).ready, false);
+  for (const blocking of [undefined, 1]) {
+    const feed = { ...value.notams, state: 'degraded' as const, error: 'unresolved-records' };
+    if (blocking === undefined) delete feed.blockingRecords; else feed.blockingRecords = blocking;
+    const failure = assessInfoHealth({ ...value, notams: feed }, NOTAM_NOW);
+    assert.equal(failure.ready, false); assert.deepEqual(failure.warnings, []);
+    assert.deepEqual(failure.problems, [{ product: 'notams', reason: 'unresolved-records', severity: 'error' }]);
+  }
 });
 test('source diagnostics bound identities and log only transitions and recovery', () => {
   let now = 1000; const logs: string[] = [], diagnostics = new SourceDiagnostics(2, () => now, line => logs.push(line));

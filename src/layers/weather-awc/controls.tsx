@@ -9,7 +9,7 @@ import { TabList, tabPanelProps } from '../../core/ui/tabs';
 import type { AdvisoryState } from './client';
 import type { WeatherController, WeatherState } from './controller';
 import type { WeatherAwcPreferences } from './preferences';
-import { advisoryTitle, advisoryHazard } from './source';
+import { advisoryTitle, advisoryHazard } from './advisory-text';
 import { advisoryFrame } from './time';
 import { ADVISORY_LEGEND } from './palette';
 import { GridControls, GridPointDetails } from './grids/controls';
@@ -62,15 +62,17 @@ function WeatherFilters({ controller }: { controller: WeatherController }) {
 function sourceStatus(record: AdvisoryState, now: number) {
   const age = record.snapshot ? now - record.snapshot.checkedAt : undefined;
   const stale = !record.checkedAt || age === undefined || age < 0 || age > 10 * 60_000 || !!record.error;
-  const label = record.loading ? 'Refreshing…' : record.error ? 'Refresh failed' : !record.snapshot ? 'Not checked' : stale ? 'Cached / unverified' : 'Checked';
-  return { age, stale, label };
+  const partial = !!record.snapshot?.issues?.length;
+  const label = record.loading ? 'Refreshing…' : record.error ? 'Refresh failed' : !record.snapshot ? 'Not checked'
+    : stale ? 'Cached / unverified' : partial ? 'Coverage incomplete' : 'Checked';
+  return { age, stale, partial, label };
 }
 
 function ProductStatus({ state, product, shown }: { state: WeatherState; product: AwcAdvisoryProduct; shown: number }) {
   const record = state.products[product];
   const selected = state.selectedTime ?? state.now;
   const frame = advisoryFrame(record.snapshot, selected);
-  const { age, stale, label: status } = sourceStatus(record, state.now);
+  const { age, stale, partial, label: status } = sourceStatus(record, state.now);
   const label = product === 'gairmet' ? 'G-AIRMET' : product === 'sigmet' ? 'SIGMET' : 'CWA';
   return <div className="awc-product-status" data-product={product}>
     <strong>{label}</strong><span>{status}
@@ -79,8 +81,18 @@ function ProductStatus({ state, product, shown }: { state: WeatherState; product
       : !record.snapshot ? 'Data unavailable' : frame.time === undefined ? 'No forecast available for this time'
       : product === 'gairmet' ? `${shown} shown · Snapshot ${formatTimestamp(frame.time)}`
         : frame.advisories.length ? `${shown} shown · ${frame.advisories.length} applicable advisories`
-          : selected > state.now ? 'No issued advisories cover this time' : stale ? 'No active advisories in saved data' : 'No active advisories'}</small>
+          : partial ? 'No verified active advisories · Coverage incomplete'
+            : selected > state.now ? 'No issued advisories cover this time' : stale ? 'No active advisories in saved data' : 'No active advisories'}</small>
     {record.error && <small className="awc-error">{record.error}</small>}
+    {partial && <details className="ui-disclosure awc-bulletin"><summary>Review unavailable source entries ({record.snapshot!.issues!.length})</summary>
+      {record.snapshot!.issues!.map(issue => <div key={issue.id}>
+        <strong>{issue.issuer} · {issue.identifier}</strong>
+        <p>{{ 'invalid-feature': 'Unsupported source entry', 'invalid-geometry': 'Boundary unavailable',
+          'invalid-validity': 'Validity unconfirmed', 'invalid-hazard': 'Hazard unconfirmed' }[issue.reason]}</p>
+        {issue.sourceFeatureTruncated && <p>Source entry exceeds the display limit; an excerpt follows.</p>}
+        <pre>{issue.sourceFeature}</pre>
+      </div>)}
+    </details>}
   </div>;
 }
 
@@ -97,10 +109,17 @@ function AdvisoryControls({ controller }: { controller: WeatherController }) {
     const enabled = product === 'gairmet' ? p.awcGairmet || p.awcFreezing : product === 'sigmet' ? p.awcSigmet || p.awcConvective : p.awcCwa;
     return enabled && sourceStatus(record, state.now).stale;
   });
+  const partial = Object.entries(state.products).filter(([product, record]) => record.snapshot?.issues?.length &&
+    (product === 'gairmet' ? p.awcGairmet || p.awcFreezing : product === 'sigmet' ? p.awcSigmet || p.awcConvective : p.awcCwa));
   return <>
     {(p.awcGairmet || p.awcFreezing) && <small className="awc-frame-time">
       G-AIRMET: {gairmetTime === undefined ? 'No forecast for this time' : formatTimestamp(gairmetTime)}</small>}
     <WeatherFilters controller={controller} />
+    {partial.map(([product, record]) => <p className="awc-error" role="status" key={product}>
+      {product === 'gairmet' ? 'G-AIRMET' : product === 'sigmet' ? 'SIGMET' : 'CWA'} coverage incomplete · {record.snapshot!.issues!.length === 1
+        ? '1 source entry unavailable.' : `${record.snapshot!.issues!.length} source entries unavailable.`}
+      {' '}Review Products &amp; source status below.
+    </p>)}
     {state.advisoryDisplay.error && <div className="awc-error" role="status">
       <span>{state.advisoryDisplay.error}</span>{' '}
       <button type="button" className="ui-button ui-button--slim" onClick={() => controller.retryAdvisories()}>Retry advisories</button>
@@ -210,6 +229,7 @@ export function WeatherDetails({ controller, revision }: { controller: WeatherCo
           <p className={`awc-advisory-freshness${status.stale ? ' awc-error' : ''}`}>Source: {status.label}
             {status.age !== undefined && status.age >= 0 && ` · ${formatAge(status.age)} ago`}</p>
           {record.error && <p className="awc-error">{record.error}</p>}
+          {status.partial && <p className="awc-error">Other source entries are unavailable; coverage is incomplete.</p>}
           {a.text && <details className="ui-disclosure awc-bulletin"><summary>{a.product === 'gairmet' ? 'Source text' : 'Full bulletin'}</summary>
             <pre>{a.text}</pre>
           </details>}

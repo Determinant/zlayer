@@ -23,17 +23,30 @@ export type WeatherAdvisory = {
   altitude: string;
   text: string;
   geometry: WeatherGeometry;
+  /** Original boundary split into canonical lines, excluding polygon clipping seams. */
+  outlineGeometry?: Extract<WeatherGeometry, { type: 'LineString' | 'MultiLineString' }>;
+  /** Original source geometry JSON when geographic normalization changed it. */
+  sourceGeometry?: string;
   /** Preserve upstream qualifiers/identifiers; map decoration never enters this record. */
   sourceProperties: Record<string, unknown>;
 };
 export type AwcAdvisorySnapshot = {
-  schemaVersion: 1;
+  /** Partial collections use v2 so older clients cannot mistake them for complete. */
+  schemaVersion: 1 | 2;
   product: AwcAdvisoryProduct;
   checkedAt: number;
   source: string;
   /** Explicit successful forecast frames, including those with zero advisories. */
   frameTimes: number[];
   advisories: WeatherAdvisory[];
+  issues?: AwcAdvisoryIssue[];
+};
+export type AwcAdvisoryIssue = {
+  id: string; issuer: string; identifier: string;
+  reason: 'invalid-feature' | 'invalid-geometry' | 'invalid-validity' | 'invalid-hazard';
+  /** Inert JSON evidence, or an explicitly marked excerpt when too large. */
+  sourceFeature: string;
+  sourceFeatureTruncated?: true;
 };
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -59,6 +72,10 @@ export function isWeatherAdvisory(v: unknown): v is WeatherAdvisory {
   if (!isRecord(v) || !AWC_ADVISORY_PRODUCTS.some(p => p === v.product) || !text(v.id) || !v.id ||
     !(v.severity === undefined || text(v.severity)) || !text(v.identifier) || !text(v.issuer) || !text(v.hazard) || !v.hazard || !text(v.altitude) || !text(v.text) ||
     !isRecord(v.sourceProperties) || !isWeatherGeometry(v.geometry) || !instant(v.validFrom) ||
+    !(v.sourceGeometry === undefined || text(v.sourceGeometry)) ||
+    !(v.outlineGeometry === undefined || isWeatherGeometry(v.outlineGeometry) &&
+      (v.geometry.type === 'Polygon' || v.geometry.type === 'MultiPolygon') &&
+      (v.outlineGeometry.type === 'LineString' || v.outlineGeometry.type === 'MultiLineString')) ||
     !(v.issuedAt === null || instant(v.issuedAt))) return false;
   return v.product === 'gairmet'
     ? v.validTo === null && [0, 3, 6, 9, 12].includes(v.forecastHour as number)
@@ -66,10 +83,17 @@ export function isWeatherAdvisory(v: unknown): v is WeatherAdvisory {
 }
 
 export function isAwcAdvisorySnapshot(v: unknown): v is AwcAdvisorySnapshot {
-  if (!isRecord(v) || v.schemaVersion !== 1 || !AWC_ADVISORY_PRODUCTS.some(p => p === v.product) ||
+  if (!isRecord(v) || (v.schemaVersion !== 1 && v.schemaVersion !== 2) || !AWC_ADVISORY_PRODUCTS.some(p => p === v.product) ||
     !instant(v.checkedAt) || !text(v.source) || !Array.isArray(v.frameTimes) || v.frameTimes.length > 5 ||
     !v.frameTimes.every(instant) || new Set(v.frameTimes).size !== v.frameTimes.length ||
     !Array.isArray(v.advisories) || v.advisories.length > 2_000 || !v.advisories.every(isWeatherAdvisory)) return false;
+  if (v.schemaVersion === 1 ? v.issues !== undefined :
+    !Array.isArray(v.issues) || !v.issues.length || v.advisories.length + v.issues.length > 2000 ||
+    !v.issues.every(issue => isRecord(issue) && text(issue.id) && !!issue.id && text(issue.issuer) && text(issue.identifier) &&
+      typeof issue.reason === 'string' && ['invalid-feature', 'invalid-geometry', 'invalid-validity', 'invalid-hazard'].includes(issue.reason) &&
+      text(issue.sourceFeature) && !!issue.sourceFeature &&
+      (issue.sourceFeatureTruncated === undefined || issue.sourceFeatureTruncated === true)) ||
+    new Set([...v.advisories, ...v.issues].map(a => a.id)).size !== v.advisories.length + v.issues.length) return false;
   const frames = v.frameTimes as number[];
   if (v.product === 'gairmet' && frames.length && (frames.length !== 5 ||
     frames.some((time, index) => time !== frames[0]! + index * 3 * 3_600_000))) return false;

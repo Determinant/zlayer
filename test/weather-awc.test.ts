@@ -1,9 +1,10 @@
+import { advisoryHazard } from '../src/layers/weather-awc/advisory-text';
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { isAwcAdvisorySnapshot, isWeatherGeometry, type AwcAdvisoryProduct, type SurfaceSnapshot } from '@zlayer/contracts';
 import { advisorySnapshot, advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
 import cwaNullHazard from './fixtures/awc-cwa-null-hazard.json';
-import { advisoryHazard, FORECAST_HOURS, isSourceCollection, normalizeAdvisories } from '../src/layers/weather-awc/source';
+import { FORECAST_HOURS, isSourceCollection, normalizeAdvisories } from '../src/layers/weather-awc/source';
 import { advisoryFrame, forecastStops, currentFrame, HOUR } from '../src/layers/weather-awc/time';
 import { AdvisoryClient } from '../src/layers/weather-awc/client';
 import { noaaAdvisoryUrl } from '../src/layers/weather-awc/advisory-endpoints';
@@ -189,12 +190,12 @@ test('forecast refresh rejects truncation, mixed cycles, absent frames and malfo
   inputs[4] = advisorySource('gairmet', 12, WEATHER_NOW + 6 * HOUR);
   assert.throws(() => normalizeAdvisories('gairmet', inputs, WEATHER_NOW, 'test'), /changed during refresh/);
   inputs[0]!.features[0]!.properties.forecast = null;
-  assert.throws(() => normalizeAdvisories('gairmet', inputs, WEATHER_NOW, 'test'), /invalid hazard or forecast times/);
+  assert.throws(() => normalizeAdvisories('gairmet', inputs, WEATHER_NOW, 'test'), /invalid forecast times/);
   const c = advisorySource('cwa');
   assert.ok(!isSourceCollection({ ...c, exceededTransferLimit: true }));
   assert.ok(!isSourceCollection({ ...c, features: Array(400).fill(c.features[0]) }));
   c.features[0]!.properties.validTimeTo = 'not a time';
-  assert.throws(() => normalizeAdvisories('cwa', [c], WEATHER_NOW, 'test'), /invalid hazard or forecast times/);
+  assert.equal(normalizeAdvisories('cwa', [c], WEATHER_NOW, 'test').issues?.[0]?.reason, 'invalid-validity');
   const snapshot = advisorySnapshot('gairmet');
   snapshot.frameTimes[4]! += HOUR;
   assert.ok(!isAwcAdvisorySnapshot(snapshot));
@@ -222,21 +223,21 @@ test('CWA without a parsed hazard keeps its bulletin, geometry, validity and nei
   assert.deepEqual(advisoryFrame(snapshot, houston.validTo!).advisories.map(a => a.issuer), ['ZKC']);
 });
 
-test('only missing CWA hazards get a fallback; malformed hazards and invalid times still fail', () => {
+test('only missing CWA hazards get a fallback; invalid entries remain explicit source issues', () => {
   const cwa = advisorySource('cwa');
   delete cwa.features[0]!.properties.hazard;
   assert.equal(normalizeAdvisories('cwa', [cwa], WEATHER_NOW, 'test').advisories[0]!.hazard, 'UNK');
   for (const hazard of [0, true, {}, [], '', ' ']) {
     cwa.features[0]!.properties.hazard = hazard;
-    assert.throws(() => normalizeAdvisories('cwa', [cwa], WEATHER_NOW, 'test'), /invalid hazard/);
+    assert.equal(normalizeAdvisories('cwa', [cwa], WEATHER_NOW, 'test').issues?.[0]?.reason, 'invalid-hazard');
   }
   cwa.features[0]!.properties.hazard = null;
   cwa.features[0]!.properties.validTimeTo = cwa.features[0]!.properties.validTimeFrom;
-  assert.throws(() => normalizeAdvisories('cwa', [cwa], WEATHER_NOW, 'test'), /forecast times/);
+  assert.equal(normalizeAdvisories('cwa', [cwa], WEATHER_NOW, 'test').issues?.[0]?.reason, 'invalid-validity');
   for (const product of ['gairmet', 'sigmet'] as const) {
     const inputs = (product === 'gairmet' ? FORECAST_HOURS : [0]).map(hour => advisorySource(product, hour));
     inputs[0]!.features[0]!.properties.hazard = null;
-    assert.throws(() => normalizeAdvisories(product, inputs, WEATHER_NOW, 'test'), /invalid hazard/);
+    assert.equal(normalizeAdvisories(product, inputs, WEATHER_NOW, 'test').issues?.[0]?.reason, 'invalid-hazard');
   }
 });
 

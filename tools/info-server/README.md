@@ -96,8 +96,8 @@ backoff writes and preserve token-request cooldowns across restart. Legacy versi
 uncertain durable write prevents further source calls from stale in-memory state.
 Version 2 generations include resolved records and explicit unresolved source
 records in one checksum. Known-record disagreements do not stop independent
-updates; global health remains degraded, while airport responses identify relevant
-issues and separate collection continuity from content coverage. Version 1 is
+updates; blocking disagreements degrade global health, while airport responses
+identify relevant issues and separate collection continuity from content coverage. Version 1 is
 readable, but rollback after publication needs a version-2-capable backend; never
 restore an older quota journal or erase issues to start an old binary. The
 [collector contract](../../src/layers/notams/README.md#unresolved-source-records)
@@ -131,9 +131,26 @@ and provisioning files, to production. Preserve that journal on later rollouts;
 copying only the snapshot would lose the source cooldown.
 
 TFR index checks and XML detail acquisition have separate ages. The collector
-revalidates unchanged details after 15 minutes and preserves `detailCheckedAt`
+revalidates unchanged details before their 15-minute freshness deadline and preserves `detailCheckedAt`
 through reuse, failure and restart. Saved schema-1 details without that timestamp
 remain readable with unknown age and are reacquired at the next admitted round.
+Work is replanned after each download against the complete deferred queue, including
+required current-round acquisitions, next admission, the scheduler tick, the index
+request and every queued detail deadline. Expiring reusable details move ahead of
+required work when that work would exhaust their headroom. Failed rechecks remain
+required even after the index shrinks. Each member receives at most one attempt per
+round per ID/revision; slow/failed work never extends the freshness limit. A validated
+index publishes immediately, with explicit issues for pending details and immediate
+withdrawals. Its three-minute clock starts at index acquisition, is serviced between
+detail requests, and is independent of the conservative durable restart cooldown.
+Healthy detail queues can start before the next index deadline when their complete
+queued workload needs the headroom, without polling the index early. Completed
+rounds durably admit restart at the next index/spacing boundary; interrupted
+requests retain the provisional crash margin and source backoff.
+Each verified detail saves and publishes immediately without advancing index time
+or changing membership. Failed work cannot undo already committed evidence.
+The HTTP encoding cache follows publication identity so independent detail updates
+cannot remain hidden behind the previous index timestamp.
 `detail-recheck-due` qualifies overdue/unknown detail even between index checks;
 per-notice failures retain their original detail time and do not block other
 validated index updates. An index containing an older revision than published,
@@ -142,6 +159,20 @@ withdrawals or advance the snapshot's check time. This guard survives restart;
 the retained snapshot reports `refresh-failed` until a valid round succeeds.
 See the [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart)
 for the wire and PWA review behavior.
+
+AWC advisory envelope validation is independent of member interpretation. A
+complete source envelope can publish valid advisories alongside explicit issues;
+health reports `coverage: partial`, `unresolvedRecords` and `incomplete-advisories`
+without mislabeling the source as unavailable. Validation errors preserve
+`invalid-source` through the cache boundary. Saved partial coverage survives
+restart and clears only when a successful replacement resolves those issues.
+Availability, source-check time and coverage describe the same committed cache
+publication, whether a background refresh or an HTTP miss initiated acquisition.
+Authenticated restoration recovers that publication's coverage without freshening
+it; late reads and refresh completions cannot overwrite a newer summary. Failed
+refreshes remain visible until successful acquisition, including HTTP-triggered work.
+The [AWC guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+owns date-line geometry normalization and versioned partial delivery.
 
 Airport HTTP delivery uses a 128-entry/32 MiB bounded cache for JSON and shared
 gzip output, invalidated on any source-status change. The 16 MiB response limit
@@ -256,6 +287,15 @@ interval from its source-check time instead of immediately rediscovering a fresh
 generation. Repeated identical preparation errors log only on a change; health
 continues reporting the active error and next attempt.
 Advisories refresh independently every thirty seconds when their cache age expires.
+Advisory preparation normalizes declared polygon closure before strict topology
+validation, preserving raw evidence and deriving fill/outline from the same rings;
+the [owning guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+defines the supported source forms and limits.
+Progs opts its catalog, chart and coverage-image resources into upstream cache
+revalidation. This affects acquisition headers only; shared local cache reuse,
+source cadence and backoff are unchanged. Revalidation does not authorize an
+older catalog or renew a rejected publication's age; see
+[Progs acquisition](../../src/layers/weather-awc/progs/README.md#acquisition-and-recovery).
 
 Up to two Node workers, capped by the host CPU count, acquire and convert native
 fields. Updaters submit bounded batches to that shared pool; one remaining product
@@ -386,7 +426,9 @@ proxy or tunnel before cutover, and through public HTTPS after activation:
   fresh with no active refresh error. This includes all three advisory families.
   Expected partial radar/motion coverage and unpublished NDFD stops remain allowed.
 - Read reports, all three advisory snapshots, and a prepared numeric slice for
-  each model. Read both pressure-chart catalogs and a referenced chart file from
+  each model. Require every delivered advisory snapshot to have no unresolved
+  issues; an earlier health response cannot establish a later snapshot's coverage.
+  Read both pressure-chart catalogs and a referenced chart file from
   each family, plus the coverage catalog and a referenced PNG. Verify chart/PNG
   lengths and hashes against their catalog references. Unpublished coverage images remain
   explicit gaps and do not prevent a complete catalog from being ready.
@@ -411,8 +453,10 @@ is disabled. These are deployment gates; retained data can still be served with
 its original times when a source becomes stale. A complete older forecast may
 remain available while its replacement is preparing, but availability and progress
 do not satisfy the freshness gate. An NMS feed with complete collection continuity
-and unresolved source records likewise fails the strict complete-feed check;
-retain that distinction in rollout evidence. Enabled NMS also requires an available
+and blocking unresolved source records likewise fails the strict readiness check.
+Fully evidenced association metadata affecting no supported query remains visible
+as a warning and needs no allowance; legacy feeds without `blockingRecords` treat
+all issues as blocking. Retain that distinction in rollout evidence. Enabled NMS also requires an available
 reconciliation summary without an active error; fresh deltas do not clear failed
 full-sync or diagnostic-history checks. The [maintenance guide](maintenance.md#focused-qualification)
 defines the explicit age and source-issue exceptions, which do not waive these errors.

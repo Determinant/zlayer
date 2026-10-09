@@ -1,0 +1,101 @@
+{
+  "source": "FAA NMS production collection; retained normalized source variants",
+  "checkedAt": "2026-10-09T02:29:12.194144+00:00",
+  "issues": [
+    {
+      "id": "9427732288790960",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "9427732288790960",
+          "sourceId": "NMS_ID_9427732288790960",
+          "classification": "DOMESTIC",
+          "number": "083",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "49D"
+          ],
+          "icaoLocations": [
+            "PA49D"
+          ],
+          "accountability": "SIT",
+          "issuedAt": 1791510120000,
+          "updatedAt": 1791510120000,
+          "sourceUpdatedAt": "2026-10-09T01:42:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791561600000,
+          "endsAt": 1791583200000,
+          "effectiveStart": "202610091600",
+          "effectiveEnd": "202610092200",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "COM GUNNUK MT-GBT REMOTE COM OUTLET 122.175 U/S",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!SIT 10/083 49D COM GUNNUK MT-GBT REMOTE COM OUTLET 122.175 U/S 2610091600-2610092200"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "57b0ec9c82e5ab561d5c57a6c98ad129d680168b9ad8147ff52a5a51f58dfc25"
+        },
+        {
+          "id": "9427732288790960",
+          "sourceId": "NMS_ID_9427732288790960",
+          "classification": "DOMESTIC",
+          "number": "83",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "49D"
+          ],
+          "icaoLocations": [
+            "49D"
+          ],
+          "accountability": "SIT",
+          "issuedAt": 1791510120000,
+          "updatedAt": 1791510120000,
+          "sourceUpdatedAt": "2026-10-09T01:42:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1791561600000,
+          "endsAt": 1791583200000,
+          "effectiveStart": "202610091600",
+          "effectiveEnd": "202610092200",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "COM GUNNUK MT-GBT REMOTE COM OUTLET 122.175 U/S",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!SIT 10/083 49D COM GUNNUK MT-GBT REMOTE COM OUTLET 122.175 U/S 2610091600-2610092200"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/083 NOTAMN \r\nQ)/QCAAS/IV/B/AE/000/999/025 \r\nA) 49D \r\nB) 2610091600 \r\nC) 2610092200 \r\n\r\nE) REMOTE COM OUTLET 122.175 U/S"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "6410717798c1952a5bb941cd6bcae16bc27a6d0c8c53d8050c166031e49b577a"
+        }
+      ],
+      "variantsTruncated": false,
+      "locations": [
+        "49D"
+      ],
+      "icaoLocations": [
+        "49D",
+        "PA49D"
+      ],
+      "unscoped": false
+    }
+  ]
+}

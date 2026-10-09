@@ -8,15 +8,20 @@ export type SurfaceResult = { body: ArrayBuffer; positions: number; documentLeng
 parentPort!.on('message', ({ product, jobs }: { product: SurfaceProduct; jobs: SurfaceJob[] }) => {
   try {
     let size = 0;
-    const bodies = jobs.map(job => {
-      const artifact = { schemaVersion: 1, processing: SURFACE_PROCESSING, product,
-        frame: parseSurfaceChart(job.text, job.chart, job.checkedAt, job.sourceHash) };
-      if (!isSurfaceArtifact(artifact)) throw new Error('Invalid prepared surface chart');
-      const body = new TextEncoder().encode(JSON.stringify(artifact)).buffer;
-      size += body.byteLength;
+    const bodies: SurfaceResult[] = [], invalid: number[] = [];
+    let failure: unknown;
+    for (const [index, job] of jobs.entries()) {
+      try {
+        const artifact = { schemaVersion: 1, processing: SURFACE_PROCESSING, product,
+          frame: parseSurfaceChart(job.text, job.chart, job.checkedAt, job.sourceHash) };
+        if (!isSurfaceArtifact(artifact)) throw new Error('Invalid prepared surface chart');
+        const body = new TextEncoder().encode(JSON.stringify(artifact)).buffer;
+        size += body.byteLength;
+        bodies.push({ body, positions: surfacePositions(artifact.frame), documentLength: artifact.frame.sourceDocument.length });
+      } catch (cause) { invalid.push(index); failure ??= cause; }
       if (size > SURFACE_MAX_BYTES) throw new Error('Prepared surface charts exceed their size limit');
-      return { body, positions: surfacePositions(artifact.frame), documentLength: artifact.frame.sourceDocument.length };
-    });
+    }
+    if (invalid.length) { parentPort!.postMessage(workerFailure(failure, invalid)); return; }
     parentPort!.postMessage({ type: 'done', value: bodies } satisfies WorkerResult<SurfaceResult[]>, bodies.map(result => result.body));
   } catch (error) { parentPort!.postMessage(workerFailure(error)); }
 });
