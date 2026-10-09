@@ -21,7 +21,7 @@ Implemented in this tree:
   visible demand, three-minute reads, bounded saved snapshots and explicit source
   freshness/offline state. `/api/notams/` is excluded from service-worker caching.
 - `parser.ts`, `presentation.ts`, `minima.ts`, `takeoff.ts`, `distances.ts`,
-  `validity.ts`, `matcher.ts`, `ui.tsx`: conservative
+  `schedule.ts`, `validity.ts`, `matcher.ts`, `ui.tsx`: conservative
   D/FDC flairs, structured readable bodies/raw disclosures, airport filters,
   procedure/runway matches and review candidates.
   All defaults to D/FDC and unclassified records; Other also exposes retained
@@ -48,8 +48,9 @@ ILS/LOC/glideslope outages and scoped ILS category prohibitions are supported.
 Ambiguous procedure targets are review candidates; facility dependency
 graphs, broader regional applicability,
 multipart assembly and every publisher alias are not established. Simple daily
-and weekday/range UTC schedules with one time window are evaluated, including
-overnight windows. Other schedules remain **Check Schedule**. These limits cannot
+and weekday list/range UTC schedules with one time window are evaluated, including
+overnight windows and agreeing machine/readable daily or weekday wrappers.
+Days without hours and unsupported or contradictory schedules remain **Check Schedule**. These limits cannot
 establish complete operational applicability. Sustained deployment capacity
 alongside weather, device checks and broader source comparison remain
 release work.
@@ -666,12 +667,34 @@ inspection becomes available; remounts restore current colors on the new source.
 This prevents the independently acquired detail timestamps (often about a second
 apart) from hiding and re-tiling the entire national layer as each detail ages.
 
-The collector checks the index at least three minutes after the preceding round.
+The running collector checks the index on a three-minute clock anchored to the
+preceding index request's start. A long detail queue yields between requests when
+that clock is due. A complete validated index immediately publishes its check
+time and membership, including withdrawals; new or changed members have explicit
+detail issues until their XML is verified. Detail work cannot delay index
+publication or add its duration to the next index interval.
 It reuses details only with the same FAA ID/modification time and a known
-`detailCheckedAt` less than 15 minutes old. Changed, overdue or legacy details
+`detailCheckedAt` that will remain fresh through the next planned opportunity.
+The 15-minute freshness deadline is unchanged. Acquisition plans the entire deferred
+queue: required work in the current round, the three-minute admission interval,
+30-second scheduler tick, next index request, and a separate 30-second request plus
+one-second spacing for each queued detail. Reusable details are ordered by expiry;
+if any position in that queue would miss its deadline, its oldest member is brought
+forward and the plan is recomputed after acquisition. This spreads clustered
+deadlines and protects existing detail before changed/new members consume its
+headroom. Queue estimates also include interleaved index requests. Healthy detail
+queues have their own next deadline and may start another round before the index
+is due; such rounds do not request an early index check. Conservative timeout
+budgets can make large queues recheck frequently, but one-second request spacing
+and shared durable overload backoff still apply. Failed rechecks remain required even if later index withdrawals shorten
+the queue. Only successful detail acquisition can clear such a source issue.
+Each ID/revision is attempted at most once per round. Changed, due or legacy details
 are acquired again with `Cache-Control: no-cache`; the independent 15-minute
-interval bounds reuse when index/XML updates propagate separately without
-redownloading every unchanged document on each index check. `detailCheckedAt`
+interval bounds reuse when index/XML updates propagate separately. Young unchanged
+documents are reused when the deferred queue has enough headroom; larger queues
+can require earlier revalidation. Timeouts, overload, scheduler/storage delays or
+work exceeding serial acquisition capacity can still cause explicit stale coverage;
+planning never extends the source freshness deadline. `detailCheckedAt`
 records successful detail acquisition start, not index-check time; failed
 acquisitions never renew it. Details are fetched sequentially, with at least one
 second after the preceding response body,
@@ -681,7 +704,11 @@ validated replacement is bounded to 8 MiB/1,000 distinct notice/issue IDs and at
 a checksum at `<NOTAMS_STATE_DIR>/tfrs/snapshot.json`, outside weather eviction.
 One kernel lock owns that directory. A separate checksummed `admission.json`
 reserves the restart cooldown before every request, including a bounded dispatch
-margin; completed attempts establish the next index deadline. Numeric and HTTP-date
+margin; incomplete attempts retain a conservative restart cooldown. A fully
+committed round replaces its provisional crash margin with the next index
+admission and request-spacing boundary, avoiding another three-minute wait after
+successful detail work. This durable barrier is separate from the running owner's
+index and detail clocks. Numeric and HTTP-date
 `Retry-After`, failures and quota-write failures survive process handoff or stop
 further admission. Never remove the journal/provisioning marker to repair data.
 This adapter does not consume NMS credentials or reset the NMS journal.
@@ -689,9 +716,21 @@ This adapter does not consume NMS credentials or reset the NMS journal.
 Completed details are saved to a bounded private `details.json` progress cache,
 so a different failing detail does not cause successful downloads to be repeated
 after a retry or restart. The progress cache never becomes a national HTTP result.
+After durable validation, each successful detail atomically replaces the matching
+member of the published index, including new members and changed revisions. It
+preserves the index check time and validated membership. A later source failure cannot hide
+this independently verified progress. HTTP JSON/gzip caches follow immutable
+publication identity, not index time alone. Clients accept same-index detail updates
+but reject older detail evidence at that same index time, including cross-window saves.
 Snapshot and progress writes are atomic and synchronized. Invalid UTF-8, truncated
 responses and cache corruption cannot silently change source text. Closing the
-collector aborts its own transport and drains writes before releasing ownership.
+collector directly aborts its own transport and drains writes before releasing
+ownership. Normal server shutdown first quiesces it: admission closes synchronously,
+the admitted request commits, and the remaining queue stays pending with explicit
+coverage issues where necessary. It checkpoints the next allowed request without
+advancing source times. Ownership remains held until final close; a deadline abort
+preserves the conservative request reservation. See the
+[server shutdown contract](../../../tools/info-server/README.md#shutdown-and-ownership).
 An invalid, regressed or unavailable index retains the preceding snapshot and its
 original `checkedAt`, with an explicit error. A revision older than published,
 unresolved or privately saved detail rejects the whole index before it can
@@ -720,7 +759,8 @@ appears separately from index age in the details panel and source-review disclos
 further requests under
 the durable backoff; remaining uncached members are accounted for as issues.
 Cancellation, lost ownership, admission-write uncertainty and snapshot/progress
-storage failures still abort publication. Only a validated index removes absent IDs.
+storage failures abort further publication; already committed index/detail evidence
+remains available. Only a validated index removes absent IDs.
 HTTP reads never contact FAA; a cold cache returns 503. `/api/weather/healthz`
 includes independent `tfrs` readiness, check time, failure state and next attempt.
 HTTP serialization and gzip are shared for the current check-time/error boundary;
@@ -1081,7 +1121,11 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
 4. Pull deltas at most every three minutes, with a conservative overlapping lower
    bound for timestamp precision/repeated delivery. Merge idempotently by source
    ID and qualified revision/update metadata.
-   Compare the source timestamp through nanoseconds, then sequence and correction.
+   Compare the NMS source timestamp through nanoseconds. AIXM sequence and
+   correction counters remain comparison evidence, never equal-time tie-breaks:
+   their TimeSlice semantics do not establish a general NOTAM revision order.
+   See [NMS revision ordering](source-comparison.md#nms-revision-ordering) and the
+   [field-specific conflict priorities](source-comparison.md#conflict-resolution-priority).
    The raw record digest includes original spellings; it is not a semantic revision
    number. Equal source ordering does not establish byte-identical FAA renderings.
 
@@ -1128,8 +1172,10 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    the stricter comparison: paired domestic/international header
    numbers may differ across those two formats; different numbers, series or years
    within one format are conflicts. Missing Q-line traffic/purpose/scope values may be
-   supplemented. All supplied values must agree; FIR, code, altitude, coordinates
-   and the complete A)-onward content remain exact. Unrecognized layouts and
+   supplemented. Supplied values must agree unless the separate purpose-upgrade
+   proof below applies; FIR, altitude, coordinates and the
+   complete A)-onward content remain exact. Selection-code differences need the
+   separately qualified surface-closure proof below. Unrecognized layouts and
    replacement/cancellation references receive no such relaxation. Arbitrary
    markup, case and punctuation are not discarded. Missing types do not withdraw
    previously supplied translations. Retain earlier raw spellings and append new
@@ -1146,15 +1192,102 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    metadata may be supplemented; two supplied references must agree. References
    never identify another source ID for deletion.
 
+   The identical-translation E)-body proof also accepts a rendering with C)
+   omitted, retaining that absence explicitly. It proves only the short/full
+   body relationship; such an incomplete envelope cannot establish general
+   notice or multipart equivalence, or supply a missing effective end.
+
+   The [source-comparison contract](source-comparison.md) owns the official-document
+   references, field authority, transformation rules and conformance matrix.
+   `representation.ts` owns lossless lexical views and local/ICAO field states;
+   `notice-evidence.ts` owns complete-body and record-binding evidence;
+   `notice-comparison.ts` owns equivalence, with Q-code/purpose policy in
+   `notice-qualification.ts`. Complete
+   whole/multipart ICAO envelopes account for every retained translation and the
+   entire primary body, including qualified full-body repetitions and F)/G) limits.
+   Compact markers and one entity layer are handled without rewriting source text.
+
+   Equal complete envelopes can establish representation equality even when they
+   share inconsistent structured metadata; that does not resolve the inconsistency.
+   Correcting a selection code needs the stronger record-bound proof. The
+   [October 11 RKTI variants](../../../test/fixtures/notams-rkti-2026-10-11.json)
+   qualify under the documented OPADD surface-closure subset, retaining both codes.
+   The same qualification policy covers FAA-coded aerodrome/apron closures,
+   OPADD QXXXX replacement and supplied `M → B → BO → NBO` purpose upgrades.
+   All unaffected fields must agree. An initially conflicting pair is retried
+   once against evidence admitted from the rest of its batch, so a confirming
+   third rendering can complete the proof without making digest order authority.
+   The [October 12 OBBI variants](../../../test/fixtures/notams-obbi-2026-10-12.json)
+   qualify as foreign distribution annotations, retaining both original renderings
+   and the supplied structured/header years. Exact terminal USNOF disclaimers are
+   distinguished from significant operational text and quality warnings. Changed
+   fields, incomplete evidence and unsupported annotations remain unresolved.
+   Authenticated restore re-evaluates retained issues without acquisition,
+   changing source clocks or replenishing quota.
+
+   The [October 9 retained variants](../../../test/fixtures/notams-representations-2026-10-09.json)
+   exercise the same multi-location military notice with literal/escaped
+   apostrophes at LOR, HEY and SXS. Complete ICAO evidence resolves those variants.
+   The captured N81 FDC pair has a collapsed ODP continuation rendering: repeated
+   closing text and airport headings interrupt otherwise identical sentences.
+   Its predecessor FDC 4/9817 was cancelled at the new 6/8608 issue time. The
+   predecessor explicitly marks three parts at exactly those interruptions;
+   removing its transport markers and repeated subject labels reproduces the
+   collapsed body. This history explains the representation family; an older
+   notice or another source ID never supplies authority for reconciliation.
+   [Retained continuation examples](../../../test/fixtures/notams-fdc-continuations-2026-10-09.json)
+   also cover SRE/N94 and stale or malformed auxiliary conversions at MEB/TIX.
+
+   `source-text.ts` qualifies that family only for active, single-airport FDC
+   NOTAMN ODP records with no separate schedule. A complete current local notice
+   must bind the source number, year, location, subject, actual interval and end
+   qualifier. It must start with the airport/city/state heading and takeoff
+   procedure title, and end with exactly one `ALL OTHER DATA REMAINS AS PUBLISHED.`
+   footer. An agreeing complete Q)-through-E) ICAO conversion must corroborate
+   the whole native body, airport and interval. This field-only conversion has
+   no inferred ICAO notice identity. Missing C), unknown Q fields, schedules,
+   F)/G) limits and stale or conflicting conversions cannot establish this proof.
+
+   Two bounded forward token cursors compare every local rendering with that
+   complete body. The only allowed internal extra is the exact closing footer
+   followed by this notice's exact airport heading, after the complete title and
+   before the final footer. At most 31 such pairs are accepted; empty segments,
+   different headings, additional instructions, missing words, changed numbers
+   or punctuation all fail. Every retained local rendering and supplied ICAO
+   conversion constrains the proof. Each record's raw text must bind to one of
+   those complete local renderings. The selected body is an original, complete
+   source string; all raw translations survive merging and sparse replay.
+   The PWA uses this same evidence to select a complete native rendering when
+   subject recovery is needed. This does not assemble unsupported numbered local
+   parts, remove arbitrary repeated sentences or infer content absent from the
+   current record. Health and revision/lifecycle ordering retain their usual rules.
+
    FNSE ICAO associations are also optional evidence: a missing list can be
    supplemented from the same revision, while two populated lists must name the
-   same set. No domestic-to-ICAO alias is invented. The demonstrated
-   `Daily:HHMM-HHMM~DLY HHMM-HHMM` schedule equals its readable `DLY` form only
-   when both supplied windows agree, using the same rule as validity display.
-   The raw schedule stays intact. Domestic schedule metadata may also omit the
+   same set. No domestic-to-ICAO alias is invented.
+
+   Schedule representation is decoded separately from source revision ordering
+   and notice-specific reconciliation. `schedule.ts` owns one shared semantic
+   projection for collection and client validity: absent, understood weekly
+   days with an optional UTC window, or opaque source text. Opaque is not absent;
+   missing hours are not all-day availability. Understood schedules compare day
+   sets and minute boundaries, so weekday lists/ranges, daily aliases and agreeing
+   machine/readable wrappers do not require per-notice exceptions. Both halves
+   of `Daily:HHMM-HHMM~DLY HHMM-HHMM` or
+   `Wednesday:HHMM-HHMM~WED HHMM-HHMM` must independently decode and agree on
+   days and hours. All seven full weekday names use the same rule. Conflicting
+   halves, solar times, invalid clocks and multiple windows remain opaque;
+   neither half is preferred or discarded. Equal opaque source text can remain
+   a resolved record while validity explicitly reports **Check Schedule**.
+   The projection is derived, never persisted in place of raw source fields.
+
+   Equivalent meanings retain an original schedule spelling. Supplementing an
+   omission is a separate policy requiring a complete native witness, not merely
+   two individually parseable fields. Domestic schedule metadata may omit the
    schedule or its hours while both records retain the same complete native
    notice and body. Reconcile those omissions only against one terminal schedule
-   in that shared body: every supplied weekday and hour must agree. Supported
+   in that shared body: every supplied weekday and hour must agree. The same
+   schedule grammar validates that witness and evaluates client timing. Supported
    evidence is a weekday list/range or `DLY`/`DAILY` with one valid UTC window;
    overnight windows and an end of `2400` are allowed. Weekday ranges and their
    expanded lists identify the same days. Multiple windows, exceptions, unknown
@@ -1169,6 +1302,14 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    source revision ordering nor collection freshness. Verified saved issues are
    reconsidered on restore using all retained variants, preserving incomplete
    collection checkpoints, genuine conflicts, overflow evidence and quota history.
+
+   The October 8 Portland source pair exposed the previous coupling of string
+   rewriting and comparison: collection and validity had different schedule
+   grammars, and a weekday wrapper became a false revision conflict. Its captured
+   variants now participate in the ordinary reconciliation, XML replay and
+   authenticated restart tests. Shared schedule tests exercise all weekdays,
+   representation equivalence, UTC boundaries, contradictory wrappers and sparse
+   replays; extending syntax must preserve these contracts in both consumers.
 
    Derived end kinds are compared after combining
    compatible optional evidence: a matching retained `EST` suffix can qualify
@@ -1271,7 +1412,7 @@ representation cannot erase a disagreement between richer representations.
 
 Unfamiliar same-order content, unqualified active/inactive disagreements, unknown lifecycle
 values, and representations that cannot fit the bounded merged record become
-`NotamSourceIssue` entries. They are excluded from resolved records, matching and
+`NotamSourceIssue` entries. Their conflicting variants are excluded from matching and
 map symbols. Preserve their raw bodies/translations and reason. Their presence
 does not prevent cancellations, new notices or updates for other IDs from being
 committed at the same source boundary. Empty and repeated deltas still advance
@@ -1294,6 +1435,18 @@ unions retain up to 32 IDs per namespace; missing associations or overflow set
 `unscoped`, qualifying every airport query. Known scopes qualify the union of all
 versions' airports. Issues never disappear through display filters, expiry of a
 single variant, or optional diagnostic failure.
+
+An airport-association disagreement alone need not hide agreed filing-scope
+content. `resolveNotamFilingScope` requires a non-truncated, scoped, active
+revision-conflict whose primary locations and every non-ICAO field reconcile.
+It derives one notice for those primary locations and the intersection of the
+ICAO sets, preserving the conflicting sets as `icaoLocationVariants`. Queries
+matching that projection receive its trusted content with an explicit unconfirmed
+airport-association label. Other association queries retain the original issue.
+The source issue and both variants stay in durable storage, and global unresolved
+counts remain unchanged; no airport alias is guessed. Captured JOH/JNU 10/015
+demonstrates agreed station content with conflicting PJOH/PACV associations.
+Publication builds these projections; query reads do no reconciliation or FAA work.
 
 Collection-level failures remain strict: malformed/truncated envelopes, missing
 source identity or ordering, invalid boundaries, download/parse limits, and failed
@@ -1461,9 +1614,16 @@ variants, or every query when unscoped. Source issues are shown separately with
 raw versions, including on plates, and qualify collapsed counts even when there
 are zero matches. They are never interpreted as an active restriction or charted.
 
-Feed status adds `collectionContinuity`, `unresolvedRecords`, and
-`unscopedRecords`. The existing global `continuity` stays incomplete and `state`
-stays degraded while any issues exist, so older clients remain conservative.
+Feed status adds `collectionContinuity`, `unresolvedRecords`, `unscopedRecords`
+and optional `blockingRecords`. The existing global `continuity` stays incomplete
+while any issues exist. `blockingRecords` excludes only fully evidenced
+filing-scope projections whose disputed ICAO/FIR associations cannot select any
+supported query; all content conflicts, supported disputed queries and incomplete
+evidence remain blocking. Missing `blockingRecords` means all unresolved records
+are blocking. With fresh continuous collection and no other error, feed `state`
+is ready when that blocking count is zero. Nonblocking source ambiguity remains
+visible in aggregate `readiness.warnings` and bounded `notamSourceIssues` samples;
+it needs no release-probe allowance. See the [health policy](../../../tools/info-server/maintenance.md#health-and-diagnostics).
 New clients use airport `contentCoverage` together with association coverage and
 original source-check age. An unrelated airport can have fresh, complete content
 while global feed health reports unresolved records. Offline persistence validates
@@ -1548,7 +1708,8 @@ in `main.ts`, not in parsers or request handlers.
 | --- | --- |
 | `tools/info-server/notams/service.ts` | Single ingestion owner, admission, bootstrap/delta/recovery state, query indexes and lifecycle |
 | `tools/info-server/notams/collection.ts` | Per-ID resolution, bounded source issues, and full-reconciliation evidence |
-| `tools/info-server/notams/revision.ts` | Qualified revision ordering and representation equivalence; no collection scheduling |
+| `tools/info-server/notams/revision.ts` | Qualified revision ordering, explicit comparison decisions and lifecycle precedence; no collection scheduling |
+| `representation.ts`, `notice-evidence.ts`, `notice-comparison.ts`, `source-text.ts` | Shared bounded envelope parsing, original source spans and complete text-equivalence evidence; no acquisition or UI state |
 | `tools/info-server/notams/client.ts` | OAuth renewal, allowlisted NMS requests, bounded downloads and source error classification |
 | `tools/info-server/notams/store.ts` | Durable quota journal, checksummed dataset generations and atomic publication |
 | `tools/info-server/notams/lock.ts` | Kernel-backed single-writer lifetime lock |
@@ -1703,6 +1864,7 @@ The parser is organized by responsibility:
 | --- | --- |
 | `parser.ts`, `interpretation.ts` | Source selection, bounded orchestration, shared evidence/types and interpretation coverage |
 | `source-text.ts` | Identity/interval/whole-body proof for alternate FDC renderings, shared with collection |
+| `representation.ts`, `notice-evidence.ts`, `notice-comparison.ts` | Local/ICAO envelope state machines and complete source comparison, including qualified encoding and multipart evidence |
 | `procedure-targets.ts`, `procedure-title.ts` | Complete headings/amendments and a state machine for facility, variant, designation and qualifications; stopped before narrative references |
 | `effects.ts` | Typed, subject-bound facts and complete supporting source spans, independently of badge selection |
 | `flairs.ts` | At-a-glance summaries, proven facility/effect combinations, and specific interpretation explanations |
@@ -2261,6 +2423,11 @@ time limitations. This README remains the canonical guide after implementation.
   publication and withdrawals, original retained-detail ages through restart,
   unchanged-index revalidation, legacy unknown ages, complete recovery and durable
   backoff without a request per failed member.
+  `test/notams-tfr-scheduling.test.ts` exercises clustered deadlines with slow
+  queues, repeated 90-notice rounds and restart, independent index publication,
+  interleaved index checks and withdrawals, immediate durable detail publication,
+  and failed early rechecks after index shrinkage. HTTP delivery and storage tests cover same-index cache
+  invalidation and rejection of older detail evidence across tabs.
   `test/notams-tfr.test.ts` validates partial snapshots and unconfirmed map/detail
   state, including the live detail-age deadline. Browser regressions cover
   stale/offline/failed collapsed plate counts, unmatched-source review, recovery,
@@ -2326,6 +2493,28 @@ time limitations. This README remains the canonical guide after implementation.
   saved-failure recovery, restart and subsequent deltas without resetting bulk quota.
   Cancellation-retention cases include an old source revision cancelled recently,
   sparse replay, restart with a pending bulk bridge, and expiry of old inactive records.
+- `test/notams-source-comparison.test.ts` covers the October 12 OBBI distribution
+  variants, complete-envelope versus record-bound authority, every Q qualifier,
+  independent body/translation annotations, retained warnings, AIXM chunk decoding,
+  sparse replay and authenticated recovery with unchanged source clocks and quota.
+  The [source-comparison contract](source-comparison.md) records its authority and
+  supported transformation boundaries.
+- `test/notams-representation.test.ts` checks lexical source spans, bounded
+  single-layer decoding, envelope states, multi-location/altitude fields,
+  independent compact/spaced marker combinations, multipart and FDC envelopes,
+  encoding/format combinations, sparse replays, explicit comparison outcomes
+  and recovery of the October 9 retained pairs. The October 11 RKTI pair exercises
+  compact-marker and qualified surface-code corrections through collection, authenticated restore,
+  HTTP diagnostics and readiness, alongside spacing-only recovery with unchanged
+  clocks and quota. Changed restrictions and unknown
+  representations remain unresolved. The military and N81 pairs also participate
+  in XML replay and restart regressions.
+- `test/notams-fdc-continuations.test.ts` qualifies N81's collapsed continuation
+  against complete current local/ICAO evidence, retains its cancelled predecessor
+  solely as transport evidence, and exercises the SRE/N94 and MEB/TIX families.
+  It checks arrival order, bounded wrappers, raw source preservation, sparse
+  replay, PWA source selection, changed instructions/values, incomplete or stale
+  witnesses, malformed boundaries and truncated source issues.
 - `test/notams-reconciliation.test.ts` also replays the retained corpus conflicts
   and the October 6 source pairs in
   [`notams-source-renderings-2026-10-06.json`](../../../test/fixtures/notams-source-renderings-2026-10-06.json).

@@ -12,7 +12,7 @@ test('network-only JSON acquisition cancels oversized streams and rejects invali
   })));
   await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather', { maxBytes: 50 }), /response limit/);
   assert.equal(cancelled, true);
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ type: 'FeatureCollection', features: [{}] }));
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ type: 'FeatureCollection', features: {} }));
   await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather'), /invalid document/);
   t.mock.method(globalThis, 'fetch', async () => new Response(null, { status: 204 }));
   await assert.rejects(requestJson('https://test/', isSourceCollection, 'Weather'), /no document/);

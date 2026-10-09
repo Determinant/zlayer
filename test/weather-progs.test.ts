@@ -351,8 +351,9 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   let now = WEATHER_NOW, calls = 0, failAnalysis = false, failForecast = false, rollback = false, correction = false;
   const requested: string[] = [];
   const options = { directory, now: () => now, spacing: 0, startUpdates: false,
-    fetch: (async (input: RequestInfo | URL) => {
+    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls++;
+      assert.equal(new Headers(init?.headers).get('cache-control'), 'no-cache', 'mutable catalogs and same-cycle chart corrections request revalidation');
       const url = new URL(String(input));
       requested.push(url.href);
       if (url.href === SURFACE_CATALOG) {
@@ -406,6 +407,9 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   const nextForecast = await app.cache.read(progsResource('forecast'));
   assert.equal(nextForecast?.checkedAt, now, 'analysis failure does not block forecasts');
   assert.match(app.progs.status.analysis!.error ?? '', /Unsupported/);
+  now += 30_000; failAnalysis = false;
+  app.progs.refresh(); await app.progs.close();
+  assert.equal(app.progs.status.analysis!.error, undefined, 'decoder-rejected chart bytes cannot pin recovery until source TTL');
   now += 6 * 60_000; failAnalysis = false; failForecast = true;
   app.progs.refresh(); await app.progs.close();
   assert.equal((await app.cache.read(progsResource('forecast')))?.body.toString(), nextForecast!.body.toString(), 'one missing file cannot publish a partial forecast family');
@@ -422,7 +426,7 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   assert.ok(!requested.some(url => url.includes('_F000_')), 'an older catalog is rejected before downloading or preparing analysis');
   assert.equal(restarted.progs.status.analysis!.nextAttemptAt, now + 30_000);
   assert.equal((await restarted.cache.read(progsResource('analysis')))?.body.toString(), latest);
-  now += 6 * 60_000; rollback = false; correction = true;
+  now += 30_000; rollback = false; correction = true;
   restarted.progs.refresh(); await restarted.progs.close();
   const corrected = JSON.parse((await restarted.cache.read(progsResource('analysis')))!.body.toString());
   assert.equal(corrected.frames[0].referenceTime, JSON.parse(latest).frames[0].referenceTime);

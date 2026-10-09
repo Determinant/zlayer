@@ -109,3 +109,28 @@ test('a queued TFR save is cancelled on disable and equal-check source status ca
   await advance(TFR_REFRESH_MS);
   assert.deepEqual(tfrSnapshot.read(), response);
 });
+
+test('same-index detail publications replace old evidence without letting older responses or tabs regress it', async t => {
+  const { create, clock, advance } = setup(t);
+  const original: TfrSnapshot = { ...snapshot(START), notices: [{ id: '6/0001', modifiedAt: START,
+    title: 'Test', type: 'SECURITY', facility: 'ZLA', state: 'CA', detailCheckedAt: START,
+    startsAt: START, endsAt: null, text: 'Original restriction', areas: [] }] };
+  let response = original;
+  const client = create(async () => response); client.start(); await advance();
+  clock.now += 600_000;
+  response = { ...original, notices: original.notices.map(n => ({ ...n, detailCheckedAt: clock.now, text: 'Updated restriction' })) };
+  await advance(TFR_REFRESH_MS);
+  const current = response;
+  assert.deepEqual(client.state.getSnapshot().snapshot, current);
+  assert.deepEqual(tfrSnapshot.read(), current);
+  for (const stale of [original, { ...original, notices: original.notices.map(({ detailCheckedAt: _age, ...n }) => n) }]) {
+    response = stale;
+    await advance(TFR_REFRESH_MS);
+    assert.deepEqual(client.state.getSnapshot().snapshot, current);
+    assert.deepEqual(tfrSnapshot.read(), current);
+    const oldTab = create(async () => stale); oldTab.start(); await advance(); oldTab.stop();
+    assert.deepEqual(tfrSnapshot.read(), current);
+  }
+  response = { ...current, error: 'refresh-failed' }; await advance(TFR_REFRESH_MS);
+  assert.deepEqual(tfrSnapshot.read(), response, 'equal detail evidence still accepts source-status changes');
+});

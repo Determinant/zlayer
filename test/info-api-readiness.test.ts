@@ -81,6 +81,10 @@ test('deployment readiness requires current weather as well as authenticated sav
       { path: '/api/weather/healthz', update: (v: any) => { v.readiness.sources[name].error = 'source refresh failed'; }, error: /source refresh failed/ },
     ]),
     ...['gairmet', 'sigmet', 'cwa'].flatMap(product => [
+      { path: `/api/weather/advisories/${product}.json`, update: (v: any) => {
+        v.schemaVersion = 2; v.issues = [{ id: `${product}:issue:review`, issuer: 'TEST', identifier: 'TEST',
+          reason: 'invalid-geometry', sourceFeature: '{"type":"Feature","geometry":null}' }];
+      }, error: /incomplete advisory coverage/ },
       { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { v.checkedAt -= 11 * MINUTE; }, error: /source check: stale/ },
       { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { v.checkedAt += MINUTE; }, error: /source check: stale or future/ },
       { path: `/api/weather/advisories/${product}.json`, update: (v: any) => { Object.assign(v, advisorySnapshot(product === 'gairmet' ? 'sigmet' : 'gairmet')); }, error: /invalid advisory snapshot/ },
@@ -148,6 +152,10 @@ test('deployment readiness requires current weather as well as authenticated sav
     { name: 'wrong-station', failure: 'wrong-station', reconciliation, error: /SAU/ },
     { name: 'old-full-sync', failure: 'old-full-sync', reconciliation: { state: 'overdue', error: null }, error: /NOTAM full synchronization/ },
     { name: 'source-issue', failure: 'source-issue', reconciliation, error: /Unexpected unresolved/ },
+    { name: 'metadata-only', failure: 'metadata-only', reconciliation },
+    { name: 'blocking-association', failure: 'blocking-association', reconciliation, error: /Unexpected unresolved/ },
+    { name: 'stale with metadata warning', failure: 'metadata-stale', reconciliation, error: /NOTAM source check: stale/ },
+    { name: 'failed sync with metadata warning', failure: 'metadata-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
     { name: 'pending replacement', reconciliation: { state: 'pending', error: null } },
     ...['source-http-502', 'reconciliation-interrupted', 'reconciliation-history-invalid', 'reconciliation-history-unavailable']
       .map(code => ({ name: code, reconciliation: { state: 'failed', error: code }, error: /NOTAM reconciliation failed/ })),
@@ -160,8 +168,11 @@ test('deployment readiness requires current weather as well as authenticated sav
     const airport = notamSnapshot([], { query: { faaId: 'SFO', icaoId: 'KSFO' } });
     airport.feed.checkedAt = airport.feed.watermark = WEATHER_NOW;
     airport.feed.fullSyncAt = WEATHER_NOW - (failure === 'old-full-sync' ? 25 * HOUR : 0);
-    if (failure === 'source-issue') Object.assign(airport.feed, { state: 'degraded', error: 'unresolved-records',
+    if (failure === 'source-issue' || failure === 'blocking-association' || failure?.startsWith('metadata')) Object.assign(airport.feed, { state: 'degraded', error: 'unresolved-records',
       unresolvedRecords: 1, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', unscopedRecords: 0 });
+    if (failure === 'blocking-association') airport.feed.blockingRecords = 1;
+    if (failure?.startsWith('metadata')) Object.assign(airport.feed, { blockingRecords: 0, state: 'ready', error: null });
+    if (failure === 'metadata-stale') airport.feed.checkedAt = WEATHER_NOW - 20 * MINUTE;
     const navaid = { ...airport, scope: 'navaid-location', associationCoverage: 'complete', query: { navaidId: 'SAU' } };
     const region = { ...airport, scope: 'region-location', associationCoverage: 'incomplete', query: { artccId: 'ZOA' } };
     t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
@@ -180,7 +191,11 @@ test('deployment readiness requires current weather as well as authenticated sav
         headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
     });
     if (error) await assert.rejects(checkInfoApi('https://info.test', 'staging'), error);
-    else assert.ok((await checkInfoApi('https://info.test', 'staging')).reads > 25);
+    else {
+      const result = await checkInfoApi('https://info.test', 'staging');
+      assert.ok(result.reads > 25);
+      assert.deepEqual(result.warnings, failure === 'metadata-only' ? ['notam-association-metadata:1'] : []);
+    }
     if (failure === 'old-full-sync') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
       { allowOverdueFullSync: true })).warnings, ['full-sync-overdue'], 'an explicit rollout exception remains visible');
     if (failure === 'source-issue') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',

@@ -48,7 +48,7 @@ export function createNotamService(options: NotamOptions | undefined,
   let current: NotamGeneration | undefined, candidate: NotamGeneration | undefined;
   const indexes = new NotamIndex();
   let error: string | null = enabled && !configurationValid ? 'configuration-error' : null;
-  let initialized = false, restoring: Promise<void> | undefined, pending: Promise<void> | undefined, stopped = false;
+  let initialized = false, restoring: Promise<void> | undefined, pending: Promise<void> | undefined, stopped = false, quiescing = false;
   let retryAt = 0, recoveryAttempted = false;
   let acquiringBulk = false;
   const validSignal = () => { signal.throwIfAborted(); if (stopped) throw new NotamError('stopping'); };
@@ -67,13 +67,14 @@ export function createNotamService(options: NotamOptions | undefined,
     const fresh = current && now() >= current.checkedAt && now() - current.checkedAt < NOTAM_STALE_MS;
     const collectionContinuity = current?.complete && now() >= current.watermark && now() - current.watermark + OVERLAP_MS < NOTAM_DAY_MS ? 'complete' : 'incomplete';
     const unresolvedRecords = current?.issues?.length ?? 0;
+    const blockingRecords = indexes.sourceIssues.blocking;
     const continuity = collectionContinuity === 'complete' && !unresolvedRecords ? 'complete' : 'incomplete';
     return { enabled, environment, state: !enabled ? 'disabled' : !configurationValid ? 'unavailable'
-      : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || continuity !== 'complete' ? 'degraded' : 'ready',
+      : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || collectionContinuity !== 'complete' || blockingRecords ? 'degraded' : 'ready',
       generation: current?.generation ?? null, checkedAt: current?.checkedAt ?? null, watermark: current?.watermark ?? null,
       fullSyncAt: current?.fullSyncAt ?? null, recordCount: (current?.records.length ?? 0) + unresolvedRecords,
-      collectionContinuity, unresolvedRecords, unscopedRecords: indexes.unscopedCount,
-      continuity, error: current?.incompleteReason ?? error ?? (unresolvedRecords ? 'unresolved-records' : null),
+      collectionContinuity, unresolvedRecords, blockingRecords, unscopedRecords: indexes.unscopedCount,
+      continuity, error: current?.incompleteReason ?? error ?? (blockingRecords ? 'unresolved-records' : null),
       nextAttemptAt: store && initialized ? Math.max(retryAt, store.nextDataAt, !current && !candidate ? store.nextBulkAt : 0) : null };
   }
   function restore(): Promise<void> {
@@ -192,7 +193,7 @@ export function createNotamService(options: NotamOptions | undefined,
     }
   }
   function refresh() {
-    if (!initialized || !store || pending || stopped || signal.aborted || now() < Math.max(retryAt, store.nextDataAt)) return;
+    if (!initialized || !store || pending || stopped || quiescing || signal.aborted || now() < Math.max(retryAt, store.nextDataAt)) return;
     pending = measure('notams.round', round).catch(async cause => {
       if (signal.aborted || stopped) return;
       failure(cause);
@@ -200,6 +201,7 @@ export function createNotamService(options: NotamOptions | undefined,
   }
   return {
     restore, refresh, get status() { return status(); },
+    get sourceIssues() { return current ? indexes.sourceIssues : null; },
     get reconciliation() { return reconciliation?.status(current?.fullSyncAt ?? null, acquiringBulk || !!candidate) ?? null; },
     readRegion(query: NotamRegionQuery): NotamRegionSnapshot | undefined {
       if (!current) return undefined;
@@ -226,6 +228,9 @@ export function createNotamService(options: NotamOptions | undefined,
         contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
     },
     async settled() { await pending; },
+    // One admitted round finishes its verified generation or durable candidate.
+    // Quiescing never admits a second round or releases the writer lock.
+    async quiesce() { quiescing = true; await restoring; await pending; if (initialized) store?.assertHeld(); },
     async close() { stopped = true; lifetime.abort(); await restoring; await pending; await store?.close(); },
   };
 }

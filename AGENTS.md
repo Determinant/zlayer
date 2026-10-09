@@ -23,8 +23,17 @@ Keep unrelated working-tree changes intact.
 ## Verification and documentation
 
 Use [local development](docs/development/local-development.md#verification) for
-the verification commands and browser prerequisites. Before committing, the
-repository requires `npm run verify:full`; device-only release checks remain separate.
+the verification commands and browser prerequisites, subject to this scope rule:
+
+- **Server-only work:** run focused Node tests for the affected server/parser
+  behavior, appropriate type/import checks, and `npm run info:build`. Do not run
+  PWA builds, browser or graphics tests, broad `npm test`, `npm run verify`, or
+  `npm run verify:full` unless the user explicitly requests them. This also applies
+  to shared parsers under `src/` when the task concerns server ingestion or
+  reconciliation; their location alone does not expand the task to PWA work.
+  This exception overrides broader verification guidance, including before commits.
+- For other work, the repository requires `npm run verify:full` before committing;
+  device-only release checks remain separate.
 
 Update the owning guide when behavior or a contract changes. Follow the
 [documentation maintenance rules](docs/README.md#keeping-the-docs-useful): preserve

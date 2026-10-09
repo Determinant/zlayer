@@ -14,6 +14,9 @@ export type NotamRecord = {
   id: string; sourceId: string; revision: string;
   classification: string; number: string; series: string; year: string;
   locations: string[]; icaoLocations: string[]; accountability: string;
+  /** Query projection: conflicting source association sets, with only their
+   * intersection in icaoLocations. Primary filing locations remain agreed. */
+  icaoLocationVariants?: string[][];
   issuedAt: number | null; updatedAt: number;
   sourceUpdatedAt: string; canceledAt: string;
   referred: { series: string; number: string; year: string } | null;
@@ -33,6 +36,9 @@ export type NotamFeedStatus = {
   /** Collection can advance while individual source records remain unresolved. */
   collectionContinuity?: 'complete' | 'incomplete';
   unresolvedRecords?: number;
+  /** Retained issues that affect usable content or supported query associations.
+   * Absence identifies older servers: treat every unresolved record as blocking. */
+  blockingRecords?: number;
   unscopedRecords?: number;
 };
 export type NotamSourceIssue = {
@@ -99,6 +105,12 @@ export function isNotamRecord(v: unknown): v is NotamRecord {
     (v.sourceId === v.id || v.sourceId === `NMS_ID_${v.id}`) && isSha256(v.revision) &&
     text(v.classification, 64) && text(v.number, 64) && text(v.series, 16) && text(v.year, 8) &&
     codes(v.locations) && codes(v.icaoLocations) && text(v.accountability, 32) &&
+    (v.icaoLocationVariants === undefined || v.locations.length > 0 && Array.isArray(v.icaoLocationVariants) &&
+      v.icaoLocationVariants.length >= 2 && v.icaoLocationVariants.length <= NOTAM_MAX_ISSUE_VARIANTS &&
+      v.icaoLocationVariants.every(set => codes(set) && set.length > 0) &&
+      new Set(v.icaoLocationVariants.map(set => [...set].sort().join(','))).size === v.icaoLocationVariants.length &&
+      (v.icaoLocationVariants[0] as string[]).filter(code => (v.icaoLocationVariants as string[][]).every(set => set.includes(code))).sort().join(',') ===
+        [...v.icaoLocations].sort().join(',')) &&
     optionalTime(v.issuedAt) && time(v.updatedAt) && optionalTime(v.startsAt) && optionalTime(v.endsAt) &&
     text(v.sourceUpdatedAt, 64) && text(v.canceledAt, 64) &&
     (v.referred === null || isRecord(v.referred) && text(v.referred.series, 16) && text(v.referred.number, 64) && text(v.referred.year, 8)) &&
@@ -117,6 +129,9 @@ export function isNotamFeedStatus(v: unknown): v is NotamFeedStatus {
     optionalTime(v.watermark) && optionalTime(v.fullSyncAt) && integer(v.recordCount) &&
     (v.continuity === 'complete' || v.continuity === 'incomplete') &&
     (v.error === null || typeof v.error === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(v.error)) && optionalTime(v.nextAttemptAt) &&
+    (v.blockingRecords === undefined || integer(v.blockingRecords) && integer(v.unresolvedRecords) && integer(v.unscopedRecords) &&
+      v.unscopedRecords <= v.blockingRecords && v.blockingRecords <= v.unresolvedRecords &&
+      (v.state !== 'ready' || v.blockingRecords === 0)) &&
     (v.collectionContinuity === undefined && v.unresolvedRecords === undefined && v.unscopedRecords === undefined ||
       ['complete', 'incomplete'].includes(String(v.collectionContinuity)) && integer(v.unresolvedRecords) &&
       integer(v.unscopedRecords) && v.unscopedRecords <= v.unresolvedRecords && v.unresolvedRecords <= v.recordCount &&

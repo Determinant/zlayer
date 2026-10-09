@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isNotamSourceIssue, isNotamAirportSnapshot, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord } from '@zlayer/contracts';
+import { isNotamSourceIssue, isNotamAirportSnapshot, isNotamFeedStatus, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord } from '@zlayer/contracts';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NOTAM_DAY_MS } from '../tools/info-server/notams/policy';
@@ -151,4 +151,17 @@ test('wire guards reject lost issue evidence, overlapping resolved IDs and false
   assert.ok(isNotamAirportSnapshot(healthy), 'an unrelated airport can have complete content despite a global issue');
   assert.equal(isNotamAirportSnapshot({ ...healthy, feed: { ...snapshot.feed, collectionContinuity: 'incomplete' } }), false);
   assert.equal(isNotamAirportSnapshot({ ...healthy, feed: { ...snapshot.feed, unscopedRecords: 1 } }), false);
+});
+
+test('feed status preserves legacy counts and bounds the new readiness classification', () => {
+  const feed = { ...notamSnapshot().feed, recordCount: 2, unresolvedRecords: 2, unscopedRecords: 0,
+    collectionContinuity: 'complete', continuity: 'incomplete', state: 'degraded', error: 'unresolved-records' };
+  assert.ok(isNotamFeedStatus(feed));
+  assert.ok(isNotamFeedStatus({ ...feed, blockingRecords: 1 }));
+  assert.ok(isNotamFeedStatus({ ...feed, blockingRecords: 0, state: 'ready', error: null }));
+  for (const patch of [{ blockingRecords: -1 }, { blockingRecords: 0.5 }, { blockingRecords: 3 },
+    { blockingRecords: 1, unscopedRecords: 2 }, { blockingRecords: 1, state: 'ready' },
+    { blockingRecords: 0, unresolvedRecords: undefined }]) {
+    assert.equal(isNotamFeedStatus({ ...feed, ...patch }), false, JSON.stringify(patch));
+  }
 });

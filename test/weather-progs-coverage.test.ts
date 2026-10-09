@@ -75,8 +75,9 @@ test('server publishes validated coverage independently, preserves prior data on
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-coverage-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   let now = WEATHER_NOW, png = coveragePng(), mode = 'good', reads = 0;
-  const fetcher: typeof fetch = async input => {
+  const fetcher: typeof fetch = async (input, init) => {
     reads++;
+    assert.equal(new Headers(init?.headers).get('cache-control'), 'no-cache', 'catalog and same-cycle image corrections request revalidation');
     const path = new URL(String(input)).pathname;
     if (path === '/api/data/progchart') {
       const source = surfaceCatalog();
@@ -109,12 +110,15 @@ test('server publishes validated coverage independently, preserves prior data on
   assert.equal((await fetch(origin + path + '?time=other')).status, 400);
   assert.equal(reads, requests);
   for (const failure of ['malformed', 'outage', 'rollback']) {
+    const published = await (await fetch(`${origin}/api/weather/progs/coverage.json`)).json();
     const before: number = reads;
     now += 6 * 60_000; mode = failure; await refresh();
     assert.ok(app.coverage.status.error);
     assert.equal(app.coverage.status.nextAttemptAt, now + 30_000);
     if (failure === 'rollback') assert.equal(reads, before + 1, 'an older catalog is rejected before acquiring any images');
-    assert.deepEqual(await (await fetch(`${origin}/api/weather/progs/coverage.json`)).json(), first);
+    assert.deepEqual(await (await fetch(`${origin}/api/weather/progs/coverage.json`)).json(), published);
+    mode = 'good'; now += 30_000; await refresh();
+    assert.equal(app.coverage.status.error, undefined, `${failure} must recover at its retry deadline, including all rejected images`);
   }
   mode = 'good'; png = coveragePng(1); now += 6 * 60_000; await refresh();
   const corrected = await (await fetch(`${origin}/api/weather/progs/coverage.json`)).json() as ProgsCoverageCatalog;

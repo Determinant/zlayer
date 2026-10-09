@@ -31,14 +31,20 @@ function acceptsGzip(value: string | undefined): boolean {
   });
 }
 
+export const INFO_SHUTDOWN_GRACE_MS = 130_000;
 export async function createInfoServer(options: { directory: string; maxBytes?: number; maxEntries?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
+  shutdownGraceMs?: number;
   notamWait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
   fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number; startUpdates?: boolean; log?: (message: string) => void }) {
-  const shutdown = new AbortController();
-  const tfrs = createTfrService({ ...options, directory: options.notams?.directory ?? options.directory, signal: shutdown.signal });
+  const shutdown = new AbortController(), collectors = new AbortController();
+  const graceMs = options.shutdownGraceMs ?? INFO_SHUTDOWN_GRACE_MS;
+  if (!Number.isSafeInteger(graceMs) || graceMs < 0 || graceMs > INFO_SHUTDOWN_GRACE_MS) throw new Error('Invalid shutdown grace');
+  const lifecycle: { protocol: 1; phase: 'running' | 'quiescing' | 'draining' | 'stopped' | 'failed'; forced: boolean; graceMs: number } =
+    { protocol: 1, phase: 'running', forced: false, graceMs };
+  const tfrs = createTfrService({ ...options, directory: options.notams?.directory ?? options.directory, signal: collectors.signal });
   await tfrs.restore();
   const metrics = new InfoMetrics();
-  const notams = createNotamService(options.notams, { ...options, metrics, ...(options.notamWait ? { wait: options.notamWait } : {}), signal: shutdown.signal });
+  const notams = createNotamService(options.notams, { ...options, metrics, ...(options.notamWait ? { wait: options.notamWait } : {}), signal: collectors.signal });
   const notamResponses = createNotamResponder(notams);
   const deliveries = { weather: 0, notams: 0 };
   function admit(kind: keyof typeof deliveries, response: ServerResponse): () => Promise<void> {
@@ -59,7 +65,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     }
     return encoded;
   }
-  let tfrResponse: { checkedAt: number; error: string | undefined; body: Buffer; encoded?: Promise<Buffer> } | undefined;
+  let tfrResponse: { snapshot: ReturnType<typeof tfrs.read>; body: Buffer; encoded?: Promise<Buffer> } | undefined;
   void notams.restore();
   const upstream = createUpstream({ ...options, signal: shutdown.signal });
   const cache = new WeatherCache({ directory: options.directory, maxBytes: options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES, now: options.now, signal: shutdown.signal,
@@ -74,7 +80,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
   const advisories = createAdvisoryWarming(cache, shutdown.signal, options);
   async function stopProducers() {
-    shutdown.abort();
+    shutdown.abort(); collectors.abort();
     const results = await Promise.allSettled([tfrs.close(), notams.close(), processing.close(),
       warming.close(), progs.close(), coverage.close(), radar.close(), motion.close(), advisories.close()]);
     // Producers have settled, so no new cache publications can join this drain.
@@ -118,8 +124,8 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       }
       if (request.url === '/api/notams/tfrs' && request.headers.range === undefined) {
         const snapshot = tfrs.read();
-        if (snapshot && (tfrResponse?.checkedAt !== snapshot.checkedAt || tfrResponse.error !== snapshot.error)) {
-          tfrResponse = { checkedAt: snapshot.checkedAt, error: snapshot.error, body: Buffer.from(JSON.stringify(snapshot)) };
+        if (snapshot && tfrResponse?.snapshot !== snapshot) {
+          tfrResponse = { snapshot, body: Buffer.from(JSON.stringify(snapshot)) };
         }
         const saved = snapshot ? tfrResponse : undefined;
         const payload = saved?.body ?? Buffer.from(JSON.stringify({ error: 'tfrs-unavailable' }));
@@ -134,10 +140,10 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
         response.setHeader('Content-Type', 'application/json');
         const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
           radar: radar.status, radarMotion: motion.status, advisories: advisories.status, notams: notams.status,
-          notamReconciliation: notams.reconciliation, tfrs: tfrs.status };
+          notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, tfrs: tfrs.status };
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ...data,
           readiness: assessInfoHealth(data, (options.now ?? Date.now)()), runtime: metrics.status,
-          delivery: { ...deliveries }, cache: cache.stats, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
+          delivery: { ...deliveries }, cache: cache.stats, lifecycle: { ...lifecycle }, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
       if (request.url?.startsWith('/api/notams/')) {
         const payload = notamResponses.read(request.url, request.headers.range);
@@ -206,6 +212,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   server.maxRequestsPerSocket = 1000;
   server.maxConnections = 512;
   const refresh = () => {
+    if (lifecycle.phase !== 'running') return;
     void tfrs.refresh();
     notams.refresh();
     warming.refresh();
@@ -219,14 +226,37 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   if (options.startUpdates !== false) refresh();
   let closing: Promise<void> | undefined;
   function close(): Promise<void> { return closing ??= (async () => {
-    clearInterval(timer); shutdown.abort();
+    lifecycle.phase = 'quiescing'; clearInterval(timer);
+    // Both admission gates close before the first await. Weather is disposable;
+    // FAA acquisition needs time to commit its already-admitted work instead.
+    const quiesced = Promise.allSettled([tfrs.quiesce(), notams.quiesce()]);
+    shutdown.abort();
+    options.log?.('Info shutdown quiescing');
     const forced = setTimeout(() => server.closeAllConnections(), 5000).unref();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
       const listener = server.listening ? new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) : Promise.resolve();
-      const results = await Promise.allSettled([listener, stopProducers()]);
-      const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
+      // Attach rejection handling immediately; listener failures must not become
+      // unhandled while a collector is still committing its checkpoint.
+      const listening = Promise.allSettled([listener]);
+      const settled = await Promise.race([quiesced, new Promise<null>(resolve => {
+        deadline = setTimeout(() => resolve(null), graceMs);
+      })]);
+      clearTimeout(deadline);
+      const failures: unknown[] = [];
+      if (settled === null) {
+        lifecycle.forced = true;
+        failures.push(new Error('Collector shutdown deadline exceeded; conservative admission preserved'));
+        options.log?.('Info shutdown deadline exceeded; aborting admitted work');
+      } else failures.push(...settled.flatMap(result => result.status === 'rejected' ? [result.reason] : []));
+      lifecycle.phase = 'draining';
+      const results = await Promise.allSettled([stopProducers()]);
+      failures.push(...[...results, ...await listening].flatMap(result => result.status === 'rejected' ? [result.reason] : []));
+      lifecycle.phase = failures.length ? 'failed' : 'stopped';
+      options.log?.(`Info shutdown ${lifecycle.phase}; forced=${lifecycle.forced}`);
       if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
-    } finally { clearTimeout(forced); }
+    } finally { clearTimeout(deadline); clearTimeout(forced); }
   })(); }
-  return { server, metrics, cache, processing, forecasts: warming, progs, coverage, radar, motion, notams, tfrs, close };
+  return { server, metrics, cache, processing, forecasts: warming, progs, coverage, radar, motion, notams, tfrs,
+    get lifecycle() { return { ...lifecycle }; }, close };
 }

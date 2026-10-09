@@ -9,6 +9,7 @@ import { gunzipSync } from 'node:zlib';
 import { createInfoServer } from '../tools/info-server/server';
 import { resourceFor } from '../tools/info-server/routes';
 import { digest } from '../tools/info-server/upstream';
+import type { TfrSnapshot } from '@zlayer/contracts';
 
 const path = '/api/weather/metars.geojson?ids=KSFO';
 function read(url: string, method = 'GET', encoding = 'gzip') {
@@ -27,6 +28,34 @@ async function listen(app: Awaited<ReturnType<typeof createInfoServer>>) {
   const address = app.server.address(); assert.ok(address && typeof address !== 'string');
   return `http://127.0.0.1:${address.port}`;
 }
+
+test('TFR HTTP encodings follow independent detail publications and share unchanged snapshots', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'tfr-http-publication-'));
+  const app = await createInfoServer({ directory, startUpdates: false, fetch: async () => assert.fail('HTTP reads must not acquire sources') });
+  let snapshot: TfrSnapshot = { schemaVersion: 1, source: 'FAA-TFR', checkedAt: Date.parse('2026-10-05T21:00Z'),
+    notices: [{ id: '6/0001', modifiedAt: Date.parse('2026-10-05T20:00Z'), title: 'Test', type: 'SECURITY', facility: 'ZLA', state: 'CA',
+      detailCheckedAt: Date.parse('2026-10-05T21:00Z'), startsAt: Date.parse('2026-10-05T20:00Z'), endsAt: null,
+      text: 'Original restriction. '.repeat(100), areas: [] }] };
+  t.mock.method(app.tfrs, 'read', () => snapshot);
+  let compressions = 0;
+  const hook = createHook({ init(_id, type) { if (type === 'ZLIB') compressions++; } });
+  try {
+    const url = await listen(app) + '/api/notams/tfrs';
+    hook.enable();
+    const first = await read(url);
+    assert.equal(first.headers['content-encoding'], 'gzip');
+    await read(url); await read(url, 'HEAD');
+    assert.equal(compressions, 1, 'unchanged publication shares its compressed body');
+    snapshot = { ...snapshot, notices: snapshot.notices.map(n => ({ ...n, detailCheckedAt: n.detailCheckedAt! + 600_000,
+      text: 'Updated restriction. '.repeat(100) })) };
+    const next = await read(url);
+    assert.equal(compressions, 2, 'same index time still requires a new representation');
+    hook.disable();
+    assert.deepEqual(JSON.parse(gunzipSync(next.body).toString()), snapshot);
+    assert.notDeepEqual(next.body, first.body);
+    assert.deepEqual(JSON.parse((await read(url, 'GET', 'identity')).body.toString()), snapshot);
+  } finally { hook.disable(); await app.close(); await rm(directory, { recursive: true, force: true }); }
+});
 
 test('cached reports share saved gzip across readers, HEAD and restart, and repair damaged encodings', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'weather-delivery-'));

@@ -1,0 +1,291 @@
+{
+  "source": "https://aviationweather.gov/api/data/cwa?format=geojson",
+  "checkedAt": 1791482763218,
+  "collection": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZMA",
+          "name": "Miami",
+          "seriesId": "104",
+          "validTimeFrom": "2026-10-08T16:16:00.000Z",
+          "validTimeTo": "2026-10-08T18:15:00.000Z",
+          "hazard": "TS",
+          "qualifier": "TSRA",
+          "cwaText": "FAUS21 KZMA 081616\nZMA1 CWA 081616 \nZMA CWA 104 VALID UNTIL 081815 \nFROM 160ENE GTK-190E GTK-150ESE GTK-70NNE GTK-160ENE GTK\nAREA TSRA. MOV FROM 15015KT TOPS EST TO FL400.\n\n="
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -68.499,
+                22.449
+              ],
+              [
+                -67.755,
+                21.396
+              ],
+              [
+                -68.699,
+                20.437
+              ],
+              [
+                -70.678,
+                22.509
+              ],
+              [
+                -68.499,
+                22.449
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZMA",
+          "name": "Miami",
+          "seriesId": "301",
+          "validTimeFrom": "2026-10-08T16:18:00.000Z",
+          "validTimeTo": "2026-10-08T18:15:00.000Z",
+          "hazard": "TS",
+          "qualifier": "TSRA",
+          "cwaText": "FAUS23 KZMA 081618\nZMA3 CWA 081618 \nZMA CWA 301 VALID UNTIL 081815 \nFROM 60NW ZIN-70WSW GTK-50SSE ZIN-60NW ZIN\nAREA TSRA. MOV LTL TOPS EST ABV FL450.\n\n="
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -74.44,
+                21.674
+              ],
+              [
+                -72.298,
+                20.971
+              ],
+              [
+                -73.334,
+                20.204
+              ],
+              [
+                -74.44,
+                21.674
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZLC",
+          "name": "Salt Lake City",
+          "seriesId": "101",
+          "validTimeFrom": "2026-10-08T17:39:00.000Z",
+          "validTimeTo": "2026-10-08T18:15:00.000Z",
+          "hazard": "TS",
+          "qualifier": "DVLPG",
+          "cwaText": "FAUS21 KZLC 081739\nZLC1 CWA 081739 \nZLC CWA 101 VALID UNTIL 081815\nFROM 50SW SLC-30NNW DTA-40ENE ELY-45SSW BVL-50SW SLC\nDVLPG AREA TS MOV LITTLE. TOPS FL250-320. CWSU 081740Z. NV UT\n\n=",
+          "top": 32000
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -112.751,
+                40.259
+              ],
+              [
+                -112.764,
+                39.759
+              ],
+              [
+                -114.055,
+                39.557
+              ],
+              [
+                -114.126,
+                40.035
+              ],
+              [
+                -112.751,
+                40.259
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZLC",
+          "name": "Salt Lake City",
+          "seriesId": "201",
+          "validTimeFrom": "2026-10-08T17:43:00.000Z",
+          "validTimeTo": "2026-10-08T18:15:00.000Z",
+          "hazard": "TS",
+          "qualifier": "DVLPG",
+          "cwaText": "FAUS22 KZLC 081743\nZLC2 CWA 081743 \nZLC CWA 201 VALID UNTIL 081815\nFROM 45NW MTU-35S MTU-50ESE DTA-40NE DTA-45NW MTU\nDVLPG AREA TS MOV LITTLE. TOPS FL250-320. CWSU 081744Z. UT\n\n=",
+          "top": 32000
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -110.828,
+                40.677
+              ],
+              [
+                -110.13,
+                39.568
+              ],
+              [
+                -111.525,
+                38.971
+              ],
+              [
+                -111.898,
+                39.769
+              ],
+              [
+                -110.828,
+                40.677
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZMA",
+          "name": "Miami",
+          "seriesId": "202",
+          "validTimeFrom": "2026-10-08T16:30:00.000Z",
+          "validTimeTo": "2026-10-08T18:30:00.000Z",
+          "hazard": "TURB",
+          "qualifier": "FQT MOD",
+          "cwaText": "FAUS22 KZMA 081630\nZMA2 CWA 081630 \nZMA CWA 202 VALID UNTIL 081830 \nFROM 50NE PBI-200NE ZQA-90NW ZIN-80SSE MIA-50NE PBI\nAREA FQT MOD TURB FL300-FL400 CONDS CONTG BYD 1830Z. RPRTD BY AIRCRAFT.\n\n=",
+          "base": 30000,
+          "top": 40000
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -79.428,
+                27.267
+              ],
+              [
+                -74.801,
+                27.359
+              ],
+              [
+                -74.822,
+                22.025
+              ],
+              [
+                -79.728,
+                24.574
+              ],
+              [
+                -79.428,
+                27.267
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZAB",
+          "name": "Albuquerque",
+          "seriesId": "102",
+          "validTimeFrom": "2026-10-08T18:01:00.000Z",
+          "validTimeTo": "2026-10-08T19:00:00.000Z",
+          "hazard": "TS",
+          "qualifier": "DVLPG TSRA MOD TO HVY PCPN",
+          "cwaText": "FAUS21 KZAB 081801\nZAB1 CWA 081801 \nZAB CWA 102 VALID UNTIL 081900 \nFROM 40NNW MRF-50ESE MRF-40SW MRF-60WNW MRF-40NNW MRF\nDVLPG AREA TSRA WITH MOD TO HVY PCPN. MOV LTL TOPS TO FL360. TX\n\n=",
+          "top": 36000
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -104.253,
+                30.912
+              ],
+              [
+                -103.066,
+                29.972
+              ],
+              [
+                -104.492,
+                29.828
+              ],
+              [
+                -105.026,
+                30.67
+              ],
+              [
+                -104.253,
+                30.912
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "cwsu": "ZAN",
+          "name": "Anchorage",
+          "seriesId": "103",
+          "validTimeFrom": "2026-10-08T17:30:00.000Z",
+          "validTimeTo": "2026-10-08T19:30:00.000Z",
+          "hazard": "TS",
+          "qualifier": "EMBD",
+          "cwaText": "FAAK21 KZAN 081732\nZAN1 CWA 081730 \nZAN CWA 103 VALID UNTIL 081930\nFROM 345NNE SYA-220W SPY-275SSW SYA-320WSW SYA-345NNE SYA\nAREA OF EMBD TS. TOPS EST TO FL250. CELLS MOV E 60KT. CONDS CONTG \nBYD 081930Z. AK.\nKP OCT 2026 CWSU\n\n=",
+          "top": 25000
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -181.888,
+                57.98
+              ],
+              [
+                -176.957,
+                56.979
+              ],
+              [
+                -188.522,
+                48.448
+              ],
+              [
+                -193.637,
+                50.38
+              ],
+              [
+                -181.888,
+                57.98
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}

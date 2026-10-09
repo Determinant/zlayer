@@ -21,6 +21,15 @@ const entry = (number: string, overrides: Parameters<typeof notice>[0] = {}): En
 const render = (entries: Entry[], now = NOTAM_NOW) => renderToStaticMarkup(createElement(NotamList, { entries, now }));
 const headings = (html: string) => [...html.matchAll(/<h3[^>]*>([^<]+)/g)].map(match => match[1]!.trim());
 
+test('trusted filing-scope content keeps disputed airport associations visible beside the notice and in its raw evidence', () => {
+  const record = notice({ locations: ['JOH'], icaoLocations: [], icaoLocationVariants: [['PJOH'], ['PACV']], text: 'NAV VOR/DME NOT MNT' });
+  const html = render([{ record }]);
+  assert.match(html, /Filed under JOH/); assert.match(html, /Airport association remains unconfirmed/);
+  assert.match(html, /NAV VOR\/DME NOT MNT/);
+  const raw = renderToStaticMarkup(createElement(NotamRaw, { record }));
+  assert.match(raw, /Conflicting FAA airport associations: PJOH \/ PACV/);
+});
+
 test('navaid source status reports station content gaps and refresh failures, including with older coverage flags', () => {
   const snapshot = navaidSnapshot([], { contentCoverage: 'complete', issues: [] });
   snapshot.feed = { ...snapshot.feed, environment: 'production', collectionContinuity: 'complete', unresolvedRecords: 0, unscopedRecords: 0 };

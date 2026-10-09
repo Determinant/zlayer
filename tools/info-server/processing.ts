@@ -1,3 +1,4 @@
+import { WeatherSourceError } from './source-error';
 import type { Worker } from 'node:worker_threads';
 import { availableParallelism } from 'node:os';
 import { normalizeAdvisories, isSourceCollection } from '../../src/layers/weather-awc/source';
@@ -8,7 +9,7 @@ import type { AwcAdvisoryProduct, AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest, SourceRecord } from '../../src/layers/weather-awc/grids/native-source';
 import { discover } from './discovery';
 import type { WeatherCache } from './cache';
-import { HttpError, MiB, advisoryResource, modelResource, resourceFor, type Resource } from './routes';
+import { HttpError, MiB, advisoryResource, advisoryRefreshAge, modelResource, resourceFor, type Resource } from './routes';
 import { digest, type Payload } from './upstream';
 import { workerError, type ConversionJob, type ConversionRequest, type ConversionResponse } from './worker-protocol';
 import { createServerWorker, workerModule } from './worker-job';
@@ -125,12 +126,27 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   async function load(resource: Resource): Promise<Payload> {
     const advisory = /^\/api\/weather\/advisories\/(gairmet|sigmet|cwa)\.json$/.exec(new URL(resource.url).pathname);
     if (!advisory) throw new HttpError(404, 'Forecasts are published by the background updater');
-    const product = advisory[1] as AwcAdvisoryProduct, endpoint = product === 'sigmet' ? 'airsigmet' : product;
-    // Leave one scheduler interval to replace the 60-second advisory response.
-    const input = await cache.get(advisoryResource(product), 20_000, shutdown);
-    const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
-    if (!collections.every(isSourceCollection)) throw new Error('Invalid advisory collection');
-    return json(normalizeAdvisories(product, collections, input.checkedAt, `https://aviationweather.gov/api/data/${endpoint}`), input.checkedAt);
+    const product = advisory[1] as AwcAdvisoryProduct, source = advisoryResource(product);
+    const input = await cache.get(source, advisoryRefreshAge(product), shutdown);
+    try {
+      const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
+      if (!collections.every(isSourceCollection)) throw new WeatherSourceError('Invalid advisory collection');
+      const snapshot = normalizeAdvisories(product, collections, input.checkedAt, product === 'gairmet' ? source.url : source.url.split('?')[0]!);
+      if (product === 'gairmet') {
+        const previous = await cache.read(resource);
+        if (previous) {
+          const saved = JSON.parse(previous.body.toString());
+          if (input.checkedAt < previous.checkedAt || snapshot.frameTimes.length && saved.frameTimes?.length &&
+            snapshot.frameTimes[0]! < saved.frameTimes[0]) throw new WeatherSourceError('G-AIRMET publication regressed', 'stale-source');
+        }
+      }
+      return json(snapshot, input.checkedAt);
+    }
+    catch (cause) {
+      const error = cause instanceof WeatherSourceError ? cause : new WeatherSourceError('Invalid advisory source');
+      await cache.reject(source, input, error);
+      throw error;
+    }
   }
   async function catalog(product: AwcGridProduct): Promise<Payload> {
     const manifest = await discover(read, product, shutdown, now());

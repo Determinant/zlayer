@@ -7,6 +7,8 @@ import type { NotamOptions } from '../../tools/info-server/notams/service';
 import { PUBLISHED_CATALOG } from '../../tools/info-server/warming';
 import { nativeForecastFiles } from './awc-native.mjs';
 import { advisorySource, WEATHER_NOW } from './awc-advisories';
+import { gairmetResponse } from './gairmet-cache';
+import type { SourceCollection } from '../../src/layers/weather-awc/source';
 import { coveragePng } from './progs-coverage';
 import { surfaceCatalog, surfaceChart } from './wpc';
 
@@ -33,8 +35,8 @@ export async function fixtureWeather(directory: string, options: { onRaw?: (sign
         const data = options.advisories ? options.advisories() : { gairmet: [0, 3, 6, 9, 12].map(h => advisorySource('gairmet', h)),
           sigmet: advisorySource('sigmet'), cwa: advisorySource('cwa') };
         if (!data || data.failure) return new Response(null, { status: 503 });
-        return Response.json(product === 'gairmet' ? data.gairmet[Number(url.searchParams.get('fore') ?? 0) / 3]
-          : product === 'airsigmet' ? data.sigmet : data.cwa);
+        if (product === 'gairmets.cache.xml.gz') return gairmetResponse(data.gairmet as SourceCollection[], (options.now ?? (() => WEATHER_NOW))());
+        return Response.json(product === 'airsigmet' ? data.sigmet : data.cwa);
       }
       const path = url.hostname === 'storage.googleapis.com' ? '/weather/noaa/hrrr/prod/' + url.pathname.replace('/high-resolution-rapid-refresh/', '')
         : url.pathname.replace('/pub/data/nccf/com/', '/weather/noaa/');

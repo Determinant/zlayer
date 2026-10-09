@@ -269,14 +269,25 @@ Nearby TAF discovery retains AWC area-query coverage.
 
 ## AWC advisories
 
-`AwcAdvisorySnapshot` version 1 carries one family (`gairmet`, `sigmet`, `cwa`),
+`AwcAdvisorySnapshot` carries one family (`gairmet`, `sigmet`, `cwa`),
 the successful upstream `checkedAt`, source URI, explicit `frameTimes`, and validated
 advisories. Times are UTC epoch **milliseconds**. Each advisory has an opaque
-content identity, native identifier/issuer/hazard, nullable issue time, geometry,
-altitude description, original bulletin text and preserved source properties. An
-absent or null CWA hazard normalizes to `UNK` (displayed as **Unspecified hazard**),
-with `sourceProperties` preserved unchanged; no hazard is inferred
-from bulletin text. Other supplied hazard codes remain intact. An
+content identity, native identifier/issuer, resolved hazard, nullable issue time, geometry,
+altitude description, original bulletin text and preserved source properties.
+Missing classification metadata is separate from missing coverage. An absent or
+null CWA hazard normalizes to `UNK` (displayed as **Unspecified hazard**). Domestic
+SIGMET headers can establish the display category when metadata is missing:
+an identified convective bulletin uses `CONVECTIVE`; an identified non-convective
+bulletin uses `UNK` without guessing its meteorological hazard from body text.
+The header must agree with the native issuer, series and effective validity.
+Malformed fields, contradictory categories and unproven missing classifications
+remain explicit issues. G-AIRMET requires its structured hazard. In every case,
+`sourceProperties` remains unchanged, including null/missing fields. Optional
+`classification` records its `basis` (`metadata`, `bulletin`, or `unspecified`)
+and, for SIGMET, whether the bulletin grammar was `matched` or `unsupported`.
+Unsupported syntax cannot recover missing metadata, but does not by itself
+invalidate usable supplied metadata; recognized contradictions still block.
+Older saved advisories without provenance remain readable. An
 optional `severity` string preserves G-AIRMET qualifiers; older snapshots use the
 preserved source property when displaying severity. Domestic SIGMET numeric
 severity codes are not interpreted as G-AIRMET text qualifiers.
@@ -288,6 +299,32 @@ successful check. Complete empty snapshots replace prior data; failures retain i
 The server normalizes AWC collections into snapshots, retaining full bulletin text
 and weather properties. G-AIRMET normalizes its atomic five-frame package, including
 freezing contours. The browser validates these snapshots before using or saving them.
+Complete collections, including empty ones, retain schema version 1. Version 2
+requires nonempty `issues`: each unavailable source member has an identity, issuer,
+identifier, reason and inert `sourceFeature` JSON evidence. Classification failures
+also carry an optional typed `detail` distinguishing missing/malformed hazard,
+unsupported/malformed bulletin, and identity/validity/category conflicts. These
+additive fields preserve existing schema compatibility. Evidence beyond 100,000
+characters is an excerpt explicitly marked `sourceFeatureTruncated: true`. Valid
+neighbors remain usable, but coverage is incomplete even when no geometry remains.
+Older clients reject version 2 rather than accepting partial coverage as complete.
+Malformed/truncated collection envelopes and inconsistent G-AIRMET package times
+still reject the replacement. Individual malformed features do not.
+Declared source polygon rings may omit their repeated first coordinate; the adapter
+completes that closure using the supplied coordinate before validating topology.
+The closing edge must be unambiguous and fit the aggregate coordinate budget.
+Canonical wire rings remain strictly closed; line geometry is never closed implicitly.
+Unwrapped source longitudes are normalized by splitting continuous geometry at
+the date line, preserving holes. Rendering coordinates remain within ±180°;
+changed geometry retains its original JSON in `sourceGeometry`. Ambiguous edges,
+invalid latitudes and over-budget geometry become explicit issues. Holes unwrap
+independently and require one contained world placement; uncontained, empty,
+overlapping or nested holes become issues rather than being silently dropped.
+Transformed polygons also carry `outlineGeometry` as canonical lines from the
+same validated, closed source rings, so completion cannot lose an outline edge
+and clipping seams never become displayed advisory boundaries.
+The content identity includes resolved hazard and prepared geometry, so a new interpretation replaces
+an older saved rendering even when the upstream feature has not changed.
 The [plugin guide](../../src/layers/weather-awc/README.md) owns delivery, time
 selection, completeness limits and cache labeling.
 
@@ -383,6 +420,23 @@ for older responses with the former fixed incomplete association flag.
 [navaid query contract](../../src/layers/notams/README.md#navaid-query-contract)
 defines the separate endpoint and identity rules.
 
+An association-only conflict can yield a scoped `NotamRecord` when all notice
+content and primary filing locations reconcile. Optional `icaoLocationVariants`
+retains the distinct conflicting airport-association sets; `icaoLocations` contains
+only their intersection. This projection is indexed by the agreed filing locations
+and common ICAO associations. Other association queries still receive the source
+issue, and the durable/global unresolved count is unchanged. The reader displays
+the uncertain airport association and preserves the raw alternatives.
+
+Optional feed `blockingRecords` counts retained issues affecting usable content or
+supported queries; it is bounded by `unscopedRecords <= blockingRecords <=
+unresolvedRecords`. Its absence conservatively treats all unresolved records as
+blocking. Only complete filing-scope evidence with no disputed supported ICAO/FIR
+query can be nonblocking. A ready feed requires zero blocking issues as well as
+healthy collection; the legacy `continuity` still remains incomplete whenever any
+issue is retained. Aggregate health reports nonblocking ambiguity separately in
+`readiness.warnings`, preserving partial coverage and the raw source evidence.
+
 `NotamRegionSnapshot` adds the separate `region-location` scope and
 `{ artccId?, firId? }` query, requiring at least one explicit regional identifier.
 Association coverage describes the exact filing location: domestic ARTCC reads
@@ -406,8 +460,24 @@ its last successful XML acquisition. Index checks do not renew detail age.
 `detailCheckedAt` is optional for legacy schema-1 snapshots; missing age remains
 unknown, and an issue without known retained detail age uses null. A periodic
 detail recheck can fail even when the index modification time is unchanged.
-Details are revalidated independently after 15 minutes; overdue or unknown age
+Detail freshness expires independently after 15 minutes; overdue or unknown age
 qualifies the HTTP snapshot and PWA timing claims until successful acquisition.
+Acquisition plans deadlines across the queued workload, next admission interval,
+scheduler tick and index request. Work is replanned after each request; this does
+not extend freshness during slow or failed rounds. A validated complete index
+publishes its check time and membership before detail work; unavailable/changed
+details remain explicit issues. The running owner's three-minute index clock is
+independent of detail duration and is serviced between requests in long queues.
+Each verified detail can then publish independently while retaining index time and
+membership. A conservative durable cooldown still governs restart admission.
+Healthy detail queues may start earlier than the index clock to meet their own
+deadlines; queue budgets include intervening index work. Completed rounds durably
+record the next index/spacing boundary, while interruption retains the provisional
+crash margin and backoff. Work exceeding serial capacity remains explicitly stale.
+HTTP caches follow publication identity; clients prevent equal-index older detail
+evidence from replacing newer observations. A failed recheck stays unresolved until
+a successful acquisition or qualified index withdrawal, even if the remaining
+queue would otherwise permit reusing its retained detail.
 Notice and issue IDs are unique within each list, with at most 1,000 distinct IDs
 across both. Nonempty issues require an error so older schema-1 clients also
 qualify partial data. A validated index can publish independent updates and

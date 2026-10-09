@@ -49,6 +49,15 @@ application-wide behavior, development guidance and history. The
 - Preserve raw FAA/AWC identifiers, properties and times behind concise presentation.
 - Use the shared [date, time, and currency formats](../features/date-time-display.md) for UI labels.
 - Validate external documents before application state or durable storage accepts them.
+- Keep source adaptation separate from the canonical wire contract. Accept equivalent
+  source representations only when their meaning is preserved; retain the original
+  evidence. Missing optional metadata, unsupported parser syntax and demonstrated
+  contradictions are different outcomes, not one generic validation failure.
+- For ingestion fixes, test the affected rule across source families and combinations
+  of equivalent representations, alongside the captured failure and recovery path.
+  Account for every unavailable member; test envelope completeness separately from
+  member interpretation. The [advisory policy](../../src/layers/weather-awc/README.md#advisory-ingestion-policy)
+  is an implemented example.
 - Test observable behavior and failure recovery, not source text or incidental markup.
 
 One persistent map, product-owned lifecycle, exclusive chart bases with additive

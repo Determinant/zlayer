@@ -3,6 +3,9 @@ import { isMetarFeatureCollection, isTafReport } from '@zlayer/contracts';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
 import { UpstreamQueue } from './upstream-queue';
 import { retryAfterAt } from './retry-after';
+import { readGairmetCache } from './gairmet';
+import { ADVISORY_MAX_AGE_MS } from './routes';
+import { WeatherSourceError } from './source-error';
 
 export type Payload = { body: Buffer; status: number; headers: Record<string, string>; checkedAt: number; sha256: string };
 export const digest = (body: Uint8Array) => createHash('sha256').update(body).digest('hex');
@@ -15,9 +18,10 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
     if (resource.upstream === 'prepared') throw new HttpError(500, 'Prepared data needs the processor');
     const queue = queues[resource.upstream];
     return queue.run(signal, async () => {
-      const checkedAt = (options.now ?? Date.now)();
+      let checkedAt = (options.now ?? Date.now)();
       const response = await fetcher(resource.url, { signal, redirect: 'error', headers: {
         'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1', 'Accept-Encoding': 'identity',
+        ...(resource.revalidate ? { 'Cache-Control': 'no-cache' } : {}),
         ...(resource.range ? { Range: resource.range } : {}),
       } }).catch(() => { throw new HttpError(502, 'Upstream connection failed', 5); });
       try {
@@ -44,7 +48,19 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         let body = Buffer.concat(chunks, size);
         const headers: Record<string, string> = {};
         let status = response.status;
-        if (resource.kind === 'range') {
+        if (resource.kind === 'gairmet-cache') {
+          // The static cache is generated every minute. A successful CDN response
+          // must not freshen an abandoned publication, even when HTTP says 200.
+          const modified = Date.parse(response.headers.get('last-modified') ?? '');
+          if (!Number.isFinite(modified) || modified > checkedAt + 30_000 || checkedAt - modified >= ADVISORY_MAX_AGE_MS) {
+            throw new WeatherSourceError('G-AIRMET cache publication is stale or future dated',
+              modified > checkedAt ? 'future-source' : 'stale-source');
+          }
+          checkedAt = Math.min(checkedAt, modified);
+          body = Buffer.from(JSON.stringify(await readGairmetCache(body)));
+          if (body.length > resource.maxBytes) throw new InvalidForecastSourceError('G-AIRMET package exceeds its size limit');
+          headers['content-type'] = 'application/json; charset=utf-8';
+        } else if (resource.kind === 'range') {
           const cr = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
           const requested = /^bytes=(\d+)-(\d*)$/.exec(resource.range!)!;
           if (!cr || !cr.slice(1).every(n => Number.isSafeInteger(Number(n))) || Number(cr[1]) !== Number(requested[1]) ||
@@ -106,24 +122,8 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
     });
   }
   return async (resource: Resource, demand?: AbortSignal): Promise<Payload> => {
-    // One deadline includes queueing and every frame of a package.
+    // One deadline includes queueing, transfer and complete-package validation.
     const signal = AbortSignal.any([options.signal, AbortSignal.timeout(45_000), ...(demand ? [demand] : [])]);
-    if (resource.kind !== 'package') return read(resource, signal);
-    const checkedAt = (options.now ?? Date.now)(), date = new Date(checkedAt).toISOString(), collections: unknown[] = [], bases = new Set<number>();
-    for (const hour of [0, 3, 6, 9, 12]) {
-      const url = new URL(resource.url); url.search = new URLSearchParams({ format: 'geojson', fore: String(hour), date }).toString();
-      const part = await read({ ...resource, kind: 'json', url: url.href }, signal);
-      const collection = JSON.parse(part.body.toString('utf8'));
-      for (const feature of collection.features) {
-        const p = feature?.properties, valid = Date.parse(p?.validTime);
-        if (p?.forecast !== hour || !Number.isFinite(valid)) throw new HttpError(502, 'Invalid G-AIRMET forecast identity');
-        bases.add(valid - hour * 3600_000);
-      }
-      collections.push(collection);
-    }
-    if (bases.size > 1) throw new HttpError(502, 'G-AIRMET package changed during refresh');
-    const body = Buffer.from(JSON.stringify(collections));
-    if (body.length > resource.maxBytes) throw new HttpError(502, 'G-AIRMET package exceeds its size limit');
-    return { body, status: 200, headers: { 'content-type': 'application/json; charset=utf-8' }, checkedAt, sha256: digest(body) };
+    return read(resource, signal);
   };
 }

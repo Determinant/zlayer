@@ -1,16 +1,15 @@
 import { isProgsCoverageCatalog, progsCoverageSource, PROGS_COVERAGE_SOURCE, PROGS_COVERAGE_MAX_BYTES,
   type ProgsCoverageCatalog, type ProgsCoverageFrame, type ProgsCoverageFile } from '@zlayer/contracts';
-import { isOlderSurfaceCatalog, parseSurfaceCatalog } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
-import { HttpError, resourceFor, type Resource } from './routes';
+import { HttpError, resourceFor } from './routes';
 import { digest, type Payload } from './upstream';
 import { workerJob, workerModule } from './worker-job';
+import { progsSourceResource, readProgsCatalog } from './progs-source';
+import { WorkerInputError } from './worker-protocol';
 
 export const PUBLISHED_COVERAGE = 'awc-ndfd-png-v1';
 const catalogResource = () => resourceFor('/api/weather/progs/coverage.json');
 const imageResource = (file: ProgsCoverageFile) => resourceFor(`/api/weather/progs/${file.path}`);
-const sourceResource = (url: string, image = false): Resource => ({ key: url, url, upstream: 'awc',
-  kind: image ? 'coverage-image' : 'surface', ttl: 5 * 60_000, maxBytes: image ? PROGS_COVERAGE_MAX_BYTES : 16 * 1024 });
 
 /** Coverage may be unpublished at a chart stop. Keep those gaps explicit;
  * failures other than 404 retain the preceding authenticated catalog. */
@@ -27,30 +26,34 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
   protect();
   async function update() {
     try {
-      const input = await cache.get(sourceResource(PROGS_COVERAGE_SOURCE), 150_000, signal);
-      const charts = parseSurfaceCatalog(input.body.toString('utf8'), input.checkedAt);
-      if (isOlderSurfaceCatalog(charts, catalog?.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) ?? [])) {
-        throw new Error('NOAA returned older NDFD coverage charts');
-      }
-      const frames: ProgsCoverageFrame[] = [], changed: { file: ProgsCoverageFile; payload: Payload }[] = [];
+      const { payload: input, charts } = await readProgsCatalog(cache, signal, 'coverage',
+        catalog?.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) ?? []);
+      const frames: ProgsCoverageFrame[] = [], changed: { source: string; file: ProgsCoverageFile; payload: Payload }[] = [];
       for (const chart of charts) {
         const source = progsCoverageSource(chart.validTime, chart.referenceTime);
         const frame: ProgsCoverageFrame = { validTime: chart.validTime, chartReferenceTime: chart.referenceTime, source, checkedAt: now() };
         try {
-          const image = await cache.get(sourceResource(source, true), 150_000, signal);
+          const image = await cache.get(progsSourceResource(source, PROGS_COVERAGE_MAX_BYTES, true), 150_000, signal);
           const file = { path: `coverage/${image.sha256}.png`, sha256: image.sha256, byteLength: image.body.length };
           frame.checkedAt = image.checkedAt; frame.file = file;
           if (!catalog?.frames.some(previous => previous.file?.sha256 === file.sha256) || !await cache.check(imageResource(file))) {
-            changed.push({ file, payload: image });
+            changed.push({ source, file, payload: image });
           }
         } catch (cause) { if (!(cause instanceof HttpError) || cause.status !== 404) throw cause; }
         frames.push(frame);
       }
       const next: ProgsCoverageCatalog = { schemaVersion: 1, source: PROGS_COVERAGE_SOURCE, sourceHash: input.sha256,
         sourceCatalog: input.body.toString('utf8'), checkedAt: Math.min(input.checkedAt, ...frames.map(frame => frame.checkedAt)), frames };
-      if (!isProgsCoverageCatalog(next)) throw new Error('Invalid NDFD coverage catalog');
       if (changed.length) await workerJob(workerModule(import.meta.url, 'progs-coverage-worker'),
-        changed.map(image => image.payload.body), signal);
+        changed.map(image => image.payload.body), signal).catch(async cause => {
+        if (cause instanceof WorkerInputError) for (const index of cause.inputIndices) {
+          const image = changed[index]!;
+          await cache.reject(progsSourceResource(image.source, PROGS_COVERAGE_MAX_BYTES, true),
+            image.payload, new HttpError(502, cause.message, 30));
+        }
+        throw cause;
+      });
+      if (!isProgsCoverageCatalog(next)) throw new Error('Invalid NDFD coverage catalog');
       for (const { file, payload } of changed) {
         signal.throwIfAborted();
         const resource = imageResource(file); building.add(resource.key); protect();

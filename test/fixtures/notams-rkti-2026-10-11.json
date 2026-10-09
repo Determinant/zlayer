@@ -1,0 +1,96 @@
+{
+  "source": "Retained FAA NMS variants read from https://zlayer.tedyin.com/api/notams/airports?icaoId=RKTI on October 11, 2026; no new FAA acquisition. checkedAt is the retained feed source time.",
+  "checkedAt": 1791743714389,
+  "issues": [
+    {
+      "id": "1791683227547000",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "RKTI"
+      ],
+      "icaoLocations": [
+        "RKTI"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1791683227547000",
+          "sourceId": "NMS_ID_1791683227547000",
+          "classification": "INTL",
+          "number": "0398",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "RKTI"
+          ],
+          "icaoLocations": [
+            "RKTI"
+          ],
+          "accountability": "RKDAYXYX",
+          "issuedAt": 1791683261000,
+          "updatedAt": 1791683220000,
+          "sourceUpdatedAt": "2026-10-11T01:47:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792191600000,
+          "endsAt": 1792227600000,
+          "effectiveStart": "202610162300",
+          "effectiveEnd": "202610170900",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 18L/36R CLSD DUE TO WIP",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0398/26 NOTAMN    Q) RKRR/QMRLC//////   A) RKTI   B) 2610162300   C) 2610170900   E) RWY 18L/36R CLSD DUE TO WIP"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "02ef40206e70ab433ee43eaac9b6544ba63f4e121e447ce20c58f8835cd59c0d"
+        },
+        {
+          "id": "1791683227547000",
+          "sourceId": "NMS_ID_1791683227547000",
+          "classification": "INTL",
+          "number": "0398",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "RKTI"
+          ],
+          "icaoLocations": [
+            "RKTI"
+          ],
+          "accountability": "RKDAYXYX",
+          "issuedAt": 1791683220000,
+          "updatedAt": 1791683220000,
+          "sourceUpdatedAt": "2026-10-11T01:47:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792191600000,
+          "endsAt": 1792227600000,
+          "effectiveStart": "202610162300",
+          "effectiveEnd": "202610170900",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 18L/36R CLSD DUE TO WIP",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0398/26 NOTAMN    Q)RKRR/QMXLC//////   A) RKTI   B) 2610162300   C) 2610170900   E) RWY 18L/36R CLSD DUE TO WIP"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "261e57256d2b8f68084f3a7bfce561bdd68393d86c60ce8a9dcbb3b509b51692"
+        }
+      ]
+    }
+  ]
+}

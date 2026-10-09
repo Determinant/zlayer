@@ -232,6 +232,34 @@ Restart restores prepared references and waits out any remaining source-check in
 after 30 seconds subject to source backoff. HTTP reads never acquire sources or
 perform conversion, regardless of the viewer's selected time.
 
+Progs source acquisitions explicitly request HTTP cache revalidation with
+`Cache-Control: no-cache` for the mutable catalog, chart GeoJSON and companion
+coverage PNGs. Dated chart/image URLs can still receive same-cycle corrections.
+The shared local cache, request coalescing, cadence, queue and backoff remain in
+force; this adds no cache-busting URLs or extra retry loop. The header expresses
+a [revalidation preference](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.1.4),
+not proof of newer content. An October 9 live comparison returned the same cached
+catalog with and without the directive, so it does not establish that upstream
+regressions are eliminated. Older catalog checks still reject before artifact
+acquisition, retain the last validated publication and its original check time,
+and report the source error. Same-cycle corrections remain eligible. Server
+regressions cover both a cache honoring revalidation and an older response still
+arriving despite it, including restart and independent family recovery.
+
+Transport success alone does not admit a source observation. Catalog validation
+and rollback checks share one acquisition boundary in `progs-source.ts`.
+Rejected catalogs and decoder-rejected chart/image inputs are quarantined by
+their acquisition timestamp and body hash: the positive source entry is removed,
+and consumers share a 30-second retry deadline. Repeated rejection of that exact
+observation cannot extend the deadline, and a late rejection cannot discard a
+newer cached replacement. Workers identify all invalid inputs in the batch so one
+recovery attempt can reacquire them together. Worker crashes are not classified
+as evidence that particular source bytes are invalid. Quarantine affects disposable
+source entries, never the published artifacts or their original source times.
+Retries therefore reacquire rejected bytes instead of reusing them through the
+150-second positive-cache window. Persistent older/invalid upstream responses
+remain errors; cache revalidation does not guarantee upstream correctness.
+
 Upstream catalogs are bounded to 16 KiB, published catalogs to 64 KiB, source charts
 to 512 KiB each, and the sum of prepared chart files in a family to 8 MiB. Runtime
 validation also limits 32 frames, 2,500 features per frame, 5,000 positions per prepared line, 400,000 total positions, and 3 MiB of original chart text.

@@ -1,19 +1,27 @@
-import { isRecord, isWeatherGeometry, isAwcAdvisorySnapshot, type AwcAdvisoryProduct,
+import { isRecord, isAwcAdvisorySnapshot, isWeatherAdvisory, type AwcAdvisoryIssue, type AwcAdvisoryProduct,
   type AwcAdvisorySnapshot, type WeatherAdvisory, type WeatherGeometry } from '@zlayer/contracts';
+import { prepareAdvisoryGeometry } from './source-geometry';
+import { advisorySourceHazard } from './source-hazard';
 
 export const FORECAST_HOURS = [0, 3, 6, 9, 12] as const;
-export type SourceCollection = { type: 'FeatureCollection'; features: {
-  type: 'Feature'; properties: Record<string, unknown>; geometry: WeatherGeometry;
-}[] };
+export type SourceFeature = { type: 'Feature'; properties: Record<string, unknown>; geometry: WeatherGeometry };
+export type SourceCollection = { type: 'FeatureCollection'; features: unknown[] };
 
+/** Envelope completeness and member interpretation are independent. Unknown
+ * members remain accounted for as source issues; truncation rejects the envelope. */
 export function isSourceCollection(v: unknown): v is SourceCollection {
   return isRecord(v) && v.type === 'FeatureCollection' && v.exceededTransferLimit !== true &&
-    Array.isArray(v.features) && v.features.length < 400 && v.features.every(f => isRecord(f) &&
-      f.type === 'Feature' && isRecord(f.properties) && isWeatherGeometry(f.geometry));
+    Array.isArray(v.features) && v.features.length < 400;
 }
 
 function instant(value: unknown): number | null {
-  if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\dT.+(?:Z|[+-]\d\d:\d\d)$/.test(value)) return null;
+  if (typeof value !== 'string') return null;
+  const parts = /^(\d{4})-(\d\d)-(\d\d)T.+(?:Z|[+-]\d\d:\d\d)$/.exec(value);
+  if (!parts) return null;
+  // Date.parse accepts overflowing calendar days (e.g. February 30). Such a
+  // repair changes applicability, unlike an equivalent explicit UTC offset.
+  const year = Number(parts[1]), month = Number(parts[2]), day = Number(parts[3]);
+  if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
   const result = Date.parse(value);
   return Number.isFinite(result) && result > 0 ? result : null;
 }
@@ -45,63 +53,57 @@ function identity(value: unknown): string {
   return hash.toString(16);
 }
 
-export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonly SourceCollection[],
+export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonly unknown[],
   checkedAt: number, source: string): AwcAdvisorySnapshot {
   if (inputs.length !== (product === 'gairmet' ? FORECAST_HOURS.length : 1) || !inputs.every(isSourceCollection)) {
     throw new Error('AWC returned an incomplete or unsupported advisory collection');
   }
-  const advisories = new Map<string, WeatherAdvisory>();
+  const advisories = new Map<string, WeatherAdvisory>(), issues = new Map<string, AwcAdvisoryIssue>();
   const bases = new Set<number>();
   for (const [index, collection] of inputs.entries()) for (const feature of collection.features) {
-    const p = feature.properties;
-    // AWC can leave a CWA's parsed hazard null while supplying a valid bulletin.
-    // Keep it inspectable without guessing a classification from the source text.
-    const hazard = product === 'cwa' && p.hazard == null ? 'UNK'
-      : typeof p.hazard === 'string' ? p.hazard.trim() : '';
+    const p = isRecord(feature) && isRecord(feature.properties) ? feature.properties : {};
+    const issuer = string(p.icaoId ?? p.cwsu ?? p.product) || 'AWC';
+    const identifier = string(p.seriesId ?? p.tag) || 'Unknown identifier';
+    const reject = (reason: AwcAdvisoryIssue['reason'], detail?: AwcAdvisoryIssue['detail']) => {
+      const id = `${product}:issue:${identity(feature)}`, sourceFeature = JSON.stringify(feature) ?? 'null';
+      issues.set(id, { id, issuer: issuer.slice(0, 100_000), identifier: identifier.slice(0, 100_000), reason,
+        ...(detail ? { detail } : {}), sourceFeature: sourceFeature.slice(0, 100_000),
+        ...(sourceFeature.length > 100_000 ? { sourceFeatureTruncated: true } : {}) });
+    };
+    if (!isRecord(feature) || feature.type !== 'Feature' || !isRecord(feature.properties)) { reject('invalid-feature'); continue; }
     const validFrom = instant(product === 'gairmet' ? p.validTime : p.validTimeFrom);
     const validTo = product === 'gairmet' ? null : instant(p.validTimeTo);
     const forecastHour = product === 'gairmet' && typeof p.forecast === 'number' ? p.forecast : null;
     if (validFrom === null || (product !== 'gairmet' && (validTo === null || validTo <= validFrom)) ||
-      (product === 'gairmet' && forecastHour !== FORECAST_HOURS[index]) || !hazard) {
-      throw new Error('AWC advisory has invalid hazard or forecast times');
+      (product === 'gairmet' && forecastHour !== FORECAST_HOURS[index])) {
+      if (product === 'gairmet') throw new Error('AWC advisory has invalid forecast times');
+      reject('invalid-validity'); continue;
     }
     if (forecastHour !== null) bases.add(validFrom - forecastHour * 3_600_000);
-    const issuer = string(p.icaoId ?? p.cwsu ?? p.product) || 'AWC';
-    const identifier = string(p.seriesId ?? p.tag) || hazard;
-    const id = `${product}:${issuer}:${identifier}:${identity(feature)}`;
-    advisories.set(id, { id, product, identifier, issuer, hazard,
+    const resolution = advisorySourceHazard(product, p, validFrom, validTo);
+    if (resolution.kind === 'issue') { reject('invalid-hazard', resolution.detail); continue; }
+    const { hazard, classification } = resolution;
+    let prepared: ReturnType<typeof prepareAdvisoryGeometry>;
+    try { prepared = prepareAdvisoryGeometry(feature.geometry); }
+    catch { reject('invalid-geometry'); continue; }
+    const { geometry, outlineGeometry } = prepared;
+    // Include resolved classification and prepared geometry so an upgraded
+    // interpretation cannot reuse a stale receipt for an unchanged source feature.
+    const id = `${product}:${issuer}:${identifier}:${identity([feature, hazard, geometry, outlineGeometry ?? null])}`;
+    const advisory: WeatherAdvisory = { id, product, identifier, issuer, hazard, classification,
       ...(product === 'gairmet' && typeof p.severity === 'string' && p.severity.trim() ? { severity: p.severity.trim() } : {}),
       issuedAt: instant(p.issueTime ?? p.creationTime), validFrom, validTo, forecastHour,
       altitude: altitude(p, product), text: string(p.rawAirSigmet ?? p.cwaText ?? p.dueTo),
-      geometry: feature.geometry, sourceProperties: p });
+      geometry, sourceProperties: p, ...(outlineGeometry ? { outlineGeometry } : {}),
+      ...(JSON.stringify(geometry) !== JSON.stringify(feature.geometry) ? { sourceGeometry: JSON.stringify(feature.geometry) } : {}) };
+    if (!isWeatherAdvisory(advisory)) { reject('invalid-feature'); continue; }
+    advisories.set(id, advisory);
   }
   if (bases.size > 1) throw new Error('G-AIRMET forecast package changed during refresh; retaining the previous package');
   const base = [...bases][0];
-  const snapshot: AwcAdvisorySnapshot = { schemaVersion: 1, product, checkedAt, source,
+  const snapshot: AwcAdvisorySnapshot = { schemaVersion: issues.size ? 2 : 1, product, checkedAt, source,
     frameTimes: base === undefined ? [] : FORECAST_HOURS.map(hour => base + hour * 3_600_000),
-    advisories: [...advisories.values()] };
+    advisories: [...advisories.values()], ...(issues.size ? { issues: [...issues.values()] } : {}) };
   if (!isAwcAdvisorySnapshot(snapshot)) throw new Error('AWC advisory normalization failed validation');
   return snapshot;
-}
-
-export const HAZARDS: Readonly<Record<string, string>> = {
-  ICE: 'Icing', TURB: 'Turbulence', 'TURB-HI': 'High-altitude turbulence', 'TURB-LO': 'Low-altitude turbulence',
-  IFR: 'IFR', MT_OBSC: 'Mountain obscuration', SFC_WND: 'Surface wind', LLWS: 'Wind shear',
-  FZLVL: 'Freezing level', M_FZLVL: 'Multiple freezing levels', CONVECTIVE: 'Thunderstorms',
-  TS: 'Thunderstorms', VA: 'Volcanic ash', TC: 'Tropical cyclone', PCPN: 'Precipitation',
-  UNK: 'Unspecified hazard',
-};
-export function advisoryTitle(a: WeatherAdvisory): string {
-  const type = a.product === 'gairmet' ? 'G-AIRMET' : a.product === 'cwa' ? 'CWA'
-    : a.hazard === 'CONVECTIVE' ? 'Convective SIGMET' : 'SIGMET';
-  return `${type} ${a.identifier}`;
-}
-
-/** Older saved snapshots retain the qualifier in sourceProperties. */
-export function advisoryHazard(a: WeatherAdvisory): string {
-  const hazard = HAZARDS[a.hazard] ?? a.hazard;
-  const severity = a.severity ?? (a.product === 'gairmet' && typeof a.sourceProperties.severity === 'string' ? a.sourceProperties.severity : '');
-  if (!severity) return hazard;
-  const labels: Record<string, string> = { MOD: 'Moderate', SEV: 'Severe', LGT: 'Light' };
-  return `${labels[severity] ?? severity} · ${hazard}`;
 }

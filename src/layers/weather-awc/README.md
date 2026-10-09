@@ -138,18 +138,158 @@ selected bulletins remain readable and labeled until selection or the feed chang
 ## Acquisition, freshness and persistence
 
 `source.ts` normalizes advisories on the server. The shared guard in
-`packages/contracts/src/awc-weather.ts` validates complete snapshots. G-AIRMET uses
-one pinned lookup instant for all five frames and rejects mixed cycles or partial
-packages. Unsupported geometry, bad validity, transfer-limit flags and results at
-the conservative 400-record ceiling reject a replacement. Empty GeoJSON collections
+`packages/contracts/src/awc-weather.ts` validates snapshots and explicit coverage. G-AIRMET uses
+one complete [AWC bulk cache](https://aviationweather.gov/data/cache/gairmets.cache.xml.gz)
+for all five frames, avoiding five independently queried database responses.
+The bounded gzip/XML adapter rejects DTDs, incomplete envelopes, count mismatches,
+mixed cycles and invalid forecast times. Source-check time is capped by the
+file's HTTP Last-Modified time; a missing, future or ten-minute-old publication
+cannot become fresh merely because an intermediary returned HTTP 200. Each
+member retains its original XML fields in `sourceProperties.sourceXml`.
+FZLVL isolines remain lines even when the XML calls a closed contour an area;
+M_FZLVL remains an area. Foot-based XML heights become the existing hundreds-foot
+source fields, retaining the original surface/missing encodings as evidence.
+The [captured bulk/GeoJSON comparison](../../../test/fixtures/gairmet-bulk-2026-10-09/README.md)
+covers every record and forecast hour, including those representation differences.
+Unknown member geometry remains an explicit issue. Transfer-limit flags, malformed
+collection envelopes and results at the conservative 400-record ceiling reject
+a replacement. Empty GeoJSON collections
 are successful; a missing advisory document is not an empty snapshot.
+
+The server checks G-AIRMET's minute-updated bulk file at most once per minute after
+success, independently of readers. Failed checks retry after at least 30 seconds
+and obey upstream backoff. The last complete normalized package remains readable
+for the existing ten-minute freshness window, including across restart, with its
+original timestamp. Failed refreshes remain errors in health and fail the strict
+release probe; retention does not mark them successful. At the age limit the
+package stops being available. Older publication times or forecast cycles cannot
+replace a newer retained package. SIGMET/CWA retain their existing refresh cadence
+and 60-second server delivery lifetime.
+
+Member interpretation is separate from envelope completeness. Unsupported geometry,
+bad interval validity or malformed fields become source issues while valid neighbors
+publish. Complete snapshots use schema 1; partial snapshots use schema 2 with
+nonempty issues, so old clients cannot treat them as complete. Enabled partial
+families show **Coverage incomplete** outside the collapsed status disclosure;
+the disclosure lists unavailable entries and their raw evidence. Oversized evidence
+is explicitly labeled as an excerpt. All-invalid is partial, never a successful
+empty result. Recovery replaces the complete family and clears its issues.
+
+`source-geometry.ts` prepares fill and outline together from validated source paths,
+preserving polygon holes and disconnected pieces when splitting at the date line.
+Declared polygon rings may omit the repeated first coordinate: preparation appends
+that supplied coordinate before topology validation, with the same edge and aggregate
+10,000-coordinate limits. It does not close line geometry, snap nearby endpoints,
+reorder vertices, or invent locations. Fewer than three distinct corners, zero area,
+ambiguous closing edges and invalid topology still become source issues. Each ring unwraps independently;
+each hole must have exactly one longitude-world placement contained by its exterior.
+Full-area containment rejects holes crossing a concave exterior, and intersecting
+or nested holes are unsupported. Empty, crossing or retraced rings are rejected
+when canonicalization would change their boundary instead of silently repairing them.
+Starting vertex, winding and equivalent longitude
+worlds cannot change the covered area. Uncontained or empty holes become explicit
+source issues instead of being silently discarded by clipping. It bounds source longitudes to
+±540°, latitudes to ±90° and geometry to 10,000 points; ambiguous 180° edges remain
+unsupported. Canonical wire geometry stays within ±180°, and changed records retain
+their original geometry JSON. The [October 8 capture](../../../test/fixtures/cwa-dateline-2026-10-08.json)
+contains seven CWAs including Anchorage 103 with longitudes below −180°.
+`weather-advisory-source.test.ts` verifies all seven publish, the Alaska boundary
+does not span the world, wide and date-line polygon holes survive changes of ring
+representation, and malformed neighbors remain
+accounted for. `advisory-text.ts` owns display labels independently of source preparation.
+The [October 9 Anchorage 202 capture](../../../test/fixtures/cwa-open-ring-2026-10-09.json)
+records a four-corner polygon without a repeated closing point. Its raw geometry,
+properties and bulletin remain unchanged as evidence; the canonical fill and outline
+both include the completed closing edge. Source and HTTP regressions cover recovery,
+holes, disconnected polygons, date-line closing edges and unchanged strict wire guards.
+Transformed polygons publish their original boundary as separate canonical lines;
+the map draws that `outlineGeometry` while using clipped polygons for fill and
+picking. Closing edges introduced by clipping must not appear as source boundaries.
+Both outputs derive from the same closed source rings before clipping, so a normalized
+outline cannot omit an edge that is present in the filled advisory.
 
 The September 24, 2026 [CWA regression fixture](../../../test/fixtures/awc-cwa-null-hazard.json)
 preserves the [17:54 UTC AWC response](https://aviationweather.gov/api/data/cwa?format=geojson&date=2026-09-24T17%3A54%3A00Z):
 Houston CWA 103 has `hazard: null` alongside a classified Kansas City advisory.
 It verifies complete-family delivery, source preservation and exclusive expiry.
-Malformed hazard types, blank hazard strings and invalid validity still reject
-the replacement; the missing-hazard fallback applies only to CWA.
+Malformed hazard types, blank hazard strings and invalid interval validity become
+explicit source issues.
+
+`source-hazard.ts` separates optional classification metadata from required
+identity, validity and geometry. CWA's absent/null hazard remains `UNK`; G-AIRMET
+still requires its structured hazard because that selects hazard groups and
+freezing contours. Domestic SIGMET can resolve absent/null metadata from its
+ordered native header, following [NWSI 10-811](https://www.weather.gov/media/directives/010_pdfs/pd01008011curr.pdf)
+(sections 6.1/6.2 and appendices A/B). The bounded line parser reads the WMO header,
+optional AWIPS/office lines, numbered bulletin heading and validity before the
+body. It never searches body or outlook prose for a category. It requires one
+active bulletin, agreement with the source issuer/series, and an effective interval
+contained within the printed bulletin interval. AWC may shorten that interval
+when replacing a notice; it may not extend it or borrow a same-number notice from
+another day. UTC midnight, month and year rollover are resolved against the
+supplied interval. Parsing is bounded to 100,000 characters, 2,048 lines and 4,096
+characters per line.
+
+A proven convective header yields `CONVECTIVE`, preserving the existing map toggle
+and old-client contract. A proven non-convective header yields `UNK` when its hazard
+is missing: it remains inspectable under SIGMET with **Unspecified hazard**. Present
+metadata must agree with a recognized header's category; conflicts remain issues.
+Unsupported grammar cannot recover a missing category, but usable supplied
+metadata does not depend on complete parser support. Recognized header prefixes
+still constrain issuer and category even when a later line is unsupported;
+cancellation/control messages and multiple active bulletins remain blocking.
+Malformed metadata cannot be overridden with text. Validity and geometry guards
+still run independently; calendar overflow is rejected rather than silently shifted
+by `Date.parse`.
+Source properties and bulletin content remain available unchanged in the raw
+properties; display text only trims surrounding whitespace. Derived hazard joins
+prepared geometry in content identity so changed interpretation cannot reuse a
+stale rendering receipt.
+
+The [October 10 capture](../../../test/fixtures/sigmet-classification-2026-10-10.json)
+retains both the missing-hazard KKCI 6C bulletin and a prior cycle containing a
+non-convective SIGMET whose effective expiry precedes its printed expiry.
+`weather-advisory-hazard.test.ts` checks every captured record, missing/invalid/
+conflicting classification, header identity, bounded parsing and calendar rollover.
+HTTP regressions verify publication, restart, real conflicts and recovery without
+freshening source time; the advisory browser test verifies the convective toggle,
+label, and inspectable bulletin.
+
+### Advisory ingestion policy
+
+Acquisition completeness, usable record coverage and interpretation support are
+separate decisions. The adapter normalizes equivalent source representations before
+the strict shared wire guard runs; parser support is not itself source validity.
+
+| Input condition | Publication policy |
+| --- | --- |
+| Complete collection with no active records | Publish an explicit empty replacement; withdraw the old records. |
+| Unknown fields, equivalent UTC offsets, whitespace, optional descriptive metadata | Preserve source evidence and existing applicability; do not require a release for harmless variation. |
+| Missing hazard metadata | Apply the product rule: CWA may be unspecified, domestic SIGMET needs header proof, G-AIRMET needs structured classification. |
+| Unsupported SIGMET header grammar with usable metadata | Retain the metadata classification and record the unsupported interpretation; known contradictions still block. |
+| Invalid geometry, malformed required fields or contradictory evidence | Retain an issue with evidence; publish independent valid neighbors as partial coverage. |
+| Truncated envelope, missing forecast frame or inconsistent G-AIRMET clock | Reject the replacement and retain the previous publication with the failed refresh visible. |
+
+Each newly normalized advisory records `classification.basis` as `metadata`,
+`bulletin`, or `unspecified`. SIGMET also records `classification.bulletin` as
+`matched` or `unsupported`. Classification issues carry a typed `detail`, so
+operator diagnostics distinguish unsupported syntax from actual identity, validity
+or category conflicts. Older saved records without these additive fields are
+counted as legacy rather than retrospectively claiming proof. Readiness continues
+to depend on freshness and actual unresolved coverage, not on whether optional
+metadata needed recovery.
+
+Run `npm run test:info:advisories` for ingestion/recovery checks without browser or
+PWA lifecycle/rendering verification. The same
+tests run through `npm test` in CI. `weather-advisory-policy.test.ts` exhausts
+combinations of equivalent timestamps, whitespace/line endings, field/record order,
+unknown fields and missing descriptive metadata across CWA, G-AIRMET and both
+SIGMET categories. Its policy matrix also injects missing/novel/malformed hazards,
+unsupported syntax, contradictions and independent bad records. These invariants
+complement the captured corpus and geometry invariance tests; a new incident
+should extend the relevant rule and these matrices, not add an identifier-specific
+exception. HTTP tests verify that provenance and diagnostic causes follow the
+committed snapshot through restoration, failure and recovery without freshening it.
 
 The browser reads normalized advisory snapshots, serially refreshing enabled families every
 five minutes after completion while mounted, visible and online. Each request has

@@ -1,9 +1,15 @@
 import { PROGS_COVERAGE_MAX_BYTES, PROGS_COVERAGE_CATALOG_MAX_BYTES, RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
 
 export const MiB = 1024 * 1024;
+export const GAIRMET_SOURCE = 'https://aviationweather.gov/data/cache/gairmets.cache.xml.gz';
+export const GAIRMET_REFRESH_MS = 60_000;
+export const ADVISORY_MAX_AGE_MS = 10 * 60_000;
+export const advisoryRefreshAge = (product: string) => product === 'gairmet' ? GAIRMET_REFRESH_MS : 20_000;
 export type Resource = {
-  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'package' | 'index' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
+  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'gairmet-cache' | 'index' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
   ttl: number; maxBytes: number; range?: string; indexHash?: string; multipleGribs?: true;
+  /** Ask intermediary caches to revalidate on acquisition; local TTL still applies. */
+  revalidate?: true;
 };
 export class HttpError extends Error {
   status: number;
@@ -51,7 +57,8 @@ export function routeFor(path: string, range?: string): WeatherRoute {
   if (prepared || advisory) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
     const resource: Resource = { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
-      ttl: advisory ? 60_000 : 86400_000, maxBytes: prepared?.maxBytes ?? 4 * MiB };
+      ttl: advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
+      maxBytes: prepared?.maxBytes ?? 4 * MiB };
     return prepared ? { type: prepared.type, family: prepared.family, resource } : { type: 'query', resource };
   }
   const product = url.pathname === '/api/weather/metars.geojson' ? 'metar' : url.pathname === '/api/weather/tafs.json' ? 'taf' : undefined;
@@ -92,8 +99,9 @@ export function resourceFor(path: string, range?: string): Resource { return rou
 
 /** Internal upstream resources have no public raw-data route. */
 export function advisoryResource(product: 'gairmet' | 'sigmet' | 'cwa'): Resource {
-  const url = `${awc}${product === 'sigmet' ? 'airsigmet' : product}${product === 'gairmet' ? '' : '?format=geojson'}`;
-  return { key: url, upstream: 'awc', url, kind: product === 'gairmet' ? 'package' : 'json', ttl: 60_000, maxBytes: 4 * MiB };
+  const url = product === 'gairmet' ? GAIRMET_SOURCE : `${awc}${product === 'sigmet' ? 'airsigmet' : product}?format=geojson`;
+  return { key: url, upstream: 'awc', url, kind: product === 'gairmet' ? 'gairmet-cache' : 'json',
+    ttl: product === 'gairmet' ? ADVISORY_MAX_AGE_MS : 60_000, maxBytes: 4 * MiB };
 }
 
 export function modelResource(path: string, range?: string, indexHash?: string): Resource {

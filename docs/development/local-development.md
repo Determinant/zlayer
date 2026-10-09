@@ -218,6 +218,11 @@ alongside it in the ordinary suite.
 alone. The domain workspace also includes them in `npm test` and CI verification.
 Pinned local examples and reviewed expected values require no network or browser.
 
+`npm run test:info:advisories` runs the [advisory ingestion policy](../../src/layers/weather-awc/README.md#advisory-ingestion-policy),
+captured source/geometry regressions, HTTP publication, health and restart recovery
+checks without browser or PWA lifecycle/rendering tests. These also run in
+`npm test` and CI. Use this focused set while changing advisory server behavior.
+
 `npm run test:browser` runs the Playwright suite in `test/e2e/`, including offline
 launch, saved-edition ownership, source recovery, responsive layout, routes, plates,
 TAF, terrain, GPS, AHRS, recordings and full reset. Its server builds into a temporary

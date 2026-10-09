@@ -1,0 +1,186 @@
+{
+  "capturedAt": "2026-10-12T19:11:22Z",
+  "source": "Public info-server OBBI airport response; retained NMS revision-conflict evidence.",
+  "issues": [
+    {
+      "id": "1791813626839000",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "OBBI"
+      ],
+      "icaoLocations": [
+        "OBBI"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1791813626839000",
+          "sourceId": "NMS_ID_1791813626839000",
+          "classification": "INTL",
+          "number": "0309",
+          "series": "A",
+          "year": "2027",
+          "locations": [
+            "OBBI"
+          ],
+          "icaoLocations": [
+            "OBBI"
+          ],
+          "accountability": "OBBBYNYX",
+          "issuedAt": 1791813635000,
+          "updatedAt": 1791813600000,
+          "sourceUpdatedAt": "2026-10-12T14:00:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1808380800000,
+          "endsAt": 1808386200000,
+          "effectiveStart": "202704220800",
+          "effectiveEnd": "202704220930",
+          "endKind": "fixed",
+          "schedule": "BTN 0800-0930",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 12L / 30R CLOSED DUE TO WALKING INSPECTION\r\nUNITED STATES NOTAM OFFICE DISCLAIMS FOREIGN NOTAM ACCURACY\r\nOR COMPLETENESS",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0309/26 NOTAMN\r Q) OBBB/QMRLC/IV/NBO/A/000/999/2616N05038E005\r A) OBBI B) 2704220800 C) 2704220930\r D) BTN 0800-0930\r E) RWY 12L / 30R CLOSED DUE TO WALKING INSPECTION\r UNITED STATES NOTAM OFFICE DISCLAIMS FOREIGN NOTAM ACCURACY\r OR COMPLETENESS"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "d20c7d93907d0a11cf6bb407d01e8d2fcae847e5180623e9ff52f948e1cfd292"
+        },
+        {
+          "id": "1791813626839000",
+          "sourceId": "NMS_ID_1791813626839000",
+          "classification": "INTL",
+          "number": "0309",
+          "series": "A",
+          "year": "2027",
+          "locations": [
+            "OBBI"
+          ],
+          "icaoLocations": [
+            "OBBI"
+          ],
+          "accountability": "OBBBYNYX",
+          "issuedAt": 1791813600000,
+          "updatedAt": 1791813600000,
+          "sourceUpdatedAt": "2026-10-12T14:00:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1808380800000,
+          "endsAt": 1808386200000,
+          "effectiveStart": "202704220800",
+          "effectiveEnd": "202704220930",
+          "endKind": "fixed",
+          "schedule": "BTN 0800-0930",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 12L / 30R CLOSED DUE TO WALKING INSPECTION",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0309/26 NOTAMN\r Q) OBBB/QMRLC/IV/NBO/A/000/999/2616N05038E005\r A) OBBI B) 2704220800 C) 2704220930\r D) BTN 0800-0930\r E) RWY 12L / 30R CLOSED DUE TO WALKING INSPECTION"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "f02a545ed3d0d7ac4c5a818006d504b1bb244fc5eb08603c372d9d8fa08b159f"
+        }
+      ]
+    },
+    {
+      "id": "1791816149658000",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "OBBI"
+      ],
+      "icaoLocations": [
+        "OBBI"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1791816149658000",
+          "sourceId": "NMS_ID_1791816149658000",
+          "classification": "INTL",
+          "number": "0318",
+          "series": "A",
+          "year": "2027",
+          "locations": [
+            "OBBI"
+          ],
+          "icaoLocations": [
+            "OBBI"
+          ],
+          "accountability": "OBBBYNYX",
+          "issuedAt": 1791816120000,
+          "updatedAt": 1791816120000,
+          "sourceUpdatedAt": "2026-10-12T14:42:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1822956600000,
+          "endsAt": 1824261300000,
+          "effectiveStart": "202710080050",
+          "effectiveEnd": "202710230315",
+          "endKind": "fixed",
+          "schedule": "DLY BTN 0050-0315",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "TWY A AND Z CLOSED, INCLUDING TAXI LANE K, L AND BACK OF CARGO\r\n APRON \r\nSTANDS",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0318/26 NOTAMN\r Q) OBBB/QMXLC/IV/M/A/000/999/2616N05038E005\r A) OBBI B) 2710080050 C) 2710230315\r D) DLY BTN 0050-0315\r E) TWY A AND Z CLOSED, INCLUDING TAXI LANE K, L AND BACK OF CARGO\r  APRON \r STANDS"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "21cadad16f05f8ad8f88106368ddce20306292e5210ccadf3c4255b9d0114559"
+        },
+        {
+          "id": "1791816149658000",
+          "sourceId": "NMS_ID_1791816149658000",
+          "classification": "INTL",
+          "number": "0318",
+          "series": "A",
+          "year": "2027",
+          "locations": [
+            "OBBI"
+          ],
+          "icaoLocations": [
+            "OBBI"
+          ],
+          "accountability": "OBBBYNYX",
+          "issuedAt": 1791816161000,
+          "updatedAt": 1791816120000,
+          "sourceUpdatedAt": "2026-10-12T14:42:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1822956600000,
+          "endsAt": 1824261300000,
+          "effectiveStart": "202710080050",
+          "effectiveEnd": "202710230315",
+          "endKind": "fixed",
+          "schedule": "DLY BTN 0050-0315",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "TWY A AND Z CLOSED, INCLUDING TAXI LANE K, L AND BACK OF CARGO\r\nAPRON\r\nSTANDS\r\nUNITED STATES NOTAM OFFICE DISCLAIMS FOREIGN NOTAM ACCURACY\r\nOR COMPLETENESS",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0318/26 NOTAMN\r Q) OBBB/QMXLC/IV/M/A/000/999/2616N05038E005\r A) OBBI B) 2710080050 C) 2710230315\r D) DLY BTN 0050-0315\r E) TWY A AND Z CLOSED, INCLUDING TAXI LANE K, L AND BACK OF CARGO\r APRON\r STANDS\r UNITED STATES NOTAM OFFICE DISCLAIMS FOREIGN NOTAM ACCURACY\r OR COMPLETENESS"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "3d15369ea7238ca48970d9b3b1339bfc41df6dec8fdc5b61df9c1f578e256915"
+        }
+      ]
+    }
+  ]
+}

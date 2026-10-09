@@ -11,6 +11,59 @@ import corpus from './fixtures/tfrs.json' with { type: 'json' };
 const START = Date.parse('2026-10-05T21:00Z');
 const index = corpus.cases.slice(0, 2).map(c => c.index);
 
+test('TFR planning protects expiring details before queued changed revisions consume their headroom', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tfr-deadlines-'));
+  let now = START, changed = false;
+  const reads: string[] = [];
+  const service = createTfrService({ directory, signal: new AbortController().signal, now: () => now,
+    wait: async ms => { now += ms; }, fetch: async input => {
+      const url = String(input);
+      if (url.endsWith('getTfrList')) return Response.json(index.map((entry, i) => changed && i === 0
+        ? { ...entry, mod_abs_time: '202610052100' } : entry));
+      const entry = corpus.cases.find(c => url.includes(c.index.notam_id.replace('/', '_')))!;
+      reads.push(entry.index.notam_id);
+      if (changed && entry === corpus.cases[0]) now += 20_000;
+      return new Response(entry.xml);
+    } });
+  try {
+    await service.restore(); await service.refresh();
+    const unchanged = service.read()!.notices.find(n => n.id === index[1]!.notam_id)!;
+    now = unchanged.detailCheckedAt! + 10 * 60_000 + 20_000;
+    changed = true; reads.length = 0;
+    await service.refresh();
+    assert.deepEqual(reads, [index[1]!.notam_id, index[0]!.notam_id], 'revalidate before the changed detail consumes the next-round headroom');
+    assert.equal(service.read()!.error, undefined);
+    assert.ok(service.read()!.notices.every(n => n.detailCheckedAt! + TFR_DETAIL_REFRESH_MS > service.status.nextAttemptAt! + 60_000));
+    now = service.status.nextAttemptAt!;
+    reads.length = 0; await service.refresh();
+    assert.deepEqual(reads, [], 'deadline planning does not redownload young unchanged details');
+    assert.equal(service.read()!.error, undefined);
+  } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('TFR reuse budgets the next index download as well as its detail request', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tfr-index-deadline-'));
+  let now = START, slow = false, observedOverdue = false, detailReads = 0;
+  const service = createTfrService({ directory, signal: new AbortController().signal, now: () => now,
+    wait: async ms => { now += ms; }, fetch: async input => {
+      if (slow) {
+        now += 29_999;
+        observedOverdue ||= service.read()?.error === 'detail-recheck-due';
+      }
+      if (String(input).endsWith('getTfrList')) return Response.json([index[0]]);
+      detailReads++; return new Response(corpus.cases[0]!.xml);
+    } });
+  try {
+    await service.restore(); await service.refresh();
+    now = service.read()!.notices[0]!.detailCheckedAt! + 10 * 60_000 + 40_000;
+    await service.refresh();
+    slow = true; now = service.status.nextAttemptAt! + 30_000;
+    await service.refresh();
+    assert.equal(observedOverdue, false, 'a permitted slow index plus detail cannot exhaust the reuse budget');
+    assert.equal(detailReads, 2, 'reacquire in the preceding round, while sufficient headroom remains');
+  } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 for (const unresolved of [false, true]) test(`regressed TFR indexes preserve ${unresolved ? 'unresolved' : 'published'} revisions and membership across restart`, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'tfr-rollback-'));
   let now = START, revision = '202610052000', omitOther = false, failed = unresolved, detailReads = 0;
@@ -89,10 +142,7 @@ test('unchanged TFR index metadata cannot indefinitely cache XML or renew its ag
     }
     await service.close(); service = createTfrService(options); await service.restore();
     now += TFR_REFRESH_MS; await service.refresh();
-    assert.equal(detailTimes.length, 1);
-    now = original.detailCheckedAt! + TFR_DETAIL_REFRESH_MS;
-    assert.equal(service.read()!.error, 'detail-recheck-due', 'qualification changes even before the next collector round');
-    now += TFR_REFRESH_MS; await service.refresh();
+    assert.ok(now < original.detailCheckedAt! + TFR_DETAIL_REFRESH_MS, 'revalidate before the original detail expires');
     const current = service.read()!.notices[0]!;
     assert.equal(detailTimes.length, 2);
     assert.equal(current.modifiedAt, original.modifiedAt);
@@ -105,7 +155,9 @@ test('unchanged TFR index metadata cannot indefinitely cache XML or renew its ag
     await service.close(); service = createTfrService(options); await service.restore();
     now += TFR_REFRESH_MS; await service.refresh();
     assert.deepEqual(service.read()!.notices[0], current); assert.equal(detailTimes.length, 2);
-    failed = true; now += TFR_DETAIL_REFRESH_MS; await service.refresh();
+    failed = true; now += TFR_DETAIL_REFRESH_MS;
+    assert.equal(service.read()!.error, 'detail-recheck-due', 'missed work still expires at the real source deadline');
+    await service.refresh();
     const saved = service.read()!;
     assert.deepEqual(saved.notices[0], current);
     assert.equal(saved.issues![0]!.modifiedAt, current.modifiedAt);
@@ -289,7 +341,7 @@ test('TFR detail overload accounts for remaining index members without violating
 });
 
 for (const failure of ['admission.json', 'details.json', 'cancel'] as const) {
-  test(`TFR detail isolation cannot swallow ${failure} failure and publish a new snapshot`, async () => {
+  test(`TFR ${failure} failure preserves the validated index but cannot publish uncommitted detail`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'tfr-publication-')), parent = new AbortController();
     let now = START, failing = false, calls = 0;
     const service = createTfrService({ directory, now: () => now, signal: parent.signal,
@@ -308,13 +360,15 @@ for (const failure of ['admission.json', 'details.json', 'cancel'] as const) {
       } });
     try {
       await service.restore(); await service.refresh();
-      const before = service.read()!, published = await readFile(join(directory, 'tfrs', 'snapshot.json'), 'utf8');
+      const before = service.read()!;
       failing = true; now += 180_000; await service.refresh();
       assert.equal(calls, 5, 'unsafe round stops after the first detail');
-      assert.equal(service.read()!.checkedAt, before.checkedAt);
+      assert.ok(service.read()!.checkedAt > before.checkedAt, 'the index committed before the unsafe detail');
       assert.deepEqual(service.read()!.notices, before.notices);
-      assert.deepEqual(service.read()!.issues, []);
-      assert.equal(await readFile(join(directory, 'tfrs', 'snapshot.json'), 'utf8'), published);
+      assert.equal(service.read()!.issues?.length, 2, 'unacquired revisions cannot appear confirmed');
+      const published = JSON.parse(JSON.parse(await readFile(join(directory, 'tfrs', 'snapshot.json'), 'utf8')).data);
+      assert.deepEqual(published.notices, before.notices);
+      assert.deepEqual(published.issues, service.read()!.issues);
       if (failure !== 'cancel') assert.equal(service.status.error, 'refresh-failed');
     } finally { await service.close(); await rm(directory, { recursive: true, force: true }); }
   });

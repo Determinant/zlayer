@@ -96,8 +96,8 @@ backoff writes and preserve token-request cooldowns across restart. Legacy versi
 uncertain durable write prevents further source calls from stale in-memory state.
 Version 2 generations include resolved records and explicit unresolved source
 records in one checksum. Known-record disagreements do not stop independent
-updates; global health remains degraded, while airport responses identify relevant
-issues and separate collection continuity from content coverage. Version 1 is
+updates; blocking disagreements degrade global health, while airport responses
+identify relevant issues and separate collection continuity from content coverage. Version 1 is
 readable, but rollback after publication needs a version-2-capable backend; never
 restore an older quota journal or erase issues to start an old binary. The
 [collector contract](../../src/layers/notams/README.md#unresolved-source-records)
@@ -131,9 +131,26 @@ and provisioning files, to production. Preserve that journal on later rollouts;
 copying only the snapshot would lose the source cooldown.
 
 TFR index checks and XML detail acquisition have separate ages. The collector
-revalidates unchanged details after 15 minutes and preserves `detailCheckedAt`
+revalidates unchanged details before their 15-minute freshness deadline and preserves `detailCheckedAt`
 through reuse, failure and restart. Saved schema-1 details without that timestamp
 remain readable with unknown age and are reacquired at the next admitted round.
+Work is replanned after each download against the complete deferred queue, including
+required current-round acquisitions, next admission, the scheduler tick, the index
+request and every queued detail deadline. Expiring reusable details move ahead of
+required work when that work would exhaust their headroom. Failed rechecks remain
+required even after the index shrinks. Each member receives at most one attempt per
+round per ID/revision; slow/failed work never extends the freshness limit. A validated
+index publishes immediately, with explicit issues for pending details and immediate
+withdrawals. Its three-minute clock starts at index acquisition, is serviced between
+detail requests, and is independent of the conservative durable restart cooldown.
+Healthy detail queues can start before the next index deadline when their complete
+queued workload needs the headroom, without polling the index early. Completed
+rounds durably admit restart at the next index/spacing boundary; interrupted
+requests retain the provisional crash margin and source backoff.
+Each verified detail saves and publishes immediately without advancing index time
+or changing membership. Failed work cannot undo already committed evidence.
+The HTTP encoding cache follows publication identity so independent detail updates
+cannot remain hidden behind the previous index timestamp.
 `detail-recheck-due` qualifies overdue/unknown detail even between index checks;
 per-notice failures retain their original detail time and do not block other
 validated index updates. An index containing an older revision than published,
@@ -142,6 +159,33 @@ withdrawals or advance the snapshot's check time. This guard survives restart;
 the retained snapshot reports `refresh-failed` until a valid round succeeds.
 See the [TFR chart contract](../../src/layers/notams/README.md#persistent-tfr-chart)
 for the wire and PWA review behavior.
+
+AWC advisory envelope validation is independent of member interpretation. A
+complete source envelope can publish valid advisories alongside explicit issues;
+health reports `coverage: partial`, `unresolvedRecords` and `incomplete-advisories`
+without mislabeling the source as unavailable. Validation errors preserve
+`invalid-source` through the cache boundary. Saved partial coverage survives
+restart and clears only when a successful replacement resolves those issues.
+Availability, source-check time and coverage describe the same committed cache
+publication, whether a background refresh or an HTTP miss initiated acquisition.
+Authenticated restoration recovers that publication's coverage without freshening
+it; late reads and refresh completions cannot overwrite a newer summary. Failed
+refreshes remain visible until successful acquisition, including HTTP-triggered work.
+Missing advisory classification metadata is not itself incomplete coverage when
+the native bulletin proves the required display category. Source properties remain
+unchanged; conflicting or unproven classifications still block readiness as explicit
+issues. The [AWC guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+owns classification evidence, date-line geometry normalization and versioned partial delivery.
+Each family's health `interpretation` summarizes accepted records, classification
+bases, unsupported SIGMET bulletins and legacy records without provenance. It also
+reports issue counts by reason/detail and at most five bounded issuer/identifier
+examples; raw evidence stays in the advisory artifact. The summary derives from
+the authenticated committed publication on both acquisition and restart, clears
+on invalid publications, and cannot imply a newer check time or complete coverage.
+Recovered/unspecified classification is diagnostic information, not a readiness
+failure. Missing coverage and conflicting evidence remain blocking.
+An unavailable/invalid advisory publication has unknown coverage, never a complete
+empty result inferred from the absence of an issue count.
 
 Airport HTTP delivery uses a 128-entry/32 MiB bounded cache for JSON and shared
 gzip output, invalidated on any source-status change. The 16 MiB response limit
@@ -197,7 +241,8 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | --- | --- | --- |
 | `/api/weather/metars.geojson?ids=…` or `?bbox=…` | Original AWC METAR GeoJSON | 30 seconds |
 | `/api/weather/tafs.json?ids=…` or `?bbox=…` | Original AWC TAF JSON | 60 seconds |
-| `/api/weather/advisories/{gairmet,sigmet,cwa}.json` | Normalized advisories | 60 seconds |
+| `/api/weather/advisories/gairmet.json` | Complete normalized G-AIRMET package | One-minute bulk checks; retained for at most ten minutes from source publication, with original time and visible refresh errors |
+| `/api/weather/advisories/{sigmet,cwa}.json` | Normalized advisories | 60 seconds |
 | `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
 | `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
 | `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
@@ -208,8 +253,12 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
 
 Raw AWC and model index/range acquisition is internal; the API exposes no upstream
-proxy routes. G-AIRMET reads 0/3/6/9/12 h at one lookup instant, validates their
-common cycle and publishes only complete packages, preserving freezing contours.
+proxy routes. G-AIRMET reads the official minute-updated `gairmets.cache.xml.gz`
+once for all 0/3/6/9/12 h frames, validates the complete envelope and common cycle,
+and preserves freezing contours and original XML fields. Last-Modified caps the
+source-check time; stale/future/undated publications, older retained-source times
+and regressing cycles fail visibly. The captured source comparison and XML
+representation rules live in the [AWC guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence).
 METAR/TAF batching, nearby queries and report interpretation remain in their plugin.
 Station requests allow up to 100 IDs or one bounding box. Unknown hosts, paths,
 parameters and multipart ranges fail locally. Only METAR/TAF 204 responses become
@@ -255,7 +304,25 @@ Restart authenticates the saved generation and waits out the remaining six-minut
 interval from its source-check time instead of immediately rediscovering a fresh
 generation. Repeated identical preparation errors log only on a change; health
 continues reporting the active error and next attempt.
-Advisories refresh independently every thirty seconds when their cache age expires.
+SIGMET/CWA refresh independently every thirty seconds when their cache age expires.
+G-AIRMET checks the bulk file once per minute after success, with 30-second failure
+retry and upstream backoff. Its source and prepared output are retained within the
+existing ten-minute freshness bound; acquisition cadence and delivery lifetime
+are independent. Reads preserve the publication timestamp and do not trigger more
+acquisition while that package remains available. Refresh errors still fail health
+and the strict probe; at the age limit, the retained package becomes unavailable.
+The three published advisory files are protected from raw-input capacity eviction.
+Restoring the former G-AIRMET API source forces immediate bulk acquisition while
+protecting the prior complete file through the transition and its legacy TTL.
+Advisory preparation normalizes declared polygon closure before strict topology
+validation, preserving raw evidence and deriving fill/outline from the same rings;
+the [owning guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
+defines the supported source forms and limits.
+Progs opts its catalog, chart and coverage-image resources into upstream cache
+revalidation. This affects acquisition headers only; shared local cache reuse,
+source cadence and backoff are unchanged. Revalidation does not authorize an
+older catalog or renew a rejected publication's age; see
+[Progs acquisition](../../src/layers/weather-awc/progs/README.md#acquisition-and-recovery).
 
 Up to two Node workers, capped by the host CPU count, acquire and convert native
 fields. Updaters submit bounded batches to that shared pool; one remaining product
@@ -386,7 +453,9 @@ proxy or tunnel before cutover, and through public HTTPS after activation:
   fresh with no active refresh error. This includes all three advisory families.
   Expected partial radar/motion coverage and unpublished NDFD stops remain allowed.
 - Read reports, all three advisory snapshots, and a prepared numeric slice for
-  each model. Read both pressure-chart catalogs and a referenced chart file from
+  each model. Require every delivered advisory snapshot to have no unresolved
+  issues; an earlier health response cannot establish a later snapshot's coverage.
+  Read both pressure-chart catalogs and a referenced chart file from
   each family, plus the coverage catalog and a referenced PNG. Verify chart/PNG
   lengths and hashes against their catalog references. Unpublished coverage images remain
   explicit gaps and do not prevent a complete catalog from being ready.
@@ -411,8 +480,10 @@ is disabled. These are deployment gates; retained data can still be served with
 its original times when a source becomes stale. A complete older forecast may
 remain available while its replacement is preparing, but availability and progress
 do not satisfy the freshness gate. An NMS feed with complete collection continuity
-and unresolved source records likewise fails the strict complete-feed check;
-retain that distinction in rollout evidence. Enabled NMS also requires an available
+and blocking unresolved source records likewise fails the strict readiness check.
+Fully evidenced association metadata affecting no supported query remains visible
+as a warning and needs no allowance; legacy feeds without `blockingRecords` treat
+all issues as blocking. Retain that distinction in rollout evidence. Enabled NMS also requires an available
 reconciliation summary without an active error; fresh deltas do not clear failed
 full-sync or diagnostic-history checks. The [maintenance guide](maintenance.md#focused-qualification)
 defines the explicit age and source-issue exceptions, which do not waive these errors.
@@ -515,7 +586,7 @@ Alternatively build and run the container from the repository root:
 
 ```bash
 docker build -f tools/info-server/Dockerfile -t zlayer-info .
-docker run -d --name zlayer-info --restart unless-stopped --memory=4g --cpus=4 \
+docker run -d --name zlayer-info --restart unless-stopped --stop-timeout=150 --memory=4g --cpus=4 \
   -p 127.0.0.1:8787:8787 -v zlayer-weather:/var/lib/weather \
   -v zlayer-notams:/var/lib/notams zlayer-info
 ```
@@ -528,10 +599,42 @@ restart the server after changing either setting.
 Replicas do not share caches or upstream quotas. The same [readiness checklist](#deployment-readiness)
 applies to either installation method.
 
+### Shutdown and ownership
+
 Failed startup drains every initialized producer and releases its writer locks.
-Shutdown stops accepting connections immediately, aborts upstream work and drains
-all producers and cache writes; remaining client connections close after five
-seconds. A cleanup failure is reported after the other owners have also stopped.
+Normal shutdown owns the transition from `running` to `quiescing`, `draining`,
+then `stopped` (or `failed`). Before its first await it stops the scheduler and
+closes both FAA collection admission gates. It stops accepting HTTP connections
+and cancels disposable weather work; remaining client connections close after five
+seconds. TFR collection finishes and saves its admitted request, then checkpoints
+before another index/detail request. Any unacquired membership remains an explicit
+source issue. NMS finishes its admitted round and saves the verified generation or
+pending bulk candidate. Neither collector releases its writer lock while quiescing.
+Both recheck ownership before declaring completion; a lost lock fails the handoff
+even when the collection loop has already recorded the error and retained its data.
+
+The default grace is 130 seconds: the NMS download deadline is 120 seconds, with
+ten seconds of additional processing headroom. This is a bounded opportunity to
+finish, not a guarantee against stalled storage or excessive processing. On expiry,
+shutdown cancels remaining work, preserves conservative request reservations, drains
+writes and reports failure; it cannot claim a clean handoff. Writer locks release
+only after their operations settle. Health advertises `lifecycle.protocol: 1`,
+`phase`, `forced`, and `graceMs`; completion/failure is logged and the process exits
+unsuccessfully on forced or failed cleanup. Source freshness is never advanced by
+shutdown. A deployment must require a successful stop before switching releases.
+
+Set the supervisor stop deadline to at least the advertised grace plus 20 seconds
+for cleanup: the supplied systemd unit and Docker command allow 150 seconds. Update
+existing installations as well as application code. Systemd must use
+`KillMode=mixed`: SIGTERM goes to the main owner, leaving its flock helpers alive
+until checkpointing releases them. The default `control-group` mode kills those
+helpers too early. The eventual SIGKILL still covers the whole process group.
+The supervisor remains the
+final bound if disk operations or an uncooperative dependency cannot settle.
+`info-server-handoff.test.ts` covers admission races, committed progress, retained
+ownership, repeated close, deadline cancellation and restart without quota reset.
+Its process-group tests exercise actual SIGTERM delivery to the parent and helpers,
+including failure when a supervisor prematurely removes both FAA writer locks.
 
 ### Migrating the former weather-server name
 

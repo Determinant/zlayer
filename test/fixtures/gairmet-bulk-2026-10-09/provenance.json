@@ -1,0 +1,12 @@
+{
+  "source": "https://aviationweather.gov/data/cache/gairmets.cache.xml.gz",
+  "retrievedAt": "2026-10-09T22:14:25Z",
+  "lastModified": "2026-10-09T22:13:29Z",
+  "records": 149,
+  "reference": "https://aviationweather.gov/api/data/gairmet?format=geojson&fore={0,3,6,9,12}",
+  "referenceCycle": "2026-10-09T21:00:00Z",
+  "sha256": {
+    "gairmets.xml.gz": "1ddaf7e313fec049dfc494cd3a6b438c39f5fe86e93590add67813345ef52c9e",
+    "reference.json.gz": "39597ebf4f86f88b37971a60c7d7ddae3c402035b89d371e6002c9cff1a5e501"
+  }
+}

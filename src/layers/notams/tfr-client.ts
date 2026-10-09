@@ -14,8 +14,18 @@ export function createTfrClient(dependencies: { now?: () => number; load?: (sign
   let refresh: OnDemandRefresh | undefined, timer: ReturnType<typeof setTimeout> | undefined;
   const validTime = (snapshot: TfrSnapshot) => snapshot.checkedAt <= now() + 30_000 &&
     snapshot.notices.every(n => n.detailCheckedAt === undefined || n.detailCheckedAt <= now() + 30_000);
-  const canReplace = (snapshot: TfrSnapshot, previous: TfrSnapshot | null | undefined) =>
-    !previous || !validTime(previous) || snapshot.checkedAt >= previous.checkedAt;
+  function canReplace(snapshot: TfrSnapshot, previous: TfrSnapshot | null | undefined): boolean {
+    if (!previous || !validTime(previous) || snapshot.checkedAt > previous.checkedAt) return true;
+    if (snapshot.checkedAt < previous.checkedAt) return false;
+    // Detail rechecks publish independently of index membership. An older tab or
+    // delayed response at the same index time cannot replace newer XML evidence.
+    const notices = new Map(snapshot.notices.map(notice => [notice.id, notice]));
+    return previous.notices.every(prior => {
+      const next = notices.get(prior.id);
+      return next && (next.modifiedAt > prior.modifiedAt || next.modifiedAt === prior.modifiedAt &&
+        (next.detailCheckedAt ?? -1) >= (prior.detailCheckedAt ?? -1));
+    });
+  }
   const visible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
   function clock() {
     clearTimeout(timer); timer = undefined;

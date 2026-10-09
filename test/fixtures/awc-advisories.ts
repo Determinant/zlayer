@@ -1,12 +1,12 @@
 import type { AwcAdvisoryProduct } from '@zlayer/contracts';
-import { normalizeAdvisories, FORECAST_HOURS, type SourceCollection } from '../../src/layers/weather-awc/source';
+import { normalizeAdvisories, FORECAST_HOURS, type SourceFeature } from '../../src/layers/weather-awc/source';
 
 export const WEATHER_NOW = Date.parse('2026-09-22T21:00:00Z');
 const polygon = { type: 'Polygon' as const, coordinates: [[[-124, 35], [-120, 35], [-120, 40], [-124, 40], [-124, 35]]] };
 const feature = (properties: Record<string, unknown>) => ({ type: 'Feature' as const, properties, geometry: polygon });
 
 /** Deliberately synthetic, spanning the default map view for picking tests. */
-export function advisorySource(product: AwcAdvisoryProduct, hour = 0, base = WEATHER_NOW): SourceCollection {
+export function advisorySource(product: AwcAdvisoryProduct, hour = 0, base = WEATHER_NOW): { type: 'FeatureCollection'; features: SourceFeature[] } {
   const from = new Date(base).toISOString(), to = new Date(base + 2 * 3_600_000).toISOString();
   return { type: 'FeatureCollection', features: product === 'gairmet' ? [feature({ product: 'ZULU',
     hazard: 'ICE', tag: `ICE-${hour}`, issueTime: from, validTime: new Date(base + hour * 3_600_000).toISOString(),

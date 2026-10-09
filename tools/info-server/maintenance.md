@@ -7,6 +7,13 @@ owns authenticated generations and admission, and `reconciliation.ts` owns
 diagnostic full-sync history. NMS and graphical TFR persistence share the small
 fsync/rename primitive in `state-file.ts`, without sharing quotas or source policy.
 
+Shutdown is an owner transition, not an external observation of idle work. The
+[server shutdown contract](README.md#shutdown-and-ownership) closes collection admission before
+awaiting admitted work and distinguishes a graceful checkpoint from forced abort.
+Deployment must allow the advertised grace plus cleanup time, require a successful
+process stop, and keep the latest request journals through rollback. Idle polling
+is only a compatibility path for older binaries without the lifecycle protocol.
+
 ## Health and diagnostics
 
 `/api/weather/healthz` retains its raw product statuses and `ok` process-liveness
@@ -30,6 +37,61 @@ satisfying this deployment gate. The NOTAM allowances below waive no weather err
 Progs exposes its next attempt; chart and grid failure logs report transitions
 instead of repeating identical errors on every retry.
 
+`notamSourceIssues` summarizes the committed generation's source ambiguity without
+new acquisition: total, association-only, unresolved content, unscoped, blocking
+and nonblocking counts, plus at most 16 samples and an explicit truncation flag.
+Samples identify the differing fields, raw ICAO alternatives, affected supported
+queries, impact, operator action and source events that can clear the issue.
+Each sample also includes at most seven `comparisons` against its first retained
+variant. These report `equivalent`, `compatible-evidence`, `contradictory` or
+`unproven`, the differing fields and the text proof/failure reason. Contradictory
+means supplied fields or completely recognized content differ; it does not claim
+that FAA intended an operational amendment. Unproven distinguishes unsupported
+representations from established differences. These diagnostics grant no readiness
+exception: unresolved content and incomplete evidence remain blocking.
+The [source-comparison contract](../../src/layers/notams/source-comparison.md)
+links each transformation to official guidance and retained NMS evidence.
+Its [conflict priorities](../../src/layers/notams/source-comparison.md#conflict-resolution-priority)
+separate implemented decisions from rules needing additional provenance.
+[Revision ordering](../../src/layers/notams/source-comparison.md#nms-revision-ordering)
+uses only precise NMS update time. At equal times, sequence/correction differences
+remain comparison evidence; a higher counter, later HTTP response or another
+endpoint cannot select a winner. Normal content and positive-cancellation rules
+still apply.
+`icao-rendering` proves equality of complete enclosing text without declaring
+inconsistent structured metadata correct. `icao-distribution-annotation` identifies
+qualified USNOF distribution material. `icao-selection-code` identifies a qualified
+closure-code correction (including QXXXX replacement); `icao-purpose-upgrade`
+identifies the supported supplied-purpose chain, and `icao-qualification` composes
+both. These three need stronger record-bound evidence. All original translations
+remain available; no synthesized Q line replaces the source.
+These proof labels concern representation reconciliation, not certification that
+all facts within a source notice are correct.
+The `fdc-continuation` text proof identifies the qualified ODP repeated-footer/
+airport-heading representation family described in the
+[NOTAM reconciliation contract](../../src/layers/notams/README.md#collection-and-delivery).
+It requires a complete current native notice plus an agreeing complete ICAO
+conversion. Authenticated restore re-evaluates retained variants with that proof;
+it preserves source clocks and admission journals and makes no source request.
+Association-only means the existing filing-scope proof supplies usable matching
+content while source aliases disagree; it does not resolve those aliases or remove
+the durable issue. Cold collection reports null. `source-issues.ts` uses the same
+proof for publication and readiness: an issue is nonblocking only when complete,
+scoped evidence establishes usable content and none of the disputed ICAO/FIR
+associations selects a supported query. All other issues block readiness.
+`blockingRecords` governs feed state/error and the release probe; legacy responses
+without it treat every unresolved record as blocking. Aggregate health retains
+nonblocking ambiguity in `readiness.warnings`, independently of its blocking
+`problems`. Source coverage and legacy `continuity` remain partial/incomplete.
+For example, the captured October 9 `49D`/`PA49D` pair has
+matching content and filing location but conflicting FAA ICAO-location fields;
+the schema allows both values, so neither may be selected by a format guess.
+Neither matches the supported four-letter ICAO/FIR query grammar, so this specific
+disagreement requires no operator action and does not block readiness. PJOH/PACV
+does affect supported queries and remains blocking. Neither classification clears
+the retained evidence or changes timestamps; a newer reconciled source revision
+or qualified full-snapshot withdrawal can clear the issue.
+
 `notamReconciliation` reports the last completed full sync, its age, a pending
 replacement, the last attempt/failure, and the next budget-eligible attempt. A
 24-hour interval plus ten minutes for download/bridge is the warning threshold.
@@ -52,10 +114,30 @@ change that timestamp, including when tolerated source clock skew places its
 observation slightly in the future. Restore derives it from the published file.
 Advisory background refresh has an explicit owner, per-product
 checked/retry times and errors; one failed family cannot hide behind successful
-families. Healthy background checks normally occur every 30 seconds and refresh
+families. SIGMET/CWA background checks normally occur every 30 seconds and refresh
 inputs older than 20 seconds, leaving time before the 60-second delivery TTL.
-Failed products wait at least 30 seconds and obey upstream backoff. HTTP misses
-still share the cache's existing acquisition.
+G-AIRMET acquires the complete minute-updated AWC gzip/XML cache once per minute
+after success. Its prior complete package survives transient failures for at most
+ten minutes from the original source publication; HTTP reads and restart cannot
+advance that time. Availability and failed acquisition remain independent: a
+retained package can be available while `error` still fails readiness and the
+strict release probe. Stale/future Last-Modified, regressing publication/cycle,
+malformed XML and incomplete envelopes cannot replace the last valid package.
+Published advisory files are protected from disposable-input cache pressure.
+Restore of the former G-AIRMET API source immediately schedules bulk acquisition;
+the legacy file remains protected during that replacement even when its stored
+60-second eviction lifetime elapses. Delivery still applies the current product's
+age limit. The upgrade regression combines restoration, a pending replacement,
+legacy expiry and a full cache; a healthy initial restore alone did not cover it.
+Failed products wait at least 30 seconds and obey upstream backoff. Cold/expired
+HTTP misses still share the cache's existing acquisition.
+
+The October 9 investigation traced recurring G-AIRMET 502s to upstream HTTP 504s
+in the former five-query timestamp-pinned acquisition. One passing retry did not
+establish recovery. `gairmet-cache.test.ts` covers complete source equivalence,
+outage/repeated readers, restart, expiry, regression, and successful replacement;
+qualification must also observe successive minute-paced acquisitions from the
+deployment host and advancing public source times after activation.
 
 `runtime` reports process memory, peak RSS, lifetime event-loop delay and fixed
 latency buckets for HTTP delivery and forecast/NMS operations. Request durations
@@ -74,6 +156,23 @@ do not infer it passed from these checks. Recovery/health tests live in
 `notams-reconciliation-health.test.ts`, `info-health.test.ts` and
 `info-advisories.test.ts`. Existing persistence, lifecycle, delivery and weather
 worker tests cover their respective boundaries.
+
+Changes to health classification must exercise the retained source fixture through
+feed status, HTTP health and scoped reads, aggregate readiness, and the artifact
+probe. Diagnostics alone do not establish the decision is correct. Regressions
+include metadata-only evidence, supported disputed queries, substantive conflicts,
+truncated/unscoped evidence, a blocking issue beyond the diagnostic sample limit,
+and independent collection/freshness/reconciliation failures.
+
+Reliability qualification must cover successive refreshes at realistic feed sizes,
+not only a healthy startup. `notams-tfr-scheduling.test.ts` checks both clocks over
+repeated 90-notice rounds and restart, as well as near-timeout queues that must
+yield to index checks. Progs tests exercise retained publication through malformed
+inputs, upstream outages and catalog regression, recovery at the retry deadline,
+same-cycle corrections, and restart. Cache tests cover shared quarantine deadlines
+and delayed rejection racing a newer observation. Real overload, source outages
+and unresolved source ambiguity must remain visible; these checks do not promise
+permanent green health or waive the existing release gate.
 
 For an offline overlap replay:
 
@@ -114,7 +213,9 @@ does not waive reconciliation errors or missing diagnostic status.
 
 A compatible rollout may also supply `--allow-unresolved-notams=N` for a captured
 pre-existing source ambiguity. The probe still requires fresh, continuous
-collection and reports the retained issue count in `warnings`. A deployment must
+collection and reports the blocking issue count in `warnings`. Proven nonblocking
+metadata needs no allowance and is reported separately as
+`notam-association-metadata:N`. A deployment must
 independently compare source IDs against its stopped baseline; a numeric allowance
 alone does not prove the candidate preserved the same ambiguity.
 This source-issue allowance also cannot waive reconciliation failures.

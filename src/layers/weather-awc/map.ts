@@ -87,8 +87,12 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     controller.setAdvisoryDisplay({ loading: true, ids: [] });
     void (async () => {
       if (reset) resetSource();
-      const features = advisories.map(a => ({ type: 'Feature' as const, id: a.id,
-        geometry: a.geometry, properties: { id: a.id, hazard: a.hazard, product: a.product } }));
+      const features = advisories.flatMap(a => {
+        const properties = { id: a.id, hazard: a.hazard, product: a.product };
+        return [{ type: 'Feature' as const, id: a.id, geometry: a.geometry, properties: { ...properties, outline: !a.outlineGeometry } },
+          ...(a.outlineGeometry ? [{ type: 'Feature' as const, id: `${a.id}:outline`, geometry: a.outlineGeometry,
+            properties: { ...properties, outline: true } }] : [])];
+      });
       if (!await source.submit(version, { type: 'FeatureCollection', features })) return;
       visible(true);
       controller.setAdvisoryDisplay({ loading: false, ids: advisories.map(a => a.id) });
@@ -111,11 +115,13 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
         data: { type: 'FeatureCollection', features: [] } });
       map.addLayer({ id: ADVISORY_LAYERS[0]!, type: 'fill', source: SOURCE,
         layout: { visibility: 'none' },
-        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': colors, 'fill-opacity': 0.1 } }, WEATHER_LAYER_ANCHOR);
+        filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': colors, 'fill-opacity': 0.1, 'fill-antialias': false } }, WEATHER_LAYER_ANCHOR);
       map.addLayer({ id: ADVISORY_LAYERS[1]!, type: 'line', source: SOURCE,
+        filter: ['==', ['get', 'outline'], true],
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': '#ffffff', 'line-width': lineWidth + 1.5, 'line-opacity': 0.95 } }, WEATHER_LAYER_ANCHOR);
       map.addLayer({ id: ADVISORY_LAYERS[2]!, type: 'line', source: SOURCE,
+        filter: ['==', ['get', 'outline'], true],
         layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': colors, 'line-width': lineWidth, 'line-opacity': 1 } }, WEATHER_LAYER_ANCHOR);
       submission = createSourceSubmission(map, SOURCE, fail);
