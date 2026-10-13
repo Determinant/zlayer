@@ -76,3 +76,10 @@ source classification to infer. Original SHA-256:
 `ee59747390a7804aa60bd8e8665f1b8f9c48dd8b7520b4092fb517d41d9391a5`.
 Excerpt SHA-256:
 `fb7eca3cd29041c555a2eaf1992a968e2d6dd11b2499805b09991b943c44ef2d`.
+
+`20261013_03_F000_wpc.geojson` is the complete analysis downloaded from
+https://aviationweather.gov/data/products/wpc/20261013/20261013_03_F000_wpc.geojson
+on October 13, 2026. Features 53 and 54 are valid Point annotations with
+`type: 21, text: ""`. They have no visible label; their original records remain
+in the retained source document. All weather geometry and nonempty labels must
+still publish. SHA-256: `24a312a72490f20c6123f4fb0077c34c8178d6ce6df9ee3dd7a56f4662754456`.

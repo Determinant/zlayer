@@ -11,7 +11,7 @@ const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(
 /** NMS modification time is the revision clock, preserving sub-millisecond
  * precision. Zero means the same source time, not identical content or counters.
  * AIXM sequence/correction values require TimeSlice context to order corrections;
- * they remain compared evidence and never silently supersede a tied NMS record. */
+ * they remain retained evidence and never silently supersede a tied NMS record. */
 export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
   return next.updatedAt - previous.updatedAt || fraction(next.sourceUpdatedAt).localeCompare(fraction(previous.sourceUpdatedAt));
 }
@@ -45,7 +45,7 @@ function effectiveEndContent(record: NotamRecord): string {
 // Other operational content remains exact, including lifecycle and timing.
 const contentFields = ['id', 'classification', 'number', 'series', 'year', 'locations', 'icaoLocations', 'accountability',
   'updatedAt', 'canceledAt', 'referred', 'startsAt', 'endsAt', 'endKind', 'effectiveStart', 'effectiveEnd',
-  'schedule', 'changeType', 'lifecycle', 'text', 'translations', 'sequence', 'correction'] as const satisfies readonly (keyof NotamRecord)[];
+  'schedule', 'changeType', 'lifecycle', 'text', 'translations'] as const satisfies readonly (keyof NotamRecord)[];
 export function notamContentDifferences(previous: NotamRecord, next: NotamRecord, text = compareNoticeText(previous, next)) {
   return contentFields.filter(field => {
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
@@ -131,10 +131,21 @@ export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord)
   const icaoLocations = previous.icaoLocations.length ? previous.icaoLocations : next.icaoLocations;
   const translations = added.length ? [...previous.translations, ...added] : previous.translations;
   const endKind = notamEndKind({ ...previous, translations });
+  // Equivalent operational content needs no temporal winner. Retain each actual
+  // counter pair, including evidence carried through prior merges; never combine
+  // independently selected sequence/correction values into an invented pair.
+  const counters = [...new Map([previous, next].flatMap(record => record.sourceCounters ??
+    [{ sequence: record.sequence, correction: record.correction }])
+    .map(pair => [`${pair.sequence}:${pair.correction}`, pair])).values()]
+    .sort((a, b) => a.sequence - b.sequence || a.correction - b.correction);
+  const { sequence, correction } = counters[0]!;
+  const sourceCounters = counters.length > 1 ? counters : undefined;
   if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred &&
-    icaoLocations === previous.icaoLocations && endKind === previous.endKind && schedule === previous.schedule) return previous;
+    icaoLocations === previous.icaoLocations && endKind === previous.endKind && schedule === previous.schedule &&
+    sequence === previous.sequence && correction === previous.correction && isDeepStrictEqual(sourceCounters, previous.sourceCounters)) return previous;
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, schedule, translations });
+  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, schedule, translations,
+    sequence, correction, ...(sourceCounters ? { sourceCounters } : {}) });
   if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
   return merged;
 }

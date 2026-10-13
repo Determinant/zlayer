@@ -79,6 +79,7 @@ const FRONT_CODES: Record<number, SurfaceBoundary> = {
 };
 const CENTERS = { high: 'HIGH', low: 'LOW', 'tropical storm': 'TROPICAL_STORM', hurricane: 'HURRICANE' } as const;
 /** Preserve every source record; unrecognized weather symbols reject a replacement.
+ * Empty text annotations have no visible feature; the source document retains them.
  * Pressure labels are independent source points, not guessed center/isobar values. */
 export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: number, sourceHash: string): SurfaceFrame {
   if (text.length > 512 * 1024) throw new Error('NOAA chart exceeds its size limit');
@@ -116,9 +117,9 @@ export function parseSurfaceChart(text: string, chart: SurfaceChart, checkedAt: 
     } else if (p.type === 15 || p.type === 21) {
       if (g.type !== 'Point') throw new Error('Invalid NOAA chart point');
       const geometry = { type: 'Point' as const, coordinates: position(g.coordinates) };
-      if (p.type === 21 && typeof p.text === 'string' && p.text.trim()) {
+      if (p.type === 21 && typeof p.text === 'string') {
         const label = p.text.replace(/\$/g, '\n').trim();
-        if (!label) throw new Error('Empty NOAA chart label');
+        if (!label) continue;
         features.push({ ...common, kind: 'LABEL', text: label, geometry });
       } else if (p.type === 15 && typeof p.code === 'string' && Object.hasOwn(CENTERS, p.code)) {
         features.push({ ...common, kind: CENTERS[p.code as keyof typeof CENTERS], geometry });

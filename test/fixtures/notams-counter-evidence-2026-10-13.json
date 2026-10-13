@@ -1,0 +1,100 @@
+{
+  "capturedAt": "2026-10-13T06:04:00Z",
+  "source": "Retained FAA NMS variants from the DVV navaid query; no new FAA acquisition",
+  "issue": {
+    "id": "1309913920759331",
+    "reason": "revision-conflict",
+    "variantsTruncated": false,
+    "locations": [
+      "DVV"
+    ],
+    "icaoLocations": [
+      "KDEN"
+    ],
+    "unscoped": false,
+    "variants": [
+      {
+        "id": "1309913920759331",
+        "sourceId": "NMS_ID_1309913920759331",
+        "classification": "DOMESTIC",
+        "number": "195",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DVV"
+        ],
+        "icaoLocations": [],
+        "accountability": "DEN",
+        "issuedAt": 1791539400000,
+        "updatedAt": 1791540060000,
+        "sourceUpdatedAt": "2026-10-09T10:01:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791539400000,
+        "endsAt": 1794600000000,
+        "effectiveStart": "202610090950",
+        "effectiveEnd": "202611132000EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV VORTAC NOT MNT",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DEN 10/195 DVV NAV VORTAC NOT MNT 2610090950-2611132000EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "10/195 NOTAMR \r\nQ)ZDV//IV/BO/AE/000/999/3953N10437W025 \r\nA) DVV \r\nB) 2610090950 \r\nC) 2611132000EST \r\nE) VORTAC NOT MNT"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "977a3356816be5dbd3407fb358c14c011b20321b65c94fe1036b4f690b16428e"
+      },
+      {
+        "id": "1309913920759331",
+        "sourceId": "NMS_ID_1309913920759331",
+        "classification": "DOMESTIC",
+        "number": "195",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "DVV"
+        ],
+        "icaoLocations": [
+          "KDEN"
+        ],
+        "accountability": "DEN",
+        "issuedAt": 1791539580000,
+        "updatedAt": 1791540060000,
+        "sourceUpdatedAt": "2026-10-09T10:01:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791539400000,
+        "endsAt": 1794600000000,
+        "effectiveStart": "202610090950",
+        "effectiveEnd": "202611132000EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "NAV VORTAC NOT MNT",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!DEN 10/195 DVV NAV VORTAC NOT MNT 2610090950-2611132000EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A8397/26 NOTAMN Q) KZDV/QNTXX////000/999/3953N10437W005 A) KDEN B) 2610090950 C) 2611132000 E) DVV NAV VORTAC NOT MNT"
+          }
+        ],
+        "sequence": 1,
+        "correction": 1,
+        "revision": "e5ccf8f8de03c5bb24909fb6f62df8711f8f68c2c41f11b29f0cab2840a6457d"
+      }
+    ]
+  }
+}

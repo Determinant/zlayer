@@ -26,6 +26,9 @@ export type NotamRecord = {
   changeType: string; lifecycle: 'active' | 'cancelled' | 'cancellation' | 'unknown';
   text: string; translations: { type: string; text: string }[];
   sequence: number; correction: number;
+  /** Distinct observed AIXM counter pairs for equivalent operational content.
+   * The scalar pair is a representative, never a temporal precedence decision. */
+  sourceCounters?: { sequence: number; correction: number }[];
 };
 export type NotamFeedStatus = {
   enabled: boolean; environment: NotamEnvironment | null;
@@ -119,7 +122,12 @@ export function isNotamRecord(v: unknown): v is NotamRecord {
     text(v.changeType, 32) && ['active', 'cancelled', 'cancellation', 'unknown'].includes(String(v.lifecycle)) &&
     text(v.text) && Array.isArray(v.translations) && v.translations.length <= 8 &&
     v.translations.every(t => isRecord(t) && text(t.type, 64) && text(t.text)) &&
-    integer(v.sequence) && integer(v.correction);
+    integer(v.sequence) && integer(v.correction) &&
+    (v.sourceCounters === undefined || Array.isArray(v.sourceCounters) &&
+      v.sourceCounters.length >= 2 && v.sourceCounters.length <= NOTAM_MAX_ISSUE_VARIANTS &&
+      v.sourceCounters.every(c => isRecord(c) && integer(c.sequence) && integer(c.correction)) &&
+      new Set(v.sourceCounters.map(c => `${c.sequence}:${c.correction}`)).size === v.sourceCounters.length &&
+      v.sourceCounters.some(c => c.sequence === v.sequence && c.correction === v.correction));
 }
 export function isNotamFeedStatus(v: unknown): v is NotamFeedStatus {
   return isRecord(v) && typeof v.enabled === 'boolean' &&

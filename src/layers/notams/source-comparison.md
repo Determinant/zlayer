@@ -103,13 +103,22 @@ slice; they are not a universal ordering of NOTAM records.
 §3.6, explicitly removes an ordering role from sequence numbers. NMS advertises
 5.1; the adapter does not silently adopt a later temporal model.
 
-The former sequence/correction tie-breaks have been removed. Both values remain
-raw, validated comparison fields. Tied active variants with different counters
-remain an explicit `revision-conflict`, even if their prose agrees. A higher
-counter cannot hide operational differences, erase bounded/truncated evidence,
-or clear a conflict during bulk reconciliation or authenticated restore.
-Independent notices continue advancing. A genuinely later NMS update supersedes
-the entire older source-time group, including when its counters decrease.
+Sequence/correction values do not break timestamp ties. They are provenance,
+separate from the operational-content comparison: when identity, applicability,
+lifecycle and every content field reconcile, differing counters cannot by
+themselves establish contradictory notice content. The merge retains the distinct
+observed pairs in optional `sourceCounters`, bounded to eight pairs. The scalar
+pair is the lexicographically smallest observed pair for a stable representation;
+it does not identify a winning or newer TimeSlice. Independent maxima must never
+form a pair that the source did not supply. Legacy records imply their scalar pair.
+
+This is content equivalence, not an implementation of AIXM correction precedence.
+Different operational content still conflicts regardless of counter values.
+Overflow and previously truncated evidence remain unresolved. Full reconciliation
+and authenticated restore preserve the pairs and source clocks; a sparse replay
+cannot erase them. A genuinely later NMS update supersedes the older source-time
+group, including when its counters decrease. The captured DVV case showed why
+counter inequality must not be treated as operational inequality.
 
 Positive original-ID cancellation evidence retains its separate qualified
 precedence at the same source time. Thus a higher sequence or correction number
@@ -122,8 +131,8 @@ context. The ordering decision no longer depends on that missing context. Adding
 a future temporal interpreter would require its own retained context and contract;
 it is not an outstanding assumption in the current comparator.
 
-No wire or generation-schema migration is needed. Old snapshots remain readable,
-and saved source clocks and admission journals are unchanged. Previously discarded
+The additive counter field needs no generation-schema migration. Old snapshots
+remain readable, and saved source clocks and admission journals are unchanged. Previously discarded
 variants cannot be recreated from a selected record alone; normal admitted deltas
 and full reconciliation supply subsequent evidence. Do not reset request history
 or force another bulk request to compensate.
@@ -287,6 +296,9 @@ Server-scoped conformance coverage:
   counters, all three-variant delivery orders, changed operational facts,
   independent progress, full-sync replay, truncated evidence, cancellation and
   authenticated restart with unchanged source clocks and admission history.
+- `test/notams-counter-evidence.test.ts`: captured DVV counter-only discrepancy,
+  all retained translations, sparse/full replay, bounded paired provenance and
+  a matrix of identity, validity, lifecycle and content contradictions.
 - `test/notams-qualification.test.ts`: standards-derived closure subjects,
   generic-code replacement, every purpose ordering, combined proofs, confirming
   third-variant recovery in collection and filing-scope queries, retained disputed

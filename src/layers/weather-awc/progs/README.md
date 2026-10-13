@@ -125,6 +125,12 @@ numeric labels have their own positions. We do not guess which center or contour
 a label belongs to, assign an unsupported value to an isobar, or turn a source
 annotation into a computed line. `$` in source text becomes a line break, with
 trailing empty lines trimmed; the original text remains in source properties.
+Text annotations containing only whitespace or line breaks have no visible
+feature. They remain in the complete retained source document and do not reject
+the chart. Their point geometry must still validate. Missing/non-string text,
+unknown weather symbols and malformed geometry remain replacement failures.
+The October 13 captured analysis and the annotation-variation tests cover this
+distinction alongside successive HTTP publication and restart recovery.
 
 The initial coded-bulletin adapter was replaced because it omitted isobars and
 collapsed several boundaries into TROF. WPC's transparent KML was also considered,

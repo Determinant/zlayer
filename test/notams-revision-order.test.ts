@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { NotamRecord } from '@zlayer/contracts';
 import { notice, NOTAM_NOW } from './fixtures/notams';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
-import { compareNotamRevision, mergeNotamRecords, NotamRevisionConflict } from '../tools/info-server/notams/revision';
+import { compareNotamRevision, mergeNotamRecords } from '../tools/info-server/notams/revision';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { createNotamService } from '../tools/info-server/notams/service';
@@ -37,21 +37,18 @@ test('NMS revision ordering uses the precise update instant and never AIXM count
   assert.ok(compareNotamRevision(nextMillisecond, later) > 0);
 });
 
-test('equal-time counter disagreements retain every variant across batch, sequential delivery and replay', () => {
+test('equal-time equivalent content retains counter pairs across batch, sequential delivery and replay', () => {
+  const expected = [{ sequence: 1, correction: 0 }, { sequence: 1, correction: 1 }, { sequence: 2, correction: 0 }];
   for (const order of permutations(variants)) {
     const together = collectNotamRecords({ records: [] }, order);
-    assert.equal(together.records.length, 0); assert.equal(together.issues?.length, 1);
-    assert.deepEqual(digests(together.issues![0]!.variants), digests(variants));
+    assert.equal(together.records.length, 1); assert.equal(together.issues?.length ?? 0, 0);
+    assert.deepEqual(together.records[0]!.sourceCounters, expected);
     let sequential = collectNotamRecords({ records: [] }, []);
     for (const record of order) sequential = collectNotamRecords(sequential, [record]);
     assert.deepEqual(sequential, together);
     assert.equal(collectNotamRecords(together, order), together);
-    assert.equal(collectNotamRecords(together, [variants[1]!]), together, 'higher sequence cannot clear an existing issue');
-    assert.equal(collectNotamRecords(together, [variants[2]!]), together, 'higher correction cannot clear an existing issue');
-  }
-  for (const next of variants.slice(1)) {
-    assert.throws(() => mergeNotamRecords([variants[0]!], [next]), error =>
-      error instanceof NotamRevisionConflict && error.fields.some(field => field === 'sequence' || field === 'correction'));
+    assert.equal(collectNotamRecords(together, [variants[1]!]), together, 'higher sequence cannot erase other counter evidence');
+    assert.equal(collectNotamRecords(together, [variants[2]!]), together, 'higher correction cannot erase other counter evidence');
   }
 });
 
@@ -66,11 +63,11 @@ test('counter increases cannot hide changed operational content or stop independ
   }
 });
 
-test('full reconciliation cannot clear tied counters; a genuinely later timestamp supersedes all of them', () => {
+test('full reconciliation retains tied counter evidence; a genuinely later timestamp supersedes all of it', () => {
   const disputed = collectNotamRecords({ records: [] }, variants);
   for (const variant of variants) {
     const rebased = rebaseNotamRecords(disputed, [variant], NOTAM_NOW);
-    assert.deepEqual(digests(rebased.issues![0]!.variants), digests(variants));
+    assert.deepEqual(rebased, disputed);
   }
   const later = record({ sequence: 0, correction: 0, sourceUpdatedAt: '2026-10-04T11:59:00.000000001Z', text: 'RWY 09L OPEN' });
   const resolved = collectNotamRecords(disputed, [later]);
@@ -102,10 +99,11 @@ test('counter changes cannot resurrect an original-ID tombstone, but a later NMS
   assert.deepEqual(collectNotamRecords({ records: [cancelled] }, [later]).records, [later]);
 });
 
-test('authenticated restart preserves tied counter evidence and source clocks without fetching or resetting admission', async () => {
+test('authenticated restart recovers equivalent legacy counter conflicts without fetching or resetting clocks or admission', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-revision-order-')), state = join(directory, 'production');
   const store = new NotamStore(state, 'production', () => NOTAM_NOW);
-  const disputed = collectNotamRecords({ records: [] }, variants);
+  const disputed = { records: [], issues: [{ id: variants[0]!.id, reason: 'revision-conflict' as const,
+    variants, variantsTruncated: false, locations: ['TST'], icaoLocations: ['KTST'], unscoped: false }] };
   try {
     await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', ...disputed,
@@ -119,9 +117,10 @@ test('authenticated restart preserves tied counter evidence and source clocks wi
       try {
         await service.restore();
         const airport = service.readAirport({ icaoId: 'KTST' })!;
-        assert.equal(airport.records.length, 0);
-        assert.deepEqual(digests(airport.issues![0]!.variants), digests(variants));
-        assert.equal(service.status.state, 'degraded'); assert.equal(service.status.blockingRecords, 1);
+        assert.equal(airport.records.length, 1); assert.equal(airport.issues?.length ?? 0, 0);
+        assert.deepEqual(airport.records[0]!.sourceCounters,
+          [{ sequence: 1, correction: 0 }, { sequence: 1, correction: 1 }, { sequence: 2, correction: 0 }]);
+        assert.equal(service.status.state, 'ready'); assert.equal(service.status.blockingRecords, 0);
         assert.equal(service.status.collectionContinuity, 'complete');
         for (const clock of ['checkedAt', 'watermark', 'fullSyncAt'] as const) assert.equal(service.status[clock], NOTAM_NOW);
         assert.equal(await readFile(join(state, 'budget.json'), 'utf8'), budget);

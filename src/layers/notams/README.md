@@ -1122,8 +1122,10 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    bound for timestamp precision/repeated delivery. Merge idempotently by source
    ID and qualified revision/update metadata.
    Compare the NMS source timestamp through nanoseconds. AIXM sequence and
-   correction counters remain comparison evidence, never equal-time tie-breaks:
+   correction counters remain provenance, never equal-time tie-breaks:
    their TimeSlice semantics do not establish a general NOTAM revision order.
+   Equivalent operational content retains distinct observed counter pairs in
+   `sourceCounters`; counter differences alone do not imply conflicting content.
    See [NMS revision ordering](source-comparison.md#nms-revision-ordering) and the
    [field-specific conflict priorities](source-comparison.md#conflict-resolution-priority).
    The raw record digest includes original spellings; it is not a semantic revision

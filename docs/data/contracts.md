@@ -399,6 +399,13 @@ owns source limitations, image gaps, time selection, rendering and cache recover
 
 ## NOTAM airport snapshots
 
+`NotamRecord.sourceCounters` optionally retains two to eight distinct observed
+AIXM sequence/correction pairs when operationally equivalent records merge. The
+scalar pair must be one of them and is only a stable representative. Neither form
+establishes temporal precedence; NMS source update time still owns ordering.
+Legacy records without the field retain their scalar pair. Raw counter provenance
+cannot override differences in identity, applicability, lifecycle or content.
+
 `NotamAirportSnapshot` in `packages/contracts/src/notams.ts` owns the validated
 wire shape. Airport schema 1 supports legacy snapshots and adds paired `issues`
 and `contentCoverage` fields for unresolved source records. Resolved and unresolved

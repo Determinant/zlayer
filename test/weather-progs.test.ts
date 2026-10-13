@@ -35,6 +35,36 @@ function parse(product: SurfaceProduct): SurfaceSnapshot {
   return { schemaVersion: 2, product, checkedAt: WEATHER_NOW, source: SURFACE_CATALOG, sourceCatalog: catalog, sourceHash: hash(JSON.stringify(frames)), frames };
 }
 
+test('captured empty NOAA annotations preserve the complete chart without inventing visible labels', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20261013_03_F000_wpc.geojson', import.meta.url), 'utf8');
+  const referenceTime = Date.parse('2026-10-13T03:00:00Z'), checkedAt = referenceTime + 3 * HOUR;
+  const chart = { file: '20261013_03_F000_wpc.geojson', forecastHour: 0, referenceTime, validTime: referenceTime,
+    source: 'https://aviationweather.gov/data/products/wpc/20261013/20261013_03_F000_wpc.geojson' };
+  const frame = parseSurfaceChart(text, chart, checkedAt, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }));
+  assert.equal(frame.sourceDocument, text);
+  const raw = JSON.parse(text), blank = new Set([53, 54]);
+  for (const [index, source] of raw.features.entries()) {
+    if (source.properties.type === 'fronts' || blank.has(index)) continue;
+    assert.ok(frame.features.some(f => f.id.split(':')[1] === String(index)), `Source feature ${index} retained`);
+  }
+  assert.ok(frame.features.every(f => !blank.has(Number(f.id.split(':')[1]))));
+  for (const label of ['', ' ', '\t\n', '$', ' $\n$ ']) {
+    const doc = structuredClone(raw); doc.features[53].properties.text = label;
+    assert.doesNotThrow(() => parseSurfaceChart(JSON.stringify(doc), chart, checkedAt, hash(JSON.stringify(doc))));
+  }
+  for (const mutate of [
+    (doc: typeof raw) => { doc.features[53].geometry.coordinates = [0, 91]; },
+    (doc: typeof raw) => { delete doc.features[53].properties.text; },
+    (doc: typeof raw) => { doc.features[53].properties.text = null; },
+    (doc: typeof raw) => { doc.features[53].properties.text = 0; },
+    (doc: typeof raw) => { doc.features[53].properties = { type: 15, code: '' }; },
+  ]) {
+    const doc = structuredClone(raw); mutate(doc);
+    assert.throws(() => parseSurfaceChart(JSON.stringify(doc), chart, checkedAt, hash(JSON.stringify(doc))));
+  }
+});
+
 test('captured AWC charts retain all smoothed fronts/isobars and the full horizon survives file-cache restoration', async t => {
   const now = Date.parse('2026-09-24T19:00:00Z');
   const catalog = await readFile(new URL('./fixtures/wpc/2026-09-24-catalog.json', import.meta.url), 'utf8');
@@ -362,6 +392,8 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
         return Response.json(catalog);
       }
       const file = url.pathname.split('/').pop()!, doc = surfaceChart(file);
+      const emptyLabel = structuredClone(doc.features.find(f => f.properties.type === 21)!);
+      emptyLabel.properties.text = ''; doc.features.push(emptyLabel);
       if (failForecast && file.includes('F168')) return new Response(null, { status: 404 });
       if (failAnalysis && file.includes('F000')) doc.features[1]!.properties.type = 999;
       if (correction && file.includes('F000')) doc.features[2]!.properties.text = '1025';
