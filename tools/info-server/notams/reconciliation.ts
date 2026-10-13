@@ -63,6 +63,6 @@ export class NotamReconciliation {
     const error = this.historyError ?? (failed ? failure.code : interrupted ? 'reconciliation-interrupted' : null);
     return { state: error ? 'failed' : overdue ? 'overdue' : pending ? 'pending' : fullSyncAt === null ? 'unavailable' : 'current',
       fullSyncAt, ageMs, overdue, pending, lastAttemptAt: attemptedAt || null, lastFailure: failure, error,
-      nextAttemptAt: this.store.nextBulkAt };
+      nextAttemptAt: this.store.admission.nextBulkAt };
   }
 }

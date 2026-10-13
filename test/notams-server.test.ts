@@ -274,15 +274,15 @@ test('durable quota is shared by failed attempts, lock owners, restart and clock
   const directory = await mkdtemp(join(tmpdir(), 'notam-budget-')); let time = NOTAM_NOW;
   const first = new NotamStore(directory, 'staging', () => time), second = new NotamStore(directory, 'staging', () => time);
   try {
-    await first.restore(); await first.reserve('bulk');
+    await first.restore(); await first.admission.reserve('bulk');
     await assert.rejects(second.restore(), /writer-already-active/);
     await first.close(); await second.close();
     const next = new NotamStore(directory, 'staging', () => time);
     try {
-      await next.restore(); assert.equal(next.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS);
-      await assert.rejects(next.reserve('bulk'), /request-budget/);
-      time += 180_000; await next.reserve('delta');
-      time = NOTAM_NOW - 1; await assert.rejects(next.reserve('auth'), /request-budget/);
+      await next.restore(); assert.equal(next.admission.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS);
+      await assert.rejects(next.admission.reserve('bulk'), /request-budget/);
+      time += 180_000; await next.admission.reserve('delta');
+      time = NOTAM_NOW - 1; await assert.rejects(next.admission.reserve('auth'), /request-budget/);
     } finally { await next.close(); }
     await rm(join(directory, 'budget.json'));
     const damaged = new NotamStore(directory, 'staging', () => time);
@@ -293,7 +293,7 @@ test('checksummed snapshots recover the previous generation without resetting qu
   const directory = await mkdtemp(join(tmpdir(), 'notam-checkpoint-'));
   const store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     const value = { schemaVersion: 1 as const, environment: 'staging' as const, records: [notice()], complete: true,
       checkedAt: NOTAM_NOW, watermark: NOTAM_NOW, fullSyncAt: NOTAM_NOW, baselineAt: NOTAM_NOW };
     const first = await store.publish(value);
@@ -302,7 +302,7 @@ test('checksummed snapshots recover the previous generation without resetting qu
     const restored = new NotamStore(directory, 'staging', () => NOTAM_NOW);
     try {
       const result = await restored.restore(); assert.equal(result?.generation, first.generation); assert.equal(result?.complete, false);
-      assert.equal(restored.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS);
+      assert.equal(restored.admission.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS);
     } finally { await restored.close(); }
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -348,7 +348,7 @@ test('only current, previous and candidate manifests retain datasets across repl
   const store = new NotamStore(directory, 'staging', () => NOTAM_NOW);
   const restored = new NotamStore(directory, 'staging', () => NOTAM_NOW);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     const journal = await readFile(join(directory, 'budget.json'), 'utf8');
     const first = await store.publish(generation([notice()]));
     const second = await store.publish(generation([notice({ text: 'RWY 09L CLSD' })]));
@@ -376,7 +376,7 @@ test('verified saved end-kind upgrades reconcile with source revisions without r
     assert.equal(current.endKind, 'estimated');
     const { revision: _revision, ...facts } = { ...current, endKind: 'fixed' as const };
     const old = { ...facts, revision: createHash('sha256').update(JSON.stringify(facts)).digest('hex') };
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     const journal = await readFile(join(directory, 'budget.json'), 'utf8');
     const saved = await store.publish(generation([old])); await store.close();
     const result = await restored.restore();
@@ -437,7 +437,7 @@ test('recent cancellation of an old revision survives deltas, restart and an abs
   let updates = [cancellation];
   const state = join(directory, 'staging'), budgetPath = join(state, 'budget.json');
   const seed = new NotamStore(state, 'staging', () => time);
-  try { await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([active, oldMessage, independent])); }
+  try { await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([active, oldMessage, independent])); }
   finally { await seed.close(); }
   const calls: string[] = [];
   const create = () => createNotamService({ enabled: true, environment: 'staging', directory,
@@ -489,7 +489,7 @@ for (const failure of ['bulk-invalid', 'bridge-transport'] as const) {
     const directory = await mkdtemp(join(tmpdir(), 'notam-replacement-')), controller = new AbortController();
     let time = NOTAM_NOW - NOTAM_DAY_MS, fail = true, deltas = 0;
     const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-    await seed.restore(); await seed.reserve('bulk'); time = NOTAM_NOW;
+    await seed.restore(); await seed.admission.reserve('bulk'); time = NOTAM_NOW;
     const original = await seed.publish(generation([normalized(notice())], time - 180_000)); await seed.close();
     const service = createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
       { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {
@@ -541,7 +541,7 @@ test('an unfamiliar conflict stays explicit while other airports advance across 
   const requests: string[] = [], logs: string[] = [];
   const other = notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002', locations: ['AUX'], icaoLocations: ['KAUX'] });
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(other)])); await seed.close();
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(other)])); await seed.close();
   time += 180_000;
   const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
     { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, log: value => logs.push(value), fetch: async input => {
@@ -590,7 +590,7 @@ test('legacy incomplete checkpoints recover from an older verified generation wi
   let time = NOTAM_NOW;
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
   const old = normalized(notice()), added = normalized(notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002' }));
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([old], time - 180_000));
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([old], time - 180_000));
   await seed.publish(generation([old, added])); await seed.close();
   const path = join(directory, 'staging', 'current.json'), manifest = JSON.parse(await readFile(path, 'utf8'));
   const { sha256: _sha256, issueCount: _issueCount, ...legacyManifest } = manifest;
@@ -619,7 +619,7 @@ test('failed publication cannot advance collection time or expose partial issue 
   const directory = await mkdtemp(join(tmpdir(), 'notam-publication-failure-')), controller = new AbortController();
   let time = NOTAM_NOW, blocked = true;
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); const original = await seed.publish(generation([normalized(notice())])); await seed.close();
+  await seed.restore(); await seed.admission.reserve('bulk'); const original = await seed.publish(generation([normalized(notice())])); await seed.close();
   const publish = NotamStore.prototype.publish;
   t.mock.method(NotamStore.prototype, 'publish', async function(this: NotamStore, ...args: Parameters<typeof publish>) {
     if (blocked) throw new NotamError('storage-unavailable');
@@ -650,7 +650,7 @@ test('version-1 snapshots migrate without erasing quota and unscoped issues qual
   const directory = await mkdtemp(join(tmpdir(), 'notam-legacy-schema-')), controller = new AbortController();
   let time = NOTAM_NOW;
   const stateDirectory = join(directory, 'staging'), seed = new NotamStore(stateDirectory, 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice())])); await seed.close();
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([normalized(notice())])); await seed.close();
   const manifest = JSON.parse(await readFile(join(stateDirectory, 'current.json'), 'utf8'));
   manifest.schemaVersion = 1; delete manifest.issueCount; delete manifest.sha256;
   await writeFile(join(stateDirectory, 'current.json'), JSON.stringify(manifest));
@@ -680,7 +680,7 @@ test('a saved representation conflict recovers by full replay and stays healthy 
   let time = NOTAM_NOW;
   const { previous, next } = representationPair();
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([previous]));
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([previous]));
   await seed.invalidate('revision-conflict'); await seed.close();
   const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
   time += 3 * 60 * 60_000;
@@ -712,7 +712,7 @@ test('captured FDC conflicts recover every airport, survive restart and advance 
   const baseline = previous[0]!.updatedAt + 60_000;
   let time = baseline;
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation(previous, baseline));
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation(previous, baseline));
   await seed.invalidate('revision-conflict'); await seed.close();
   const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
   time += 90 * 60_000;
@@ -758,7 +758,7 @@ test('inactive rendering conflicts recover the complete feed and stay excluded a
   const sparse = notice({ ...cancelledMessage, text: 'M0042/26 NOTAMC M0041/26\nA) KTST',
     translations: [{ type: 'LOCAL_FORMAT', text: 'M0042/26 NOTAMC M0041/26' }] });
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([cancelledMessage, active]));
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([cancelledMessage, active]));
   await seed.invalidate('revision-conflict'); await seed.close();
   const budgetPath = join(directory, 'staging', 'budget.json'), budget = JSON.parse(await readFile(budgetPath, 'utf8'));
   time += 6 * 3600_000;
@@ -793,7 +793,7 @@ for (const bulkFails of [false, true]) {
     const directory = await mkdtemp(join(tmpdir(), 'notam-due-bulk-')), controller = new AbortController();
     let time = NOTAM_NOW - 23 * 3600_000, conflicting = true;
     const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-    await seed.restore(); await seed.reserve('bulk'); const due = seed.nextBulkAt;
+    await seed.restore(); await seed.admission.reserve('bulk'); const due = seed.admission.nextBulkAt;
     time = NOTAM_NOW;
     const original = normalized(notice());
     await seed.publish(generation([original])); await seed.invalidate('revision-conflict'); await seed.close();
@@ -830,7 +830,7 @@ test('unrecoverable continuity keeps its original cause while waiting for the du
   const directory = await mkdtemp(join(tmpdir(), 'notam-expired-replay-')), controller = new AbortController();
   let time = NOTAM_NOW;
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk');
+  await seed.restore(); await seed.admission.reserve('bulk');
   await seed.publish(generation([normalized(notice())], time - NOTAM_DAY_MS));
   await seed.invalidate('revision-conflict'); await seed.close();
   time += 180_001;
@@ -850,7 +850,7 @@ test('26 hours of collection preserve a persistent conflict through restarts, tr
   let time = NOTAM_NOW, pulls = 0, bulkPulls = 0;
   const independent = notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002', locations: ['AUX'], icaoLocations: ['KAUX'] });
   const seed = new NotamStore(join(directory, 'staging'), 'staging', () => time);
-  await seed.restore(); await seed.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(independent)])); await seed.close();
+  await seed.restore(); await seed.admission.reserve('bulk'); await seed.publish(generation([normalized(notice()), normalized(independent)])); await seed.close();
   const dataTimes: number[] = [];
   const create = () => createNotamService({ enabled: true, environment: 'staging', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
     { now: () => time, wait: async ms => { time += ms; }, signal: controller.signal, fetch: async input => {

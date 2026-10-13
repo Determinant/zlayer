@@ -1711,15 +1711,24 @@ in `main.ts`, not in parsers or request handlers.
 | `tools/info-server/notams/revision.ts` | Qualified revision ordering, explicit comparison decisions and lifecycle precedence; no collection scheduling |
 | `representation.ts`, `notice-evidence.ts`, `notice-comparison.ts`, `source-text.ts` | Shared bounded envelope parsing, original source spans and complete text-equivalence evidence; no acquisition or UI state |
 | `tools/info-server/notams/client.ts` | OAuth renewal, allowlisted NMS requests, bounded downloads and source error classification |
-| `tools/info-server/notams/store.ts` | Durable quota journal, checksummed dataset generations and atomic publication |
+| `tools/info-server/notams/admission.ts` | Durable request reservations, completion/backoff writes, provisioning and legacy quota-journal validation |
+| `tools/info-server/notams/store.ts` | Writer-lock ownership, checksummed dataset generations, restore/reconciliation and atomic publication |
 | `tools/info-server/notams/lock.ts` | Kernel-backed single-writer lifetime lock |
 | `tools/info-server/notams/normalize.ts` | Namespace-aware AIXM/source normalization, identity and lifecycle validation |
 | `tools/info-server/notams/routes.ts` | Strict local route parsing and snapshot responses |
+| `tools/info-server/notams/tfr-service.ts` | Independent graphical TFR acquisition, durable admission, index/detail publication and lifecycle |
+| `tools/info-server/notams/tfr-scheduling.ts` | Pure detail selection and next-detail deadline planning, sharing request-time bounds with the TFR transport |
 | `packages/contracts/src/` | Versioned NOTAM delivery types and guards, following the package's existing layout |
 
 The server normalizes source facts; flairs and plate matching remain plugin
 derivations. Keep React/workspace state out of the backend, and secrets/filesystem
 paths out of shared delivery types. Split further modules only for distinct work.
+
+`NotamStore` restores its `admission` journal while holding the same writer lock,
+before reading or upgrading dataset generations, and drains queued journal writes
+before releasing ownership. The source client receives only this admission
+component. Dataset recovery cannot grant request allowance; journal schemas,
+checksums, provisioning markers and cooldowns remain independent of generations.
 
 Wire lifecycle into `server.ts` as follows:
 

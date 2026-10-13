@@ -162,7 +162,7 @@ test('authenticated recovery repairs distribution issues without hiding contradi
   const bad = collectNotamRecords({ records: [] }, [contradictory, transform(contradictory, text => text.replace('12L', '12R'))]).issues![0]!;
   const store = new NotamStore(state, 'production', () => now);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', checkedAt: now, watermark: now,
       fullSyncAt: now, baselineAt: now, complete: true, records: [], issues: [...issues, bad] });
     const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();

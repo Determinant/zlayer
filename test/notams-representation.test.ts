@@ -162,7 +162,7 @@ test('compact altitude conflicts recover on authenticated restore and remain res
   const directory = await mkdtemp(join(tmpdir(), 'notam-altitude-')), state = join(directory, 'production');
   const now = Date.parse(capture.capturedAt), store = new NotamStore(state, 'production', () => now);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', checkedAt: now, watermark: now, fullSyncAt: now,
       baselineAt: now, complete: true, records: [], issues: [issue] });
     const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();
@@ -297,7 +297,7 @@ test('restored compact and subject-code evidence repairs proven issues while ret
     const store = new NotamStore(state, 'production', () => at);
     let app: Awaited<ReturnType<typeof createInfoServer>> | undefined;
     try {
-      await store.restore(); await store.reserve('bulk');
+      await store.restore(); await store.admission.reserve('bulk');
       await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [issue],
         complete: true, checkedAt: at, watermark: at, fullSyncAt: at, baselineAt: at });
       const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();
@@ -411,7 +411,7 @@ test('authenticated restore repairs proven representations and preserves clocks,
     now: () => now, signal: new AbortController().signal, fetch: async () => assert.fail('Restore must not fetch'),
   });
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', checkedAt: now, watermark: now, fullSyncAt: now,
       baselineAt: now, complete: true, records: [], issues: capturedIssues });
     const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();

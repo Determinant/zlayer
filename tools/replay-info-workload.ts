@@ -28,7 +28,7 @@ const parser = createNotamXmlParser(record => normalized.push(record));
 for (let offset = 0; offset < xml.length; offset += 65536) parser.write(xml.slice(offset, offset + 65536));
 parser.finish();
 const state = join(directory, 'notams'), seed = new NotamStore(join(state, 'staging'), 'staging', () => now);
-await seed.restore(); await seed.reserve('bulk'); now = WEATHER_NOW;
+await seed.restore(); await seed.admission.reserve('bulk'); now = WEATHER_NOW;
 await seed.publish({ schemaVersion: 2, environment: 'staging', records: normalized, complete: true,
   checkedAt: now - 180000, watermark: now - 180000, baselineAt: now - 86400_000, fullSyncAt: now - 86400_000 }); await seed.close();
 let sourceRequests = 0, bulkRequests = 0;

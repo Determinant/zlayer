@@ -151,7 +151,8 @@ export class NotamRevisionConflict extends NotamError {
  * substantive content/lifecycle conflict. */
 export function resolveNotamFilingScope(issue: NotamSourceIssue): NotamRecord | undefined {
   if (issue.reason !== 'revision-conflict' || issue.variantsTruncated || issue.unscoped || issue.variants.length < 2 ||
-    issue.variants.some(r => r.lifecycle !== 'active' || !r.locations.length || r.icaoLocationVariants)) return;
+    issue.variants.some(r => r.lifecycle !== 'active' || !r.locations.length || r.icaoLocationVariants ||
+      r.id !== issue.variants[0]!.id || compareNotamRevision(r, issue.variants[0]!) !== 0)) return;
   const sets = [...new Map(issue.variants.filter(r => r.icaoLocations.length).map(r =>
     [[...r.icaoLocations].sort().join(','), r.icaoLocations])).values()];
   if (sets.length < 2) return;
@@ -159,12 +160,11 @@ export function resolveNotamFilingScope(issue: NotamSourceIssue): NotamRecord | 
     const { revision: _revision, ...facts } = record;
     return recordWithRevision({ ...facts, icaoLocations: [] });
   };
-  let resolved = withoutAssociation(issue.variants[0]!);
+  let resolved: NotamRecord;
   try {
-    for (const variant of issue.variants.slice(1)) {
-      if (compareNotamRevision(resolved, variant) !== 0) return;
-      resolved = mergeSameNotamRevision(resolved, withoutAssociation(variant));
-    }
+    // Use the collection's evidence retry: a later variant may prove an earlier
+    // pair. Only the disputed associations are excluded from that same proof.
+    resolved = mergeNotamRecords([], issue.variants.map(withoutAssociation))[0]!;
   } catch (cause) { if (cause instanceof NotamError) return; throw cause; }
   const { revision: _revision, ...facts } = resolved;
   const record = recordWithRevision({ ...facts,

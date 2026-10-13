@@ -97,7 +97,7 @@ test('association disputes qualify filing-scope content without asserting an air
   }
   const directory = await mkdtemp(join(tmpdir(), 'notam-association-scope-'));
   const state = join(directory, 'production'), store = new NotamStore(state, 'production', () => now);
-  await store.restore(); await store.reserve('bulk');
+  await store.restore(); await store.admission.reserve('bulk');
   await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [joh],
     complete: true, checkedAt: now, watermark: now, baselineAt: now, fullSyncAt: now });
   const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();
@@ -151,7 +151,7 @@ test('captured filing-scope content remains usable while health distinguishes as
   const issue: unknown = associationCapture.issues[0]; assert.ok(isNotamSourceIssue(issue));
   const directory = await mkdtemp(join(tmpdir(), 'notam-issue-kinds-'));
   const at = Date.parse(associationCapture.checkedAt), store = new NotamStore(join(directory, 'production'), 'production', () => at);
-  await store.restore(); await store.reserve('bulk');
+  await store.restore(); await store.admission.reserve('bulk');
   const generation = await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [issue],
     complete: true, checkedAt: at, watermark: at, baselineAt: at, fullSyncAt: at });
   await store.close();
@@ -435,7 +435,7 @@ for (const complete of [true, false]) test(`restart reconciles records while pre
     { id: '0000000000000003', sourceId: '0000000000000003' });
   const conflictingSchedule = collectNotamRecords({ records: [scheduled] }, [changed(scheduled, { schedule: 'SAT SUN 1200-0300' })]).issues![0]!;
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     const original = await store.publish({ schemaVersion: 2, environment: 'production', records: [],
       issues: [...issues, genuine, overflow, conflictingSchedule], complete, checkedAt: now, watermark: now,
       baselineAt: now - 3600_000, fullSyncAt: now - 3600_000 });
@@ -472,7 +472,7 @@ test('restart replaces legacy issue derivations without duplicating evidence or 
     variants: [legacyFixed(estimated), estimated] };
   assert.ok([legacy, genuine, overflow].every(isNotamSourceIssue));
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     const original = await store.publish({ schemaVersion: 2, environment: 'production', records: [],
       issues: [legacy, genuine, overflow], complete: false, checkedAt: now, watermark: now,
       baselineAt: now - 3600_000, fullSyncAt: now - 3600_000 });
@@ -500,7 +500,7 @@ test('repaired source pairs survive XML delta replay, empty updates, backoff, ai
   const directory = await mkdtemp(join(tmpdir(), 'notam-reconciled-service-'));
   let time = now, calls = 0, round = 0;
   const state = join(directory, 'production'), seed = new NotamStore(state, 'production', () => time);
-  await seed.restore(); await seed.reserve('bulk');
+  await seed.restore(); await seed.admission.reserve('bulk');
   await seed.publish({ schemaVersion: 2, environment: 'production', records: [], issues,
     complete: true, checkedAt: time, watermark: time, baselineAt: time, fullSyncAt: time });
   await seed.close();

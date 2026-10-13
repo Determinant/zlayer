@@ -75,7 +75,7 @@ test('NOTAM quiescence commits its admitted delta and preserves quota while refu
   const directory = await mkdtemp(join(tmpdir(), 'notam-handoff-')), state = join(directory, 'production');
   let now = NOTAM_NOW;
   const seed = new NotamStore(state, 'production', () => now);
-  await seed.restore(); const reservation = await seed.reserve('bulk'); await seed.finishRequest(reservation);
+  await seed.restore(); const reservation = await seed.admission.reserve('bulk'); await seed.admission.finishRequest(reservation);
   await seed.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [], complete: true,
     checkedAt: now, watermark: now, baselineAt: now, fullSyncAt: now });
   await seed.close(); now += 180_000;

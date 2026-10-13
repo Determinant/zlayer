@@ -19,18 +19,18 @@ test('an interrupted dispatch reservation retains its full crash margin through 
   let store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const reservation = await store.reserve('bulk', 120_000);
+    const reservation = await store.admission.reserve('bulk', 120_000);
     assert.equal(reservation.dispatchBy, now + 120_000);
     await store.close(); now += 120_000;
     store = new NotamStore(directory, 'production', () => now); await store.restore();
-    assert.equal(store.nextAnyAt, now + 1000);
-    assert.equal(store.nextDataAt, now + 180_000);
-    assert.equal(store.nextBulkAt, now + NOTAM_DAY_MS);
-    await assert.rejects(store.reserve('content'), /request-budget/);
-    now += 1000; await store.reserve('content');
-    now += 179_000; await store.reserve('delta');
-    await assert.rejects(store.finishRequest(reservation), /invalid-reservation/);
-    assert.equal(store.nextDataAt, now + 180_000, 'an old receipt cannot shorten a later reservation');
+    assert.equal(store.admission.nextAnyAt, now + 1000);
+    assert.equal(store.admission.nextDataAt, now + 180_000);
+    assert.equal(store.admission.nextBulkAt, now + NOTAM_DAY_MS);
+    await assert.rejects(store.admission.reserve('content'), /request-budget/);
+    now += 1000; await store.admission.reserve('content');
+    now += 179_000; await store.admission.reserve('delta');
+    await assert.rejects(store.admission.finishRequest(reservation), /invalid-reservation/);
+    assert.equal(store.admission.nextDataAt, now + 180_000, 'an old receipt cannot shorten a later reservation');
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -38,9 +38,9 @@ test('completed attempts release only their provisional margin and preserve conc
   const directory = await temporary(); let now = NOTAM_NOW;
   const store = new NotamStore(directory, 'production', () => now);
   try {
-    await store.restore(); const reservation = await store.reserve('bulk', 120_000);
+    await store.restore(); const reservation = await store.admission.reserve('bulk', 120_000);
     now += 75_000;
-    await Promise.all([store.backoff(now + 900_000), store.finishRequest(reservation)]);
+    await Promise.all([store.admission.backoff(now + 900_000), store.admission.finishRequest(reservation)]);
     const saved = JSON.parse(await readFile(join(directory, 'budget.json'), 'utf8'));
     assert.equal(saved.anyAt, now + 1000); assert.equal(saved.dataAt, now + 180_000);
     assert.equal(saved.bulkAt, now + NOTAM_DAY_MS); assert.equal(saved.backoffAt, now + 900_000);
@@ -49,14 +49,14 @@ test('completed attempts release only their provisional margin and preserve conc
 
 test('a slow durable reservation cannot dispatch outside its charged window', async () => {
   const directory = await temporary(); let now = NOTAM_NOW, calls = 0;
-  const store = new NotamStore(directory, 'production', () => now), reserve = store.reserve.bind(store);
-  store.reserve = async (...args) => { const receipt = await reserve(...args); now += 120_001; return receipt; };
+  const store = new NotamStore(directory, 'production', () => now), reserve = store.admission.reserve.bind(store.admission);
+  store.admission.reserve = async (...args) => { const receipt = await reserve(...args); now += 120_001; return receipt; };
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       signal: new AbortController().signal, fetch: async () => { calls++; return token(); } });
     await assert.rejects(source.download('bulk', join(directory, 'source.tmp')), /request-reservation-expired/);
-    assert.equal(calls, 0); assert.equal(store.nextAuthAt, NOTAM_NOW + 300_000);
+    assert.equal(calls, 0); assert.equal(store.admission.nextAuthAt, NOTAM_NOW + 300_000);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -66,7 +66,7 @@ test('normal global collection spaces every actual request, reuses its token and
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       wait: async ms => { now += ms; }, signal: new AbortController().signal, fetch: async input => {
         const path = new URL(String(input)).pathname, started = now; now += 25;
         calls.push({ path, started, finished: now });
@@ -75,11 +75,11 @@ test('normal global collection spaces every actual request, reuses its token and
         return new Response('fixture');
       } });
     await source.download('bulk', join(directory, 'bulk.tmp'));
-    now = store.nextDataAt; await source.download('delta', join(directory, 'delta.tmp'), now - 600_000);
+    now = store.admission.nextDataAt; await source.download('delta', join(directory, 'delta.tmp'), now - 600_000);
     assert.deepEqual(calls.map(c => c.path), ['/v1/auth/token', '/nmsapi/v1/notams/il', '/nmsapi/v1/content/fixture', '/nmsapi/v1/notams']);
     assert.ok(calls.every((call, i) => !i || call.started - calls[i - 1]!.finished >= 1000));
     assert.equal(calls[3]!.started - calls[1]!.finished, 180_000);
-    assert.equal(store.nextBulkAt, calls[1]!.finished + NOTAM_DAY_MS);
+    assert.equal(store.admission.nextBulkAt, calls[1]!.finished + NOTAM_DAY_MS);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -89,7 +89,7 @@ test('an early timer wake cannot abandon an admitted bulk download at the conten
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       signal: new AbortController().signal,
       wait: async ms => { waits++; now += waits === 2 ? ms - 1 : ms; },
       fetch: async input => {
@@ -103,7 +103,7 @@ test('an early timer wake cannot abandon an admitted bulk download at the conten
     assert.equal(await readFile(path, 'utf8'), 'complete bulk');
     assert.deepEqual(calls.map(call => call.path), ['/v1/auth/token', '/nmsapi/v1/notams/il', '/nmsapi/v1/content/fixture']);
     assert.ok(calls.every((call, i) => !i || call.started - calls[i - 1]!.finished >= 1000));
-    assert.equal(store.nextBulkAt, calls[1]!.finished + NOTAM_DAY_MS);
+    assert.equal(store.admission.nextBulkAt, calls[1]!.finished + NOTAM_DAY_MS);
     assert.equal(waits, 3, 'the remaining millisecond is waited without another data request');
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -113,7 +113,7 @@ test('a rejected bearer cannot cause an immediate retry and renews only on the n
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       wait: async ms => { now += ms; }, signal: new AbortController().signal, fetch: async input => {
         if (new URL(String(input)).pathname === '/v1/auth/token') { tokens++; return token(); }
         pulls++; return pulls === 1 ? new Response(null, { status: 401 }) : new Response('fixture');
@@ -121,7 +121,7 @@ test('a rejected bearer cannot cause an immediate retry and renews only on the n
     await assert.rejects(source.download('delta', join(directory, 'delta.tmp'), now - 600_000), /authentication-failed/);
     await assert.rejects(source.download('delta', join(directory, 'delta.tmp'), now - 600_000), /request-budget/);
     assert.equal(tokens, 1); assert.equal(pulls, 1);
-    now = store.nextDataAt;
+    now = store.admission.nextDataAt;
     await source.download('delta', join(directory, 'delta.tmp'), now - 600_000);
     assert.equal(tokens, 2); assert.equal(pulls, 2);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
@@ -134,14 +134,14 @@ test('malformed token responses cannot reach data endpoints or escape as credent
     await store.restore();
     for (const value of [{ access_token: 'fixture\r\nsecret', expires_in: '1799' },
       { access_token: 'fixture', expires_in: 'bad-secret' }, { access_token: 'fixture', expires_in: 1800, token_type: 'unknown' }]) {
-      const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+      const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
         signal: new AbortController().signal, fetch: async input => {
           calls++; assert.equal(new URL(String(input)).pathname, '/v1/auth/token'); return Response.json(value);
         } });
       await assert.rejects(source.download('delta', join(directory, 'delta.tmp'), now - 600_000), { message: 'invalid-token-response' });
       now += 180_000;
     }
-    assert.equal(calls, 3); assert.equal(store.nextDataAt, 0);
+    assert.equal(calls, 3); assert.equal(store.admission.nextDataAt, 0);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -150,15 +150,15 @@ test('simultaneous admissions cannot double-spend and backoff cannot overwrite a
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const admissions = await Promise.allSettled(Array.from({ length: 50 }, () => store.reserve('delta')));
+    const admissions = await Promise.allSettled(Array.from({ length: 50 }, () => store.admission.reserve('delta')));
     assert.equal(admissions.filter(r => r.status === 'fulfilled').length, 1);
-    assert.equal(store.nextDataAt, now + 180_000);
+    assert.equal(store.admission.nextDataAt, now + 180_000);
     now += 180_000;
-    await Promise.all([store.reserve('delta'), store.backoff(now + 3600_000)]);
+    await Promise.all([store.admission.reserve('delta'), store.admission.backoff(now + 3600_000)]);
     let saved = JSON.parse(await readFile(join(directory, 'budget.json'), 'utf8'));
     assert.equal(saved.dataAt, now + 180_000); assert.equal(saved.backoffAt, now + 3600_000);
     now += 3600_000;
-    const [backoff, reservation] = await Promise.allSettled([store.backoff(now + 3600_000), store.reserve('bulk')]);
+    const [backoff, reservation] = await Promise.allSettled([store.admission.backoff(now + 3600_000), store.admission.reserve('bulk')]);
     assert.equal(backoff.status, 'fulfilled'); assert.equal(reservation.status, 'rejected');
     saved = JSON.parse(await readFile(join(directory, 'budget.json'), 'utf8'));
     assert.equal(saved.bulkAt, 0, 'rejected admission cannot spend or reset another allowance');
@@ -173,7 +173,7 @@ test('failed token requests stay at least three minutes apart through rapid proc
       const store = new NotamStore(directory, 'production', () => now);
       try {
         await store.restore();
-        const source = createNotamSource({ environment: 'production', credentials, store, now: () => now, wait: async ms => { now += ms; },
+        const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now, wait: async ms => { now += ms; },
           signal: new AbortController().signal, fetch: async input => {
             assert.equal(new URL(String(input)).pathname, '/v1/auth/token'); calls.push(now); return new Response(null, { status: 401 });
           } });
@@ -191,12 +191,12 @@ test('legacy admission journals conservatively preserve token spacing without ch
   const directory = await temporary(); const now = NOTAM_NOW;
   let store = new NotamStore(directory, 'production', () => now);
   try {
-    await store.restore(); await store.reserve('bulk'); await store.close();
+    await store.restore(); await store.admission.reserve('bulk'); await store.close();
     const path = join(directory, 'budget.json'), saved = JSON.parse(await readFile(path, 'utf8'));
     delete saved.authAt; delete saved.sha256; saved.schemaVersion = 1; await writeFile(path, JSON.stringify(saved));
     store = new NotamStore(directory, 'production', () => now + 1001); await store.restore();
-    await assert.rejects(store.reserve('auth'), /request-budget/);
-    assert.equal(store.nextDataAt, now + 180_000); assert.equal(store.nextBulkAt, now + NOTAM_DAY_MS);
+    await assert.rejects(store.admission.reserve('auth'), /request-budget/);
+    assert.equal(store.admission.nextDataAt, now + 180_000); assert.equal(store.admission.nextBulkAt, now + NOTAM_DAY_MS);
     assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), saved);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -210,13 +210,13 @@ for (const status of [429, 503]) for (const retry of ['900', new Date(NOTAM_NOW 
       if (new URL(String(input)).pathname === '/v1/auth/token') return token();
       return new Response(new ReadableStream({ cancel() { throw new Error('fixture cancellation failure'); } }), { status, headers: { 'Retry-After': retry } });
     };
-    const source = () => createNotamSource({ environment: 'production', credentials, store, now: () => now, wait: async ms => { now += ms; }, signal: new AbortController().signal, fetch: fetcher });
+    const source = () => createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now, wait: async ms => { now += ms; }, signal: new AbortController().signal, fetch: fetcher });
     try {
       await store.restore(); await assert.rejects(source().download('delta', join(directory, 'source.tmp'), now - 600_000), /source-backoff/);
-      const until = store.nextDataAt; assert.ok(until >= NOTAM_NOW + 900_000); assert.equal(calls, 2);
+      const until = store.admission.nextDataAt; assert.ok(until >= NOTAM_NOW + 900_000); assert.equal(calls, 2);
       await store.close(); now += 180_000; store = new NotamStore(directory, 'production', () => now); await store.restore();
       await assert.rejects(source().download('delta', join(directory, 'source.tmp'), now - 600_000), /request-budget/);
-      assert.equal(calls, 2); assert.equal(store.nextDataAt, until);
+      assert.equal(calls, 2); assert.equal(store.admission.nextDataAt, until);
     } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
   });
 }
@@ -224,7 +224,7 @@ for (const status of [429, 503]) for (const retry of ['900', new Date(NOTAM_NOW 
 test('checksummed admission rejects plausible numeric corruption and oversized journals', async () => {
   const directory = await temporary(); let store = new NotamStore(directory, 'production', () => NOTAM_NOW);
   try {
-    await store.restore(); await store.reserve('bulk'); await store.close();
+    await store.restore(); await store.admission.reserve('bulk'); await store.close();
     const path = join(directory, 'budget.json'), original = JSON.parse(await readFile(path, 'utf8'));
     assert.equal(original.schemaVersion, 2);
     for (const damaged of [{ ...original, bulkAt: 0 }, { ...original, dataAt: 0 },
@@ -238,7 +238,7 @@ test('checksummed admission rejects plausible numeric corruption and oversized j
 test('checkpoint metadata corruption cannot silently advance freshness or collection continuity', async () => {
   const directory = await temporary(); let store = new NotamStore(directory, 'production', () => NOTAM_NOW);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', records: [notice()], complete: false,
       checkedAt: NOTAM_NOW - 180_000, watermark: NOTAM_NOW - 180_000, fullSyncAt: NOTAM_NOW - 180_000, baselineAt: NOTAM_NOW - 180_000 });
     await store.close(); const path = join(directory, 'current.json'), saved = JSON.parse(await readFile(path, 'utf8'));
@@ -247,7 +247,7 @@ test('checkpoint metadata corruption cannot silently advance freshness or collec
       await writeFile(path, JSON.stringify(damaged));
       store = new NotamStore(directory, 'production', () => NOTAM_NOW);
       assert.equal(await store.restore(), undefined); assert.equal(store.recoveryError, 'invalid-checkpoint');
-      assert.equal(store.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS); await store.close();
+      assert.equal(store.admission.nextBulkAt, NOTAM_NOW + NOTAM_DAY_MS); await store.close();
     }
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -257,9 +257,9 @@ test('quota write failure disables in-memory admission even if the file is subse
   let calls = 0;
   try {
     await store.restore(); const path = join(directory, 'budget.json'), saved = await readFile(path);
-    await rm(path); await mkdir(path); await assert.rejects(store.reserve('delta'));
+    await rm(path); await mkdir(path); await assert.rejects(store.admission.reserve('delta'));
     await rm(path, { recursive: true }); await writeFile(path, saved);
-    const source = createNotamSource({ environment: 'production', credentials, store, signal: new AbortController().signal,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, signal: new AbortController().signal,
       now: () => NOTAM_NOW, fetch: async () => { calls++; return token(); } });
     await assert.rejects(source.download('bulk', join(directory, 'source.tmp')), /storage-unavailable/);
     assert.equal(calls, 0);
@@ -269,14 +269,14 @@ test('quota write failure disables in-memory admission even if the file is subse
 test('invalid delta windows and unavailable data slots do not even request a token', async () => {
   const directory = await temporary(); let now = NOTAM_NOW, calls = 0;
   const store = new NotamStore(directory, 'production', () => now);
-  const source = createNotamSource({ environment: 'production', credentials, store, now: () => now, wait: async ms => { now += ms; },
+  const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now, wait: async ms => { now += ms; },
     signal: new AbortController().signal, fetch: async () => { calls++; return token(); } });
   try {
     await store.restore();
     for (const since of [undefined, now + 1, now - NOTAM_DAY_MS - 1]) {
       await assert.rejects(source.download('delta', join(directory, 'source.tmp'), since), /delta-window-exceeded/);
     }
-    await store.reserve('bulk'); now += 5000;
+    await store.admission.reserve('bulk'); now += 5000;
     await assert.rejects(source.download('bulk', join(directory, 'source.tmp')), /request-budget/);
     await assert.rejects(source.download('delta', join(directory, 'source.tmp'), now - 600_000), /request-budget/);
     assert.equal(calls, 0);
@@ -289,13 +289,13 @@ for (const reference of ['https://example.invalid/content', '/nmsapi/v1/content/
     const store = new NotamStore(directory, 'production', () => now);
     try {
       await store.restore();
-      const source = createNotamSource({ environment: 'production', credentials, store, now: () => now, wait: async ms => { now += ms; },
+      const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now, wait: async ms => { now += ms; },
         signal: new AbortController().signal, fetch: async input => {
           calls++; now += 1001; const url = new URL(String(input)); assert.equal(url.origin, 'https://api-nms.aim.faa.gov');
           return url.pathname === '/v1/auth/token' ? token() : Response.json({ status: 'Success', data: { url: reference } });
         } });
       await assert.rejects(source.download('bulk', join(directory, 'source.tmp')), /invalid-content-reference/);
-      assert.equal(calls, 2); assert.ok(store.nextBulkAt >= NOTAM_NOW + NOTAM_DAY_MS);
+      assert.equal(calls, 2); assert.ok(store.admission.nextBulkAt >= NOTAM_NOW + NOTAM_DAY_MS);
     } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
   });
 }
@@ -341,7 +341,7 @@ for (const failure of ['http', 'stream', 'truncated', 'backoff'] as const) test(
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       signal: new AbortController().signal, wait: async ms => { now += ms; }, fetch: async input => {
         const path = new URL(String(input)).pathname; calls.push({ path, at: now });
         if (path.endsWith('/token')) return token();
@@ -358,12 +358,12 @@ for (const failure of ['http', 'stream', 'truncated', 'backoff'] as const) test(
     assert.equal(attempts, 2);
     assert.deepEqual(calls.map(call => call.path), ['/v1/auth/token', '/nmsapi/v1/notams/il', '/nmsapi/v1/content/fixture', '/nmsapi/v1/content/fixture']);
     assert.equal(result.requestedAt, calls[1]!.at);
-    assert.equal(store.nextBulkAt, calls[1]!.at + NOTAM_DAY_MS);
+    assert.equal(store.admission.nextBulkAt, calls[1]!.at + NOTAM_DAY_MS);
     assert.ok(calls.slice(1).every((call, i) => call.at - calls[i]!.at >= 1000));
     if (failure === 'backoff') assert.ok(calls[3]!.at - calls[2]!.at >= 30_000);
     const budget = await readFile(join(directory, 'budget.json'), 'utf8');
     await store.close(); const restored = new NotamStore(directory, 'production', () => now);
-    try { await restored.restore(); assert.equal(restored.nextBulkAt, store.nextBulkAt); assert.equal(await readFile(join(directory, 'budget.json'), 'utf8'), budget); }
+    try { await restored.restore(); assert.equal(restored.admission.nextBulkAt, store.admission.nextBulkAt); assert.equal(await readFile(join(directory, 'budget.json'), 'utf8'), budget); }
     finally { await restored.close(); }
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -373,7 +373,7 @@ for (const failure of [500, 401, 403, 404, 429, 503] as const) test(`bulk conten
   const store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       signal: new AbortController().signal, wait: async ms => { now += ms; }, fetch: async input => {
         const path = new URL(String(input)).pathname;
         if (path.endsWith('/token')) return token();
@@ -383,8 +383,8 @@ for (const failure of [500, 401, 403, 404, 429, 503] as const) test(`bulk conten
     await assert.rejects(source.download('bulk', join(directory, 'bulk.tmp')));
     assert.equal(attempts, failure === 500 ? 3 : 1);
     assert.equal(references, 1);
-    assert.ok(store.nextBulkAt > now + 23 * 3600_000);
-    if ([429, 503].includes(failure)) assert.ok(store.nextAnyAt >= now + 600_000);
+    assert.ok(store.admission.nextBulkAt > now + 23 * 3600_000);
+    if ([429, 503].includes(failure)) assert.ok(store.admission.nextAnyAt >= now + 600_000);
     await assert.rejects(source.download('bulk', join(directory, 'later.tmp')), /request-budget/);
     assert.equal(references, 1);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
@@ -395,7 +395,7 @@ test('local content persistence failures and shutdown cannot start content retri
   const lifetime = new AbortController(), store = new NotamStore(directory, 'production', () => now);
   try {
     await store.restore();
-    const source = createNotamSource({ environment: 'production', credentials, store, now: () => now,
+    const source = createNotamSource({ environment: 'production', credentials, admission: store.admission, now: () => now,
       signal: lifetime.signal, wait: async ms => { now += ms; }, fetch: async input => {
         const path = new URL(String(input)).pathname;
         if (path.endsWith('/token')) return token();
@@ -404,7 +404,7 @@ test('local content persistence failures and shutdown cannot start content retri
       } });
     await assert.rejects(source.download('bulk', join(directory, 'missing', 'bulk.tmp')), { code: 'ENOENT' });
     assert.equal(attempts, 1);
-    now = store.nextBulkAt; lifetime.abort();
+    now = store.admission.nextBulkAt; lifetime.abort();
     await assert.rejects(source.download('bulk', join(directory, 'bulk.tmp')), { name: 'AbortError' });
     assert.equal(attempts, 1);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }

@@ -107,7 +107,7 @@ test('authenticated restart preserves tied counter evidence and source clocks wi
   const store = new NotamStore(state, 'production', () => NOTAM_NOW);
   const disputed = collectNotamRecords({ records: [] }, variants);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', ...disputed,
       complete: true, checkedAt: NOTAM_NOW, watermark: NOTAM_NOW, fullSyncAt: NOTAM_NOW, baselineAt: NOTAM_NOW });
     const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();

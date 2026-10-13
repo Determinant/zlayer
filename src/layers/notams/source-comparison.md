@@ -161,6 +161,10 @@ the evidence admitted from the rest of the batch. A confirming third rendering
 can therefore complete a proof even when its digest sorts last. Every deferred
 variant still has to pass the ordinary rules; failed comparisons remain explicit
 issues. This is a bounded evidence retry, not an arrival/digest precedence rule.
+Filing-scope projection uses this same batch resolver after checking that every
+variant has the same source identity and revision. It excludes only the disputed
+ICAO associations from comparison; a later confirming witness can establish the
+agreed content without granting a disputed alias or clearing the durable issue.
 
 Evidence caches use record-object identity and retain compact content only, not a
 second national dataset of token graphs. Records are treated as immutable.
@@ -285,7 +289,8 @@ Server-scoped conformance coverage:
   authenticated restart with unchanged source clocks and admission history.
 - `test/notams-qualification.test.ts`: standards-derived closure subjects,
   generic-code replacement, every purpose ordering, combined proofs, confirming
-  third-variant recovery, nearest contradictions and authenticated restart with
+  third-variant recovery in collection and filing-scope queries, retained disputed
+  associations, nearest contradictions and authenticated restart with
   unchanged admission and source clocks. These constructed cases are explicitly
   distinguished from captured NMS evidence.
 - `test/notams-source-comparison.test.ts`: captured OBBI variants, independent

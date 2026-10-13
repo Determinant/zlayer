@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { isNotamSourceIssue, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import capture from './fixtures/notams-rkti-2026-10-11.json';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
-import { compareNotamContent } from '../tools/info-server/notams/revision';
+import { compareNotamContent, resolveNotamFilingScope } from '../tools/info-server/notams/revision';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';
+import { NotamIndex } from '../tools/info-server/notams/index';
 import { createNotamService } from '../tools/info-server/notams/service';
 
 const captured: unknown = capture.issues[0]; assert.ok(isNotamSourceIssue(captured));
@@ -98,6 +99,68 @@ test('a confirming third variant resolves a provisional conflict independently o
   }
 });
 
+test('filing-scope recovery uses the complete qualification evidence while retaining disputed associations', async () => {
+  const wrong = [changed(variant('AD CLSD', 'QXXXX', 'NBO'), { icaoLocations: ['RKTI', 'RKAA'] }),
+    changed(variant('AD CLSD', 'QMNLC', 'BO'), { icaoLocations: ['RKTI', 'RKBB'] })];
+  let confirming = changed(variant('AD CLSD', 'QFALC', 'M'), { icaoLocations: ['RKTI', 'RKCC'] });
+  // Put the missing witness last in the actual collection's digest order too.
+  for (let i = 0; wrong.some(record => record.revision > confirming.revision) && i < 1000; i++) {
+    confirming = changed(confirming, { issuedAt: source.issuedAt! + i });
+  }
+  assert.ok(wrong.every(record => record.revision < confirming.revision));
+  const variants = [...wrong, confirming], collection = collectNotamRecords({ records: [] }, variants);
+  const issue = collection.issues![0]!;
+  assert.ok(isNotamSourceIssue(issue));
+  const originals = JSON.stringify(issue);
+  for (const order of permutations(variants)) {
+    const projected = resolveNotamFilingScope({ ...issue, variants: order });
+    assert.ok(projected, 'a later confirming witness must resolve the earlier pair');
+    assert.deepEqual(projected.locations, source.locations);
+    assert.deepEqual(projected.icaoLocations, ['RKTI']);
+    assert.deepEqual(new Set(projected.icaoLocationVariants!.flat()), new Set(['RKTI', 'RKAA', 'RKBB', 'RKCC']));
+    assert.deepEqual(new Set(projected.translations.map(t => t.text)), new Set(variants.flatMap(r => r.translations.map(t => t.text))));
+    assert.equal(projected.updatedAt, source.updatedAt);
+  }
+  const index = new NotamIndex();
+  index.publish({ ...collection, schemaVersion: 2, environment: 'production', generation: 'fixture',
+    complete: true, checkedAt: capture.checkedAt, watermark: capture.checkedAt, baselineAt: capture.checkedAt, fullSyncAt: capture.checkedAt });
+  assert.equal(index.read('RKTI').records.length, 1);
+  assert.deepEqual(index.read('RKTI').issues, []);
+  assert.equal(index.sourceIssues.associationOnly, 1);
+  assert.equal(index.sourceIssues.blocking, 1, 'the disputed ICAO queries still qualify readiness');
+  for (const icaoId of ['RKAA', 'RKBB', 'RKCC']) {
+    assert.deepEqual(index.read(undefined, icaoId), { records: [], issues: [issue] });
+  }
+  assert.equal(resolveNotamFilingScope({ ...issue, variantsTruncated: true }), undefined);
+  assert.equal(resolveNotamFilingScope({ ...issue, variants: wrong }), undefined, 'no supplied code proves the closure subject');
+  assert.equal(resolveNotamFilingScope({ ...issue, variants: [...wrong, changed(confirming, { text: 'AD OPEN' })] }), undefined);
+  assert.equal(resolveNotamFilingScope({ ...issue, variants: [...wrong, changed(confirming, {
+    updatedAt: confirming.updatedAt + 1000, sourceUpdatedAt: new Date(confirming.updatedAt + 1000).toISOString(),
+  })] }), undefined, 'a projection cannot cross source revisions');
+  assert.equal(JSON.stringify(issue), originals, 'projection must not rewrite retained source evidence');
+
+  const directory = await mkdtemp(join(tmpdir(), 'notam-filing-qualification-')), state = join(directory, 'production');
+  const now = capture.checkedAt, store = new NotamStore(state, 'production', () => now);
+  try {
+    await store.restore(); await store.admission.reserve('bulk');
+    await store.publish({ ...collection, schemaVersion: 2, environment: 'production', complete: true,
+      checkedAt: now, watermark: now, baselineAt: now, fullSyncAt: now });
+    const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();
+    const service = createNotamService({ enabled: true, environment: 'production', directory,
+      credentials: { clientId: 'fixture', clientSecret: 'fixture' } }, {
+      signal: new AbortController().signal, now: () => now, fetch: async () => assert.fail('Restore must not fetch'),
+    });
+    try {
+      await service.restore();
+      assert.equal(service.readAirport({ icaoId: 'RKTI' })!.contentCoverage, 'complete');
+      assert.equal(service.readAirport({ icaoId: 'RKTI' })!.records.length, 1);
+      assert.deepEqual(service.readAirport({ icaoId: 'RKAA' })!.issues, [issue]);
+      for (const clock of ['checkedAt', 'watermark', 'fullSyncAt'] as const) assert.equal(service.status[clock], now);
+      assert.equal(await readFile(join(state, 'budget.json'), 'utf8'), budget);
+    } finally { await service.close(); }
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('qualification does not erase other supplied fields, unknown purpose values, incomplete evidence or a third contradiction', () => {
   const a = variant('RWY 09 CLSD', 'QMRLC', 'BO'), b = variant('RWY 09 CLSD', 'QXXXX', 'NBO');
   const good = collectNotamRecords({ records: [] }, [a, b]);
@@ -138,7 +201,7 @@ test('authenticated restart replays qualified issues and preserves contradiction
   const bad = collectNotamRecords({ records: [] }, badVariants).issues![0]!;
   const now = capture.checkedAt, store = new NotamStore(state, 'production', () => now);
   try {
-    await store.restore(); await store.reserve('bulk');
+    await store.restore(); await store.admission.reserve('bulk');
     await store.publish({ schemaVersion: 2, environment: 'production', records: [], issues: [issue, bad],
       complete: true, checkedAt: now, watermark: now, fullSyncAt: now, baselineAt: now });
     const budget = await readFile(join(state, 'budget.json'), 'utf8'); await store.close();

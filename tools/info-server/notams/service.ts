@@ -43,7 +43,7 @@ export function createNotamService(options: NotamOptions | undefined,
   const environment = options?.environment ?? null;
   const configurationValid = enabled && !!environment && !!options?.credentials && !options.configurationError;
   const store = configurationValid ? new NotamStore(join(options!.directory, environment!), environment!, now) : undefined;
-  const source = store ? createNotamSource({ environment: environment!, credentials: options!.credentials!, store, ...dependencies, signal }) : undefined;
+  const source = store ? createNotamSource({ environment: environment!, credentials: options!.credentials!, admission: store.admission, ...dependencies, signal }) : undefined;
   const reconciliation = store ? new NotamReconciliation(store, now, dependencies.log) : undefined;
   let current: NotamGeneration | undefined, candidate: NotamGeneration | undefined;
   const indexes = new NotamIndex();
@@ -75,7 +75,7 @@ export function createNotamService(options: NotamOptions | undefined,
       fullSyncAt: current?.fullSyncAt ?? null, recordCount: (current?.records.length ?? 0) + unresolvedRecords,
       collectionContinuity, unresolvedRecords, blockingRecords, unscopedRecords: indexes.unscopedCount,
       continuity, error: current?.incompleteReason ?? error ?? (blockingRecords ? 'unresolved-records' : null),
-      nextAttemptAt: store && initialized ? Math.max(retryAt, store.nextDataAt, !current && !candidate ? store.nextBulkAt : 0) : null };
+      nextAttemptAt: store && initialized ? Math.max(retryAt, store.admission.nextDataAt, !current && !candidate ? store.admission.nextBulkAt : 0) : null };
   }
   function restore(): Promise<void> {
     return restoring ??= (async () => {
@@ -147,7 +147,7 @@ export function createNotamService(options: NotamOptions | undefined,
     // A repeatedly failing replay must not starve an available full rebase.
     // Keep any usable candidate until a new bulk has validated and been saved,
     // so a failed bulk attempt still permits ordinary budgeted replay afterward.
-    if (now() >= store!.nextBulkAt) {
+    if (now() >= store!.admission.nextBulkAt) {
       acquiringBulk = true;
       const attemptedAt = await reconciliation!.started();
       try {
@@ -182,8 +182,8 @@ export function createNotamService(options: NotamOptions | undefined,
       return;
     }
     try {
-      if (!current || !current.complete) throw new NotamError(current?.incompleteReason ?? error ?? 'incomplete-checkpoint', store!.nextBulkAt);
-      if (!inDeltaWindow(current)) throw new NotamError('delta-window-exceeded', store!.nextBulkAt);
+      if (!current || !current.complete) throw new NotamError(current?.incompleteReason ?? error ?? 'incomplete-checkpoint', store!.admission.nextBulkAt);
+      if (!inDeltaWindow(current)) throw new NotamError('delta-window-exceeded', store!.admission.nextBulkAt);
       await applyDelta(current);
     } catch (cause) {
       if (cause instanceof NotamError && cause.code === 'delta-window-exceeded') {
@@ -193,7 +193,7 @@ export function createNotamService(options: NotamOptions | undefined,
     }
   }
   function refresh() {
-    if (!initialized || !store || pending || stopped || quiescing || signal.aborted || now() < Math.max(retryAt, store.nextDataAt)) return;
+    if (!initialized || !store || pending || stopped || quiescing || signal.aborted || now() < Math.max(retryAt, store.admission.nextDataAt)) return;
     pending = measure('notams.round', round).catch(async cause => {
       if (signal.aborted || stopped) return;
       failure(cause);

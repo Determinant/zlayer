@@ -86,7 +86,7 @@ test('real HTTP load and slow readers cannot trigger FAA calls or block local ov
   const directory = await mkdtemp(join(tmpdir(), 'notam-http-load-')); let now = NOTAM_NOW, calls = 0;
   const records = Array.from({ length: 40 }, (_, i) => notice({ id: String(i).padStart(16, '0'), sourceId: String(i).padStart(16, '0'), text: 'x'.repeat(200_000), translations: [] }));
   const state = join(directory, 'nms'), store = new NotamStore(join(state, 'production'), 'production', () => now);
-  await store.restore(); await store.reserve('bulk');
+  await store.restore(); await store.admission.reserve('bulk');
   await store.publish({ schemaVersion: 2, environment: 'production', records, checkedAt: now, watermark: now, fullSyncAt: now, baselineAt: now, complete: true });
   await store.close(); now += 180_000;
   const app = await createInfoServer({ directory, startUpdates: false, notams: { enabled: true, environment: 'production', credentials: { clientId: 'fixture', clientSecret: 'fixture' }, directory: state },

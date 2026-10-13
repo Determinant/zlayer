@@ -2,21 +2,14 @@ import { createHash } from 'node:crypto';
 import { mkdir, open, stat } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
-import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, TFR_DETAIL_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
+import { isRecord, isTfrSnapshot, TFR_MAX_BYTES, TFR_REFRESH_MS, type TfrSnapshot, type TfrNotice, type TfrSourceIssue } from '@zlayer/contracts';
 import { atomicStateFile } from '../state-file';
 import { acquireNotamLock } from './lock';
 import { parseTfrDetail, parseTfrIndex } from './tfr-normalize';
 import { retryAfterAt } from '../retry-after';
 import { tfrDetailFresh } from '../../../src/layers/notams/tfr-time';
+import { nextTfrDetail, nextTfrDetailAt, TFR_REQUEST_TIMEOUT_MS, TFR_REQUEST_SPACING_MS } from './tfr-scheduling';
 
-const REQUEST_TIMEOUT_MS = 30_000, REQUEST_SPACING_MS = 1000;
-const REQUEST_SLOT_MS = REQUEST_TIMEOUT_MS + REQUEST_SPACING_MS;
-// A deferred queue cannot start before admission, the scheduler tick and the
-// next index download. Every detail ahead of it consumes a separate request slot.
-const NEXT_ROUND_MS = TFR_REFRESH_MS + 30_000 + REQUEST_SLOT_MS;
-// Include index requests interleaved with a worst-case serial detail queue.
-const queueTime = (count: number) => count * REQUEST_SLOT_MS +
-  Math.ceil(count * REQUEST_SLOT_MS / (TFR_REFRESH_MS - REQUEST_SLOT_MS)) * REQUEST_SLOT_MS;
 const INDEX = 'https://tfr.faa.gov/tfrapi/getTfrList';
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 type Budget = { schemaVersion: 1; source: 'FAA-TFR'; nextAt: number; backoffAt: number; failed: boolean };
@@ -134,10 +127,10 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     const spacing = requestAt - now();
     if (spacing > 0) await (options.wait ? options.wait(spacing, signal) : delay(spacing, undefined, { signal }));
     held();
-    const started = now(), dispatchBy = started + REQUEST_TIMEOUT_MS;
+    const started = now(), dispatchBy = started + TFR_REQUEST_TIMEOUT_MS;
     await saveBudget({ ...budget!, failed: true, nextAt: dispatchBy + TFR_REFRESH_MS });
     held(); if (now() > dispatchBy) throw new Error('TFR reservation expired');
-    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(TFR_REQUEST_TIMEOUT_MS)]);
     let response: Response | undefined;
     try {
       response = await fetcher(url, { signal: requestSignal, redirect: 'error', headers: {
@@ -162,7 +155,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       return { text: new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)), checkedAt: started };
     } finally {
       await response?.body?.cancel().catch(() => {});
-      requestAt = Math.max(started, now()) + REQUEST_SPACING_MS;
+      requestAt = Math.max(started, now()) + TFR_REQUEST_SPACING_MS;
       // During shutdown retain the already durable conservative crash margin.
       if (!signal.aborted && budget) await saveBudget({ ...budget, nextAt: Math.max(started, now()) + TFR_REFRESH_MS });
     }
@@ -193,10 +186,6 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     const failures = new Map(snapshot?.issues?.map(issue => [issue.id, issue]));
     if (!index.length || now() >= nextIndexAt) await checkIndex(failures);
     const attempted = new Set<string>();
-    // Plan the deferred queue against every expiry, not just the first one.
-    // Bringing its oldest member forward also spreads a cluster of deadlines.
-    // Required acquisitions consume time before the next admitted round too.
-    // Replan after each request; never retry a member inside the same round.
     for (;;) {
       held();
       // An admitted request may finish and publish, but shutdown cannot start
@@ -204,20 +193,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       if (quiescing) break;
       if (now() >= nextIndexAt) await checkIndex(failures);
       if (quiescing) break;
-      const time = now();
-      const waiting = index.filter(entry => !attempted.has(`${entry.id}:${entry.modifiedAt}`));
-      const unresolved = new Set(snapshot?.issues?.map(issue => issue.id));
-      const required = waiting.filter(entry => {
-        const saved = details.get(entry.id);
-        return unresolved.has(entry.id) || saved?.modifiedAt !== entry.modifiedAt || !tfrDetailFresh(saved, time);
-      });
-      const requiredIds = new Set(required.map(entry => entry.id));
-      const reusable = waiting.filter(entry => !requiredIds.has(entry.id)).sort((a, b) =>
-        details.get(a.id)!.detailCheckedAt! - details.get(b.id)!.detailCheckedAt! || a.id.localeCompare(b.id));
-      const bringForward = reusable.some((entry, position) =>
-        details.get(entry.id)!.detailCheckedAt! + TFR_DETAIL_REFRESH_MS <=
-          time + NEXT_ROUND_MS + queueTime(required.length + position + 1));
-      const entry = bringForward ? reusable[0] : required[0];
+      const entry = nextTfrDetail({ index, details, issues: snapshot?.issues ?? [], attempted, now: now() });
       if (!entry) break;
       attempted.add(`${entry.id}:${entry.modifiedAt}`);
       let record: TfrNotice, reason: TfrSourceIssue['reason'] = 'detail-unavailable';
@@ -245,13 +221,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     // index admission. Restart must not add a second interval after detail work.
     // In-flight, failed or interrupted writes retain their conservative margin.
     await saveBudget({ ...budget!, failed: false, nextAt: Math.max(nextIndexAt, requestAt) });
-    // A healthy detail queue may need another round before the next index poll.
-    // Plan its earliest deadline against the whole queue plus one scheduler tick.
-    // Failed members retry on index cadence, never in a tight detail-only loop.
-    const deadlines = snapshot?.issues?.length ? [] : [...details.values()]
-      .map(notice => (notice.detailCheckedAt ?? 0) + TFR_DETAIL_REFRESH_MS).sort((a, b) => a - b);
-    nextDetailAt = deadlines.length ? Math.max(now(), Math.min(...deadlines.map((deadline, position) =>
-      deadline - 30_000 - queueTime(position + 1)))) : Infinity;
+    nextDetailAt = nextTfrDetailAt(details.values(), !!snapshot?.issues?.length, now());
   }
   const nextAttempt = () => Math.max(admissionAt, budget?.backoffAt ?? 0, Math.min(nextIndexAt, nextDetailAt));
   function refresh(): Promise<void> {

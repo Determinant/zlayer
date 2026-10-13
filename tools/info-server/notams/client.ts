@@ -1,7 +1,7 @@
 import { open, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { isRecord, type NotamEnvironment } from '@zlayer/contracts';
-import type { NotamStore, NotamReservation } from './store';
+import type { NotamAdmission, NotamReservation } from './admission';
 import { NotamError } from './error';
 import { retryAfterAt } from '../retry-after';
 
@@ -11,7 +11,7 @@ const retryableContent = new Set(['source-unreachable', 'source-http-500', 'sour
   'source-http-504', 'source-backoff', 'truncated-source', 'empty-source']);
 export type NotamCredentials = { clientId: string; clientSecret: string };
 export function createNotamSource(options: { environment: NotamEnvironment; credentials: NotamCredentials;
-  store: NotamStore; signal: AbortSignal; fetch?: typeof fetch; now?: () => number;
+  admission: NotamAdmission; signal: AbortSignal; fetch?: typeof fetch; now?: () => number;
   wait?: (milliseconds: number, signal: AbortSignal) => Promise<void> }) {
   const host = HOSTS[options.environment], now = options.now ?? Date.now, fetcher = options.fetch ?? fetch;
   const wait = (milliseconds: number, signal: AbortSignal) => options.wait
@@ -23,25 +23,25 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
     // a one-millisecond early wake cannot waste an already admitted daily bulk.
     for (;;) {
       signal.throwIfAborted();
-      const spacing = options.store.nextAnyAt - now();
-      if (spacing > 1500) throw new NotamError('source-backoff', options.store.nextAnyAt);
+      const spacing = options.admission.nextAnyAt - now();
+      if (spacing > 1500) throw new NotamError('source-backoff', options.admission.nextAnyAt);
       if (spacing <= 0) break;
       await wait(spacing, signal);
     }
-    signal.throwIfAborted(); return options.store.reserve(kind, 120_000);
+    signal.throwIfAborted(); return options.admission.reserve(kind, 120_000);
   }
   async function request(url: string, init: RequestInit, reservation: NotamReservation): Promise<Response> {
-    init.signal?.throwIfAborted(); options.store.assertHeld();
+    init.signal?.throwIfAborted(); options.admission.assertHeld();
     if (now() > reservation.dispatchBy) throw new NotamError('request-reservation-expired');
     let response: Response;
     try { response = await fetcher(url, { ...init, redirect: 'manual' }); }
-    catch { await options.store.finishRequest(reservation); throw new NotamError('source-unreachable'); }
+    catch { await options.admission.finishRequest(reservation); throw new NotamError('source-unreachable'); }
     let retryAt = 0;
     if ([429, 503].includes(response.status)) {
       const time = now();
       retryAt = Math.max(time + 30_000, retryAfterAt(response.headers.get('retry-after'), time) ?? 0);
     }
-    try { await options.store.finishRequest(reservation, retryAt); }
+    try { await options.admission.finishRequest(reservation, retryAt); }
     catch (cause) { await response.body?.cancel().catch(() => {}); throw cause; }
     if (retryAt) {
       await response.body?.cancel().catch(() => {});
@@ -131,7 +131,7 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
       } catch (cause) {
         signal.throwIfAborted();
         if (attempt >= CONTENT_ATTEMPTS || !(cause instanceof NotamError) || !retryableContent.has(cause.code)) throw cause;
-        const retryAt = Math.max(now() + attempt * 1000, options.store.nextAnyAt, cause.retryAt ?? 0);
+        const retryAt = Math.max(now() + attempt * 1000, options.admission.nextAnyAt, cause.retryAt ?? 0);
         // Preserve long Retry-After and quota history; never obtain another /il
         // reference or renew authentication inside a content retry.
         if (retryAt >= deadline) throw cause;
@@ -151,7 +151,7 @@ export function createNotamSource(options: { environment: NotamEnvironment; cred
         if (since < now() - 86_400_000) throw new NotamError('delta-window-exceeded');
         url.searchParams.set('lastUpdatedDate', new Date(since).toISOString().replace(/\.\d{3}Z$/, 'Z'));
       }
-      const due = kind === 'bulk' ? options.store.nextBulkAt : options.store.nextDataAt;
+      const due = kind === 'bulk' ? options.admission.nextBulkAt : options.admission.nextDataAt;
       if (now() < due) throw new NotamError('request-budget', due);
       const authorization = `Bearer ${await bearer(signal)}`;
       const reservation = await reserve(kind, signal), requestedAt = now();
