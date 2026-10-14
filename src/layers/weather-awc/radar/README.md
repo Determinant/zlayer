@@ -233,8 +233,12 @@ priority; newer terminal samples use the remaining allowance. Small budgets and
 source gaps can shorten coverage. Current/building files, published history and six
 minutes of preceding catalogs are protected against eviction. Pruning removes
 expired references atomically; restart restores retained history without converting
-unchanged scans again. Disposable files may remain for up to 24 hours server-side;
-the two-hour history window and 15-minute observation age are independent limits.
+unchanged scans again. Released server artifacts become eligible for cleanup once
+their original source check is six minutes old; protected history and preceding
+catalogs keep their full lifetime. The two-hour history window and 15-minute
+observation age are independent limits. See the server's
+[cache contract](../../../../tools/info-server/README.md#source-and-cache-contract)
+for cleanup, startup protection and storage accounting.
 Browser browsing storage caps radar at 24 files/64 MiB, 16 MiB per file and one
 hour unused, in its own retention category. Forecast altitude changes and
 disposable grid inputs cannot evict radar files. Browser quota can still prevent

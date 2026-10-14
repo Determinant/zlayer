@@ -2,7 +2,7 @@ import { AWC_GRID_FIELDS, type AwcGridProduct } from '@zlayer/contracts';
 import { modelPath, parseGribIndex, HRRR_FIELDS, WIND_FIELDS, WIND_PRESSURES, SOURCE_ROOT, OUTPUT_GRID,
   type SourceRecord, type NativeFrame, type NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { digest, type Payload } from './upstream';
-import { HttpError, InvalidForecastIndexError } from './routes';
+import { HttpError, InvalidForecastIndexError } from './weather-resources';
 import { isModelVersion, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 type Row = ReturnType<typeof parseGribIndex>[number];
 type Index = { path: string; lead: number; rows: Map<string, Row | null>; hash: string; version: ModelVersion };

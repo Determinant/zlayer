@@ -8,7 +8,7 @@ import { decodeStormTracks } from '../tools/info-server/radar-motion-decode';
 import { createRadarMotionWarming } from '../tools/info-server/radar-motion';
 import { WeatherCache } from '../tools/info-server/cache';
 import { digest } from '../tools/info-server/upstream';
-import { resourceFor } from '../tools/info-server/routes';
+import { resourceFor } from '../tools/info-server/weather-resources';
 import { motionFile, motionScans } from '../src/layers/weather-awc/radar/motion-time';
 
 const capture = (name: string) => readFile(new URL(`./fixtures/radar/${name}`, import.meta.url));

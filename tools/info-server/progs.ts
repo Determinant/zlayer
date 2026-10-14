@@ -1,7 +1,7 @@
 import { isSurfaceCatalog, SURFACE_PRODUCTS, SURFACE_PROCESSING, type SurfaceProduct, type SurfaceCatalog, type SurfaceFile } from '@zlayer/contracts';
 import { SURFACE_CATALOG } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
-import { HttpError, resourceFor } from './routes';
+import { HttpError, resourceFor } from './weather-resources';
 import { progsSourceResource, readProgsCatalog } from './progs-source';
 import { digest } from './upstream';
 import { workerJob, workerModule } from './worker-job';
@@ -18,17 +18,17 @@ type State = { catalog?: SurfaceCatalog; task?: Promise<void> | undefined; nextC
 export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
   options: { now?: () => number; log?: (message: string) => void } = {}) {
   const now = options.now ?? Date.now;
+  let clock = now();
   const states = new Map(SURFACE_PRODUCTS.map(product => [product, { nextCheck: 0, building: new Set<string>() } as State]));
-  const retained = new Map<string, number>();
   const protect = () => {
-    for (const [key, until] of retained) if (until <= now()) retained.delete(key);
-    cache.retain([...SURFACE_PRODUCTS.map(product => progsResource(product).key), ...retained.keys(),
+    cache.retain([...SURFACE_PRODUCTS.map(product => progsResource(product).key),
       ...[...states.values()].flatMap(state => [...(state.catalog?.frames.map(f => chartResource(f).key) ?? []), ...state.building])], 'progs');
   };
   protect();
   async function update(product: SurfaceProduct, state: State) {
     try {
-      const { payload: catalog, charts } = await readProgsCatalog(cache, signal, product, state.catalog?.frames ?? []);
+      const { payload: catalog, charts } = await readProgsCatalog(cache, signal, product,
+        state.catalog && state.catalog.checkedAt <= now() ? state.catalog.frames : []);
       const frames: SurfaceFile[] = [], jobs: SurfaceJob[] = [];
       for (const chart of charts) {
         const input = await cache.get(progsSourceResource(chart.source, 512 * 1024), 150_000, signal);
@@ -66,11 +66,10 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
         sourceHash: digest(Buffer.from(JSON.stringify([PUBLISHED_PROGS, frames.map(f => f.sha256)]))),
         sourceCatalog: catalog.body.toString('utf8'), frames };
       if (!isSurfaceCatalog(next)) throw new Error('Invalid prepared surface catalog');
-      const previous = state.catalog?.frames;
       const body = Buffer.from(JSON.stringify(next));
       await cache.put(progsResource(product), { body, status: 200, checkedAt: next.checkedAt, sha256: digest(body),
-        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_PROGS } });
-      for (const file of previous ?? []) retained.set(chartResource(file).key, now() + 10 * 60_000);
+        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_PROGS } },
+      { resources: state.catalog?.frames.map(chartResource) ?? [], milliseconds: 10 * 60_000 });
       if (state.error) options.log?.(`Surface update recovered (${product})`);
       state.catalog = next; state.error = undefined; state.nextCheck = now() + 5 * 60_000;
     } catch (error) {
@@ -97,6 +96,8 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
       }
     },
     refresh() {
+      if (now() < clock) for (const state of states.values()) state.nextCheck = 0;
+      clock = now();
       for (const [product, state] of states) if (!signal.aborted && !state.task && now() >= state.nextCheck) {
         state.task = update(product, state).finally(() => { state.task = undefined; });
       }

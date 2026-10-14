@@ -31,7 +31,7 @@ export function describeNotamIssue(issue: NotamSourceIssue, classification: Retu
     resolution: 'A newer reconciled source revision or qualified full-snapshot withdrawal can clear the retained issue.' };
 }
 
-export type NotamIssueSummary = { total: number; associationOnly: number; contentUnresolved: number; unscoped: number;
+type NotamIssueSummary = { total: number; associationOnly: number; contentUnresolved: number; unscoped: number;
   blocking: number; nonBlocking: number; samples: ReturnType<typeof describeNotamIssue>[]; samplesTruncated: boolean };
 export const emptyNotamIssueSummary = (): NotamIssueSummary => ({ total: 0, associationOnly: 0,
   contentUnresolved: 0, unscoped: 0, blocking: 0, nonBlocking: 0, samples: [], samplesTruncated: false });

@@ -1,7 +1,7 @@
 import { isProgsCoverageCatalog, progsCoverageSource, PROGS_COVERAGE_SOURCE, PROGS_COVERAGE_MAX_BYTES,
   type ProgsCoverageCatalog, type ProgsCoverageFrame, type ProgsCoverageFile } from '@zlayer/contracts';
 import type { WeatherCache } from './cache';
-import { HttpError, resourceFor } from './routes';
+import { HttpError, resourceFor } from './weather-resources';
 import { digest, type Payload } from './upstream';
 import { workerJob, workerModule } from './worker-job';
 import { progsSourceResource, readProgsCatalog } from './progs-source';
@@ -16,18 +16,17 @@ const imageResource = (file: ProgsCoverageFile) => resourceFor(`/api/weather/pro
 export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSignal,
   options: { now?: () => number; log?: (message: string) => void } = {}) {
   const now = options.now ?? Date.now;
-  let catalog: ProgsCoverageCatalog | undefined, task: Promise<void> | undefined, nextCheck = 0, error: string | undefined;
-  const building = new Set<string>(), retained = new Map<string, number>();
+  let catalog: ProgsCoverageCatalog | undefined, task: Promise<void> | undefined, nextCheck = 0, clock = now(), error: string | undefined;
+  const building = new Set<string>();
   const protect = () => {
-    for (const [key, until] of retained) if (until <= now()) retained.delete(key);
-    cache.retain([catalogResource().key, ...building, ...retained.keys(),
+    cache.retain([catalogResource().key, ...building,
       ...(catalog?.frames.flatMap(frame => frame.file ? [imageResource(frame.file).key] : []) ?? [])], 'progs-coverage');
   };
   protect();
   async function update() {
     try {
       const { payload: input, charts } = await readProgsCatalog(cache, signal, 'coverage',
-        catalog?.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) ?? []);
+        catalog && catalog.checkedAt <= now() ? catalog.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) : []);
       const frames: ProgsCoverageFrame[] = [], changed: { source: string; file: ProgsCoverageFile; payload: Payload }[] = [];
       for (const chart of charts) {
         const source = progsCoverageSource(chart.validTime, chart.referenceTime);
@@ -61,8 +60,8 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
       }
       const body = Buffer.from(JSON.stringify(next));
       await cache.put(catalogResource(), { body, status: 200, checkedAt: next.checkedAt, sha256: digest(body),
-        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_COVERAGE } });
-      for (const frame of catalog?.frames ?? []) if (frame.file) retained.set(imageResource(frame.file).key, now() + 10 * 60_000);
+        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_COVERAGE } },
+      { resources: catalog?.frames.flatMap(frame => frame.file ? [imageResource(frame.file)] : []) ?? [], milliseconds: 10 * 60_000 });
       if (error) options.log?.('NDFD coverage update recovered');
       catalog = next; error = undefined; nextCheck = now() + 5 * 60_000;
     } catch (cause) {
@@ -83,7 +82,11 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
         catalog = value; nextCheck = value.checkedAt + 5 * 60_000; protect();
       } else await cache.discard(resource);
     },
-    refresh() { if (!signal.aborted && !task && now() >= nextCheck) task = update().finally(() => { task = undefined; }); },
+    refresh() {
+      if (now() < clock) nextCheck = 0;
+      clock = now();
+      if (!signal.aborted && !task && now() >= nextCheck) task = update().finally(() => { task = undefined; });
+    },
     get status() { return { ready: !!catalog && cache.has(catalogResource()) && catalog.frames.every(frame => !frame.file || cache.has(imageResource(frame.file))), preparing: !!task, checkedAt: catalog?.checkedAt, nextAttemptAt: nextCheck,
       analysisTime: catalog?.frames.find(frame => frame.validTime === frame.chartReferenceTime)?.validTime,
       validTimes: catalog?.frames.filter(frame => frame.file).map(frame => frame.validTime),

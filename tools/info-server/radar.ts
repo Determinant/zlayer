@@ -1,15 +1,15 @@
 import { isRadarCatalog, RADAR_MAX_AGE, RADAR_MAX_BYTES, RADAR_HISTORY_MS, RADAR_HISTORY_STEP, RADAR_HISTORY_FILES, type RadarCatalog, type RadarFile, type RadarScan } from '@zlayer/contracts';
 import { DEFAULT_WEATHER_CACHE_BYTES, type WeatherCache } from './cache';
-import { resourceFor, type Resource } from './routes';
+import { resourceFor, type Resource } from './weather-resources';
 import { digest } from './upstream';
 import { workerJob, workerModule } from './worker-job';
 import { WeatherSourceError } from './source-error';
 
 export const PUBLISHED_RADAR = 'noaa-radar-contours-v2';
-export const RADAR_SITES = 'TADW TATL TBNA TBOS TBWI TCLT TCMH TCVG TDAL TDAY TDCA TDEN TDFW TDTW TEWR TFLL THOU TIAD TIAH TICH TIDS TJFK TLAS TLVE TMCI TMCO TMDW TMEM TMIA TMKE TMSP TMSY TOKC TORD TDJT TPHL TPHX TPIT TRDU TSDF TSJU TSLC TSTL TTPA TTUL'.split(' ');
+const RADAR_SITES = 'TADW TATL TBNA TBOS TBWI TCLT TCMH TCVG TDAL TDAY TDCA TDEN TDFW TDTW TEWR TFLL THOU TIAD TIAH TICH TIDS TJFK TLAS TLVE TMCI TMCO TMDW TMEM TMIA TMKE TMSP TMSY TOKC TORD TDJT TPHL TPHX TPIT TRDU TSDF TSJU TSLC TSTL TTPA TTUL'.split(' ');
 const ROOT = 'https://noaa-mrms-pds.s3.amazonaws.com/';
 const PREFIX = 'CONUS/MergedReflectivityQCComposite_00.50/';
-export const radarResource = () => resourceFor('/api/weather/radar/latest.json');
+const radarResource = () => resourceFor('/api/weather/radar/latest.json');
 const inputResource = (url: string, listing = false): Resource => ({ key: url, url, upstream: 'radar', kind: listing ? 'radar-index' : 'radar-data',
   ttl: listing || url.endsWith('/sn.last') ? 60_000 : 86400_000, maxBytes: listing ? 256 * 1024 : 8 * 1024 * 1024 });
 export const tdwrUrl = (site: string) => `https://tgftp.nws.noaa.gov/SL.us008001/DF.of/DC.radar/DS.180z0/SI.${site.toLowerCase()}/sn.last`;
@@ -70,16 +70,15 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
   let clock = now();
   let publication = Promise.resolve();
   const latest = new Map<string, RadarFile>(), unavailable = new Set<string>(), added = new Map<string, RadarFile>();
-  const retained = new Map<string, number>(), building = new Set<string>(), failures = new Map<string, string>();
+  const building = new Set<string>(), failures = new Map<string, string>();
   const rejected = new Map<string, { hash: string; until: number; error: Error }>();
   const historyFailures = new Set<string>();
   const resource = (file: Pick<RadarFile, 'path'>) => resourceFor(`/api/weather/radar/${file.path}`);
   const protect = () => {
-    for (const [key, until] of retained) if (until <= now()) retained.delete(key);
     for (const [site, file] of latest) if (!cache.has(resource(file))) latest.delete(site);
     for (const [hash, file] of added) if (!cache.has(resource(file)) || now() - file.observedAt >= RADAR_HISTORY_MS) added.delete(hash);
     cache.retain([radarResource().key, ...[...(catalog?.files ?? []), ...(catalog?.history ?? []), ...latest.values(), ...added.values()]
-      .filter(file => cache.has(resource(file))).map(file => resource(file).key), ...retained.keys(), ...building], 'radar');
+      .filter(file => cache.has(resource(file))).map(file => resource(file).key), ...building], 'radar');
   };
   protect();
   const report = (site: string, cause: unknown) => {
@@ -158,8 +157,8 @@ export function createRadarWarming(cache: WeatherCache, signal: AbortSignal,
       if (!isRadarCatalog(next)) throw new Error('Invalid radar catalog');
       const body = Buffer.from(JSON.stringify(next));
       await cache.put(radarResource(), { body, sha256: digest(body), status: 200, checkedAt,
-        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_RADAR } });
-      for (const file of [...(catalog?.files ?? []), ...(catalog?.history ?? [])]) retained.set(resource(file).key, now() + 6 * 60_000);
+        headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_RADAR } },
+      { resources: [...(catalog?.files ?? []), ...(catalog?.history ?? [])].map(resource), milliseconds: 6 * 60_000 });
       for (const file of pending) added.delete(file.sha256);
       catalog = next; protect();
     });

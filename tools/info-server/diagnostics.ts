@@ -1,7 +1,7 @@
-import { HttpError, InvalidForecastSourceError } from './routes';
+import { HttpError, InvalidForecastSourceError } from './weather-resources';
 import { WeatherSourceError } from './source-error';
 
-export type SourceFailureCode = 'stale-source' | 'future-source' | 'invalid-source' | 'upstream-unavailable' |
+type SourceFailureCode = 'stale-source' | 'future-source' | 'invalid-source' | 'upstream-unavailable' |
   'upstream-backoff' | 'storage-unavailable' | 'processing-failed';
 export function sourceFailureCode(cause: unknown): SourceFailureCode {
   if (cause instanceof WeatherSourceError) return cause.code;

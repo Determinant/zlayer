@@ -12,7 +12,7 @@ import { createNotamService } from '../tools/info-server/notams/service';
 import { mergeNotamRecords, NotamRevisionConflict } from '../tools/info-server/notams/revision';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { NotamError } from '../tools/info-server/notams/error';
-import { createNotamResponder } from '../tools/info-server/notams/routes';
+import { createNotamResponder } from '../tools/info-server/notams/http';
 import { createInfoServer } from '../tools/info-server/server';
 import { aixm, bulkXml, notice, NOTAM_NOW } from './fixtures/notams';
 import { isNotamRecord, isNotamAirportSnapshot, type NotamRecord } from '@zlayer/contracts';

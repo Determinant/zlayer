@@ -3,7 +3,7 @@ import test from 'node:test';
 import { assessInfoHealth, freshAt, INFO_FRESHNESS, type InfoHealthInput } from '../tools/info-server/health';
 import { SourceDiagnostics, sourceFailureCode } from '../tools/info-server/diagnostics';
 import { DurationStats, InfoMetrics } from '../tools/info-server/metrics';
-import { HttpError } from '../tools/info-server/routes';
+import { HttpError } from '../tools/info-server/weather-resources';
 import { WeatherSourceError } from '../tools/info-server/source-error';
 import { notamSnapshot, NOTAM_NOW } from './fixtures/notams';
 

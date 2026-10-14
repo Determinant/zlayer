@@ -1,4 +1,4 @@
-import { HttpError } from './routes';
+import { HttpError } from './weather-resources';
 
 /** Preserve source validation identity through the HTTP cache's error boundary. */
 export class WeatherSourceError extends HttpError {

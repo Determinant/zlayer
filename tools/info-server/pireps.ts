@@ -1,7 +1,7 @@
 import { isPirepSourceSnapshot, PIREP_MAX_BYTES, PIREP_SOURCE_MAX_AGE_MS } from '@zlayer/contracts';
 import type { WeatherCache } from './cache';
 import { PIREP_SOURCE } from './pirep-source';
-import { resourceFor, type Resource } from './routes';
+import { resourceFor, type Resource } from './weather-resources';
 import { sourceFailureCode } from './diagnostics';
 import { WeatherSourceError } from './source-error';
 

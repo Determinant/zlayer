@@ -9,7 +9,7 @@ import { isNotamAirportSnapshot, isNotamNavaidQuery, isNotamNavaidSnapshot, isNo
 import { navaidNotamContext, partitionNavaidNotams } from '../src/layers/notams/navaid';
 import { createNotamsClient } from '../src/layers/notams/client';
 import { createNotamService } from '../tools/info-server/notams/service';
-import { createNotamResponder } from '../tools/info-server/notams/routes';
+import { createNotamResponder } from '../tools/info-server/notams/http';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';

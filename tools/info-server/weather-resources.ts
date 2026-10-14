@@ -3,7 +3,7 @@ import { isModelVersion, modelVersionKey, type ModelVersion } from '../../src/la
 
 export const MiB = 1024 * 1024;
 export const GAIRMET_SOURCE = 'https://aviationweather.gov/data/cache/gairmets.cache.xml.gz';
-export const GAIRMET_REFRESH_MS = 60_000;
+const GAIRMET_REFRESH_MS = 60_000;
 export const ADVISORY_MAX_AGE_MS = 10 * 60_000;
 export const advisoryRefreshAge = (product: string) => product === 'gairmet' ? GAIRMET_REFRESH_MS : 20_000;
 export type Resource = {
@@ -29,7 +29,7 @@ export class InvalidForecastIndexError extends InvalidForecastSourceError {}
 const awc = 'https://aviationweather.gov/api/data/';
 const nomads = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/';
 export type PreparedFamily = 'forecast' | 'progs' | 'coverage' | 'radar' | 'motion' | 'pireps';
-export type WeatherRoute = { type: 'query'; resource: Resource } |
+type WeatherRoute = { type: 'query'; resource: Resource } |
   { type: 'catalog' | 'artifact'; family: PreparedFamily; resource: Resource };
 const preparedRoutes: { pattern: RegExp; type: 'catalog' | 'artifact'; family: PreparedFamily; maxBytes: number }[] = [
   { pattern: /^\/api\/weather\/pireps\.json$/, type: 'catalog', family: 'pireps', maxBytes: PIREP_MAX_BYTES },
@@ -46,6 +46,34 @@ const preparedRoutes: { pattern: RegExp; type: 'catalog' | 'artifact'; family: P
   { pattern: /^\/api\/weather\/grids\/winds\/\d{13}-terrain-[a-f0-9]{64}\.zwt\.gz$/, type: 'artifact', family: 'forecast', maxBytes: 16 * MiB },
 ];
 
+// Immutable files remain available while their owner retains them. These ages
+// only reclaim released files; catalogs keep their independent delivery TTL.
+const artifactRetention: Record<PreparedFamily, number> = {
+  forecast: 60 * 60_000, progs: 10 * 60_000, coverage: 10 * 60_000, radar: 6 * 60_000, motion: 6 * 60_000, pireps: PIREP_SOURCE_MAX_AGE_MS,
+};
+
+/** Fixed-cardinality accounting. Shared model inputs cannot be charged to one
+ * of the products that reuse them; URLs and station queries are never labels. */
+export function cacheProduct(resource: Resource): string {
+  const path = new URL(resource.url).pathname;
+  if (resource.upstream === 'hrrr') return 'hrrr-inputs';
+  if (resource.upstream === 'nomads') return 'ifi-inputs';
+  if (resource.kind === 'gairmet-cache') return 'gairmet';
+  if (resource.kind === 'pirep-cache') return 'pireps';
+  if (resource.kind === 'surface') return 'progs-inputs';
+  if (resource.kind === 'coverage-image') return 'coverage';
+  if (resource.upstream === 'radar') return path.includes('DS.58sti') ? 'motion' : 'radar';
+  const product = /^\/api\/weather\/(?:grids|advisories)\/(clouds|icing|winds|gairmet|sigmet|cwa)\.json$/.exec(path)?.[1]
+    ?? /^\/api\/weather\/grids\/(clouds|icing|winds)\//.exec(path)?.[1];
+  if (product) return product;
+  if (path.startsWith('/api/weather/radar/')) return path.includes('/motion/') ? 'motion' : 'radar';
+  if (path.startsWith('/api/weather/progs/coverage')) return 'coverage';
+  const progs = /^\/api\/weather\/progs\/(analysis|forecast)[/.]/.exec(path)?.[1];
+  if (progs) return `progs-${progs}`;
+  if (path === '/api/weather/pireps.json') return 'pireps';
+  return ({ '/api/data/metar': 'metar', '/api/data/taf': 'taf', '/api/data/airsigmet': 'sigmet', '/api/data/cwa': 'cwa' } as Record<string, string>)[path] ?? 'other';
+}
+
 /** Public delivery semantics are classified once, alongside path validation. */
 export function routeFor(path: string, range?: string): WeatherRoute {
   if (path.length > 4096 || !path.startsWith('/') || path.startsWith('//') || /[#\\\x00-\x20]/.test(path)) {
@@ -60,7 +88,8 @@ export function routeFor(path: string, range?: string): WeatherRoute {
   if (prepared || advisory) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
     const resource: Resource = { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
-      ttl: prepared?.family === 'pireps' ? PIREP_SOURCE_MAX_AGE_MS : advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
+      ttl: prepared?.type === 'artifact' ? artifactRetention[prepared.family]
+        : prepared?.family === 'pireps' ? PIREP_SOURCE_MAX_AGE_MS : advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
       maxBytes: prepared?.maxBytes ?? 4 * MiB };
     return prepared ? { type: prepared.type, family: prepared.family, resource } : { type: 'query', resource };
   }

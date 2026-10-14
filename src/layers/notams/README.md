@@ -1733,7 +1733,7 @@ in `main.ts`, not in parsers or request handlers.
 | `tools/info-server/notams/store.ts` | Writer-lock ownership, checksummed dataset generations, restore/reconciliation and atomic publication |
 | `tools/info-server/notams/lock.ts` | Kernel-backed single-writer lifetime lock |
 | `tools/info-server/notams/normalize.ts` | Namespace-aware AIXM/source normalization, identity and lifecycle validation |
-| `tools/info-server/notams/routes.ts` | Strict local route parsing and snapshot responses |
+| `tools/info-server/notams/http.ts` | Strict local route parsing and snapshot responses |
 | `tools/info-server/notams/tfr-service.ts` | Independent graphical TFR acquisition, durable admission, index/detail publication and lifecycle |
 | `tools/info-server/notams/tfr-scheduling.ts` | Pure detail selection and next-detail deadline planning, sharing request-time bounds with the TFR transport |
 | `packages/contracts/src/` | Versioned NOTAM delivery types and guards, following the package's existing layout |

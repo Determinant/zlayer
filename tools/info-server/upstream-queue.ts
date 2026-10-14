@@ -1,4 +1,5 @@
-import { HttpError } from './routes';
+import { HttpError } from './weather-resources';
+import { performance } from 'node:perf_hooks';
 
 type Waiting = { start(): void; reject(error: unknown): void; signal: AbortSignal; aborted(): void };
 
@@ -10,19 +11,19 @@ export class UpstreamQueue {
   private blockedUntil = 0;
   private waiting: Waiting[] = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
-  constructor(private readonly limit: number, private readonly spacing: number) {}
+  constructor(private readonly limit: number, private readonly spacing: number, private readonly clock = () => performance.now()) {}
 
   backoff(until: number): HttpError {
-    this.blockedUntil = Math.max(this.blockedUntil, until);
+    this.blockedUntil = Math.max(this.blockedUntil, this.clock() + Math.max(0, until - Date.now()));
     this.pump();
     return this.backoffError();
   }
   private backoffError() {
-    return new HttpError(503, 'Upstream is backing off', Math.max(1, Math.ceil((this.blockedUntil - Date.now()) / 1000)));
+    return new HttpError(503, 'Upstream is backing off', Math.max(1, Math.ceil((this.blockedUntil - this.clock()) / 1000)));
   }
   async run<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
     signal.throwIfAborted();
-    if (Date.now() < this.blockedUntil) throw this.backoffError();
+    if (this.clock() < this.blockedUntil) throw this.backoffError();
     if (this.waiting.length + this.active >= 32) throw new HttpError(503, 'Upstream queue is full', 5);
     return new Promise<T>((resolve, reject) => {
       const entry: Waiting = { signal, reject,
@@ -35,7 +36,7 @@ export class UpstreamQueue {
         },
         start: () => {
           this.active++;
-          this.nextStart = Date.now() + this.spacing;
+          this.nextStart = this.clock() + this.spacing;
           signal.removeEventListener('abort', entry.aborted);
           void Promise.resolve().then(() => { signal.throwIfAborted(); return work(); }).then(resolve, reject)
             .finally(() => { this.active--; this.pump(); });
@@ -48,7 +49,7 @@ export class UpstreamQueue {
   }
   private pump() {
     clearTimeout(this.timer); this.timer = undefined;
-    if (Date.now() < this.blockedUntil) {
+    if (this.clock() < this.blockedUntil) {
       const waiting = this.waiting; this.waiting = [];
       for (const entry of waiting) {
         entry.signal.removeEventListener('abort', entry.aborted);
@@ -57,7 +58,7 @@ export class UpstreamQueue {
       return;
     }
     while (this.waiting.length && this.active < this.limit) {
-      const wait = this.nextStart - Date.now();
+      const wait = this.nextStart - this.clock();
       if (wait > 0) { this.timer = setTimeout(() => this.pump(), wait); return; }
       this.waiting.shift()!.start();
     }

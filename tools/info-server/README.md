@@ -226,7 +226,7 @@ NDFD's explicit unpublished stops remain valid gaps; radar requires the national
 scan and prunes unavailable terminal/history files. Detected disk damage is
 repaired by the background updater even when upstream bytes are unchanged.
 
-HTTP delivery is classified once in `routes.ts` as query, catalog or immutable
+HTTP delivery is classified once in `weather-resources.ts` as query, catalog or immutable
 artifact. Only queries can enter on-demand acquisition. Catalog marker checks and
 missing-resource responses use that classification, not repeated URL inspection.
 Worker replies distinguish invalid bytes, future source timestamps and retryable
@@ -234,6 +234,8 @@ processing failures; only explicit source failures suppress an unchanged radar
 digest. MRMS and NDFD PNG validation share a bounded scanline preflight and reject
 unsupported compressed metadata before pixel decoding. Upstream admission uses
 a bounded FIFO with one spacing timer, woken by completion or cancellation.
+Spacing and admitted backoff durations use a monotonic clock; wall-clock
+corrections neither stall requests nor shorten a source-requested backoff.
 
 ## Source and cache contract
 
@@ -247,11 +249,11 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
 | `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
 | `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
-| `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
+| `/api/weather/progs/{analysis,forecast}/<sha256>.json` | Immutable native-vector pressure chart | Protected while referenced; released files expire at ten minutes within the shared byte budget |
 | `/api/weather/progs/coverage.json` and `/api/weather/progs/coverage/<sha256>.png` | Independent NDFD weather-image catalog with explicit unpublished stops, and authenticated AWC PNGs | Source checks every five minutes; 30-second failure retry; immutable images retained within the shared budget |
 | `/api/weather/grids/{clouds,icing,winds}.json` | Latest complete prepared generation | Up to 24 hours; original source times retained |
-| `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
-| `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
+| `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Protected while referenced; released files expire at one hour within the shared byte budget |
+| `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Protected while referenced; released files expire at one hour within the shared byte budget |
 
 The [PIREP guide](../../src/layers/weather-awc/pireps/README.md) owns aircraft-report
 source delivery, bounds and PWA interpretation. The server validates the complete
@@ -313,12 +315,19 @@ The processor quarantines that exact cached block and shares its retry backoff;
 it cannot delete a newer replacement. Worker crashes and local processing failures
 do not implicate source bytes. The prior published generation remains available.
 
-The updater has one job per product. It finishes that candidate rather than
-abandoning partially prepared runs whenever a newer index appears. An unchanged
-source reuses authenticated artifacts. Changed, removed or invalid source data, including
-malformed GRIB envelopes and incorrect ranges, trigger discovery again; transient failures retry after thirty seconds while the previous
-catalog remains available. Discovery cannot replace a published run with an older
-one, including after restart; same-run source corrections remain eligible.
+The updater has one job per product. A running preparation keeps its pinned
+candidate, and short transport failures resume it after thirty seconds while the
+previous catalog remains available. A retry rediscovers once the candidate's
+source check is six minutes old, its forecast horizon has ended, or its check
+time is in the future. Clock rollback also resets the retry deadline. Rediscovery
+reuses authenticated artifacts with unchanged source identities and nonfuture
+check times; completed conversions remain reusable. Changed, removed or invalid
+source data, including malformed GRIB envelopes and incorrect ranges, trigger
+discovery on the next attempt. Discovery cannot replace a published run with an older
+one, including after restart; same-run source corrections remain eligible. A
+publication whose check time became future dated after clock rollback cannot
+block a valid replacement. Progs and advisory schedulers also reset their source
+check deadlines on rollback, and cached failures remain bounded by their retry delay.
 Rejected older runs leave the catalog's source-check time unchanged and report an
 update error. After a complete publication, the next source check is
 six minutes later, covering the PWA's five-minute refresh and request lifetime.
@@ -379,21 +388,55 @@ background. A cold installation has no ready catalog until initial preparation
 finishes. It must be prepared before production cutover.
 
 Immutable artifact availability is independent of source freshness. Referenced
-files remain readable beyond their original 24-hour retention age, including
+files remain readable beyond their product's ordinary retention age, including
 across restart; unchanged source checks do not rewrite their bytes or timestamps.
-Catalogs and raw responses still expire at their original TTLs. Startup restores
-catalog references before sweeping unprotected old artifacts. Byte and entry
-limits still apply, and released artifacts remain eligible for expiry cleanup.
+Catalogs and raw responses still expire at their original TTLs. Unprotected grid
+artifacts expire one hour after their original source check, allowing reuse within
+a model cycle; Progs and coverage artifacts expire at ten minutes, and radar and
+motion artifacts at six minutes. Current/building generations, published radar
+history and each owner's preceding-catalog grace remain protected regardless of
+those ages. Startup applies current artifact retention to saved metadata and
+restores every owner's references before expiry or capacity cleanup, including
+when an earlier owner repairs its catalog during startup. Byte and entry limits
+are enforced before opening the listener. If the protected working set exceeds
+a reduced limit, startup fails without evicting its published files.
+
+The shared cache saves preceding-catalog grace in `retention.json` before replacing
+a catalog: six minutes for grids/radar/motion and ten for Progs/coverage. The same
+publication queue serializes the atomic retention write and catalog replacement.
+A retention-write failure leaves the preceding catalog committed; a later
+publication failure can leave only extra, bounded grace. Restart restores the
+original deadlines, including across repeated restarts, without changing artifact
+bytes or source times. Only existing immutable files can receive this protection.
+The metadata is bounded to 16 MiB and expired or missing references are removed
+on subsequent publication. Invalid retention metadata is logged and ignored as
+damaged cache state; it cannot grant arbitrary protection. This file belongs to
+the disposable weather cache, separate from FAA admission journals.
 
 Publication sweeps expired, unprotected entries at most once per minute, even
 below capacity. Larger budgets preserve useful data without accumulating expired
-files indefinitely; source lifetimes and freshness do not change. Health's `cache`
-includes `maxBytes`, `maxEntries`, `expiredRemovals` and `capacityEvictions`.
-The counters reset on restart and count removals by cache trimming:
+files indefinitely; source lifetimes and freshness do not change. Capacity cleanup
+uses maintained access order instead of sorting the entire cache for each write.
+It seeks five percent headroom in the exhausted dimension, capped at 64 MiB or
+256 entries; protected files take precedence over that target.
+Health's `cache` includes `maxBytes`, `maxEntries`, `expiredRemovals`,
+`capacityEvictions` and `capacityTrims` (pressure-cleanup passes).
+Removal counters reset on restart and count files removed by cache trimming:
 `capacityEvictions` counts unexpired entries removed for space, while
 `expiredRemovals` counts expired entries reclaimed by a sweep or capacity trim.
 Startup rejection of invalid/expired files, replacement and integrity-repair
 removals are not included.
+
+`cache.products` reports entry/byte totals, shared load attempts/failures and both
+eviction counters with bounded product labels. Load counts measure new cache
+fills, including preparation for query-based products, rather than HTTP requests
+or every conversion; coalesced readers share one attempt. Shared HRRR and IFI
+inputs and Progs catalog/source inputs have their own groups. Accounting updates
+as files change, so reading health does not scan every cache entry.
+`cache.publicationWait` uses fixed timing buckets for time waiting to begin a
+serialized publication; `active` is the number of waiting publications. It excludes
+the publication's own compression and disk work. Counters/timings reset on restart;
+entry and byte totals include restored files.
 
 HTTP forecast requests perform no upstream work. Numeric files stream from disk
 with bounded buffers, without a conversion queue or whole-response allocation.
@@ -432,6 +475,12 @@ allocating a body buffer and reject truncated or appended files. Already compres
 slices are sent unchanged. Responses carry `X-Weather-Cache` and the decoded
 response payload's byte SHA-256; grids also carry their converter/source identity.
 HTTP forecasts always report HIT; query-based report/advisory misses can report MISS. No request bodies are logged.
+
+Query responses must still be current after persistence and before HTTP headers
+commit, including optional-persistence fallback compression. File opening and
+background body reads also recheck their source age after disk work. Crossing the
+delivery TTL returns an unavailable response rather than an expired success;
+original source timestamps are never advanced to cover queue or disk delays.
 
 ## Surface analysis and Progs
 

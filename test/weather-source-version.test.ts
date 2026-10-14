@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createUpstream, digest } from '../tools/info-server/upstream';
-import { InvalidForecastSourceError, modelMetadataResource, modelResource } from '../tools/info-server/routes';
+import { InvalidForecastSourceError, modelMetadataResource, modelResource } from '../tools/info-server/weather-resources';
 import { sourceBlocks, sourceRecordKey } from '../tools/info-server/source-records';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createProcessing } from '../tools/info-server/processing';

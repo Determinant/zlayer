@@ -4,8 +4,13 @@ The service keeps explicit product owners. `server.ts` composes their lifetime,
 HTTP admission and shutdown; it does not interpret source records. The NOTAM
 service owns collector transitions, `index.ts` owns local membership, `store.ts`
 owns authenticated generations and admission, and `reconciliation.ts` owns
-diagnostic full-sync history. NMS and graphical TFR persistence share the small
+diagnostic full-sync history. Weather retention, NMS and graphical TFR persistence share the small
 fsync/rename primitive in `state-file.ts`, without sharing quotas or source policy.
+
+`weather-resources.ts` defines weather HTTP endpoint validation and cache resource
+identities/policy; `notams/http.ts` serves bounded local NOTAM responses. HTTP
+routing dispatches URLs and is separate from flight-route planning, which stays
+in the PWA. Workers share framework-free weather and NOTAM parsers with the client.
 
 Shutdown is an owner transition, not an external observation of idle work. The
 [server shutdown contract](README.md#shutdown-and-ownership) closes collection admission before
@@ -147,6 +152,11 @@ and index publication. Percentiles are bucket upper bounds. Event-loop delay use
 a 20 ms sampling resolution; these are process-lifetime diagnostics, not a durable
 metrics database or cgroup memory accounting.
 
+The [cache contract](README.md#source-and-cache-contract) defines product storage
+and eviction counters and publication queue timing. Use those measurements to
+distinguish source-input reuse, released output retention and publication pressure
+before increasing cache capacity.
+
 ## Focused qualification
 
 Run `npm run check`, relevant `node --import tsx --test ...` suites and
@@ -170,7 +180,12 @@ repeated 90-notice rounds and restart, as well as near-timeout queues that must
 yield to index checks. Progs tests exercise retained publication through malformed
 inputs, upstream outages and catalog regression, recovery at the retry deadline,
 same-cycle corrections, and restart. Cache tests cover shared quarantine deadlines
-and delayed rejection racing a newer observation. Real overload, source outages
+and delayed rejection racing a newer observation. Artifact-retention regressions
+cover replacement followed by repeated restarts, the original grace deadline,
+concurrent product publications, failed retention writes, and smaller byte/entry
+limits while owners repair catalogs during startup. Clock-correction tests check
+source reacquisition, rejection of older runs with valid source-check times, bounded cache failures,
+and elapsed-time upstream spacing/backoff. Real overload, source outages
 and unresolved source ambiguity must remain visible; these checks do not promise
 permanent green health or waive the existing release gate.
 

@@ -12,7 +12,7 @@ import { resolveNotamFilingScope, compareNotamContent } from '../tools/info-serv
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { createNotamService } from '../tools/info-server/notams/service';
-import { createNotamResponder } from '../tools/info-server/notams/routes';
+import { createNotamResponder } from '../tools/info-server/notams/http';
 import { aixm } from './fixtures/notams';
 import associationCapture from './fixtures/notams-association-2026-10-09.json';
 import representationCapture from './fixtures/notams-representations-2026-10-09.json';

@@ -96,7 +96,7 @@ export function compareNotamContent(previous: NotamRecord, next: NotamRecord): {
     ? 'contradictory' : 'unproven' : missing ? 'compatible-evidence' : 'equivalent', fields, text };
 }
 
-export function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
+function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
   // A timestamped original-ID cancellation is positive source evidence. An
   // omitted optional canceled field at that same revision is not a resurrection.
   // Cancellation can occur after lastUpdated without advancing the source

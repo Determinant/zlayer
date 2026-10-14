@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { isMetarFeatureCollection, isTafReport } from '@zlayer/contracts';
-import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
+import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './weather-resources.ts';
 import { UpstreamQueue } from './upstream-queue';
 import { retryAfterAt } from './retry-after';
 import { readPirepCache } from './pirep-source';
 import { readGairmetCache } from './gairmet';
-import { ADVISORY_MAX_AGE_MS } from './routes';
+import { ADVISORY_MAX_AGE_MS } from './weather-resources';
 import { WeatherSourceError } from './source-error';
 import { isModelVersion, strongEtag, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 

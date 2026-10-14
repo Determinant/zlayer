@@ -9,7 +9,7 @@ import { isNotamRegionQuery, isNotamRegionSnapshot, isNotamSnapshot, notamQueryK
 import { airportNotamRegion } from '../src/layers/notams/region';
 import { createNotamsClient } from '../src/layers/notams/client';
 import { createNotamService } from '../tools/info-server/notams/service';
-import { createNotamResponder } from '../tools/info-server/notams/routes';
+import { createNotamResponder } from '../tools/info-server/notams/http';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { notice, notamSnapshot, NOTAM_NOW } from './fixtures/notams';
 

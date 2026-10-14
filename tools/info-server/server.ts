@@ -3,7 +3,7 @@ import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { DEFAULT_WEATHER_CACHE_BYTES, WeatherCache } from './cache.ts';
-import { HttpError, routeFor, type PreparedFamily } from './routes.ts';
+import { HttpError, routeFor, type PreparedFamily } from './weather-resources.ts';
 import { createUpstream, type Payload } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
@@ -12,7 +12,7 @@ import { createProgsWarming, PUBLISHED_PROGS } from './progs';
 import { createRadarWarming, PUBLISHED_RADAR } from './radar';
 import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
 import { createNotamService, type NotamOptions } from './notams/service';
-import { createNotamResponder } from './notams/routes';
+import { createNotamResponder } from './notams/http';
 import { createTfrService } from './notams/tfr-service';
 import { createPirepWarming, PUBLISHED_PIREPS } from './pireps';
 import { createAdvisoryWarming } from './advisories';
@@ -33,7 +33,7 @@ function acceptsGzip(value: string | undefined): boolean {
   });
 }
 
-export const INFO_SHUTDOWN_GRACE_MS = 130_000;
+const INFO_SHUTDOWN_GRACE_MS = 130_000;
 export async function createInfoServer(options: { directory: string; maxBytes?: number; maxEntries?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
   shutdownGraceMs?: number;
   notamWait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
@@ -93,7 +93,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
   }
   try {
-    await cache.restore();
+    await cache.restore({ deferPruning: true });
     await warming.restore(); await progs.restore(); await coverage.restore();
     await radar.restore(); await motion.restore(); await advisories.restore(); await pireps.restore();
     await cache.prune();
@@ -176,6 +176,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
             throw new HttpError(503, 'Prepared weather has not been published', 30);
           }
           if (response.destroyed) return;
+          if (route.type !== 'artifact') cache.assertFresh(resource, entry.checkedAt);
           response.writeHead(entry.status, { ...entry.headers, 'Content-Length': length,
             ...(entry.headers['content-type']?.startsWith('application/json') ? { Vary: 'Accept-Encoding' } : {}),
             ...(gzip ? { 'Content-Encoding': 'gzip' } : {}),
@@ -193,6 +194,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       const compressed = json && payload.body.length >= 1024 && gzipAccepted;
       const body = compressed ? await encode(payload.body) : payload.body;
       if (response.destroyed) return;
+      cache.assertFresh(resource, payload.checkedAt);
       response.writeHead(payload.status, { ...payload.headers, ...(json ? { Vary: 'Accept-Encoding' } : {}),
         ...(compressed ? { 'Content-Encoding': 'gzip' } : {}), 'Content-Length': body.length,
         'X-Weather-Checked-At': String(payload.checkedAt), 'X-Weather-Sha256': payload.sha256,

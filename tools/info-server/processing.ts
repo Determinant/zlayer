@@ -9,7 +9,7 @@ import type { AwcAdvisoryProduct, AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest, SourceRecord } from '../../src/layers/weather-awc/grids/native-source';
 import { discover } from './discovery';
 import type { WeatherCache } from './cache';
-import { HttpError, InvalidForecastSourceError, MiB, advisoryResource, advisoryRefreshAge, modelResource, modelMetadataResource, resourceFor, type Resource } from './routes';
+import { HttpError, InvalidForecastSourceError, MiB, advisoryResource, advisoryRefreshAge, modelResource, modelMetadataResource, resourceFor, type Resource } from './weather-resources';
 import { digest, type Payload } from './upstream';
 import { workerError, type ConversionJob, type ConversionRequest, type ConversionResponse } from './worker-protocol';
 import { createServerWorker, workerModule } from './worker-job';

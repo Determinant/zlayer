@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { isPirepSnapshot, isPirepSourceSnapshot, PIREP_MAX_AGE_MS, PIREP_MAX_BYTES } from '@zlayer/contracts';
 import { readPirepCache, PIREP_SOURCE } from '../tools/info-server/pirep-source';
 import { createInfoServer } from '../tools/info-server/server';
-import { resourceFor } from '../tools/info-server/routes';
+import { resourceFor } from '../tools/info-server/weather-resources';
 import { digest } from '../tools/info-server/upstream';
 import { createWeatherController } from '../src/layers/weather-awc/controller';
 import { weatherAwcPreferences } from '../src/layers/weather-awc/preferences';

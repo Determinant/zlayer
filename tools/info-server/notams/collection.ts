@@ -5,7 +5,7 @@ import { compareNotamRevision, mergeNotamRecords } from './revision';
 import { notamCancellationExpiresAt } from './policy';
 
 export const NO_NOTAM_ISSUES: readonly NotamSourceIssue[] = Object.freeze([]);
-export type NotamCollection = { records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
+type NotamCollection = { records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
 
 function unresolved(variants: NotamRecord[], reason: NotamSourceIssue['reason'], prior?: NotamSourceIssue): NotamSourceIssue {
   const locations = [...new Set([...(prior?.locations ?? []), ...variants.flatMap(r => r.locations)])].sort();

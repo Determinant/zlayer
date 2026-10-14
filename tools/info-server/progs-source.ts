@@ -1,6 +1,6 @@
 import { isOlderSurfaceCatalog, parseSurfaceCatalog, SURFACE_CATALOG, type SurfaceChart } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
-import { HttpError, type Resource } from './routes';
+import { HttpError, type Resource } from './weather-resources';
 
 export function progsSourceResource(url: string, maxBytes: number, image = false): Resource {
   return { key: url, url, upstream: 'awc', kind: image ? 'coverage-image' : 'surface',

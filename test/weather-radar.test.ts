@@ -10,7 +10,7 @@ import { digest } from '../tools/info-server/upstream';
 import { createRadarWarming, PUBLISHED_RADAR, radarKey, radarKeys, radarHistory, tdwrUrl } from '../tools/info-server/radar';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createInfoServer } from '../tools/info-server/server';
-import { HttpError, resourceFor } from '../tools/info-server/routes';
+import { HttpError, resourceFor } from '../tools/info-server/weather-resources';
 import { currentRadar, radarTimes } from '../src/layers/weather-awc/radar/time';
 import { forecastStops, HOUR } from '../src/layers/weather-awc/time';
 import { weatherTimeScale, weatherTimeTicks } from '../src/layers/weather-awc/time-scale';

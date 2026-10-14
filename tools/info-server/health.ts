@@ -1,6 +1,6 @@
 import { NOTAM_STALE_MS, RADAR_MAX_AGE, TFR_STALE_MS, type NotamFeedStatus } from '@zlayer/contracts';
 import { NOTAM_FULL_SYNC_MAX_AGE } from './notams/policy';
-import { ADVISORY_MAX_AGE_MS } from './routes';
+import { ADVISORY_MAX_AGE_MS } from './weather-resources';
 
 // The HTTP summary and artifact probe share these freshness policies. Availability
 // still belongs to each product; expected geographic/publication gaps are coverage.
@@ -23,9 +23,9 @@ export type InfoHealthInput = {
   tfrs: Published & { unresolvedRecords: number };
   notamReconciliation: { state: string; error: string | null; nextAttemptAt: number } | null;
 };
-export type SourceHealth = { available: boolean; fresh: boolean; coverage: 'complete' | 'partial' | 'unknown';
+type SourceHealth = { available: boolean; fresh: boolean; coverage: 'complete' | 'partial' | 'unknown';
   checkedAt: number | null; nextAttemptAt: number | null; error: string | null };
-export type HealthProblem = { product: string; reason: string; severity: 'error' | 'warning' };
+type HealthProblem = { product: string; reason: string; severity: 'error' | 'warning' };
 export function assessInfoHealth(input: InfoHealthInput, now: number) {
   const sources: Record<string, SourceHealth> = {}, problems: HealthProblem[] = [], warnings: HealthProblem[] = [];
   function source(name: string, value: Published, maxAge: number, options: { valid?: boolean; coverage?: SourceHealth['coverage'] } = {}) {

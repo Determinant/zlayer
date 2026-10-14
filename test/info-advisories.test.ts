@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createAdvisoryWarming } from '../tools/info-server/advisories';
 import { createUpstream, digest } from '../tools/info-server/upstream';
-import { advisoryResource, HttpError, resourceFor } from '../tools/info-server/routes';
+import { advisoryResource, HttpError, resourceFor } from '../tools/info-server/weather-resources';
 import { createProcessing } from '../tools/info-server/processing';
 import { createInfoServer } from '../tools/info-server/server';
 import { advisorySnapshot, advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
@@ -125,6 +125,11 @@ test('advisory background failures remain visible, independent, coalesced and re
     failing = false; now += 30000; warming.refresh(); await warming.close();
     assert.equal(warming.status.sigmet!.error, null); assert.equal(warming.status.sigmet!.checkedAt, now);
     assert.equal(logs.at(-1), 'Advisory sigmet recovered');
+    now -= 60_000; warming.refresh(); await warming.close();
+    for (const state of Object.values(warming.status)) {
+      assert.equal(state.ready, true, 'clock rollback must not suppress an available advisory source');
+      assert.equal(state.checkedAt, now);
+    }
     warming = create(); now++; await warming.restore();
     assert.equal(warming.status.sigmet!.checkedAt, now - 1, 'restore cannot freshen saved observations');
     shutdown.abort(); const before = calls; warming.refresh(); await warming.close(); assert.equal(calls, before);

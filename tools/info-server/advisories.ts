@@ -1,7 +1,7 @@
 import { isAwcAdvisorySnapshot, type AwcAdvisoryProduct, type AwcAdvisorySnapshot } from '@zlayer/contracts';
 import type { WeatherCache } from './cache';
 import { SourceDiagnostics, sourceFailureCode } from './diagnostics';
-import { advisoryRefreshAge, GAIRMET_SOURCE, resourceFor } from './routes';
+import { advisoryRefreshAge, GAIRMET_SOURCE, resourceFor } from './weather-resources';
 import type { Payload } from './upstream';
 
 const products: AwcAdvisoryProduct[] = ['gairmet', 'sigmet', 'cwa'];
@@ -27,6 +27,7 @@ function interpretation(snapshot: AwcAdvisorySnapshot) {
 export function createAdvisoryWarming(cache: WeatherCache, signal: AbortSignal,
   options: { now?: () => number; log?: (message: string) => void } = {}) {
   const now = options.now ?? Date.now;
+  let clock = now();
   const failures = new SourceDiagnostics(products.length, now, message => options.log?.(`Advisory ${message}`));
   const states = new Map(products.map(product => [product, { publication: undefined as Pick<Payload, 'checkedAt' | 'sha256'> | undefined,
     interpretation: null as ReturnType<typeof interpretation> | null,
@@ -59,6 +60,8 @@ export function createAdvisoryWarming(cache: WeatherCache, signal: AbortSignal,
       for (const product of products) await cache.read(resource(product));
     },
     refresh() {
+      if (now() < clock) for (const state of states.values()) state.nextAttemptAt = 0;
+      clock = now();
       for (const [product, state] of states) {
         if (signal.aborted || state.task || now() < state.nextAttemptAt) continue;
         // Acquisition cadence is independent of the retained publication's age.

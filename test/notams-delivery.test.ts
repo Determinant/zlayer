@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { isNotamAirportSnapshot, isNotamNavaidSnapshot } from '@zlayer/contracts';
-import { createNotamResponder } from '../tools/info-server/notams/routes';
+import { createNotamResponder } from '../tools/info-server/notams/http';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';

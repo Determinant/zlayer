@@ -7,7 +7,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 import { readGairmetCache } from '../tools/info-server/gairmet';
 import { createUpstream, digest } from '../tools/info-server/upstream';
 import { WeatherCache } from '../tools/info-server/cache';
-import { advisoryResource, ADVISORY_MAX_AGE_MS, GAIRMET_SOURCE, resourceFor } from '../tools/info-server/routes';
+import { advisoryResource, ADVISORY_MAX_AGE_MS, GAIRMET_SOURCE, resourceFor } from '../tools/info-server/weather-resources';
 import { createInfoServer } from '../tools/info-server/server';
 import { createAdvisoryWarming } from '../tools/info-server/advisories';
 import { normalizeAdvisories, type SourceCollection, type SourceFeature } from '../src/layers/weather-awc/source';

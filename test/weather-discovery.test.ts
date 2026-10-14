@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AwcGridProduct, AwcGridFrame, AwcGridManifest } from '@zlayer/contracts';
 import { discover, type ReadSource } from '../tools/info-server/discovery';
-import { HttpError, InvalidForecastIndexError, modelResource } from '../tools/info-server/routes';
+import { HttpError, InvalidForecastIndexError, modelResource } from '../tools/info-server/weather-resources';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createProcessing } from '../tools/info-server/processing';
 import { digest, type Payload } from '../tools/info-server/upstream';

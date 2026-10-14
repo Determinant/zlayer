@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { createInfoServer } from '../tools/info-server/server';
-import { resourceFor } from '../tools/info-server/routes';
+import { resourceFor } from '../tools/info-server/weather-resources';
 import { digest } from '../tools/info-server/upstream';
 import type { TfrSnapshot } from '@zlayer/contracts';
 
@@ -117,6 +117,31 @@ test('optional persistence failure still shares one acquisition and compression 
     assert.ok(responses.every(result => result.status === 200 && result.body.equals(responses[0]!.body)));
     assert.equal(calls, 1); assert.equal(compressions, 1); assert.equal(app.cache.stats.entries, 0);
   } finally { finish(); hook.disable(); await app.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+for (const delayed of ['persistence', 'open', 'encoding']) test(`HTTP rejects reports that expire during ${delayed}`, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'weather-delivery-expiry-'));
+  let now = Date.now();
+  const app = await createInfoServer({ directory, maxBytes: delayed === 'encoding' ? 8 : 1024 * 1024,
+    startUpdates: false, spacing: 0, now: () => now, fetch: async () => Response.json({ type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [-122, 37] }, properties: { text: 'weather'.repeat(1000) } }] }) });
+  const advance = () => { now += resourceFor(path).ttl; };
+  const hook = createHook({ init(_id, type) { if (delayed === 'encoding' && type === 'ZLIB') advance(); } });
+  try {
+    const url = await listen(app) + path;
+    if (delayed === 'persistence') {
+      const put = app.cache.put.bind(app.cache);
+      t.mock.method(app.cache, 'put', async (...args: Parameters<typeof put>) => { await put(...args); advance(); });
+    } else if (delayed === 'open') {
+      assert.equal((await read(url)).status, 200);
+      const open = app.cache.open.bind(app.cache);
+      t.mock.method(app.cache, 'open', async (...args: Parameters<typeof open>) => { const saved = await open(...args); advance(); return saved; });
+    }
+    hook.enable();
+    const response = await read(url);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers['x-weather-checked-at'], undefined, 'expired data cannot reach the success response');
+  } finally { hook.disable(); await app.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('slow weather readers are bounded across query/artifact routes while health and NOTAM delivery remain available', { timeout: 30_000 }, async () => {

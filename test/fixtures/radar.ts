@@ -1,7 +1,7 @@
 import { RADAR_LEVELS, type RadarCatalog, type RadarContours } from '@zlayer/contracts';
 import { digest } from '../../tools/info-server/upstream';
 import { PUBLISHED_RADAR, tdwrUrl } from '../../tools/info-server/radar';
-import { resourceFor } from '../../tools/info-server/routes';
+import { resourceFor } from '../../tools/info-server/weather-resources';
 import type { WeatherCache } from '../../tools/info-server/cache';
 import { WEATHER_NOW } from './awc-advisories';
 

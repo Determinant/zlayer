@@ -3,9 +3,10 @@ import test, { type TestContext } from 'node:test';
 import { mkdtemp, open, readdir, rm, writeFile, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { WeatherCache } from '../tools/info-server/cache';
 import { createInfoServer } from '../tools/info-server/server';
-import { HttpError, InvalidForecastSourceError, advisoryResource, modelResource, resourceFor, type Resource } from '../tools/info-server/routes';
+import { HttpError, InvalidForecastSourceError, advisoryResource, modelResource, resourceFor, type Resource } from '../tools/info-server/weather-resources';
 import { createUpstream, digest, type Payload } from '../tools/info-server/upstream';
 import { sourceBlocks, sourceRecordKey } from '../tools/info-server/source-records';
 import { advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
@@ -43,6 +44,23 @@ function gate<T = void>() {
   const promise = new Promise<T>(done => { resolve = done; });
   return { promise, resolve };
 }
+
+test('clock rollback keeps a cached source failure bounded by its original retry delay', async t => {
+  let now = WEATHER_NOW, calls = 0;
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 1024, now: () => now, load: async () => {
+    if (!calls++) throw new HttpError(502, 'Temporary source failure', 5);
+    return { ...payload(), checkedAt: now };
+  } });
+  await cache.restore();
+  const resource = resourceFor(metar);
+  await assert.rejects(cache.get(resource), { status: 502 });
+  now -= 3600_000;
+  await assert.rejects(cache.get(resource), { status: 502 });
+  assert.equal(calls, 1, 'rollback does not bypass the remaining backoff');
+  now += 5000;
+  assert.equal((await cache.get(resource)).checkedAt, now);
+  assert.equal(calls, 2);
+});
 
 test('gateway canonicalizes bounded queries and rejects arbitrary paths, queries and ranges', () => {
   assert.equal(resourceFor('/api/weather/metars.geojson?ids=ksfo,KOAK,KSFO').key,
@@ -213,11 +231,49 @@ test('server applies entry budgets independently of bytes and reports capacity e
   assert.equal(app.cache.has(resources[2]!), true);
   const health = await (await fetch(`http://127.0.0.1:${address.port}/api/weather/healthz`)).json();
   assert.equal(health.notamSourceIssues, null, 'cold collection cannot claim zero source issues');
-  assert.deepEqual(health.cache, { entries: 2, bytes: 14, updating: 0, maxBytes: 1024 * 1024, maxEntries: 2,
+  const { products, publicationWait, capacityTrims, ...totals } = health.cache;
+  assert.deepEqual(totals, { entries: 2, bytes: 14, updating: 0, maxBytes: 1024 * 1024, maxEntries: 2,
     expiredRemovals: 0, capacityEvictions: 1 });
+  assert.equal(capacityTrims, 1);
+  assert.equal(publicationWait.count, 3); assert.equal(publicationWait.active, 0);
+  assert.deepEqual(products.metar, { entries: 2, bytes: 14, loads: 0, loadFailures: 0, expiredRemovals: 0, capacityEvictions: 1 });
   app.cache.retain(resources.map(resource => resource.key));
   await assert.rejects(app.cache.put(resourceFor(metar.replace('KSFO', 'KHWD')), payload()), { status: 507 });
   assert.equal(app.cache.stats.entries, 2, 'an overfull protected set fails without evicting published data');
+});
+
+test('capacity cleanup amortizes eviction while preserving retained and recently read entries', async t => {
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 1024 * 1024, maxEntries: 100, load: async () => assert.fail('No acquisition') });
+  await cache.restore();
+  const resources = Array.from({ length: 120 }, (_, i) => resourceFor(`/api/weather/metars.geojson?ids=K${String(i).padStart(3, '0')}`));
+  cache.retain(resources.slice(0, 5).map(r => r.key));
+  for (const resource of resources.slice(0, 100)) await cache.put(resource, payload());
+  await cache.get(resources[5]!);
+  for (const resource of resources.slice(100)) await cache.put(resource, payload());
+  assert.ok(resources.slice(0, 6).every(r => cache.has(r)), 'retention and a recent read protect the old entries');
+  assert.equal(cache.has(resources[6]!), false);
+  assert.ok(cache.stats.entries <= 100 && cache.stats.entries >= 95);
+  assert.ok(cache.stats.capacityTrims < 10, 'headroom avoids rescanning for every write');
+  assert.equal(cache.stats.products.metar!.entries, cache.stats.entries);
+  assert.equal(cache.stats.products.metar!.bytes, cache.stats.bytes);
+  assert.equal(cache.stats.products.metar!.capacityEvictions, cache.stats.capacityEvictions);
+});
+
+for (const persistenceFails of [false, true]) test(`cache rejects reports that expire while persistence ${persistenceFails ? 'fails' : 'succeeds'}`, async t => {
+  let now = WEATHER_NOW;
+  const resource = resourceFor(metar), value = { ...payload(), checkedAt: now };
+  const cache = new WeatherCache({ directory: await directory(t), maxBytes: 1024, now: () => now, load: async () => value });
+  await cache.restore();
+  const put = cache.put.bind(cache);
+  t.mock.method(cache, 'put', async (...args: Parameters<typeof put>) => {
+    now += resource.ttl;
+    if (persistenceFails) throw new Error('Disk unavailable');
+    await put(...args);
+  });
+  await assert.rejects(cache.get(resource), { status: 503 });
+  assert.equal(await cache.open(resource), undefined);
+  assert.equal(cache.stats.products.metar!.loads, 1);
+  assert.equal(cache.stats.products.metar!.loadFailures, 1);
 });
 
 test('background cache reads reject appended bytes instead of reading an unbounded file', async t => {
@@ -522,6 +578,7 @@ test('report acquisition validates METAR and TAF records without rewriting valid
 
 test('weather honors long numeric and HTTP-date source backoffs across unrelated queries', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+  t.mock.method(performance, 'now', () => Date.now());
   for (const mode of ['seconds', 'date']) {
     let calls = 0;
     const retry = mode === 'seconds' ? '3600' : new Date(Date.now() + 3600_000).toUTCString();

@@ -1,4 +1,4 @@
-import { resourceFor } from '../../tools/info-server/routes';
+import { resourceFor } from '../../tools/info-server/weather-resources';
 import { digest } from '../../tools/info-server/upstream';
 import { forecastResource, terrainResource } from '../../tools/info-server/processing';
 import type { AwcGridProduct } from '@zlayer/contracts';

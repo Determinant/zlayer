@@ -1,8 +1,8 @@
 import { monitorEventLoopDelay, performance } from 'node:perf_hooks';
 
-export type InfoOperation = 'notams.round' | 'notams.bulk' | 'notams.delta' | 'notams.parse' | 'notams.merge' |
+type InfoOperation = 'notams.round' | 'notams.bulk' | 'notams.delta' | 'notams.parse' | 'notams.merge' |
   'notams.persist' | 'notams.index' | 'forecast.clouds' | 'forecast.icing' | 'forecast.winds';
-export type DeliveryKind = 'weather' | 'notams' | 'health' | 'other';
+type DeliveryKind = 'weather' | 'notams' | 'health' | 'other';
 const limits = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 120000, Infinity];
 
 /** Fixed buckets bound memory independently of request count. Percentiles are

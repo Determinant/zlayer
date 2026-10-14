@@ -1,9 +1,9 @@
 import type { SourceRecord } from '../../src/layers/weather-awc/grids/native-source';
-import { MiB, modelResource, type Resource } from './routes';
+import { MiB, modelResource, type Resource } from './weather-resources';
 import { modelVersionKey } from '../../src/layers/weather-awc/grids/source-version';
 
 export const sourceRecordKey = (record: SourceRecord): string => JSON.stringify([record.path, record.start, record.end, record.indexHash, modelVersionKey(record.version)]);
-export type SourceBlock = { start: number; resource: Resource };
+type SourceBlock = { start: number; resource: Resource };
 
 /** Adjacent model records from one immutable index share a bounded cache fill.
  * This is a download plan, not another cache or an upstream proxy endpoint. */

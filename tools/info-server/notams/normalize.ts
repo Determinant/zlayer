@@ -7,8 +7,8 @@ import { notamEndKind, notamTime } from '../../../src/layers/notams/validity';
 const AIXM = 'http://www.aixm.aero/schema/5.1';
 const EVENT = `${AIXM}/event`, MESSAGE = `${AIXM}/message`, FNSE = `${AIXM}/extensions/FAA/FNSE`;
 const GML = 'http://www.opengis.net/gml/3.2', WFS = 'http://www.opengis.net/wfs/2.0';
-export const NOTAM_MAX_RECORDS = 150_000;
-export const NOTAM_XML_MAX_BYTES = 512 * 1024 * 1024;
+const NOTAM_MAX_RECORDS = 150_000;
+const NOTAM_XML_MAX_BYTES = 512 * 1024 * 1024;
 const MAX_MEMBER_BYTES = 2 * 1024 * 1024;
 type Element = { uri: string; name: string; text: string; attributes: SaxesTagNS['attributes']; children: Element[]; parts: (string | Element)[] };
 function descendants(node: Element, uri: string, name: string): Element[] {

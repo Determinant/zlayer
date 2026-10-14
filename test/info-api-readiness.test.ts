@@ -7,7 +7,7 @@ import { RADAR_MOTION_ROOT, type RadarMotionSnapshot, type RadarMotionCatalog } 
 import { checkInfoApi } from '../tools/check-info-api';
 import { modelPath, SOURCE_ROOT, type NativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { digest, type Payload } from '../tools/info-server/upstream';
-import { resourceFor } from '../tools/info-server/routes';
+import { resourceFor } from '../tools/info-server/weather-resources';
 import { fixtureWeather } from './fixtures/info-server';
 import { advisorySnapshot, WEATHER_NOW } from './fixtures/awc-advisories';
 import { radarFixture } from './fixtures/radar';

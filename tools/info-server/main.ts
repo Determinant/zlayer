@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { createInfoServer } from './server.ts';
 import { DEFAULT_WEATHER_CACHE_BYTES, DEFAULT_WEATHER_CACHE_ENTRIES } from './cache.ts';
-import { MiB } from './routes.ts';
+import { MiB } from './weather-resources.ts';
 import { notamOptionsFromEnv } from './notams/service';
 
 function integer(name: string, fallback: number, min: number, max: number): number {

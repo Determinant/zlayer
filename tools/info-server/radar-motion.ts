@@ -1,7 +1,7 @@
 import { isRadarMotionCatalog, isRadarMotionSnapshot, RADAR_HISTORY_MS, RADAR_HISTORY_STEP, RADAR_MAX_AGE,
   RADAR_MOTION_MAX_BYTES, RADAR_MOTION_ROOT, type RadarMotionCatalog, type RadarMotionFile, type RadarMotionScan } from '@zlayer/contracts';
 import { DEFAULT_WEATHER_CACHE_BYTES, type WeatherCache } from './cache';
-import { resourceFor, type Resource } from './routes';
+import { resourceFor, type Resource } from './weather-resources';
 import { digest } from './upstream';
 import { decodeStormTracks } from './radar-motion-decode';
 import { WeatherSourceError } from './source-error';
@@ -21,13 +21,12 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
   let catalog: RadarMotionCatalog | undefined, task: Promise<void> | undefined, next = 0, clock = now(), error: string | undefined;
   let prepared: { identity: string; file: RadarMotionFile } | undefined;
   let newestObservedAt: number | null = null;
-  const scans = new Map<string, RadarMotionScan>(), unavailable = new Set<string>(), retained = new Map<string, number>(), building = new Set<string>();
+  const scans = new Map<string, RadarMotionScan>(), unavailable = new Set<string>(), building = new Set<string>();
   const rejected = new Map<string, { hash: string; code: WeatherSourceError['code'] }>();
   const diagnostics = new SourceDiagnostics(160, now, message => options.log?.(`Radar storm motion ${message}`));
   const protect = () => {
-    for (const [key, until] of retained) if (until <= now()) retained.delete(key);
     cache.retain([catalogResource().key, ...(catalog?.files ?? []).filter(f => cache.has(fileResource(f))).map(f => fileResource(f).key),
-      ...retained.keys(), ...building], 'radar-motion');
+      ...building], 'radar-motion');
   };
   async function publish() {
     const checkedAt = now();
@@ -69,8 +68,8 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
       : files.at(-1)?.sha256 === catalog?.files.at(-1)?.sha256 ? newestObservedAt : null;
     const body = Buffer.from(JSON.stringify(updated));
     await cache.put(catalogResource(), { body, sha256: digest(body), checkedAt, status: 200,
-      headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_MOTION } });
-    for (const file of catalog?.files ?? []) retained.set(fileResource(file).key, checkedAt + 6 * 60_000);
+      headers: { 'content-type': 'application/json', 'x-weather-catalog': PUBLISHED_MOTION } },
+    { resources: catalog?.files.map(fileResource) ?? [], milliseconds: 6 * 60_000 });
     // Pending scans, including tolerated source clock skew, cannot change the
     // freshness of the snapshot readers can actually retrieve.
     catalog = updated; newestObservedAt = publishedObservation; building.clear(); protect();
