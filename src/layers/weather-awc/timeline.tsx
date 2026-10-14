@@ -5,8 +5,7 @@ import { forecastPreparation, forecastStreams, type WeatherController } from './
 import { forecastStops, HOUR } from './time';
 import { TIME_PRODUCTS } from './palette';
 import { preparationLabel } from './grids/presentation';
-import { weatherTimeScale } from './time-scale';
-import { RADAR_HISTORY_STEP } from '@zlayer/contracts';
+import { weatherTimeScale, weatherTimeTicks } from './time-scale';
 import './styles.css';
 
 export function WeatherTimeline({ controller }: { controller: WeatherController }) {
@@ -24,10 +23,7 @@ export function WeatherTimeline({ controller }: { controller: WeatherController 
     const { position, offset, timeAt, width } = weatherTimeScale(start, end, state.now, history.length > 0);
     const previous = stops.filter(time => (time ?? state.now) < selected).pop();
     const next = stops.find(time => (time ?? state.now) > selected);
-    const hours = Array.from({ length: Math.round((end - start) / HOUR) + 1 }, (_, i) => start + i * HOUR);
-    const days = [start, ...hours.filter(time => time > start && time < end && time % (24 * HOUR) === 0)];
-    const minutes = history.length ? Array.from({ length: Math.ceil((Math.min(end, state.now) - start) / RADAR_HISTORY_STEP) }, (_, i) => start + i * RADAR_HISTORY_STEP)
-      .filter(time => time % HOUR !== 0) : [];
+    const { hours, days, minutes } = weatherTimeTicks(start, end, state.now, history.length > 0);
     const products = [...new Set(stops.flatMap(time => time === null ? [] : productsAt.get(time) ?? []))];
     return { productsAt, history, stops, start, end, position, offset, timeAt, width, previous, next, hours, days, minutes, products };
   }, [changes, state.now, state.selectedTime]);

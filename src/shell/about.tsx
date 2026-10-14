@@ -45,6 +45,7 @@ export function AboutLauncher() {
           <h3>A modern, lightweight EFB. <span>Layer by layer.</span></h3>
           <p>ZLayer is an electronic flight bag built around two ideas: your tools
             should travel with you, and every feature should have room to grow.</p>
+          <p><a href="/about/" target="_blank" rel="noopener noreferrer">Features and getting started</a></p>
         </div>
 
         <section className="about-principle" aria-labelledby="about-portability">

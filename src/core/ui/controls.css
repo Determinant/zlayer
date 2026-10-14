@@ -46,9 +46,10 @@ textarea.ui-input { resize: vertical; }
 }
 .ui-button:where(:disabled), .ui-input:where(:disabled), .ui-switch:where(:disabled) { opacity: .45; cursor: default; }
 
-.ui-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: var(--overlay-ffffff-a60); }
-.ui-tabs > .ui-button { flex: 1; font-weight: 700; }
-.ui-tabs > .ui-button--slim { padding-inline: 4px; }
+.ui-tabs, .ui-tab-row { display: flex; gap: 4px; padding: 3px; border-radius: 7px; background: var(--overlay-ffffff-a60); }
+.ui-tabs--rows { display: grid; padding: 0; background: none; }
+:is(.ui-tabs, .ui-tab-row) > .ui-button { flex: 1; font-weight: 700; }
+:is(.ui-tabs, .ui-tab-row) > .ui-button--slim { padding-inline: 4px; }
 .ui-tabs--scrollable { flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; border-inline: 2px solid transparent; }
 .ui-tabs--scrollable > .ui-button { flex: 0 0 auto; white-space: nowrap; }
 .ui-tabs--scrollable[data-overflow-start="true"] { border-left: 2px solid var(--text-muted); }

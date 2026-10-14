@@ -65,6 +65,38 @@ for (const product of ['metar', 'taf'] as const) {
     assert.ok(restored.get(lastAccepted)?.report, 'recent complete reports survive optional persistence');
   });
 
+  test(`${product} commits nearby admission atomically and retries after an oversized batch`, async () => {
+    let time = initial, oversized = false, revised = false;
+    const nearbyReport = (id: string, raw: string) => ({ ...make(id, raw), ...(product === 'taf' ? { lat: 37, lon: -122 } : {}) });
+    const large = (id: string) => nearbyReport(id, 'x'.repeat(60_000));
+    const client = create({ now: () => time, fetch: async input => {
+      const id = new URL(String(input)).searchParams.get('ids');
+      return Response.json(envelope(id ? [large(id)] : [nearbyReport('KAAA', revised ? 'REVISED' : 'FIRST'),
+        oversized ? large('KBBB') : nearbyReport('KBBB', revised ? 'REVISED' : 'FIRST')]));
+    } });
+    await client.refreshNearby([-122, 37], signal);
+    const first = client.get('KAAA'), second = client.get('KBBB');
+    assert.ok(first?.report && second?.report);
+    let full = false;
+    for (let i = 0; i < 160; i++) {
+      const id = `K${String(i).padStart(3, '0')}`;
+      await refresh(client, id);
+      if (!client.get(id)?.report) { full = true; break; }
+    }
+    assert.ok(full, 'reach aggregate capacity with individually admissible reports');
+    time += 5 * 60_000; oversized = true; revised = true;
+    await client.refreshNearby([-122, 37], signal);
+    assert.match(client.nearbyStatus([-122, 37])?.error ?? '', /cache exceeds/);
+    assert.equal(client.get('KAAA'), first, 'earlier reports and freshness must not partially commit');
+    assert.equal(client.get('KBBB'), second);
+    assert.equal(client.nearbyStatus([-122, 37])?.checkedAt, initial);
+    time += 5 * 60_000; oversized = false;
+    await client.refreshNearby([-122, 37], signal);
+    assert.equal(client.nearbyStatus([-122, 37])?.error, undefined);
+    assert.equal(client.get('KAAA')?.checkedAt, time);
+    assert.equal(client.get('KBBB')?.checkedAt, time);
+  });
+
   test(`${product} backs off denied saves and retries the latest changed reports after recovery and clock rollback`, async () => {
     let time = initial, writes = 0, denied = true, raw = 'FIRST', saved = '';
     const client = create({ now: () => time, fetch: async () => Response.json(envelope([make('KAAA', raw)])),

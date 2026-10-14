@@ -10,12 +10,12 @@ remain usable independently of the viewer plugin’s enablement.
 to carry the same document target and edition metadata into the viewer.
 
 The airport picker, exact-page PDF.js viewer, whole-file document cache and regional
-downloads are implemented. [Offline storage](../../../docs/features/offline-storage.md) owns the current
+downloads are implemented. [Offline storage](../../../docs/features/offline-storage.md) defines the current
 download, quota, integrity and readiness contract. Route-corridor selection and atomic
 cycle migration below remain planned.
 
-Offline is a product capability, not an accidental HTTP-cache hit. Browsing an opened
-plate and verifying every dependency of a saved region are different promises.
+Caching an opened plate covers that document only. Mark a region ready for
+offline use only after verifying every required file.
 
 The optional [NOTAM plugin](../notams/README.md#plate-notam-bar) contributes an
 expandable, scrollable red bar and procedure-row counts. Workspace composition
@@ -37,7 +37,7 @@ the catalog supplies the missing pin. No newer edition is silently substituted.
 While the pinned catalog loads, the bar reports loading. A failed fetch exposes
 **Retry plate catalog** and retries on reconnect or reader reactivation, without
 reopening the PDF. Obsolete loads cannot replace the displayed selection's context.
-The NOTAM guide owns parsing, applicability and source freshness. Expanding or
+The NOTAM guide describes parsing, applicability and source freshness. Expanding or
 refreshing notices leaves the reader, PDF worker and view state mounted.
 
 ## Contents

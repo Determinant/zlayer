@@ -49,6 +49,9 @@ omits zero-area rings. National contours then remove straight-line redundancy an
 simplify within **0.1 native cell** (0.001°, at most about 112 m). Each replacement
 is checked against all thresholds, islands and holes: it cannot cross another
 edge or sweep over another contour vertex. Rings are never dropped or merged.
+The [geometry regressions](../geometry.md#regression-obligations) exercise generated
+fields at every published threshold, preserving ring orientation, closure, hole
+containment and the displacement bound in addition to the independent D3 reference.
 The tolerance changes interpolated edges slightly; it does not resample the
 mosaic, discard small echoes or infer new reflectivity. This reduction happens
 once on the server. Publication marker `noaa-radar-contours-v2` prevents reuse of
@@ -177,7 +180,7 @@ These explain unavailable motion without equating every missing track product
 with a radar outage. `newestObservedAt` describes the latest published snapshot,
 independently of collection time; pending future-dated scans cannot override its
 freshness, and retained old observations keep their original time. The server's
-[maintenance guide](../../../../tools/info-server/maintenance.md) owns diagnostic
+[maintenance guide](../../../../tools/info-server/maintenance.md) describes diagnostic
 limits and operational readiness.
 
 National motion snapshots retain individual station times and source URL/hash.
@@ -262,7 +265,7 @@ source recreation and stale-completion rejection. Browser regressions
 exercise combined and historical rendering, wrapped terminal coverage without
 new file requests, source-free browser requests, style recovery, saved catalog/file
 restoration after a full app reload with the origin disconnected, forecast
-hiding/expiration and six slim tabs at phone sizes.
+hiding/expiration and the shared product tabs at phone sizes.
 [Fixture provenance](../../../../test/fixtures/radar/README.md) records the captures.
 `test/weather-radar-contours.test.ts` compares rings and hole ownership with D3,
 including index-bucket boundaries, small echoes/holes, adjacent thresholds and the
@@ -271,12 +274,11 @@ same-row point erroneously claimed by D3's repeated-vertex containment check.
 
 `test/weather-radar-motion.test.ts` adds captured STI decoding, empty/new-cell
 handling, identity rejection, historical alignment, unchanged publication and
-restoration cases. These cases belong to the regular Node suite; their presence
-does not establish a current pass. The browser suite covers reflectivity, history
-and layer ordering; storm-motion browser rendering and physical-device qualification
-remain separate coverage gaps.
+restoration cases in the regular Node suite. The browser suite covers reflectivity,
+history and layer ordering. Storm-motion browser rendering and physical-device
+qualification still need coverage.
 
-### Recorded pipeline comparisons — September 25, 2026
+### Recorded pipeline comparisons, September 25, 2026
 
 These two desktop comparisons explain the renderer and contour choices above.
 They measure different source scans and stages; they are not mobile budgets.

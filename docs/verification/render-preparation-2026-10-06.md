@@ -1,4 +1,4 @@
-# Rendering preparation measurements — October 6, 2026
+# Rendering preparation measurements, October 6, 2026
 
 [Documentation](../README.md) / Verification
 

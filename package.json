@@ -23,9 +23,9 @@
     "test:info:advisories": "node --import=tsx --import=./test/helpers/assets.ts --test test/weather-advisory-*.test.ts test/info-advisories.test.ts test/info-health.test.ts test/info-api-readiness.test.ts test/gairmet-cache.test.ts",
     "test:browser": "playwright test",
     "test:browser:session": "node tools/browser-session.mjs",
-    "test:smoke": "playwright test --grep @smoke",
+    "test:smoke": "playwright test --config playwright.smoke.config.ts",
     "test:graphics": "playwright test --config playwright.graphics.config.ts",
-    "verify": "npm run check && npm test && npm run build",
+    "verify": "npm run check && npm test && npm run build && npm run info:build",
     "verify:full": "node tools/verify-full.mjs",
     "theme:generate": "node --import=tsx tools/generate-theme.ts",
     "check:theme": "node --import=tsx tools/generate-theme.ts --check"

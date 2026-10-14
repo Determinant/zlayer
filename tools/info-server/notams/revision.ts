@@ -5,7 +5,8 @@ import { recordWithRevision } from './normalize';
 import { compareNoticeText, sharedLocalNotice, translationContent, translationsByType, type NoticeComparison } from '../../../src/layers/notams/notice-comparison';
 import { notamEndKind, notamTime } from '../../../src/layers/notams/validity';
 import { notamCancellationExpiresAt } from './policy';
-import { parseNotamSchedule, equalNotamSchedules, notamBodySchedule, notamScheduleFits } from '../../../src/layers/notams/schedule';
+import { parseNotamSchedule, equalNotamSchedules, notamBodySchedule, notamScheduleFits, conflictingNotamSchedules } from '../../../src/layers/notams/schedule';
+import { sharedIcaoSchedule } from '../../../src/layers/notams/notice-evidence';
 
 const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
 /** NMS modification time is the revision clock, preserving sub-millisecond
@@ -24,10 +25,10 @@ function equivalentSchedule(previous: NotamRecord, next: NotamRecord): string | 
   if (equalNotamSchedules(before, after)) return previous.schedule;
   // Equality of meaning needs no notice-specific exception. Supplementing an
   // omission does: both records must be witnessed by the same complete notice.
-  if (previous.classification !== 'DOMESTIC' || next.classification !== 'DOMESTIC' || !sharedLocalNotice(previous, next)) return undefined;
   const body = previous.text.replace(/\s+/g, ' ').trim();
-  if (body !== next.text.replace(/\s+/g, ' ').trim()) return undefined;
-  const witness = notamBodySchedule(body);
+  const native = previous.classification === 'DOMESTIC' && next.classification === 'DOMESTIC' &&
+    sharedLocalNotice(previous, next) && body === next.text.replace(/\s+/g, ' ').trim();
+  const witness = native ? notamBodySchedule(body) : sharedIcaoSchedule(previous, next);
   if (!witness || !notamScheduleFits(before, witness) || !notamScheduleFits(after, witness)) return undefined;
   // Preserve the most complete original field. Never synthesize a schedule or
   // replace retained hours with a later sparse rendering at the same revision.
@@ -89,7 +90,7 @@ export function compareNotamContent(previous: NotamRecord, next: NotamRecord): {
     beforeTypes.size !== afterTypes.size || [...beforeTypes].some(type => !afterTypes.has(type)) ||
     (beforeSchedule.kind === 'empty') !== (afterSchedule.kind === 'empty') ||
     beforeSchedule.kind === 'weekly' && afterSchedule.kind === 'weekly' && !!beforeSchedule.window !== !!afterSchedule.window;
-  const knownScheduleDifference = fields.includes('schedule') && beforeSchedule.kind === 'weekly' && afterSchedule.kind === 'weekly';
+  const knownScheduleDifference = fields.includes('schedule') && conflictingNotamSchedules(beforeSchedule, afterSchedule);
   return { outcome: fields.length ? fields.some(field => field !== 'text' && field !== 'translations' && field !== 'schedule') ||
     knownScheduleDifference || text.failure === 'different-content'
     ? 'contradictory' : 'unproven' : missing ? 'compatible-evidence' : 'equivalent', fields, text };

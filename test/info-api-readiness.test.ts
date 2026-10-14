@@ -58,21 +58,26 @@ test('deployment readiness requires current weather as well as authenticated sav
   responses.set(`/api/weather/radar/motion/${hash}.json`, { body: motionBody, headers: {} });
   const ready = { ready: true };
   const weatherSources = ['clouds', 'icing', 'winds', 'progs.analysis', 'progs.forecast', 'progs.coverage', 'radar', 'radarMotion',
-    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa'];
+    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa', 'pireps'];
   json('/api/weather/healthz', { ok: true, forecasts: { clouds: ready, icing: ready, winds: ready },
     progs: { analysis: ready, forecast: ready }, progsCoverage: ready, radar: ready, radarMotion: ready,
     readiness: { sources: Object.fromEntries(weatherSources.map(name => [name,
       { available: true, fresh: true, coverage: ['radar', 'radarMotion', 'progs.coverage'].includes(name) ? 'partial' : 'complete', error: null }])) } });
   for (const product of ['gairmet', 'sigmet', 'cwa'] as const) json(`/api/weather/advisories/${product}.json`, advisorySnapshot(product));
   json('/api/weather/metars.geojson?ids=KSFO', { type: 'FeatureCollection', features: [] });
+  json('/api/weather/pireps.json', { schemaVersion: 2, checkedAt: WEATHER_NOW, source: 'AWC fixture', records: [] });
   json('/api/weather/tafs.json?ids=KSFO', []);
   json('/api/notams/tfrs', { schemaVersion: 1, source: 'FAA-TFR', checkedAt: WEATHER_NOW, notices: [], issues: [] });
   json('/api/notams/airports?faaId=SFO&icaoId=KSFO', { error: 'disabled' });
   json('/api/notams/navaids?navaidId=SAU', { error: 'disabled' });
   json('/api/notams/regions?artccId=ZOA', { error: 'disabled' });
 
-  type Edit = { path: string; update: (value: any) => void; error: RegExp };
+  type Edit = { path: string; update: (value: any) => void; error?: RegExp; warnings?: string[] };
   const edits: Edit[] = [
+    { path: '/api/weather/pireps.json', update: v => { v.records = ['<AircraftReport/>']; }, warnings: [] },
+    { path: '/api/weather/pireps.json', update: v => { v.records = ['<AircraftReport><quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags></AircraftReport>']; }, warnings: [] },
+    { path: '/api/weather/pireps.json', update: v => { v.records = [null]; }, error: /Invalid aircraft-report source snapshot/ },
+    { path: '/api/weather/pireps.json', update: v => { v.checkedAt -= 11 * MINUTE; }, error: /source check: stale/ },
     { path: '/api/weather/healthz', update: v => { delete v.readiness; }, error: /Weather readiness status missing/ },
     ...weatherSources.flatMap(name => [
       { path: '/api/weather/healthz', update: (v: any) => { delete v.readiness.sources[name]; }, error: /readiness status missing/ },
@@ -110,7 +115,7 @@ test('deployment readiness requires current weather as well as authenticated sav
     { path: '/api/weather/radar/motion/latest.json', update: v => { v.files = []; }, error: /Current storm motion snapshot is missing/ },
   ];
   const cases = [{ name: 'current weather, including a quiet storm scan', edit: undefined },
-    ...edits.map((edit, index) => ({ name: `${index}: ${edit.path} ${edit.error.source}`, edit }))];
+    ...edits.map((edit, index) => ({ name: `${index}: ${edit.path} ${edit.error?.source ?? 'visible source warning'}`, edit }))];
   for (const { name, edit } of cases) await t.test(name, async t => {
     t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
     t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
@@ -125,9 +130,12 @@ test('deployment readiness requires current weather as well as authenticated sav
       return new Response(Uint8Array.from(body), { status: /^\/api\/notams\/(airports|navaids|regions)/.test(path) ? 503 : 200,
         headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
     });
-    if (edit) await assert.rejects(checkInfoApi('https://info.test'), edit.error);
-    else assert.ok((await checkInfoApi('https://info.test')).reads > 25);
-    if (edit?.path === '/api/weather/healthz') await assert.rejects(checkInfoApi('https://info.test', 'production',
+    if (edit?.error) await assert.rejects(checkInfoApi('https://info.test'), edit.error);
+    else {
+      const result = await checkInfoApi('https://info.test'); assert.ok(result.reads > 25);
+      assert.deepEqual(result.warnings, edit?.warnings ?? []);
+    }
+    if (edit?.path === '/api/weather/healthz' && edit.error) await assert.rejects(checkInfoApi('https://info.test', 'production',
       { allowOverdueFullSync: true, maxUnresolvedNotams: 1 }), edit.error, 'NOTAM exceptions cannot waive weather failures');
   });
   await t.test('recent collection cannot freshen old storm observations', async t => {

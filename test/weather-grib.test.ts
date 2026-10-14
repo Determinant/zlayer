@@ -41,3 +41,22 @@ test('NOAA indexes pin source cycles and ordered exact byte ranges', () => {
   assert.equal(hrrr.origin, 'https://storage.googleapis.com');
   assert.equal(hrrr.search, '?alt=media');
 });
+
+test('GRIB longitude fields reject invalid metadata before normalization and accept both seam endpoints', () => {
+  const item = reference.fields[0]!, bytes = readFileSync(new URL(`./fixtures/awc-grib/${item.name}`, import.meta.url));
+  for (const offset of [42, 51]) for (const encoded of [360_000_001, 1_000_000_000, 0x80000000, 0xffffffff]) {
+    const raw = Uint8Array.from(bytes).buffer, view = new DataView(raw);
+    for (let i = 16; i < raw.byteLength - 4; i += view.getUint32(i)) if (view.getUint8(i + 4) === 3) {
+      view.setUint32(i + offset, encoded); break;
+    }
+    assert.throws(() => decodeGrib(raw, item.identity), /longitude bounds/);
+  }
+  for (const encoded of [0, 180_000_000, 360_000_000]) {
+    const raw = Uint8Array.from(bytes).buffer, view = new DataView(raw);
+    for (let i = 16; i < raw.byteLength - 4; i += view.getUint32(i)) if (view.getUint8(i + 4) === 3) {
+      view.setUint32(i + 42, encoded); view.setUint32(i + 51, encoded); break;
+    }
+    const { grid } = decodeGrib(raw, item.identity), expected = encoded === 180_000_000 ? -180 : 0;
+    assert.equal(grid.longitude, expected); assert.equal(grid.meridian, expected);
+  }
+});

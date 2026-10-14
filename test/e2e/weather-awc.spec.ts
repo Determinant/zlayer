@@ -289,12 +289,14 @@ test('AWC toolbox sits above terrain, keeps filters out of Map Display, and snap
   expect((await terrainTab.boundingBox())!.y - (await awcTab.boundingBox())!.y).toBe(48);
   await expect(page.getByRole('combobox', { name: 'Forecast overlay', exact: true })).toHaveCount(0);
   const tabs = page.getByRole('tablist', { name: 'AWC weather products' });
-  await expect(tabs.getByRole('tab')).toHaveText(['Advis.', 'Progs', 'Radar', 'Cloud', 'Icing', 'Winds']);
+  await expect(tabs.getByRole('tab')).toHaveText(['Advis.', 'Progs', 'Radar', 'PIREP', 'Cloud', 'Icing', 'Winds']);
   await tabs.getByRole('tab', { name: 'Advisories', exact: true }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tabpanel', { name: 'Progs', exact: true })).toBeVisible();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tabpanel', { name: 'Radar', exact: true })).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tabpanel', { name: 'PIREPs', exact: true })).toBeVisible();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tabpanel', { name: 'Cloud', exact: true })).toBeVisible();
   await page.keyboard.press('End');

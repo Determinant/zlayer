@@ -89,7 +89,9 @@ test('header representations, outlooks, shortened validity and midnight/month ro
   ];
   for (const change of variants) {
     const feature = structuredClone(missing); change(feature.properties);
-    const result = normalize(feature);
+    // Calendar-rollover examples carry a corresponding source acquisition date.
+    const result = normalizeAdvisories('sigmet', [{ type: 'FeatureCollection', features: [feature] }],
+      Date.parse(feature.properties.validTimeFrom), capture.source);
     assert.equal(result.issues, undefined, String(change)); assert.equal(result.advisories[0]!.hazard, 'CONVECTIVE');
   }
 });

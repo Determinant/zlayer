@@ -9,7 +9,7 @@ import type { AwcAdvisoryProduct, AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest, SourceRecord } from '../../src/layers/weather-awc/grids/native-source';
 import { discover } from './discovery';
 import type { WeatherCache } from './cache';
-import { HttpError, MiB, advisoryResource, advisoryRefreshAge, modelResource, resourceFor, type Resource } from './routes';
+import { HttpError, InvalidForecastSourceError, MiB, advisoryResource, advisoryRefreshAge, modelResource, modelMetadataResource, resourceFor, type Resource } from './routes';
 import { digest, type Payload } from './upstream';
 import { workerError, type ConversionJob, type ConversionRequest, type ConversionResponse } from './worker-protocol';
 import { createServerWorker, workerModule } from './worker-job';
@@ -41,34 +41,42 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   // Composite responses inherit their oldest dependency's check time. Refresh
   // aging inputs before assembling them, leaving time to finish within the TTL.
   const readMetadata = (resource: Resource, signal: AbortSignal) => cache.get(resource, resource.ttl / 2, signal);
-  const read = async (path: string, signal: AbortSignal) => { signal.throwIfAborted(); return readMetadata(modelResource(path), signal); };
-  type ReadRecord = (record: SourceRecord, signal: AbortSignal) => Promise<Buffer>;
+  const read = async (path: string, signal: AbortSignal) => { signal.throwIfAborted();
+    return readMetadata(path.endsWith('.idx') ? modelResource(path) : modelMetadataResource(path), signal); };
   const plans = new WeakMap<NativeManifest, ReturnType<typeof sourceBlocks>>();
-  const reader = (manifest: NativeManifest): ReadRecord => {
+  const reader = (manifest: NativeManifest) => {
     let plan = plans.get(manifest);
     if (!plan) { plan = sourceBlocks(manifest.frames.flatMap(frame => Object.values(frame.records))); plans.set(manifest, plan); }
     // One admitted conversion owns these buffers. Multiple fields in a block
     // share its authenticated read, including hits in the on-disk source cache.
     const blocks = new Map<string, Promise<Payload>>();
-    const readRecord: ReadRecord = async (record, signal) => {
+    const inputs = new Map<string, { resource: Resource; payload: Payload }>();
+    const rejectRecord = async (record: SourceRecord, message: string) => {
+      const input = inputs.get(sourceRecordKey(record));
+      const error = new InvalidForecastSourceError(message);
+      if (input) await cache.reject(input.resource, input.payload, error);
+      return error;
+    };
+    const readRecord = async (record: SourceRecord, signal: AbortSignal) => {
       signal.throwIfAborted();
       const block = plan.get(sourceRecordKey(record));
-      const resource = block?.resource ?? modelResource(record.path, `bytes=${record.start}-${record.end ?? ''}`, record.indexHash);
+      const resource = block?.resource ?? modelResource(record.path, `bytes=${record.start}-${record.end ?? ''}`, record.indexHash, record.version);
       let pending = blocks.get(resource.key);
       if (!pending) { pending = cache.get(resource, undefined, signal); blocks.set(resource.key, pending); }
       const payload = await pending;
+      inputs.set(sourceRecordKey(record), { resource, payload });
       const start = record.start - (block?.start ?? record.start);
       const body = payload.body.subarray(start, record.end === undefined ? undefined : start + record.end - record.start + 1);
       if (body.length < 20 || body.toString('ascii', 0, 4) !== 'GRIB' || body.readBigUInt64BE(8) !== BigInt(body.length) ||
-        body.toString('ascii', body.length - 4) !== '7777') throw new Error('Source record does not match its index range');
+        body.toString('ascii', body.length - 4) !== '7777') throw await rejectRecord(record, 'Source record does not match its index range');
       return body;
     };
-    return readRecord;
+    return { readRecord, rejectRecord };
   };
   async function convert(job: ConversionJob, signal: AbortSignal, manifest: NativeManifest): Promise<ArrayBuffer> {
     return prepare(signal, async () => {
       signal.throwIfAborted();
-      const readRecord = reader(manifest);
+      const { readRecord, rejectRecord } = reader(manifest);
       const slot = slots.find(slot => !slot.busy)!;
       slot.busy = true;
       const timeout = new AbortController(), work = AbortSignal.any([signal, timeout.signal]);
@@ -105,7 +113,12 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
                 const body = Uint8Array.from(payload).buffer;
                 current.postMessage({ type: 'read', id: value.id, body } satisfies ConversionRequest, [body]);
               }, error => fail(error instanceof Error ? error : new Error(String(error))));
-            } else if (value.type === 'error') fail(workerError(value.error));
+            } else if (value.type === 'error') {
+              if (value.error.code === 'invalid-source' && value.error.record) {
+                // Finish quarantine before the failed generation can be retried.
+                void rejectRecord(value.error.record, value.error.message).then(fail, fail);
+              } else fail(workerError(value.error));
+            }
             else { cleanup(); resolve(value.value); }
           };
           current.on('message', message); current.once('error', fail); current.once('messageerror', fail); current.once('exit', exited);

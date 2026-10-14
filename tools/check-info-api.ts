@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, isRadarCatalog,
-  isRadarContours, isRadarMotionCatalog, isRadarMotionSnapshot, isAwcAdvisorySnapshot,
+  isPirepSourceSnapshot, isRadarContours, isRadarMotionCatalog, isRadarMotionSnapshot, isAwcAdvisorySnapshot,
   isNotamFeedStatus, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamRegionSnapshot, isMetarFeatureCollection, isTafReport, isTfrSnapshot, TFR_STALE_MS, RADAR_MAX_AGE } from '@zlayer/contracts';
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
@@ -57,7 +57,7 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
   }
   assert.ok(isRecord(health.readiness) && isRecord(health.readiness.sources), 'Weather readiness status missing');
   for (const name of ['clouds', 'icing', 'winds', 'progs.analysis', 'progs.forecast', 'progs.coverage', 'radar', 'radarMotion',
-    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa']) {
+    'advisory.gairmet', 'advisory.sigmet', 'advisory.cwa', 'pireps']) {
     const state: unknown = health.readiness.sources[name];
     assert.ok(isRecord(state), `${name}: readiness status missing`);
     assert.equal(state.available, true, `${name}: unavailable`);
@@ -114,6 +114,9 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     assert.equal(snapshot.issues?.length ?? 0, 0, `${product}: incomplete advisory coverage`);
     fresh(snapshot.checkedAt, INFO_FRESHNESS.advisory, `${product} source check`);
   }
+  const pireps = (await read('/api/weather/pireps.json')).json();
+  assert.ok(isPirepSourceSnapshot(pireps), 'Invalid aircraft-report source snapshot');
+  fresh(pireps.checkedAt, INFO_FRESHNESS.advisory, 'PIREPs source check');
   const reports = (await read('/api/weather/metars.geojson?ids=KSFO')).json(); assert.ok(isMetarFeatureCollection(reports));
   const tafs = (await read('/api/weather/tafs.json?ids=KSFO')).json(); assert.ok(Array.isArray(tafs) && tafs.every(isTafReport));
   const tfrs = (await read('/api/notams/tfrs')).json();

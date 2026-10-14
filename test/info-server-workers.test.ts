@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { workerFailure, workerError } from '../tools/info-server/worker-protocol';
+import { workerFailure, workerError, WorkerInputError } from '../tools/info-server/worker-protocol';
 import { WeatherSourceError } from '../tools/info-server/source-error';
 import { workerJob, workerModule } from '../tools/info-server/worker-job';
+import { parseSurfaceCatalog } from '../src/layers/weather-awc/progs/source';
+import { surfaceCatalog, surfaceChart } from './fixtures/wpc';
+import { WEATHER_NOW } from './fixtures/awc-advisories';
 
 test('worker failures preserve explicit source classifications without inferring them from messages', () => {
   for (const cause of [new Error('future source failed'), new WeatherSourceError('bad bytes'), new WeatherSourceError('ahead', 'future-source')]) {
@@ -44,4 +48,21 @@ test('one-shot workers send input, propagate typed failures, and release cancell
     parentPort.once('message', () => { throw new Error('Worker crashed'); });
   `));
   await assert.rejects(workerJob(crashed, {}, new AbortController().signal), { message: 'Worker crashed' });
+});
+
+test('surface workers identify malformed source members without quarantining local preparation failures', async () => {
+  const worker = new URL('../tools/info-server/progs-worker.ts', import.meta.url), signal = new AbortController().signal;
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  const text = JSON.stringify(surfaceChart(chart.file));
+  const job = { chart, text, checkedAt: WEATHER_NOW, sourceHash: createHash('sha256').update(text).digest('hex') };
+  const invalid = surfaceChart(chart.file);
+  invalid.features.find(f => f.properties.type === 1)!.geometry = { type: 'LineString', coordinates: [[0, 0], [0, 91]] };
+  await assert.rejects(workerJob(worker, { product: 'analysis', jobs: [job, { ...job, text: JSON.stringify(invalid) }, { ...job, text: '{' }] }, signal),
+    error => error instanceof WorkerInputError && JSON.stringify(error.inputIndices) === '[1,2]' &&
+      error.message.includes(chart.file) && error.message.includes('feature'));
+  // A bad internally supplied hash fails canonical output validation. The
+  // unchanged valid input document is not implicated by that processing error.
+  await assert.rejects(workerJob(worker, { product: 'analysis', jobs: [{ ...job, sourceHash: 'invalid' }] }, signal),
+    error => error instanceof Error && !(error instanceof WorkerInputError) &&
+      error.message.includes('Surface preparation failed') && error.message.includes(chart.file));
 });

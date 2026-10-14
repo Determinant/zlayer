@@ -3,15 +3,15 @@
 [Documentation](../../../docs/README.md) / Plugins / weather-awc
 
 The independent `weather-awc` plugin supplies G-AIRMETs, domestic/convective SIGMETs,
-CWAs and freezing contours, CONUS cloud/freezing/icing/wind/temperature forecasts,
+CWAs and freezing contours, [PIREPs/AIREPs](pireps/README.md), CONUS cloud/freezing/icing/wind/temperature forecasts,
 WPC pressure charts and NDFD weather coverage through [Progs](progs/README.md), and current/recent
 [NEXRAD/TDWR radar](radar/README.md) with optional storm-motion tracks.
 Map weather starts off. METAR/TAF and navigation remain independent plugins.
 The parent map attachment uses core's `LayerScope` for independent child disposal,
 advisory resources and controller detachment. It revokes parent updates before
 cleanup; a child disposer that throws cannot skip the other products or controller.
-The [grid guide](grids/README.md) owns numeric meanings, preparation and offline
-budgets; the [winds guide](grids/winds.md) owns vertical interpolation and barbs.
+The [grid guide](grids/README.md) describes numeric meanings, preparation and offline
+budgets; the [winds guide](grids/winds.md) describes vertical interpolation and barbs.
 The [info server](../../../tools/info-server/README.md) owns source acquisition
 and shared prepared data.
 
@@ -20,8 +20,8 @@ separate prepared JSON decoding/validation from MapLibre source submission. The
 worker-copy experiment remains benchmark-only: copying parsed coordinate graphs
 added latency and transient ownership, and left the larger source-submission
 pause unchanged. Production keeps checksum validation and cache publication in
-their existing owner. This is a measured limit, not a claim that large scans fit
-the interaction budget.
+their existing owner. These measurements identify the copying cost; they leave
+large scans' compliance with the interaction budget unverified.
 
 `controller.ts` owns shared preferences, selection and display receipts.
 `product-refresh.ts` owns advisory/Progs restoration and product refresh demand;
@@ -48,8 +48,8 @@ neither a late completion nor an error event may claim that old geometry is show
 
 ## Display and selection
 
-The left-edge toolbox has six core content tabs in two rows: **Advis.**,
-**Progs**, **Radar**, then **Cloud**, **Icing**, and **Winds**, sharing one master switch and timeline. Switching tabs or
+The left-edge toolbox has seven core content tabs in two rows: **Advis.**,
+**Progs**, **Radar**, **PIREP**, then **Cloud**, **Icing**, and **Winds**, sharing one master switch and timeline. Switching tabs or
 stowing the toolbox preserves displayed weather, filters, time and altitudes.
 An enabled-product dot is separate from the selected control tab. Progs and wind
 barbs are independent overlays. Cloud and Icing choose one shaded field; temperature
@@ -60,8 +60,9 @@ behavior. Product-specific layouts, discrete forecast/altitude sliders, legends 
 map rendering stay in this plugin. The timeline and tabs remain above a scrolling
 body. The bottom-anchored toolbox is 656px tall, capped by available map height,
 so its upper edge rises by one 36px row. Product tabs and Prev/Now/Next use core's
-explicit slim option (32px height, at least 44px width), including on touch screens;
-maps at most 536px tall scroll the whole toolbox. Map Display groups this plugin and
+explicit slim option (32px height, at least 44px width), including on touch screens.
+The two product rows use separate core tab backgrounds with a 4px gap, matching NOTAM tabs.
+Maps at most 536px tall scroll the whole toolbox. Map Display groups this plugin and
 METAR/TAF under **AWC Weather** without coupling their loading or visibility.
 
 Advisory switches distinguish G-AIRMET, non-convective SIGMET, convective SIGMET,
@@ -75,7 +76,7 @@ They remain visible with the generic hazard color and inspectable until expiry.
 Boundaries share opaque 2px strokes and a subtle white halo; fills use 10% opacity.
 The map and legend share the hazard palette. Weather lies above terrain and below
 routes and navigation at `WEATHER_LAYER_ANCHOR`, including after style recovery or remounting.
-Within weather, Progs strokes/labels sit above radar, which sits above other weather.
+Within weather, PIREP circles sit above Progs strokes/labels, which sit above radar, which sits above other weather.
 Radar sits above advisory fills/outlines, wind barbs and forecast shading, directly
 below all Progs strokes and labels. Lazy loading, toggles and style recovery retain
 this order regardless of which overlay becomes available first.
@@ -85,8 +86,15 @@ field shading. Its separate switch allows either or both kinds of shading.
 The timeline contains the union of enabled G-AIRMET snapshots, SIGMET/CWA validity
 boundaries, the shaded field's native times at its selected level, enabled wind
 times, enabled Progs pressure/coverage forecast stops, and retained national radar observation times.
+Advisory applicability must fall within 48 hours of its original source check.
+This generous ingestion limit catches damaged dates; it does not change the
+product's actual validity or age saved publications against today's clock.
+Invalid SIGMET/CWA members retain their source evidence as validity issues;
+an invalid G-AIRMET horizon rejects the package. Timeline decoration independently
+caps each tick series at 512 entries, using sparser ticks only for exceptional
+spans; normal hourly forecasts and five-minute radar history keep their spacing.
 Radar history extends the scale before Now using five-minute spacing; its
-[guide](radar/README.md#history-and-timeline) owns history selection and retention.
+[guide](radar/README.md#history-and-timeline) describes history selection and retention.
 The horizontally scrollable forecast scale
 keeps at least 11px per hour, with hourly ticks and date headers, including across
 the seven-day Progs horizon. UTC labels appear every four hours and at the selected
@@ -177,6 +185,8 @@ empty result. Recovery replaces the complete family and clears its issues.
 
 `source-geometry.ts` prepares fill and outline together from validated source paths,
 preserving polygon holes and disconnected pieces when splitting at the date line.
+The [geometry guide](geometry.md) owns shared longitude conventions, accuracy
+boundaries and generated regression obligations across weather products.
 Declared polygon rings may omit the repeated first coordinate: preparation appends
 that supplied coordinate before topology validation, with the same edge and aggregate
 10,000-coordinate limits. It does not close line geometry, snap nearby endpoints,
@@ -185,7 +195,9 @@ ambiguous closing edges and invalid topology still become source issues. Each ri
 each hole must have exactly one longitude-world placement contained by its exterior.
 Full-area containment rejects holes crossing a concave exterior, and intersecting
 or nested holes are unsupported. Empty, crossing or retraced rings are rejected
-when canonicalization would change their boundary instead of silently repairing them.
+when canonicalization would change their cyclic sequence of boundary turns instead
+of silently repairing them. A short reversed edge cannot hide inside a perimeter
+comparison tolerance; duplicate and forward-collinear vertices remain equivalent.
 Starting vertex, winding and equivalent longitude
 worlds cannot change the covered area. Uncontained or empty holes become explicit
 source issues instead of being silently discarded by clipping. It bounds source longitudes to
@@ -320,7 +332,7 @@ failed live check cannot silently become a successful cached response.
 Core storage slots retain the last validated snapshot for each advisory family,
 three forecast catalogs, Progs chart/coverage pointers, and radar/motion catalogs.
 Each record is capped at 4 MiB of UTF-16 text, subject to browser quota; individual
-catalog contracts impose smaller bounds. The [Progs guide](progs/README.md) owns
+catalog contracts impose smaller bounds. The [Progs guide](progs/README.md) describes
 its larger, server-smoothed chart files and compatibility with former inline snapshots.
 All carry endpoint identity;
 explicit archived feeds restore only their own snapshots. Recognized former

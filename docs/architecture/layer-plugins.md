@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) / Architecture
 
-This guide owns the built-in plugin contracts, module boundaries and authoring
+This guide describes the built-in plugin contracts, module boundaries and authoring
 workflow. It is not a versioned external extension API. Start with
 [Adding a product](#adding-a-product) for implementation steps; the detailed contracts
 follow. Feature behavior and algorithms live in the [plugin guides](../README.md#plugin-guides),
@@ -113,8 +113,8 @@ external distribution, compatibility and permissions remain separate decisions.
 8. **Verify behavior.** Follow the [verification guide](../development/local-development.md#verification),
    covering initially disabled startup, provider enable/disable/replacement, failure
    cleanup, late async completion and remounting as applicable. Include persistence
-   and panel/focus checks for contributed capabilities. Historical results below
-   do not validate a new plugin or later edits.
+   and panel/focus checks for contributed capabilities. Run the checks against
+   the changed plugin.
 
 Use [Terrain's factory](../../src/layers/terrain/plugin.tsx) as an example of optional
 Routes integration, preferences and a toolbox; [Ruler](../../src/layers/ruler/plugin.tsx)
@@ -125,7 +125,8 @@ capabilities for every plugin.
 ### Rules for changes
 
 - Keep one owner for each source, style layer, listener, timer, request, and viewer.
-- Keep cache identity and successful-refresh status honest across offline fallback.
+- Preserve source identity on offline fallback, and report refresh success only
+  after a successful source check.
 - Keep shared reference services usable without map visibility: search and routes
   can need data that has not been rendered.
 - Preserve one map and stable product instances across ordinary UI and panel updates.
@@ -152,10 +153,9 @@ capabilities for every plugin.
 | [ahrs/](../../src/layers/ahrs/README.md) | Motion estimator, calibration, instruments/HSI, recording and presentation |
 | [ruler/](../../src/layers/ruler/README.md) | Measurement state, bearings, map drawing, grips and pointer behavior |
 
-Each folder's `README.md` is the entry point for its behavior, algorithms and
-validation. Keep longer notes beside their implementation and link them from that
-README. Shared plugin/host contracts stay in this guide; project-wide contracts,
-ADRs and evidence remain under `docs/`.
+Each folder's `README.md` is its documentation entry point. Use the
+[documentation ownership rules](../README.md#keeping-the-docs-useful) when adding
+or moving guides; shared plugin/host contracts stay here.
 
 The host spans several directories; it is broader than `src/core/`:
 
@@ -535,10 +535,9 @@ renders or unrelated toggles do not repeatedly retry failures. Activation status
 describes activation and connection health; data/render readiness remains with the
 feature and the workspace startup policy.
 
-Navigation and METAR/TAF can be enabled independently. Weather uses navigation's airport map
-data and Info panel when available; disabling navigation leaves weather enabled
-with no airport demand. Disabling weather removes the METAR/TAF sections and runway
-wind without removing navigation's airport information.
+Navigation and METAR/TAF are an example of independent activation with optional
+integration. The [METAR/TAF guide](../../src/layers/metar-taf/README.md#metar-and-taf-weather)
+defines how either provider's absence changes airport demand and weather display.
 
 Disabling removes the plugin's UI and map attachments, stops live demand and calls its
 optional `dispose()`. This method must support reuse: release sensors, timers and
@@ -711,7 +710,7 @@ mounting each on its assigned side.
 Selection-only panels can set `tab: false` in their placement to omit an edge tab
 and its slot reservation. They retain the shared slide, Close, Escape and Back
 lifecycle, restore focus to their opener, and reopen through an explicit feature
-action. NOTAMs uses this for TFR details.
+action. NOTAMs uses this for TFR details; AWC Weather uses it for its viewport PIREP list.
 
 A plugin supplies identity and content:
 
@@ -935,10 +934,10 @@ antimeridian-crossing chart bounds intentionally use different guards.
 4. Stop when demand is empty or disabled; destroy cancels timers and active work.
 
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#demand-refresh-and-recovery)
-owns station demand, refresh intervals, nearby selection, cached-report recovery,
+describes station demand, refresh intervals, nearby selection, cached-report recovery,
 map presentation and runway-wind behavior.
 The [AWC Weather guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
-owns advisory demand, complete family snapshots and their source-check freshness.
+describes advisory demand, complete family snapshots and their source-check freshness.
 Its network-only `requestJson` helper in `core/data/request-json.ts` stays separate
 from durable reference caching and never falls back internally; the product
 retains and labels the original snapshot on failure. Advisory fills/outlines use
@@ -1138,7 +1137,7 @@ AWC demonstrates the ownership split: core shares acquisition/conversion and
 retains compressed artifacts; the plugin owns preparation order, cancellation,
 progress, manifest refresh, validity and source-time presentation. The
 [grid guide](../../src/layers/weather-awc/grids/README.md#time-recovery-and-budgets)
-owns its category/cohort choices, ceilings, decoded neighborhoods and retry policy.
+describes its category/cohort choices, ceilings, decoded neighborhoods and retry policy.
 Radar contours and storm-motion files use the same core file APIs with their own
 categories and retention limits. Future satellite products should preserve this
 split when their source contracts are qualified.
@@ -1151,7 +1150,7 @@ Use the existing APIs where the resource has different requirements:
 | Plates | Core transfers/files already support large PDF range reads and verified saves. Shared pending-request machinery could be extracted later while preserving progress, legacy migration and required-save failures. |
 | Obstructions | Uses `files.derive` for the filtered numeric index, with four files / 32 MiB and 14-day unused retention. Core migrates old filtered snapshots and gzip files on demand; the plugin validates original source identity and streamed records. Shared reference JSON/explicit saves keep their separate retention. |
 | METAR/TAF and advisory snapshots | Use core storage slots and refresh scheduling. Their mutable report merging, amendments, withdrawals and source freshness belong to their clients, not immutable-file caching. |
-| Progs surface charts | Load immutable, server-prepared chart files through `files.loadResult`, keyed by endpoint and artifact digest. Small freshness catalogs reference successfully saved charts; unchanged checks reuse geometry. Asynchronous restoration cannot replace live data. The [Progs guide](../../src/layers/weather-awc/progs/README.md) owns limits and legacy-snapshot compatibility. |
+| Progs surface charts | Load immutable, server-prepared chart files through `files.loadResult`, keyed by endpoint and artifact digest. Small freshness catalogs reference successfully saved charts; unchanged checks reuse geometry. Asynchronous restoration cannot replace live data. The [Progs guide](../../src/layers/weather-awc/progs/README.md) describes limits and legacy-snapshot compatibility. |
 | Navigation and route reference JSON | Already use validated `fetchJson`, immutable identities and saved-snapshot authority. Keep explicit offline packs outside an opportunistic LRU. |
 
 ## Verification

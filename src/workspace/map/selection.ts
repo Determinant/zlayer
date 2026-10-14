@@ -36,7 +36,7 @@ export function createSelectionContribution(input: ReturnType<typeof createLayer
         resolveFeature: feature => input.require().resolveFeature(feature),
         preview: value => editing?.(value),
         onSelect: (feature, pointId) => input.require().onSelect(feature, pointId),
-        primaryAction: point => bridge.get('notams')?.contextActions(point)[0],
+        primaryAction: point => bridge.get('weather-awc')?.primaryAction?.(point) ?? bridge.get('notams')?.contextActions(point)[0],
         contextActions: point => [...bridge.get('notams')?.contextActions(point) ?? [],
           ...bridge.get('weather-awc')?.contextActions(point) ?? [],
           ...bridge.get('glide')?.contextActions(point) ?? [],

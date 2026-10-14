@@ -1,3 +1,4 @@
+import { mountPirepMap, PIREP_LAYER, PIREP_HIGHLIGHT_LAYERS } from './pireps/map';
 import type { Map, ExpressionSpecification } from 'maplibre-gl';
 import { createSourceSubmission } from '../../core/map/source-submission';
 import { LayerScope } from '../../core/layers/scope';
@@ -30,6 +31,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
   let radar: ReturnType<typeof mountRadarMap> | undefined;
   let motion: ReturnType<typeof mountRadarMotionMap> | undefined;
   let coverage: ReturnType<typeof mountProgsCoverageMap> | undefined;
+  let pireps: ReturnType<typeof mountPirepMap> | undefined;
   let progs: ReturnType<typeof mountProgsMap> | undefined;
   const visible = (show: boolean) => {
     for (const id of ADVISORY_LAYERS) if (map?.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
@@ -57,6 +59,9 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     // Save before child publications: source acceptance can synchronously notify
     // this adapter again. Receipts must not rerun unrelated selection work.
     inputs = state;
+    if (!last || last.preferences !== state.preferences || last.selectedTime !== state.selectedTime || last.now !== state.now ||
+      last.pireps.snapshot !== state.pireps.snapshot || last.pireps.resolved !== state.pireps.resolved || last.pirepRetry !== state.pirepRetry) pireps?.update();
+    if (!last || last.pirepSelection !== state.pirepSelection || last.pirepHighlight !== state.pirepHighlight) pireps?.highlight();
     const selectionChanged = !last || last.preferences !== state.preferences ||
       last.selectedTime !== state.selectedTime || last.now !== state.now;
     const grid = shadedGrid(state), oldGrid = last && shadedGrid(last);
@@ -99,6 +104,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
     })().catch(error => source.reject(version, error));
   };
   return { id: 'weather-awc', slot: 'weather',
+    focusedLayerIds: PIREP_HIGHLIGHT_LAYERS,
     subscribeInputs: controller.subscribe,
     mount(next) {
       map = next;
@@ -106,7 +112,7 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
       scope.add(() => controller.setAdvisoryDisplay({ loading: false, ids: [] }));
       scope.add(() => {
         submission = undefined; grids = undefined; winds = undefined; radar = undefined;
-        motion = undefined; coverage = undefined; progs = undefined;
+        pireps = undefined; motion = undefined; coverage = undefined; progs = undefined;
         inputs = undefined; previous = ''; attempted = undefined; retry = -1;
       });
       scope.add(() => { if (next.getSource(SOURCE)) next.removeSource(SOURCE); });
@@ -128,19 +134,20 @@ export function createWeatherMap(controller: WeatherController): MapLayerModule<
       scope.add(submission.destroy);
       scope.add(() => controller.detach());
       controller.attach();
+      pireps = mountPirepMap(map, controller); scope.add(pireps.destroy);
       grids = mountGridMap(map, controller, ADVISORY_LAYERS[0]!);
       scope.add(grids.destroy);
       // Both overlays mount lazily. Resolve the first Progs layer when radar
       // actually appears; Progs added later goes above it at the weather anchor.
-      radar = mountRadarMap(map, controller, () => [...MOTION_LAYERS, ...SURFACE_LAYERS].find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
+      radar = mountRadarMap(map, controller, () => [...MOTION_LAYERS, ...SURFACE_LAYERS].find(id => next.getLayer(id)) ?? PIREP_LAYER);
       scope.add(radar.destroy);
-      motion = mountRadarMotionMap(map, controller, () => SURFACE_LAYERS.find(id => next.getLayer(id)) ?? WEATHER_LAYER_ANCHOR);
+      motion = mountRadarMotionMap(map, controller, () => SURFACE_LAYERS.find(id => next.getLayer(id)) ?? PIREP_LAYER);
       scope.add(motion.destroy);
       winds = mountWindMap(map, controller, ADVISORY_LAYERS[1]!);
       scope.add(winds.destroy);
       coverage = mountProgsCoverageMap(map, controller, ADVISORY_LAYERS[0]!);
       scope.add(coverage.destroy);
-      progs = mountProgsMap(map, controller, WEATHER_LAYER_ANCHOR);
+      progs = mountProgsMap(map, controller, PIREP_LAYER);
       scope.add(progs.destroy);
       controller.setPicker(point => {
         if (!map || !controller.getSnapshot().preferences.awcEnabled) return [];

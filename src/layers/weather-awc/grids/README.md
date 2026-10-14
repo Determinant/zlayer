@@ -8,8 +8,8 @@ icing bundles contain probability, severity and SLD at one native altitude.
 The icing slider selects actual manifest levels, including gaps, and never invents
 intermediate heights. Unavailable saved heights remain explicit until changed.
 Positive SLD can add a red hatch to probability/severity. Opacity defaults to 70%.
-The [plugin guide](../README.md#display-and-selection) owns toolbox and inspection
-behavior; the [winds guide](winds.md) owns vertical interpolation and barbs.
+The [plugin guide](../README.md#display-and-selection) describes toolbox and inspection
+behavior; the [winds guide](winds.md) describes vertical interpolation and barbs.
 
 `native-source.ts` owns pure source descriptors, index parsing and catalog guards;
 `client.ts` owns catalog requests. Before loading, `selection.ts` pairs a frame
@@ -91,7 +91,17 @@ for budgets, protection and expiry.
 Native artifacts use
 `<product>/<run>-<lead>-<level>-<identity>.zwp.gz`; pressure levels use `p<hPa>`.
 Identity is SHA-256 of `gridKey`: converter, model, run, valid time, native level,
-source paths/index digests/ranges and output geometry. Check timestamps are excluded.
+source paths/index digests/ranges, model object versions and output geometry.
+Check timestamps are excluded. An object revision changes identity even when its
+index is unchanged. The server's [acquisition contract](../../../../tools/info-server/README.md#source-and-cache-contract)
+defines conditional reads using HRRR ETags or IFI modification time/length,
+including the limitations of IFI's timestamp-based validator.
+Older saved catalogs without object versions remain readable with their original
+artifact identities; new discovery always supplies versions.
+Current qualified HRRR/IFI outputs retain their GDAL reference hashes after the
+longitude-bound and central-meridian fixes described in the [geometry guide](../geometry.md).
+The converter identity and file formats remain unchanged for those outputs;
+qualifying a new model/grid profile still requires its own reference evidence.
 The server rejects changed source identities with 409 rather than substituting a
 new cycle. The PWA checks artifact identity, compressed-byte SHA-256, format and
 numeric bounds. The 4096 m projected geometry is canonical across JS engines;
@@ -358,10 +368,15 @@ sent remotely. Image submission timing does not measure GPU completion.
 
 Leave both AWC feed overrides blank for the shared server in development and
 production. Forecasts are not bundled into `public/` or the offline shell.
-The [server guide](../../../../tools/info-server/README.md) owns backend deployment and HTTPS reverse-proxy requirements.
+The [server guide](../../../../tools/info-server/README.md) describes backend deployment and HTTPS reverse-proxy requirements.
 
 `test/weather-grib.test.ts` and [captured GRIB fixtures](../../../../test/fixtures/awc-grib/README.md)
-compare numeric decoding/projection with independent GDAL hashes. Processing and
+compare numeric decoding/projection with independent GDAL hashes. Independent Proj4
+comparisons in `test/weather-projection.test.ts` additionally cover tangent/secant Lambert parameters,
+date-line source/meridian differences, exact nearest-cell selection, wind-axis
+directions and vector magnitude within output rounding. Source longitude guards
+check GRIB2's encoded 0–360° domain before wrapping, including missing/reserved
+values; unsupported metadata cannot masquerade as outside coverage. Processing and
 discovery cases cover complete source horizons, pinned identity and cache reuse;
 grid/cache cases cover sentinels, cancellation, quota and repair. Browser cases in
 `test/e2e/weather-{awc-grids,native,winds}.spec.ts` cover display, stepping and offline

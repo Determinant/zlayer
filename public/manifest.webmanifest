@@ -1,7 +1,7 @@
 {
   "name": "ZLayer",
   "short_name": "ZLayer",
-  "description": "A modern, lightweight EFB. Layer by layer. An offline-capable aviation PWA for phones, tablets, and desktops.",
+  "description": "Free, open-source EFB and flight planning with FAA charts, aviation weather, approach plates, and offline downloads for phones, tablets, and desktops.",
   "start_url": "/",
   "id": "/",
   "scope": "/",

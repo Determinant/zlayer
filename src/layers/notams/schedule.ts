@@ -2,7 +2,7 @@
  * Missing hours are evidence of days only, never an all-day window. Raw source
  * fields stay on the record; this projection is neither stored nor displayed. */
 export type WeeklyNotamSchedule = {
-  kind: 'weekly'; days: number; window: { start: number; end: number } | null;
+  kind: 'weekly'; days: number; window: { start: number | 'SR' | 'SS'; end: number | 'SR' | 'SS' } | null;
 };
 export type NotamSchedule = WeeklyNotamSchedule | { kind: 'empty' } | { kind: 'opaque'; text: string };
 
@@ -10,11 +10,14 @@ const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const weekdayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const day = '(?:SUN|MON|TUE|WED|THU|FRI|SAT)';
 const days = `(?:DLY|DAILY|${day}(?:-${day})?(?: ${day}(?:-${day})?)*)`;
-const readablePattern = new RegExp(`^(${days})(?: (\\d{4})-(\\d{4}))?$`);
-const bodySuffix = new RegExp(` (${days}) (\\d{4})-(\\d{4})$`);
-const earlierSchedule = new RegExp(`\\b(?:DLY|DAILY|${day}|\\d{4}-\\d{4})\\b`);
+const endpoint = '(?:\\d{4}|SR|SS)';
+const readablePattern = new RegExp(`^(${days})(?: (${endpoint})-(${endpoint}))?$`);
+const wrapperPattern = new RegExp(`^([A-Z]+):(${endpoint})-(${endpoint})~([^~]+)$`);
+const bodySuffix = new RegExp(` (${days}) (${endpoint})-(${endpoint})$`);
+const earlierSchedule = new RegExp(`\\b(?:DLY|DAILY|${day}|${endpoint}-${endpoint})\\b`);
 
-function minute(value: string, end: boolean): number | undefined {
+function timeEndpoint(value: string, end: boolean): number | 'SR' | 'SS' | undefined {
+  if (value === 'SR' || value === 'SS') return value;
   if (end && value === '2400') return 1440;
   if (!/^(?:[01]\d|2[0-3])[0-5]\d$/.test(value)) return undefined;
   return Number(value.slice(0, 2)) * 60 + Number(value.slice(2));
@@ -33,7 +36,7 @@ function readable(text: string): WeeklyNotamSchedule | undefined {
     }
   }
   if (match[2] === undefined) return { kind: 'weekly', days: mask, window: null };
-  const start = minute(match[2], false), end = minute(match[3]!, true);
+  const start = timeEndpoint(match[2], false), end = timeEndpoint(match[3]!, true);
   if (start === undefined || end === undefined || start === end) return undefined;
   return { kind: 'weekly', days: mask, window: { start, end } };
 }
@@ -47,13 +50,14 @@ export function equalNotamSchedules(a: NotamSchedule, b: NotamSchedule): boolean
 
 /** Decode each representation before comparing it. A machine/readable wrapper
  * supplies two assertions: neither side wins if their days or windows disagree.
- * Unknown syntax remains opaque, including solar times and multiple windows. */
+ * Solar endpoints retain symbolic meaning without calculating an activation
+ * time. Offsets, exceptions and multiple windows remain opaque. */
 export function parseNotamSchedule(value: string): NotamSchedule {
   const text = value.trim().toUpperCase();
   if (!text) return { kind: 'empty' };
   const opaque: NotamSchedule = { kind: 'opaque', text };
   if (!text.includes('~')) return readable(text) ?? opaque;
-  const wrapper = /^([A-Z]+):(\d{4})-(\d{4})~([^~]+)$/.exec(text);
+  const wrapper = wrapperPattern.exec(text);
   if (!wrapper) return opaque;
   const index = weekdayNames.indexOf(wrapper[1]!);
   const name = wrapper[1] === 'DAILY' ? 'DLY' : weekdays[index];
@@ -79,9 +83,19 @@ export function notamScheduleFits(schedule: NotamSchedule, witness: WeeklyNotamS
     schedule.days === witness.days && (schedule.window === null || equalNotamSchedules(schedule, witness)));
 }
 
+/** An omitted window is incomplete evidence, not a different supplied window.
+ * Clock and solar endpoints cannot disprove each other without location/date. */
+export function conflictingNotamSchedules(a: NotamSchedule, b: NotamSchedule): boolean {
+  if (a.kind !== 'weekly' || b.kind !== 'weekly') return false;
+  return a.days !== b.days || !!a.window && !!b.window && (['start', 'end'] as const).some(key =>
+    typeof a.window![key] === typeof b.window![key] && a.window![key] !== b.window![key]);
+}
+
 export function notamScheduleActive(schedule: NotamSchedule, now: number): boolean | undefined {
   if (schedule.kind !== 'weekly' || !schedule.window || !Number.isFinite(now)) return undefined;
-  const { start, end } = schedule.window, date = new Date(now);
+  const { start, end } = schedule.window;
+  if (typeof start !== 'number' || typeof end !== 'number') return undefined;
+  const date = new Date(now);
   const time = date.getUTCHours() * 60 + date.getUTCMinutes(), overnight = start > end;
   // After midnight, an overnight window still belongs to its starting weekday.
   const day = (date.getUTCDay() + (overnight && time < end ? 6 : 0)) % 7;

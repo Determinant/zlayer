@@ -12,12 +12,13 @@ callbacks. The workspace supplies the routing catalog and GPS source, places the
 UI and publishes the controller's map inputs. Unloading clears temporary previews
 and stops planning demand while preserving the saved draft.
 
-This guide owns route editing, resolution, recommendations and persistence.
+This guide covers route editing, resolution, recommendations and persistence.
 Supporting guides cover [terminal procedures](terminal-procedures.md),
 [approach geometry](approach-geometry.md) and
 [coverage, source evidence and remaining validation](approach-coverage.md).
-The [point-identification design](radial-distance-plan.md) describes name/GPS/radial
-presentation, source snapshots, export precision and remaining qualification.
+The [point-identification guide](radial-distance-plan.md) defines radial/bearing
+input, geometry, saved references and export precision. It also retains the design
+rationale and remaining qualification.
 
 The editable draft is an ordered array of `{ id, text, pinnedFeatureId?, approach?, departure?, arrival?, radialPosition?, identifications? }` entries.
 IDs survive insertion, replacement and reorder; pins travel with their entries.
@@ -66,7 +67,8 @@ text/import → draft entries → scoped segments → constrained points → res
 | `src/layers/routes/expansion.ts` | One-level TEC/airway expansion in place, preserving adjacent airway junctions |
 | `src/layers/routes/use-controller.ts` | Route state and actions shared by the route bar, map and feature details |
 | `src/layers/routes/draft-storage.ts`, `use-draft.ts` | Shared draft/stash validation, versioned draft codec and React persistence hook |
-| `src/layers/routes/use-plan.ts` | Reference loading, resource identity, partial failures and superseded requests |
+| `src/layers/routes/use-plan.ts` | Resolve current references and normalize draft entries after reference loading settles |
+| `src/layers/routes/use-references.ts`, `resources.ts` | Reference demand, incremental merging, resource identity, partial failures and retry lifecycle |
 | `src/layers/routes/editor-tokens.tsx` | Entry/token presentation and accessible action buttons; gestures and picker state stay in the editor |
 | `src/layers/routes/use-resource.ts` | Recommendation/picker request identity, cancellation, manual retry and reconnect/inventory recovery |
 | `src/layers/routes/composition.ts`, `composition-panel.tsx` | Read-only per-entry published components, nested paths and resolution diagnostics |
@@ -300,7 +302,7 @@ the existing entity's details and one map label/nearby-picker entry while keepin
 each approach occurrence and its role. Older coded pins and saved selections
 continue to resolve when a matching navigation entity becomes available.
 
-The [coverage guide](approach-coverage.md) owns dated chart/entry inventories,
+The [coverage guide](approach-coverage.md) describes dated chart/entry inventories,
 source examples, audit commands, reporting exceptions and remaining gaps.
 Its automated screening is not full chart coverage or manual validation of every
 plate. An unresolved connection still retains subsequent known fixes and
@@ -400,14 +402,10 @@ changing their description never flattens a published route or clears its gaps.
 Route input accepts slash radial tokens (`CME/285/54`) and compact tokens
 (`CME285054`), with decimal bearing/distance extensions in slash input. Named
 fixes and airports can also be origins, independently of nearby VOR ranking or
-its 100 NM radius. Unsuffixed VOR input uses published station alignment;
-unsuffixed non-VOR input uses magnetic bearing. Explicit `R`, `M`, or `T` after
-the bearing selects published VOR radial, modeled magnetic bearing, or true
-bearing: `HIGAL/320M/15`, `KSBA/090T/10`. Magnetic bearings require the current
-magnetic model; missing VOR alignment never substitutes that model or zero.
-Ambiguous IDs offer **Choose reference point…**. Primary identifiers take
-precedence; an absent VOR does not silently resolve through an airport’s short
-alias in unsuffixed input. Missing references/alignment remain unresolved.
+its 100 NM radius. The [input and geometry rules](radial-distance-plan.md#input-and-geometry)
+define default conventions, explicit `R`/`M`/`T` bearings, valid ranges and reference
+resolution. Missing references or required alignment remain unresolved; a missing
+VOR alignment never substitutes the magnetic model or zero.
 
 Resolved points save their exact coordinate, reference/source snapshot, bearing
 convention and magnetic model/time when applicable. Offline restoration or new
@@ -723,9 +721,24 @@ retains usable data during and after a failed retry of the same source; recommen
 rows stay usable alongside the retry message. It hides results immediately when
 the complete resource/query identity changes, and ignores late results after a
 view closes or changes source. Shared reference downloads keep their own lifetime;
-route-history queries receive the view's cancellation signal. The main planner
-retries partial data only while online and the document is visible, with delays
-of 3, 6, 12, 24, 48 and then at most 60 seconds. Hiding the page clears its
+route-history queries receive the view's cancellation signal.
+
+The main planner starts reference demand with the first draft entry and publishes
+each validated navigation or optional route product as it arrives. Available
+waypoints gain their entity colors and connected legs render while unrelated
+fixes, airways, terminal procedures or preferred routes are still loading. The
+loading status remains until the round settles, then reports any partial failure.
+Incremental results preserve catalog order, retain healthy data during retries of
+the same source, and cannot update a cleared, unloaded or replaced route view.
+Acquisition state tracks whether a round is pending separately from the displayed
+availability status. Automatic radial-position capture and departure attachment
+wait for every round, including retries, to settle so provisional matches cannot
+become saved draft intent. Progress and completion use the same merge path;
+unchanged products keep their object identities and healthy references remain
+available after a failed retry of the same source.
+
+The main planner retries partial data only while online and the document is visible,
+with delays of 3, 6, 12, 24, 48 and then at most 60 seconds. Hiding the page clears its
 retry timer. Resuming a failed view, reconnecting or repairing saved files retries
 immediately and resets the backoff; healthy immutable products remain shared.
 Initial cached-data loading still works offline or while hidden.

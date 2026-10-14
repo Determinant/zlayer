@@ -99,7 +99,7 @@ test('two rows of core tabs keep independent overlays, MSL altitude and shared t
   await page.getByRole('switch', { name: 'Show AWC weather', exact: true }).click();
   for (const name of ['G-AIRMET', 'SIGMET', 'Convective SIGMET', 'CWA']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
   const tabs = page.getByRole('tablist', { name: 'AWC weather products' });
-  await expect(tabs.getByRole('tab')).toHaveCount(6);
+  await expect(tabs.getByRole('tab')).toHaveCount(7);
   // Enlarged text stays reachable in the same two rows without horizontal overflow.
   await page.addStyleTag({ content: '.awc-product-tabs > button { font-size: 18px; }' });
   const tab = page.getByRole('tab', { name: 'Advisories', exact: true });

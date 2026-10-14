@@ -43,11 +43,19 @@ export class ReportBudget {
   #bytes = 0;
   constructor(readonly limit: number) {}
   accept(id: string, report: object): void {
-    const bytes = reportWeight(report);
-    const total = this.#bytes - (this.#entries.get(id) ?? 0) + bytes;
+    this.acceptAll([[id, report]]);
+  }
+  /** Stage the final batch weight before changing any admission or live report. */
+  acceptAll(reports: readonly (readonly [string, object | undefined])[]): void {
+    const next = new Map(reports.map(([id, report]) => [id, report ? reportWeight(report) : 0]));
+    let total = this.#bytes;
+    for (const [id, bytes] of next) total += bytes - (this.#entries.get(id) ?? 0);
     // Do not silently evict another station that a mounted consumer may own.
     if (total > this.limit) throw new Error('Weather cache exceeds the memory limit');
-    this.#entries.set(id, bytes);
+    for (const [id, bytes] of next) {
+      if (bytes) this.#entries.set(id, bytes);
+      else this.#entries.delete(id);
+    }
     this.#bytes = total;
   }
   delete(id: string): void {

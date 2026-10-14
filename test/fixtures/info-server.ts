@@ -1,4 +1,5 @@
 import { resourceFor } from '../../tools/info-server/routes';
+import { digest } from '../../tools/info-server/upstream';
 import { forecastResource, terrainResource } from '../../tools/info-server/processing';
 import type { AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
@@ -42,11 +43,14 @@ export async function fixtureWeather(directory: string, options: { onRaw?: (sign
         : url.pathname.replace('/pub/data/nccf/com/', '/weather/noaa/');
       const file = files.get(path);
       if (!file) return new Response(null, { status: 404 });
-      const range = /^bytes=(\d+)-(\d*)$/.exec(new Headers(init?.headers).get('range') ?? '');
+      const headers = new Headers(init?.headers), etag = `"${digest(file)}"`;
+      if (headers.has('if-match') && headers.get('if-match') !== etag) return new Response(null, { status: 412 });
+      if (init?.method === 'HEAD') return new Response(null, { headers: { 'content-length': String(file.length), etag } });
+      const range = /^bytes=(\d+)-(\d*)$/.exec(headers.get('range') ?? '');
       if (path.endsWith('.grib2')) await options.onRaw?.(init?.signal ?? undefined, path);
       const start = range ? Number(range[1]) : 0, end = range?.[2] ? Number(range[2]) : file.length - 1;
       return new Response(Uint8Array.from(file.subarray(start, end + 1)), { status: range ? 206 : 200,
-        headers: { 'Content-Length': String(end - start + 1), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${file.length}` } : {}) } });
+        headers: { etag, 'Content-Length': String(end - start + 1), ...(range ? { 'Content-Range': `bytes ${start}-${end}/${file.length}` } : {}) } });
     } });
   async function warmForecast(product: AwcGridProduct, select: (manifest: NativeManifest) => NativeFrame[]) {
     const catalog = await app.processing.catalog(product);

@@ -69,6 +69,9 @@ worker.addEventListener('activate', (event) => {
 worker.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const sameOrigin = url.origin === worker.location.origin;
+  // The public About page and its files use ordinary network responses, even
+  // when this origin's PWA worker controls the window.
+  if (sameOrigin && (url.pathname === '/about' || url.pathname.startsWith('/about/'))) return;
   const applicationPage = !development && event.request.method === 'GET' &&
     (event.request.mode === 'navigate' || (sameOrigin && url.pathname === '/'));
   if (resetting) {

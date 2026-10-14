@@ -4,8 +4,9 @@
 
 The workspace restores user choices before the map and panels become interactive.
 Feature owners validate their records and rebuild derived data through the normal
-loaders. A saved selection identifies what to reopen; it does not claim that a
-download, live sensor, route resolution, or render is still valid.
+loaders. Saved choices identify what to reopen. The app still has to check
+downloads, resolve routes and render the view; sensor sessions have their own
+lifecycles.
 
 ## Coverage
 

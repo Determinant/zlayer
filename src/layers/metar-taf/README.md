@@ -168,6 +168,10 @@ another station that an active consumer may need. A saturated cache can therefor
 reject new reports until smaller replacements or ordinary count eviction release
 capacity; this deliberately favors explicit unavailable state over silent loss of
 accepted reports. Refreshes remain retryable and cached reports keep their times.
+Station batches and complete nearby searches stage their selected reports and
+final aggregate weight before changing live entries. Admission failure retains
+every previous report and successful source check; smaller replacements can
+release capacity within the same successful batch.
 
 Optional saved records have a 2 MiB UTF-16 ceiling, checked before restore parsing.
 Before serialization, each client selects complete recent reports within that
@@ -232,10 +236,11 @@ Decoded METAR wind shows magnetic/true FROM bearings separated by a slash, follo
 by speed and gusts, for example `327°M/340°T 6 kt`. The shared WMM2025 model uses
 the selected report station's coordinates, observation time and zero ellipsoid
 height, including for nearby and cached reports. Missing or out-of-validity model
-data, or weak/polar fields, leave the magnetic value as `—` while retaining true
-direction. Calm, variable and unavailable directions retain their existing labels;
-the raw report stays unchanged. Runway components prefer published magnetic runway
-headings paired with wind converted by this same model. True runway/true wind pairs
+data, or weak/polar fields, show the missing-value symbol (`U+2014`) for magnetic
+direction while retaining true direction. Calm, variable and unavailable directions
+retain their existing labels; the raw report stays unchanged. Runway components
+prefer published magnetic runway headings paired with wind converted by this same
+model. True runway/true wind pairs
 remain a fallback for older feeds or unavailable models. With neither published
 heading, numbered runway ends use an approximate magnetic heading (number × 10),
 including older summaries with no `ends[]`. Estimates are labeled `≈` in the runway
@@ -351,6 +356,11 @@ forward; its transition can overlap both old and new prevailing conditions.
 Temporary changes evaluate against every overlapping prevailing period without
 modifying the baseline. Missing information and mismatched periods retain neutral
 colors; the original report and AWC fields are never rewritten.
+The initial raw validity interval must match the whole report's decoded bounds,
+and the first decoded period must start there. Its end may precede the report's
+end at an FM change. Missing or mismatched initial validity and decoded periods
+outside the report stay neutral. Three- and four-character source station headers,
+amendment/correction markers and wrapped validity separators remain supported.
 
 Interpretation is bounded to 64 KiB and 4,096 tokens per report, and 128 TAF source
 groups. Exceeding a bound keeps the complete raw report available: TAF remains

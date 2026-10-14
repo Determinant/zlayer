@@ -1,0 +1,822 @@
+{
+  "airports": [
+    {
+      "type": "Feature",
+      "id": "airport:09011.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.12353333,
+          42.71704222
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "09011.",
+        "facilityType": "A",
+        "faaId": "LWM",
+        "icaoId": "KLWM",
+        "name": "LAWRENCE MUNI",
+        "city": "LAWRENCE",
+        "state": "MA",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 147.6,
+        "chart": "NEW YORK",
+        "notamId": "LWM",
+        "responsibleArtcc": "ZBW",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A,A+",
+        "longestRunwayFt": 5001,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 119.25,
+            "use": "CTAF",
+            "remarks": "ACTVT REIL RWY 05, 23, 14 & 32; PAPI RWY 05, 23 & 32; HIRL RWY 05/23; MIRL RWY 14/32 - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.25,
+            "use": "LCL/P",
+            "hours": "0700-2200"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 124.3,
+            "use": "GND/P",
+            "hours": "0700-2200"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 126.75,
+            "use": "ATIS",
+            "hours": "0700-2200"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 124.4,
+            "use": "APCH/P DEP/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 126.15,
+            "use": "CD/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON",
+            "sector": "WHEN LWM TWR CLSD"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 279.6,
+            "use": "APCH/P DEP/P",
+            "facilityId": "A90",
+            "facilityName": "BOSTON"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 124.3,
+            "use": "CD/P",
+            "facilityId": "LWM",
+            "facilityName": "LAWRENCE",
+            "hours": "0700-2200"
+          }
+        ],
+        "runways": [
+          {
+            "id": "05/23",
+            "lengthFt": 5001,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "05",
+                "trueHeadingDeg": 38,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 53
+              },
+              {
+                "id": "23",
+                "trueHeadingDeg": 218,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 233
+              }
+            ]
+          },
+          {
+            "id": "14/32",
+            "lengthFt": 3654,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "FAIR",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "14",
+                "trueHeadingDeg": 122,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 137
+              },
+              {
+                "id": "32",
+                "trueHeadingDeg": 302,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 317
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:26396.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.30194444,
+          47.52997222
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "26396.",
+        "facilityType": "A",
+        "faaId": "BFI",
+        "icaoId": "KBFI",
+        "name": "BOEING FLD/KING COUNTY INTL",
+        "city": "SEATTLE",
+        "state": "WA",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 21.6,
+        "chart": "SEATTLE",
+        "notamId": "BFI",
+        "responsibleArtcc": "ZSE",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 10007,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.3,
+            "use": "LCL/P",
+            "sector": "RWY 14L/32R",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 120.6,
+            "use": "LCL/P",
+            "sector": "RWY 14R/32L & ALL IFR",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "24"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 127.75,
+            "use": "ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.8,
+            "use": "LCL/P",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 132.4,
+            "use": "CD/P",
+            "facilityId": "BFI",
+            "facilityName": "BOEING",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 119.2,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "017-079 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 119.2,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "028-160 SEA RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 120.1,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "223-289 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 120.1,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "223-301 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 120.4,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "301-340 SEA. RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 125.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "080-125 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 125.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "080-125 SEA,RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 125.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "290-315 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 125.9,
+            "use": "APCH/P IC",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 126.5,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "126-222 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 126.5,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "161-222 SEA RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 128.5,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "302-016 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 128.5,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "316-027 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 269.125,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "301-340 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 284.7,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "017-079 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 284.7,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "028-160 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 290.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "080-125 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 290.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "290-315 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 306.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "302-016 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 306.9,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "316-027 SEA, RWY 14"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 306.9,
+            "use": "APCH/P IC",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 377.15,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "126-222 SEA, RWY 32"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 377.15,
+            "use": "APCH/P DEP/P",
+            "facilityId": "S46",
+            "facilityName": "SEATTLE",
+            "sector": "161-222 SEA, RWY 14"
+          }
+        ],
+        "runways": [
+          {
+            "id": "14L/32R",
+            "lengthFt": 3709,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "FAIR",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "14L",
+                "trueHeadingDeg": 150,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 135
+              },
+              {
+                "id": "32R",
+                "trueHeadingDeg": 330,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 315
+              }
+            ]
+          },
+          {
+            "id": "14R/32L",
+            "lengthFt": 10007,
+            "widthFt": 200,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "14R",
+                "trueHeadingDeg": 150,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 135
+              },
+              {
+                "id": "32L",
+                "trueHeadingDeg": 330,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 315
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:06878.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.65222222,
+          38.79061111
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "06878.",
+        "facilityType": "A",
+        "faaId": "SLN",
+        "icaoId": "KSLN",
+        "name": "SALINA RGNL",
+        "city": "SALINA",
+        "state": "KS",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 1288,
+        "chart": "WICHITA",
+        "notamId": "SLN",
+        "responsibleArtcc": "ZKC",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 12301,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 119.3,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MIRL RY 12/30; PAPI RYS 12 & 30; HIRL RY 17/35; MALS & PAPI RYS 17 & 35; MALSR RY 35 - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.3,
+            "use": "LCL/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 120.15,
+            "use": "ATIS",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 124.35,
+            "use": "LCL/S",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.7,
+            "use": "LCL/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 360.8,
+            "use": "GND/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 120.15,
+            "use": "SLN ASOS"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 134.9,
+            "use": "SALINA RCAG",
+            "facilityId": "ZKC",
+            "facilityName": "KANSAS CITY",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY KANSAS CITY ARTCC (ZKC) ON FREQS 134.9/363.2 (SALINA RCAG)."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 363.2,
+            "use": "SALINA RCAG",
+            "facilityId": "ZKC",
+            "facilityName": "KANSAS CITY",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY KANSAS CITY ARTCC (ZKC) ON FREQS 134.9/363.2 (SALINA RCAG)."
+          }
+        ],
+        "runways": [
+          {
+            "id": "04/22",
+            "lengthFt": 3648,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "04",
+                "trueHeadingDeg": 49,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 42
+              },
+              {
+                "id": "22",
+                "trueHeadingDeg": 229,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 222
+              }
+            ]
+          },
+          {
+            "id": "12/30",
+            "lengthFt": 6510,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "EXCELLENT",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "12",
+                "trueHeadingDeg": 132,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 125
+              },
+              {
+                "id": "30",
+                "trueHeadingDeg": 312,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 305
+              }
+            ]
+          },
+          {
+            "id": "17/35",
+            "lengthFt": 12301,
+            "widthFt": 150,
+            "surface": "ASPH-CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "17",
+                "trueHeadingDeg": 180,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "35",
+                "trueHeadingDeg": 360,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 353
+              }
+            ]
+          },
+          {
+            "id": "18/36",
+            "lengthFt": 4301,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "EXCELLENT",
+            "ends": [
+              {
+                "id": "18",
+                "trueHeadingDeg": 180,
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "36",
+                "trueHeadingDeg": 360,
+                "magneticHeadingDeg": 353
+              }
+            ]
+          },
+          {
+            "id": "H1",
+            "lengthFt": 57,
+            "widthFt": 57,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H1"
+              }
+            ]
+          },
+          {
+            "id": "H2",
+            "lengthFt": 29,
+            "widthFt": 28,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H2"
+              }
+            ]
+          },
+          {
+            "id": "H3",
+            "lengthFt": 30,
+            "widthFt": 30,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H3"
+              }
+            ]
+          },
+          {
+            "id": "H4",
+            "lengthFt": 57,
+            "widthFt": 43,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H4"
+              }
+            ]
+          },
+          {
+            "id": "H5",
+            "lengthFt": 57,
+            "widthFt": 57,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H5"
+              }
+            ]
+          },
+          {
+            "id": "H6",
+            "lengthFt": 29,
+            "widthFt": 29,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "H6"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "navaids": [
+    {
+      "type": "Feature",
+      "id": "navaid:US:MA:LAWRENCE:LWM:DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.09485027,
+          42.7404183
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "LWM",
+        "type": "DME",
+        "name": "LAWRENCE",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "LAWRENCE",
+        "state": "MA",
+        "country": "US",
+        "highArtcc": "ZBW",
+        "lowArtcc": "ZBW",
+        "elevationFt": 305.8,
+        "frequency": "112.5",
+        "channel": "72X",
+        "publicUse": true,
+        "notamId": "LWM"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:TX:MINERAL WELLS:MQP:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.99744166,
+          32.72618055
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "MQP",
+        "type": "VORTAC",
+        "name": "MILLSAP",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "MINERAL WELLS",
+        "state": "TX",
+        "country": "US",
+        "highArtcc": "ZFW",
+        "lowArtcc": "ZFW",
+        "elevationFt": 900,
+        "frequency": "117.7",
+        "stationDeclinationDeg": 9,
+        "channel": "124X",
+        "publicUse": true,
+        "notamId": "FTW"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:KS:SALINA:SLN:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.62133225,
+          38.92513808
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "SLN",
+        "type": "VORTAC",
+        "name": "SALINA",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "SALINA",
+        "state": "KS",
+        "country": "US",
+        "highArtcc": "ZKC",
+        "lowArtcc": "ZKC",
+        "elevationFt": 1315.9,
+        "frequency": "117.1",
+        "stationDeclinationDeg": 7,
+        "channel": "118X",
+        "publicUse": true,
+        "notamId": "SLN"
+      }
+    }
+  ],
+  "fixes": [
+    {
+      "type": "Feature",
+      "id": "fix:US:K4:TX:FORCK",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -94.26981666,
+          32.99653333
+        ]
+      },
+      "properties": {
+        "kind": "fix",
+        "ident": "FORCK",
+        "useCode": "WP",
+        "charts": [
+          "CONTROLLER HIGH",
+          "ENROUTE HIGH",
+          "SID"
+        ],
+        "state": "TX",
+        "country": "US",
+        "icaoRegion": "K4",
+        "highArtcc": "ZFW",
+        "lowArtcc": "ZFW"
+      }
+    }
+  ]
+}

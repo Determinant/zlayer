@@ -2,12 +2,11 @@
 
 [Documentation](../../../docs/README.md) / Plugins / notams
 
-**Status: implemented; production feed enabled.** This is the long-term owning
-guide for the NOTAM plugin, collector, supported interpretation, and remaining
-qualification. Collection remains disabled by default for new deployments. The
+**Status: implemented; production feed enabled.** This guide covers the NOTAM
+plugin and collector, supported interpretation, limitations and dated verification
+results. Collection is disabled by default for new deployments. The
 [roadmap](../../../docs/product/roadmap.md#airport-and-procedure-notams) tracks
-release work. Requirements below retain the intended scope; the implementation
-coverage and dated evidence distinguish supported behavior from remaining work.
+remaining release work.
 
 The plugin shows NOTAM (D) and Flight Data Center NOTAMs (FDC)
 in an airport or navaid detail tab, with concise flairs and a **Show raw** disclosure
@@ -355,7 +354,10 @@ No camera movement or new interaction mode is imposed.
 Hovering a depicted notice or focusing its entry/contents emphasizes that notice's
 map geometry: area boundaries gain a bright outline with a dark halo, obstacle
 points gain a ring, and their labels remain readable above neighboring symbols.
-The entry receives a subtle hover treatment and the shared keyboard focus ring.
+The entry receives a single subtle background with core's 6px rounded corners,
+matching the PIREP reader. All entries use the shared panel inset so text stays
+clear of the highlight edges. Keyboard focus adds the shared focus ring to the
+entry itself or its focused control, without outlining both at once.
 All points or areas belonging to that notice respond together. Unsupported or
 not-yet-accepted geometry offers no highlight interaction. Touch scrolling does
 not establish hover. The camera stays where the user left it.
@@ -475,8 +477,8 @@ check; they are not accepted without corroboration. No digit is deleted or
 inserted to force an otherwise ambiguous coordinate to fit. Two-digit longitude
 is accepted without a reference only when interpreting its first three digits
 as degrees would exceed 180; an ambiguous shortened `113242W` is rejected.
-Recovered positions are marked **Recovered coordinate — check source** on the
-map, and the reader retains the source coordinate. Navigation replacement
+The map labels recovered positions **Recovered coordinate** with a **check source**
+warning, and the reader retains the source coordinate. Navigation replacement
 invalidates recovered geometry just like VOR/reference geometry.
 
 `activity-points.ts` depicts explicitly located laser sources, free-balloon
@@ -1271,15 +1273,18 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    Schedule representation is decoded separately from source revision ordering
    and notice-specific reconciliation. `schedule.ts` owns one shared semantic
    projection for collection and client validity: absent, understood weekly
-   days with an optional UTC window, or opaque source text. Opaque is not absent;
+   days with an optional clock/solar window, or opaque source text. Opaque is not absent;
    missing hours are not all-day availability. Understood schedules compare day
-   sets and minute boundaries, so weekday lists/ranges, daily aliases and agreeing
+   sets and endpoints, so weekday lists/ranges, daily aliases and agreeing
    machine/readable wrappers do not require per-notice exceptions. Both halves
    of `Daily:HHMM-HHMM~DLY HHMM-HHMM` or
    `Wednesday:HHMM-HHMM~WED HHMM-HHMM` must independently decode and agree on
    days and hours. All seven full weekday names use the same rule. Conflicting
-   halves, solar times, invalid clocks and multiple windows remain opaque;
-   neither half is preferred or discarded. Equal opaque source text can remain
+   halves, invalid clocks, solar offsets and multiple windows remain opaque;
+   neither half is preferred or discarded. `SR` and `SS` endpoints compare as
+   symbols, including a window with one clock endpoint. They never imply computed
+   sunrise/sunset times: client validity still reports **Check Schedule** for
+   these windows. Equal opaque source text can remain
    a resolved record while validity explicitly reports **Check Schedule**.
    The projection is derived, never persisted in place of raw source fields.
 
@@ -1288,15 +1293,22 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    two individually parseable fields. Domestic schedule metadata may omit the
    schedule or its hours while both records retain the same complete native
    notice and body. Reconcile those omissions only against one terminal schedule
-   in that shared body: every supplied weekday and hour must agree. The same
-   schedule grammar validates that witness and evaluates client timing. Supported
-   evidence is a weekday list/range or `DLY`/`DAILY` with one valid UTC window;
-   overnight windows and an end of `2400` are allowed. Weekday ranges and their
+   in that shared body: every supplied weekday and endpoint must agree. A complete
+   ICAO D field can also witness the omission for an active NOTAMN: every retained
+   ICAO rendering must bind to the record's identity, location and B/C interval,
+   account for its whole body and agree on all notice content. No classification
+   label alone establishes that proof. Every supplied structured schedule must
+   fit that same D field; unsupported or contradictory renderings prevent repair.
+   Supported evidence is a weekday list/range or `DLY`/`DAILY` with one clock/solar
+   window; overnight clocks and an end of `2400` are allowed. Comparison support
+   does not establish whether a solar window is active. Weekday ranges and their
    expanded lists identify the same days. Multiple windows, exceptions, unknown
    expressions, different days/hours and missing or mismatched native evidence
    remain unresolved. Keep the fuller original schedule field, including its raw
    spelling, so sparse replays cannot erase known hours. Never synthesize a field
    from prose or let a partial field overrule a complete one.
+   Missing hours without a witness are unproven, rather than a demonstrated
+   contradiction; different supplied days or comparable endpoints are contradictory.
 
    Whitespace-only body differences also reconcile through an identical complete
    native notice. Retain the first original body; do not discard changed words,
@@ -1312,6 +1324,10 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    authenticated restart tests. Shared schedule tests exercise all weekdays,
    representation equivalence, UTC boundaries, contradictory wrappers and sparse
    replays; extending syntax must preserve these contracts in both consumers.
+   The [October 13 captured 9G8/OTBH pairs](../../../test/fixtures/notams-schedule-2026-10-13.json)
+   extend that coverage to a solar wrapper/omission and a military ICAO D-field
+   witness. Both arrival orders, sparse replay, a contradictory third variant and
+   authenticated restore use the ordinary reconciliation path.
 
    Derived end kinds are compared after combining
    compatible optional evidence: a matching retained `EST` suffix can qualify
@@ -1695,7 +1711,7 @@ association does not establish which other centers a flight will traverse.
 
 Use `createInfoServer`, `info:serve`, `info:build` and `zlayer-info.service` for the
 shared listener on port 8787. The [server guide](../../../tools/info-server/README.md)
-owns common operations; this section defines the wiring for the collection
+describes common operations; this section defines the wiring for the collection
 and query contracts above. No additional workspace or service framework is needed.
 
 ### Module and lifecycle boundaries
@@ -2566,7 +2582,7 @@ time limitations. This README remains the canonical guide after implementation.
   plate collapse/page changes, map remount and plugin disable/re-enable while
   ordinary DOF symbols remain independent.
 
-### Server reliability audit — 2026-10-05
+### Server reliability audit, 2026-10-05
 
 This records the implementation audit and its subsequent focused validation;
 it does not qualify long-term source availability or a complete daily live cycle.
@@ -2773,7 +2789,7 @@ that retained evidence does not complete this temporal qualification.
 Keep unsupported clauses visible; never supply missing altitude types, gradient
 units, RNP labels or ambiguous radio-altitude/multipart meaning to improve counts.
 
-### Presentation coverage sample — 2026-10-05
+### Presentation coverage sample, 2026-10-05
 
 At 18:25 UTC, cached production airport queries using both FAA and ICAO selectors
 returned 4,331 retained records: 1,880 domestic, 575 FDC, 1,851 international and
@@ -2811,7 +2827,7 @@ from structural coverage: unrecognized abbreviations and tokens remain uppercase
 Focused Node and Chromium checks cover these derivations and both themes/hosts;
 this sample does not complete full verification or installed-device qualification.
 
-### Local implementation evidence — 2026-10-04
+### Local implementation evidence, 2026-10-04
 
 Replaying the saved KSJC staging airport response derived specific tags for all
 30 D/FDC records. These observed source forms informed the grammar and synthetic

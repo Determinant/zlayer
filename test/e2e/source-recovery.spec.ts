@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { decode } from 'fast-png';
 
 test.beforeEach(async ({ page }) => {
   // These cases disable service workers to intercept individual source requests.
@@ -37,6 +38,65 @@ test('airport search stays usable while another navigation feed is pending', asy
   } finally { await held.continue(); }
   await expect(page.locator('.search-results')).toHaveCount(0);
 });
+
+for (const delayed of ['fixes.geojson', 'preferred-routes.json']) {
+  test(`the first two route waypoints render while ${delayed} is pending`, async ({ page }, testInfo) => {
+    await page.clock.install();
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
+      localStorage.setItem('zlayers-map-view-v1', JSON.stringify({ version: 1,
+        center: [-119.145, 34.227], zoom: 8, bearing: 0, pitch: 0 }));
+    });
+    let hold!: (route: Route) => void;
+    const pending = new Promise<Route>(resolve => { hold = resolve; });
+    await page.route(`**/nav/${delayed}*`, hold);
+    await page.goto('/');
+    if (delayed === 'fixes.geojson') {
+      await expect(page.getByLabel('Search FAA navigation data')).toBeAttached();
+      await page.clock.fastForward(15_001);
+      await page.getByRole('button', { name: 'Open workspace', exact: true }).click();
+    }
+    const input = page.getByRole('textbox', { name: 'Add route waypoint', exact: true });
+    await expect(input).toBeVisible();
+    await expect(page.locator('.route-token')).toHaveCount(0);
+    const blueRoutePixels = async () => {
+      const png = decode(await page.locator('.maplibregl-canvas').screenshot({ path: testInfo.outputPath('pending-route-map.png') }));
+      let blue = 0;
+      for (let y = Math.floor(png.height / 2) - 40; y < png.height / 2 + 40; y++) {
+        for (let x = Math.floor(png.width / 2) - 40; x < png.width / 2 + 40; x++) {
+          const offset = (y * png.width + x) * png.channels;
+          // The translucent route blends with its halo and underlying terrain.
+          if (png.data[offset + 2]! - png.data[offset]! > 50 && png.data[offset + 1]! - png.data[offset]! > 30) blue++;
+        }
+      }
+      return blue;
+    };
+    await expect.poll(blueRoutePixels).toBe(0);
+    await input.fill('KSBA KSMO');
+    await input.press('Enter');
+    const held = await pending;
+    try {
+      const assertRoute = async () => {
+        await expect(page.locator('.route-token.is-airports')).toHaveCount(2);
+        await expect(page.locator('#route-summary')).toHaveText('Loading FAA index…');
+        // The route crosses the map center, away from its airport symbols.
+        // Check actual blue line pixels while the unrelated request is held.
+        await expect.poll(blueRoutePixels).toBeGreaterThan(100);
+      };
+      await assertRoute();
+      await page.getByRole('button', { name: 'Route actions', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Clear Route', exact: true }).click();
+      await expect(page.locator('.route-token')).toHaveCount(0);
+      await expect.poll(blueRoutePixels).toBe(0);
+      await input.fill('KSMO KSBA');
+      await input.press('Enter');
+      await assertRoute();
+      await page.screenshot({ path: testInfo.outputPath('route-with-pending-reference.png') });
+    } finally { await held.continue(); }
+    await expect(page.locator('#route-summary')).not.toContainText('Loading');
+    await expect(page.locator('.route-token.is-airports')).toHaveCount(2);
+  });
+}
 
 for (const renderer of ['canvas', 'viewer'] as const) {
   test(`${renderer} offers working recovery after a failed module download`, async ({ page }) => {

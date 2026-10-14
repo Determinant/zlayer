@@ -5,6 +5,53 @@ import { CHART_CACHE, VERIFIED_SHA256_HEADER } from '../src/core/storage/cache-n
 
 const shellHtml = '<meta name="zlayer-release" content="dev">';
 
+test('About requests bypass the worker while existing app navigation remains available offline', async t => {
+  const { onFetch } = await workerFixture(t);
+  await (await caches.open('zlayers-shell-dev')).put('https://app.test/', new Response(shellHtml));
+  const network = t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('offline'); });
+  for (const path of ['/about', '/about/', '/about/?reset=1', '/about/index.html', '/about/workspace.webp', '/about/missing']) {
+    for (const navigate of [false, true]) {
+      const request = new Request(`https://app.test${path}`);
+      if (navigate) Object.defineProperty(request, 'mode', { value: 'navigate' });
+      onFetch({ request,
+        respondWith: () => assert.fail(`${path} must use the browser's network response`),
+        waitUntil: () => assert.fail(`${path} must not schedule worker cache work`) });
+    }
+  }
+  const pending: Promise<unknown>[] = [];
+  for (const path of ['/', '/?reset=1', '/index.html', '/aboutness', '/legacy-workspace', '/icon.svg']) {
+    const request = new Request(`https://app.test${path}`);
+    Object.defineProperty(request, 'mode', { value: 'navigate' });
+    let response: Promise<Response> | undefined;
+    onFetch({ request, respondWith: work => { response = work; }, waitUntil: work => { pending.push(work); } });
+    assert(response, `${path} retains the existing app-shell fallback`);
+    assert.equal(await (await response).text(), shellHtml);
+  }
+  await Promise.all(pending);
+  assert.equal(network.mock.callCount(), 0, 'offline app navigation needs no network response');
+});
+
+test('non-root windows retain old shells until the reporting app is the only window', async t => {
+  const { client, clients, onMessage } = await workerFixture(t);
+  const app = { ...client, url: 'https://app.test/' };
+  await (await caches.open('zlayers-shell-dev')).put(app.url, new Response(`${shellHtml}<script src="/assets/app-current.js"></script>`));
+  await (await caches.open('zlayers-shell-old')).put(app.url, new Response('<script src="/assets/app-old.js"></script>'));
+  const report = async () => {
+    let work!: Promise<unknown>;
+    onMessage({ data: { type: 'active-shell', entry: 'https://app.test/assets/app-current.js' }, source: app,
+      ports: [], waitUntil: pending => { work = pending; } });
+    await work;
+  };
+  for (const path of ['/about/', '/legacy-workspace']) {
+    clients.matchAll = async () => [app, { id: 'older-window', url: `https://app.test${path}` }];
+    await report();
+    assert((await caches.keys()).includes('zlayers-shell-old'), `${path} may still run an older app`);
+  }
+  clients.matchAll = async () => [app];
+  await report();
+  assert(!(await caches.keys()).includes('zlayers-shell-old'), 'cleanup resumes after the other window closes');
+});
+
 test('archive failure and verified recovery are ordered, coalesced and kept in the worker lifetime', async t => {
   const { onFetch, onMessage, clients, client } = await workerFixture(t);
   const messages: Array<{ type: string; url: string }> = [];
@@ -73,6 +120,7 @@ async function workerFixture(t: TestContext) {
     claim: async () => {} };
   Object.defineProperty(globalThis, 'self', { configurable: true, value: Object.assign(Object.create(globalThis), {
     location: { pathname: '/sw.js', origin: 'https://app.test' },
+    registration: { active: {}, installing: null, waiting: null },
     clients,
     skipWaiting: async () => { activations++; },
     addEventListener(type: string, listener: never) {
@@ -115,6 +163,9 @@ test('reset drains worker writes, prevents new writes, and discards resident cha
   await response;
   await prepared;
   assert.equal(acknowledged, true);
+  onFetch({ request: new Request('https://app.test/about/'),
+    respondWith: () => assert.fail('About also bypasses worker caching during reset'),
+    waitUntil: () => assert.fail('About must not add work to the reset handshake') });
   assert.equal(stored.size, 1);
   stored.clear(); // The reset screen can now delete storage.
   await charts.delete(chartUrl);
@@ -139,12 +190,12 @@ test('reset drains worker writes, prevents new writes, and discards resident cha
   assert.equal(await charts.match(chartUrl), undefined);
 });
 
-test('reset waits for a navigated screen even while client enumeration omits it', async t => {
+test('reset includes a non-root window and waits even while client enumeration omits its screen', async t => {
   const { client, clients, onMessage } = await workerFixture(t);
   const loading = { id: 'loading-screen', url: client.url };
   let navigated = false;
   clients.matchAll = async () => navigated ? [client] : [client, {
-    id: 'workspace', url: 'https://app.test/', navigate: async () => { navigated = true; return loading; },
+    id: 'workspace', url: 'https://app.test/about/', navigate: async () => { navigated = true; return loading; },
   }];
   onMessage({ data: { type: 'reset-screen-ready' }, source: client, ports: [], waitUntil: () => {} });
   let acknowledged = false, stopped!: Promise<unknown>, ready!: () => void;
@@ -166,7 +217,7 @@ test('reset waits for a navigated screen even while client enumeration omits it'
 
 test('additional workers wait for the coordinator without navigating windows again', async t => {
   const { client, clients, onMessage } = await workerFixture(t);
-  const other = { id: 'other', url: 'https://app.test/', navigate: async () => {
+  const other = { id: 'other', url: 'https://app.test/legacy-workspace', navigate: async () => {
     assert.fail('only the coordinator may navigate windows');
   } };
   clients.matchAll = async () => [client, other];

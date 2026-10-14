@@ -1,3 +1,5 @@
+import { PirepClient } from '../../src/layers/weather-awc/pireps/client';
+import type { NavigationData } from '@zlayer/contracts';
 import { ProgsCoverageClient } from '../../src/layers/weather-awc/progs/coverage-client';
 import { Map as MapLibreMap, setWorkerUrl } from 'maplibre-gl';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -19,17 +21,25 @@ const map = new MapLibreMap({ container: 'map', center: [-122, 37.3], zoom: 6.7,
 const errors: string[] = [];
 map.on('error', event => errors.push(event.error.message));
 const controller = createWeatherController({ advisories: new AdvisoryClient(new URL('/api/weather/advisories/', location.href).href, true),
+    pireps: new PirepClient(new URL('/api/weather/pireps.json', location.href).href),
     coverage: new ProgsCoverageClient(new URL('/api/weather/progs/', location.href).href),
     progs: new ProgsClient(new URL('/api/weather/progs/', location.href).href),
     radar: new RadarClient(new URL('/api/weather/radar/', location.href).href) });
 let preferences = weatherAwcPreferences.select({ awcEnabled: true, awcProgs: true, awcGairmet: false, awcSigmet: false, awcConvective: false, awcCwa: false });
-const change = (patch: Partial<WeatherAwcPreferences>) => { preferences = { ...preferences, ...patch }; controller.configure({ ...preferences, change }); };
+let navigation: NavigationData = {};
+const change = (patch: Partial<WeatherAwcPreferences>) => { preferences = { ...preferences, ...patch }; controller.configure({ ...preferences, navigation, change }); };
 change({});
 const host = new MapLayerHost(map, (_id, error) => errors.push(String(error)));
 const layer = createWeatherMap(controller);
 map.on('load', () => host.mount([layer]));
+if (new URLSearchParams(location.search).has('pireps')) {
+  void import('./weather-pireps').then(({ mountPirepPanel }) => mountPirepPanel(controller));
+}
 const audit = { map, errors,
   state: controller.getSnapshot, select: controller.selectTime, retry: controller.retryProgs, change,
+  checkPireps: controller.checkPireps,
+  setNavigation: (data: NavigationData) => { navigation = data; change({}); },
+  inspectPirep: (point: { x: number; y: number }) => controller.pirepAction(point)?.select(),
   features: () => map.queryRenderedFeatures(undefined, { layers: SURFACE_LAYERS.filter(id => map.getLayer(id)) }).map(f => f.properties),
   recover: () => { host.unmount(); map.once('style.load', () => host.mount([layer])); map.setStyle(style(), { diff: false }); },
 };

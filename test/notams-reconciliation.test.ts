@@ -8,7 +8,7 @@ import test from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { isRecord, isNotamRecord, isNotamAirportSnapshot, isNotamNavaidSnapshot, isNotamSourceIssue, NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
-import { resolveNotamFilingScope } from '../tools/info-server/notams/revision';
+import { resolveNotamFilingScope, compareNotamContent } from '../tools/info-server/notams/revision';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { NotamStore } from '../tools/info-server/notams/store';
 import { createNotamService } from '../tools/info-server/notams/service';
@@ -16,6 +16,7 @@ import { createNotamResponder } from '../tools/info-server/notams/routes';
 import { aixm } from './fixtures/notams';
 import associationCapture from './fixtures/notams-association-2026-10-09.json';
 import representationCapture from './fixtures/notams-representations-2026-10-09.json';
+import scheduleCapture from './fixtures/notams-schedule-2026-10-13.json';
 import { NotamIndex } from '../tools/info-server/notams/index';
 import { createInfoServer } from '../tools/info-server/server';
 
@@ -44,11 +45,14 @@ const joh = evidence.issues.find(i => i.locations.includes('JOH'))!;
 const newerRepresentations = representationCapture.issues.map((raw): NotamSourceIssue => {
   const issue: unknown = raw; assert.ok(isNotamSourceIssue(issue)); return issue;
 });
+const scheduleIssues = scheduleCapture.issues.map((raw): NotamSourceIssue => {
+  const issue: unknown = raw; assert.ok(isNotamSourceIssue(issue)); return issue;
+});
 const issues = [...new Map(snapshots.flatMap(s => s.issues ?? []).map(issue => [issue.id, issue])).values(),
   ...representationIssues, ...cancellations.issues, ...schedules.issues, miami,
-  ...newerRepresentations];
+  ...newerRepresentations, ...scheduleIssues];
 const now = Math.max(...snapshots.map(s => s.feed.checkedAt!), renderings.checkedAt, cancellations.checkedAt, schedules.checkedAt,
-  evidence.checkedAt, Date.parse(representationCapture.capturedAt));
+  evidence.checkedAt, Date.parse(representationCapture.capturedAt), Date.parse(scheduleCapture.capturedAt));
 function changed(record: NotamRecord, fields: Partial<NotamRecord>) {
   const { revision: _revision, ...facts } = { ...record, ...fields };
   return recordWithRevision(facts);
@@ -124,7 +128,7 @@ test('association disputes qualify filing-scope content without asserting an air
 });
 
 test('captured source pairs reconcile in both arrival orders without losing raw translations or source time', () => {
-  assert.equal(issues.length, 28);
+  assert.equal(issues.length, 30);
   for (const issue of issues) for (const variants of [issue.variants, [...issue.variants].reverse()]) {
     let collection = collectNotamRecords({ records: [] }, [variants[0]!]);
     collection = collectNotamRecords(collection, variants.slice(1));
@@ -228,6 +232,60 @@ test('native schedule evidence supplements missing metadata and retains supplied
       const collection = collectNotamRecords({ records: [order[0]!] }, order.slice(1));
       assert.equal(collection.records[0]?.schedule, schedule, id);
       assert.equal(collectNotamRecords(collection, [...variants, changed(variants[0]!, { schedule: '' })]), collection);
+    }
+  }
+});
+
+test('captured solar and military ICAO witnesses preserve complete schedules through sparse and conflicting replay', () => {
+  for (const issue of scheduleIssues) {
+    const full = issue.variants.find(r => r.schedule.includes('-'))!;
+    const partial = issue.variants.find(r => r !== full)!;
+    for (const variants of [[full, partial], [partial, full], [changed(partial, { schedule: '' }), full]]) {
+      const collection = collectNotamRecords({ records: [] }, variants);
+      assert.equal(collection.issues?.length ?? 0, 0);
+      assert.equal(collection.records[0]!.schedule, full.schedule);
+      assert.equal(collectNotamRecords(collection, [...variants, changed(partial, { schedule: '' })]), collection);
+      assert.equal(compareNotamContent(...variants as [NotamRecord, NotamRecord]).outcome, 'compatible-evidence');
+    }
+    for (const schedule of [full.schedule.replace('SS-SR', 'SR-SS').replace('0400-1300', '0500-1300'),
+      'MON 0400-1300', `${full.schedule} EXC HOL`]) {
+      const conflict = changed(full, { schedule });
+      for (const variants of [[full, partial, conflict], [full, conflict, partial], [partial, full, conflict],
+        [partial, conflict, full], [conflict, full, partial], [conflict, partial, full]]) {
+        const collection = collectNotamRecords({ records: [] }, variants);
+        assert.equal(collection.issues?.length, 1, `${issue.id}: ${schedule}`);
+        assert.equal(collectNotamRecords(collection, [partial, full, changed(partial, { schedule: '' })]).issues?.length, 1);
+      }
+    }
+  }
+});
+
+test('ICAO schedule supplementation binds every complete rendering and does not mislabel missing hours', () => {
+  const issue = scheduleIssues.find(i => i.locations.includes('OTBH'))!;
+  const full = issue.variants.find(r => r.schedule.includes('-'))!, partial = issue.variants.find(r => r !== full)!;
+  for (const classification of ['MIL', 'INTL']) {
+    for (const schedule of ['', partial.schedule, full.schedule]) {
+      const variants = [changed(partial, { classification, schedule }), changed(full, { classification })];
+      assert.equal(collectNotamRecords({ records: [] }, variants).issues?.length ?? 0, 0);
+    }
+  }
+  const withoutEvidence = [partial, full].map(r => changed(r, { translations: [] }));
+  assert.equal(compareNotamContent(...withoutEvidence as [NotamRecord, NotamRecord]).outcome, 'unproven');
+  assert.equal(collectNotamRecords({ records: [] }, withoutEvidence).issues?.length, 1);
+  const alter = (record: NotamRecord, from: string, to: string) => changed(record, {
+    translations: record.translations.map(t => ({ ...t, text: t.text.replace(from, to) })),
+  });
+  for (const [from, to] of [['M0403/26', 'M0404/26'], ['A) OTBH', 'A) KJFK'], ['2610140400', '2610140500'],
+    ['2611051300', '2611051400'], ['0400-1300', '0500-1300'], ['TWY F1 CLOSED', 'TWY F2 CLOSED'],
+    ['D) WED THU SAT SUN MON TUE 0400-1300', 'D) WED THU SAT SUN MON TUE 0400-1300 EXC HOL']]) {
+    const variants = [alter(partial, from!, to!), alter(full, from!, to!)];
+    assert.equal(collectNotamRecords({ records: [] }, variants).issues?.length, 1, from);
+  }
+  for (const extra of [alter(full, '0400-1300', '0500-1300').translations[0]!,
+    { type: 'OTHER:ICAO', text: 'Unsupported additional ICAO rendering' }]) {
+    const richer = changed(full, { translations: [...full.translations, extra] });
+    for (const variants of [[partial, richer], [richer, partial]]) {
+      assert.equal(collectNotamRecords({ records: [] }, variants).issues?.length, 1);
     }
   }
 });

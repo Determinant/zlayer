@@ -1,7 +1,9 @@
 import { AWC_GRID_FIELDS, isRecord, type AwcGridFrame, type AwcGridManifest, type AwcGridProduct, type AwcGridField } from '@zlayer/contracts';
+import { isModelVersion, type ModelVersion } from './source-version';
 
 export const CONVERTER_VERSION = 'grib-browser-v1';
-export type SourceRecord = { path: string; start: number; end?: number; indexHash: string };
+// Optional only for retained, already prepared catalogs from older releases.
+export type SourceRecord = { path: string; start: number; end?: number; indexHash: string; version?: ModelVersion };
 export type NativeFrame = { validTime: number; altitudeFtMsl: number | null; pressureHpa?: number; sources: string[];
   records: Partial<Record<AwcGridField | 'terrain', SourceRecord>> };
 export type NativeManifest = Omit<AwcGridManifest, 'frames'> & { encoding: 'grib2'; frames: NativeFrame[] };
@@ -89,6 +91,8 @@ export function isNativeManifest(value: unknown): value is NativeManifest {
     for (const field of [...AWC_GRID_FIELDS[product], ...(product !== 'clouds' ? ['terrain'] : [])]) {
       const r = f.records[field];
       if (!isRecord(r) || r.path !== paths[field === 'terrain' ? 1 : 0] || typeof r.indexHash !== 'string' || !/^[a-f0-9]{64}$/.test(r.indexHash) ||
+        (r.version !== undefined && (!isModelVersion(r.version) || Number(r.start) >= r.version.byteLength ||
+          r.end !== undefined && Number(r.end) >= r.version.byteLength)) ||
         !Number.isSafeInteger(r.start) || Number(r.start) < 0 || (r.end !== undefined && (!Number.isSafeInteger(r.end) || Number(r.end) < Number(r.start) || Number(r.end) - Number(r.start) >= 8 * 1024 * 1024))) return false;
     }
     const key = `${lead}/${altitude}/${f.pressureHpa}`;

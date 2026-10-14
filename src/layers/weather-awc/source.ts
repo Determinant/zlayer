@@ -1,4 +1,4 @@
-import { isRecord, isAwcAdvisorySnapshot, isWeatherAdvisory, type AwcAdvisoryIssue, type AwcAdvisoryProduct,
+import { isRecord, isAwcAdvisorySnapshot, isWeatherAdvisory, advisoryValidityWithinWindow, type AwcAdvisoryIssue, type AwcAdvisoryProduct,
   type AwcAdvisorySnapshot, type WeatherAdvisory, type WeatherGeometry } from '@zlayer/contracts';
 import { prepareAdvisoryGeometry } from './source-geometry';
 import { advisorySourceHazard } from './source-hazard';
@@ -75,6 +75,7 @@ export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonl
     const validTo = product === 'gairmet' ? null : instant(p.validTimeTo);
     const forecastHour = product === 'gairmet' && typeof p.forecast === 'number' ? p.forecast : null;
     if (validFrom === null || (product !== 'gairmet' && (validTo === null || validTo <= validFrom)) ||
+      !advisoryValidityWithinWindow(validFrom, validTo, checkedAt) ||
       (product === 'gairmet' && forecastHour !== FORECAST_HOURS[index])) {
       if (product === 'gairmet') throw new Error('AWC advisory has invalid forecast times');
       reject('invalid-validity'); continue;

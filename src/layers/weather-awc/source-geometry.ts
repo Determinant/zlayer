@@ -1,7 +1,7 @@
 import clipping, { type Polygon, type MultiPolygon, type Pair } from 'polygon-clipping';
 import { isRecord, isWeatherGeometry, type WeatherGeometry } from '@zlayer/contracts';
+import { wrapLongitude, longitudeNear, dateLineCrossing } from './geographic';
 
-const wrap = (lon: number) => lon - 360 * Math.floor((lon + 180) / 360);
 function line(value: unknown, budget: { points: number }): Pair[] {
   if (!Array.isArray(value) || value.length < 2 || value.length > budget.points) throw new Error('Invalid advisory line');
   budget.points -= value.length;
@@ -9,16 +9,33 @@ function line(value: unknown, budget: { points: number }): Pair[] {
   for (const p of value) {
     if (!Array.isArray(p) || p.length !== 2 || !p.every(n => typeof n === 'number' && Number.isFinite(n)) ||
       Math.abs(p[0]) > 540 || Math.abs(p[1]) > 90) throw new Error('Invalid advisory coordinate');
-    const previous = points.at(-1)?.[0] ?? wrap(p[0]);
-    const lon = p[0] + 360 * Math.round((previous - p[0]) / 360);
+    const previous = points.at(-1)?.[0] ?? wrapLongitude(p[0]);
+    const lon = longitudeNear(p[0], previous);
     if (Math.abs(lon - previous) >= 180) throw new Error('Ambiguous advisory edge');
     points.push([lon, p[1]]);
   }
   return points;
 }
 const longitudeBounds = (ring: Pair[]) => [Math.min(...ring.map(p => p[0])), Math.max(...ring.map(p => p[0]))] as const;
-const boundaryLength = (ring: Pair[]) => ring.slice(1).reduce((sum, point, i) =>
-  sum + Math.hypot(point[0] - ring[i]![0], point[1] - ring[i]![1]), 0);
+const same = (a: Pair, b: Pair) => a[0] === b[0] && a[1] === b[1];
+function boundaryTurns(ring: Pair[]): Pair[] {
+  const points = ring.slice(0, -1).filter((point, i) => !i || !same(point, ring[i - 1]!));
+  if (points.length > 1 && same(points[0]!, points.at(-1)!)) points.pop();
+  return points.filter((b, i) => {
+    const a = points[(i + points.length - 1) % points.length]!, c = points[(i + 1) % points.length]!;
+    const ux = b[0] - a[0], uy = b[1] - a[1], vx = c[0] - b[0], vy = c[1] - b[1];
+    // Only a forward, exactly collinear vertex is redundant. Reversals carry
+    // topology even when their length falls below a perimeter-error tolerance.
+    return ux * vy - uy * vx !== 0 || ux * vx + uy * vy <= 0;
+  });
+}
+function sameBoundary(source: Pair[], canonical: Pair[]): boolean {
+  const before = boundaryTurns(source), after = boundaryTurns(canonical);
+  if (before.length < 3 || before.length !== after.length) return false;
+  const start = after.findIndex(point => same(point, before[0]!));
+  return start >= 0 && [1, -1].some(direction => before.every((point, i) =>
+    same(point, after[(start + direction * i + after.length) % after.length]!)));
+}
 function polygon(value: unknown, budget: { points: number }): Polygon {
   if (!Array.isArray(value) || !value.length || value.length > 100) throw new Error('Invalid advisory polygon');
   const rings: Polygon = [];
@@ -37,11 +54,11 @@ function polygon(value: unknown, budget: { points: number }): Polygon {
     if (ring.length < 4 || ring[0]![0] !== ring.at(-1)![0] || ring[0]![1] !== ring.at(-1)![1] ||
       east - west >= 360) throw new Error('Invalid advisory ring');
     // Clipping must not silently repair a crossing, retraced or empty ring.
-    // A simple ring remains one boundary of the same length when canonicalized;
-    // winding, collinear vertices and adjacent duplicate points do not matter.
-    const simple = clipping.union([ring]), length = boundaryLength(ring);
-    if (simple.length !== 1 || simple[0]!.length !== 1 ||
-      Math.abs(boundaryLength(simple[0]![0]!) - length) > Number.EPSILON * 64 * ring.length * Math.max(1, length)) {
+    // Canonicalization must preserve the complete cyclic sequence of turns.
+    // Comparing perimeter alone could hide a short retraced edge or repair.
+    // Winding, forward collinear vertices and adjacent duplicates do not matter.
+    const simple = clipping.union([ring]);
+    if (simple.length !== 1 || simple[0]!.length !== 1 || !sameBoundary(ring, simple[0]![0]!)) {
       throw new Error('Unsupported advisory ring topology');
     }
     if (rings.length) {
@@ -58,6 +75,16 @@ function polygon(value: unknown, budget: { points: number }): Polygon {
       }
     }
     rings.push(ring);
+  }
+  // Individually simple, contained rings can still erase the exterior or share
+  // an edge. Validate their combined topology without adopting repaired output.
+  if (rings.length > 1) {
+    const whole = clipping.union(rings);
+    if (whole.length !== 1 || whole[0]!.length !== rings.length ||
+      !sameBoundary(rings[0]!, whole[0]![0]!) ||
+      !rings.slice(1).every(hole => whole[0]!.slice(1).some(candidate => sameBoundary(hole, candidate)))) {
+      throw new Error('Invalid advisory polygon topology');
+    }
   }
   return rings;
 }
@@ -76,15 +103,14 @@ function splitPolygon(rings: Polygon): MultiPolygon {
 }
 function splitLine(points: Pair[]): Pair[][] {
   const parts: Pair[][] = [];
-  let current: Pair[] = [[wrap(points[0]![0]), points[0]![1]]];
+  let current: Pair[] = [[wrapLongitude(points[0]![0]), points[0]![1]]];
   for (let i = 1; i < points.length; i++) {
-    const a = current.at(-1)!, next = points[i]!, b: Pair = [wrap(next[0]), next[1]];
-    if (Math.abs(b[0] - a[0]) > 180) {
-      const longitude = b[0] + (b[0] > a[0] ? -360 : 360), edge = b[0] > a[0] ? -180 : 180;
-      const latitude = a[1] + (b[1] - a[1]) * (edge - a[0]) / (longitude - a[0]);
-      if (a[0] !== edge) current.push([edge, latitude]);
+    const a = current.at(-1)!, next = points[i]!, b: Pair = [wrapLongitude(next[0]), next[1]];
+    const crossing = dateLineCrossing(a, b);
+    if (crossing) {
+      if (a[0] !== crossing.leaving[0]) current.push(crossing.leaving);
       if (current.length > 1) parts.push(current);
-      current = [[-edge, latitude]];
+      current = [crossing.entering];
     }
     if (current.at(-1)!.some((v, axis) => v !== b[axis])) current.push(b);
   }

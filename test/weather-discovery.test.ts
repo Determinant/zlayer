@@ -25,6 +25,10 @@ function source(change: (path: string, body: string) => string = (_path, body) =
       const body = Buffer.from(template.toString().replaceAll('d=2026092220', run === latest ? 'd=2026092221' : 'd=2026092220'));
       entries.set(modelPath(product, run, lead) + '.idx', { body, status: 200, headers: {}, sha256: digest(body),
         checkedAt: now - (run === latest ? 55_000 : 1000) });
+      const raw = files.get('/weather/noaa/' + modelPath(product, older, lead))!;
+      const metadata = Buffer.from(JSON.stringify({ byteLength: raw.length, etag: `"${digest(raw)}"` }));
+      entries.set(modelPath(product, run, lead), { body: metadata, status: 200, headers: {}, sha256: digest(metadata),
+        checkedAt: now - (run === latest ? 55_000 : 1000) });
     }
   }
   const read: ReadSource = async (path, signal) => {
@@ -103,6 +107,12 @@ test('native catalogs require complete source horizons', async () => {
   for (const product of ['clouds', 'icing', 'winds'] as const) {
     const manifest = await discover(read, product, signal, now);
     assert.ok(isNativeManifest(JSON.parse(JSON.stringify(manifest))));
+    const legacy = structuredClone(manifest);
+    for (const frame of legacy.frames) for (const record of Object.values(frame.records)) delete record.version;
+    assert.ok(isNativeManifest(legacy), 'previously prepared offline catalogs retain their original identity');
+    const invalid = structuredClone(manifest);
+    Object.values(invalid.frames[0]!.records)[0]!.version = { byteLength: 1, etag: 'W/"weak"' };
+    assert.equal(isNativeManifest(invalid), false, 'present object versions cannot bypass validation');
     assert.equal(isNativeManifest({ ...manifest, frames: manifest.frames.slice(1) }), false);
     assert.equal(isNativeManifest({ ...manifest, partial: true, frames: manifest.frames.filter(frame => frame.validTime === manifest.runTime + hour) }), false);
   }

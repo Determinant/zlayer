@@ -2,10 +2,10 @@
 
 [Documentation](../README.md) / Product
 
-This brief defines user needs, target experience, non-goals and performance
-budgets. Its scope and acceptance scenario include planned capabilities.
-The [roadmap](roadmap.md) owns implementation status and remaining work;
-[deployment readiness](../development/deployment.md) owns release gates.
+This brief describes who ZLayer is for, how it should work, and its scope and
+performance targets. It includes planned capabilities. See the
+[roadmap](roadmap.md) for implementation status and
+[deployment readiness](../development/deployment.md) for release gates.
 
 ## Contents
 
@@ -19,13 +19,13 @@ The [roadmap](roadmap.md) owns implementation status and remaining work;
 
 ## Problem
 
-Aviation weather is organized by producer and product, while a pilot's question is
-usually spatial and temporal: what matters near this airport, along this route, and
-during this time window? Existing pages often make the user switch views, reload
-large layers, reconcile different clocks, or inspect imagery separately.
+Aviation weather is organized by producer and product. Pilots need to know what
+matters near an airport, along a route, and during a particular time window.
+Existing pages often make them switch views, reload large layers, compare
+different timestamps, or inspect imagery separately.
 
-ZLayer should reduce that coordination cost without obscuring the authoritative
-source or the age and validity of the data.
+ZLayer should bring those products together while keeping each source, data age
+and valid time visible.
 
 ## Primary users and jobs
 
@@ -42,31 +42,30 @@ but they do not drive the first storage and basemap scope.
 
 ## Experience principles
 
-1. **Time is a first-class dimension.** A single UTC timeline controls compatible
-   layers. Analysis time, issue time, valid interval, and observation time remain
-   distinct.
-2. **Freshness is visible.** Each layer shows last success, expected cadence, age,
-   and stale/degraded state. Stale data is never silently presented as current.
-3. **Weather wins the visual hierarchy.** Roads and place labels are subdued;
-   airports, airspace context, boundaries, terrain, and weather remain legible.
-4. **Progressive disclosure.** The map answers “where?” at a glance; selection opens
-   decoded detail alongside the source text and authoritative link.
-5. **Fast by construction.** Fetch only active products, the visible extent, and a
-   short time window. Cancel obsolete work during pan, zoom, or time scrubbing.
-6. **Honest provenance.** Every feature and pixel layer can identify its producer,
-   retrieval time, valid time, transformation, and source URL.
-7. **Local first, refresh second.** Restore the last usable map and route immediately;
-   check for new cycles and weather only after interaction is available.
-8. **Offline is explicit.** A user can see exactly which route, chart, reference, and
-   procedure artifacts are downloaded, verified, current, and ready without a network.
-9. **Opened procedures persist.** A successfully opened procedure is cached by cycle
-   for offline reuse without implying that its airport or region is fully downloaded.
+1. Use one UTC timeline for compatible layers. Keep analysis time, issue time,
+   valid interval, and observation time distinct.
+2. Show each layer's last successful check, expected update cadence, age, and
+   stale or degraded state. Always label stale data.
+3. Keep weather prominent. Subdue roads and place labels while keeping airports,
+   airspace context, boundaries, terrain, and weather legible.
+4. Show location on the map; open decoded detail, source text, and an authoritative
+   link when the user selects an item.
+5. Fetch only active products, the visible extent, and a short time window.
+   Cancel obsolete work during pan, zoom, or time scrubbing.
+6. Make the producer, retrieval time, valid time, transformation, and source URL
+   available for every feature and pixel layer.
+7. Restore the last usable map and route immediately. Check for new cycles and
+   weather after the user can interact with the app.
+8. Show which route, chart, reference, and procedure artifacts are downloaded,
+   verified, current, and ready without a network.
+9. Cache successfully opened procedures by cycle for offline reuse. Opening one
+   procedure does not mean its airport or region is fully downloaded.
 
 ## Target scope
 
 ### Map and navigation
 
-- Responsive desktop/tablet layout; graceful narrow-screen layout.
+- Layouts that work on desktop, tablet, and narrow phone screens.
 - VFR sectional with TAC/flyway overlays, IFR low/high, and continuous basemap context;
   a production basemap-provider decision remains planned.
 - FAA airport, heliport, NAVAID, fix, and airway features rendered independently of
@@ -83,8 +82,7 @@ but they do not drive the first storage and basemap scope.
   airport procedures with size, cycle, expiration, progress, and readiness status.
 - Chart edition/effective date is always visible; expired charts produce a prominent
   state and cannot silently fall back to an older cycle.
-- Mutually comprehensible layer groups: observations, advisories, analysis, imagery,
-  and reference.
+- Group layers into observations, advisories, analysis, imagery, and reference.
 - Layer opacity, legend, age, and loading/error state.
 - Timeline with latest, pause, scrub, step, and short animation controls.
 
@@ -97,7 +95,7 @@ heading, ground track and relative yaw visibly; a display reference must not imp
 that the estimator has established heading. Give the pilot explicit control over
 stopping or continuing a sensor session when stowing the toolbox.
 
-The [AHRS guide](../../src/layers/ahrs/README.md) owns the
+The [AHRS guide](../../src/layers/ahrs/README.md) describes
 [calibration and recovery policy](../../src/layers/ahrs/README.md#calibration-and-validity),
 [HSI reference and guidance rules](../../src/layers/ahrs/README.md#compact-hsi) and
 [sensor lifecycle](../../src/layers/ahrs/README.md#sensors-and-display-lifecycle).
@@ -171,8 +169,8 @@ launch measurements run with the network disabled:
   need measurement, with tiled delivery an option if required.
 - Latest cached product remains readable during a source outage and is marked stale.
 
-Performance numbers are release targets, not measured guarantees. Release validation
-must establish the test device, network profile, dataset sizes and baseline measurements.
+Measure these release targets and record the test device, network profile,
+dataset sizes and baseline results before release.
 
 ## Target acceptance scenario
 

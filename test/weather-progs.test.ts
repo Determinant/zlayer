@@ -168,6 +168,56 @@ test('surface curves reproduce the captured AWC spline, preserve control points 
   closed.forEach((point, i) => assert.deepEqual(ring[i * 16], point));
 });
 
+test('captured polar isobars publish all source features without spline overshoot', async () => {
+  const text = await readFile(new URL('./fixtures/wpc/20261013_12_F072_wpc.geojson', import.meta.url), 'utf8');
+  const referenceTime = Date.parse('2026-10-13T12:00:00Z'), checkedAt = referenceTime + 12 * HOUR;
+  const chart = { file: '20261013_12_F072_wpc.geojson', referenceTime, validTime: referenceTime + 72 * HOUR,
+    forecastHour: 72, source: 'https://aviationweather.gov/data/products/wpc/20261013/20261013_12_F072_wpc.geojson' };
+  const frame = parseSurfaceChart(text, chart, checkedAt, hash(text));
+  assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'forecast', frame }));
+  assert.equal(frame.sourceDocument, text);
+  const raw = JSON.parse(text);
+  for (const [index, source] of raw.features.entries()) {
+    if (source.properties.type === 'fronts' || source.properties.type === 21 && !source.properties.text.trim()) continue;
+    assert.ok(frame.features.some(f => Number(f.id.split(':')[1]) === index), `Source feature ${index} retained`);
+  }
+  const polar = frame.features.find(f => Number(f.id.split(':')[1]) === 9)!;
+  assert.equal(polar.geometry.type, 'LineString');
+  if (polar.geometry.type !== 'LineString') assert.fail('Expected polar isobar');
+  assert.ok(polar.geometry.coordinates.every(([, lat]) => lat <= 90));
+});
+
+test('surface geometry stays finite and bounded at both poles, date-line edges and repeated controls', () => {
+  const polar = surfaceLineCurve([[0, 90], [1, 90], [2, 89.99]]);
+  assert.deepEqual(polar.slice(0, 17), Array.from({ length: 17 }, (_, i) => [i / 16, 90]), 'only the overshooting segment becomes a chord');
+  assert.deepEqual(polar[24], [1.5625, 89.995], 'the following valid spline segment keeps its shape');
+  const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
+  for (const sign of [-1, 1]) for (const longitude of [-180, -179.99999, 0, 179.99999, 180]) {
+    for (const latitudes of [[90, 90, 89.99], [89.8, 89.99, 89.99, 89.8], [90, 90, 90],
+      [90, 80, 90, 80, 90], [89, 89.99, 90, 89], [90, 0, -90, 0, 90]]) {
+      const controls: [number, number][] = latitudes.map((latitude, i) => [longitude + (i % 2) * .001, latitude * sign]);
+      const curve = surfaceLineCurve(controls);
+      assert.equal(curve.length, (controls.length - 1) * 16 + 1);
+      controls.forEach(([lon, lat], i) => assert.deepEqual(curve[i * 16], [lon - 360 * Math.floor((lon + 180) / 360), lat]));
+      assert.ok(curve.every(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat) && lon >= -180 && lon < 180 && Math.abs(lat) <= 90));
+      const doc = surfaceChart(chart.file);
+      doc.features.find(f => f.properties.type === 1)!.geometry = { type: 'LineString', coordinates: controls };
+      const frame = parseSurfaceChart(JSON.stringify(doc), chart, WEATHER_NOW, hash(JSON.stringify(doc)));
+      assert.ok(isSurfaceArtifact({ schemaVersion: 1, processing: SURFACE_PROCESSING, product: 'analysis', frame }));
+      for (const feature of frame.features) {
+        const geometry = feature.geometry;
+        const lines = geometry.type === 'LineString' ? [geometry.coordinates] : geometry.type === 'MultiLineString' ? geometry.coordinates : [];
+        for (const line of lines) for (let i = 1; i < line.length; i++) {
+          assert.ok(Math.abs(line[i]![0] - line[i - 1]![0]) <= 180, 'no artificial line across the world');
+        }
+      }
+    }
+  }
+  for (const invalid of [91, -91, Infinity, NaN]) {
+    assert.throws(() => surfaceLineCurve([[0, 0], [1, invalid]]), /Invalid surface curve control/);
+  }
+});
+
 test('long source lines preserve full curves and front direction within existing client limits', () => {
   const chart = parseSurfaceCatalog(JSON.stringify(surfaceCatalog()), WEATHER_NOW)[0]!;
   const doc = surfaceChart(chart.file);
@@ -404,6 +454,9 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
         type: 'LineString', coordinates: [[-100.37, 29.39]],
       };
       if (file.includes('F120')) doc.features.find(f => f.properties.type === 15)!.properties.code = 'unk';
+      if (file.includes('F144')) doc.features.find(f => f.properties.type === 1)!.geometry = {
+        type: 'LineString', coordinates: [[50, 90], [51, 90], [52, 89.99]],
+      };
       return Response.json(doc);
     }) as typeof fetch };
   const app = await createInfoServer(options);

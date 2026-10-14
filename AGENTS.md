@@ -39,3 +39,5 @@ Update the owning guide when behavior or a contract changes. Follow the
 [documentation maintenance rules](docs/README.md#keeping-the-docs-useful): preserve
 rationale, constraints and unresolved findings, maintain links, and keep proposals
 and historical results distinguishable from current requirements.
+For prose edits and deduplication, follow [Editing for clarity](docs/README.md#editing-for-clarity)
+and compare the result with the original before finishing.

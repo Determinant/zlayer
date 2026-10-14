@@ -19,6 +19,7 @@ type Motion = Published & { newestObservedAt?: number | null | undefined; unavai
 export type InfoHealthInput = {
   forecasts: Record<string, Forecast>; progs: Record<string, Charts>; progsCoverage: Charts & { analysisTime?: number | undefined };
   radar: Radar; radarMotion: Motion; advisories: Record<string, Published>; notams: NotamFeedStatus;
+  pireps: Published;
   tfrs: Published & { unresolvedRecords: number };
   notamReconciliation: { state: string; error: string | null; nextAttemptAt: number } | null;
 };
@@ -60,6 +61,8 @@ export function assessInfoHealth(input: InfoHealthInput, now: number) {
     source(`advisory.${product}`, value, INFO_FRESHNESS.advisory,
       { coverage: !value.ready ? 'unknown' : value.unresolvedRecords ? 'partial' : 'complete' });
   }
+  source('pireps', input.pireps, INFO_FRESHNESS.advisory,
+    { coverage: input.pireps.ready ? 'complete' : 'unknown' });
   source('tfrs', input.tfrs, INFO_FRESHNESS.tfrs, { coverage: input.tfrs.unresolvedRecords ? 'partial' : 'complete' });
   const feed = input.notams;
   if (feed.enabled) {

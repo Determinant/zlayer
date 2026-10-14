@@ -9,6 +9,11 @@ uses Caddy; an nginx API snippet is also provided. It has no dependency on a loc
 WASM, UI fonts and icons are bundled locally and precached by the production service worker.
 `tools/dev-proxy.ts` is development tooling, not part of the deployment.
 
+The build also publishes a standalone `/about/` product page, `/robots.txt` and
+`/sitemap.xml`. Serve directory indexes and their assets directly, with real 404s
+for unknown pages. The [product discovery guide](../features/product-discovery.md)
+owns these URLs, crawler policies and post-deployment indexing checks.
+
 Static application assets do not eliminate data-hosting requirements. Production
 hosts must provide the following hosting contract:
 
@@ -96,7 +101,7 @@ ID only when another format change merits another reset recommendation. Re-enabl
 an old ID respects its earlier receipt. Changing this setting requires rebuilding
 and deploying the shell; it is not an info-server or runtime-host setting.
 
-The [update guide](../features/pwa-updates.md#reset-advisory) owns the popup,
+The [update guide](../features/pwa-updates.md#reset-advisory) describes the popup,
 legacy-client fallback and once-per-origin behavior. The advisory never deletes
 data automatically; **Reset now** is the user's explicit confirmation.
 
@@ -257,10 +262,10 @@ points back to the old origin; it does not roll back browser storage.
 
 ## Verification and remaining release gates
 
-Run `npm run verify`, `npm run test:browser`, the
-[graphics matrix](../verification/graphics-compatibility.md#run-the-checks) and
-`npm audit --omit=dev` before release. The full browser suite uses Chromium and a
-production build with synthetic FAA/PDF/DEM/weather fixtures. Targeted graphics,
+Run `npm run verify:full` and `npm audit --omit=dev` before release; see the
+[verification guide](local-development.md#verification) for prerequisites and the
+additional macOS graphics job in the full hosted run. The full browser suite uses
+Chromium and a production build with synthetic FAA/PDF/DEM/weather fixtures. Targeted graphics,
 terrain, GPS rendering and plate cases also run in Firefox and WebKit, including
 2× WebKit on Linux/macOS CI. Configured CI coverage is not evidence of a passing run.
 

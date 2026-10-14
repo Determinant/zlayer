@@ -1,3 +1,4 @@
+import type { PirepClient } from './pireps/client';
 import { AWC_ADVISORY_PRODUCTS, SURFACE_PRODUCTS, type AwcAdvisoryProduct, type SurfaceProduct, type SurfaceSnapshot } from '@zlayer/contracts';
 import { OnDemandRefresh } from '../../core/layers/on-demand-refresh';
 import { ADVISORY_REFRESH_MS, type AdvisoryClient, type AdvisoryState } from './client';
@@ -12,21 +13,24 @@ import { catalogRefresh, stopRefresh } from './catalog-refresh';
 export type WeatherClients = {
   advisories: Pick<AdvisoryClient, 'restore' | 'refresh'>;
   grids?: GridClient;
+  pireps?: Pick<PirepClient, 'restore' | 'refresh'>;
   progs?: Pick<ProgsClient, 'restore' | 'refresh'> & Partial<Pick<ProgsClient, 'release'>>;
   radar?: Pick<RadarClient, 'restore' | 'refresh' | 'load'>;
   motion?: Pick<RadarMotionClient, 'restore' | 'refresh' | 'load'>;
   coverage?: Pick<ProgsCoverageClient, 'restore' | 'refresh' | 'load'> & Partial<Pick<ProgsCoverageClient, 'release'>>;
 };
-type ProductGroup = 'advisories' | 'progs' | 'radar' | 'motion' | 'coverage';
+type ProductGroup = 'pireps' | 'advisories' | 'progs' | 'radar' | 'motion' | 'coverage';
+const PIREP_REFRESH_MS = 60_000;
 
 /** Owns acquisition demand, product retry cadence and optional restoration.
  * Selection reconciliation and renderer receipts belong to the parent. */
 export function createProductRefresh({ advisories: client, progs: progsClient, radar: radarClient,
-  motion: motionClient, coverage: coverageClient }: WeatherClients,
+  pireps: pirepClient, motion: motionClient, coverage: coverageClient }: WeatherClients,
   read: () => WeatherState, publish: (patch: Partial<WeatherState>) => void) {
   let schedulers: Partial<Record<ProductGroup, OnDemandRefresh>> = {};
-  let progsRestore: AbortController | undefined;
+  let progsRestore: AbortController | undefined, pirepsRestore: AbortController | undefined;
   let restored = false;
+  let pirepsCheckedAt: number | undefined;
   let progsEnabled = false, coverageEnabled = false;
   const productState = (product: AwcAdvisoryProduct, patch: AdvisoryState) =>
     publish({ products: { ...read().products, [product]: patch } });
@@ -36,6 +40,7 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
     for (const scheduler of Object.values(schedulers)) stopRefresh(scheduler);
     schedulers = {};
     progsRestore?.abort(); progsRestore = undefined;
+    pirepsRestore?.abort(); pirepsRestore = undefined;
   };
   return {
     attach() {
@@ -86,6 +91,15 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
           const failure = results.find(result => result.status === 'rejected');
           if (failure?.status === 'rejected') throw failure.reason;
         } });
+      if (pirepClient) schedulers.pireps = catalogRefresh({ intervalMs: PIREP_REFRESH_MS,
+        read: () => read().pireps, publish: pireps => publish({ pireps }), async refresh(signal) {
+          try { return await pirepClient.refresh(signal, snapshot => {
+            // Display live data before optional persistence, keeping acquisition
+            // active until it settles so reopening cannot cancel or duplicate it.
+            if (!signal.aborted) publish({ pireps: { snapshot, loading: true } });
+          }); }
+          finally { if (!signal.aborted) pirepsCheckedAt = Date.now(); }
+        } });
       if (radarClient) schedulers.radar = catalogRefresh({ intervalMs: 60_000,
         read: () => read().radar, publish: radar => publish({ radar }),
         refresh: signal => radarClient.refresh(signal) });
@@ -113,6 +127,15 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
         }).catch(() => { /* Optional restoration; live acquisition remains independent. */ });
       }
 
+      if (p.awcEnabled && p.awcPireps && !pirepsRestore && pirepClient) {
+        const restore = pirepsRestore = new AbortController();
+        void pirepClient.restore(restore.signal).then(saved => {
+          const current = read().pireps;
+          if (!restore.signal.aborted && saved.snapshot && !current.snapshot) publish({ pireps: { ...saved, loading: current.loading, ...(current.error ? { error: current.error } : {}) } });
+        }).catch(() => { /* Optional restoration; live acquisition remains independent. */ });
+      } else if (!p.awcEnabled || !p.awcPireps) {
+        pirepsRestore?.abort(); pirepsRestore = undefined;
+      }
       const active = p.awcEnabled && (typeof navigator === 'undefined' || navigator.onLine) &&
         (typeof document === 'undefined' || document.visibilityState !== 'hidden');
       const ids: AwcAdvisoryProduct[] = [];
@@ -122,6 +145,7 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
       schedulers.advisories?.setDemand(ids, active);
       schedulers.progs?.setDemand(SURFACE_PRODUCTS, active && p.awcProgs);
       schedulers.coverage?.setDemand(['coverage'], active && p.awcProgs && p.awcProgsCoverage);
+      schedulers.pireps?.setDemand(['pireps'], active && p.awcPireps);
       schedulers.radar?.setDemand(['radar'], active && p.awcRadar);
       schedulers.motion?.setDemand(['motion'], active && p.awcRadar && p.awcRadarMotion);
       // Explicit disable releases decoded data. Hidden pages and timeline gaps
@@ -138,6 +162,12 @@ export function createProductRefresh({ advisories: client, progs: progsClient, r
       progsEnabled = nextProgs; coverageEnabled = nextCoverage;
     },
     retry(groups: ProductGroup[]) { for (const group of groups) schedulers[group]?.setDemand([], false); },
+    checkPireps() {
+      // Reopening can catch an overdue timer without cancelling an active request
+      // or rechecking a recently settled response, even if its source time is old.
+      const age = pirepsCheckedAt === undefined ? Infinity : Date.now() - pirepsCheckedAt;
+      if (!read().pireps.loading && (age < 0 || age >= PIREP_REFRESH_MS)) schedulers.pireps?.setDemand([], false);
+    },
     detach,
   };
 }

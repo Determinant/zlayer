@@ -133,7 +133,7 @@ export class MetarClient {
       const ids = new Set([...reports.keys(), ...[...this.#stations.entries()]
         .filter(([, entry]) => entry.report && stationDistance(point, entry.report) <= NEARBY_STATION_RADIUS_NM)
         .map(([id]) => id)]);
-      for (const id of ids) this.#accept(id, reports.get(id), checkedAt);
+      this.#accept([...ids].map(id => [id, reports.get(id)]), checkedAt);
       this.#areas.delete(key);
       this.#areas.set(key, { checkedAt, attemptedAt: this.#now() });
     } catch (error) {
@@ -193,7 +193,7 @@ export class MetarClient {
         const id = reportStationId(report);
         if (id) reports.set(id, preferredReport(reports.get(id), report, this.#now())!);
       }
-      for (const id of batch) this.#accept(id, reports.get(id), checkedAt);
+      this.#accept(batch.map(id => [id, reports.get(id)]), checkedAt);
     } catch (error) {
       signal.throwIfAborted();
       for (const id of batch) this.#stations.set(id, {
@@ -245,9 +245,8 @@ export class MetarClient {
     return (this.#options.now ?? Date.now)();
   }
 
-  #accept(id: string, received: MetarFeature | undefined, checkedAt: number): void {
+  #prepare(id: string, received: MetarFeature | undefined, checkedAt: number, now: number): CachedMetar | undefined {
     const saved = this.get(id), previous = saved?.report;
-    const now = this.#now();
     // A shared cache hit must not replace a newer successful source check.
     if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
       (!received || previous && observationTime(previous) <= now && observationTime(received) <= observationTime(previous))) return;
@@ -255,15 +254,25 @@ export class MetarClient {
     // Preserve content identity across successful checks, including same-time corrections.
     const report = preferred === previous ? previous
       : previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
-    if (report && report !== previous) {
-      this.#budget.accept(id, report);
-      this.#reports.set(id, report); this.#metars = undefined; this.#dirty = true;
-    }
-    this.#stations.delete(id);
-    this.#stations.set(id, {
+    return {
       ...(report ? { report } : {}), checkedAt, attemptedAt: now,
       missing: !received || preferred !== received,
-    });
+    };
+  }
+
+  #accept(reports: [string, MetarFeature | undefined][], checkedAt: number): void {
+    const now = this.#now(), updates = new Map<string, CachedMetar>();
+    for (const [id, report] of reports) {
+      const entry = this.#prepare(id, report, checkedAt, now);
+      if (entry) updates.set(id, entry);
+    }
+    this.#budget.acceptAll([...updates].map(([id, entry]) => [id, entry.report]));
+    for (const [id, entry] of updates) {
+      if (entry.report && entry.report !== this.#stations.get(id)?.report) {
+        this.#reports.set(id, entry.report); this.#metars = undefined; this.#dirty = true;
+      }
+      this.#stations.delete(id); this.#stations.set(id, entry);
+    }
   }
 
   #publish(): void {

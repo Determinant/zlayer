@@ -14,11 +14,13 @@ import { createRadarMotionWarming, PUBLISHED_MOTION } from './radar-motion';
 import { createNotamService, type NotamOptions } from './notams/service';
 import { createNotamResponder } from './notams/routes';
 import { createTfrService } from './notams/tfr-service';
+import { createPirepWarming, PUBLISHED_PIREPS } from './pireps';
 import { createAdvisoryWarming } from './advisories';
 import { assessInfoHealth } from './health';
 import { InfoMetrics } from './metrics';
 const compress = promisify(gzip);
 const catalogMarkers: Record<PreparedFamily, string> = {
+  pireps: PUBLISHED_PIREPS,
   forecast: PUBLISHED_CATALOG, progs: PUBLISHED_PROGS, coverage: PUBLISHED_COVERAGE, radar: PUBLISHED_RADAR, motion: PUBLISHED_MOTION,
 };
 
@@ -78,11 +80,12 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   const coverage = createProgsCoverageWarming(cache, shutdown.signal, options);
   const radar = createRadarWarming(cache, shutdown.signal, options);
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
+  const pireps = createPirepWarming(cache, shutdown.signal, options);
   const advisories = createAdvisoryWarming(cache, shutdown.signal, options);
   async function stopProducers() {
     shutdown.abort(); collectors.abort();
     const results = await Promise.allSettled([tfrs.close(), notams.close(), processing.close(),
-      warming.close(), progs.close(), coverage.close(), radar.close(), motion.close(), advisories.close()]);
+      warming.close(), progs.close(), coverage.close(), radar.close(), motion.close(), advisories.close(), pireps.close()]);
     // Producers have settled, so no new cache publications can join this drain.
     results.push(...await Promise.allSettled([cache.drain()]));
     metrics.close();
@@ -92,7 +95,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   try {
     await cache.restore();
     await warming.restore(); await progs.restore(); await coverage.restore();
-    await radar.restore(); await motion.restore(); await advisories.restore();
+    await radar.restore(); await motion.restore(); await advisories.restore(); await pireps.restore();
     await cache.prune();
   } catch (cause) {
     await stopProducers().catch(error => options.log?.(String(error)));
@@ -139,7 +142,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       if (request.url === '/api/weather/healthz') {
         response.setHeader('Content-Type', 'application/json');
         const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
-          radar: radar.status, radarMotion: motion.status, advisories: advisories.status, notams: notams.status,
+          radar: radar.status, radarMotion: motion.status, advisories: advisories.status, pireps: pireps.status, notams: notams.status,
           notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, tfrs: tfrs.status };
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ...data,
           readiness: assessInfoHealth(data, (options.now ?? Date.now)()), runtime: metrics.status,
@@ -220,7 +223,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     coverage.refresh();
     radar.refresh();
     motion.refresh();
-    advisories.refresh();
+    advisories.refresh(); pireps.refresh();
   };
   const timer = options.startUpdates === false ? undefined : setInterval(refresh, 30_000).unref();
   if (options.startUpdates !== false) refresh();
@@ -257,6 +260,6 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
       if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
     } finally { clearTimeout(deadline); clearTimeout(forced); }
   })(); }
-  return { server, metrics, cache, processing, forecasts: warming, progs, coverage, radar, motion, notams, tfrs,
+  return { server, metrics, cache, processing, forecasts: warming, progs, coverage, radar, motion, notams, tfrs, pireps,
     get lifecycle() { return { ...lifecycle }; }, close };
 }

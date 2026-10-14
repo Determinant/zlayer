@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { runBrowserSession } from './browser-session.mjs';
 
-// Full local CI. Keep smoke selection confined to the GitHub workflow.
+// Full local CI always runs every test, without smoke filtering.
 const npm = process.env.npm_execpath;
 if (!npm) throw new Error('Run this command with npm run verify:full.');
 const linux = process.platform === 'linux';
@@ -18,11 +18,11 @@ const suites = [
 ];
 
 const failed = [];
-console.log('\nChecks, unit tests and production build');
+console.log('\nChecks, unit tests and production builds');
 const verified = spawnSync(process.execPath, [npm, 'run', 'verify'], { cwd: new URL('../', import.meta.url), stdio: 'inherit' });
 if (verified.signal) process.exit(verified.signal === 'SIGINT' ? 130 : 1);
 if (verified.error || verified.status !== 0) {
-  failed.push('Checks, unit tests and production build');
+  failed.push('Checks, unit tests and production builds');
   if (verified.error) console.error(verified.error.message);
 }
 try { failed.push(...await runBrowserSession(suites)); }

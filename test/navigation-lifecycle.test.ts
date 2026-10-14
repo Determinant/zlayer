@@ -105,6 +105,29 @@ test('initial loading includes pending airways and settles when an optional feed
   assert.equal(render().data.airports?.features[0]?.properties.ident, 'READY');
 });
 
+test('PIREP fix-reference demand loads fixes without requesting unrelated airway topology', async t => {
+  const hooks = setup(t), calls: string[] = [];
+  const current = catalog('https://charts.test/pireps/fixes');
+  current.navigation = [{ ...current.navigation[0]!, id: 'fixes', title: 'Fixes' }];
+  current.airways = { id: 'airways', title: 'Airways', count: 0, sourceCount: 0, url: 'https://charts.test/pireps/airways' };
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+    calls.push(String(url));
+    return String(url).endsWith('/airways') ? new Response(null, { status: 503 }) : Response.json(document('FORCK'));
+  });
+  const demand = { ...visibility, airports: false, fixes: true };
+  let airways = false;
+  const render = () => hooks.render(() => useNavigationData(current, demand, airways));
+  render(); await tick();
+  const ready = render();
+  assert.equal(ready.data.fixes?.features[0]?.properties.ident, 'FORCK');
+  assert.equal(ready.loading, false); assert.equal(ready.airways, undefined);
+  assert.deepEqual(calls, ['https://charts.test/pireps/fixes']);
+  airways = true; assert.equal(render().loading, true); await tick();
+  assert.equal(render().loading, false);
+  assert.equal(render().data.fixes, ready.data.fixes, 'enabling map airways reuses the same fix references');
+  assert.deepEqual(calls, ['https://charts.test/pireps/fixes', 'https://charts.test/pireps/airways']);
+});
+
 test('search keeps airport matches when another navigation product is unavailable', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const hooks = setup(t);

@@ -17,7 +17,7 @@ remains open; custom tiles or a complete style can be configured. See
 Weather implementation update (2026-09-24): [radar](../../src/layers/weather-awc/radar/README.md)
 uses server-prepared reflectivity contours in bounded GeoJSON layers on the same
 map. This replaces the original raster-radar direction below; satellite imagery
-remains planned. The radar guide owns source semantics and rendering limits.
+remains planned. The radar guide describes source semantics and rendering limits.
 
 ## Context
 

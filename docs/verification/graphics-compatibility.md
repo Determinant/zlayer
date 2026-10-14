@@ -251,8 +251,9 @@ npx playwright install --with-deps chromium firefox webkit
 npm run verify:full
 ```
 
-Full local CI runs all checks, unit tests, browser tests and all four graphics
-projects. On Linux, its Firefox stage runs headed and automatically uses
+Full local CI runs all checks, unit tests and browser tests. Chromium graphics
+are included in the browser suite; the other three graphics projects run separately.
+On Linux, its Firefox stage runs headed and automatically uses
 `xvfb-run -a` when `DISPLAY` is unset. Install Xvfb for that environment.
 Tests that explicitly construct their own density and touch contexts run once per
 engine under `@explicit-density`; WebKit's 2× project runs the remaining cases at

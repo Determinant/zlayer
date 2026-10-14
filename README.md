@@ -2,15 +2,55 @@
 
 **A modern, lightweight EFB. Layer by layer.**
 
-ZLayer is an offline-capable aviation PWA designed for phones, tablets, and desktops.
-It combines FAA charts, navigation and procedures with METAR/TAF weather, route
-planning, terrain and optional device GPS in one MapLibre/WebGL workspace. An
-experimental AHRS toolbox adds attitude, GPS instruments, an HSI and local recordings;
-it has not been validated in flight. Each product owns its data, behavior and
-interface. Weather includes AWC/WPC surface analysis and forecasts, numeric
-cloud/icing/wind fields, and NOAA radar contours with recent history and optional
-storm-motion tracks. Airport/procedure NOTAMs and a national graphical TFR chart
-share the info server. Weather satellite imagery remains planned.
+**[Open ZLayer →](https://zlayer.tedyin.com/)** ·
+[Features and getting started](https://zlayer.tedyin.com/about/)
+
+ZLayer is a **free, open-source electronic flight bag (EFB) and flight planner**
+designed for phones, tablets, and desktops. Explore FAA charts, build routes, read
+approach plates, and inspect aviation weather in one workspace. Open it in your
+browser or install the progressive web app (PWA), then download supported regions
+for offline use. No account or subscription is required. ZLayer will stay free forever.
+
+[![ZLayer with FAA charts, a planned route, terrain contours, and airport information](public/about/workspace.webp)](https://zlayer.tedyin.com/)
+
+*Screenshot of the app; check current chart editions and weather times in ZLayer.*
+
+## What you can do
+
+| Capability | Available today |
+| --- | --- |
+| FAA charts and navigation | VFR sectional and IFR low/high charts; airport, NAVAID, fix and VFR waypoint search |
+| Route planning | Airports, fixes and airways; preferred/TEC routes; published procedure previews; named routes saved locally |
+| Aviation weather | METAR/TAF, advisories, AWC/WPC analysis and forecasts, cloud/icing/wind fields, and NOAA radar with recent history |
+| Plates and notices | Approach plates, airport diagrams, Chart Supplements, airport/procedure NOTAMs and graphical TFRs |
+| Terrain and map tools | Route/viewport terrain, FAA obstructions, glide planning, measurement and optional device GPS |
+| Offline regions | Verified downloads for supported U.S. states and territories, with chart editions, progress and storage status |
+
+## Use it on your devices
+
+1. Open **[zlayer.tedyin.com](https://zlayer.tedyin.com/)** in a modern browser with WebGL2.
+2. On iPhone or iPad, use Safari → Share → **Add to Home Screen**. On Android,
+   use Chrome's install or **Add to Home Screen** option. A desktop browser tab works too.
+3. Open **Settings → Offline**, download your regions, and wait for **Saved**.
+   On iOS, install first and download inside the installed app. Check your needed
+   charts and plates with the network disconnected before relying on offline access.
+
+Routes, settings and downloads stay in each browser or installed app; there is no
+account-based cloud sync. Copy/share route text to move a route between devices.
+Regional downloads do not include complete satellite basemap coverage, and fresh
+weather requires a connection. The FAA feed determines chart/procedure coverage;
+this is not a worldwide chart collection.
+
+Targets include modern desktop browsers, Android Chrome and iOS/iPadOS Safari 18+.
+Installed-device offline, storage-pressure, GPS and performance qualification remains
+ongoing. See [compatibility](docs/verification/graphics-compatibility.md) and
+[offline storage](docs/features/offline-storage.md) for requirements and limitations.
+
+ZLayer is a supplemental planning tool, not an official briefing source or certified
+EFB. It does not file flight plans or provide fuel/performance calculations or
+terrain-clearance assurance. The experimental AHRS toolbox has not been validated
+in flight. See the [roadmap](docs/product/roadmap.md) for current capabilities and
+planned work, including satellite weather imagery.
 
 ## Direction
 
@@ -23,9 +63,6 @@ share the info server. Weather satellite imagery remains planned.
 
 `faa-regs` owns FAA chart, NASR, and d-TPP generation. ZLayer consumes that feed and
 adds the interactive map, routing, weather layers, procedure viewer, and PWA storage.
-
-ZLayer begins as a supplemental planning tool, not an official briefing source or
-certified EFB.
 
 ## Start here
 
@@ -55,17 +92,10 @@ Development proxies the dated FAA assets at `charts.tedyin.com` so the browser u
 the same feed shape as production. All published chart coverage is discovered from
 the feed manifests; the continuous basemap remains visible outside it.
 
-Run `npm run verify:full` for full local CI before committing: import boundaries,
-strict TypeScript, unit tests, the production build, all Chromium browser tests,
-and the complete Chromium/Firefox/WebKit/2× WebKit graphics matrix.
-Install browsers with `npx playwright install --with-deps chromium firefox webkit`;
-see [graphics compatibility](docs/verification/graphics-compatibility.md) for the Linux Firefox
-display requirement. The individual `verify`, `test:browser` and `test:graphics`
-commands remain available.
-GitHub pushes and pull requests run `verify` and the smaller `test:smoke` suite.
-Full local CI retains all tests. **Actions → Verify → Run workflow** with **full**
-enabled also runs the complete hosted matrix, including macOS WebKit;
-see [verification](docs/development/local-development.md#verification).
+Run `npm run verify:full` before committing, subject to the server-only scope rule
+in [AGENTS.md](AGENTS.md#verification-and-documentation). The
+[verification guide](docs/development/local-development.md#verification) lists
+browser prerequisites, focused commands and the local and hosted CI matrices.
 See the [hosting contract](docs/development/deployment.md) for production requirements.
 
 The app lives in `src/`, the info server in `tools/info-server/`, tests in `test/`, and local proxy rules in

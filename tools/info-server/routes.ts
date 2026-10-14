@@ -1,4 +1,5 @@
-import { PROGS_COVERAGE_MAX_BYTES, PROGS_COVERAGE_CATALOG_MAX_BYTES, RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
+import { PIREP_MAX_BYTES, PIREP_SOURCE_MAX_AGE_MS, PROGS_COVERAGE_MAX_BYTES, PROGS_COVERAGE_CATALOG_MAX_BYTES, RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
+import { isModelVersion, modelVersionKey, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 
 export const MiB = 1024 * 1024;
 export const GAIRMET_SOURCE = 'https://aviationweather.gov/data/cache/gairmets.cache.xml.gz';
@@ -6,8 +7,9 @@ export const GAIRMET_REFRESH_MS = 60_000;
 export const ADVISORY_MAX_AGE_MS = 10 * 60_000;
 export const advisoryRefreshAge = (product: string) => product === 'gairmet' ? GAIRMET_REFRESH_MS : 20_000;
 export type Resource = {
-  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'gairmet-cache' | 'index' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
+  key: string; upstream: 'awc' | 'nomads' | 'hrrr' | 'radar' | 'prepared'; url: string; kind: 'json' | 'gairmet-cache' | 'pirep-cache' | 'index' | 'model-metadata' | 'range' | 'surface' | 'coverage-image' | 'radar-index' | 'radar-data' | 'prepared';
   ttl: number; maxBytes: number; range?: string; indexHash?: string; multipleGribs?: true;
+  version?: ModelVersion;
   /** Ask intermediary caches to revalidate on acquisition; local TTL still applies. */
   revalidate?: true;
 };
@@ -26,10 +28,11 @@ export class InvalidForecastSourceError extends HttpError {
 export class InvalidForecastIndexError extends InvalidForecastSourceError {}
 const awc = 'https://aviationweather.gov/api/data/';
 const nomads = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/';
-export type PreparedFamily = 'forecast' | 'progs' | 'coverage' | 'radar' | 'motion';
+export type PreparedFamily = 'forecast' | 'progs' | 'coverage' | 'radar' | 'motion' | 'pireps';
 export type WeatherRoute = { type: 'query'; resource: Resource } |
   { type: 'catalog' | 'artifact'; family: PreparedFamily; resource: Resource };
 const preparedRoutes: { pattern: RegExp; type: 'catalog' | 'artifact'; family: PreparedFamily; maxBytes: number }[] = [
+  { pattern: /^\/api\/weather\/pireps\.json$/, type: 'catalog', family: 'pireps', maxBytes: PIREP_MAX_BYTES },
   { pattern: /^\/api\/weather\/grids\/(clouds|icing|winds)\.json$/, type: 'catalog', family: 'forecast', maxBytes: 4 * MiB },
   { pattern: /^\/api\/weather\/progs\/(analysis|forecast)\.json$/, type: 'catalog', family: 'progs', maxBytes: SURFACE_CATALOG_MAX_BYTES },
   { pattern: /^\/api\/weather\/progs\/coverage\.json$/, type: 'catalog', family: 'coverage', maxBytes: PROGS_COVERAGE_CATALOG_MAX_BYTES },
@@ -57,7 +60,7 @@ export function routeFor(path: string, range?: string): WeatherRoute {
   if (prepared || advisory) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
     const resource: Resource = { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
-      ttl: advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
+      ttl: prepared?.family === 'pireps' ? PIREP_SOURCE_MAX_AGE_MS : advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
       maxBytes: prepared?.maxBytes ?? 4 * MiB };
     return prepared ? { type: prepared.type, family: prepared.family, resource } : { type: 'query', resource };
   }
@@ -104,7 +107,12 @@ export function advisoryResource(product: 'gairmet' | 'sigmet' | 'cwa'): Resourc
     ttl: product === 'gairmet' ? ADVISORY_MAX_AGE_MS : 60_000, maxBytes: 4 * MiB };
 }
 
-export function modelResource(path: string, range?: string, indexHash?: string): Resource {
+export function modelMetadataResource(path: string): Resource {
+  const index = modelResource(path + '.idx'), url = index.url.slice(0, -4);
+  return { ...index, key: url + '|metadata', url, kind: 'model-metadata', maxBytes: 2048, revalidate: true };
+}
+
+export function modelResource(path: string, range?: string, indexHash?: string, version?: ModelVersion): Resource {
   const hrrr = /^(hrrr\/prod\/hrrr\.(\d{8})\/conus\/hrrr\.t(\d{2})z\.wrf(?:sfc|prs)f(\d{2})\.grib2)(\.idx)?$/.exec(path);
   const file = hrrr ?? /^(dafs\/prod\/dafs\.(\d{8})\/dafs\.t(\d{2})z\.ifi\.3km\.conus\.f(\d{3})\.grib2)(\.idx)?$/.exec(path);
   if (!file) throw new HttpError(404, 'Unknown weather resource');
@@ -113,19 +121,21 @@ export function modelResource(path: string, range?: string, indexHash?: string):
     Number(file[4]) < (hrrr ? 0 : 1) || Number(file[4]) > 18) throw new HttpError(400, 'Invalid model cycle or forecast hour');
   const index = !!file[5];
   if (indexHash !== undefined && (index || !/^[a-f0-9]{64}$/.test(indexHash))) throw new HttpError(400, 'Invalid index identity');
+  if (version !== undefined && (index || !isModelVersion(version))) throw new HttpError(400, 'Invalid model object version');
   // Use the ordinary Google object URL on the server; index and ranges share it.
   const upstream = hrrr ? 'https://storage.googleapis.com/high-resolution-rapid-refresh/' + file[1]!.slice('hrrr/prod/'.length) + (index ? '.idx' : '')
     : nomads + file[1] + (index ? '.idx' : '');
   const family = hrrr ? 'hrrr' : 'nomads';
   if (index) {
     if (range) throw new HttpError(400, 'Index ranges are unsupported');
-    return { key: upstream, upstream: family, url: upstream, kind: 'index', ttl: 60_000, maxBytes: 512 * 1024 };
+    return { key: upstream, upstream: family, url: upstream, kind: 'index', ttl: 60_000, maxBytes: 512 * 1024, revalidate: true };
   }
   const match = /^bytes=(\d+)-(\d*)$/.exec(range ?? '');
   const start = Number(match?.[1]), end = match?.[2] ? Number(match[2]) : undefined;
   if (!match || !Number.isSafeInteger(start) || start < 0 || end !== undefined &&
     (!Number.isSafeInteger(end) || end < start || end - start + 1 > 8 * MiB)) throw new HttpError(416, 'A single GRIB range of at most 8 MiB is required');
   const normalizedRange = `bytes=${start}-${end ?? ''}`;
-  return { key: `${upstream}|${normalizedRange}|${indexHash ?? ''}`, upstream: family, url: upstream,
-    kind: 'range', ttl: indexHash ? 24 * 3600_000 : 60_000, maxBytes: 8 * MiB, range: normalizedRange, ...(indexHash ? { indexHash } : {}) };
+  return { key: `${upstream}|${normalizedRange}|${indexHash ?? ''}${version ? '|' + modelVersionKey(version) : ''}`, upstream: family, url: upstream,
+    kind: 'range', ttl: indexHash ? 24 * 3600_000 : 60_000, maxBytes: 8 * MiB, range: normalizedRange,
+    ...(indexHash ? { indexHash } : {}), ...(version ? { version, revalidate: true } : {}) };
 }

@@ -3,12 +3,13 @@
 [Documentation](../README.md) / Data
 
 Initial source research: 2026-09-12; AWC API limits and OSMF/COD access policies
-rechecked on 2026-09-18. The [roadmap](../product/roadmap.md) owns implementation status;
-the source matrix below summarizes adapter disposition and access constraints.
+rechecked on 2026-09-18. The [roadmap](../product/roadmap.md) tracks implementation
+status; the source matrix below summarizes which adapters are in use or planned
+and their access constraints.
 
-This register separates a useful product idea from permission to automate it. Each
-adapter needs a named owner, documented cadence, request budget, attribution, sample
-fixtures, fallback behavior, and a source-change monitor before production use.
+Check each source's automated-access policy. Before production use, each adapter
+needs a named owner, documented cadence, request budget,
+attribution, sample fixtures, fallback behavior, and a source-change monitor.
 
 ## Contents
 
@@ -42,7 +43,7 @@ fixtures, fallback behavior, and a source-change monitor before production use.
 | Experimental | Off-airport landing candidates | Publisher-prepared `glide/manifest.json`, numeric overviews and immutable detail archives on the chart feed | generalized candidate areas in two length tiers | [Packaged reader and regional caching implemented](../../src/layers/glide/README.md#off-airport-landing-candidates); legacy shards remain browsing-only; publication coverage and landing suitability remain unvalidated |
 | P0 | GPS aircraft | Device Geolocation API | position, true ground track and one-minute projection | Enabled by default with permission; saved Off preference respected; shared with AHRS; installed-device checks remain |
 | Experimental | AHRS toolbox | Device Motion API and shared GPS; optional WMM2025 coefficients from the chart feed | attitude, GPS instruments, HSI and local recordings | Implemented with visible validity/uncertainty states; device and flight validation remain outstanding |
-| P0 | PIREP/AIREP | AWC API/cache files | vector tiles + detail | Approved for spike within published limits |
+| P0 | PIREP/AIREP | AWC bulk XML through the info server; NASR and a bundled [international AWC station lookup](../../src/layers/weather-awc/pireps/station-references.md) for PWA location recovery | Bounded point GeoJSON and viewport report list | [Source validation, filters and observation expiry](../../src/layers/weather-awc/pireps/README.md) implemented; device/operational qualification remains |
 | P0 | Domestic SIGMET, G-AIRMET, CWA | AWC through the TypeScript cache gateway | bounded GeoJSON | [Advisory timeline and server normalization](../../src/layers/weather-awc/README.md) implemented; [Weather service](../../tools/info-server/README.md#deployment) |
 | P0 | Alaska AIRMET, international SIGMET | AWC API/cache files | bounded GeoJSON candidate | Coverage/source qualification remains |
 | P1 | Clouds, freezing height, icing probability/severity/SLD | NOAA HRRR and DAFS/IFI GRIB2 | immutable numeric grids; client shading and point values | [Server preparation and browser caching implemented](../../src/layers/weather-awc/grids/README.md); same-origin gateway, source caveats and reference-device validation remain |
@@ -154,11 +155,11 @@ The map and AHRS share one location watch. The GPS layer keeps no persistent pos
 history; optional [AHRS recordings](../../src/layers/ahrs/recording.md) store GPS fixes,
 motion samples and estimator output locally. Nothing is uploaded automatically.
 
-GPS is optional for AHRS calibration and continued attitude display, including
-when no fix has ever been received. Missing/slow GPS and high tilt uncertainty
-keep a red cross over the calibrated, live IMU indication. Usable GPS and acceptable
-tilt uncertainty clear it; see the [display policy](../../src/layers/ahrs/README.md#calibration-and-validity).
-GPS-derived readings and HSI guidance retain their own GPS requirements.
+GPS is optional for AHRS calibration and continued IMU attitude display, even if
+no fix has ever arrived. GPS instruments and HSI guidance retain their own input
+requirements. The AHRS guide defines the
+[calibration and warning rules](../../src/layers/ahrs/README.md#calibration-and-validity)
+and [GPS requirements for HSI readings and guidance](../../src/layers/ahrs/README.md#heading-and-guidance-behavior).
 
 The HSI discovers optional [NOAA/BGS WMM2025 coefficients](https://doi.org/10.25921/aqfd-sd83)
 through the browsing cycle's navigation manifest. It computes magnetic variation
@@ -242,7 +243,7 @@ failed refreshes remain different states. Forecast catalogs are published only a
 cannot start source acquisition or preparation. See the
 [server contract](../../tools/info-server/README.md).
 The [METAR/TAF guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
-owns station demand, freshness and forecast interpretation.
+describes station demand, freshness and forecast interpretation.
 
 ### Source choices and unresolved alternatives
 

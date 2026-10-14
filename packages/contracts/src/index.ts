@@ -15,6 +15,7 @@ export * from './coded-terminal-procedures.js';
 export * from './taf.js';
 export * from './terrain.js';
 export * from './awc-weather.js';
+export * from './pireps.js';
 export * from './awc-grids.js';
 export * from './surface-weather.js';
 export * from './progs-coverage.js';

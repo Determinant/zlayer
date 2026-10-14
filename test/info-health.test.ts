@@ -15,7 +15,7 @@ function healthy(): InfoHealthInput {
     progsCoverage: { ...published, analysisTime: NOTAM_NOW, validTimes: [NOTAM_NOW, NOTAM_NOW + 3600_000] },
     radar: { ...published, observedAt: NOTAM_NOW }, radarMotion: { ...published, newestObservedAt: NOTAM_NOW, unavailable: 0 },
     advisories: { gairmet: published, sigmet: published, cwa: published }, notams: notamSnapshot().feed,
-    tfrs: { ...published, unresolvedRecords: 0 }, notamReconciliation: { state: 'current', error: null, nextAttemptAt: NOTAM_NOW + 86400_000 } };
+    pireps: published, tfrs: { ...published, unresolvedRecords: 0 }, notamReconciliation: { state: 'current', error: null, nextAttemptAt: NOTAM_NOW + 86400_000 } };
 }
 test('health distinguishes expected coverage gaps from source freshness and availability', () => {
   const value = healthy();
@@ -35,6 +35,16 @@ test('health distinguishes expected coverage gaps from source freshness and avai
   assert.equal(assessInfoHealth(value, NOTAM_NOW).state, 'unavailable');
   const missing = healthy(); delete missing.forecasts.winds;
   assert.equal(assessInfoHealth(missing, NOTAM_NOW).sources.winds?.available, false);
+});
+test('PIREP health describes complete source delivery, independently of PWA interpretation', () => {
+  const value = healthy();
+  const status = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(status.ready, true); assert.equal(status.sources.pireps?.coverage, 'complete');
+  assert.deepEqual(status.warnings, []);
+  for (const patch of [{ error: 'invalid-source' }, { error: 'upstream-unavailable' },
+    { ready: false }, { checkedAt: NOTAM_NOW - INFO_FRESHNESS.advisory }]) {
+    assert.equal(assessInfoHealth({ ...value, pireps: { ...value.pireps, ...patch } }, NOTAM_NOW).ready, false);
+  }
 });
 test('coverage readiness separates unpublished forecast stops from missing images and expired horizons', () => {
   const value = healthy();

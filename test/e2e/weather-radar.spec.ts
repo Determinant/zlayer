@@ -57,15 +57,15 @@ test('terminal radar follows the visible world copy without reloading the scans'
 });
 
 for (const size of [{ width: 393, height: 852 }, { width: 320, height: 568 }, { width: 852, height: 393 }]) {
-  test(`six slim tabs and radar controls fit ${size.width}×${size.height}`, async ({ page }, testInfo) => {
+  test(`seven slim tabs and radar controls fit ${size.width}×${size.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(size); await page.goto('/');
     await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
     await page.getByRole('button', { name: 'Show AWC Weather toolbox', exact: true }).click();
     await page.getByRole('switch', { name: 'Show AWC weather', exact: true }).click();
     const tabs = page.getByRole('tablist', { name: 'AWC weather products' });
-    await expect(tabs.getByRole('tab')).toHaveText(['Advis.', 'Progs', 'Radar', 'Cloud', 'Icing', 'Winds']);
+    await expect(tabs.getByRole('tab')).toHaveText(['Advis.', 'Progs', 'Radar', 'PIREP', 'Cloud', 'Icing', 'Winds']);
     const boxes = await tabs.getByRole('tab').evaluateAll(elements => elements.map(e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, height: b.height }; }));
-    expect(boxes[0]!.y).toBe(boxes[2]!.y); expect(boxes[3]!.y).toBe(boxes[5]!.y); expect(boxes[3]!.y).toBeGreaterThan(boxes[0]!.y);
+    expect(boxes[0]!.y).toBe(boxes[3]!.y); expect(boxes[4]!.y).toBe(boxes[6]!.y); expect(boxes[4]!.y).toBeGreaterThan(boxes[0]!.y);
     expect(boxes.every(b => b.height === 32)).toBe(true);
     await page.getByRole('tab', { name: 'Radar', exact: true }).click();
     await page.getByRole('switch', { name: 'Radar mosaic', exact: true }).click();

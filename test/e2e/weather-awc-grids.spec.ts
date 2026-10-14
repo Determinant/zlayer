@@ -136,8 +136,12 @@ test('one timeline preserves time across tabs and retains a pinned selection whe
   const timeline = page.getByRole('region', { name: 'Weather timeline' });
   const slider = page.getByRole('slider', { name: 'Weather forecast time' });
   const tabs = page.getByRole('tablist', { name: 'AWC weather products' });
-  const timeBox = (await timeline.boundingBox())!, tabsBox = (await tabs.boundingBox())!;
-  expect(timeBox.y + timeBox.height).toBeLessThanOrEqual(tabsBox.y);
+  // Forecast preparation can remove its progress row between separate layout reads.
+  const layout = await page.locator('.awc-toolbox').evaluate(element => ({
+    timelineBottom: element.querySelector('.awc-timeline')!.getBoundingClientRect().bottom,
+    tabsTop: element.querySelector('.awc-product-tabs')!.getBoundingClientRect().top,
+  }));
+  expect(layout.timelineBottom).toBeLessThanOrEqual(layout.tabsTop);
   await slider.focus(); await slider.press('Home'); await slider.press('ArrowRight');
   const selected = 'Sep 22 · 22:00Z';
   await expect(slider).toHaveAttribute('aria-valuetext', selected);

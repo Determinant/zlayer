@@ -12,7 +12,10 @@ With navigation manifest schema 3, IFR fixes and VFR waypoints share the publish
 `fixes` file. Each view filters by `properties.kind`; the manifest supplies the VFR
 count, and the parsed source is shared in memory.
 Search and route resolution retain access to navigation data independently of
-background map visibility. Weather observations belong to the
+background map visibility. PIREP recovery likewise requests airport, NAVAID and
+fix references when its layer is enabled, even with navigation symbols hidden.
+The navigation data hook keeps airway demand separate so this reference-only use
+shares the fix cache without loading airway topology. Weather observations belong to the
 [METAR/TAF plugin](../metar-taf/README.md); route editing and procedure selection
 belong to [Routes](../routes/README.md).
 
@@ -26,10 +29,10 @@ Navigation imports no NOTAM implementation. Disabling NOTAMs removes its tab
 and releases notice demand while keeping Navigation usable. Navaids use the same
 host with **Info | NOTAM**, without Plates. Adding the NOTAM tab preserves the
 original compact navaid frame; long content scrolls inside its existing body. The
-[navaid NOTAM guide](../notams/README.md#navaid-detail-tab) owns affected-station
+[navaid NOTAM guide](../notams/README.md#navaid-detail-tab) describes affected-station
 identity, component associations and coverage limits.
 
-The NOTAM guide owns notice parsing, freshness and display. Navigation owns the
+The NOTAM guide describes notice parsing, freshness and display. Navigation owns the
 tab host and saved selection; the validator accepts `info`, `plates` and `notams`.
 An unavailable provider falls back to Info without erasing its saved tab, which
 can resume when the provider is enabled again. Stowing releases visible NOTAM demand.

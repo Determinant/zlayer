@@ -18,7 +18,7 @@ raw METAR/TAF text, exports, and HTML `dateTime` values retain their original fo
 | Same-day time interval | `Sep 18 · 14:00–20:00Z` |
 | Source age | `<1m old`, `15m old`, `1h 30m old`, `30d old` |
 | Last successful check | `Checked now`, `Checked 5m ago` |
-| Missing / invalid date or timestamp | `—` |
+| Missing / invalid date or timestamp | Em dash (`U+2014`) |
 | Missing source age | `Age unknown` |
 
 Month names are abbreviated English; numeric dates such as `09/10` are avoided.

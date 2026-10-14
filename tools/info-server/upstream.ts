@@ -3,9 +3,11 @@ import { isMetarFeatureCollection, isTafReport } from '@zlayer/contracts';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './routes.ts';
 import { UpstreamQueue } from './upstream-queue';
 import { retryAfterAt } from './retry-after';
+import { readPirepCache } from './pirep-source';
 import { readGairmetCache } from './gairmet';
 import { ADVISORY_MAX_AGE_MS } from './routes';
 import { WeatherSourceError } from './source-error';
+import { isModelVersion, strongEtag, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 
 export type Payload = { body: Buffer; status: number; headers: Record<string, string>; checkedAt: number; sha256: string };
 export const digest = (body: Uint8Array) => createHash('sha256').update(body).digest('hex');
@@ -19,12 +21,16 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
     const queue = queues[resource.upstream];
     return queue.run(signal, async () => {
       let checkedAt = (options.now ?? Date.now)();
-      const response = await fetcher(resource.url, { signal, redirect: 'error', headers: {
+      const response = await fetcher(resource.url, { signal, redirect: 'error',
+        ...(resource.kind === 'model-metadata' ? { method: 'HEAD' } : {}), headers: {
         'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1', 'Accept-Encoding': 'identity',
         ...(resource.revalidate ? { 'Cache-Control': 'no-cache' } : {}),
         ...(resource.range ? { Range: resource.range } : {}),
+        ...(resource.version ? 'etag' in resource.version ? { 'If-Match': resource.version.etag }
+          : { 'If-Unmodified-Since': resource.version.lastModified } : {}),
       } }).catch(() => { throw new HttpError(502, 'Upstream connection failed', 5); });
       try {
+        if (response.status === 412 && resource.version) throw new HttpError(409, 'Model object changed; discover this cycle again', 5);
         if (response.status === 429 || response.status === 503) {
           const now = Date.now();
           throw queue.backoff(Math.max(now + 5000, retryAfterAt(response.headers.get('retry-after'), now) ?? now + 30_000));
@@ -36,6 +42,19 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         }
         const encoding = response.headers.get('content-encoding');
         if (encoding && encoding !== 'identity') throw new HttpError(502, 'Unexpected upstream content encoding');
+        if (resource.kind === 'model-metadata') {
+          const length = response.headers.get('content-length'), etag = response.headers.get('etag');
+          const version: unknown = { byteLength: length && /^\d+$/.test(length) ? Number(length) : 0,
+            ...(strongEtag(etag) ? { etag } : { lastModified: response.headers.get('last-modified') }) };
+          if (!isModelVersion(version)) throw new InvalidForecastIndexError('NOAA model lacks a usable object version');
+          // NOMADS has no ETag. Avoid admitting a modification still within the
+          // timestamp's one-second resolution; its normal model lag is longer.
+          if ('lastModified' in version && Date.parse(version.lastModified) > checkedAt - 60_000) {
+            throw new InvalidForecastIndexError('NOAA model modification is too recent to pin');
+          }
+          const body = Buffer.from(JSON.stringify(version));
+          return { body, checkedAt, sha256: digest(body), status: 200, headers: { 'content-type': 'application/json' } };
+        }
         const length = response.headers.get('content-length');
         if (length !== null && (!/^\d+$/.test(length) || Number(length) > resource.maxBytes)) throw new HttpError(502, 'Upstream response exceeds its size limit');
         const chunks: Buffer[] = []; let size = 0;
@@ -48,17 +67,17 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         let body = Buffer.concat(chunks, size);
         const headers: Record<string, string> = {};
         let status = response.status;
-        if (resource.kind === 'gairmet-cache') {
+        if (resource.kind === 'gairmet-cache' || resource.kind === 'pirep-cache') {
           // The static cache is generated every minute. A successful CDN response
           // must not freshen an abandoned publication, even when HTTP says 200.
           const modified = Date.parse(response.headers.get('last-modified') ?? '');
           if (!Number.isFinite(modified) || modified > checkedAt + 30_000 || checkedAt - modified >= ADVISORY_MAX_AGE_MS) {
-            throw new WeatherSourceError('G-AIRMET cache publication is stale or future dated',
+            throw new WeatherSourceError('AWC cache publication is stale or future dated',
               modified > checkedAt ? 'future-source' : 'stale-source');
           }
           checkedAt = Math.min(checkedAt, modified);
-          body = Buffer.from(JSON.stringify(await readGairmetCache(body)));
-          if (body.length > resource.maxBytes) throw new InvalidForecastSourceError('G-AIRMET package exceeds its size limit');
+          body = Buffer.from(JSON.stringify(resource.kind === 'pirep-cache' ? await readPirepCache(body, checkedAt) : await readGairmetCache(body)));
+          if (body.length > resource.maxBytes) throw new InvalidForecastSourceError('AWC package exceeds its size limit');
           headers['content-type'] = 'application/json; charset=utf-8';
         } else if (resource.kind === 'range') {
           const cr = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
@@ -66,6 +85,11 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
           if (!cr || !cr.slice(1).every(n => Number.isSafeInteger(Number(n))) || Number(cr[1]) !== Number(requested[1]) ||
             Number(cr[2]) - Number(cr[1]) + 1 !== size || Number(cr[3]) <= Number(cr[2]) ||
             Number(cr[2]) !== (requested[2] ? Number(requested[2]) : Number(cr[3]) - 1)) throw new InvalidForecastSourceError('Upstream returned the wrong byte range');
+          const version: ModelVersion | undefined = resource.version;
+          if (version && (Number(cr[3]) !== version.byteLength || ('etag' in version
+            ? response.headers.get('etag') !== version.etag : response.headers.get('last-modified') !== version.lastModified))) {
+            throw new HttpError(409, 'Model range does not match its object version', 5);
+          }
           let offset = 0;
           do {
             if (size - offset < 20 || body.toString('ascii', offset, offset + 4) !== 'GRIB' || body[offset + 7] !== 2) {

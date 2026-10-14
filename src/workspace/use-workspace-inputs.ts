@@ -8,6 +8,8 @@ import type { SavedBundle } from '../offline/bundle-repository';
 import { OFFLINE_REGIONS } from '../offline/regions';
 import { formatDate } from '../core/format/time';
 import type { MapSelectionInput } from '../core/map/selection';
+import { useMagneticModel } from '../core/geo/use-magnetic-model';
+import { fetchMagneticModel } from './catalog/catalog';
 
 type Layers = ReturnType<typeof createWorkspaceLayers>;
 type PreferenceState = ReturnType<typeof useMapPreferences<Layers['plugins']>>;
@@ -33,6 +35,8 @@ type WorkspaceInputs = {
 export function useWorkspaceInputs({ workspaceLayers, context, mapPreferences, setMapPreferences,
   loaded, clear, visibleBundles, charts, navigation, routes, selection }: WorkspaceInputs): void {
   const { terrainAltitude, terrainCoverage, fixDisplay } = mapPreferences;
+  const pirepsEnabled = !!loaded['weather-awc'] && mapPreferences.awcEnabled && mapPreferences.awcPireps;
+  const pirepMagneticModel = useMagneticModel(context?.browsing.revision, pirepsEnabled, fetchMagneticModel);
   const savedEditions = useMemo(() => [...new Set(visibleBundles.map(bundle => bundle.catalog.revision))]
     .map(revision => ({ revision, title: visibleBundles.filter(bundle => bundle.catalog.revision === revision)
       .map(bundle => OFFLINE_REGIONS.find(region => region.id === bundle.plan.regionId)?.title ?? bundle.plan.title).join(', ') })), [visibleBundles]);
@@ -77,6 +81,7 @@ export function useWorkspaceInputs({ workspaceLayers, context, mapPreferences, s
     workspaceLayers.metar.input.set({ catalog: context, enabled: !!loaded.metar && mapPreferences.metarEnabled,
       ...pluginActions.metar });
     workspaceLayers.weatherAwc.input.set({ ...workspaceLayers.weatherAwc.preferences.select(mapPreferences), revision: context.browsing.revision,
+      navigation: navigation.navigationData, magneticModel: pirepMagneticModel ?? undefined,
       awcEnabled: !!loaded['weather-awc'] && mapPreferences.awcEnabled, ...pluginActions.weather });
     workspaceLayers.routes.input.set(routes);
     workspaceLayers.selectionInput.set(selection);

@@ -85,5 +85,5 @@ fusion at acquisition time. Explicit frame changes flush history.
 This factor is an application-specific derivation, not a PX4 port. Regression
 sources cover closed-form zero/nonzero-radius posteriors, rotation invariance,
 disjoint endpoints, gaps, resets, vertical aiding, two-minute intermittent-GPS
-flight and delayed delivery. The [validation guide](../validation.md) owns numerical
+flight and delayed delivery. The [validation guide](../validation.md) describes numerical
 baselines, reproduction commands and remaining evidence gaps.

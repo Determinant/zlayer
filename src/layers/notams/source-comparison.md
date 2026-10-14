@@ -71,7 +71,14 @@ These boundaries apply even when one variant appears more detailed or plausible:
 - **Validity and schedule:** keep B/C boundaries, EST/PERM status and D's activity
   windows distinct. A shorter interval or a longer closure is not automatically
   more authoritative. Supplementation requires the complete matching witness;
-  supplied unequal operational times remain conflicting.
+  supplied unequal operational times remain conflicting. The shared schedule
+  projection compares `SR`/`SS` symbolically without evaluating solar activity.
+  A complete, record-bound ICAO NOTAMN D field or matching domestic native body
+  may witness omitted schedule metadata; all retained renderings and supplied
+  structured days/endpoints must agree. This rule applies by evidence, including
+  MIL/INTL notices, rather than by preferring an ICAO translation label. See the
+  [schedule contract](README.md#collection-and-delivery) and the retained
+  [October 13 source pairs](../../../test/fixtures/notams-schedule-2026-10-13.json).
 - **Operational body and qualifiers:** OPADD §3.18.3.3 permits clear E content to
   determine the selection code without downgrading purpose. This supports a
   bounded semantic rule, not a blanket E-over-Q or prose-over-XML preference.

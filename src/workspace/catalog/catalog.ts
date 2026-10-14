@@ -291,7 +291,7 @@ export async function fetchChartCatalog(revision: string, signal?: AbortSignal,
     } } : {}),
     weather: [
       { id: 'awc.metar', title: 'METAR flight categories', status: 'current' },
-      { id: 'awc.pirep', title: 'PIREPs', status: 'planned' },
+      { id: 'awc.pirep', title: 'PIREPs', status: 'current' },
       { id: 'awc.sigmet', title: 'SIGMETs', status: 'planned' },
     ],
   };

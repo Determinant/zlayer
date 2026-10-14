@@ -8,12 +8,11 @@ import type { DownloadPlan } from '../downloads';
 import { OFFLINE_REGIONS } from '../regions';
 import { DATA_CACHE } from '../../core/storage/cache-names';
 import { regionAirportIds, supplementSnapshot } from '../../layers/plates/supplement-snapshot';
+import { withRegionDownloadLock } from '../region-lock';
 
 /** Capture legacy page targets before a mutable index is refreshed. Never guess a missing edition. */
 export async function preserveSavedSupplements(catalog: ChartSupplementCatalog, url: string): Promise<void> {
-  if (!navigator.locks) throw new Error('Download coordination unavailable');
-  await navigator.locks.request('zlayer-region-downloads', { ifAvailable: true }, async lock => {
-    if (!lock) throw new Error('Another ZLayer window is managing downloads. Retry when it finishes.');
+  await withRegionDownloadLock(async () => {
     const cache = await caches.open(DATA_CACHE);
     const pin = async (plan: DownloadPlan): Promise<DownloadPlan> => {
       const references = [];

@@ -35,8 +35,13 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
     location: { href: 'https://app.test/' },
     navigator: { serviceWorker: { controller: { postMessage() {} } }, locks: {
       query: async () => ({ held: [{ name: 'active-files:viewer' }] }),
-      request: async (_name: string, _options: unknown, callback: (lock: object | null) => Promise<void>) =>
-        callback(state.locked ? null : {}),
+      request: async (_name: string, options: LockOptions, callback: (lock: object | null) => Promise<void>) => {
+        if (!state.locked) return callback({});
+        if (options.ifAvailable) return callback(null);
+        return new Promise<void>((_, reject) => {
+          options.signal!.addEventListener('abort', () => reject(options.signal!.reason), { once: true });
+        });
+      },
     } },
     caches: { keys: async () => [...stores.keys()], delete: async (name: string) => stores.delete(name), open: async (name: string) => ({
       match: async (request: Request) => stores.get(name)?.has(request.url) ? new Response('file') : undefined,
@@ -50,7 +55,11 @@ test('cleanup preserves shared and paused-region files, rejects lock contention 
     t.after(() => original ? Object.defineProperty(globalThis, name, original) : Reflect.deleteProperty(globalThis, name));
   }
   state.locked = true;
-  await assert.rejects(removeUnsavedFiles(), /Another ZLayer window/);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const blocked = assert.rejects(removeUnsavedFiles(), /Offline storage is busy/);
+  t.mock.timers.tick(2_000);
+  await blocked;
+  t.mock.timers.reset();
   assert.equal(stores.get(CHART_CACHE)!.size, 2);
   state.locked = false;
   state.plans.push({ malformed: true });

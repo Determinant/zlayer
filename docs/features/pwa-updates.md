@@ -68,6 +68,14 @@ validates cached pages; its network fallback does not cache HTML or establish
 offline readiness without the assets. These checks also apply when an existing
 worker rebuilds its shell after a local reset.
 
+Same-origin `/about` and `/about/...` requests bypass the worker so the
+[public product page](product-discovery.md) keeps its ordinary network response.
+It is not part of the app's offline-readiness guarantee. Other requests retain
+the existing app-shell fallback and data-cache behavior. Window coordination
+still includes every tab, since older workers may have served the app at non-root
+URLs. An About tab can defer old-shell cleanup and joins the reset screen when
+the user explicitly clears local app data.
+
 Once a release is ready, its update button also works offline. An app
 launched offline still observes its existing registration and checks on reconnect.
 Keep `/sw.js` served with `Cache-Control: no-store`, as in the

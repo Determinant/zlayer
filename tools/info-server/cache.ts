@@ -60,7 +60,7 @@ export class WeatherCache {
           const route = preparedRoute(entry.resource), prepared = route?.resource.key === entry.resource.key;
           const immutable = prepared && route?.type === 'artifact';
           if (!(prepared || ['https://aviationweather.gov', 'https://nomads.ncep.noaa.gov', 'https://storage.googleapis.com', 'https://noaa-mrms-pds.s3.amazonaws.com', 'https://tgftp.nws.noaa.gov'].includes(origin) &&
-            ['json', 'package', 'gairmet-cache', 'index', 'range', 'surface', 'coverage-image', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
+            ['json', 'package', 'gairmet-cache', 'pirep-cache', 'index', 'model-metadata', 'range', 'surface', 'coverage-image', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
             typeof entry.resource.key !== 'string' || !entry.resource.key ||
             !Number.isSafeInteger(entry.resource.ttl) || entry.resource.ttl <= 0 || entry.resource.ttl > 86_400_000 ||
             ![200, 206].includes(entry.status) || !entry.headers || typeof entry.headers !== 'object' || Array.isArray(entry.headers) ||
@@ -265,7 +265,7 @@ export class WeatherCache {
       try {
         if (resource.indexHash) {
           const url = `${resource.url}.idx`;
-          const index = await this.get({ key: url, upstream: resource.upstream, url, kind: 'index', ttl: 60_000, maxBytes: 512 * 1024 }, undefined, this.signal);
+          const index = await this.get({ key: url, upstream: resource.upstream, url, kind: 'index', ttl: 60_000, maxBytes: 512 * 1024, revalidate: true }, undefined, this.signal);
           if (index.sha256 !== resource.indexHash) throw new HttpError(409, 'Model index changed; discover this cycle again', 5);
         }
         this.signal.throwIfAborted();

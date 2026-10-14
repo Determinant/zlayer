@@ -25,8 +25,8 @@ async function directory(t: TestContext) {
   const path = await mkdtemp(join(tmpdir(), 'zlayer-weather-'));
   t.after(() => rm(path, { recursive: true, force: true })); return path;
 }
-async function http(t: TestContext, fetcher: typeof fetch) {
-  const app = await createInfoServer({ directory: await directory(t), fetch: fetcher, spacing: 0, startUpdates: false });
+async function http(t: TestContext, fetcher: typeof fetch, now = Date.now) {
+  const app = await createInfoServer({ directory: await directory(t), fetch: fetcher, spacing: 0, startUpdates: false, now });
   await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
   t.after(() => app.close());
   const address = app.server.address();
@@ -363,7 +363,7 @@ test('gateway serves and caches the complete CWA family when AWC omits a hazard 
     assert.equal(new URL(String(input)).pathname, '/api/data/cwa');
     calls++;
     return Response.json(cwaNullHazard);
-  });
+  }, () => Date.parse(cwaNullHazard.features[0]!.properties.validTimeFrom));
   const response = await fetch(app.origin + '/api/weather/advisories/cwa.json');
   assert.equal(response.status, 200);
   const snapshot: unknown = await response.json();
@@ -378,7 +378,7 @@ test('gateway serves and caches the complete CWA family when AWC omits a hazard 
 
 test('gateway publishes and caches an implicitly closed CWA with its complete outline and raw evidence', async t => {
   let calls = 0;
-  const app = await http(t, async () => { calls++; return Response.json(cwaOpenRing.collection); });
+  const app = await http(t, async () => { calls++; return Response.json(cwaOpenRing.collection); }, () => cwaOpenRing.checkedAt);
   const response = await fetch(app.origin + '/api/weather/advisories/cwa.json');
   assert.equal(response.status, 200);
   const snapshot: unknown = await response.json();

@@ -7,7 +7,7 @@ project direction and history under `docs/`.
 
 Start with the principles, then read the guide for the part you are changing.
 Architecture, data and feature guides describe current contracts unless a section
-explicitly says **planned**. The roadmap owns implementation status and future work;
+explicitly says **planned**. The roadmap tracks implementation status and future work;
 product proposals describe intended experience. Dated verification records apply
 only to the source, build and environment recorded.
 
@@ -82,10 +82,10 @@ guides stay in that same folder or its implementation subfolders.
 | Charts | [Selection, rendering and MBTiles](../src/layers/charts/README.md); [rendering benchmark](../src/layers/charts/benchmark.md) |
 | Navigation | [Data, search and details](../src/layers/navigation/README.md); [fix display](../src/layers/navigation/fix-display.md) |
 | METAR/TAF | [Weather demand, freshness, nearby stations and report display](../src/layers/metar-taf/README.md) |
-| AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [surface analysis and Progs](../src/layers/weather-awc/progs/README.md); [NEXRAD/TDWR radar](../src/layers/weather-awc/radar/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |
+| AWC Weather | [Advisories and forecast timeline](../src/layers/weather-awc/README.md); [PIREPs/AIREPs](../src/layers/weather-awc/pireps/README.md); [surface analysis and Progs](../src/layers/weather-awc/progs/README.md); [NEXRAD/TDWR radar](../src/layers/weather-awc/radar/README.md); [cloud/freezing/icing grids](../src/layers/weather-awc/grids/README.md); [winds and temperature aloft](../src/layers/weather-awc/grids/winds.md); [source limits](../src/layers/weather-awc/grids/README.md#source-meaning-and-limits) |
 | Plates | [Airport plates, document viewer and georeferenced overlays](../src/layers/plates/README.md) |
 | NOTAMs | [Airport D/FDC notices, parsing, plate relevance and NMS collection](../src/layers/notams/README.md) |
-| Routes | [Editing and recommendations](../src/layers/routes/README.md); [SID/STAR previews](../src/layers/routes/terminal-procedures.md), [approach geometry](../src/layers/routes/approach-geometry.md), [coverage and validation](../src/layers/routes/approach-coverage.md) |
+| Routes | [Editing and recommendations](../src/layers/routes/README.md); [point identification, radial inputs and export](../src/layers/routes/radial-distance-plan.md); [SID/STAR previews](../src/layers/routes/terminal-procedures.md), [approach geometry](../src/layers/routes/approach-geometry.md), [coverage and validation](../src/layers/routes/approach-coverage.md) |
 | Glide Planner | [Airport/ownship glide ranges, prepared off-airport candidate areas and planning assumptions](../src/layers/glide/README.md) |
 | Terrain | [Route/viewport elevation, sources and verification](../src/layers/terrain/README.md) |
 | Obstructions | [FAA DOF symbols, demand and lifecycle](../src/layers/obstructions/README.md) |
@@ -95,6 +95,7 @@ guides stay in that same folder or its implementation subfolders.
 
 ### Shared application behavior
 
+- [Public product page, README and search/AI discovery](features/product-discovery.md).
 - [Offline storage and regional downloads](features/offline-storage.md).
 - [PWA releases and update prompts](features/pwa-updates.md),
   [installed-app Back navigation](features/pwa-back-navigation.md).
@@ -111,10 +112,9 @@ guides stay in that same folder or its implementation subfolders.
 
 Plugin-specific validation lives with its plugin, including
 [approach coverage](../src/layers/routes/approach-coverage.md) and
-[AHRS validation](../src/layers/ahrs/validation.md), which also owns its regression
-inventory. These guides retain both durable
-requirements and explicitly dated observations.
-A historical pass does not close a current release gate or establish device/flight validation.
+[AHRS validation](../src/layers/ahrs/validation.md) and its regression inventory.
+These guides distinguish validation requirements from dated results. Current
+device and flight checks are listed in [deployment readiness](development/deployment.md).
 
 ## Decisions
 
@@ -132,15 +132,15 @@ current guide and should be linked from the affected ADR without erasing the ori
 - [October 3 plugin profiling](verification/memory-resources.md#scoped-plugin-profiling-2026-10-03): retained Terrain, Glide, weather and AHRS comparisons from the completed review.
 - [Evidence](evidence/README.md): retained audits and images, their purpose and retention rules.
 
-Resolved findings and lasting guidelines belong in the owning feature, architecture
-or engineering guide. Evidence substantiates those requirements; it is not another
-source of current implementation status. Keep dates, hashes, scope and limitations
-with historical results. Scratch scans and intermediate downloads belong in ignored
-`tmp/` or outside the repository.
+Put resolved findings and lasting guidelines in the relevant feature, architecture
+or engineering guide. Keep dates, hashes, scope and limitations with the evidence
+supporting them. Use the roadmap for current implementation status. Scratch scans
+and intermediate downloads belong in ignored `tmp/` or outside the repository.
 
 ## Keeping the docs useful
 
-- Give each contract one owning guide; link to it instead of copying its rules.
+- Give each contract one owning guide. Other pages may keep a short summary with
+  a direct section link; keep the detailed rules in the owning guide.
 - Keep plugin behavior, algorithms, design notes and validation in
   `src/layers/<plugin>/`; link supporting docs from that plugin's `README.md`.
 - Keep shared application behavior in `docs/features/`, host architecture in
@@ -158,7 +158,31 @@ with historical results. Scratch scans and intermediate downloads belong in igno
   useful lessons are in current guides or regression cases. Retain measured
   comparisons only with the source, method and limitations needed to interpret
   them; see the [evidence retention rules](evidence/README.md#retention-rules).
-- When consolidating, preserve rationale, failure cases, constraints and unresolved work;
-  update inbound links and this index. Preserve unique evidence a guide still relies on.
+- When consolidating, follow [Editing for clarity](#editing-for-clarity) and update
+  inbound links and this index.
+
+### Editing for clarity
+
+These docs guide future implementation by people and Codex. A wording change must
+preserve the requirements and the evidence behind them.
+
+- Name the component, action and condition. Keep technical terms when they make a
+  rule precise; replace slogans and vague abstractions with observable behavior.
+- Preserve requirement strength (`must`, `should`, `may`), scope, prerequisites,
+  exceptions, units, thresholds, failure cases, rationale and unresolved findings.
+  Keep measured results, unverified claims and planned work distinguishable.
+- Before removing a repeated point, locate its full statement in the owning guide.
+  Move any unique detail there first, then replace the duplicate with a short
+  summary and a direct section link. Similar wording about different components,
+  sources or lifecycles can describe different rules; check the scope before merging.
+- Keep a local warning or exception when readers need it to interpret or carry out
+  the surrounding instructions. Entry-point summaries and dated evidence can repeat
+  a current rule for context. Retain the evidence's original conditions and result.
+- Avoid em dashes in prose. Preserve the meaning of UI labels and source strings;
+  when the character itself matters, identify it as `U+2014` or describe the label
+  without presenting altered text as an exact quote.
+- Review the diff against the original for lost meaning, not just shorter wording.
+  Confirm that each removed requirement or finding is still stated at the linked
+  destination, and check local file links and heading anchors after moving text.
 
 See the project [license](../README.md#license) for documentation and source terms.

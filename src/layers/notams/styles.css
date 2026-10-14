@@ -39,8 +39,9 @@
 .notam-section--upcoming { padding-inline-start: 10px; border-inline-start: 2px dashed var(--border-subtle); }
 .notam-section--upcoming > .notam-section-heading { color: var(--text-secondary); }
 .notam-match-heading { margin: var(--ui-panel-gap) 0 var(--ui-space-related); }
-.notam-entry { container: notam-entry / inline-size; padding: 12px 0; border-top: 1px solid var(--border-subtle); min-width: 0; }
-.notam-entry--charted:focus-within { background: var(--surface-control); outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.notam-entry { container: notam-entry / inline-size; padding: 12px var(--ui-panel-gap); border-top: 1px solid var(--border-subtle); border-radius: 6px; min-width: 0; }
+.notam-entry--charted:focus-within { background: var(--surface-control); }
+.notam-entry--charted:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (hover: hover) {
   .notam-entry--charted:hover { background: var(--surface-control); }
 }

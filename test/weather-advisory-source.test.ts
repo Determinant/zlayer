@@ -1,12 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isAwcAdvisorySnapshot, isWeatherGeometry } from '@zlayer/contracts';
+import { AWC_ADVISORY_WINDOW_MS, isAwcAdvisorySnapshot, isWeatherGeometry } from '@zlayer/contracts';
 import { normalizeAdvisories } from '../src/layers/weather-awc/source';
 import { prepareAdvisoryGeometry } from '../src/layers/weather-awc/source-geometry';
 import captured from './fixtures/cwa-dateline-2026-10-08.json' with { type: 'json' };
 import openRing from './fixtures/cwa-open-ring-2026-10-09.json' with { type: 'json' };
+import { advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
 
 const normalizeAdvisoryGeometry = (value: unknown) => prepareAdvisoryGeometry(value).geometry;
+
+test('whole-polygon validation preserves a hole touching its exterior at a single point', () => {
+  const source = { type: 'Polygon', coordinates: [
+    [[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]], [[0, 2], [1, 1], [2, 2], [1, 3], [0, 2]],
+  ] };
+  assert.deepEqual(prepareAdvisoryGeometry(source).geometry, source);
+});
+
+test('advisory applicability is bounded at acquisition without aging saved snapshots against today', () => {
+  const source = captured.collection.features[0]!;
+  for (const offset of [-AWC_ADVISORY_WINDOW_MS - 1, AWC_ADVISORY_WINDOW_MS + 1, 1000 * 365.25 * 86400_000]) {
+    const from = captured.checkedAt + offset;
+    const feature = { ...source, properties: { ...source.properties,
+      validTimeFrom: new Date(from).toISOString(), validTimeTo: new Date(from + 3600_000).toISOString() } };
+    const snapshot = normalizeAdvisories('cwa', [{ type: 'FeatureCollection', features: [feature] }], captured.checkedAt, captured.source);
+    assert.equal(snapshot.advisories.length, 0);
+    assert.equal(snapshot.issues?.[0]?.reason, 'invalid-validity');
+    assert.deepEqual(JSON.parse(snapshot.issues![0]!.sourceFeature), feature);
+  }
+  const saved = normalizeAdvisories('cwa', [captured.collection], captured.checkedAt, captured.source);
+  assert.ok(isAwcAdvisorySnapshot(saved), 'the original source time owns validation, not the current wall clock');
+  assert.equal(isAwcAdvisorySnapshot({ ...saved, advisories: saved.advisories.map(a => ({ ...a, validTo: captured.checkedAt + AWC_ADVISORY_WINDOW_MS + 1 })) }), false);
+  const shifted = WEATHER_NOW + AWC_ADVISORY_WINDOW_MS + 1;
+  const sigmet = normalizeAdvisories('sigmet', [advisorySource('sigmet', 0, shifted)], WEATHER_NOW, 'test:source');
+  assert.equal(sigmet.advisories.length, 0);
+  assert.ok(sigmet.issues?.every(issue => issue.reason === 'invalid-validity'));
+  assert.throws(() => normalizeAdvisories('gairmet', [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour, shifted)),
+    WEATHER_NOW, 'test:source'), /invalid forecast times/);
+});
 
 const ringArea = (ring: number[][]) => Math.abs(ring.slice(1).reduce((sum, p, i) =>
   sum + ring[i]![0]! * p[1]! - p[0]! * ring[i]![1]!, 0)) / 2;
@@ -15,6 +45,23 @@ function area(geometry: ReturnType<typeof normalizeAdvisoryGeometry>): number {
   const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
   return polygons.reduce((sum, rings) => sum + ringArea(rings[0]!) - rings.slice(1).reduce((a, r) => a + ringArea(r), 0), 0);
 }
+
+test('advisory area survives polar and date-line boundaries, world copies, winding and starting vertices', () => {
+  for (const latitude of [-90, -89, -60, 0, 60, 89]) for (const longitude of [-360, -181, -180, -179, 0, 179, 180, 359]) {
+    for (const width of [.001, 1, 20, 170]) for (const reverse of [false, true]) for (let start = 0; start < 4; start++) {
+      const corners = [[longitude, latitude], [longitude + width, latitude], [longitude + width, latitude + 1], [longitude, latitude + 1]];
+      if (reverse) corners.reverse();
+      const ring = [...corners.slice(start), ...corners.slice(0, start)];
+      ring.push(ring[0]!);
+      const source = { type: 'Polygon', coordinates: [ring] }, original = structuredClone(source);
+      const prepared = prepareAdvisoryGeometry(source);
+      assert.ok(isWeatherGeometry(prepared.geometry));
+      assert.ok(Math.abs(area(prepared.geometry) - width) < 1e-7, `area at ${longitude},${latitude}, width ${width}`);
+      assert.ok(Math.abs(area(normalizeAdvisoryGeometry(prepared.geometry)) - width) < 1e-7, 'reprocessing preserves area');
+      assert.deepEqual(source, original, 'source coordinates are immutable');
+    }
+  }
+});
 
 test('captured Alaska CWA normalizes across the date line without losing any of its seven source entries', () => {
   const before = structuredClone(captured.collection);
@@ -156,6 +203,8 @@ test('uncontained and overlapping holes become source issues instead of silently
   const rectangle = (west: number, south: number, east: number, north: number) =>
     [[west, south], [west, north], [east, north], [east, south], [west, south]];
   for (const explicit of [true, false]) for (const holes of [
+    [exterior], // A contained, individually valid ring can erase the entire polygon.
+    [rectangle(0, 1, 2, 3)], // A hole shares an exterior edge.
     [rectangle(20, 1, 22, 2)], // Outside the longitude extent.
     [rectangle(1, 20, 2, 22)], // Outside the latitude extent.
     [rectangle(3, 5, 7, 7)], // Vertices inside; edges cross the exterior's notch.

@@ -21,6 +21,7 @@ export default defineConfig(({ command }) => ({
           rolldownOptions: {
             input: {
               app: resolve(import.meta.dirname, 'index.html'),
+              about: resolve(import.meta.dirname, 'about/index.html'),
               sw: resolve(import.meta.dirname, 'src/service-worker.ts'),
             },
             output: {
@@ -30,6 +31,9 @@ export default defineConfig(({ command }) => ({
               },
               entryFileNames: (chunk) =>
                 chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js',
+              // Keep the online product page's CSS outside the PWA shell inventory.
+              assetFileNames: (asset) => asset.names.includes('about.css')
+                ? 'about/[name]-[hash][extname]' : 'assets/[name]-[hash][extname]',
             },
           },
         },

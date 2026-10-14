@@ -1,7 +1,8 @@
 import { weatherTokens, type WeatherSpan, type WeatherToken } from './weather-tokens.js';
 
 export type TafGroupHeader =
-  | { kind: 'initial' | 'remarks' | 'invalid' }
+  | { kind: 'initial'; from?: string; to?: string }
+  | { kind: 'remarks' | 'invalid' }
   | { kind: 'FM'; from: string; source: WeatherSpan }
   | { kind: 'BECMG' | 'TEMPO' | 'PROB'; from: string; to: string; probability?: number };
 export type TafGroup = WeatherSpan & { header: TafGroupHeader; tokens: readonly WeatherToken[] };
@@ -76,7 +77,11 @@ export function parseTafGroups(raw: string): ParsedTaf {
   if (!tokens) return fallback();
   const groups: TafGroup[] = [];
   let state: 'forecast' | 'remarks' | 'ended' = 'forecast';
-  let header: TafGroupHeader = { kind: 'initial' }, start = 0, bodyStart = 0, index = 0;
+  // The opening validity belongs to the whole report, not the first decoded
+  // prevailing interval (which may end at an earlier FM). Preserve all tokens.
+  const initial = /^\s*(?:TAF\s+)?(?:(?:AMD|COR)\s+)?[A-Z0-9]{3,4}\s+(?:(?:AMD|COR)\s+)?\d{6}Z\s+(\d{4})\s*\/\s*(\d{4})(?=\s|=|$)/i.exec(raw);
+  let header: TafGroupHeader = { kind: 'initial', ...(initial ? { from: initial[1]!, to: initial[2]! } : {}) };
+  let start = 0, bodyStart = 0, index = 0;
   let complete = true, unavailable = false;
   const finish = (end: number, next: number) => {
     if (!raw.slice(start, end).trim()) return;

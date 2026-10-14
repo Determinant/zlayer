@@ -1,5 +1,6 @@
+import { PirepControls } from './pireps/controls';
 import type { AwcAdvisoryProduct } from '@zlayer/contracts';
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLayerSnapshot } from '../../core/layers/use-snapshot';
 import { formatTimestamp, formatTimestampRange, formatAge } from '../../core/format/time';
 import { useEdgePanel } from '../../core/ui/edge-panels';
@@ -33,7 +34,7 @@ export function WeatherControls({ controller }: { controller: WeatherController 
   return <div className="toggle-list"><button type="button" role="switch" aria-checked={p.awcEnabled}
       className={p.awcEnabled ? 'is-active' : ''} onClick={() => controller.change({ awcEnabled: !p.awcEnabled })}>
       <span className="layer-swatch awc-swatch" aria-hidden="true">WX</span>
-      <span className="ui-item-copy layer-copy"><strong>Forecasts &amp; advisories</strong><small>CONUS · Radar · Progs · Clouds · Icing · Winds · Advisories</small></span>
+      <span className="ui-item-copy layer-copy"><strong>Forecasts &amp; advisories</strong><small>Radar · Progs · PIREPs · Clouds · Icing · Winds · Advisories</small></span>
       <span className="switch" aria-hidden="true"><i /></span>
     </button></div>;
 }
@@ -138,7 +139,7 @@ function AdvisoryControls({ controller }: { controller: WeatherController }) {
 }
 
 const WEATHER_TABS = [{ value: 'advisories', label: 'Advis.', accessibleLabel: 'Advisories' }, { value: 'progs', label: 'Progs' }, { value: 'radar', label: 'Radar' },
-  { value: 'clouds', label: 'Cloud' }, { value: 'icing', label: 'Icing' }, { value: 'winds', label: 'Winds' }] as const;
+  { value: 'pireps', label: 'PIREP', accessibleLabel: 'PIREPs' }, { value: 'clouds', label: 'Cloud' }, { value: 'icing', label: 'Icing' }, { value: 'winds', label: 'Winds' }] as const;
 type WeatherCategory = (typeof WEATHER_TABS)[number]['value'];
 
 export function WeatherToolbox({ controller }: { controller: WeatherController }) {
@@ -153,8 +154,11 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
   const [category, setCategory] = useState<WeatherCategory>('advisories');
   const content = useRef<HTMLElement>(null);
   const [focusAltitude, setFocusAltitude] = useState(false);
+  useEffect(() => {
+    if (panel.open && category === 'pireps') controller.checkPireps();
+  }, [controller, panel.open, category]);
   const active = { advisories: p.awcGairmet || p.awcSigmet || p.awcConvective || p.awcCwa || p.awcFreezing,
-    progs: p.awcProgs, radar: p.awcRadar, clouds: p.awcGridMode.startsWith('cloud'),
+    pireps: p.awcPireps, progs: p.awcProgs, radar: p.awcRadar, clouds: p.awcGridMode.startsWith('cloud'),
     icing: p.awcGridMode.startsWith('icing') || p.awcGridMode.startsWith('freezing') || p.awcGridMode === 'sldPotential',
     winds: p.awcWindBarbs || p.awcGridMode === 'temperature' };
   useLayoutEffect(() => controller.altitudeControls.subscribe(category => {
@@ -169,7 +173,7 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
     setFocusAltitude(false);
   }, [panel.open, focusAltitude, category]);
   return <section ref={content} className="ui-toolbox awc-toolbox" aria-label="AWC Weather toolbox">
-      <div className="awc-toolbox-heading"><h3 className="ui-toolbox-title">AWC Weather</h3><span>{category === 'progs' ? 'N. America' : 'CONUS'}</span>
+      <div className="awc-toolbox-heading"><h3 className="ui-toolbox-title">AWC Weather</h3><span>{category === 'pireps' ? 'AWC reports' : category === 'progs' ? 'N. America' : 'CONUS'}</span>
         <button className="ui-switch" type="button" role="switch" aria-label="Show AWC weather"
           aria-checked={p.awcEnabled} onClick={() => controller.change({ awcEnabled: !p.awcEnabled })}>
           <span className="switch" aria-hidden="true"><i /></span>
@@ -177,7 +181,7 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
       </div>
       {!p.awcEnabled ? <p>Turn on AWC weather to view forecasts and choose products.</p> : <>
         <WeatherTimeline controller={controller} />
-        <TabList id={tabsId} size="slim" className="awc-product-tabs" label="AWC weather products"
+        <TabList id={tabsId} size="slim" rowSize={4} className="awc-product-tabs" label="AWC weather products"
           tabs={WEATHER_TABS.map(tab => ({ ...tab, active: active[tab.value], description: active[tab.value] ? 'Map overlay enabled' : 'Map overlay off' }))}
           value={category} onChange={setCategory} />
         <div className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, 'advisories', category)}>
@@ -188,6 +192,9 @@ function WeatherToolboxContent({ controller, panel }: { controller: WeatherContr
         </div>
         <div className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, 'radar', category)}>
           {category === 'radar' && <RadarControls controller={controller} />}
+        </div>
+        <div className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, 'pireps', category)}>
+          {category === 'pireps' && <PirepControls controller={controller} />}
         </div>
         {(['clouds', 'icing', 'winds'] as const).map(tab => <div key={tab} className="awc-tab-content panel-scroll" tabIndex={0} {...tabPanelProps(tabsId, tab, category)}>
           {category === tab && <GridControls controller={controller} category={tab} />}

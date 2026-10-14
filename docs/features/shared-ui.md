@@ -2,12 +2,11 @@
 
 [Documentation](../README.md) / Features
 
-This guide owns shared typography, controls, tabs, dialogs, scrolling and responsive
-layout, followed by the interaction and layout checks that verify them.
+This guide describes shared typography, controls, tabs, dialogs, scrolling and
+responsive layout, with checks for layout and interaction.
 
-Use these representative **CSS viewports** for layout checks; they do not
-establish physical-device behavior.
-Display scaling and browser chrome can change the available viewport.
+Use these representative **CSS viewports** for layout checks. Test physical-device
+behavior separately; display scaling and browser chrome affect the available viewport.
 
 | Layout | Viewport |
 | --- | --- |
@@ -50,6 +49,8 @@ Display scaling and browser chrome can change the available viewport.
   data cycle selector live in Settings on every screen size; “Default · Latest”
   restores automatic cycle selection. Toolbar heights are shared variables,
   so overlay bounds do not duplicate guessed offsets for each device.
+- The compact About popup remains in Settings. Its **Features and getting started**
+  link opens the separate [public product page](product-discovery.md) in another tab.
 - At widths up to 600px and heights of at least 400px, the route editor gets its
   own full-width row. Advise, Fit and warnings sit below it. The Route heading opens
   a menu with copying, supported sharing actions and Clear Route. Layout uses CSS
@@ -63,7 +64,7 @@ Display scaling and browser chrome can change the available viewport.
   removes this focus marker. See [Navigation](../../src/layers/navigation/README.md#interaction-efficiency).
   Layers likewise has one scrollable body. Short maps arrange zoom controls horizontally.
   Map Display groups the METAR/TAF and advisory switches under **AWC Weather**;
-  advisory, Progs, radar, cloud, icing and wind controls use six content tabs in two rows inside its left toolbox.
+  advisory, Progs, radar, PIREP, cloud, icing and wind controls use seven content tabs in two rows inside its left toolbox.
 - The workspace clips sliding panels without becoming a scroll container. Panel
   bodies own scrolling; focusing or closing a panel must not shift the map frame.
 - Map chrome has one isolated stacking context below the search and route toolbars
@@ -82,11 +83,11 @@ Display scaling and browser chrome can change the available viewport.
   Glide tab sits directly above AWC Weather, which sits directly above Terrain. Glide retains
   its ratio, start altitude and active coverage while stowed. Completed Glide ranges
   remain cached while panning, rotating or zooming, including zoomed-out overviews. Weather retains its
-  time selection, filters and active map weather while stowed. Its Advisories, Progs, Radar, Cloud, Icing and Winds content tabs
+  time selection, filters and active map weather while stowed. Its Advisories, Progs, Radar, PIREP, Cloud, Icing and Winds content tabs
   share core's keyboard navigation and retain selection while stowed. One weather
   timeline above the content tabs combines recent radar observations and forecasts
-  while preserving the selected time across all six tabs.
-  The selector uses two fixed rows with core's explicit slim sizing; enabled-product
+  while preserving the selected time across all seven tabs.
+  The selector uses two fixed rows (four and three products) with core's explicit slim sizing; enabled-product
   dots remain distinct from the selected tab. The bottom-anchored toolbox grows
   upward by 36px (656px preferred height), capped by available map height. Active
   wind barbs, radar and Progs remain over the selected shaded forecast when switching tabs.
@@ -116,7 +117,9 @@ Display scaling and browser chrome can change the available viewport.
   it from the solid teal ownship ring; the panel and menu can clear the selection.
   This action works without a route or GPS. Plate actions apply inside the current plate footprint. **Inspect weather** applies
   while AWC weather is enabled and available at the point, including with its toolbox stowed; ordinary
-  taps never inspect weather. Releasing a long press cannot activate a newly opened
+  taps on a PIREP circle open the temporary **PIREP in View** list; other weather
+  uses the context action. The list follows the viewport and active report filters,
+  using core DetailPanel and typography. Closing it preserves the enabled overlay. Releasing a long press cannot activate a newly opened
   menu item. Moving the map dismisses the menu, and keyboard arrows/Home/End select
   its actions. Plugins retain ownership of the commands and revoke them on unload.
 - Component styles consume the shared 44px touch minimum, including tablets with a
@@ -465,7 +468,9 @@ content do not start work. Identification temporarily leaves both tabs unselecte
 The optional `scrollable` variant keeps a single horizontal row with core
 scrollbar styling and overflow-edge cues. Selection/resize reveals the active tab
 by scrolling only the row, preserving the enclosing panel/page position. AWC uses
-two rows of slim tabs; its separate hourly weather scale scrolls horizontally
+the `rowSize` option for two rows of slim tabs with separate rounded backgrounds
+and a 4px gap, matching the stacked NOTAM tabs. They remain one tab list with
+keyboard navigation across both rows. Its separate hourly weather scale scrolls horizontally
 without widening the toolbox or changing the shared 32px button height.
 
 The shared `.switch` indicator is also defined in core controls. Its native button
@@ -597,11 +602,12 @@ For a repeatable plate startup profile, measure from the plate-row click to the
 completed bitmap's copy onto the visible canvas, separating verification from
 PDF rendering. The September 18 profile used KPAO's 49,209,653-byte Southwest
 Chart Supplement in Chrome mobile emulation (393×852, DPR 2, 4× CPU throttling).
-Receipt reuse reduced application reads from 50,315,882 to 1,106,229 bytes;
-these are historical observations, not device timing guarantees. Current release
-gates remain in [deployment readiness](../development/deployment.md).
+Receipt reuse reduced application reads from 50,315,882 to 1,106,229 bytes in that
+profile. See [deployment readiness](../development/deployment.md) for the device
+checks required before release.
 
-Receipt reuse still checks book identity, response type, PDF header and actual
-length. New downloads, legacy migrations and missing/mismatched receipts require
-full verification. This uses the stored book and receipt without retaining the
-whole book in application memory; see [storage verification](offline-storage.md#storage-contract).
+The [storage verification contract](offline-storage.md#catalogs-and-verification)
+defines receipt checks, legacy migration, full-hash requirements and the limits
+of trusting previously verified bytes. Receipt reuse avoids a full hash scan on
+reopening. PDF range reads and chunked verification avoid buffering the whole
+book in application memory.

@@ -1,9 +1,10 @@
 # Route point identification
 
-Status: **implemented locally**. The [route guide](README.md) owns user-facing
-behavior; this note retains the design rationale, boundaries and qualification
-work from the original proposal. External application/device qualification remains
-separate from local automated checks.
+Status: **implemented locally**. The [route guide](README.md#alternative-point-identification)
+describes the editing controls. This guide defines radial/bearing input, geometry,
+saved references and export precision, with design rationale and remaining
+qualification from the original proposal. External application/device qualification
+remains separate from local automated checks.
 
 ## One position, several descriptions
 
@@ -21,10 +22,9 @@ membership, frequency, magnetic/true bearings and map ranking. Missing alignment
 keeps TB visible but disables radial selection. Points outside the route retain
 the read-only table.
 
-The map includes the selected radial reference even outside the top three nearby
-stations or when current station data is unavailable. Its saved station position
-and readings supply a blue dashed line with yellow casing, markers and label trim;
-other references keep white trim. Name/GPS selection clears the radial highlight.
+The selected reference remains visible independently of nearby-station ranking
+or availability. Its [map and table presentation](README.md#nearby-navaid-identification)
+is defined in the route guide.
 
 Selection uses the exact station snapshot displayed by ID, from the selected
 feature's edition and its validated, cycle-bound alignment supplement. The table

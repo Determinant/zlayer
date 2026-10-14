@@ -65,6 +65,8 @@ including Progs coverage, appear as background rows as described in
 [startup status](../features/shared-ui.md#startup-status).
 They do not count toward the required-step progress bar. Detailed weather and
 sensor status remains with the owning UI.
+PIREP limitations reflect issues remaining after PWA recovery, matching the report
+panel. Acquisition and rendering failures retain their own status.
 
 Readiness accepts terminal partial/error data states. After fifteen seconds,
 **Open workspace** lets the user enter while outstanding work continues; before a workspace exists,
@@ -73,7 +75,7 @@ existing recovery UI immediately. Once entered, loading never covers the workspa
 again during normal map navigation, layer changes, or data refreshes.
 An on-map approach and a restored reader of the same book share one PDF.js
 document and worker. The [plates guide](../../src/layers/plates/README.md#iaps-on-the-map)
-owns that lifetime; startup does not start a second parser or wait for worker
+describes that lifetime; startup does not start a second parser or wait for worker
 teardown after the map image is ready.
 
 `workspace/startup.ts` derives the named steps and readiness from workspace and

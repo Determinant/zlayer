@@ -22,10 +22,9 @@
 .awc-toolbox > :not(:first-child) { margin-top: var(--ui-panel-gap); }
 .awc-toolbox > :not(.awc-tab-content) { flex-shrink: 0; }
 .awc-toolbox > .awc-product-tabs { margin-top: 4px; }
-.awc-product-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.awc-product-tabs > .ui-button { grid-column: span 2; position: relative; overflow-wrap: anywhere; }
+.awc-product-tabs .ui-button { position: relative; overflow-wrap: anywhere; }
 
-.awc-product-tabs > .ui-button[data-active]::after {
+.awc-product-tabs .ui-button[data-active]::after {
   content: ''; position: absolute; right: 3px; top: 3px; width: 4px; height: 4px; border-radius: 50%; background: var(--focus-ring);
 }
 .awc-tab-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 2px; touch-action: pan-y; }
@@ -142,3 +141,24 @@
 .awc-radar-legend { display: flex; align-items: end; gap: 2px; }
 .awc-radar-legend > span { flex: 1; text-align: center; font-size: var(--ui-text-meta); }
 .awc-radar-legend i { display: block; height: 8px; }
+
+.awc-pirep-controls, .awc-pirep-status, .awc-pirep-expanded { display: grid; gap: var(--ui-panel-gap); }
+.awc-pirep-list { display: grid; align-content: start; gap: var(--ui-space-related); }
+.awc-pirep-row { border-radius: 6px; overflow-wrap: anywhere; }
+.awc-pirep-row + .awc-pirep-row { border-top: 1px solid var(--border-subtle); }
+.awc-pirep-select { width: 100%; text-align: left; }
+.awc-pirep-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ui-space-related) var(--ui-panel-gap); }
+.awc-pirep-heading > .ui-panel-title { flex: 1; min-width: 0; }
+.awc-pirep-age { margin-left: auto; white-space: nowrap; }
+.awc-pirep-urgent { color: var(--text-tag-danger); background: var(--surface-tag-danger); }
+.awc-pirep-row > .awc-pirep-select { background: transparent; }
+.awc-pirep-row[data-selected], .awc-pirep-row:focus-within { background: var(--surface-control); }
+@media (hover: hover) {
+  .awc-pirep-row:hover { background: var(--surface-control); }
+}
+.awc-pirep-expanded { padding: 0 var(--ui-panel-gap) var(--ui-panel-gap); }
+.awc-pirep-raw { margin: 0; font-family: var(--font-mono); font-size: var(--ui-text-compact); white-space: pre-wrap; overflow-wrap: anywhere; }
+.awc-pirep-source-entry { display: grid; gap: var(--ui-panel-gap); overflow-wrap: anywhere; }
+.awc-pirep-source-entry .ui-data-table { table-layout: fixed; }
+.awc-pirep-source-entry th { width: 42%; }
+.awc-pirep-source-entry :is(th, td) { vertical-align: top; }

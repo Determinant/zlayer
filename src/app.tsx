@@ -106,15 +106,17 @@ export function App() {
     if (!loaded.navigation) setQuery('');
   }, [loaded.navigation]);
 
-  // NOTAM centers/radials need reference data even when navigation symbols are hidden.
+  // NOTAM and PIREP locations need references even when navigation symbols are hidden.
+  const pirepReferences = !!loaded['weather-awc'] && mapPreferences.awcEnabled && mapPreferences.awcPireps;
   const navigationDemand = useMemo(() => ({
-    airports: !!loaded.notams || !!loaded.navigation && visibility.airports,
-    navaids: !!loaded.notams || !!loaded.navigation && visibility.navaids,
-    fixes: !!loaded.navigation && visibility.fixes,
+    airports: pirepReferences || !!loaded.notams || !!loaded.navigation && visibility.airports,
+    navaids: pirepReferences || !!loaded.notams || !!loaded.navigation && visibility.navaids,
+    fixes: pirepReferences || !!loaded.navigation && visibility.fixes,
     'vfr-waypoints': !!loaded.navigation && visibility['vfr-waypoints'],
-  }), [loaded.notams, loaded.navigation, visibility]);
+  }), [pirepReferences, loaded.notams, loaded.navigation, visibility]);
   const { data: navigationData, loadState, loading: navigationPending, issues: navigationIssues, airways } = useNavigationData(
-    loaded.navigation || loaded.notams ? context : undefined, navigationDemand);
+    loaded.navigation || loaded.notams || pirepReferences ? context : undefined, navigationDemand,
+    !!loaded.navigation && visibility.fixes);
   const route = useRouteController({ catalog: context?.routing, enabled: !!loaded.routes,
     gps: ownshipLayer, directToEnabled: !!loaded.ownship });
   const routePreview = route.preview;

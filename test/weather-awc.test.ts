@@ -12,6 +12,7 @@ import { pluginStorage as weatherStorage } from '../src/layers/weather-awc/stora
 import { GridClient } from '../src/layers/weather-awc/grids/client';
 import { gridFixture } from './fixtures/awc-grids';
 import { radarFixture } from './fixtures/radar';
+import { pirepFixture } from './fixtures/pireps';
 import { createWeatherController, forecastPreparation, type WeatherState } from '../src/layers/weather-awc/controller';
 import { createWeatherSelectors, forecastChanges } from '../src/layers/weather-awc/selection';
 import { weatherAwcPreferences } from '../src/layers/weather-awc/preferences';
@@ -685,6 +686,118 @@ test('renderer status does not move the weather clock, and Progs retries do not 
   controller.detach();
 });
 
+test('PIREP reopening checks overdue data, preserves request cadence and retries failed drawing', async t => {
+  t.after(() => controller.detach());
+  const env = environment(t);
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  const snapshot = pirepFixture(), signals: AbortSignal[] = [];
+  let failure = false, pending: Promise<void> | undefined;
+  const controller = createWeatherController({
+    advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    pireps: { restore: async () => ({ snapshot, loading: false, restored: true }), async refresh(signal, onReady) {
+      signals.push(signal);
+      if (failure) throw new Error('PIREP source unavailable');
+      onReady?.(snapshot);
+      if (pending) await withAbort(pending, signal);
+      return snapshot;
+    } },
+  });
+  const input = { ...weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }), change() {} };
+  controller.configure(input); controller.attach(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 1);
+  controller.closePireps();
+  controller.checkPireps(); controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 1, 'fresh data does not refetch on repeated reopening');
+  assert.equal(controller.getSnapshot().pirepRetry, 0, 'healthy drawing needs no retry');
+  controller.setPirepDisplay({ loading: false, error: 'Drawing failed' });
+  controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(controller.getSnapshot().pirepRetry, 1);
+  assert.equal(signals.length, 1, 'drawing recovery does not force acquisition');
+  controller.setPirepDisplay({ loading: false });
+  t.mock.timers.tick(59_999); await flush(); assert.equal(signals.length, 1);
+  failure = true; t.mock.timers.tick(1); await flush();
+  assert.equal(signals.length, 2); assert.equal(controller.getSnapshot().pireps.snapshot, snapshot);
+  controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 2, 'reopening does not bypass failure backoff');
+  failure = false; t.mock.timers.tick(30_000); await flush();
+  assert.equal(signals.length, 3); assert.equal(controller.getSnapshot().pireps.error, undefined);
+  assert.equal(controller.getSnapshot().pirepSelection, null, 'automatic updates leave closed reports closed');
+
+  // Advancing Date without timers simulates a delayed callback when reopening.
+  t.mock.timers.setTime(Date.now() + 61_000);
+  let finish!: () => void;
+  pending = new Promise(resolve => { finish = resolve; });
+  controller.checkPireps(); t.mock.timers.tick(0); await flush(); assert.equal(signals.length, 4);
+  assert.equal(controller.getSnapshot().pireps.loading, true, 'optional persistence still owns the active refresh');
+  controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 4); assert.equal(signals.at(-1)!.aborted, false);
+  finish(); await flush(); pending = undefined;
+  controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 4, 'local completion throttles checks even when the source timestamp is old');
+
+  env.navigator.onLine = false; env.window.dispatchEvent(new Event('offline'));
+  t.mock.timers.tick(61_000); controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 4, 'offline checks cannot request');
+  env.navigator.onLine = true; env.window.dispatchEvent(new Event('online'));
+  t.mock.timers.tick(0); await flush(); assert.equal(signals.length, 5);
+  env.document.visibilityState = 'hidden'; env.document.dispatchEvent(new Event('visibilitychange'));
+  t.mock.timers.tick(61_000); controller.checkPireps(); t.mock.timers.tick(0); await flush();
+  assert.equal(signals.length, 5, 'hidden pages do not poll');
+  env.document.visibilityState = 'visible'; env.document.dispatchEvent(new Event('visibilitychange'));
+  t.mock.timers.tick(0); await flush(); assert.equal(signals.length, 6);
+  controller.configure({ ...input, awcPireps: false }); controller.checkPireps();
+  t.mock.timers.tick(61_000); await flush(); assert.equal(signals.length, 6);
+});
+
+test('delayed PIREP restoration is cancelled on disable and detach without publishing obsolete data', async t => {
+  t.after(() => controller.detach());
+  const env = environment(t); env.navigator.onLine = false;
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: WEATHER_NOW });
+  const saved = { snapshot: pirepFixture(), loading: false, restored: true };
+  const restores: { signal: AbortSignal; finish: (value: typeof saved) => void }[] = [];
+  const controller = createWeatherController({
+    advisories: { restore: () => ({ loading: false }), refresh: async product => advisorySnapshot(product) },
+    pireps: { restore: signal => new Promise(resolve => { restores.push({ signal, finish: resolve }); }),
+      refresh: async () => { throw new Error('Offline restoration must not fetch'); } },
+  });
+  const input = { ...weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }), change() {} };
+  controller.configure(input); controller.attach();
+  const disabled = restores.at(-1)!;
+  controller.configure({ ...input, awcPireps: false });
+  assert.equal(disabled.signal.aborted, true);
+  for (const restore of restores) restore.finish(saved);
+  await flush();
+  assert.equal(controller.getSnapshot().pireps.snapshot, undefined);
+  controller.configure(input);
+  const detached = restores.at(-1)!;
+  controller.detach(); assert.equal(detached.signal.aborted, true);
+  detached.finish(saved); await flush();
+  assert.equal(controller.getSnapshot().pireps.snapshot, undefined);
+  controller.attach(); restores.at(-1)!.finish(saved); await flush();
+  assert.equal(controller.getSnapshot().pireps.snapshot, saved.snapshot, 'reattachment can restore normally');
+});
+
+test('PIREP interactions release only their own highlight and clear with panel and layer lifetime', t => {
+  environment(t);
+  const controller = createWeatherController({ advisories: {
+    restore: () => ({ loading: false }), refresh: async () => { throw new Error('Unexpected fetch'); },
+  } });
+  const preferences = weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true });
+  controller.configure({ ...preferences, change() {} });
+  const focused = controller.highlightPirep('focused'), hovered = controller.highlightPirep('hovered');
+  assert.equal(controller.getSnapshot().pirepHighlight, 'hovered');
+  hovered(); assert.equal(controller.getSnapshot().pirepHighlight, 'focused');
+  const newer = controller.highlightPirep('newer');
+  focused(); assert.equal(controller.getSnapshot().pirepHighlight, 'newer');
+  controller.closePireps(); assert.equal(controller.getSnapshot().pirepHighlight, undefined);
+  const reopened = controller.highlightPirep('reopened');
+  newer(); assert.equal(controller.getSnapshot().pirepHighlight, 'reopened', 'old cleanup cannot clear a newer reader');
+  controller.configure({ ...preferences, awcPireps: false, change() {} });
+  assert.equal(controller.getSnapshot().pirepHighlight, undefined); reopened();
+  controller.highlightPirep('detaching'); controller.detach();
+  assert.equal(controller.getSnapshot().pirepHighlight, undefined);
+});
+
 test('advisory reattachment keeps shading below route/navigation layers and releases map resources', t => {
   t.after(() => host.unmount());
   const env = environment(t); env.navigator.onLine = false;
@@ -698,15 +811,20 @@ test('advisory reattachment keeps shading below route/navigation layers and rele
   const map = { addSource(id: string, source: unknown) { sources.set(id, source); },
     getSource(id: string) { return sources.has(id) ? { setData() { writes++; } } : undefined; },
     removeSource(id: string) { sources.delete(id); },
-    addLayer(layer: { id: string }, before: string) { assert.ok(order.includes(before)); order.splice(order.indexOf(before), 0, layer.id); },
+    addLayer(layer: { id: string }, before?: string) {
+      if (before) assert.ok(order.includes(before)); order.splice(before ? order.indexOf(before) : order.length, 0, layer.id);
+    },
+    moveLayer(id: string, before?: string) { order.splice(order.indexOf(id), 1); order.splice(before ? order.indexOf(before) : order.length, 0, id); },
     getLayer(id: string) { return order.includes(id); }, removeLayer(id: string) { order.splice(order.indexOf(id), 1); },
-    queryRenderedFeatures() { return []; }, setLayoutProperty() {}, hasImage() { return false; }, on() {}, off() {},
+    queryRenderedFeatures() { return []; }, setPaintProperty() {}, setLayoutProperty() {}, hasImage() { return false; }, on() {}, off() {},
   } as unknown as MapLibreMap;
   const host = new MapLayerHost(map, (_id, error) => { throw error; });
   const layer = createWeatherMap(controller);
   for (let i = 0; i < 3; i++) {
     host.reconcile([layer]);
-    assert.deepEqual(order, [...ADVISORY_LAYERS, WEATHER_LAYER_ANCHOR, 'route-line', ROUTE_LINE_ANCHOR, 'navigation']);
+    assert.deepEqual(order, [...ADVISORY_LAYERS, 'weather-awc-pirep-circles', WEATHER_LAYER_ANCHOR,
+      'route-line', ROUTE_LINE_ANCHOR, 'navigation', 'weather-awc-pirep-highlight-halo',
+      'weather-awc-pirep-highlight', 'zlayer-focused-weather-awc']);
     assert.ok(writes > i, 'saved data renders immediately on attachment');
     host.reconcile([]);
     assert.equal(sources.size, 0);
@@ -730,8 +848,12 @@ test('advisory source failures clear shown counts and recover unchanged IDs with
     getStyle: () => ({ layers }), getLayer: (id: string) => layers.find(layer => layer.id === id),
     addLayer(layer: Layer, before?: string) { layers.splice(before ? layers.findIndex(item => item.id === before) : layers.length, 0, layer); },
     removeLayer(id: string) { layers.splice(layers.findIndex(layer => layer.id === id), 1); },
+    moveLayer(id: string, before?: string) {
+      const [layer] = layers.splice(layers.findIndex(layer => layer.id === id), 1);
+      layers.splice(before ? layers.findIndex(layer => layer.id === before) : layers.length, 0, layer!);
+    },
     setLayoutProperty(id: string, property: string, value: unknown) { (layers.find(layer => layer.id === id)!.layout ??= {})[property] = value; },
-    queryRenderedFeatures: () => [], hasImage: () => false,
+    setPaintProperty() {}, queryRenderedFeatures: () => [], hasImage: () => false,
     on(name: string, listener: (event: { sourceId: string; error: Error }) => void) { if (name === 'error') handlers.add(listener); },
     off(name: string, listener: (event: { sourceId: string; error: Error }) => void) { if (name === 'error') handlers.delete(listener); },
   };

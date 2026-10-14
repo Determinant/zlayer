@@ -2,6 +2,13 @@ import { isRecord } from './validation.js';
 
 export const AWC_ADVISORY_PRODUCTS = ['gairmet', 'sigmet', 'cwa'] as const;
 export type AwcAdvisoryProduct = typeof AWC_ADVISORY_PRODUCTS[number];
+/** Generous ingestion bound around acquisition, not a display/expiry interval.
+ * Saved publications keep their original checkedAt and remain readable offline. */
+export const AWC_ADVISORY_WINDOW_MS = 48 * 3600_000;
+export function advisoryValidityWithinWindow(from: number, to: number | null, checkedAt: number): boolean {
+  return from >= checkedAt - AWC_ADVISORY_WINDOW_MS && from <= checkedAt + AWC_ADVISORY_WINDOW_MS &&
+    (to === null || to <= checkedAt + AWC_ADVISORY_WINDOW_MS);
+}
 export type WeatherGeometry =
   | { type: 'Polygon'; coordinates: number[][][] }
   | { type: 'MultiPolygon'; coordinates: number[][][][] }
@@ -115,6 +122,8 @@ export function isAwcAdvisorySnapshot(v: unknown): v is AwcAdvisorySnapshot {
       (issue.sourceFeatureTruncated === undefined || issue.sourceFeatureTruncated === true)) ||
     new Set([...v.advisories, ...v.issues].map(a => a.id)).size !== v.advisories.length + v.issues.length) return false;
   const frames = v.frameTimes as number[];
+  if (!frames.every(time => advisoryValidityWithinWindow(time, null, v.checkedAt as number)) ||
+    !v.advisories.every(a => advisoryValidityWithinWindow(a.validFrom, a.validTo, v.checkedAt as number))) return false;
   if (v.product === 'gairmet' && frames.length && (frames.length !== 5 ||
     frames.some((time, index) => time !== frames[0]! + index * 3 * 3_600_000))) return false;
   return new Set(v.advisories.map(a => a.id)).size === v.advisories.length &&

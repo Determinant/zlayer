@@ -1,20 +1,27 @@
 import { GRID_BELOW_GROUND, GRID_MISSING, GRID_OUTSIDE, GRID_UNKNOWN, type AwcGridField, type AwcGridManifest } from '@zlayer/contracts';
 import type { LambertGrid } from './grib';
+import { wrapLongitude } from '../geographic';
+
+const rad = Math.PI / 180, earth = 6371229;
+const tan = (lat: number) => Math.tan(Math.PI / 4 + lat * rad / 2);
+/** Sampling and vector rotation share the same spherical projection and source
+ * origin. Angular differences must use the central meridian's world copy. */
+function lambert(grid: LambertGrid) {
+  const p1 = grid.parallel1 * rad, p2 = grid.parallel2 * rad;
+  const n = p1 === p2 ? Math.sin(p1) : Math.log(Math.cos(p1) / Math.cos(p2)) / Math.log(tan(grid.parallel2) / tan(grid.parallel1));
+  const scale = earth * Math.cos(p1) * tan(grid.parallel1) ** n / n;
+  const rho = scale / tan(grid.latitude) ** n, theta = n * wrapLongitude(grid.longitude - grid.meridian) * rad;
+  return { n, scale, x0: rho * Math.sin(theta), r0: rho * Math.cos(theta) };
+}
 
 /** Exact spherical Lambert transform for qualified HRRR/IFI grids; nearest cell only. */
 export function samplingMap(source: LambertGrid, target: AwcGridManifest['grid']): Int32Array {
-  const rad = Math.PI / 180, earth = 6371229;
-  const tan = (lat: number) => Math.tan(Math.PI / 4 + lat * rad / 2);
-  const p1 = source.parallel1 * rad, p2 = source.parallel2 * rad;
-  const n = p1 === p2 ? Math.sin(p1) : Math.log(Math.cos(p1) / Math.cos(p2)) / Math.log(tan(source.parallel2) / tan(source.parallel1));
-  const scale = earth * Math.cos(p1) * tan(source.parallel1) ** n / n;
-  const origin = scale / tan(source.originLatitude) ** n, startRho = scale / tan(source.latitude) ** n;
-  const startTheta = n * (source.longitude - source.meridian) * rad;
-  const x0 = startRho * Math.sin(startTheta), y0 = origin - startRho * Math.cos(startTheta);
+  const { n, scale, x0, r0 } = lambert(source);
+  const origin = scale / tan(source.originLatitude) ** n, y0 = origin - r0;
   const { width, height, bounds: [west, south, east, north] } = target;
   const sin = new Float64Array(width), cos = new Float64Array(width);
   for (let x = 0; x < width; x++) {
-    const theta = n * (west + (x + 0.5) / width * (east - west) - source.meridian) * rad;
+    const theta = n * wrapLongitude(west + (x + 0.5) / width * (east - west) - source.meridian) * rad;
     sin[x] = Math.sin(theta); cos[x] = Math.cos(theta);
   }
   const top = Math.log(tan(north)), bottom = Math.log(tan(south));
@@ -57,12 +64,7 @@ export function convertValue(field: AwcGridField, value: number): number {
 
 /** Rotate at the actual nearest source cell, not its resampled display position. */
 export function rotateWinds(grid: LambertGrid, indices: Int32Array, east: Float32Array, north: Float32Array): void {
-  const rad = Math.PI / 180, tan = (lat: number) => Math.tan(Math.PI / 4 + lat * rad / 2);
-  const p1 = grid.parallel1 * rad, p2 = grid.parallel2 * rad;
-  const n = p1 === p2 ? Math.sin(p1) : Math.log(Math.cos(p1) / Math.cos(p2)) / Math.log(tan(grid.parallel2) / tan(grid.parallel1));
-  const scale = 6371229 * Math.cos(p1) * tan(grid.parallel1) ** n / n;
-  const rho = scale / tan(grid.latitude) ** n, theta = n * (grid.longitude - grid.meridian) * rad;
-  const x0 = rho * Math.sin(theta), r0 = rho * Math.cos(theta);
+  const { x0, r0 } = lambert(grid);
   for (let i = 0; i < indices.length; i++) {
     const u = east[i]!, v = north[i]!;
     if (u <= GRID_OUTSIDE || v <= GRID_OUTSIDE) { east[i] = north[i] = u <= GRID_OUTSIDE ? u : v; continue; }

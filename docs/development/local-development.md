@@ -105,8 +105,8 @@ Vite also forwards `/chart-data` to the FAA static feed and the qualified
 inside the server. Production must install the server and HTTPS reverse-proxy
 routes separately; uploading `dist/` does not create them. The
 [plugin guide](../../src/layers/metar-taf/README.md#source-access-and-report-presentation)
-owns report freshness and [weather delivery](../../src/layers/weather-awc/README.md#development-and-production-delivery)
-owns advisory acquisition.
+describes report freshness; [weather delivery](../../src/layers/weather-awc/README.md#development-and-production-delivery)
+describes advisory acquisition.
 Individual-only FAA plates, including military HIGH procedures, remain required even
 when all bound TPP books are hosted. See [deployment readiness](deployment.md)
 for exact host requirements and known release gaps.
@@ -128,9 +128,9 @@ motion permission where required; calibration can finish without a GPS fix.
 AHRS remains experimental and has not been validated in flight. Its
 [calibration and display policy](../../src/layers/ahrs/README.md#calibration-and-validity)
 and [sensor/stow lifecycle](../../src/layers/ahrs/README.md#sensors-and-display-lifecycle)
-own the warnings, pause recovery and Stop/Background/Cancel behavior.
+describe the warnings, pause recovery and Stop/Background/Cancel behavior.
 
-The [METAR/TAF plugin guide](../../src/layers/metar-taf/README.md) owns map/card demand,
+The [METAR/TAF plugin guide](../../src/layers/metar-taf/README.md) describes map/card demand,
 request limits, nearby stations, cached-report recovery and forecast presentation.
 Use it when debugging weather through the proxies above.
 
@@ -156,7 +156,8 @@ Use it when debugging weather through the proxies above.
 
 ## Verification
 
-`npm run verify:full` is the full local CI command. Run it before committing;
+`npm run verify:full` is the full local CI command. Run it before committing,
+subject to the [server-only scope rule](../../AGENTS.md#verification-and-documentation);
 the smaller automatic GitHub check does not replace it. It runs the existing
 `verify` command, every Chromium browser test (including graphics), and additional
 graphics coverage in Firefox, WebKit and 2× WebKit, without smoke filtering.
@@ -200,7 +201,9 @@ Keep container networking enabled: with `--network=none`, Chromium reports
 `navigator.onLine === false` even when loopback HTTP works, so an uncached chart
 feed cannot start. Offline scenarios control connectivity within their own tests.
 
-`npm run verify` runs import-boundary checks, strict TypeScript, tests and the production build.
+`npm run verify` checks generated theme files, import boundaries and strict TypeScript
+(including Playwright configs), runs the root and workspace Node tests, and builds
+both the production app and the info server with its CPU workers.
 `npm run check:imports` separately checks source ownership, persistence migration entries,
 data/worker isolation from UI runtimes, and lazy renderer/decoder loading. Node tests
 cover contracts, routing, cache integrity, queue recovery, worker messages and lifecycle
@@ -246,12 +249,19 @@ libraries. Alternatively, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a working
 or Chromium executable. That override can use a different version from CI; reproduce
 CI browser failures with Playwright's installed browser before changing assertions.
 GitHub Actions runs `npm run verify` and `npm run test:smoke` as separate jobs on
-pushes and pull requests. The smoke command selects five existing Chromium tests
-tagged `@smoke`: first-visit acknowledgment, map/WebGL recovery, GPS rendering,
-cold offline startup with saved routes and PDFs, and app updates across windows.
-It uses the same production-build server and assertions as the complete suite.
+pushes and pull requests. The smoke command selects Chromium tests tagged `@smoke`
+for first-visit acknowledgment, map/WebGL recovery, GPS rendering, cold offline
+startup with saved routes and PDFs, app updates across windows, and regional
+download recovery after brief or prolonged storage-lock contention.
+It uses the same production-build server and assertions as the complete suite,
+with native weather preparation disabled because these scenarios do not use it.
+Prepared-weather coverage stays in the full browser suite. Adding a smoke case
+that needs those endpoints requires enabling weather in the smoke configuration.
 Each automatic job has a ten-minute limit; a newer run cancels an older run for
-the same event and ref. Failure traces are retained.
+the same event and ref. Playwright stops the smoke suite after eight minutes,
+leaving time to retain and upload failure traces. CI rejects focused `test.only`
+cases so they cannot silently reduce coverage. The Chromium job installs only
+the headless shell used by these tests.
 
 Browser tests must wait for the UI lifecycle they depend on: service-worker
 control alone does not mean startup has released the workspace controls, and
@@ -261,10 +271,13 @@ waits for workspace readiness before interacting with restored Settings.
 The graphics smoke test also waits for its expected pixels after WebGL restoration:
 the context/idle notifications can precede a readable restored drawing buffer.
 Its bounded wait retains the exact color and route-pixel assertions.
+Compare related element bounds in one browser evaluation: a forecast progress row
+can disappear between separate reads and make a valid layout appear to overlap.
 
 Storage-recovery tests must leave the running app before deleting browsing
-metadata. The installed worker serves the app shell for all navigation requests,
-including asset paths such as `/icon.svg`. Bypass that navigation only for the
+metadata. Except for the [public About URLs](../features/product-discovery.md),
+the installed worker serves the app shell for navigation requests, including
+asset paths such as `/icon.svg`. Bypass that navigation only for the
 cleanup document, verify its content type, and restore interception before
 testing offline launch; otherwise a new app instance can repopulate the records.
 
@@ -274,7 +287,10 @@ terrain, GPS rendering and plate fullscreen/pinch cases in Chromium, Firefox,
 WebKit and 2× WebKit; see [graphics setup](../verification/graphics-compatibility.md#run-the-checks)
 for dependencies and Linux Firefox's display requirement. Both complete suites
 remain part of full local CI. Device performance and memory benchmarks run locally;
-installed-device verification remains separate release work.
+installed-device verification remains separate release work. The
+[hosting routing regression and live deployment probes](deployment.md#pre-cutover-verification)
+also run separately with the target hosting configuration; `verify:full` does not
+replace them.
 
 To run several focused suites without paying for the production fixture build and
 native weather preparation each time, use `npm run test:browser:session --` and
@@ -302,8 +318,10 @@ the branch and leave **full** enabled (the default), or run:
 gh workflow run verify.yml --ref main -f full=true
 ```
 
-This runs the full Chromium suite (60-minute job limit), plus graphics jobs for
+This runs the full Chromium suite (90-minute job limit), plus graphics jobs for
 Linux Firefox, WebKit and 2× WebKit, and macOS 2× WebKit (15-minute limits).
+Playwright's corresponding suite limits are 85 and 12 minutes, allowing failure
+artifacts to finish before GitHub stops a job.
 Disable **full** to run only the ordinary verification and smoke checks manually.
 Only the full hosted run is opt-in. Full local CI retains all test coverage;
 moving suites off GitHub's automatic path does not resolve their test failures.
@@ -356,7 +374,7 @@ before claiming a device or deployment is ready.
 Leave `VITE_ZLAYERS_AWC_GRID_URL` blank to use the shared prepared forecasts through
 Vite's `/api/weather/` proxy. Backend development is an explicit opt-in described
 under [data and proxies](#data-and-proxies).
-The [grid guide](../../src/layers/weather-awc/grids/README.md) owns numeric meanings,
+The [grid guide](../../src/layers/weather-awc/grids/README.md) describes numeric meanings,
 worker budgets, source identity and offline behavior.
 
 ## Periodic repository cleanup

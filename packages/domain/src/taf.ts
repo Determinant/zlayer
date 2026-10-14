@@ -15,8 +15,14 @@ export function tafReportLines(report: TafReport): TafLine[] {
     text: report.rawTAF.slice(group.start, group.end).trim(), category: undefined,
   }));
   const groups = parsed.groups.filter(group => group.header.kind !== 'remarks');
+  const initial = groups[0]?.header;
   // A decoding mismatch must never attach another period's category to raw text.
   const aligned = parsed.complete && !parsed.unavailable && groups.length === report.fcsts.length &&
+    initial?.kind === 'initial' && initial.from !== undefined && initial.to !== undefined &&
+    matchesTime(initial.from, report.validTimeFrom) && matchesTime(initial.to, report.validTimeTo) &&
+    report.fcsts[0]?.timeFrom === report.validTimeFrom &&
+    report.fcsts.every(forecast => forecast.timeFrom >= report.validTimeFrom && forecast.timeTo <= report.validTimeTo &&
+      (forecast.timeBec == null || forecast.timeBec >= forecast.timeFrom && forecast.timeBec <= forecast.timeTo)) &&
     groups.every((group, index) => matchesForecast(group.header, report.fcsts[index]!, index));
   if (!aligned) return lines;
   const categories = tafCategories(report, groups);

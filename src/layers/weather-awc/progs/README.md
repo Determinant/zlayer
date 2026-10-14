@@ -6,7 +6,7 @@ Progs adds NOAA/WPC surface pressure charts to the existing weather map. It is a
 independent overlay: changing a tab or shaded field does not turn it off. Progs
 starts off and its switch is saved with plugin preferences. NOAA's analysis and
 forecast coverage varies by chart; the numeric weather fields retain their CONUS
-coverage. The [plugin guide](../README.md#display-and-selection) owns shared tabs,
+coverage. The [plugin guide](../README.md#display-and-selection) describes shared tabs,
 timeline and toolbox sizing on short viewports.
 
 Progs matches Radar's 12px control/status text and 11px supporting metadata.
@@ -174,12 +174,24 @@ AWC's duplicated endpoint controls, rather than a separate cyclic spline.
 Every original control point remains on the curve; added
 coordinates round to five decimal degrees (under a meter of rounding error).
 This avoids the angular segments produced by connecting sparse controls directly.
+Valid controls at either pole can make a cardinal segment overshoot ±90°.
+If any generated vertex does so, only that segment uses straight subdivisions
+between its original controls in unwrapped longitude/latitude space. All sixteen
+subdivisions, exact controls and unaffected spline segments remain intact; raw
+coordinates outside the geographic bounds still reject the source. The complete
+October 13 F072 fixture exercises the real polar isobar, with generated regressions
+covering both poles, repeated controls and date-line edges.
 The full 16 subdivisions are retained for isobars as well as fronts; there is no
 additional contour simplification, and MapLibre's GeoJSON simplification is disabled
 for the prepared chart source. Prepared families and offline files have an
 8 MiB ceiling; no smoothing runs in the browser or HTTP
 request path. Native MapLibre pattern spacing and fonts are not a pixel-identical
 copy of AWC's Leaflet markers.
+
+Longitude wrapping and seam intersections share the [weather geometry conventions](../geometry.md)
+with advisory preparation. The generated regression suite checks representable
+neighbors of ±180°, curve reversal, equivalent world copies and exact control
+preservation, alongside the independent AWC reference and captured NOAA charts.
 
 AWC coordinates can be unwrapped degrees west (−290° means 70° E). The server
 unwraps each line before smoothing, honors boundary `fpipdr` by reversing the finished
@@ -195,13 +207,15 @@ splits), which previously rejected the entire forecast family. Partitioning
 retains the full spline, direction and existing client geometry bounds. The
 processing revision stays `wpc-cardinal-v2`: accepted curve coordinates and the
 client format are unchanged; formerly rejected long curves now fit bounded parts.
+The bounded polar fallback also changes only formerly rejected curves, so it
+keeps that same processing revision.
 Some NOAA boundary records contain a single coordinate, including a trough in the
 October 4 F168 chart. Preserve such records as a zero-length `LineString` with two
 identical coordinates, retaining their source properties and original raw document.
 This supplies no drawable line extent or direction; never connect it to another
 record, invent a second location, or discard the record. Empty lines, invalid
 coordinates, unsupported geometry and unknown front codes still reject replacement.
-Line-shape errors identify the chart filename and source feature ordinal.
+Source-feature errors identify the chart filename and source feature ordinal.
 
 NOAA also publishes type-15 points with the literal code `unk`, including the
 October 3, 2026 F120 chart. Preserve these at the supplied coordinates as a neutral
@@ -258,9 +272,13 @@ Rejected catalogs and decoder-rejected chart/image inputs are quarantined by
 their acquisition timestamp and body hash: the positive source entry is removed,
 and consumers share a 30-second retry deadline. Repeated rejection of that exact
 observation cannot extend the deadline, and a late rejection cannot discard a
-newer cached replacement. Workers identify all invalid inputs in the batch so one
-recovery attempt can reacquire them together. Worker crashes are not classified
-as evidence that particular source bytes are invalid. Quarantine affects disposable
+newer cached replacement. Chart parsing explicitly classifies malformed/unsupported
+source records with `SurfaceSourceError`. Workers identify all such inputs in a
+batch so one recovery attempt can reacquire them together. Curve conversion,
+canonical-output validation, serialization failures and worker crashes do not
+establish that particular source bytes are invalid, so they retain the cached
+inputs and report a processing error with the chart filename when available.
+Quarantine affects disposable
 source entries, never the published artifacts or their original source times.
 Retries therefore reacquire rejected bytes instead of reusing them through the
 150-second positive-cache window. Persistent older/invalid upstream responses
@@ -329,10 +347,8 @@ weather completeness.
 
 ## Development and validation
 
-Plain `npm run dev` runs Vite and proxies weather to the deployed server. For local
-backend changes, run `npm run info:serve` in one terminal and
-`INFO_API_ORIGIN=http://127.0.0.1:8787 npm run dev` in another. See the
-[info-server guide](../../../../tools/info-server/README.md).
+Plain `npm run dev` proxies weather to the deployed server. For backend changes,
+use the [local info-server setup](../../../../docs/development/local-development.md#data-and-proxies).
 
 `test/weather-progs.test.ts` checks every chart in a captured AWC catalog, including
 mixed cycles and seven-day pressure fields, metadata identity, source labels,

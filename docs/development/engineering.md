@@ -20,23 +20,16 @@ docs/                  contracts, decisions and verification guides
 The root package owns the application. Only the shared packages are npm workspaces;
 development tooling is not a second application. Production publishes static `dist/`
 and consumes the dated artifacts built by `faa-regs`.
-The small [info server](../../tools/info-server/README.md) shares AWC, NOMADS
-and Google HRRR acquisition, normalizes advisories, and prepares numeric grids in
-bounded Node workers using the existing TypeScript algorithms. The PWA validates
-and caches those artifacts through core, interpolates selected wind altitudes,
-then renders and inspects numeric bands. One bounded server cache shares source
-reads and native grids across viewers. Background updates prepare complete native
-generations before publishing catalogs. HTTP forecast reads never acquire sources
-or perform conversion; wind altitude interpolation remains in the PWA.
-Optional FAA NMS collection runs in the same service with separate durable snapshots,
-quota state and local airport-query indexes. There is no weather database; user state
-stays in the PWA.
+The [info server](../../tools/info-server/README.md) shares weather acquisition and
+preparation, with separate durable NOTAM collection. Forecast requests only read
+prepared output; user state and selected wind-altitude interpolation stay in the
+PWA. See the [delivery boundary](../architecture/overview.md#data-layout) and
+[server cache contract](../../tools/info-server/README.md#source-and-cache-contract)
+for source, worker, publication and storage rules.
 
-Each plugin's documentation starts at `src/layers/<plugin>/README.md`. Keep its
-behavior, algorithms, design rationale and validation beside its implementation;
-link longer notes from that README. `docs/` owns shared contracts, host architecture,
-application-wide behavior, development guidance and history. The
-[documentation index](../README.md#plugin-guides) connects both locations.
+Read the relevant [plugin guide](../README.md#plugin-guides) before changing its
+behavior. Follow the [documentation ownership and editing rules](../README.md#keeping-the-docs-useful)
+when recording the change.
 
 ## Keep it simple
 
@@ -60,11 +53,10 @@ application-wide behavior, development guidance and history. The
   is an implemented example.
 - Test observable behavior and failure recovery, not source text or incidental markup.
 
-One persistent map, product-owned lifecycle, exclusive chart bases with additive
-overlays, and whole-file MBTiles caching are deliberate constraints, not incidental
-implementation details. Changes must preserve them or document a measured reason
-to revise the design. Opportunistic caching must never imply verified regional
-completeness.
+Preserve one persistent map, product-owned lifecycles, one chart base at a time
+with optional overlays, and whole-file MBTiles caching. Document a measured reason
+before changing these constraints. Do not label a region complete based only on
+files cached while browsing.
 
 Plugin file downloads must use core's shared acquisition tools; see the
 [file-download contract](../architecture/layer-plugins.md#file-downloads).
@@ -82,10 +74,10 @@ feature layout, compact reports and specialized visualizations stay with the plu
 
 ## Rendering performance
 
-Treat map interaction as a real-time workload. At 60 Hz a frame has about 16.7 ms;
+Target responsive interaction at 60 Hz. A frame then has about 16.7 ms;
 blocking preparation competes with input, camera updates and drawing for that time.
 Use measured frame-time distributions, especially slow frames, rather than average
-FPS alone. This is an engineering target, not a claim that every device meets it.
+FPS alone. Measure each device against this target.
 
 - Reuse unchanged sources, geometry and imagery. Keep expensive acquisition and
   preparation outside the interaction path, with bounded admission and cancellation.
@@ -124,8 +116,8 @@ remain separate. Comparisons with other products require comparable measurements
   hit into a reusable navigation feature. Display properties must not leak into
   route pins or saved selections.
 
-These invariants came from the source reviews and now belong to the implementation
-contract. Product details live in [layer recovery and freshness](../architecture/layer-plugins.md#demand-and-freshness),
+Source reviews identified these recovery requirements. Details are in
+[layer recovery and freshness](../architecture/layer-plugins.md#demand-and-freshness),
 [workspace persistence](../architecture/workspace-persistence.md), [PDF handling](../../src/layers/plates/README.md)
 and [recording storage](../../src/layers/ahrs/recording.md).
 
@@ -145,10 +137,6 @@ rationale, unresolved evidence and distinct regression coverage.
 - [AHRS](../../src/layers/ahrs/README.md): experimental sensors, instruments and recordings.
 - [Roadmap](../product/roadmap.md): implemented baseline versus remaining work.
 
-Before committing, run `npm run verify:full`, which combines `npm run verify`,
-all built-app regressions from `npm run test:browser`, and the complete configured
-[graphics matrix](../verification/graphics-compatibility.md#run-the-checks). The individual commands
-remain useful during development. Browser focus, touch/layout, installed-device offline behavior
-and performance also need the separate checks in
-[responsive checks](../features/shared-ui.md), [offline release checks](../features/offline-storage.md#release-checks)
-and [deployment readiness](deployment.md); a passing Node suite is not device certification.
+Before committing, follow [verification](local-development.md#verification),
+subject to the [server-only scope rule](../../AGENTS.md#verification-and-documentation).
+Device and deployment checks remain in [deployment readiness](deployment.md#verification-and-remaining-release-gates).

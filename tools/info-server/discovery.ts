@@ -3,8 +3,9 @@ import { modelPath, parseGribIndex, HRRR_FIELDS, WIND_FIELDS, WIND_PRESSURES, SO
   type SourceRecord, type NativeFrame, type NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { digest, type Payload } from './upstream';
 import { HttpError, InvalidForecastIndexError } from './routes';
+import { isModelVersion, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 type Row = ReturnType<typeof parseGribIndex>[number];
-type Index = { path: string; lead: number; rows: Map<string, Row | null>; hash: string };
+type Index = { path: string; lead: number; rows: Map<string, Row | null>; hash: string; version: ModelVersion };
 export type ReadSource = (path: string, signal: AbortSignal) => Promise<Payload>;
 function select(index: Index, parameter: string, surface: string): SourceRecord {
   const row = index.rows.get(`${parameter}:${surface}`);
@@ -12,7 +13,8 @@ function select(index: Index, parameter: string, surface: string): SourceRecord 
   if (row.time !== (index.lead === 0 ? 'anl' : `${index.lead} hour fcst`)) throw new InvalidForecastIndexError('NOAA field forecast time mismatch');
   const { start, end } = row;
   if (end !== undefined && end - start + 1 > 8 * 1024 * 1024) throw new InvalidForecastIndexError('NOAA field exceeds its byte limit');
-  return { path: index.path, start, ...(end === undefined ? {} : { end }), indexHash: index.hash };
+  if (start >= index.version.byteLength || end !== undefined && end >= index.version.byteLength) throw new InvalidForecastIndexError('NOAA index exceeds its model object');
+  return { path: index.path, start, ...(end === undefined ? {} : { end }), indexHash: index.hash, version: index.version };
 }
 
 /** The same index selection as the former PWA path, with shared server acquisition. */
@@ -45,7 +47,12 @@ async function discoverRun(read: ReadSource, product: AwcGridProduct, signal: Ab
       const key = `${row.parameter}:${row.surface}`;
       rows.set(key, rows.has(key) ? null : row);
     }
-    return { path, lead, rows, hash: digest(source.body) };
+    const metadata = await read(path, signal);
+    let version: unknown;
+    try { version = JSON.parse(metadata.body.toString()); } catch { /* Invalid metadata below. */ }
+    if (!isModelVersion(version)) throw new InvalidForecastIndexError('NOAA model lacks a usable object version');
+    checkedAt = Math.min(checkedAt, metadata.checkedAt);
+    return { path, lead, rows, hash: digest(source.body), version };
   };
   signal.throwIfAborted();
   const latest = await readIndex(product, runTime, selectedLead ?? 18, signal);

@@ -14,6 +14,24 @@ function report(rawTAF: string, fcsts: TafForecast[]): TafReport {
 }
 const categories = (value: TafReport) => tafReportLines(value).map(line => line.category);
 
+test('initial validity matches the whole report and first forecast without borrowing decoded dates', () => {
+  const raw = 'TAF TEST 171720Z 1718/1818 P6SM SCT020 FM172000 P6SM SCT030';
+  const valid = report(raw, [forecast({ timeTo: start + 7200 }), forecast({ fcstChange: 'FM', timeFrom: start + 7200 })]);
+  assert.deepEqual(categories(valid), ['VFR', 'VFR'], 'initial decoded period may end before the report');
+  for (const invalid of [
+    { ...valid, rawTAF: raw.replace('1718/1818', '1818/1918') },
+    { ...valid, rawTAF: raw.replace('1718/1818', '1718/1819') },
+    { ...valid, rawTAF: raw.replace('1718/1818', '1725/1818') },
+    { ...valid, rawTAF: raw.replace('1718/1818 ', '') },
+    { ...valid, fcsts: [{ ...valid.fcsts[0]!, timeFrom: start + 3600 }, valid.fcsts[1]!] },
+    { ...valid, fcsts: [valid.fcsts[0]!, { ...valid.fcsts[1]!, timeTo: valid.validTimeTo + 1 }] },
+  ]) {
+    assert.ok(categories(invalid).every(category => category === undefined));
+    assert.equal(tafReportLines(invalid).map(line => line.text).join(' '), invalid.rawTAF);
+  }
+  assert.deepEqual(categories({ ...valid, rawTAF: raw.replace('1718/1818', '1718 /\n1818') }), ['VFR', 'VFR']);
+});
+
 test('live AWC fixtures retain every raw token and match forecast colors, including combined PROB TEMPO', () => {
   const { reports } = JSON.parse(readFileSync(new URL('./fixtures/tafs.json', import.meta.url), 'utf8'));
   const expected = { EGLL: ['VFR', 'VFR'], KJFK: ['VFR', 'VFR', 'MVFR', 'VFR', 'MVFR', 'VFR', 'VFR'],
@@ -33,14 +51,14 @@ test('TAF ceilings are feet, category boundaries are inclusive, and the worse el
     [800, 5, 'IFR'], [2000, '1/2', 'LIFR'], [2000, '1 1/2', 'IFR'],
     [5000, 'M1', 'LIFR'], [5000, 'M3', 'IFR'], [5000, 'P5', 'VFR'],
   ] as const) {
-    assert.equal(categories(report('TAF TEST', [forecast({ visib: visibility, clouds: [{ cover: 'BKN', base: ceiling }] })]))[0], expected);
+    assert.equal(categories(report('TAF TEST 171720Z 1718/1818', [forecast({ visib: visibility, clouds: [{ cover: 'BKN', base: ceiling }] })]))[0], expected);
   }
-  assert.equal(categories(report('TAF TEST VV002', [forecast({ vertVis: 200, clouds: [] })]))[0], 'LIFR');
-  assert.equal(categories(report('TAF TEST CAVOK', [forecast({ visib: '', clouds: [] })]))[0], 'VFR');
+  assert.equal(categories(report('TAF TEST 171720Z 1718/1818 VV002', [forecast({ vertVis: 200, clouds: [] })]))[0], 'LIFR');
+  assert.equal(categories(report('TAF TEST 171720Z 1718/1818 CAVOK', [forecast({ visib: '', clouds: [] })]))[0], 'VFR');
 });
 
 test('temporary conditions inherit missing elements, without changing subsequent prevailing weather', () => {
-  const value = report('TAF TEST BKN008 TEMPO 1718/1720 1/2SM PROB30 1719/1720 02015KT FM172000 03010KT P6SM SCT020', [
+  const value = report('TAF TEST 171720Z 1718/1818 BKN008 TEMPO 1718/1720 1/2SM PROB30 1719/1720 02015KT FM172000 03010KT P6SM SCT020', [
     forecast({ clouds: [{ cover: 'BKN', base: 800 }], timeTo: start + 2 * 3600 }),
     forecast({ fcstChange: 'TEMPO', timeTo: start + 2 * 3600, visib: 0.5, clouds: [] }),
     forecast({ fcstChange: 'PROB', probability: 30, timeFrom: start + 3600, timeTo: start + 2 * 3600, visib: '', clouds: [] }),
@@ -50,7 +68,7 @@ test('temporary conditions inherit missing elements, without changing subsequent
 });
 
 test('partial temporary periods spanning a new FM account for the more restrictive baseline', () => {
-  const value = report('TAF TEST SCT020 TEMPO 1718/1722 3SM FM172000 BKN003', [
+  const value = report('TAF TEST 171720Z 1718/1818 SCT020 TEMPO 1718/1722 3SM FM172000 BKN003', [
     forecast({ timeTo: start + 2 * 3600 }),
     forecast({ fcstChange: 'TEMPO', timeTo: start + 4 * 3600, visib: 3, clouds: [] }),
     forecast({ fcstChange: 'FM', timeFrom: start + 2 * 3600, clouds: [{ cover: 'BKN', base: 300 }] }),
@@ -59,7 +77,7 @@ test('partial temporary periods spanning a new FM account for the more restricti
 });
 
 test('BECMG inherits unchanged visibility, replaces clouds, and persists into later partial forecasts', () => {
-  const value = report('TAF TEST BKN008 BECMG 1719/1720 SCT030 TEMPO 1721/1722 02020KT', [
+  const value = report('TAF TEST 171720Z 1718/1818 BKN008 BECMG 1719/1720 SCT030 TEMPO 1721/1722 02020KT', [
     forecast({ clouds: [{ cover: 'BKN', base: 800 }] }),
     forecast({ fcstChange: 'BECMG', timeFrom: start + 3600, timeBec: start + 2 * 3600, visib: '', clouds: [{ cover: 'SCT', base: 3000 }] }),
     forecast({ fcstChange: 'TEMPO', timeFrom: start + 3 * 3600, timeTo: start + 4 * 3600, visib: '', clouds: [] }),
@@ -69,22 +87,22 @@ test('BECMG inherits unchanged visibility, replaces clouds, and persists into la
 
 test('unknown, undecodable, cancelled and misaligned forecasts remain neutral', () => {
   for (const value of [
-    report('TAF TEST VV///', [forecast({ clouds: [{ cover: 'VV', base: null }] })]),
-    report('TAF TEST', [forecast({ clouds: [] })]),
-    report('TAF TEST', [forecast({ visib: null })]),
-    report('TAF TEST', [forecast({ visib: '500M' })]),
-    report('TAF TEST CNL', [forecast()]),
-    report('TAF TEST NIL', []),
-    report('TAF TEST FM172000', [forecast()]),
-    report('TAF TEST FM172000', [forecast(), forecast({ fcstChange: 'FM', timeFrom: start + 3600 })]),
+    report('TAF TEST 171720Z 1718/1818 VV///', [forecast({ clouds: [{ cover: 'VV', base: null }] })]),
+    report('TAF TEST 171720Z 1718/1818', [forecast({ clouds: [] })]),
+    report('TAF TEST 171720Z 1718/1818', [forecast({ visib: null })]),
+    report('TAF TEST 171720Z 1718/1818', [forecast({ visib: '500M' })]),
+    report('TAF TEST 171720Z 1718/1818 CNL', [forecast()]),
+    report('TAF TEST 171720Z 1718/1818 NIL', []),
+    report('TAF TEST 171720Z 1718/1818 FM172000', [forecast()]),
+    report('TAF TEST 171720Z 1718/1818 FM172000', [forecast(), forecast({ fcstChange: 'FM', timeFrom: start + 3600 })]),
   ]) assert.ok(categories(value).every(category => category === undefined));
-  const value = report('TAF TEST SCT020 RMK NEXT FCST BY 180000Z', [forecast()]);
+  const value = report('TAF TEST 171720Z 1718/1818 SCT020 RMK NEXT FCST BY 180000Z', [forecast()]);
   assert.deepEqual(categories(value), ['VFR', undefined]);
   assert.equal(tafReportLines(value)[1]?.text, 'RMK NEXT FCST BY 180000Z');
 });
 
 test('partial temporary changes during BECMG account for both sides of the transition', () => {
-  const value = report('TAF TEST SCT030 BECMG 1719/1721 BKN003 TEMPO 1719/1720 02020KT', [
+  const value = report('TAF TEST 171720Z 1718/1818 SCT030 BECMG 1719/1721 BKN003 TEMPO 1719/1720 02020KT', [
     forecast(),
     forecast({ fcstChange: 'BECMG', timeFrom: start + 3600, timeBec: start + 3 * 3600, visib: '', clouds: [{ cover: 'BKN', base: 300 }] }),
     forecast({ fcstChange: 'TEMPO', timeFrom: start + 3600, timeTo: start + 2 * 3600, visib: '', clouds: [] }),
@@ -103,7 +121,7 @@ test('Australian INTER groups match AWC TEMPO periods without changing the origi
 });
 
 test('wrapped groups, spaced slashes, case variations and combined probability groups retain their colors', () => {
-  const raw = 'taf amd TEST P6SM BKN008\n  prob30\ninter 1718 / 1720 1/2SM\nfm 172000 03010KT P6SM SCT020\nrmk nxt fcst by 180000z=';
+  const raw = 'taf amd TEST 171720Z 1718/1818 P6SM BKN008\n  prob30\ninter 1718 / 1720 1/2SM\nfm 172000 03010KT P6SM SCT020\nrmk nxt fcst by 180000z=';
   const value = report(raw, [
     forecast({ clouds: [{ cover: 'bkn', base: 800 }], timeTo: start + 2 * 3600 }),
     forecast({ fcstChange: 'PROB', probability: 30, timeTo: start + 2 * 3600, visib: '1/2', clouds: [] }),
@@ -121,7 +139,7 @@ test('period matching checks the end time and probability, and does not guess in
     ['FM172500 SCT020', forecast({ fcstChange: 'FM', timeFrom: start + 7 * 3600 })],
     ['FM171960 SCT020', forecast({ fcstChange: 'FM', timeFrom: start + 2 * 3600 })],
   ] as const) {
-    const lines = tafReportLines(report(`TAF TEST SCT020 ${text}`, [forecast(), change]));
+    const lines = tafReportLines(report(`TAF TEST 171720Z 1718/1818 SCT020 ${text}`, [forecast(), change]));
     assert.ok(lines.every(line => line.category === undefined && !line.fm));
   }
 });
@@ -129,14 +147,14 @@ test('period matching checks the end time and probability, and does not guess in
 test('FM annotations use decoded dates across month/year rollover and DD24 matches midnight', () => {
   const dec31 = Date.parse('2026-12-31T18:00:00Z') / 1000;
   const jan1 = Date.parse('2027-01-01T00:00:00Z') / 1000;
-  const value = { ...report('TAF TEST SCT020 TEMPO 3118/3124 2SM FM010030 SCT020', []),
+  const value = { ...report('TAF TEST 311720Z 3118/0118 SCT020 TEMPO 3118/3124 2SM FM010030 SCT020', []),
     validTimeFrom: dec31, validTimeTo: jan1 + 18 * 3600,
     fcsts: [forecast({ timeFrom: dec31, timeTo: jan1 + 1800 }),
       forecast({ fcstChange: 'TEMPO', timeFrom: dec31, timeTo: jan1, visib: 2 }),
       forecast({ fcstChange: 'FM', timeFrom: jan1 + 1800, timeTo: jan1 + 18 * 3600 })] };
   assert.deepEqual(categories(value), ['VFR', 'IFR', 'VFR']);
   assert.equal(tafReportLines(value)[2]?.fm?.time, '2027-01-01T00:30:00.000Z');
-  const monthEnd = { ...value, rawTAF: 'TAF TEST SCT020 FM010030 SCT020',
+  const monthEnd = { ...value, rawTAF: 'TAF TEST 301720Z 3018/0118 SCT020 FM010030 SCT020',
     validTimeFrom: Date.parse('2026-09-30T18:00:00Z') / 1000, validTimeTo: Date.parse('2026-10-01T18:00:00Z') / 1000,
     fcsts: [forecast({ timeFrom: Date.parse('2026-09-30T18:00:00Z') / 1000, timeTo: Date.parse('2026-10-01T00:30:00Z') / 1000 }),
       forecast({ fcstChange: 'FM', timeFrom: Date.parse('2026-10-01T00:30:00Z') / 1000, timeTo: Date.parse('2026-10-01T18:00:00Z') / 1000 })] };

@@ -1,3 +1,4 @@
+import { PIREP_MAX_AGE_MS, PIREP_MAX_BYTES } from '@zlayer/contracts';
 import { createPluginStorage } from '../../core/storage/plugin-storage';
 // One complete F00–F18 timeline fits even at the 16 MiB per-file ceiling.
 export const FORECAST_CACHE_BYTES = 19 * 16 * 1024 * 1024;
@@ -8,6 +9,7 @@ export const pluginStorage = createPluginStorage('weather-awc', undefined, {
   // pools are additional ceilings, not reservations or upfront allocations.
   fileBudget: { maxEntries: 96, maxBytes: 256 * 1024 * 1024, maxUnusedMs: 48 * 3600000,
     groups: {
+      pireps: { maxEntries: 2, maxBytes: 2 * PIREP_MAX_BYTES, maxUnusedMs: PIREP_MAX_AGE_MS },
       clouds: forecast(19), icing: forecast(18), winds: forecast(19),
       progs: { maxEntries: 64, maxBytes: 32 * 1024 * 1024, maxUnusedMs: 48 * 3600000 },
       'progs-coverage': { maxEntries: 32, maxBytes: 8 * 1024 * 1024, maxUnusedMs: 48 * 3600000 },

@@ -9,10 +9,9 @@ Scope: the current dark interface, application-owned map overlays, and branding.
 The implemented system preserves existing dark shades and derives light colors
 from role-tagged seeds. Shared CSS tokens, generation/freshness checks and General
 appearance settings are implemented. The proposed shade consolidation, navigation
-identity alignment and map/weather migration below remain proposals; applying them
-would deliberately change the dark appearance. The original contrast calculations
-and outstanding rendered/device checks are retained as design rationale, not current
-verification evidence.
+identity alignment and map/weather migration below are still proposed and would
+change the dark appearance. The original contrast calculations explain the palette
+choices; rendered and device checks remain outstanding.
 
 ## Contents
 
@@ -157,8 +156,8 @@ A failed requested operation or unavailable result uses error styling.
 ## Weather palette
 
 Keep the existing VFR green, MVFR blue, IFR red, LIFR magenta, and unknown gray
-families. These values describe ZLayer's presentation, not a claim that exact RGB
-values are mandated by an aviation authority.
+families. The exact RGB values below are ZLayer's choices, not aviation authority
+requirements.
 
 | Category | Marker / legend fill | Text on dark UI |
 | --- | --- | --- |
@@ -216,9 +215,8 @@ Calculated sRGB contrast for the proposed opaque pairs:
 All weather text variants exceed 5.7:1 on the raised surface. Ratios shown are
 rounded for display; future automated checks must use the unrounded results. The decorative
 border is intentionally subtle and cannot substitute for an essential boundary.
-These calculations validate token pairs, not a completed rendered accessibility
-audit. Chart compositing, browser focus, actual text size, and map-symbol overlap
-still need visual checks.
+The token pairs meet these calculated contrast targets. Visual checks are still
+needed for chart compositing, browser focus, actual text size, and map-symbol overlap.
 
 ## Implementation sequence
 
@@ -269,8 +267,3 @@ repeat every implementation literal.
 - [ ] Review bright VFR charts, IFR charts, and the basemap at representative
       desktop, tablet, and phone widths from `docs/features/shared-ui.md`.
 - [ ] `npm run verify` and relevant browser checks pass after implementation.
-
-Shared UI token generation and a compatibility-preserving light/dark migration are
-implemented; the coordinated visual redesign in this proposal remains unimplemented.
-Existing matching runtime colors do not establish completion of its rendered
-contrast checks or navigation/map identity changes.

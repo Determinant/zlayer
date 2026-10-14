@@ -451,13 +451,13 @@ allocation and timing evidence, including the preview burst-latency tradeoff.
 ### Buffered obstruction queries
 
 The [obstruction guide](../../src/layers/obstructions/README.md#buffered-viewport-queries)
-owns padding, refill timing, stale-result rejection and visible counts. Its bounded
+describes padding, refill timing, stale-result rejection and visible counts. Its bounded
 pan buffer is distinct from Navigation's retained national reference data.
 
 ### Terrain recovery and parsed indices
 
 The [terrain guide](../../src/layers/terrain/README.md#cache-recovery-and-source-identity)
-owns vector-cache retention, raster/vector recovery and parsed-index identity.
+describes vector-cache retention, raster/vector recovery and parsed-index identity.
 Warm caches must still expose missing files or invalid receipts. The resource
 table above and the recorded comparisons below retain cross-plugin limits and
 measurement scope.

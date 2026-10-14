@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { notamValidity } from '../src/layers/notams/validity';
-import { parseNotamSchedule, equalNotamSchedules } from '../src/layers/notams/schedule';
+import { parseNotamSchedule, equalNotamSchedules, conflictingNotamSchedules } from '../src/layers/notams/schedule';
 import { collectNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { notice } from './fixtures/notams';
@@ -67,7 +67,7 @@ test('absence, partial days and opaque assertions stay distinct in timing and re
   assert.equal(validity('WED', '2026-10-07T18:45:00Z'), 'check schedule');
   assert.equal(collectNotamRecords({ records: [] }, [record('WED'), record('WED 1830-1930')]).issues?.length, 1,
     'partial metadata cannot supply hours without a complete native witness');
-  for (const opaque of ['SR-SS', 'Daily:SR-SS~DLY SR-SS', 'H24',
+  for (const opaque of ['SR-SS', 'H24',
     'Wednesday:1830-1930~THU 1830-1930', 'Wednesday:1830-1930~WED 1830-1940',
     'Wednesday:1830-1930~WED', 'Wednesday:1830-1930~WED 1830-1930~WED 1830-1930',
     'Daily:1518-2241~DLY SR-SS', 'Daily:1830-1930~WED 1830-1930',
@@ -85,4 +85,29 @@ test('absence, partial days and opaque assertions stay distinct in timing and re
     // Exact unknown source text can be retained without claiming interpretation.
     assert.equal(collectNotamRecords({ records: [] }, [record(opaque), record(opaque)]).records.length, 1);
   }
+});
+
+test('solar schedule evidence compares symbolically while timing remains unevaluated', () => {
+  for (const window of ['SR-SS', 'SS-SR', 'SR-1800', '0900-SS']) {
+    for (const [name, code] of [['Daily', 'DLY'], ['Sunday', 'SUN'], ['Monday', 'MON'], ['Tuesday', 'TUE'],
+      ['Wednesday', 'WED'], ['Thursday', 'THU'], ['Friday', 'FRI'], ['Saturday', 'SAT']]) {
+      const wrapped = `${name}:${window}~${code} ${window}`, plain = `${code} ${window}`;
+      assert.equal(parseNotamSchedule(wrapped).kind, 'weekly');
+      assert.ok(equalNotamSchedules(parseNotamSchedule(wrapped), parseNotamSchedule(plain)));
+      for (const schedule of [wrapped, plain]) assert.equal(validity(schedule, '2026-10-14T12:00:00Z'), 'check schedule');
+      for (const order of [[wrapped, plain], [plain, wrapped]]) {
+        assert.equal(collectNotamRecords({ records: [] }, order.map(record)).issues?.length ?? 0, 0);
+      }
+    }
+  }
+  for (const value of ['Daily:SS-SR~DLY SR-SS', 'Daily:SS-SR~MON SS-SR', 'DLY SR-SR', 'DLY SS-SS',
+    'DLY SR+30-SS', 'DLY SS-SR EXC HOL', 'DLY SS-SR 1200-1300']) {
+    assert.equal(parseNotamSchedule(value).kind, 'opaque', value);
+  }
+  const parsed = (value: string) => parseNotamSchedule(value);
+  assert.equal(conflictingNotamSchedules(parsed('MON'), parsed('MON 0900-1700')), false);
+  assert.equal(conflictingNotamSchedules(parsed('MON SR-SS'), parsed('MON 0900-1700')), false);
+  assert.equal(conflictingNotamSchedules(parsed('MON SR-SS'), parsed('MON SS-SR')), true);
+  assert.equal(conflictingNotamSchedules(parsed('MON'), parsed('TUE 0900-1700')), true);
+  assert.equal(conflictingNotamSchedules(parsed('MON 0900-1700'), parsed('MON 1000-1700')), true);
 });

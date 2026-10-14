@@ -1,7 +1,7 @@
 import type { NotamRecord } from '@zlayer/contracts';
 import { fdcBodyForms, noticeIntervalMatches } from './source-text';
-import { equalNotamSchedules, parseNotamSchedule } from './schedule';
-import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, type IcaoContent, type Representation } from './representation';
+import { equalNotamSchedules, parseNotamSchedule, notamScheduleFits, type WeeklyNotamSchedule } from './schedule';
+import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey, type IcaoContent, type Representation } from './representation';
 
 const bodyContent = (text: string) => noticeRepresentation(text)?.text;
 const numberContent = (value: string) => /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, '') : value;
@@ -94,13 +94,37 @@ export type IcaoEvidence = {
 // Retain compact comparison contents, never the national dataset's token graph.
 const icaoCache = new WeakMap<NotamRecord, IcaoEvidence | null>();
 
-function bindsIcaoRecord(record: NotamRecord, notice: IcaoContent): boolean {
+function bindsIcaoIdentityAndInterval(record: NotamRecord, notice: IcaoContent): boolean {
   return /^[A-Z]$/.test(record.series) && /^\d{1,4}$/.test(record.number) && /^\d{4}$/.test(record.year) &&
     record.changeType === notice.change &&
     notice.identity === `${record.series}${record.number.padStart(4, '0')}/${record.year.slice(-2)}` &&
     notice.locations.some(code => [...record.locations, ...record.icaoLocations].includes(code)) &&
-    noticeIntervalMatches(record, notice, true) &&
+    noticeIntervalMatches(record, notice, true);
+}
+function bindsIcaoRecord(record: NotamRecord, notice: IcaoContent): boolean {
+  return bindsIcaoIdentityAndInterval(record, notice) &&
     equalNotamSchedules(parseNotamSchedule(notice.schedule), parseNotamSchedule(record.schedule));
+}
+
+/** A complete D field may witness missing structured hours independently of
+ * timing evaluation. Bind identity/interval/body first, then check every
+ * supplied schedule and every retained rendering against that same witness. */
+export function sharedIcaoSchedule(previous: NotamRecord, next: NotamRecord): WeeklyNotamSchedule | undefined {
+  let witness: WeeklyNotamSchedule | undefined, key: string | undefined;
+  for (const record of [previous, next]) {
+    if (record.lifecycle !== 'active' || record.changeType !== 'N') return;
+    const evidence = icaoEvidence(record);
+    if (!evidence?.notices.length) return;
+    for (const notice of evidence.notices) {
+      const schedule = parseNotamSchedule(notice.schedule);
+      if (!bindsIcaoIdentityAndInterval(record, notice) || schedule.kind !== 'weekly' || !schedule.window ||
+        !notamScheduleFits(parseNotamSchedule(record.schedule), schedule)) return;
+      const content = icaoContentKey({ ...notice, schedule: '' });
+      if ((key !== undefined && key !== content) || (witness && !equalNotamSchedules(witness, schedule))) return;
+      key = content; witness = schedule;
+    }
+  }
+  return witness;
 }
 
 /** All supplied ICAO renderings must parse and account for the whole primary

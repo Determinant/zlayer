@@ -4,7 +4,7 @@ import { HRRR_FIELDS, IFI_PARAMETERS, WIND_FIELDS, type NativeFrame, type Source
 import { compressGrid } from '../../src/layers/weather-awc/grids/packed';
 import { workerFailure, type ConversionJob, type ConversionRequest, type ConversionResponse } from './worker-protocol';
 import type { AwcGridField } from '@zlayer/contracts';
-import type { GribIdentity } from '../../src/layers/weather-awc/grids/grib';
+import { GribSourceError, type GribIdentity } from '../../src/layers/weather-awc/grids/grib';
 
 function fieldIdentity(field: AwcGridField, frame: NativeFrame): Omit<GribIdentity, 'runTime' | 'lead'> {
   if (field in HRRR_FIELDS) {
@@ -22,6 +22,16 @@ const converter = createConverter();
 const terrain = new Map<string, ArrayBuffer>();
 let serial = 0;
 const reads = new Map<number, (value: ArrayBuffer) => void>();
+class RejectedRecord extends Error {
+  constructor(readonly record: SourceRecord, cause: GribSourceError) { super(cause.message); }
+}
+function decodeRecord<T>(record: SourceRecord, decode: () => T): T {
+  try { return decode(); }
+  catch (error) {
+    if (error instanceof GribSourceError) throw new RejectedRecord(record, error);
+    throw error;
+  }
+}
 const read = (record: SourceRecord) => new Promise<ArrayBuffer>(resolve => {
   const id = ++serial; reads.set(id, resolve); parentPort!.postMessage({ type: 'read', id, record } satisfies ConversionResponse);
 });
@@ -31,7 +41,8 @@ async function convert({ product, manifest, frame, terrainOnly }: ConversionJob)
     const record = frame.records.terrain, key = JSON.stringify([manifest.grid, record]);
     let prepared = terrain.get(key);
     if (!prepared) {
-      prepared = converter.prepareTerrain(await read(record), { runTime: manifest.runTime, lead: 0, category: 3, parameter: 5, surface: 1 }, manifest.grid);
+      const raw = await read(record);
+      prepared = decodeRecord(record, () => converter.prepareTerrain(raw, { runTime: manifest.runTime, lead: 0, category: 3, parameter: 5, surface: 1 }, manifest.grid));
       terrain.set(key, prepared);
       while (terrain.size > 2) terrain.delete(terrain.keys().next().value!);
     }
@@ -43,7 +54,8 @@ async function convert({ product, manifest, frame, terrainOnly }: ConversionJob)
       const fields = manifest.fields.slice(start, start + 2), records = await Promise.all(fields.map(field => read(level.records[field]!)));
       for (const [index, field] of fields.entries()) {
         const identity = fieldIdentity(field, level);
-        converter.field(field, records[index]!, { ...identity, runTime: manifest.runTime, lead: (frame.validTime - manifest.runTime) / 3600000 });
+        decodeRecord(level.records[field]!, () => converter.field(field, records[index]!,
+          { ...identity, runTime: manifest.runTime, lead: (frame.validTime - manifest.runTime) / 3600000 }));
       }
     }
   };
@@ -60,5 +72,7 @@ parentPort!.on('message', (message: ConversionRequest) => {
     return;
   }
   void convert(message.job).then(body => parentPort!.postMessage({ type: 'done', value: body } satisfies ConversionResponse, [body]),
-    error => parentPort!.postMessage(workerFailure(error)));
+    error => parentPort!.postMessage(error instanceof RejectedRecord
+      ? { type: 'error', error: { code: 'invalid-source', message: error.message, record: error.record } } satisfies ConversionResponse
+      : workerFailure(error)));
 });

@@ -19,6 +19,7 @@ export type NavigationLoadState = Partial<Record<NavigationLayerId, NavigationLo
 export function useNavigationData(
   catalog: CatalogReadSource | undefined,
   visibility: LayerVisibility,
+  airwaysEnabled = visibility.fixes,
 ): { data: NavigationData; loadState: NavigationLoadState; loading: boolean; issues: NavigationIssue[]; airways: AirwayDataResponse | undefined } {
   const [loaded, setLoaded] = useState<Partial<Record<NavigationLayerId, {
     key: string; status: NavigationLoadStatus; collection?: FeatureCollectionResponse | undefined; issues?: NavigationIssue[];
@@ -30,7 +31,7 @@ export function useNavigationData(
   const airwayKey = routing?.airways ? JSON.stringify([routing.revision, routing.airways]) : undefined;
 
   useEffect(() => {
-    if (!routing || !visibility.fixes || !airwayKey) { setAirwayState(undefined); return; }
+    if (!routing || !airwaysEnabled || !airwayKey) { setAirwayState(undefined); return; }
     const resource = routing.airways;
     if (!resource) return;
     let cancelled = false;
@@ -46,7 +47,7 @@ export function useNavigationData(
     };
     load();
     return () => { cancelled = true; };
-  }, [routing, airwayKey, visibility.fixes, online, inventoryVersion]);
+  }, [routing, airwayKey, airwaysEnabled, online, inventoryVersion]);
 
   useEffect(() => {
     if (!catalog) { setLoaded(current => Object.keys(current).length ? {} : current); return; }
@@ -87,6 +88,6 @@ export function useNavigationData(
     return { data, loadState, issues, loading };
   }, [catalog, loaded, visibility]);
   const airwaysCurrent = airwayKey !== undefined && airwayState?.key === airwayKey;
-  return { data, loadState, issues, loading: loading || !!(visibility.fixes && routing?.airways && !airwaysCurrent),
+  return { data, loadState, issues, loading: loading || !!(airwaysEnabled && routing?.airways && !airwaysCurrent),
     airways: airwaysCurrent ? airwayState?.data : undefined };
 }

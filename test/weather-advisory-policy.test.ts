@@ -15,7 +15,8 @@ const samples: { name: string; product: AwcAdvisoryProduct; inputs: SourceCollec
 ];
 const first = (inputs: SourceCollection[]) => inputs[0]!.features[0] as { properties: Record<string, any>; geometry: unknown };
 const normalize = (sample: typeof samples[number], inputs = structuredClone(sample.inputs)) =>
-  normalizeAdvisories(sample.product, inputs, WEATHER_NOW, 'test:advisory-policy');
+  normalizeAdvisories(sample.product, inputs,
+    sample.product === 'sigmet' ? Date.parse(captured.captures[0]!.capturedAt) : WEATHER_NOW, 'test:advisory-policy');
 const count = (inputs: SourceCollection[]) => inputs.reduce((n, collection) => n + collection.features.length, 0);
 
 for (const sample of samples) test(`${sample.name}: classification policy handles missing, novel and malformed metadata`, () => {

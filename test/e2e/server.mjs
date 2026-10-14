@@ -1,7 +1,6 @@
 import { createServer } from 'node:http';
 import { register } from 'tsx/esm/api';
 register();
-const { fixtureWeather } = await import('../fixtures/info-server.ts');
 import { createHash } from 'node:crypto';
 import { readFile, readdir, mkdtemp, rm, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -88,6 +87,7 @@ let weather;
 let weatherSeeded = false;
 async function resetWeather() {
   if (skipWeather) return;
+  const { fixtureWeather } = await import('../fixtures/info-server.ts');
   await weather?.close();
   const cacheDirectory = resolve(directory, 'weather-cache');
   const seedDirectory = resolve(directory, 'weather-seed');
@@ -122,7 +122,8 @@ let chartArchiveGate;
 let releaseChartArchives;
 const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm',
   '.html': 'text/html', '.css': 'text/css', '.webmanifest': 'application/manifest+json',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.woff': 'font/woff' };
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.xml': 'application/xml',
+  '.txt': 'text/plain', '.woff2': 'font/woff2', '.woff': 'font/woff' };
 const server = createServer(async (request, response) => {
   const path = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname);
   if (benchmark && path === '/__test/rendering-benchmark') {
@@ -344,8 +345,10 @@ const server = createServer(async (request, response) => {
   if (failNevadaAirports && path === '/chart-data/2026-08-06/nav/airports.geojson') { response.writeHead(503).end(); return; }
   if (failBrowsingAirports && path === '/chart-data/2026-09-03/nav/airports.geojson') { response.writeHead(503).end(); return; }
   const fixture = fixtures.get(path);
+  // Mirror the static host's directory redirect and index handling.
+  if (path === '/about') { response.writeHead(308, { location: '/about/' }).end(); return; }
   try {
-    const file = resolve(directory, `.${path === '/' ? '/index.html' : path}`);
+    const file = resolve(directory, `.${path.endsWith('/') ? `${path}index.html` : path}`);
     if (!file.startsWith(`${directory}/`)) { response.writeHead(403).end(); return; }
     let body = fixture?.body ?? await readFile(file);
     if (appRelease && (path === '/' || path === '/index.html' || path === '/sw.js')) {

@@ -156,13 +156,9 @@ and sleep recovery belong to core; consumers receive the same normalized fixes a
 clear their motion history across interruptions.
 
 AHRS can calibrate and show live IMU attitude even if this source has never supplied
-a fix. No fix or a fix below the aiding speed puts a red cross over the moving AI;
-usable GPS clears it only while tilt uncertainty is acceptable. High uncertainty
-also keeps the cross without hiding live attitude. The HSI remains visible and
-its card follows live IMU yaw beneath **No GPS**, labeled **REL** when a geographic
-heading is unavailable. This does not supply missing route guidance, map position
-or GPS instrument readings; see the
-[AHRS display policy](../ahrs/README.md#calibration-and-validity).
+a fix. Its [display policy](../ahrs/README.md#calibration-and-validity) and
+[HSI rules](../ahrs/README.md#heading-and-guidance-behavior) define which warnings,
+heading references and guidance remain available through GPS loss.
 
 `createOwnshipPlugin(gps)` and `createOwnshipLayer(gps)` receive the workspace's
 shared GPS service explicitly. Ownship owns its map demand, centering requests and track

@@ -10,7 +10,7 @@ field, while retaining barbs and advisories. Turning it off clears temperature
 shading; it does not restore an earlier cloud/icing field. Choosing another shaded
 field turns this switch off without changing **Show winds**.
 Switching toolbox tabs never changes those visibility choices. The
-[plugin guide](../README.md#display-and-selection) owns the shared toolbox and timeline.
+[plugin guide](../README.md#display-and-selection) describes the shared toolbox and timeline.
 
 Winds share the toolbox and timeline so pilots can compose them with cloud/icing
 and advisories. One wind stream supplies barbs and temperature. Icing retains its
@@ -115,8 +115,9 @@ uses the inspected location and forecast valid time, with zero ellipsoid height
 as in the ruler; forecast geopotential MSL height is not ellipsoid altitude.
 Evaluation is memoized by model, location and forecast time. Loading is limited
 to an open wind inspection and retries on reopening/reconnection. Missing/expired
-models, weak horizontal fields and geographic poles leave magnetic as `—`, keep
-true available, and show that variation is unavailable. Calm has no direction.
+models, weak horizontal fields and geographic poles show the missing-value symbol
+(`U+2014`) for magnetic direction, keep true available, and show that variation is unavailable.
+Calm has no direction.
 Map barbs retain their true geographic orientation.
 
 `wind.ts` selects a nested Web Mercator lattice anchored to the world. Normal

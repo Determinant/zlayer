@@ -157,7 +157,7 @@ Combined approach/departure uses remain one record with their raw `use`, rather
 than duplicating a source row. The publisher recognizes explicit service codes;
 named procedure channels and roles mentioned only in remarks are not inferred.
 The [navigation guide](../../src/layers/navigation/README.md#airport-frequencies)
-owns the Info frequency order, labels and note disclosures.
+describes the Info frequency order, labels and note disclosures.
 `hours` preserves FAA `TOWER_HRS` verbatim and is labeled **Tower hours** only
 under Tower; its presence on another service's source row does not establish that
 service's operating hours. `remarks` preserves the source `REMARK` text.
@@ -182,8 +182,9 @@ The versioned supplement shares the normal offline reference cache.
 
 Published typed waypoints must resolve uniquely. A missing pinned feature or
 unavailable required point is an error, not permission to substitute another feature.
-The [routing guide](../../src/layers/routes/README.md) owns parsing, ambiguity, airway/TEC expansion and edit
-rules; [SID/STAR previews](../../src/layers/routes/terminal-procedures.md) owns procedure limitations.
+The [routing guide](../../src/layers/routes/README.md) describes parsing, ambiguity,
+airway/TEC expansion and edit rules. See
+[SID/STAR previews](../../src/layers/routes/terminal-procedures.md) for procedure limitations.
 
 Every airway segment must publish a boolean `gap` from FAA `AWY_SEG_GAP_FLAG`.
 Only explicitly present segments with `gap: false` may be traversed in either
@@ -294,7 +295,9 @@ severity codes are not interpreted as G-AIRMET text qualifiers.
 G-AIRMET stores a forecast hour and instantaneous valid time; interval advisories
 store an exclusive `validTo` and no forecast hour. The guard rejects mixed families,
 duplicate identities, invalid coordinates/rings, inconsistent forecast frames and
-invalid timestamps. Do not infer issue time from validity or model history from a
+invalid timestamps or applicability outside 48 hours of the original source check.
+That bound is evaluated against `checkedAt`, including on offline restoration;
+actual display validity remains product-specific. Do not infer issue time from validity or model history from a
 successful check. Complete empty snapshots replace prior data; failures retain it.
 The server normalizes AWC collections into snapshots, retaining full bulletin text
 and weather properties. G-AIRMET normalizes its atomic five-frame package, including
@@ -320,26 +323,48 @@ changed geometry retains its original JSON in `sourceGeometry`. Ambiguous edges,
 invalid latitudes and over-budget geometry become explicit issues. Holes unwrap
 independently and require one contained world placement; uncontained, empty,
 overlapping or nested holes become issues rather than being silently dropped.
+Combined polygon validation also rejects coincident exterior/hole boundaries and
+shared edges while preserving valid single-point contacts.
 Transformed polygons also carry `outlineGeometry` as canonical lines from the
 same validated, closed source rings, so completion cannot lose an outline edge
 and clipping seams never become displayed advisory boundaries.
 The content identity includes resolved hazard and prepared geometry, so a new interpretation replaces
 an older saved rendering even when the upstream feature has not changed.
-The [plugin guide](../../src/layers/weather-awc/README.md) owns delivery, time
+The [plugin guide](../../src/layers/weather-awc/README.md) describes delivery, time
 selection, completeness limits and cache labeling.
+
+## AWC aircraft reports
+
+`PirepSourceSnapshot` schema 2 carries source-check time, source identity and
+an ordered array of original `AircraftReport` XML members. The info server
+validates the complete envelope and retains every entry, including duplicates and
+entries with unusable fields. The PWA owns member interpretation, deduplication,
+`/OV` recovery and plotting decisions. It caches source entries and derives a
+`PirepSnapshot` view; navigation-dependent positions are not persisted. Legacy
+schema-1 responses remain readable, including issues without server-parsed fields,
+which the PWA decodes from their retained XML.
+An interpreted `bad_location` issue may retain a bounded, untrusted source
+coordinate to corroborate a narrowly constrained identifier recovery. It never
+supplies the plotted coordinate directly; the published navigation reference does.
+The bounded shared guards, source evidence, observation/altitude meanings,
+replacement policy and expiry are owned by the
+[PIREP guide](../../src/layers/weather-awc/pireps/README.md).
 
 ## AWC forecast grids
 
 The server discovers a validated native-source manifest from NOAA GRIB indexes.
 Its shared plugin contract retains exact field ranges, source-index digests, model
-cycle and altitude identity. Background Node workers verify GRIB metadata and
+object versions, cycle and altitude identity. New discoveries include the object
+validator and length; older saved catalogs retain their original identities. See
+the [source-version policy and IFI limitation](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract).
+Background Node workers verify GRIB metadata and
 prepare the complete native generation before its catalog becomes public. HTTP
 forecast requests only read these saved files. The browser verifies artifact
 identity, checksum and numeric bounds before rendering or saving through core. See the
 [grid guide](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract).
 Winds retain pressure-coordinate source catalogs and derive selected MSL/flight-level
 slices with a separate converter/altitude identity; the [winds guide](../../src/layers/weather-awc/grids/winds.md#source-and-levels)
-owns interpolation and saved-preference migration.
+describes interpolation and saved-preference migration.
 The older preconverted format below remains for archived feeds and fixtures.
 
 `AwcGridManifest` version 1 separately validates HRRR cloud/freezing/winds and IFI icing
@@ -395,7 +420,7 @@ source catalog and its hash. PNGs have fixed AWC Web Mercator bounds, supported
 64 KiB per catalog, 1 MiB per image and 8 MiB for all listed images. The server
 validates images before independent atomic publication; the browser authenticates
 their hashes before rendering or saving. The [Progs coverage guide](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage)
-owns source limitations, image gaps, time selection, rendering and cache recovery.
+describes source limitations, image gaps, time selection, rendering and cache recovery.
 
 ## NOTAM airport snapshots
 
@@ -557,7 +582,7 @@ each handled format-change ID. Fresh installs mark the current ID silently; olde
 installs and update actions claim it before presenting the advisory, under a Web
 Lock when available. Receipts survive app releases and all dismissal choices;
 full local reset removes them. With denied local storage the receipt is session-only.
-The [update guide](../features/pwa-updates.md#reset-advisory) owns eligibility,
+The [update guide](../features/pwa-updates.md#reset-advisory) describes eligibility,
 legacy-upgrade handling and the build option.
 
 Restored presentation includes Layers, Settings and its region query/storage

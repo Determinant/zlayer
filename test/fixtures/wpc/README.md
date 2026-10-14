@@ -83,3 +83,12 @@ on October 13, 2026. Features 53 and 54 are valid Point annotations with
 `type: 21, text: ""`. They have no visible label; their original records remain
 in the retained source document. All weather geometry and nonempty labels must
 still publish. SHA-256: `24a312a72490f20c6123f4fb0077c34c8178d6ce6df9ee3dd7a56f4662754456`.
+
+`20261013_12_F072_wpc.geojson` is the complete forecast downloaded on October 13,
+2026 from
+`https://aviationweather.gov/data/products/wpc/20261013/20261013_12_F072_wpc.geojson`.
+Feature 9 is an isobar with valid source controls between 89.9° and 90° latitude.
+The cardinal spline previously generated 90.00074°, rejecting the entire forecast
+family. The regression retains the original bytes and every visible source
+feature, while bounding the affected curve segments at the pole. SHA-256:
+`42d166affed2ca58e1cf92c473c9056060f1c38601bff15e3043cec1b9595acb`.

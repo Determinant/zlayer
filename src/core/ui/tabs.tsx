@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 
 /** Content tabs keep selection and panel lifetime with their owner. */
-export function TabList<T extends string>({ id, label, tabs, value, onChange, className = '', scrollable = false, size = 'compact' }: {
+export function TabList<T extends string>({ id, label, tabs, value, onChange, className = '', scrollable = false, rowSize, size = 'compact' }: {
   id: string;
   label: string;
   tabs: readonly { value: T; label: string; accessibleLabel?: string; active?: boolean; description?: string }[];
@@ -9,6 +9,7 @@ export function TabList<T extends string>({ id, label, tabs, value, onChange, cl
   onChange(value: NoInfer<T>): void;
   className?: string;
   scrollable?: boolean;
+  rowSize?: number;
   size?: 'compact' | 'slim';
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -33,8 +34,7 @@ export function TabList<T extends string>({ id, label, tabs, value, onChange, cl
     rail.addEventListener('scroll', edges, { passive: true }); resize();
     return () => { observer.disconnect(); rail.removeEventListener('scroll', edges); };
   }, [value, scrollable]);
-  return <div ref={ref} className={`ui-tabs${scrollable ? ' ui-tabs--scrollable panel-scroll' : ''} ${className}`} role="tablist" aria-label={label}>
-    {tabs.map((tab, index) => <button key={tab.value} type="button"
+  const buttons = tabs.map((tab, index) => <button key={tab.value} type="button"
       className={`ui-button ui-button--quiet ui-button--${size}`} role="tab"
       id={`${id}-${tab.value}-tab`} aria-controls={`${id}-${tab.value}-panel`}
       aria-label={tab.accessibleLabel} data-active={tab.active || undefined} aria-description={tab.description}
@@ -47,9 +47,12 @@ export function TabList<T extends string>({ id, label, tabs, value, onChange, cl
         else if (event.key === 'End') next = tabs.length - 1;
         else return;
         event.preventDefault();
-        event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus({ preventScroll: scrollable });
+        ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus({ preventScroll: scrollable });
         onChange(tabs[next]!.value);
-      }}>{tab.label}</button>)}
+      }}>{tab.label}</button>);
+  return <div ref={ref} className={`ui-tabs${rowSize ? ' ui-tabs--rows' : ''}${scrollable ? ' ui-tabs--scrollable panel-scroll' : ''} ${className}`} role="tablist" aria-label={label}>
+    {rowSize ? Array.from({ length: Math.ceil(buttons.length / rowSize) }, (_, row) =>
+      <div className="ui-tab-row" key={row}>{buttons.slice(row * rowSize, (row + 1) * rowSize)}</div>) : buttons}
   </div>;
 }
 

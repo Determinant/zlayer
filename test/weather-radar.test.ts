@@ -13,7 +13,7 @@ import { createInfoServer } from '../tools/info-server/server';
 import { HttpError, resourceFor } from '../tools/info-server/routes';
 import { currentRadar, radarTimes } from '../src/layers/weather-awc/radar/time';
 import { forecastStops, HOUR } from '../src/layers/weather-awc/time';
-import { weatherTimeScale } from '../src/layers/weather-awc/time-scale';
+import { weatherTimeScale, weatherTimeTicks } from '../src/layers/weather-awc/time-scale';
 import { radarFixture, seedRadar } from './fixtures/radar';
 import { RadarClient } from '../src/layers/weather-awc/radar/client';
 import { RadarMotionClient } from '../src/layers/weather-awc/radar/motion-client';
@@ -261,4 +261,17 @@ test('radar HTTP only reads prepared files; refresh reuses scans, failed sites s
   now += RADAR_HISTORY_MS; app.radar.refresh(); await app.radar.close();
   const pruned = await (await fetch(`${origin}/api/weather/radar/latest.json`)).json();
   assert.deepEqual(pruned.history, [], 'expired history leaves the published catalog');
+});
+
+test('timeline decoration stays bounded for malformed horizons without thinning normal weather ticks', () => {
+  const now = Date.UTC(2026, 9, 13, 12), start = now - 2 * HOUR, end = now + 7 * 24 * HOUR;
+  const normal = weatherTimeTicks(start, end, now, true);
+  assert.equal(normal.hours.length, 171);
+  assert.equal(normal.minutes.length, 22);
+  assert.equal(normal.hours[1]! - normal.hours[0]!, HOUR);
+  for (const [from, to] of [[start, Date.UTC(3026, 9, 13)], [1, 8.63e15]]) {
+    const bounded = weatherTimeTicks(from!, to!, now, true);
+    assert.ok(bounded.hours.length <= 512 && bounded.minutes.length <= 512 && bounded.days.length <= 512);
+    assert.ok([...bounded.hours, ...bounded.minutes].every(Number.isFinite));
+  }
 });

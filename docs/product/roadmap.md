@@ -64,8 +64,7 @@ adding more data sources. Current capabilities and planned work are listed separ
 1. Complete the [remaining release gates](../development/deployment.md): installed
    iOS/Android offline, storage-pressure, GPS, AHRS, reset and terrain checks; broader
    WebKit offline-lifecycle coverage; and device timing/memory baselines. Keep each
-   release's live host checks separate from local verification; a passing build does
-   not publish it.
+   release's live host checks separate from local verification.
 2. Review the remaining [color-system proposal](color-system-plan.md) separately
    from the implemented light/dark modes, and complete rendered contrast, focus,
    status and navigation/weather checks across supported layouts.
@@ -88,8 +87,9 @@ for today's guarantees and [product budgets](brief.md) for performance targets.
 
 ## Airport and procedure NOTAMs
 
-Implemented with production collection enabled: the [NOTAM plugin guide](../../src/layers/notams/README.md)
-owns the long-term contract. **Info | Plates | NOTAM** shows D/FDC notices with
+Implemented with production collection enabled; see the
+[NOTAM plugin guide](../../src/layers/notams/README.md) for the contract.
+**Info | Plates | NOTAM** shows D/FDC notices with
 conservative flairs and per-entry raw disclosures. Procedure rows and the expandable
 red reader bar share snapshots and matching for the actual catalog/page/edition.
 
@@ -110,7 +110,7 @@ owns this behavior. Local regression coverage includes a simulated daily cycle.
 The redesigned backend passed candidate/public API checks, two advancing live
 delta rounds and restart recovery with unchanged request-budget state. Sustained
 capacity and a complete live daily reconciliation remain separate qualifications;
-see the [reliability audit](../../src/layers/notams/README.md#server-reliability-audit--2026-10-05).
+see the [reliability audit](../../src/layers/notams/README.md#server-reliability-audit-2026-10-05).
 
 The [persistent TFR chart](../../src/layers/notams/README.md#persistent-tfr-chart)
 has a deployed backend: a separate FAA graphical-source adapter prepares cached
@@ -134,7 +134,7 @@ and regression requirements.
 
 The [ordered interpreter and reference export](../../src/layers/routes/approach-geometry.md)
 are implemented. The [coverage guide](../../src/layers/routes/approach-coverage.md#recorded-faa-2609-results)
-owns dated state/national counts, unmatched charts, unoffered feeder starts and
+describes dated state/national counts, unmatched charts, unoffered feeder starts and
 radar/source-review exceptions. Passing selectable entries does not establish
 nationwide chart coverage or correctness of every depicted maneuver.
 
@@ -155,7 +155,7 @@ The TypeScript AWC/NOMADS gateway is implemented with shared disk caching, bound
 refreshes, advisory normalization, numeric grid preparation and preserved source-check times.
 HRRR uses Google as the server’s upstream; the PWA reads native prepared fields
 and interpolates selected wind altitudes. The
-[server guide](../../tools/info-server/README.md#deployment) owns backend and
+[server guide](../../tools/info-server/README.md#deployment) describes backend and
 HTTPS reverse-proxy deployment requirements, including release checks.
 Independent operational comparison and reference-device
 qualification remain outstanding; implementation is not flight validation.
@@ -166,7 +166,9 @@ qualification remain outstanding; implementation is not flight validation.
   the original AWC batching, nearby queries and report presentation. Their direct
   NOAA/NWS adapters are retired; [source choices](../data/sources.md#source-choices-and-unresolved-alternatives)
   explain the coverage and freshness differences.
-- Add PIREP/AIREP filtering/deduplication and altitude bands.
+- PIREP/AIREP bulk ingestion, conservative deduplication, age/altitude/condition
+  filters, circle markers and a viewport report list are implemented in
+  [AWC Weather](../../src/layers/weather-awc/pireps/README.md).
 - Qualify Alaska AIRMET and international SIGMET as coverage extensions.
 - Add route-corridor emphasis to the implemented UTC advisory timeline.
 
@@ -215,7 +217,7 @@ delivery checks for each release.
   Broader operational-chart comparison and physical-device qualification remain.
 - Implemented: [Radar](../../src/layers/weather-awc/radar/README.md) adds
   server-prepared current MRMS/NEXRAD composite and terminal TDWR contours, with
-  source times, expiration, optional offline files and six slim product tabs.
+  source times, expiration, optional offline files and shared slim product tabs.
   Delivery requires matching server and app contracts. Two-hour timeline rewind is implemented;
   an optional NOAA STI storm-motion overlay adds server-cached projected cell
   tracks aligned with the displayed radar. Captured-source motion regressions are

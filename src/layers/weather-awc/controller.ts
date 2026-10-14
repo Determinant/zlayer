@@ -1,3 +1,7 @@
+import type { PirepState } from './pireps/client';
+import { createPirepLocations } from './pireps/locations';
+import type { NavigationData } from '@zlayer/contracts';
+import type { MagneticModel } from '../../core/geo/magnetic-model';
 import { type RadarFile, type RadarContours, awcGridProduct, type AwcAdvisoryProduct, type AwcGridField, type AwcGridProduct } from '@zlayer/contracts';
 import { createLayerStore } from '../../core/layers/store';
 import { createLayerEvents } from '../../core/layers/events';
@@ -20,6 +24,8 @@ import type { RadarMotionState } from './radar/motion-client';
 import type { RadarMotionFile, RadarMotionSnapshot } from '@zlayer/contracts';
 
 export type WeatherAwcInput = WeatherAwcPreferences & {
+  navigation?: NavigationData;
+  magneticModel?: MagneticModel | undefined;
   change(patch: Partial<WeatherAwcPreferences>): void;
 };
 export type GridDisplay = { data: DecodedGrid; mode: AwcGridField; sld: boolean };
@@ -41,6 +47,12 @@ export type WeatherState = {
   products: Record<AwcAdvisoryProduct, AdvisoryState>;
   advisoryRetry: number;
   advisoryDisplay: { loading: boolean; ids: string[]; error?: string };
+  pireps: PirepState;
+  pirepRetry: number;
+  pirepView: string[];
+  pirepSelection: { id?: string; request: number } | null;
+  pirepHighlight?: string | undefined;
+  pirepDisplay: { loading: boolean; error?: string };
   radar: RadarState;
   radarRetry: number;
   radarDisplay: { loading: boolean; sites: string[]; error?: string };
@@ -93,14 +105,19 @@ export function createWeatherController(clients: WeatherClients) {
   const store = createLayerStore<WeatherState>({ preferences: weatherAwcPreferences.select({}), now: Date.now(),
     selectedTime: null, selectedIds: [], forecastRetry: 0, advisoryRetry: 0, advisoryDisplay: { loading: false, ids: [] },
     grid: gridController?.getSnapshot() ?? emptyGrid(), wind: windController?.getSnapshot() ?? emptyGrid(),
+    pireps: { loading: false }, pirepRetry: 0, pirepView: [], pirepSelection: null, pirepDisplay: { loading: false },
     radar: { loading: false }, radarRetry: 0, radarDisplay: { loading: false, sites: [] },
     radarMotion: { loading: false }, radarMotionDisplay: { loading: false, cells: 0, stations: 0 },
     coverage: { loading: false }, coverageDisplay: { loading: false },
     progsRetry: 0, progs: { analysis: { loading: false }, forecast: { loading: false } },
     products: { gairmet: { loading: false }, sigmet: { loading: false }, cwa: { loading: false } } });
   const selectors = createWeatherSelectors();
+  const pirepLocations = createPirepLocations();
   let input: WeatherAwcInput | undefined;
   let clock: ReturnType<typeof mountWeatherClock> | undefined;
+  let pirepPicker: ((point: { x: number; y: number }) => string[]) | undefined;
+  let pirepRequest = 0;
+  const pirepHighlights = new Map<symbol, string>();
   let picker: ((point: { x: number; y: number }) => string[]) | undefined;
   let locate: ((point: { x: number; y: number }) => { longitude: number; latitude: number } | undefined) | undefined;
   const interaction = createPreparationDemand(() => syncGrid());
@@ -115,6 +132,9 @@ export function createWeatherController(clients: WeatherClients) {
   };
   const reconcileAndPublish = (patch: Partial<WeatherState>) => {
     const next = reconcileWeatherTime({ ...store.getSnapshot(), ...patch }, Date.now(), selectors.forecastTimes);
+    const resolved = next.preferences.awcEnabled && next.preferences.awcPireps
+      ? pirepLocations(next.pireps.snapshot, input?.navigation, input?.magneticModel) : pirepLocations(undefined);
+    if (next.pireps.resolved !== resolved) next.pireps = { ...next.pireps, resolved };
     store.publish(next);
   };
   const acceptGrid = (patch: Pick<Partial<WeatherState>, 'grid' | 'wind'>) => {
@@ -127,21 +147,59 @@ export function createWeatherController(clients: WeatherClients) {
       Math.floor(current.now / 3600_000) !== Math.floor(previous.now / 3600_000)) syncGrid();
   };
   const publishDisplay = (patch: Partial<WeatherState>) => store.publish({ ...store.getSnapshot(), ...patch });
+  const emphasizePirep = () => {
+    const pirepHighlight = [...pirepHighlights.values()].at(-1);
+    if (pirepHighlight !== store.getSnapshot().pirepHighlight) publishDisplay({ pirepHighlight });
+  };
   const products = createProductRefresh(clients, store.getSnapshot, patch => {
     reconcileAndPublish(patch); clock?.schedule(); syncGrid();
   });
   const demand = () => { products.demand(); syncGrid(); };
   const visibleAdvisories = () => selectors.visibleAdvisories(store.getSnapshot());
   const detach = () => {
+    pirepHighlights.clear(); emphasizePirep();
     interaction.reset();
     clock?.stop(); clock = undefined;
     products.detach();
-    picker = undefined; locate = undefined;
+    picker = undefined; locate = undefined; pirepPicker = undefined;
     gridController?.detach();
     windController?.detach();
   };
   return {
     ...store, visibleAdvisories,
+    setPirepPicker(next: typeof pirepPicker) { pirepPicker = next; },
+    setPirepView(pirepView: string[]) {
+      if (JSON.stringify(store.getSnapshot().pirepView) !== JSON.stringify(pirepView)) publishDisplay({ pirepView });
+    },
+    setPirepDisplay(pirepDisplay: WeatherState['pirepDisplay']) {
+      if (JSON.stringify(store.getSnapshot().pirepDisplay) !== JSON.stringify(pirepDisplay)) publishDisplay({ pirepDisplay });
+    },
+    showPireps(id?: string) {
+      const p = store.getSnapshot().preferences;
+      if (p.awcEnabled && p.awcPireps) publishDisplay({ pirepSelection: { ...(id ? { id } : {}), request: ++pirepRequest } });
+    },
+    highlightPirep(id: string) {
+      const token = Symbol(); pirepHighlights.set(token, id); emphasizePirep();
+      // A row releases only its own hover/focus, preserving newer interactions.
+      return () => { if (pirepHighlights.delete(token)) emphasizePirep(); };
+    },
+    closePireps() {
+      pirepHighlights.clear(); publishDisplay({ pirepSelection: null, pirepHighlight: undefined });
+    },
+    pirepAction(point: { x: number; y: number }): MapContextAction | undefined {
+      const p = store.getSnapshot().preferences, id = pirepPicker?.(point)[0];
+      if (!p.awcEnabled || !p.awcPireps || !id) return undefined;
+      return { id: 'weather-awc:pirep', label: 'Inspect PIREPs', select: () => {
+        if (store.getSnapshot().preferences.awcEnabled && store.getSnapshot().preferences.awcPireps)
+          publishDisplay({ pirepSelection: { id, request: ++pirepRequest } });
+      } };
+    },
+    checkPireps() {
+      const state = store.getSnapshot();
+      if (!state.preferences.awcEnabled || !state.preferences.awcPireps) return;
+      if (state.pirepDisplay.error) publishDisplay({ pirepRetry: state.pirepRetry + 1 });
+      products.checkPireps(); demand();
+    },
     forecastTimes: () => selectors.forecastTimes(store.getSnapshot()),
     forecastChanges: () => selectors.forecastChanges(store.getSnapshot()),
     setAdvisoryDisplay(advisoryDisplay: WeatherState['advisoryDisplay']) {
@@ -205,14 +263,19 @@ export function createWeatherController(clients: WeatherClients) {
     },
     setGridRenderError(gridRenderError: string | undefined) { if (store.getSnapshot().gridRenderError !== gridRenderError) publishDisplay({ gridRenderError }); },
     configure(next: WeatherAwcInput) {
+      const referencesChanged = input?.navigation !== next.navigation || input?.magneticModel !== next.magneticModel;
       input = next;
       const preferences = weatherAwcPreferences.select(next);
       if (JSON.stringify(preferences) !== JSON.stringify(store.getSnapshot().preferences)) {
         // Preference changes update the inspected weather without dismissing it.
         // Keep selection identities stable so stowed details do not reopen.
-        reconcileAndPublish(preferences.awcEnabled ? { preferences } : { preferences, selectedIds: [], gridPoint: undefined });
+        const previous = store.getSnapshot().preferences;
+        const pirepSelection = !preferences.awcEnabled || !preferences.awcPireps ? null
+          : !previous.awcEnabled || !previous.awcPireps ? { request: ++pirepRequest } : store.getSnapshot().pirepSelection;
+        if (!pirepSelection) { pirepHighlights.clear(); emphasizePirep(); }
+        reconcileAndPublish(preferences.awcEnabled ? { preferences, pirepSelection } : { preferences, pirepSelection, selectedIds: [], gridPoint: undefined });
         clock?.schedule();
-      }
+      } else if (referencesChanged) reconcileAndPublish({});
       demand();
     },
     change(patch: Partial<WeatherAwcPreferences>) {

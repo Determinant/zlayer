@@ -40,15 +40,10 @@ Device Motion API ────────────────────�
   complete d-TPP catalog, and combined electronic paper TPPs. Optional exports include
   preferred/TEC routes, terminal/approach geometry, route history and magnetic-model
   coefficients. Feed-wide terrain and obstruction products have independent versions.
-- The [info server](../../tools/info-server/README.md) shares AWC report/advisory
-  reads, NOMADS IFI and Google HRRR indexes/ranges. It validates source catalogs,
-  normalizes advisories and prepares native forecast fields in bounded Node
-  workers using TypeScript decoding, projection and wind rotation. The PWA caches
-  compact numeric artifacts through core and owns altitude interpolation,
-  rendering, point inspection and user offline storage. Optional FAA NMS collection
-  maintains a local NOTAM dataset. A separate graphical TFR adapter runs
-  independently of NMS enablement and credentials. Airport/TFR queries never
-  contact FAA directly; both collectors retain durable admission history.
+- The info server publishes normalized weather snapshots, prepared forecast/radar
+  products and local NOTAM/TFR datasets. The [data layout](#data-layout) describes
+  the server/client boundary; the [server guide](../../tools/info-server/README.md#source-and-cache-contract)
+  defines acquisition, preparation and publication rules.
 - Publishers validate schemas, bounds, cycles, checksums, and source freshness once
   for all clients.
 
@@ -163,8 +158,10 @@ All default weather requests use the same-origin TypeScript info server. It
 preserves source-check times and rejects expired live responses; user state and
 browser offline storage remain independent. The [AWC Weather plugin](../../src/layers/weather-awc/README.md)
 reads normalized snapshots and [prepared numeric grids](../../src/layers/weather-awc/grids/README.md).
-Source acquisition, GRIB decoding, projection and wind rotation run on the server.
-The browser worker validates compact native bands and interpolates selected wind
+Source acquisition, catalog validation, advisory normalization, GRIB decoding,
+projection and wind rotation run on the server, with numeric preparation in
+bounded Node workers using TypeScript. The browser caches compact artifacts
+through core; its worker validates native bands and interpolates selected wind
 altitudes for rendering and point extraction. Google remains the server's HRRR
 source; IFI uses NOMADS.
 Model run, source check and forecast-valid times remain independent of advisories.
@@ -172,14 +169,17 @@ One bounded disk cache shares source responses and processed forecasts across
 viewers. Background updates prepare complete native generations before replacing
 their catalogs. HTTP forecast reads only serve saved output; report/advisory
 queries share their own cached acquisition. The
-[server guide](../../tools/info-server/README.md) owns update and storage limits.
+[server guide](../../tools/info-server/README.md) describes update and storage limits.
 
 [FAA NMS collection](../../src/layers/notams/README.md#info-server-integration)
 runs optionally in that same info server process and exposes read-only `/api/notams/` routes.
 Its credentials, request admission and durable dataset/quota state are owned by a
 separate NMS module, outside weather cache eviction and release cache swaps.
-The NOTAM guide owns the contract and staging evidence. Production enablement
-and deployment capacity qualification remain separate release work.
+The graphical TFR collector runs independently of NMS enablement and credentials.
+Airport/TFR queries read local snapshots without contacting FAA; both collectors
+retain durable admission history. The NOTAM guide describes the contract and
+staging evidence; the [roadmap](../product/roadmap.md#airport-and-procedure-notams)
+tracks rollout status and remaining deployment qualification.
 
 Per-sheet MBTiles, receipts, and work files stay in the publisher's local
 `dist/mbtiles/<cycle>/` cache alongside `dist/zips/`, outside the publishable `charts/`
@@ -231,7 +231,8 @@ keeps nearby choices and open map menus above panels, with app menus and modal
 dialogs above the isolated map workspace.
 Airways and SID/STARs appear through resolved route
 geometry; there is no standalone national airway layer. [Radar observations and recent history](../../src/layers/weather-awc/radar/README.md)
-use the weather slot. Satellite and PIREP observations remain planned. [WPC analysis and Progs](../../src/layers/weather-awc/progs/README.md)
+and [PIREPs/AIREPs](../../src/layers/weather-awc/pireps/README.md) use the weather slot.
+Satellite observations remain planned. [WPC analysis and Progs](../../src/layers/weather-awc/progs/README.md)
 use the same weather slot and prepared server delivery.
 
 Map contributions use fixed slots and namespaced IDs. Toggling one layer never

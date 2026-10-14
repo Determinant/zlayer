@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { contours } from 'd3-contour';
+import clipping from 'polygon-clipping';
 import { compactRadarRing, radarContours } from '../tools/info-server/radar-contours';
 import { simplifyMrms, MRMS_SIMPLIFY_CELLS } from '../tools/info-server/radar-simplify';
+import { randomSequence, signedArea, ringLength, boundaryDistance } from './helpers/weather-geometry';
 
 const area = (ring: number[][]) => ring.slice(1).reduce((sum, point, i) =>
   sum + ring[i]![1]! * point[0]! - ring[i]![0]! * point[1]!, 0);
@@ -74,4 +76,35 @@ test('straight contour compaction preserves turns, reversals, closure and small 
   assert.deepEqual(compactRadarRing(small), small);
   const reversal: [number, number][] = [[0, 0], [2, 0], [1, 0], [1, 1], [0, 0]];
   assert.deepEqual(compactRadarRing(reversal), reversal);
+});
+
+test('generated radar contours keep every ring, its orientation and bounded displacement after simplification', () => {
+  const random = randomSequence(71387), thresholds = [5, 15, 25, 35, 45, 55, 65, 75];
+  let removed = 0;
+  for (let sample = 0; sample < 16; sample++) {
+    const width = 24 + sample % 7, height = 20 + sample % 5;
+    const values = Float32Array.from({ length: width * height }, (_, i) =>
+      40 + 25 * Math.sin(i % width * .4 + sample) + 25 * Math.cos(Math.floor(i / width) * .5) + random());
+    const source = thresholds.map(threshold => radarContours(values, width, height, threshold)), original = structuredClone(source);
+    const result = simplifyMrms(source);
+    assert.deepEqual(source, original, 'simplification does not mutate native contours');
+    for (const [level, polygons] of source.entries()) {
+      assert.equal(result[level]!.length, polygons.length, 'no island disappears or merges');
+      for (const [polygon, rings] of polygons.entries()) {
+        assert.equal(result[level]![polygon]!.length, rings.length, 'every hole remains with its exterior');
+        for (const [ring, before] of rings.entries()) {
+          const after = result[level]![polygon]![ring]!;
+          assert.ok(after.length >= 4 && after.length <= before.length);
+          assert.deepEqual(after[0], after.at(-1));
+          assert.equal(Math.sign(signedArea(after)), Math.sign(signedArea(before)));
+          assert.ok(Math.abs(signedArea(after) - signedArea(before)) <= ringLength(before) * MRMS_SIMPLIFY_CELLS + 1e-9);
+          for (const point of after) assert.ok(before.some(p => p[0] === point[0] && p[1] === point[1]), 'retained vertices are source vertices');
+          for (const point of before) assert.ok(boundaryDistance(point, after) <= MRMS_SIMPLIFY_CELLS + 1e-10);
+          if (ring) assert.equal(clipping.difference([after], [result[level]![polygon]![0]!]).length, 0, 'the full hole remains inside its exterior');
+          removed += before.length - after.length;
+        }
+      }
+    }
+  }
+  assert.ok(removed > 0, 'the generated corpus exercises actual simplification');
 });

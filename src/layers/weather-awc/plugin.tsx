@@ -1,3 +1,5 @@
+import { PirepClient } from './pireps/client';
+import { PirepDetails } from './pireps/controls';
 import { ProgsCoverageClient } from './progs/coverage-client';
 import type { LayerPlugin } from '../../core/layers/plugin';
 import type { PluginExports } from '../../core/layers/bridge';
@@ -22,6 +24,7 @@ export function createWeatherAwcPlugin() {
   const progsEndpoint = import.meta.env?.VITE_ZLAYERS_PROGS_FEED_URL?.trim();
   const radarEndpoint = import.meta.env?.VITE_ZLAYERS_RADAR_FEED_URL?.trim();
   const controller = createWeatherController({ advisories: client,
+    pireps: new PirepClient(new URL('/api/weather/pireps.json', origin).href),
     grids: new GridClient(new URL(gridEndpoint || '/api/weather/grids/', origin).href.replace(/\/?$/, '/'), !gridEndpoint),
     coverage: new ProgsCoverageClient(new URL(progsEndpoint || '/api/weather/progs/', origin).href.replace(/\/?$/, '/')),
     progs: new ProgsClient(new URL(progsEndpoint || '/api/weather/progs/', origin).href.replace(/\/?$/, '/')),
@@ -35,11 +38,14 @@ export function createWeatherAwcPlugin() {
   return {
     definition: { id: 'weather-awc', title: 'AWC Weather' },
     storage: pluginStorage, preferences: weatherAwcPreferences, input, controller,
-    publicApi: scope => ({ contextActions: scope.command(point => controller.contextActions(point)
+    publicApi: scope => ({ primaryAction: scope.command(point => {
+      const action = controller.pirepAction(point); return action && { ...action, select: scope.command(action.select) };
+    }), contextActions: scope.command(point => [controller.pirepAction(point), ...controller.contextActions(point)].filter(action => !!action)
       .map(action => ({ ...action, select: scope.command(action.select) }))) }),
     connect(_bridge, scope) { scope.observe(input, value => { if (value) controller.configure(value); }); },
     controls: [{ id: 'weather-awc', section: { id: 'awc-weather', title: 'AWC Weather' }, Component: () => <WeatherControls controller={controller} /> }],
     panels: [
+      { id: 'weather-awc-pireps', title: 'PIREP in View', Component: () => <PirepDetails controller={controller} />, close: controller.closePireps },
       { id: 'weather-awc', title: 'AWC Weather toolbox', Component: () => <WeatherToolbox controller={controller} /> },
       { id: 'weather-awc-details', title: 'Weather advisory details', Component: Details, close: controller.clearSelection },
     ],

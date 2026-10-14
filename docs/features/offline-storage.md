@@ -254,7 +254,11 @@ metadata remains unverified until **Update to latest** supplies a complete plan.
 StorageManager supplies usage/quota estimates and requests persistence after an
 explicit save action. A refusal is visible and does not disable best-effort caching.
 
-Web Locks serialize download/removal operations across windows. Removal requires
+Web Locks serialize download/removal operations across windows. Foreground operations
+wait up to two seconds to acquire the lock so brief metadata preservation or automatic
+cleanup can finish. Longer contention reports that offline storage is busy and
+requires a retry; an expired request cannot start later. Once admitted, an operation
+keeps the lock until its work finishes. Removal requires
 a fully readable inventory under that lock; an unreadable record blocks file deletion
 and selection removal because it may own shared files. Charts transfer
 with bounded concurrency, and large PDF books transfer one at a time. Pause stops
@@ -522,8 +526,9 @@ exact identities remain available; it never silently adopts replacement content.
 discovery without changing any saved selection. One shared refresh loads discovery
 and book indexes for the list and Update action. Unchanged modern metadata retains
 prepared plans; background refresh of the browsing catalog does not start another
-download-discovery request. A busy download lock makes metadata preservation fail
-promptly with a retry message, rather than waiting behind a long transfer. Hidden
+download-discovery request. Metadata preservation uses the same bounded lock wait
+as download/removal operations, so brief cleanup does not fail a refresh and a long
+transfer still produces a retry message. Hidden
 Settings does not prepare region plans or scan the saved inventory; reopening
 checks current storage again.
 

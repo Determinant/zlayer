@@ -105,7 +105,7 @@ test('SIGMET classification survives HTTP publication and restart, while real co
 
 test('advisory background failures remain visible, independent, coalesced and recover with original source times', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'info-advisories-')), shutdown = new AbortController();
-  let now = 100000, failing = true, calls = 0;
+  let now = WEATHER_NOW, failing = true, calls = 0;
   const logs: string[] = [];
   const cache = new WeatherCache({ directory, now: () => now, maxBytes: 1024 * 1024, load: async resource => {
     calls++;

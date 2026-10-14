@@ -33,6 +33,121 @@ function setup(t: test.TestContext) {
   return { hooks, timers, visibility };
 }
 
+for (const delayed of ['fixes', 'airways', 'terminalProcedures', 'preferredRoutes'] as const) {
+  test(`an empty route resolves its first two airports while ${delayed} is still loading`, async t => {
+    const { hooks } = setup(t);
+    const base = `https://charts.test/route-first-points/${delayed}`;
+    const current = catalog(`${base}/airports`);
+    current.navigation[0]!.count = current.navigation[0]!.sourceCount = 2;
+    const resource = { title: 'Delayed reference', url: `${base}/delayed`, count: 0, sourceCount: 0 };
+    if (delayed === 'fixes') current.navigation.push({ ...resource, id: 'fixes', count: 1, sourceCount: 1, minZoom: 0 });
+    else if (delayed === 'airways') current.airways = { ...resource, id: 'airways' };
+    else if (delayed === 'terminalProcedures') current.terminalProcedures = { ...resource, id: 'terminal-procedures' };
+    else current.preferredRoutes = { ...resource, id: 'preferred-routes' };
+    const airports = document('FIRST');
+    const second = document('SECOND').features[0]!;
+    second.geometry.coordinates = [1, 0];
+    airports.features.push(second);
+    let release!: (response: Response) => void;
+    let requests = 0;
+    t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+      requests++;
+      return String(url).endsWith('/airports') ? Response.json(airports)
+        : new Promise<Response>(resolve => { release = resolve; });
+    });
+    let draft = routeDraftFromText('');
+    const render = () => hooks.render(() => useRoutePlan(current, draft));
+    assert.equal(render().status, 'idle');
+    await tick();
+    assert.equal(requests, 0, 'an empty route does not start reference downloads');
+    draft = routeDraftFromText('FIRST SECOND');
+    render(); await tick();
+    try {
+      const { plan, status } = render();
+      assert.equal(status, 'loading', 'pending reference data remains visible as loading');
+      assert.deepEqual(plan.waypoints.map(point => point.ident), ['FIRST', 'SECOND']);
+      assert.equal(plan.legs.length, 1, 'available endpoints already have a drawable route leg');
+      assert.deepEqual(plan.issues, []);
+    } finally {
+      const body = delayed === 'fixes' ? document('FIX') : {
+        metadata: { effectiveDate: current.revision, source: 'FAA' },
+        ...(delayed === 'airways' ? { type: 'ZLayerAirways', airways: [] }
+          : delayed === 'terminalProcedures' ? { type: 'ZLayerTerminalProcedures', procedures: [] }
+            : { type: 'ZLayerPreferredRoutes', routes: [] }),
+      };
+      release(Response.json(body));
+      await tick();
+    }
+    assert.equal(render().status, 'ready');
+    assert.equal(render().plan.legs.length, 1);
+  });
+}
+
+test('clearing a partially loaded route ignores late products and a new route can reuse them', async t => {
+  const { hooks } = setup(t);
+  const current = catalog('https://charts.test/route-clear/airports');
+  current.navigation.push({ ...current.navigation[0]!, id: 'fixes', url: 'https://charts.test/route-clear/fixes' });
+  let release!: (response: Response) => void;
+  t.mock.method(globalThis, 'fetch', async (url: unknown) => String(url).endsWith('/airports')
+    ? Response.json(document('TEST')) : new Promise<Response>(resolve => { release = resolve; }));
+  let draft = routeDraftFromText('TEST FIX');
+  const render = () => hooks.render(() => useRoutePlan(current, draft));
+  render(); await tick();
+  assert.equal(render().plan.waypoints[0]?.ident, 'TEST');
+  draft = routeDraftFromText('');
+  assert.equal(render().status, 'idle');
+  release(Response.json(document('FIX'))); await tick();
+  assert.deepEqual(render().data, {}, 'late progress cannot retain references after demand stops');
+  assert.equal(render().plan.waypoints.length, 0);
+  draft = routeDraftFromText('FIX TEST');
+  render(); await tick();
+  assert.equal(render().status, 'ready');
+  assert.deepEqual(render().plan.waypoints.map(point => point.ident), ['FIX', 'TEST']);
+});
+
+for (const phase of ['initial', 'error', 'partial'] as const) for (const ambiguous of [false, true]) {
+  test(`incremental radial matches wait to persist after ${phase} data (ambiguous: ${ambiguous})`, async t => {
+    const { hooks } = setup(t);
+    const base = `https://charts.test/route-radial-pending/${phase}/${ambiguous}`;
+    const current = catalog(`${base}/airports`);
+    if (phase === 'partial') current.navigation.push({ ...current.navigation[0]!, id: 'navaids', url: `${base}/navaids` });
+    current.navigation.push({ ...current.navigation[0]!, id: 'fixes', url: `${base}/fixes` });
+    let release!: (response: Response) => void;
+    let available = phase === 'initial';
+    t.mock.method(globalThis, 'fetch', async (url: unknown) => {
+      if (phase === 'partial' && String(url).endsWith('/airports')) return Response.json(document('OTHER'));
+      if (!available) return new Response(null, { status: 503 });
+      return String(url).endsWith('/fixes') ? new Promise<Response>(resolve => { release = resolve; })
+        : Response.json(document('TEST'));
+    });
+    let draft = routeDraftFromText('TEST/090T/10');
+    const render = () => hooks.render(() => useRoutePlan(current, draft, edit => { draft = edit(draft); }));
+    render(); await tick();
+    if (phase !== 'initial') {
+      assert.equal(render().status, phase);
+      available = true;
+      window.dispatchEvent(new Event('zlayer-offline-inventory'));
+      render(); await tick();
+      assert.equal(render().status, phase, 'retrying preserves the previous availability warning');
+    }
+    try {
+      assert.equal(render().plan.waypoints.length, 1, 'provisional geometry remains available');
+      assert.equal(draft.entries[0]!.radialPosition, undefined, 'do not freeze a match before another source can reveal ambiguity');
+    } finally {
+      const fixes = document(ambiguous ? 'TEST' : 'OTHER');
+      fixes.features[0]!.id = 'fix:delayed';
+      fixes.features[0]!.geometry.coordinates = [1, 0];
+      release(Response.json(fixes));
+      await tick();
+    }
+    assert.equal(render().status, 'ready');
+    if (ambiguous) {
+      assert.equal(render().plan.waypoints.length, 0);
+      assert.equal(draft.entries[0]!.radialPosition, undefined);
+    } else assert.ok(draft.entries[0]!.radialPosition, 'an unambiguous final match is saved');
+  });
+}
+
 test('GPS routes survive absent, loading and failed navigation data, then resolve missing named points on recovery', async t => {
   const { hooks, timers } = setup(t);
   let available = false;

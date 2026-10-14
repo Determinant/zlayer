@@ -18,7 +18,7 @@ process. Optional FAA NMS collection has separate durable state and admission.
 ## NOTAM collection
 
 The [NOTAM guide](../../src/layers/notams/README.md#info-server-integration)
-owns the collector, local-query API and integration into this listener,
+describes the collector, local-query API and integration into this listener,
 build and deployment. Its [collection policy](../../src/layers/notams/README.md#collection-and-delivery)
 keeps a full local dataset and durable FAA quota history outside the weather cache.
 The cache warm/swap procedure must preserve that state and one active collector.
@@ -175,7 +175,7 @@ Missing advisory classification metadata is not itself incomplete coverage when
 the native bulletin proves the required display category. Source properties remain
 unchanged; conflicting or unproven classifications still block readiness as explicit
 issues. The [AWC guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence)
-owns classification evidence, date-line geometry normalization and versioned partial delivery.
+describes classification evidence, date-line geometry normalization and versioned partial delivery.
 Each family's health `interpretation` summarizes accepted records, classification
 bases, unsupported SIGMET bulletins and legacy records without provenance. It also
 reports issue counts by reason/detail and at most five bounded issuer/identifier
@@ -214,7 +214,7 @@ source times, preparation progress and failures. Use the
 [deployment readiness checklist](#deployment-readiness) before serving a release;
 `ok: true` alone is insufficient.
 
-The [maintenance guide](maintenance.md) owns the aggregate readiness policy,
+The [maintenance guide](maintenance.md) describes the aggregate readiness policy,
 durable full-sync history, bounded source diagnostics, runtime measurements and
 focused workload replay. Expected source coverage gaps and ordinary cache eviction
 remain distinct from failures of freshness, publication or collection continuity.
@@ -243,6 +243,7 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | `/api/weather/tafs.json?ids=…` or `?bbox=…` | Original AWC TAF JSON | 60 seconds |
 | `/api/weather/advisories/gairmet.json` | Complete normalized G-AIRMET package | One-minute bulk checks; retained for at most ten minutes from source publication, with original time and visible refresh errors |
 | `/api/weather/advisories/{sigmet,cwa}.json` | Normalized advisories | 60 seconds |
+| `/api/weather/pireps.json` | Complete original PIREP/AIREP XML members in a source snapshot | Background minute checks; retained for ten minutes from source publication; HTTP never acquires upstream |
 | `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
 | `/api/weather/radar/motion/latest.json` and `/api/weather/radar/motion/<hash>.json` | NOAA STI projected cell tracks, with individual station observation times | Independent background rounds; prepared snapshots with accumulated two-hour history |
 | `/api/weather/progs/{analysis,forecast}.json` | Small catalogs of complete prepared AWC/WPC chart families | Source checks every five minutes |
@@ -251,6 +252,14 @@ a bounded FIFO with one spacing timer, woken by completion or cancellation.
 | `/api/weather/grids/{clouds,icing,winds}.json` | Latest complete prepared generation | Up to 24 hours; original source times retained |
 | `/api/weather/grids/<product>/<run>-<lead>-<level>-<identity>.zwp.gz` | Immutable native numeric grid; wind levels use `p<pressure-hPa>` | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
 | `/api/weather/grids/winds/<run>-terrain-<identity>.zwt.gz` | Same-run model terrain for PWA masking | Protected while referenced; otherwise up to 24 hours within the shared byte budget |
+
+The [PIREP guide](../../src/layers/weather-awc/pireps/README.md) owns aircraft-report
+source delivery, bounds and PWA interpretation. The server validates the complete
+XML envelope and publishes every original entry without field interpretation,
+location filtering or deduplication. `pireps` health reports publication freshness,
+source record count and refresh failures; the release probe checks the source
+snapshot and readiness. The PWA owns decoding, location recovery and the list of
+reports it cannot plot. Those display outcomes do not affect delivery health.
 
 Raw AWC and model index/range acquisition is internal; the API exposes no upstream
 proxy routes. G-AIRMET reads the official minute-updated `gairmets.cache.xml.gz`
@@ -284,12 +293,25 @@ HRRR indexes and ranges use the same Google bucket, including model terrain; IFI
 uses NOMADS. An index is limited to 512 KiB, a GRIB range to 8 MiB, and a prepared
 artifact to 16 MiB. Exact HTTP 206 range/length and GRIB envelope checks precede
 model/field/level/geometry validation. A source-index change cannot satisfy an older artifact identity.
+Discovery also reads the model object's HEAD metadata with intermediary
+revalidation. Strong ETags pin HRRR; IFI currently supplies Last-Modified and
+object length instead. Those versions enter catalog, artifact and raw-range
+identities. Range requests carry If-Match or If-Unmodified-Since, and the response
+validator and complete-object length must agree. A precondition failure triggers
+rediscovery. The IFI fallback relies on the publisher changing Last-Modified with
+content, cannot detect changes preserving both time and length, and excludes
+modifications within the preceding minute. Previously prepared catalogs without
+versions remain usable during replacement and offline restoration.
 Internal ranges without an index hash have a 60-second cache lifetime.
 Adjacent model records from the same index share downloads of at most 8 MiB through
 the existing source cache. Each GRIB envelope in the combined range is validated;
 the processor extracts exact indexed records before decoding. Gaps, changed index
-identities and open-ended final records start separate downloads. Preparing other
+or object identities and open-ended final records start separate downloads. Preparing other
 altitudes reuses those blocks instead of requesting each field separately.
+Explicit GRIB decoder failures carry the rejected record back from the worker.
+The processor quarantines that exact cached block and shares its retry backoff;
+it cannot delete a newer replacement. Worker crashes and local processing failures
+do not implicate source bytes. The prior published generation remains available.
 
 The updater has one job per product. It finishes that candidate rather than
 abandoning partially prepared runs whenever a newer index appears. An unchanged
@@ -334,7 +356,7 @@ buffers are released with the job, rather than retained across conversions.
 Terrain is read only when its run
 changes. No selected-altitude slices or full vertical cubes are produced here.
 The [grid guide](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract)
-owns numeric formats and validation.
+describes numeric formats and validation.
 
 The default **8 GiB / 5,000-entry** cache covers prepared artifacts and disposable
 source responses together. The byte default was raised from 4 GiB after concurrent
@@ -420,10 +442,10 @@ disk cache. Chart preparation runs in `progs-worker.js`, and PNG validation in
 `progs-coverage-worker.js`, outside the HTTP event loop. HTTP serves the resulting
 catalogs and immutable files without acquiring or processing upstream data.
 
-The Progs guide owns [pressure-chart acquisition and recovery](../../src/layers/weather-awc/progs/README.md#acquisition-and-recovery)
+The Progs guide describes [pressure-chart acquisition and recovery](../../src/layers/weather-awc/progs/README.md#acquisition-and-recovery)
 and [NDFD coverage](../../src/layers/weather-awc/progs/README.md#precipitation-and-weather-coverage),
 including source interfaces, publication markers, format limits, polling/retry
-intervals, retention, migration and rollback/correction rules. It also owns weather
+intervals, retention, migration and rollback/correction rules. It also describes weather
 meaning and PWA selection, rendering and recovery.
 
 ## Deployment
@@ -452,6 +474,9 @@ proxy or tunnel before cutover, and through public HTTPS after activation:
 - Require every weather source in `healthz.readiness.sources` to be available and
   fresh with no active refresh error. This includes all three advisory families.
   Expected partial radar/motion coverage and unpublished NDFD stops remain allowed.
+- Require a fresh, complete PIREP source snapshot. Per-entry quality flags and
+  interpretation failures belong to the PWA and do not make source delivery
+  incomplete; acquisition, envelope and freshness failures still fail readiness.
 - Read reports, all three advisory snapshots, and a prepared numeric slice for
   each model. Require every delivered advisory snapshot to have no unresolved
   issues; an earlier health response cannot establish a later snapshot's coverage.

@@ -162,10 +162,9 @@ Heading acquisition during instrument startup joins that session and cannot
 replace an in-progress calibration. Cancellation and provider revocation invalidate
 startup before delayed permission or GPS acquisition can revive it.
 
-Automatic heading demand does not start or stop instrument recording. A recording
-prepared before calibration survives map mode changes; automatic map observations
-are excluded from calibrated instrument replay. Explicit instrument Stop and
-plugin disposal still end recording. See [recording ownership](recording.md).
+Recording follows the instrument session, independently of automatic map heading.
+See [recording ownership](recording.md#ahrs-recordings) for calibration, Stop,
+disposal and replay rules.
 
 Motion permission still follows browser gesture requirements; denial does not
 interrupt Ownship GPS. Automatic heading has no additional sensor implementation
@@ -705,7 +704,7 @@ keeping the calibrated means does not keep their old confidence indefinitely.
 
 ## Verification
 
-The [validation guide](validation.md) owns estimator invariants, input/recovery
+The [validation guide](validation.md) describes estimator invariants, input/recovery
 requirements, the [regression inventory](validation.md#regression-coverage),
 reproduction commands and remaining statistical/device evidence gaps.
 It retains the [v6 results](validation.md#v6-beta-verification) and

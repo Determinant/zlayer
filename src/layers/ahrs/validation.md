@@ -3,10 +3,10 @@
 [Documentation](../../../docs/README.md) / Plugins / [ahrs](README.md)
 
 The experimental AHRS uses the quaternion error-state estimator documented in the
-[feature guide](README.md) and its estimator notes. This page owns
-the validation criteria, recorded numerical evidence and remaining evidence gaps.
-Implementation, static review, numerical regression and physical-device validation
-are separate claims. Historical passing runs do not certify a later working tree.
+[feature guide](README.md) and its estimator notes. This page lists validation
+criteria, recorded numerical results and remaining evidence gaps. Results apply
+to the recorded build and test conditions; static review, numerical regression
+and physical-device checks each cover different aspects of the estimator.
 
 ## Estimator invariants
 

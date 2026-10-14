@@ -3,7 +3,7 @@
 [Documentation](../../../docs/README.md) / Plugins / [routes](README.md)
 
 This guide defines the implemented ordered interpreter and its additive reference
-export. The [coverage guide](approach-coverage.md) owns dated source audits,
+export. The [coverage guide](approach-coverage.md) describes dated source audits,
 publication evidence and remaining limits; the [roadmap](../../../docs/product/roadmap.md#approach-geometry-and-coverage)
 tracks remaining work. A local data rebuild does not establish hosted publication.
 
@@ -199,7 +199,7 @@ not strip Y/Z variants or infer a procedure from runway proximity. An unsupporte
 branch must appear in the availability ledger, not disappear during export.
 
 The picker needs short actionable messages such as “Missed approach is schematic,”
-“Radial reference unavailable,” or “Vectors—path continues with ATC instructions,”
+“Radial reference unavailable,” or “Vectors: path continues with ATC instructions,”
 with access to the plate. Keep raw codes and parser details in diagnostics/audits.
 Approach versus missed phase remains independent of geometry quality; dashed
 missed lines must not become the sole indicator of approximation.

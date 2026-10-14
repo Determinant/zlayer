@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 type DownloadWindow = Window & typeof globalThis & {
   regionDownloadFixture: { blocked: boolean; fail: boolean; finished: boolean; release: () => void };
   finalCheckFixture: { blocked: boolean; missing: boolean; release: () => void; restore: () => void };
+  regionLockFixture: { release: () => void };
 };
 
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
@@ -61,6 +62,53 @@ async function openSettings(page: Page) {
   await page.getByRole('tab', { name: 'Offline', exact: true }).click();
   await expect(california(page).getByRole('button', { name: 'Download', exact: true })).toBeEnabled();
 }
+
+async function holdRegionLock(page: Page) {
+  await page.evaluate(() => new Promise<void>(resolve => {
+    void navigator.locks.request('zlayer-region-downloads', () => new Promise<void>(release => {
+      (window as DownloadWindow).regionLockFixture = { release };
+      resolve();
+    }));
+  }));
+  return () => page.evaluate(() => (window as DownloadWindow).regionLockFixture.release());
+}
+
+test('a first download recovers from brief storage contention during its metadata refresh', { tag: '@smoke' }, async ({ page }) => {
+  await openSettings(page);
+  // Background cleanup shares this lock even when no other window is open.
+  const release = await holdRegionLock(page);
+  const row = california(page);
+  await row.getByRole('button', { name: 'Download', exact: true }).click();
+  try {
+    await expect.poll(() => page.evaluate(async () => (await navigator.locks.query()).pending
+      ?.some(lock => lock.name === 'zlayer-region-downloads'))).toBe(true);
+    await expect(row.getByRole('alert')).toHaveCount(0);
+  } finally {
+    await release();
+  }
+  await expect(row.locator('.offline-tag')).toHaveText('Saved');
+  await expect(row.getByRole('alert')).toHaveCount(0);
+});
+
+test('long storage contention leaves a first download untouched and a later retry succeeds', { tag: '@smoke' }, async ({ page }) => {
+  await openSettings(page);
+  const release = await holdRegionLock(page);
+  const row = california(page);
+  await row.getByRole('button', { name: 'Download', exact: true }).click();
+  try {
+    await expect(row.getByRole('alert')).toHaveText('Offline storage is busy. Retry when the current operation finishes.');
+    expect(await page.evaluate(async () => (await navigator.locks.query()).pending
+      ?.filter(lock => lock.name === 'zlayer-region-downloads'))).toEqual([]);
+  } finally {
+    await release();
+  }
+  await expect(row.locator('.offline-tag')).toHaveCount(0);
+  await page.getByRole('tabpanel', { name: 'Offline', exact: true })
+    .getByRole('button', { name: 'Check for updates', exact: true }).click();
+  await row.getByRole('button', { name: 'Download', exact: true }).click();
+  await expect(row.locator('.offline-tag')).toHaveText('Saved');
+  await expect(row.getByRole('alert')).toHaveCount(0);
+});
 
 test('Offline follows General, keeps transfers running across tabs, and restores its selection', async ({ page }) => {
   await holdBook(page);

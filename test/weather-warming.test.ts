@@ -14,13 +14,17 @@ import type { NativeManifest } from '../src/layers/weather-awc/grids/native-sour
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
 
 const files = nativeForecastFiles(), runTime = Date.UTC(2026, 8, 22, 20);
+const discoveredBody = (path: string) => {
+  const raw = files.get('/weather/noaa/' + path)!;
+  return path.endsWith('.idx') ? raw : Buffer.from(JSON.stringify({ byteLength: raw.length, etag: `"${digest(raw)}"` }));
+};
 
 test('forecast discovery cannot roll back the published run, including after restart', async t => {
   const metrics = new InfoMetrics(); t.after(() => metrics.close());
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-forecast-rollback-')), shutdown = new AbortController();
   let now = runTime + 3600_000, older = false, correction = false, conversions = 0, discoveries = 0;
   const payload = (body: Buffer): Payload => ({ body, sha256: digest(body), status: 200, checkedAt: now, headers: {} });
-  const template = await discover(async path => payload(files.get('/weather/noaa/' + path)!), 'clouds', shutdown.signal, now);
+  const template = await discover(async path => payload(discoveredBody(path)), 'clouds', shutdown.signal, now);
   const options = { directory, maxBytes: 1024 * 1024, now: () => now, load: async () => { throw new Error('No acquisition'); } };
   let cache = new WeatherCache(options); await cache.restore();
   const processing = { concurrency: 2, catalog: async (product: string) => {
@@ -35,7 +39,9 @@ test('forecast discovery cannot roll back the published run, including after res
         frame.sources = frame.sources.map(source => source.replace('t20z', 't19z'));
       }
     }
-    if (correction) for (const frame of manifest.frames) for (const record of Object.values(frame.records)) record.indexHash = 'a'.repeat(64);
+    if (correction) for (const frame of manifest.frames) for (const record of Object.values(frame.records)) {
+      record.version = { byteLength: record.version!.byteLength, etag: '"corrected-values-unchanged-index"' };
+    }
     return payload(Buffer.from(JSON.stringify(manifest)));
   }, forecast: async (_manifest: NativeManifest, frame: NativeManifest['frames'][number]) => {
     conversions++; return payload(Buffer.from(JSON.stringify(frame)));
@@ -74,7 +80,7 @@ for (const invalid of [true, false]) test(`forecast updates ${invalid ? 'redisco
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-warming-')), shutdown = new AbortController();
   let now = runTime + 3600000, version = 0, catalogs = 0, failure: Error | undefined;
   const payload = (body: Buffer): Payload => ({ body, sha256: digest(body), status: 200, checkedAt: now, headers: {} });
-  const template = await discover(async path => payload(files.get('/weather/noaa/' + path)!), 'clouds', shutdown.signal, now);
+  const template = await discover(async path => payload(discoveredBody(path)), 'clouds', shutdown.signal, now);
   const cache = new WeatherCache({ directory, maxBytes: 128 * 1024, now: () => now,
     load: async () => { throw new Error('Forecast reads must not acquire sources'); } });
   await cache.restore();

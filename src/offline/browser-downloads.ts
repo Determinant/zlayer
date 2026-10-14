@@ -18,18 +18,11 @@ import { openFileCache } from '../core/storage/download-file';
 import { activeFileUrls } from './active-catalogs';
 import { pruneBundleSnapshots } from './bundle-snapshots';
 import { removeTemporaryBasemapFiles } from '../core/storage/basemap-cache';
-
-async function exclusive(work: () => Promise<void>): Promise<void> {
-  if (!navigator.locks) throw new Error('This browser lacks safe multi-window download coordination; update your browser');
-  await navigator.locks.request('zlayer-region-downloads', { ifAvailable: true }, async lock => {
-    if (!lock) throw new Error('Another ZLayer window is managing downloads. Retry when it finishes.');
-    await work();
-  });
-}
+import { withRegionDownloadLock } from './region-lock';
 
 /** Remove temporary charts, PDFs and basemap tiles, preserving every saved region. */
 export async function removeUnsavedFiles(): Promise<void> {
-  await exclusive(async () => {
+  await withRegionDownloadLock(async () => {
     const plans = await savedPlans(true);
     const keep = new Set([...plans.flatMap(plan => retainedFiles(plan).map(file => file.url)),
       ...await activeFileUrls()]);
@@ -116,6 +109,6 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       await (await openFileCache(fileCache(file))).delete(file.url);
       navigator.serviceWorker.controller?.postMessage({ type: 'forget-chart-memory', url: file.url });
     },
-    exclusive,
+    exclusive: withRegionDownloadLock,
   });
 }

@@ -85,7 +85,7 @@ export class TafClient {
       const ids = new Set([...reports.keys(), ...[...this.#stations.entries()]
         .filter(([, entry]) => entry.report && stationDistance(point, entry.report) <= NEARBY_STATION_RADIUS_NM)
         .map(([id]) => id)]);
-      for (const id of ids) this.#accept(id, reports.get(id), checkedAt);
+      this.#accept([...ids].map(id => [id, reports.get(id)]), checkedAt);
       this.#areas.delete(key);
       this.#areas.set(key, { checkedAt });
       this.#save();
@@ -118,7 +118,7 @@ export class TafClient {
     try {
       const { reports, checkedAt } = await this.#request(url, signal);
       const received = reports.filter(report => normalizeIdentifier(report.icaoId) === id).sort((a, b) => newestFirst(a, b, (this.options.now ?? Date.now)()))[0];
-      this.#accept(id, received, checkedAt);
+      this.#accept([[id, received]], checkedAt);
       this.#save();
     } catch (error) {
       signal.throwIfAborted();
@@ -143,23 +143,29 @@ export class TafClient {
     return { reports: body, checkedAt: weatherCheckedAt(response, (this.options.now ?? Date.now)()) };
   }
 
-  #accept(id: string, received: TafReport | undefined, checkedAt: number): void {
+  #prepare(id: string, received: TafReport | undefined, checkedAt: number, now: number): CachedTaf | undefined {
     const saved = this.get(id), previous = saved?.report;
-    const now = (this.options.now ?? Date.now)();
     // A shared cache hit must not replace a newer successful source check.
     if (saved?.checkedAt !== undefined && saved.checkedAt <= now && saved.checkedAt > checkedAt &&
       (!received || previous && newestFirst(previous, received, now) <= 0)) return;
     const preferred = previous && (!received || newestFirst(previous, received, now) < 0) ? previous : received;
     const report = previous && preferred && JSON.stringify(previous) === JSON.stringify(preferred) ? previous : preferred;
-    if (report !== previous) {
-      if (report) this.#budget.accept(id, report);
-      else this.#budget.delete(id);
-      this.#dirty = true;
-    }
-    this.#stations.delete(id);
-    this.#stations.set(id, {
+    return {
       ...(report ? { report } : {}), checkedAt, missing: !received || preferred !== received,
-    });
+    };
+  }
+
+  #accept(reports: [string, TafReport | undefined][], checkedAt: number): void {
+    const now = (this.options.now ?? Date.now)(), updates = new Map<string, CachedTaf>();
+    for (const [id, report] of reports) {
+      const entry = this.#prepare(id, report, checkedAt, now);
+      if (entry) updates.set(id, entry);
+    }
+    this.#budget.acceptAll([...updates].map(([id, entry]) => [id, entry.report]));
+    for (const [id, entry] of updates) {
+      if (entry.report !== this.#stations.get(id)?.report) this.#dirty = true;
+      this.#stations.delete(id); this.#stations.set(id, entry);
+    }
   }
 
   #trim(): void {

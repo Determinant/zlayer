@@ -1,13 +1,20 @@
 /** Qualified GRIB2 subset: WMO templates 3.30, 4.0, 5.0/5.2/5.3.
  * NOAA template specifications and independent GDAL comparisons are recorded in README.md.
  * Unsupported packing, metadata or scanning must fail, never guess weather values. */
+import { wrapLongitude } from '../geographic';
 export type GribIdentity = { runTime: number; lead: number; category: number; parameter: number; surface: number; altitude?: number; pressureHpa?: number };
 export type LambertGrid = { width: number; height: number; latitude: number; longitude: number;
   originLatitude: number; meridian: number; parallel1: number; parallel2: number; dx: number; dy: number; signature: string; gridRelative?: boolean };
 export type GribField = { grid: LambertGrid; values: Float32Array };
-const fail = (message: string): never => { throw new Error(`Unsupported or invalid GRIB: ${message}`); };
+export class GribSourceError extends Error {}
+const fail = (message: string): never => { throw new GribSourceError(`Unsupported or invalid GRIB: ${message}`); };
 const signed = (value: number, bits: number) => value >= 2 ** (bits - 1) ? -(value - 2 ** (bits - 1)) : value;
-const longitude = (value: number) => value > 180 ? value - 360 : value;
+function longitude(value: number): number {
+  // GRIB2 regulation 92.1.8 supplies positive east longitude in [0, 360].
+  // Check before wrapping: modulo must not turn corrupt/missing metadata valid.
+  if (value > 360_000_000) return fail('longitude bounds');
+  return wrapLongitude(value / 1e6);
+}
 
 class Bits {
   offset = 0;
@@ -74,8 +81,8 @@ function readLambertGrid(g: DataView): LambertGrid {
     g.getUint8(63) !== 0 || g.getUint8(64) !== 64 || g.getUint32(73) !== 0 || g.getUint32(77) !== 0 ||
     width < 2 || height < 2 || points > 4_000_000 || g.getUint32(6) !== points) fail('Lambert geometry or scanning');
   const angle = (at: number) => signed(g.getUint32(at), 32) / 1e6;
-  const grid: LambertGrid = { width, height, latitude: angle(38), longitude: longitude(angle(42)),
-    originLatitude: angle(47), meridian: longitude(angle(51)), parallel1: angle(65), parallel2: angle(69),
+  const grid: LambertGrid = { width, height, latitude: angle(38), longitude: longitude(g.getUint32(42)),
+    originLatitude: angle(47), meridian: longitude(g.getUint32(51)), parallel1: angle(65), parallel2: angle(69),
     dx: g.getUint32(55) / 1000, dy: g.getUint32(59) / 1000, gridRelative: !!(g.getUint8(LAMBERT_RESOLUTION_FLAGS) & GRID_RELATIVE_COMPONENTS),
     signature: [...new Uint8Array(g.buffer, g.byteOffset, g.byteLength)].map(n => n.toString(16).padStart(2, '0')).join('') };
   if (![grid.latitude, grid.originLatitude, grid.parallel1, grid.parallel2].every(n => n > 0 && n < 90) ||

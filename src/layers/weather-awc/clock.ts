@@ -8,7 +8,7 @@ export function mountWeatherClock(read: () => WeatherState, publish: () => void)
     clearTimeout(timer);
     const p = read().preferences;
     const active = p.awcGairmet || p.awcFreezing || p.awcSigmet || p.awcConvective || p.awcCwa ||
-      p.awcRadar || p.awcProgs || p.awcWindBarbs || p.awcGridMode !== 'none';
+      p.awcPireps || p.awcRadar || p.awcProgs || p.awcWindBarbs || p.awcGridMode !== 'none';
     if (stopped || !p.awcEnabled || !active || document.visibilityState === 'hidden') return;
     const now = Date.now();
     const boundaries = Object.values(read().products).flatMap(product =>
