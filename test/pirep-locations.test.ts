@@ -25,22 +25,34 @@ function location(ov: string) {
   const parsed = readPirepLocation(`GFK UA /OV ${ov}/TM 1516/FL080/TP C172`);
   assert.ok('location' in parsed, ov); return parsed.location;
 }
+function points(ov: string) {
+  const parsed = location(ov);
+  assert.equal(parsed.kind, 'points', ov); return parsed.points;
+}
+function recovery(ov: string) {
+  const parsed = location(ov);
+  assert.equal(parsed.kind, 'recovery', ov); return parsed;
+}
+function compassDescription(ov: string) {
+  const { description } = recovery(ov);
+  assert.equal(description.kind, 'compass', ov); return description;
+}
 
 test('FAA /OV point, radial-distance, route and degrees/minutes forms are fully consumed', () => {
   for (const ov of ['GFK180005', 'GFK 180005', 'GFK 180 005']) {
-    assert.deepEqual(location(ov).points, [{ ident: 'GFK', radial: 180, distanceNm: 5 }]);
+    assert.deepEqual(points(ov), [{ kind: 'offset', ident: 'GFK', bearing: 'magnetic', radial: 180, distanceNm: 5 }]);
   }
-  assert.deepEqual(location('GFK360000').points, [{ ident: 'GFK', radial: 0, distanceNm: 0 }]);
+  assert.deepEqual(points('GFK360000'), [{ kind: 'offset', ident: 'GFK', bearing: 'magnetic', radial: 0, distanceNm: 0 }]);
   for (const ident of ['KJFK', 'W55', '0B5', '1CA9']) {
-    assert.deepEqual(location(ident), { text: ident, points: [{ ident }] }, 'bare airport identifiers are standard /OV locations');
+    assert.deepEqual(points(ident), [{ kind: 'reference', ident }], 'bare airport identifiers are standard /OV locations');
   }
-  assert.deepEqual(location('KJFK107080').points, [{ ident: 'KJFK', radial: 107, distanceNm: 80 }]);
-  assert.deepEqual(location('KFMG233016').points, [{ ident: 'KFMG', radial: 233, distanceNm: 16 }]);
-  assert.equal(location('KSTL090030-KMKC045015').points.length, 2);
-  assert.equal(location('KSTL – KMKC - GFK').points.length, 3);
-  assert.deepEqual(location('3901N 08446W').points, [{ coordinate: [-84 - 46 / 60, 39 + 1 / 60] }]);
-  assert.deepEqual(location('3901S08446E').points, [{ coordinate: [84 + 46 / 60, -39 - 1 / 60] }]);
-  assert.deepEqual(location('0000N 18000W').points, [{ coordinate: [-180, 0] }]);
+  assert.deepEqual(points('KJFK107080'), [{ kind: 'offset', ident: 'KJFK', bearing: 'magnetic', radial: 107, distanceNm: 80 }]);
+  assert.deepEqual(points('KFMG233016'), [{ kind: 'offset', ident: 'KFMG', bearing: 'magnetic', radial: 233, distanceNm: 16 }]);
+  assert.equal(points('KSTL090030-KMKC045015').length, 2);
+  assert.equal(points('KSTL – KMKC - GFK').length, 3);
+  assert.deepEqual(points('3901N 08446W'), [{ kind: 'coordinate', coordinate: [-84 - 46 / 60, 39 + 1 / 60] }]);
+  assert.deepEqual(points('3901S08446E'), [{ kind: 'coordinate', coordinate: [84 + 46 / 60, -39 - 1 / 60] }]);
+  assert.deepEqual(points('0000N 18000W'), [{ kind: 'coordinate', coordinate: [-180, 0] }]);
   assert.ok('location' in readPirepLocation('GFK UUA\r\n/OV GFK180005 /TM1516 /RM TEST'));
 });
 
@@ -78,20 +90,22 @@ test('the TEI reader never extracts partial locations, duplicate fields, cloud c
   }
   for (const text of ['GFK UA /RM EXAMPLE /OV GFK180005', 'GFK UA /SK OVC015-TOP035/OVC230 /RM /OV GFK180005',
     'GFK UA /TM 1516', 'AIREP /OV GFK180005', 'X'.repeat(20_001)]) assert.ok('reason' in readPirepLocation(text));
-  assert.deepEqual(readPirepLocation('GFK UA /OV GFK180005 /RM PREVIOUS /OV KGFK'), { location: location('GFK180005') });
+  assert.deepEqual(readPirepLocation('GFK UA /OV GFK180005 /RM PREVIOUS /OV KGFK'), { kind: 'parsed', location: location('GFK180005') });
 });
 
 test('compass offsets recover the reporting airport with explicit assumptions and geographic directions', () => {
   const raw = 'HYA UA /OV 2 N/TM 2108/FL2000/TP P212/SK OVC007';
   const parsed = readPirepLocation(raw);
   assert.ok('location' in parsed);
-  assert.deepEqual(parsed.location.points, [{ ident: 'HYA', radial: 0, distanceNm: 2, bearing: 'true', airportOnly: true }]);
-  assert.equal(parsed.location.estimated, 'Approx. 2 NM N of HYA (reporting station)');
+  assert.equal(parsed.location.kind, 'recovery');
+  assert.deepEqual(parsed.location.anchor, { ident: 'HYA', source: 'reporting-station' });
+  assert.deepEqual(parsed.location.description, { kind: 'compass', direction: 'N', radial: 0, distance: { value: 2, unit: 'NM', distanceNm: 2 } });
   const hya: GeoPointFeature = { ...airport, id: 'hya-airport', geometry: { type: 'Point', coordinates: [-70.28, 41.67] },
     properties: { kind: 'airport', ident: 'HYA', faaId: 'HYA', icaoId: 'KHYA' } };
   const vor: GeoPointFeature = { ...station(), properties: { ...station().properties, ident: 'HYA' } };
   const result = createPirepLocationReferences(navigation([vor], [hya]))(parsed.location, pirepFixture().checkedAt);
   assert.ok('coordinate' in result); assert.equal(result.estimated, true);
+  assert.equal(result.description, 'Approx. 2 NM N of HYA (reporting station)');
   assert.ok(Math.abs(result.coordinate[0] - hya.geometry.coordinates[0]) < 1e-7);
   assert.ok(result.coordinate[1] > hya.geometry.coordinates[1]);
   assert.ok(Math.abs(distanceNm(result.coordinate, hya.geometry.coordinates) - 2) < 1e-7,
@@ -114,20 +128,23 @@ test('compass offsets recover the reporting airport with explicit assumptions an
 
 test('compass recovery accepts bounded equivalent phrases and honors explicit references and units', () => {
   for (const ov of ['2 N', '2N', 'N 2', 'N2', '2 NORTH', '2 NM NORTH', '2 MILES NORTH']) {
-    assert.deepEqual(location(ov).points, [{ ident: 'GFK', radial: 0, distanceNm: 2, bearing: 'true', airportOnly: true }], ov);
+    assert.deepEqual(recovery(ov).anchor, { ident: 'GFK', source: 'reporting-station' }, ov);
+    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0, distance: { value: 2, unit: 'NM', distanceNm: 2 } }, ov);
   }
-  for (const ov of ['2 NNE', '2 NORTH NORTHEAST', '2 NORTH-NORTH-EAST']) {
-    assert.equal((location(ov).points[0] as { radial: number }).radial, 22.5, ov);
+  for (const ov of ['2 NNE', '2 NORTH NORTHEAST', '2 NORTH-NORTH-EAST', '2 NM NNE', '2 MILES NNE']) {
+    assert.equal(compassDescription(ov).radial, 22.5, ov);
   }
-  assert.equal((location('7 SOUTH').points[0] as { radial: number }).radial, 180);
-  for (const ov of ['2 N OF KHYA', '2 N KHYA', 'KHYA 2 N', 'KHYA N 2']) {
-    assert.deepEqual(location(ov).points, [{ ident: 'KHYA', radial: 0, distanceNm: 2, bearing: 'true' }], ov);
-    assert.equal(location(ov).estimated, 'Approx. 2 NM N of KHYA');
+  assert.equal(compassDescription('7 SOUTH').radial, 180);
+  for (const ov of ['2 N OF KHYA', '2 N KHYA', 'KHYA 2 N', 'KHYA N 2', '2 MILES N OF KHYA']) {
+    assert.deepEqual(recovery(ov).anchor, { ident: 'KHYA', source: 'explicit' }, ov);
+    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0, distance: { value: 2, unit: 'NM', distanceNm: 2 } }, ov);
   }
-  assert.equal((location('2SM NE').points[0] as { distanceNm: number }).distanceNm, 2 * 1609.344 / 1852);
-  assert.equal((location('.5 NM SW').points[0] as { distanceNm: number }).distanceNm, .5);
-  assert.deepEqual(location('10N').points, [{ ident: '10N' }], 'standard bare airport IDs cannot become inferred offsets');
-  assert.deepEqual(location('2NE').points, [{ ident: '2NE' }]);
+  assert.equal(compassDescription('2SM NE').distance.distanceNm, 2 * 1609.344 / 1852);
+  assert.equal(compassDescription('.5 NM SW').distance.distanceNm, .5);
+  for (const ident of ['10N', '2NE']) {
+    const parsed = location(ident);
+    assert.equal(parsed.kind, 'identifier-or-recovery'); assert.equal(parsed.ident, ident);
+  }
   for (const ov of ['2', '-2 N', '1000 N', '2 N EXTRA TEXT', '2 N OF UNKN', '2 NORTH OR SOUTH', '2 N-3 E']) {
     assert.ok('reason' in readPirepLocation(`HYA UA /OV ${ov}/TM 2108`), ov);
   }
@@ -154,6 +171,140 @@ test('compact compass offsets resolve after checking published airport identitie
       'an exact published identity wins over compass shorthand');
     assert.ok('reason' in createPirepLocationReferences(navigation([], [airport, published, { ...published, id: 'duplicate' }]))(location(ident), time),
       'ambiguous published identifiers cannot become offsets');
+  }
+});
+
+test('compass descriptions without a reporting station cannot become distance-only airport references', () => {
+  for (const header of ['UA', 'UNKN UA', '123 UA']) {
+    for (const direction of ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
+      'NORTH EAST', 'NORTH-NORTH-WEST', 'SOUTH', 'WEST']) {
+      for (const unit of ['NM', 'SM', 'MILES']) {
+        for (const ov of [`2 ${unit} ${direction}`, `${direction} 2 ${unit}`]) {
+          assert.equal(readPirepLocation(`${header} /OV ${ov}/TM 1516`).kind, 'rejected', `${header} /OV ${ov}`);
+        }
+      }
+    }
+  }
+  const explicit = readPirepLocation('UA /OV 2 NM OF NNE/TM 1516');
+  assert.ok('location' in explicit, 'OF makes the airport reference explicit even when its identifier resembles a direction');
+  const nne: GeoPointFeature = { ...airport, id: 'nne-airport', properties: { kind: 'airport', ident: 'NNE' } };
+  const result = createPirepLocationReferences(navigation([], [nne]))(explicit.location, pirepFixture().checkedAt);
+  assert.ok('coordinate' in result);
+  assert.deepEqual(result.coordinate, nne.geometry.coordinates);
+  assert.equal(result.description, 'Approx. 2 NM from NNE; airport reference, direction unknown');
+});
+
+test('recognized invalid syntax stays rejected while unsupported syntax stays unrecognized', () => {
+  for (const ov of ['1000 N', '1000 MILES', '20 NM', 'GFK361005', 'GFK1801000', '3960N08446W', 'ILS RWY 37', 'FINAL 00']) {
+    assert.equal(readPirepLocation(`GFK UA /OV ${ov}/TM 1516`).kind, 'rejected', ov);
+  }
+  for (const ov of ['NEAR THE AIRPORT', '2 NORTH OR SOUTH', 'GFK180005 EXTRA', 'RWY 8L']) {
+    assert.equal(readPirepLocation(`GFK UA /OV ${ov}/TM 1516`).kind, 'unrecognized', ov);
+  }
+  for (const ov of ['2 MILES', 'RNAV 15', '260020']) {
+    const rejected = readPirepLocation(`UA /OV ${ov}`);
+    assert.equal(rejected.kind, 'rejected');
+    assert.match(rejected.reason, /Reporting airport unavailable/);
+  }
+});
+
+test('coordinates own their syntax and never require a reporting airport or navigation data', () => {
+  const resolve = createPirepLocationReferences();
+  for (const header of ['GFK UA', 'UA', 'UNKN UA']) {
+    for (const [ov, coordinate] of [['3901N 08446W', [-84 - 46 / 60, 39 + 1 / 60]], ['0200S03000E', [30, -2]]] as const) {
+      const parsed = readPirepLocation(`${header} /OV ${ov}`);
+      assert.equal(parsed.kind, 'parsed');
+      assert.deepEqual(resolve(parsed.location, pirepFixture().checkedAt), { coordinate, description: `Decoded /OV · ${ov}` });
+    }
+  }
+});
+
+test('rejected compact fallbacks cannot hide a published identifier', () => {
+  const time = pirepFixture().checkedAt;
+  for (const header of ['GFK UA', 'UA', 'UNKN UA', '123 UA']) {
+    for (const ident of ['2SM', '20SM', '2NE', '30NW']) {
+      const parsed = readPirepLocation(`${header} /OV ${ident}`);
+      assert.equal(parsed.kind, 'parsed');
+      const published: GeoPointFeature = { ...airport, id: ident, properties: { kind: 'airport', ident } };
+      assert.deepEqual(createPirepLocationReferences(navigation([], [published]))(parsed.location, time),
+        { coordinate: airport.geometry.coordinates, description: `Decoded /OV · ${ident}` }, `${header} /OV ${ident}`);
+      if (header !== 'GFK UA' || ident === '20SM') {
+        assert.ok('reason' in createPirepLocationReferences(navigation())(parsed.location, time), 'absent identities preserve the fallback rejection');
+      }
+    }
+  }
+});
+
+test('distance-only locations use an approximate airport reference with the direction left unknown', () => {
+  const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences(navigation());
+  for (const ov of ['2SM', '2 SM', '2NM', '2 NM', '2 MILES', '.5 SM', '0 NM', '5 NM', '5 MILES', '5.75 SM']) {
+    const result = resolve(location(ov), time);
+    assert.ok('coordinate' in result, ov);
+    assert.deepEqual(result.coordinate, airport.geometry.coordinates, 'no direction can be inferred from a distance alone');
+    assert.equal(result.estimated, true);
+    assert.match(result.description, /from GFK \(reporting station\); airport reference, direction unknown/);
+  }
+  const compact = resolve(location('2SM'), time);
+  assert.ok('coordinate' in compact);
+  assert.equal(compact.description, 'Approx. 2 SM from GFK (reporting station); airport reference, direction unknown');
+  for (const ov of ['2 SM OF KGFK', 'KGFK 2 SM', '2 SM KGFK']) {
+    const result = resolve(location(ov), time);
+    assert.ok('coordinate' in result, ov);
+    assert.deepEqual(result.coordinate, airport.geometry.coordinates);
+    assert.equal(result.description, 'Approx. 2 SM from KGFK; airport reference, direction unknown');
+  }
+  assert.ok('coordinate' in createPirepLocationReferences({ airports: navigation().airports! })(location('2 SM'), time),
+    'an unambiguous distance needs only an airport reference and no magnetic model');
+  const miles = resolve(location('2 MILES OF KGFK'), time);
+  assert.ok('coordinate' in miles);
+  assert.equal(miles.description, 'Approx. 2 NM from KGFK; airport reference, direction unknown');
+  for (const ov of ['2', '-2 SM', '1000 NM', '2 SM EXTRA TEXT', '2 SM OF UNKN', '2 SM-3 SM']) {
+    assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}/TM 1516`), ov);
+  }
+  for (const raw of ['UA /OV 2 SM/TM 1516', 'GFK UA /RM /OV 2 SM', 'GFK UA /OV 2 SM/OV 3 SM']) {
+    assert.ok('reason' in readPirepLocation(raw), raw);
+  }
+  for (const airports of [[], [airport, { ...airport, id: 'duplicate' }]]) {
+    assert.ok('reason' in createPirepLocationReferences(navigation([station()], airports))(location('2SM'), time),
+      'missing or ambiguous reporting airports cannot use a same-ID VOR');
+  }
+  assert.ok('reason' in resolve(location('2 SM OF KHYA'), time), 'an unavailable explicit airport cannot fall back to the header');
+});
+
+test('distance-only airport markers stay within 5 NM without limiting located offsets or identifiers', () => {
+  const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences(navigation());
+  for (const distance of ['5.001 NM', '5.76 SM', '6 MILES', '20 NM', '999 NM']) {
+    for (const ov of [distance, `${distance} OF KGFK`, `KGFK ${distance}`]) {
+      assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}/TM 1516`), ov);
+    }
+  }
+  for (const ov of ['6SM', '20NM']) {
+    assert.ok('reason' in resolve(location(ov), time), 'unknown compact identifiers cannot bypass the distance limit');
+  }
+  for (const ov of ['6 MILES N', '20 NM N']) {
+    const result = resolve(location(ov), time);
+    assert.ok('coordinate' in result, 'a supplied direction still permits a real offset');
+    assert.ok(distanceNm(result.coordinate, airport.geometry.coordinates) > 5);
+  }
+});
+
+test('compact distance and compass recovery require complete lookup and preserve known identifiers', () => {
+  const time = pirepFixture().checkedAt;
+  for (const ident of ['2SM', '2NM', '20SM', '2NE', '30NW']) {
+    const parsed = location(ident);
+    const published: GeoPointFeature = { ...airport, id: ident, geometry: { type: 'Point', coordinates: [-74, 41] },
+      properties: { kind: 'airport', ident, faaId: ident } };
+    assert.deepEqual(createPirepLocationReferences(navigation([], [airport, published]))(parsed, time),
+      { coordinate: published.geometry.coordinates, description: `Decoded /OV · ${ident}` });
+    assert.ok('reason' in createPirepLocationReferences(navigation([], [airport, published, { ...published, id: 'duplicate' }]))(parsed, time));
+    const unsupported: GeoPointFeature = { ...station(), properties: { kind: 'navaid', ident, type: 'NDB' } };
+    assert.ok('reason' in createPirepLocationReferences(navigation([unsupported]))(parsed, time), 'unsupported known identities remain unresolved');
+    for (const layer of ['airports', 'navaids'] as const) {
+      const data = navigation(), collection = data[layer]!;
+      assert.ok('reason' in createPirepLocationReferences({ ...data, [layer]: undefined })(parsed, time));
+      assert.ok('reason' in createPirepLocationReferences({ ...data,
+        [layer]: { ...collection, meta: { ...collection.meta, truncated: true } } })(parsed, time));
+    }
   }
 });
 
@@ -192,17 +343,17 @@ test('the reported DEN offsets and BTV approach move from unplotted entries into
 
 test('approach descriptions retain their airport context without inventing a position along the procedure', () => {
   for (const ov of ['RNAV 15', 'RNAV RWY15', 'ON RNAV 15', 'RNAV (GPS) Z RWY 15', 'ILS RWY 15', 'LOC/DME 15', 'FINAL RWY 15']) {
-    const parsed = location(ov);
-    assert.deepEqual(parsed.points, [{ ident: 'GFK', airportOnly: true }], ov);
-    assert.match(parsed.estimated!, /airport reference, position along approach unknown/);
+    const parsed = recovery(ov);
+    assert.deepEqual(parsed.anchor, { ident: 'GFK', source: 'reporting-station' }, ov);
+    assert.equal(parsed.description.kind, 'approach');
     const resolved = createPirepLocationReferences({ airports: navigation().airports! })(parsed, pirepFixture().checkedAt);
     assert.ok('coordinate' in resolved); assert.deepEqual(resolved.coordinate, airport.geometry.coordinates);
+    assert.match(resolved.description, /airport reference, position along approach unknown/);
   }
   for (const ov of ['KGFK RNAV 15', 'RNAV 15 KGFK', 'RNAV 15 AT KGFK']) {
-    assert.deepEqual(location(ov).points, [{ ident: 'KGFK', airportOnly: true }], ov);
-    assert.doesNotMatch(location(ov).estimated!, /reporting station/);
+    assert.deepEqual(recovery(ov).anchor, { ident: 'KGFK', source: 'explicit' }, ov);
   }
-  assert.deepEqual(location('GPS1'), { text: 'GPS1', points: [{ ident: 'GPS1' }] }, 'bare airport IDs retain precedence');
+  assert.deepEqual(points('GPS1'), [{ kind: 'reference', ident: 'GPS1' }], 'bare airport IDs retain precedence');
   for (const ov of ['RNAV 00', 'RNAV 37', 'RNAV 15 EXTRA', 'RNAV 15-33', 'RNAV 15 AT UNKN']) {
     assert.ok('reason' in readPirepLocation(`BTV UUA /OV ${ov}/TM 2121`), ov);
   }
@@ -210,6 +361,42 @@ test('approach descriptions retain their airport context without inventing a pos
   assert.ok('reason' in readPirepLocation('BTV UUA /RM RNAV 15'), 'remarks cannot supply an approach location');
   assert.ok('reason' in createPirepLocationReferences(navigation())(location('RNAV 15 AT KBTV'), pirepFixture().checkedAt),
     'missing explicit approach airports do not fall back to the header');
+});
+
+test('runway departures retain airport context without inventing a position along the departure', () => {
+  const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences({ airports: navigation().airports! });
+  for (const ov of ['DEP 4', 'DEP 04', 'DEP RWY4', 'DEP RUNWAY 04', 'ON DEP RWY 4', 'DEPARTURE 4', 'DEPARTURE RWY04']) {
+    const parsed = recovery(ov);
+    assert.deepEqual(parsed.anchor, { ident: 'GFK', source: 'reporting-station' }, ov);
+    assert.deepEqual(parsed.description, { kind: 'departure', runway: '04' }, ov);
+    assert.deepEqual(resolve(parsed, time), { coordinate: airport.geometry.coordinates, estimated: true,
+      description: 'Approx. DEP RWY 04 at GFK (reporting station); airport reference, position along departure unknown' });
+  }
+  for (const ov of ['KGFK DEP 4L', 'DEP RWY 04L KGFK', 'DEP 04L AT KGFK']) {
+    const parsed = recovery(ov);
+    assert.deepEqual(parsed.anchor, { ident: 'KGFK', source: 'explicit' }, ov);
+    assert.deepEqual(parsed.description, { kind: 'departure', runway: '04L' }, ov);
+    assert.deepEqual(resolve(parsed, time), { coordinate: airport.geometry.coordinates, estimated: true,
+      description: 'Approx. DEP RWY 04L at KGFK; airport reference, position along departure unknown' });
+  }
+  for (const ov of ['DEP 1', 'DEP 36R', 'DEP 09C']) assert.ok('coordinate' in resolve(location(ov), time), ov);
+  for (const ov of ['DEP 00', 'DEP 37', 'DEP RWY 99']) {
+    assert.equal(readPirepLocation(`GFK UA /OV ${ov}`).kind, 'rejected', ov);
+  }
+  for (const ov of ['DEP 4 EXTRA', 'DEP 4-22', 'DEP -4', 'DEP 004', 'DEP 4LR', 'DEP 4 OF UNKN', 'DEP 4 AT FORCK', 'DEPARTURE']) {
+    assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}`), ov);
+  }
+  for (const header of ['UA', 'UNKN UA', '123 UA']) {
+    assert.equal(readPirepLocation(`${header} /OV DEP 4`).kind, 'rejected', 'implicit departures require a reporting airport');
+  }
+  for (const raw of ['GFK UA /RM /OV DEP 4', 'GFK UA /OV DEP 4/OV GFK']) assert.ok('reason' in readPirepLocation(raw), raw);
+  assert.ok('reason' in resolve(location('DEP 4 AT KAMA'), time), 'an unavailable explicit airport cannot fall back to the header');
+  for (const airports of [[], [airport, { ...airport, id: 'duplicate' }]]) {
+    assert.ok('reason' in createPirepLocationReferences(navigation([station()], airports))(location('DEP 4'), time),
+      'a missing or ambiguous airport cannot use a same-ID VOR');
+  }
+  for (const ident of ['DEP', 'DEP4']) assert.deepEqual(points(ident), [{ kind: 'reference', ident }], 'published identifiers retain precedence');
+  assert.deepEqual(points('DEP040010'), [{ kind: 'offset', ident: 'DEP', bearing: 'magnetic', radial: 40, distanceNm: 10 }]);
 });
 
 test('VOR positions use published alignment and explicit airports use magnetic bearings', () => {

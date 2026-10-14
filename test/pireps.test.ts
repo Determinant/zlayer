@@ -184,6 +184,35 @@ test('equivalent fields and repeated delivery preserve identity; unknown/qualifi
   assert.match((await parse(envelope([negative]))).reports[0]!.icing[0]!, /NEG/);
 });
 
+test('only complete raw flight-level uncertainty markers override the structured altitude', () => {
+  for (const altitude of [0, 8000]) {
+    for (const [text, expected] of [
+      ...['DURC', 'DURD', 'UNKN', ' durc '].map(flightLevel => [`AMA UA /OV AMA/TM 0620/FL${flightLevel}/SK OVC045-TOPS053`, null] as const),
+      ['AMA UA /OV AMA/TM 0620/FL000', altitude],
+      ['AMA UA /OV AMA/TM 0620/FL070/RM DURC /FLUNKN', altitude],
+      ['AMA UA /OV AMA/TM 0620/RM /FLDURC', altitude],
+      ['AMA UA /OV AMA/TM 0620/FLDURC020', altitude],
+      ['AMA UA /OV AMA/TM 0620/FLDURC/FL080', altitude],
+    ] as const) {
+      const member = `<AircraftReport><observation_time>2026-10-13T06:20:00Z</observation_time>
+        <latitude>35.2194</latitude><longitude>-101.7059</longitude><altitude_ft_msl>${altitude}</altitude_ft_msl>
+        <sky_condition sky_cover="OVC" cloud_base_ft_msl="4500" cloud_top_ft_msl="5300"/>
+        <report_type>PIREP</report_type><raw_text>${text}</raw_text></AircraftReport>`;
+      const snapshot = decodePirepSource({ schemaVersion: 2, source: 'Synthetic altitude regression', checkedAt: NOW, records: [member] });
+      assert.equal(snapshot.issues.length, 0, text);
+      const report = snapshot.reports[0]!;
+      assert.equal(report.altitudeFt, expected, text);
+      assert.deepEqual(report.sky, ['OVC · 4500–5300 ft MSL']);
+      assert.deepEqual(report.quality, []);
+      assert.equal(report.text, text); assert.equal(report.sourceXml, member);
+      const malformed = member.replace(`<altitude_ft_msl>${altitude}`, '<altitude_ft_msl>INVALID');
+      const invalid = decodePirepSource({ schemaVersion: 2, source: 'Synthetic altitude regression', checkedAt: NOW, records: [malformed] });
+      assert.equal(invalid.reports.length, 0, 'uncertain raw altitude cannot conceal malformed structured altitude');
+      assert.equal(invalid.issues.length, 1); assert.equal(invalid.issues[0]!.sourceXml, malformed);
+    }
+  }
+});
+
 test('equivalent XML attribute order, numeric fields and qualifier order keep one report identity', async () => {
   for (const [name, attributes] of [
     ['sky_condition', 'sky_cover="BKN" cloud_base_ft_msl="7000" cloud_top_ft_msl="9000"'],

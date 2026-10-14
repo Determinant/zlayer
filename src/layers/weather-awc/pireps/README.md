@@ -65,8 +65,15 @@ descriptions and quality flags. Conditions retain NEG and other source qualifier
 absence of an icing/turbulence field does not mean negative conditions. The AWC
 schema labels numeric altitude in feet MSL; we preserve that meaning rather than
 substituting a forecast altitude. Missing, ranged or AGL-qualified altitudes remain
-unknown for filtering. `bad_location` prevents plotting source coordinates; valid
-observation fields remain available for PWA `/OV` recovery. A finite source position
+unknown for filtering. A complete raw `/FL DURC`, `/FL DURD` or `/FL UNKN` also
+leaves altitude unknown, even if XML supplies a number: the AMA departure capture
+supplies zero for a climb-only report without an altitude quality flag. The
+original XML number remains in source evidence. Numeric flight levels and mentions
+of climb/descent in remarks do not override the structured altitude; zero remains
+valid when no explicit uncertainty applies. Raw uncertainty cannot suppress
+validation of a malformed structured altitude. `bad_location` prevents plotting
+source coordinates; valid observation fields remain available for PWA `/OV`
+recovery. A finite source position
 is retained as untrusted corroborating evidence for the narrow identifier-typo
 recovery below, never as a replacement for a published reference. A missing observation
 time or `no_time_stamp` flag permits bounded PWA `/TM` recovery as described below.
@@ -83,17 +90,19 @@ qualifier order and equivalent numeric representations do not change identity;
 repeated condition layers keep source order. The source cache preserves every
 original delivery regardless of the derived display identity.
 
-The bounded raw-text reader interprets `/OV` for location and `/TM` for time
-recovery; it does not infer other observation fields from free text. Wind,
+The bounded raw-text reader interprets `/OV` for location, `/TM` for time
+recovery, and complete `/FL` uncertainty markers. It does not synthesize numeric
+altitudes or other observation fields from free text. Wind,
 temperature, visibility, weather strings and vertical gusts remain in XML/raw evidence; the compact summary
 covers sky, turbulence and icing. Nested scalar/condition content, duplicate
 quality flags and unsupported condition attributes remain explicit issues.
 Condition heights must be integer feet from −2,000 to 100,000 with base no higher
 than top. Malformed nested reports retain their original member XML as evidence.
 
-The [October 13 source capture](../../../../test/fixtures/pireps/README.md) contains
-roughly 90 minutes of observations and one AWC-flagged bad location. Its scope is
-evidence for this implementation, not a guarantee of future source coverage.
+The [October 13–14 source captures](../../../../test/fixtures/pireps/README.md)
+each contain roughly 90 minutes of observations, including AWC-flagged bad
+locations. They provide regression evidence for this implementation; they do not
+guarantee future source coverage or support for every raw location phrase.
 
 ## Raw location decoding
 
@@ -103,6 +112,25 @@ bounded reader in `text.ts` advances through text-element indicators, consumes t
 and treats `/RM` as terminal free text. Duplicate locations, unconsumed suffixes,
 invalid bearings/minutes/coordinates and oversized fields/routes stay unresolved.
 Cloud-layer slashes and `/OV` quoted in remarks cannot supply a position.
+
+Readers return explicit `parsed`, `unrecognized` or `rejected` outcomes. Only
+unrecognized syntax can try another grammar; recognized syntax with invalid
+values or missing context retains its rejection. Standard coordinates, routes
+and reference/bearing forms take precedence over local descriptions. A complete
+local description is recognized before looking for an explicit anchor, so compass
+words cannot become airport identifiers when the reporting station is missing.
+Compact identifier/recovery choices and ambiguous identifier splits are explicit
+alternatives resolved against published references. Even when a compact token's
+recovery is rejected, its published identifier can still resolve.
+
+Parsed locations use distinct types for coordinates, references, offsets, routes
+and recovery choices. Recovery metadata carries the anchor, its source and the
+description kind (compass, distance, approach, departure or magnetic bearing). Reference
+resolution uses those fields; human-readable labels are formatted afterward.
+Extending a grammar requires defining its complete syntax and rejection rules,
+then adding recovery/reference handling and overlap tests. Display wording never
+controls which interpretation is accepted.
+
 Supported forms are three/four-character alphanumeric airport/VHF station IDs, identifiers with
 three-digit radial/bearing and three-digit nautical-mile distance (`GFK180005`,
 `GFK 180005`, `GFK 180 005`), degrees/minutes coordinates (`3901N 08446W`, either
@@ -155,6 +183,20 @@ corroborated typo rule below applies. These reports show
 details, retaining raw text unchanged. Missing or ambiguous reporting airports
 remain unplotted, and a same-ID VOR cannot replace the reporting airport.
 
+Distance-only descriptions require explicit units (`SM`, `NM`, or `MILE(S)`)
+and use a unique explicit or reporting airport as a representative marker. For
+example, `RNT UA /OV 2SM` shows **Approx. location** and retains **2 SM from RNT
+(reporting station); airport reference, direction unknown** in details. Fractional
+distances are accepted only up to 5 NM, converting `SM` before applying the limit;
+larger distance-only reports remain unplotted. This is a product recovery limit to
+bound the marker's displacement, not a restriction on offsets with a known direction.
+No bearing is inferred from altitude or remarks. A complete compass phrase without
+a usable reporting station stays unresolved; `UA /OV 2 NM NNE` cannot reinterpret
+the direction as an airport. An explicit `2 NM OF NNE` can still name an airport.
+Compact tokens such as `2SM` still prefer a published identifier; offset recovery
+requires complete, nontruncated airport and NAVAID collections, and known
+unsupported or ambiguous identities stay unresolved.
+
 A bare radial/distance such as `DEN UA /OV 260020` uses the same explicitly
 labeled reporting-airport assumption, with a 260° magnetic bearing and 20 NM
 distance. It requires WMM at observation time; a compass direction or same-ID
@@ -172,6 +214,16 @@ distance, glidepath position or procedure geometry is invented from altitude.
 The airport must resolve uniquely; an explicit unavailable airport never falls
 back to the header. This does not assert that a named approach is currently published.
 
+Runway departure descriptions such as `DEP 4`, `DEP RWY04L` and `DEPARTURE RUNWAY 4`
+use the same unique explicit or reporting-airport reference. The number is treated
+as a runway designation, with the same 01–36 and optional L/C/R limits, rather than
+a distance. Details show **DEP RWY 04** and **airport reference, position along
+departure unknown**, with **Approx. location** on the marker. No departure track,
+distance, flight level or procedure geometry is inferred. Whole fields are required;
+remarks and partial descriptions cannot supply the location. Missing or ambiguous
+airports stay unresolved, and bare published identifiers such as `DEP` or `DEP4`
+retain reference precedence.
+
 `location-references.ts` indexes the workspace's edition-qualified airport/NAVAID
 and five-letter fix data. PIREP enablement requests these even with navigation symbols
 hidden, sharing the navigation caches without requesting unrelated airway topology.
@@ -184,8 +236,8 @@ collection recomputes the derived location without rewriting the observation.
 VOR radials use the shared domain solver and published station alignment, as in
 NOTAM geometry. Airport and fix bearings use the existing WMM model at observation time.
 Missing alignment, expired/unavailable models and ambiguous identities remain
-explicitly unresolved. Unambiguous reporting-airport compass offsets and approach
-references need only the airport collection and no magnetic model; compact
+explicitly unresolved. Unambiguous reporting-airport compass offsets, approach and
+departure references need only the airport collection and no magnetic model; compact
 offset/identifier alternatives first require both reference collections.
 
 A bare, unknown three-letter `/OV` may recover a single-letter substitution of
@@ -385,20 +437,36 @@ cache migration. It also covers malformed envelopes, isolated member failures
 (including oversized text and invalid flags), validated unlocated observations,
 duplicate delivery, equivalent times, qualifiers, repeated layers, negative
 reports, filters, large browser cache snapshots, restoration races, storage failure
-and server publication/restart/failure/empty replacement.
+and server publication/restart/failure/empty replacement. Altitude regressions
+distinguish complete raw uncertainty markers from numeric levels, partial tokens,
+duplicate fields and remarks, while preserving cloud heights and source evidence.
 `test/pirep-time.test.ts` covers the captured GFK missing-time report in both wire
 formats, selection/expiry, combined time/location recovery, UTC midnight, duplicate
 and malformed fields, terminal remarks, and source-time precedence.
 `test/pirep-locations.test.ts` covers FAA `/OV` forms, direct alphanumeric airport
 and seaplane-base references, field boundaries, invalid and
 ambiguous locations, compact compass/identifier disambiguation, the supplied DEN
-and BTV report examples, approach-context markers, reporting-airport assumptions,
+and BTV report examples, approach/departure context markers, reporting-airport assumptions,
 station alignment, airport bearings, route midpoints, reference
-replacement, receipt deduplication and source preservation.
+replacement, receipt deduplication and source preservation. Grammar interaction
+tests distinguish unsupported and rejected forms, keep coordinates independent of
+reporting context, and preserve published compact IDs despite rejected fallbacks.
+Distance-only tests cover units, the 5 NM limit and missing-direction disclosure;
+compass tests cover all 16 directions with missing or invalid reporting stations.
 `test/pirep-location-recovery.test.ts` retains the actual LWM/CYBL-KBFI XML and
 published navigation features. It covers both wire formats through map selection,
 short/extra-zero distance padding, identifier splits, international station
 fallbacks, explicit reference precedence, missing WMM and the bare DEN radial.
+It also covers the supplied RNT distance-only report in synthetic XML for both
+wire formats, source-coordinate precedence and withdrawal of its airport reference.
+The captured AMA `DEP 4` case covers both wire formats through map selection,
+departure labeling, airport withdrawal and preservation of cloud layers while
+`/FLDURC` keeps the aircraft altitude unknown despite the source XML's zero.
+`test/pirep-corpus.test.ts` checks all 358 PIREPs in the two bulk captures through
+map selection, including all 11 bad-location recoveries, preservation of every
+observation and withdrawal of derived locations when references disappear. It
+records raw phrases that still depend on valid AWC coordinates separately from
+source decoding; successful display does not establish raw syntax coverage.
 `test/weather-awc.test.ts` covers refresh cadence, overdue checks on reopening,
 request sharing, drawing retries, and offline/hidden/disabled suspension. The browser
 regressions in `test/e2e/weather-pireps.spec.ts` cover location recovery and withdrawal

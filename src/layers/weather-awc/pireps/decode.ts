@@ -2,7 +2,7 @@ import { SaxesParser } from 'saxes';
 import { isAircraftReport, isUnlocatedAircraftReport, type AircraftReport, type UnlocatedAircraftReport,
   type PirepPayload, type PirepSnapshot } from '@zlayer/contracts';
 import { jsonIdentity } from '../../../core/data/json-identity';
-import { readPirepTime } from './text';
+import { readPirepField, readPirepTime } from './text';
 
 type Element = { name: string; attributes: Record<string, string>; text: string; children: Element[] };
 function invalid(): never { throw new Error('Report fields unavailable or invalid'); }
@@ -64,6 +64,11 @@ function normalize(node: Element, sourceXml: string, checkedAt: number): Aircraf
   const receipt = value(node, 'receipt_time');
   const reportedAltitude = value(node, 'altitude_ft_msl');
   const uncertainAltitude = quality.some(q => ['no_flt_lvl', 'flt_lvl_range', 'above_ground_level_indicated'].includes(q));
+  const altitudeFt = uncertainAltitude || reportedAltitude === undefined || reportedAltitude === '' ? null : altitude(reportedAltitude);
+  // AWC can supply zero without a quality flag for /FLDURC. An explicit
+  // nonnumeric flight level cannot establish a single observation altitude,
+  // but it must not hide malformed structured fields either.
+  const rawAltitude = readPirepField(raw?.text ?? '', 'FL')?.value;
   const conditions = (name: string, prefix: string, fields: string[]) => node.children.filter(c => c.name === name).map(c => {
     if (c.children.length || c.text.trim()) invalid();
     const a = c.attributes, baseKey = `${prefix}_base_ft_msl`, topKey = `${prefix}_top_ft_msl`;
@@ -86,7 +91,7 @@ function normalize(node: Element, sourceXml: string, checkedAt: number): Aircraf
   const flagged = quality.includes('bad_location');
   const location = !flagged && sourceCoordinate ? { longitude: sourceCoordinate[0], latitude: sourceCoordinate[1] } : undefined;
   const report = { observedAt, receivedAt: receipt ? instant(receipt) : null, ...location,
-    altitudeFt: uncertainAltitude || reportedAltitude === undefined || reportedAltitude === '' ? null : altitude(reportedAltitude),
+    altitudeFt: /^(?:DURC|DURD|UNKN)$/.test(rawAltitude ?? '') ? null : altitudeFt,
     type: value(node, 'report_type') || 'Unknown', urgent: value(node, 'report_type') === 'Urgent PIREP',
     aircraft: value(node, 'aircraft_ref') ?? '', turbulence: conditions('turbulence_condition', 'turbulence', ['turbulence_type', 'turbulence_intensity', 'turbulence_freq']),
     icing: conditions('icing_condition', 'icing', ['icing_type', 'icing_intensity']), sky: conditions('sky_condition', 'cloud', ['sky_cover']), quality,

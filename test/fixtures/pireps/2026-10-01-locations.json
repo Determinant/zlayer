@@ -701,6 +701,1716 @@
           }
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:23328.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.70591666,
+          35.21936111
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "23328.",
+        "facilityType": "A",
+        "faaId": "AMA",
+        "icaoId": "KAMA",
+        "name": "RICK HUSBAND AMARILLO INTL",
+        "city": "AMARILLO",
+        "state": "TX",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 3606.7,
+        "trafficPatternAltitudeFt": 895,
+        "chart": "DALLAS-FT WORTH",
+        "notamId": "AMA",
+        "responsibleArtcc": "ZAB",
+        "towerType": "ATCT-TRACON",
+        "towered": true,
+        "fuelTypes": "100LL,A1+",
+        "longestRunwayFt": 13502,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 118.3,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD, TO INCR INTST AND ACTVT MALSR RWYS 04 & 22; REIL RWY 13; HIRL RWYS 04/22, 13/31; ALL TWYS - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.3,
+            "use": "LCL/P",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 118.85,
+            "use": "ATIS",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.9,
+            "use": "LCL/P",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 348.6,
+            "use": "GND/P",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 350.3,
+            "use": "ATIS",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 118.85,
+            "use": "AMA ASOS"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 119.5,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 121.15,
+            "use": "APCH/S DEP/S",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 121.65,
+            "use": "CD/P",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 239.275,
+            "use": "CD/P",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 307,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 307.9,
+            "use": "APCH/S",
+            "facilityId": "AMA",
+            "facilityName": "AMARILLO",
+            "hours": "0600-0000"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 127.85,
+            "use": "AMARILLO RCAG",
+            "facilityId": "ZAB",
+            "facilityName": "ALBUQUERQUE",
+            "sector": "LOW",
+            "remarks": "APCH/DEP SVC PRVDD BY ALBUQUERQUE ARTCC (ZAB) ON FREQS 127.85/285.475 (AMARILLO RCAG) WHEN AMARILLO APCH CTL (AMA) CLSD."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 285.475,
+            "use": "AMARILLO RCAG",
+            "facilityId": "ZAB",
+            "facilityName": "ALBUQUERQUE",
+            "sector": "LOW",
+            "remarks": "APCH/DEP SVC PRVDD BY ALBUQUERQUE ARTCC (ZAB) ON FREQS 127.85/285.475 (AMARILLO RCAG) WHEN AMARILLO APCH CTL (AMA) CLSD."
+          }
+        ],
+        "runways": [
+          {
+            "id": "04/22",
+            "lengthFt": 13502,
+            "widthFt": 200,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "04",
+                "trueHeadingDeg": 46,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 38
+              },
+              {
+                "id": "22",
+                "trueHeadingDeg": 226,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 218
+              }
+            ]
+          },
+          {
+            "id": "13/31",
+            "lengthFt": 7901,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "13",
+                "trueHeadingDeg": 137,
+                "magneticHeadingDeg": 129
+              },
+              {
+                "id": "31",
+                "trueHeadingDeg": 317,
+                "magneticHeadingDeg": 309
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:13083.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -115.15244861,
+          36.08034277
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "13083.",
+        "facilityType": "A",
+        "faaId": "LAS",
+        "icaoId": "KLAS",
+        "name": "HARRY REID INTL",
+        "city": "LAS VEGAS",
+        "state": "NV",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 2183.1,
+        "chart": "LAS VEGAS",
+        "notamId": "LAS",
+        "responsibleArtcc": "ZLA",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100,100LL,A1+",
+        "longestRunwayFt": 14835,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.75,
+            "use": "LCL/P",
+            "sector": "RWY 01L/19R, 01R/19L",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.9,
+            "use": "LCL/P",
+            "sector": "RWY 08L/26R, 08R/26L",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.1,
+            "use": "GND/P",
+            "sector": "E OF RWY 01R/19L",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "sector": "W OF RWY 01L/19R",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 132.4,
+            "use": "D-ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 254.3,
+            "use": "GND/P",
+            "sector": "W OF RWY 01L/19R",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.8,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 270.8,
+            "use": "GND/P",
+            "sector": "E OF RWY 01R/19L",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 119.775,
+            "use": "APCH/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS",
+            "sector": "EAST"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 125.025,
+            "use": "APCH/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS",
+            "sector": "WEST"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 125.9,
+            "use": "DEP/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 133.95,
+            "use": "DEP/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 282.2,
+            "use": "APCH/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS",
+            "sector": "EAST"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 307.25,
+            "use": "DEP/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 353.7,
+            "use": "DEP/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 379.15,
+            "use": "APCH/P",
+            "facilityId": "L30",
+            "facilityName": "LAS VEGAS",
+            "sector": "WEST"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 118,
+            "use": "CD/P",
+            "facilityId": "LAS",
+            "facilityName": "LAS VEGAS",
+            "hours": "24"
+          }
+        ],
+        "runways": [
+          {
+            "id": "01L/19R",
+            "lengthFt": 9770,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "01L",
+                "trueHeadingDeg": 25,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 14
+              },
+              {
+                "id": "19R",
+                "trueHeadingDeg": 205,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 194
+              }
+            ]
+          },
+          {
+            "id": "01R/19L",
+            "lengthFt": 9769,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "01R",
+                "trueHeadingDeg": 25,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 14
+              },
+              {
+                "id": "19L",
+                "trueHeadingDeg": 205,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 194
+              }
+            ]
+          },
+          {
+            "id": "08L/26R",
+            "lengthFt": 14835,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "08L",
+                "trueHeadingDeg": 90,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 79
+              },
+              {
+                "id": "26R",
+                "trueHeadingDeg": 270,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 259
+              }
+            ]
+          },
+          {
+            "id": "08R/26L",
+            "lengthFt": 10526,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "EXCELLENT",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "08R",
+                "trueHeadingDeg": 90,
+                "magneticHeadingDeg": 79
+              },
+              {
+                "id": "26L",
+                "trueHeadingDeg": 270,
+                "magneticHeadingDeg": 259
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:02517.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -106.86823333,
+          39.22187833
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "02517.",
+        "facilityType": "A",
+        "faaId": "ASE",
+        "icaoId": "KASE",
+        "name": "ASPEN-PITKIN COUNTY/SARDY FLD",
+        "city": "ASPEN",
+        "state": "CO",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 7837.9,
+        "chart": "DENVER",
+        "notamId": "ASE",
+        "responsibleArtcc": "ZDV",
+        "towerType": "ATCT-TRACON",
+        "towered": true,
+        "fuelTypes": "100LL,A1+",
+        "longestRunwayFt": 8006,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 118.85,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MALSF RWY 15; REIL RWY 33; PAPI RWY 15; MIRL RWY 15/33 - CTAF. REIL RWY 15 - ATCT CTL, OPER DAY VFR ONLY.; ALL ARRIVING AIRCRAFT FRM 2000 TO 2300L MUST ANNOUNCE CTAF 118.85 WHEN THEY ARE 20, 15, 10 AND 5 MILES OUT AND ON SHORT FINAL.  EQUIPMENT MAY BE ON THE RWY."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.85,
+            "use": "LCL/P",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 120.4,
+            "use": "ATIS",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 288.3,
+            "use": "LCL/P",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 120.4,
+            "use": "ASE ASOS"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 123.8,
+            "use": "APCH/P DEP/P",
+            "facilityId": "ASE",
+            "facilityName": "ASPEN",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 125.475,
+            "use": "CD/P",
+            "facilityId": "ASE",
+            "facilityName": "ASPEN",
+            "hours": "0700-2000"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 288.3,
+            "use": "APCH/P DEP/P",
+            "facilityId": "ASE",
+            "facilityName": "ASPEN",
+            "hours": "0700-2000"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 119.85,
+            "use": "ASPEN RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY DENVER ARTCC (ZDV) ON FREQS 119.85/363.15 (ASPEN RCAG) WHEN ASPEN APCH CTL (ASE) CLSD.  USED ALSO FOR HAREI STAR."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 363.15,
+            "use": "ASPEN RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY DENVER ARTCC (ZDV) ON FREQS 119.85/363.15 (ASPEN RCAG) WHEN ASPEN APCH CTL (ASE) CLSD.  USED ALSO FOR HAREI STAR."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 128.65,
+            "use": "KREMMLING RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY DENVER ARTCC (ZDV) ON FREQ 128.65/282.2 (KREMMLING RCAG - FOR MMARY STAR."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 282.2,
+            "use": "KREMMLING RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVDD BY DENVER ARTCC (ZDV) ON FREQ 128.65/282.2 (KREMMLING RCAG - FOR MMARY STAR."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 127.1,
+            "use": "MONTROSE RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVVD BY DENVER ARTCC (ZDV) ON 127.1/343.65 (MONTROSE RCAG) - FOR LOYYD STAR."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 343.65,
+            "use": "MONTROSE RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW",
+            "remarks": "APCH/DEP CTL SVC PRVVD BY DENVER ARTCC (ZDV) ON 127.1/343.65 (MONTROSE RCAG) - FOR LOYYD STAR."
+          }
+        ],
+        "runways": [
+          {
+            "id": "00X",
+            "lengthFt": 0,
+            "widthFt": 0,
+            "ends": [
+              {
+                "id": "00X"
+              }
+            ]
+          },
+          {
+            "id": "15/33",
+            "lengthFt": 8006,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "15",
+                "trueHeadingDeg": 160,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 151
+              },
+              {
+                "id": "33",
+                "trueHeadingDeg": 340,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 331
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:03339.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.27822222,
+          25.90741666
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "03339.",
+        "facilityType": "A",
+        "faaId": "OPF",
+        "icaoId": "KOPF",
+        "name": "MIAMI-OPA LOCKA EXEC",
+        "city": "MIAMI",
+        "state": "FL",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 8,
+        "chart": "MIAMI",
+        "notamId": "OPF",
+        "responsibleArtcc": "ZMA",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 8002,
+        "frequencies": [
+          {
+            "type": "GROUND",
+            "frequencyMHz": 120.025,
+            "use": "GND/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 125.9,
+            "use": "ATIS",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "CTAF",
+            "frequencyMHz": 134.675,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MALSR RWY 12; PAPI RWY 12 & 30; HIRL RWY 12/30 - CTAF.  30 MIN PPR TO REQ ACTVN OF MALSR RWY 09L; MALS RWY 27R; PAPI RWY 09L & 27R; HIRL RWY 09L/27R - 305-869-1660 AND CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 134.675,
+            "use": "LCL/P",
+            "hours": "0700-2300"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 125.9,
+            "use": "OPF ASOS"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 128.6,
+            "use": "APCH/P DEP/P",
+            "facilityId": "MIA",
+            "facilityName": "MIAMI",
+            "sector": "4000 FT & BLW"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 306.975,
+            "use": "APCH/P DEP/P",
+            "facilityId": "MIA",
+            "facilityName": "MIAMI"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 119.2,
+            "use": "CD/P",
+            "facilityId": "OPF",
+            "facilityName": "OPA LOCKA",
+            "hours": "0700-2300"
+          }
+        ],
+        "runways": [
+          {
+            "id": "09L/27R",
+            "lengthFt": 8002,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "EXCELLENT",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "09L",
+                "trueHeadingDeg": 87,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 93
+              },
+              {
+                "id": "27R",
+                "trueHeadingDeg": 267,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 273
+              }
+            ]
+          },
+          {
+            "id": "09R/27L",
+            "lengthFt": 4309,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "EXCELLENT",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "09R",
+                "trueHeadingDeg": 87,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 93
+              },
+              {
+                "id": "27L",
+                "trueHeadingDeg": 267,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 273
+              }
+            ]
+          },
+          {
+            "id": "12/30",
+            "lengthFt": 6800,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "FAIR",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "12",
+                "trueHeadingDeg": 122,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 128
+              },
+              {
+                "id": "30",
+                "trueHeadingDeg": 302,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 308
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:05412.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -86.9368975,
+          40.41230444
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "05412.",
+        "facilityType": "A",
+        "faaId": "LAF",
+        "icaoId": "KLAF",
+        "name": "PURDUE UNIVERSITY",
+        "city": "LAFAYETTE",
+        "state": "IN",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 605.8,
+        "chart": "CHICAGO",
+        "notamId": "LAF",
+        "responsibleArtcc": "ZAU",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 6600,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 119.6,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MALSR RWY 10; REIL RWY 5, 23 & 28; MIRL RWY 5/23; HIRL RWY 10/28 - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.6,
+            "use": "LCL/P",
+            "hours": "0700-2100"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "0700-2100"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 127.75,
+            "use": "ATIS",
+            "hours": "0700-2100"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 343.625,
+            "use": "GND/P",
+            "hours": "0700-2100"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 343.625,
+            "use": "LCL/P",
+            "hours": "0700-2100"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 123.85,
+            "use": "APCH/P DEP/P",
+            "facilityId": "GUS",
+            "facilityName": "GRISSOM"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 291.675,
+            "use": "APCH/P DEP/P",
+            "facilityId": "GUS",
+            "facilityName": "GRISSOM"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 123.85,
+            "use": "LAFAYETTE RCAG",
+            "facilityId": "ZAU",
+            "facilityName": "CHICAGO",
+            "sector": "LOW",
+            "remarks": "APCH/DEP SVC PRVDD BY CHICAGO ARTCC ON FREQ 123.85 (LAFAYETTE RCAG) WHEN GRISSOM (GUS) APCH/DEP CON CLSD.."
+          }
+        ],
+        "runways": [
+          {
+            "id": "05/23",
+            "lengthFt": 4225,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "05",
+                "trueHeadingDeg": 50,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 51
+              },
+              {
+                "id": "23",
+                "trueHeadingDeg": 230,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 231
+              }
+            ]
+          },
+          {
+            "id": "10/28",
+            "lengthFt": 6600,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "10",
+                "trueHeadingDeg": 99,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 100
+              },
+              {
+                "id": "28",
+                "trueHeadingDeg": 279,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 280
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:02572.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.84929305,
+          39.57011861
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "02572.",
+        "facilityType": "A",
+        "faaId": "APA",
+        "icaoId": "KAPA",
+        "name": "CENTENNIAL",
+        "city": "DENVER",
+        "state": "CO",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 5884.9,
+        "chart": "DENVER",
+        "notamId": "APA",
+        "responsibleArtcc": "ZDV",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A,UL94",
+        "longestRunwayFt": 10001,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.9,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 120.3,
+            "use": "ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.8,
+            "use": "GND/P",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 128.6,
+            "use": "CD/P",
+            "facilityId": "APA",
+            "facilityName": "CENTENNIAL",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 132.75,
+            "use": "APCH/P DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 269.3,
+            "use": "APCH/P DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 269.3,
+            "use": "APCH/P DEP/P",
+            "facilityId": "DEN",
+            "facilityName": "DENVER INTL"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 126.5,
+            "use": "DENVER/A/ RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW/HIGH",
+            "remarks": "DENVER ARTCC (ZDV) FREQS 126.5/371.85 (DENVER/A/ RCAG) USED FOR PINNR RNAV STAR 26000 FT AND BLW."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 371.85,
+            "use": "DENVER/A/ RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "LOW/HIGH",
+            "remarks": "DENVER ARTCC (ZDV) FREQS 126.5/371.85 (DENVER/A/ RCAG) USED FOR PINNR RNAV STAR 26000 FT AND BLW."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 128.325,
+            "use": "HAYDEN RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "HIGH",
+            "remarks": "DENVER ARTCC (ZDV) FREQS 128.325/377.075 (HAYDEN RCAG) USED FOR PINNR RNAV STAR 27000 FT AND ABV."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 377.075,
+            "use": "HAYDEN RCAG",
+            "facilityId": "ZDV",
+            "facilityName": "DENVER",
+            "sector": "HIGH",
+            "remarks": "DENVER ARTCC (ZDV) FREQS 128.325/377.075 (HAYDEN RCAG) USED FOR PINNR RNAV STAR 27000 FT AND ABV."
+          }
+        ],
+        "runways": [
+          {
+            "id": "10/28",
+            "lengthFt": 4800,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "10",
+                "trueHeadingDeg": 111,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 103
+              },
+              {
+                "id": "28",
+                "trueHeadingDeg": 291,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 283
+              }
+            ]
+          },
+          {
+            "id": "17L/35R",
+            "lengthFt": 10001,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "17L",
+                "trueHeadingDeg": 178,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 170
+              },
+              {
+                "id": "35R",
+                "trueHeadingDeg": 358,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 350
+              }
+            ]
+          },
+          {
+            "id": "17R/35L",
+            "lengthFt": 7001,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "17R",
+                "trueHeadingDeg": 178,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 170
+              },
+              {
+                "id": "35L",
+                "trueHeadingDeg": 358,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 350
+              }
+            ]
+          },
+          {
+            "id": "H1",
+            "lengthFt": 50,
+            "widthFt": 50,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "PERI",
+            "ends": [
+              {
+                "id": "H1"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:04508.6:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.247995,
+          41.90705305
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "04508.6",
+        "facilityType": "A",
+        "faaId": "DPA",
+        "icaoId": "KDPA",
+        "name": "DUPAGE",
+        "city": "CHICAGO/WEST CHICAGO",
+        "state": "IL",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 758.5,
+        "chart": "CHICAGO",
+        "notamId": "DPA",
+        "responsibleArtcc": "ZAU",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 7571,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 120.9,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.8,
+            "use": "GND/P",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 124.5,
+            "use": "LCL/S",
+            "hours": "24"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 132.075,
+            "use": "ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.8,
+            "use": "LCL/P",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 133.5,
+            "use": "APCH/P DEP/P",
+            "facilityId": "C90",
+            "facilityName": "CHICAGO"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 349,
+            "use": "APCH/P DEP/P",
+            "facilityId": "C90",
+            "facilityName": "CHICAGO"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 119.75,
+            "use": "CD/P",
+            "facilityId": "DPA",
+            "facilityName": "DUPAGE",
+            "hours": "24"
+          }
+        ],
+        "runways": [
+          {
+            "id": "02L/20R",
+            "lengthFt": 7571,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "02L",
+                "trueHeadingDeg": 14,
+                "magneticHeadingDeg": 15
+              },
+              {
+                "id": "20R",
+                "trueHeadingDeg": 194,
+                "magneticHeadingDeg": 195
+              }
+            ]
+          },
+          {
+            "id": "02R/20L",
+            "lengthFt": 6451,
+            "widthFt": 100,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "02R",
+                "trueHeadingDeg": 14,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 15
+              },
+              {
+                "id": "20L",
+                "trueHeadingDeg": 194,
+                "magneticHeadingDeg": 195
+              }
+            ]
+          },
+          {
+            "id": "10/28",
+            "lengthFt": 4750,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "10",
+                "trueHeadingDeg": 96,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 97
+              },
+              {
+                "id": "28",
+                "trueHeadingDeg": 276,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 277
+              }
+            ]
+          },
+          {
+            "id": "15/33",
+            "lengthFt": 3399,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "15",
+                "trueHeadingDeg": 148,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 149
+              },
+              {
+                "id": "33",
+                "trueHeadingDeg": 328,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 329
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:02573.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.67316666,
+          39.86166666
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "02573.",
+        "facilityType": "A",
+        "faaId": "DEN",
+        "icaoId": "KDEN",
+        "name": "DENVER INTL",
+        "city": "DENVER",
+        "state": "CO",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 5433.8,
+        "chart": "DENVER",
+        "notamId": "DEN",
+        "responsibleArtcc": "ZDV",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 16000,
+        "frequencies": [
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.35,
+            "use": "GND/P",
+            "sector": "WEST",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.85,
+            "use": "GND/P",
+            "sector": "EAST",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 124.3,
+            "use": "LCL/P",
+            "sector": "RWY 17R/35L",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 125.6,
+            "use": "D-ATIS",
+            "sector": "ARR",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 128.75,
+            "use": "LCL/P",
+            "sector": "RWY 07/25",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 132.35,
+            "use": "LCL/P",
+            "sector": "RWY 08/26, 17L/35R",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 134.025,
+            "use": "D-ATIS",
+            "sector": "DEP",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 135.3,
+            "use": "LCL/P",
+            "sector": "RWY 16L/34R, 16R/34L",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 239.275,
+            "use": "LCL/P",
+            "sector": "RWY 08/26, 17L/35R",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 273.55,
+            "use": "LCL/P",
+            "sector": "RWY 07/25",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 322.45,
+            "use": "LCL/P",
+            "sector": "RWY 17R/35L",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 351.95,
+            "use": "LCL/P",
+            "sector": "RWY 16L/34R, 16R/34L",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 377.1,
+            "use": "GND/P",
+            "sector": "EAST",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 379.175,
+            "use": "GND/P",
+            "sector": "WEST",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 379.9,
+            "use": "D-ATIS",
+            "sector": "ARR",
+            "hours": "24"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 119.3,
+            "use": "APCH/P IC",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 120.35,
+            "use": "APCH/P IC",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 124.95,
+            "use": "APCH/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 126.1,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "WEST"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 126.55,
+            "use": "APCH/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 127.05,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 128.25,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "EAST"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 128.45,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 251.075,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 269.525,
+            "use": "APCH/S",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 307.3,
+            "use": "APCH/P IC",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 346.4,
+            "use": "APCH/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 360.75,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "WEST"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 363.25,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "NORTH"
+          },
+          {
+            "type": "DEPARTURE",
+            "frequencyMHz": 371.95,
+            "use": "DEP/P",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "EAST"
+          },
+          {
+            "type": "APPROACH",
+            "frequencyMHz": 379.3,
+            "use": "APCH/P IC",
+            "facilityId": "D01",
+            "facilityName": "DENVER",
+            "sector": "SOUTH"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 118.75,
+            "use": "CD/P",
+            "facilityId": "DEN",
+            "facilityName": "DENVER",
+            "hours": "24"
+          }
+        ],
+        "runways": [
+          {
+            "id": "07/25",
+            "lengthFt": 12000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "07",
+                "trueHeadingDeg": 90,
+                "magneticHeadingDeg": 82
+              },
+              {
+                "id": "25",
+                "trueHeadingDeg": 271,
+                "magneticHeadingDeg": 263
+              }
+            ]
+          },
+          {
+            "id": "08/26",
+            "lengthFt": 12000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "08",
+                "trueHeadingDeg": 91,
+                "magneticHeadingDeg": 83
+              },
+              {
+                "id": "26",
+                "trueHeadingDeg": 271,
+                "magneticHeadingDeg": 263
+              }
+            ]
+          },
+          {
+            "id": "16L/34R",
+            "lengthFt": 12000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "16L",
+                "trueHeadingDeg": 181,
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "34R",
+                "trueHeadingDeg": 1,
+                "magneticHeadingDeg": 353
+              }
+            ]
+          },
+          {
+            "id": "16R/34L",
+            "lengthFt": 16000,
+            "widthFt": 200,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "16R",
+                "trueHeadingDeg": 181,
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "34L",
+                "trueHeadingDeg": 1,
+                "magneticHeadingDeg": 353
+              }
+            ]
+          },
+          {
+            "id": "17L/35R",
+            "lengthFt": 12000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "17L",
+                "trueHeadingDeg": 181,
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "35R",
+                "trueHeadingDeg": 1,
+                "magneticHeadingDeg": 353
+              }
+            ]
+          },
+          {
+            "id": "17R/35L",
+            "lengthFt": 12000,
+            "widthFt": 150,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "17R",
+                "trueHeadingDeg": 181,
+                "magneticHeadingDeg": 173
+              },
+              {
+                "id": "35L",
+                "trueHeadingDeg": 1,
+                "magneticHeadingDeg": 353
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "navaids": [
@@ -788,6 +2498,141 @@
         "channel": "118X",
         "publicUse": true,
         "notamId": "SLN"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:NV:LAS VEGAS:LAS:VORTAC",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -115.15979791,
+          36.07970147
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "LAS",
+        "type": "VORTAC",
+        "name": "LAS VEGAS",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "LAS VEGAS",
+        "state": "NV",
+        "country": "US",
+        "highArtcc": "ZLA",
+        "lowArtcc": "ZLA",
+        "elevationFt": 2136,
+        "frequency": "116.9",
+        "stationDeclinationDeg": 15,
+        "channel": "116X",
+        "publicUse": true,
+        "notamId": "LAS"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CO:DENVER:APA:VOT",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.84517533,
+          39.57514111
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "APA",
+        "type": "VOT",
+        "name": "CENTENNIAL",
+        "status": "OPERATIONAL IFR",
+        "city": "DENVER",
+        "state": "CO",
+        "country": "US",
+        "elevationFt": 5970.8,
+        "frequency": "108.2",
+        "publicUse": true
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:IL:CHICAGO/WEST CHICAGO:DPA:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.35017747,
+          41.89037147
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "DPA",
+        "type": "VOR/DME",
+        "name": "DUPAGE",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "CHICAGO/WEST CHICAGO",
+        "state": "IL",
+        "country": "US",
+        "highArtcc": "ZAU",
+        "lowArtcc": "ZAU",
+        "elevationFt": 801.6,
+        "frequency": "114.55",
+        "stationDeclinationDeg": 2,
+        "channel": "92Y",
+        "publicUse": true,
+        "notamId": "DPA"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CO:DENVER:DEN:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.66074008,
+          39.81251405
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "DEN",
+        "type": "VOR/DME",
+        "name": "DENVER",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "DENVER",
+        "state": "CO",
+        "country": "US",
+        "highArtcc": "ZDV",
+        "lowArtcc": "ZDV",
+        "elevationFt": 5452.1,
+        "frequency": "117.9",
+        "stationDeclinationDeg": 8,
+        "channel": "126X",
+        "publicUse": true,
+        "notamId": "DEN"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CO:DENVER:DEN:VOT",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.65483177,
+          39.870467
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "DEN",
+        "type": "VOT",
+        "name": "DENVER",
+        "status": "OPERATIONAL IFR",
+        "city": "DENVER",
+        "state": "CO",
+        "country": "US",
+        "elevationFt": 5371.8,
+        "frequency": "110",
+        "publicUse": true
       }
     }
   ],

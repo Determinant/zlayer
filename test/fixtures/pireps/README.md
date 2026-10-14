@@ -9,6 +9,31 @@ observation times from 04:59 to 06:28 UTC: 2,077 AIREPs, 19 routine PIREPs and
 the server must deliver it unchanged. The PWA must not trust its supplied
 coordinate and may recover its raw `/OV` using an explicitly labeled assumption.
 
+`2026-10-14.xml.gz` is another unmodified capture of that bulk URL, retrieved
+October 14, 2026 at 21:37:37.459 UTC. Its byte SHA-256 is
+`2e15e43d16520673b4ce4916dc20275d6ebcf6a62c064dade25b51d550678966`.
+It contains 1,079 records observed from 20:08 to 21:37 UTC: 742 AIREPs, 336 routine
+PIREPs and one urgent PIREP. Ten PIREPs carry `bad_location`: four AMA `FINAL 4`
+reports and one each at LAS, ASE, OPF, LAF, APA and DPA. The latter exercise bare
+radial/distance, distance-padding and compact compass recovery.
+
+`test/pirep-corpus.test.ts` covers all 358 PIREPs in these two complete captures,
+including the 11 bad-location recoveries, through map selection with the recorded
+source-check time. It also checks that valid source positions and all original
+observation fields remain intact. Unsupported raw headers or location phrases
+are listed explicitly in the test; these reports remain usable through valid
+source coordinates.
+
+The October 14 parser refactor was compared against the preceding working parser
+using both bulk captures and the five individual captures below: 3,182 reports,
+including 363 PIREPs. Every derived report, position and label matched. A separate
+raw `/OV` audit used the complete October 1 airport/NAVAID/fix collections and
+the fixture WMM model. In the new bulk capture, 331 of 337 PIREP locations were
+recognized and 323 resolved from raw text alone. Six had unsupported raw syntax
+or headers; eight referenced unavailable navigation identities. All 337 still
+plotted with valid source positions or bounded recovery. These are dated comparison
+results, not a promise that all future free text can be recovered.
+
 `2026-10-13-gfk.xml` retains the original GFK member from the published
 `https://zlayer.tedyin.com/api/weather/pireps.json` response whose source-check time
 was October 13, 2026 at 22:34:29 UTC. It carries `no_time_stamp`, structured
@@ -34,9 +59,22 @@ Tests cover five-letter fix recovery and explicitly approximate, corroborated
 identifier-typo recovery through both wire formats and map selection, with
 negative cases for missing evidence, disagreements and ambiguous references.
 
-`2026-10-01-locations.json` contains the unchanged LWM/KBFI/SLN airport features,
-LWM/MQP/SLN NAVAID features and FORCK fix from the public October 1 navigation
-edition, retrieved October 13–14. LWM is a DME without VOR alignment in this source; the LWM airport
+`2026-10-14-ama-dep.xml` retains the exact AMA member from the public PIREP
+endpoint checked October 15 at 00:09:30 UTC. Its observation time is October 14
+at 23:41 UTC and its raw location is `/OV DEP 4`. AWC marks `bad_location`, supplies
+the airport's rounded coordinate and encodes `altitude_ft_msl` as zero despite
+`/FLDURC`, without an altitude quality flag. The sky layer is OVC from 4,500 to
+5,300 ft MSL. The regression recovers a labeled runway-departure airport reference
+through both wire formats, keeps aircraft altitude unknown and preserves the
+complete original XML, times, cloud layer and quality flag.
+
+`2026-10-01-locations.json` contains unchanged LWM/KBFI/SLN airport features,
+LWM/MQP/SLN NAVAID features and the FORCK fix from the public October 1 navigation
+edition, retrieved October 13–14. It also includes the AMA/LAS/ASE/OPF/LAF/APA/DPA/DEN
+airports and all same-ID NAVAIDs for the bulk captures' bad-location recoveries.
+This subset was compared with the complete national collections to confirm the
+same derived results for the October 14 capture, including DPA's VOR precedence.
+LWM is a DME without VOR alignment in this source; the LWM airport
 bearing therefore needs WMM. CYBL is absent from the national airport collection
 and uses the separately documented [AWC station reference](../../../src/layers/weather-awc/pireps/station-references.md).
 The fixture is a small subset, not national reference coverage. Source files:

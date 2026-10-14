@@ -1,8 +1,8 @@
 import { PIREP_MAX_AGE_MS } from '@zlayer/contracts';
 
 /** FAA text-element indicators delimit whole fields; /RM starts terminal prose.
- * Cloud-layer slashes and duplicate fields cannot supply a location or time. */
-export function readPirepField(raw: string, target: 'OV' | 'TM') {
+ * Cloud-layer slashes and duplicate fields cannot supply an interpreted value. */
+export function readPirepField(raw: string, target: 'OV' | 'TM' | 'FL') {
   if (raw.length > 20_000) return;
   const text = raw.toUpperCase();
   const header = /^\s*(?:([A-Z0-9]{3,4})\s+)?(?:UUA|UA)\b\s*/.exec(text);

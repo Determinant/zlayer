@@ -17,6 +17,7 @@ const records = await Promise.all(['lwm', 'cybl-kbfi'].map(name =>
   readFile(new URL(`./fixtures/pireps/2026-10-13-${name}.xml`, import.meta.url), 'utf8')));
 const fixRecords = await Promise.all(['forck', 'skn'].map(name =>
   readFile(new URL(`./fixtures/pireps/2026-10-14-${name}.xml`, import.meta.url), 'utf8')));
+const departureRecord = await readFile(new URL('./fixtures/pireps/2026-10-14-ama-dep.xml', import.meta.url), 'utf8');
 const references = JSON.parse(await readFile(new URL('./fixtures/pireps/2026-10-01-locations.json', import.meta.url), 'utf8')) as
   { airports: GeoPointFeature[]; navaids: GeoPointFeature[]; fixes: GeoPointFeature[] };
 function navigation(airports = references.airports, navaids = references.navaids, fixes = references.fixes): NavigationData {
@@ -33,6 +34,91 @@ function location(text: string) {
 const vor = (ident: string): GeoPointFeature => ({ type: 'Feature', id: `fixture:${ident}`,
   geometry: { type: 'Point', coordinates: [-97, 35] },
   properties: { kind: 'navaid', ident, type: 'VORTAC', stationDeclinationDeg: 9 } });
+
+test('reported RNT distance-only text recovers from either wire format with the missing direction disclosed', () => {
+  const raw = 'RNT UA /OV 2SM/TM 1835/FL023/TP M20/RM DURD';
+  const checkedAt = Date.parse('2026-10-14T18:40:00Z');
+  // Synthetic XML and reference around the reported raw text; not an AWC capture.
+  const member = `<AircraftReport><raw_text>${raw}</raw_text><report_type>PIREP</report_type>
+    <observation_time>2026-10-14T18:35:00Z</observation_time><aircraft_ref>M20</aircraft_ref>
+    <altitude_ft_msl>2300</altitude_ft_msl></AircraftReport>`;
+  const rnt: GeoPointFeature = { type: 'Feature', id: 'fixture:rnt', geometry: { type: 'Point', coordinates: [-122.22, 47.49] },
+    properties: { kind: 'airport', ident: 'RNT', faaId: 'RNT', icaoId: 'KRNT' } };
+  const data = navigation([rnt], [vor('RNT')]);
+  for (const quality of ['', '<quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags>']) {
+    const sourceXml = member.replace('</AircraftReport>', `${quality}</AircraftReport>`);
+    const payloads: PirepPayload[] = [
+      { schemaVersion: 2, source: 'Synthetic RNT regression', checkedAt, records: [sourceXml] },
+      { schemaVersion: 1, source: 'Synthetic RNT regression', checkedAt, reports: [],
+        issues: [{ id: 'legacy-rnt', reason: 'Location unavailable', sourceXml }] },
+    ];
+    for (const payload of payloads) {
+      const snapshot = decodePirepSource(payload), before = JSON.stringify(snapshot), derive = createPirepLocations();
+      assert.ok(isPirepSnapshot(snapshot)); assert.equal(snapshot.issues.length, 1);
+      assert.equal(derive(snapshot)!.reports.length, 0, 'recovery waits for reference data');
+      const resolved = derive(snapshot, data)!;
+      assert.equal(resolved.issues.length, 0); assert.equal(resolved.reports.length, 1);
+      const report = resolved.reports[0]!;
+      assert.deepEqual([report.longitude, report.latitude], rnt.geometry.coordinates);
+      assert.equal(report.locationEstimated, true);
+      assert.equal(report.decodedLocation, 'Approx. 2 SM from RNT (reporting station); airport reference, direction unknown');
+      assert.equal(report.observedAt, Date.parse('2026-10-14T18:35:00Z'));
+      assert.equal(report.altitudeFt, 2300); assert.equal(report.aircraft, 'M20');
+      assert.deepEqual(report.sky, []); assert.deepEqual(report.turbulence, []); assert.deepEqual(report.icing, []);
+      assert.deepEqual(report.quality, quality ? ['bad_location'] : []);
+      assert.equal(report.text, raw); assert.equal(report.sourceXml, sourceXml);
+      assert.deepEqual(selectedPireps({ selectedTime: null, now: checkedAt, pireps: { loading: false, snapshot, resolved },
+        preferences: weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }) }), [report]);
+      assert.equal(derive(snapshot, navigation([], [vor('RNT')]))!.reports.length, 0, 'withdrawing the airport removes its derived marker');
+      assert.equal(JSON.stringify(snapshot), before, 'recovery preserves source evidence');
+    }
+  }
+  const located = member.replace('</AircraftReport>', '<longitude>-122.25</longitude><latitude>47.5</latitude></AircraftReport>');
+  const snapshot = decodePirepSource({ schemaVersion: 2, source: 'Synthetic RNT regression', checkedAt, records: [located] });
+  const report = createPirepLocations()(snapshot, data)!.reports[0]!;
+  assert.deepEqual([report.longitude, report.latitude], [-122.25, 47.5], 'valid source coordinates keep precedence');
+  assert.equal(report.locationEstimated, undefined);
+});
+
+test('captured AMA runway departure recovers in both wire formats without turning DURC into a zero-foot altitude', () => {
+  const checkedAt = Date.parse('2026-10-15T00:09:30Z');
+  const ama = references.airports.find(feature => feature.properties.faaId === 'AMA')!;
+  assert.ok(ama);
+  const data = { airports: navigation().airports! };
+  const payloads: PirepPayload[] = [
+    { schemaVersion: 2, source: 'AWC capture', checkedAt, records: [departureRecord] },
+    { schemaVersion: 1, source: 'AWC capture', checkedAt, reports: [],
+      issues: [{ id: 'legacy-ama-departure', reason: 'Unreliable location', qualityFlag: 'bad_location', sourceXml: departureRecord }] },
+  ];
+  for (const payload of payloads) {
+    const snapshot = decodePirepSource(payload), before = JSON.stringify(snapshot), derive = createPirepLocations();
+    assert.ok(isPirepSnapshot(snapshot)); assert.equal(snapshot.issues.length, 1);
+    assert.equal(derive(snapshot)!.reports.length, 0, 'recovery waits for the published airport');
+    const resolved = derive(snapshot, data)!;
+    assert.equal(resolved.issues.length, 0); assert.equal(resolved.reports.length, 1);
+    const report = resolved.reports[0]!;
+    assert.deepEqual([report.longitude, report.latitude], ama.geometry.coordinates);
+    assert.equal(report.locationEstimated, true);
+    assert.equal(report.decodedLocation, 'Approx. DEP RWY 04 at AMA (reporting station); airport reference, position along departure unknown');
+    assert.equal(report.observedAt, Date.parse('2026-10-14T23:41:00Z'));
+    assert.equal(report.receivedAt, Date.parse('2026-10-14T23:45:20.110Z'));
+    assert.equal(report.altitudeFt, null); assert.equal(report.aircraft, 'C680');
+    assert.deepEqual(report.sky, ['OVC · 4500–5300 ft MSL']);
+    assert.deepEqual(report.turbulence, []); assert.deepEqual(report.icing, []);
+    assert.deepEqual(report.quality, ['bad_location']);
+    assert.equal(report.text, 'AMA UA /OV DEP 4/TM 2341/FLDURC/TP C680/SK OVC045-TOPS053');
+    assert.equal(report.sourceXml, departureRecord);
+    assert.deepEqual(selectedPireps({ selectedTime: null, now: checkedAt, pireps: { loading: false, snapshot, resolved },
+      preferences: weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }) }), [report]);
+    assert.equal(derive(snapshot, navigation([], [vor('AMA')]))!.reports.length, 0, 'a same-ID VOR cannot replace the withdrawn airport');
+    assert.equal(JSON.stringify(snapshot), before, 'raw evidence and cloud heights remain intact');
+  }
+  const located = departureRecord.replace('<quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags>', '');
+  const snapshot = decodePirepSource({ schemaVersion: 2, source: 'Location-flag mutation of AWC capture', checkedAt, records: [located] });
+  const report = createPirepLocations()(snapshot, data)!.reports[0]!;
+  assert.deepEqual([report.longitude, report.latitude], [-101.7059, 35.2194], 'valid source coordinates retain precedence');
+  assert.equal(report.locationEstimated, undefined); assert.equal(report.altitudeFt, null);
+});
 
 test('captured FORCK offset and corroborated SKN typo recover from both wire formats into map selection', () => {
   assert.ok(isMagneticModel(modelJson));
@@ -79,7 +165,9 @@ test('captured FORCK offset and corroborated SKN typo recover from both wire for
 
 test('five-letter fixes support complete point, bearing and route fields without treating suffixes as identifiers', () => {
   for (const text of ['FORCK270010', 'FORCK 270010', 'FORCK 270 010']) {
-    assert.deepEqual(location(text).points, [{ ident: 'FORCK', radial: 270, distanceNm: 10 }]);
+    const parsed = location(text);
+    assert.equal(parsed.kind, 'points');
+    assert.deepEqual(parsed.points, [{ kind: 'offset', ident: 'FORCK', bearing: 'magnetic', radial: 270, distanceNm: 10 }]);
   }
   const fix = references.fixes[0]!, resolve = createPirepLocationReferences(navigation());
   assert.deepEqual(resolve(location('FORCK'), checkedAt), { coordinate: fix.geometry.coordinates, description: 'Decoded /OV · FORCK' });
