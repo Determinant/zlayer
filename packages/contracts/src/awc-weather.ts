@@ -43,6 +43,9 @@ export type AwcAdvisoryClassification = {
   basis: 'metadata' | 'bulletin' | 'unspecified';
   /** Unsupported syntax is not a contradiction of otherwise usable metadata. */
   bulletin?: 'matched' | 'unsupported';
+  /** Atypical printed period admitted only with supplied classification and
+   * exact structured/header interval agreement. Retains source duration. */
+  sourceDurationMs?: number;
 };
 export const AWC_CLASSIFICATION_FAILURES = ['missing-hazard', 'malformed-hazard', 'unsupported-bulletin',
   'malformed-bulletin', 'identity-conflict', 'validity-conflict', 'category-conflict'] as const;
@@ -99,6 +102,10 @@ export function isWeatherAdvisory(v: unknown): v is WeatherAdvisory {
   if (classification !== undefined && (!isRecord(classification) ||
     !['metadata', 'bulletin', 'unspecified'].some(basis => basis === classification.basis) ||
     !(classification.bulletin === undefined || classification.bulletin === 'matched' || classification.bulletin === 'unsupported') ||
+    !(classification.sourceDurationMs === undefined || classification.basis === 'metadata' && classification.bulletin === 'matched' &&
+      v.product === 'sigmet' && typeof classification.sourceDurationMs === 'number' && Number.isSafeInteger(classification.sourceDurationMs) &&
+      classification.sourceDurationMs > (v.hazard === 'CONVECTIVE' ? 2 : 4) * 3_600_000 && classification.sourceDurationMs <= 6 * 3_600_000 &&
+      instant(v.validTo) && v.validTo - v.validFrom === classification.sourceDurationMs) ||
     (classification.bulletin !== undefined && v.product !== 'sigmet') ||
     (classification.basis === 'bulletin' && (classification.bulletin !== 'matched' || v.hazard !== 'CONVECTIVE')) ||
     (classification.basis === 'unspecified' && (v.hazard !== 'UNK' || v.product === 'gairmet' ||

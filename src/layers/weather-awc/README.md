@@ -242,6 +242,35 @@ another day. UTC midnight, month and year rollover are resolved against the
 supplied interval. Parsing is bounded to 100,000 characters, 2,048 lines and 4,096
 characters per line.
 
+Normal publication periods are evidence for recovering a **missing** category,
+not a substitute for comparing the actual source fields. The
+[NWS directive](https://www.weather.gov/media/directives/010_pdfs/pd01008011curr.pdf)
+describes two-hour convective and four-hour domestic non-convective periods;
+[SCN 26-85](https://forecast.weather.gov/product.php?format=txt&glossary=0&issuedby=WSH&product=PNS&site=NWS&version=14)
+announces a one-hour convective period beginning December 1, 2026. Neither is
+authority to rewrite a supplied end time or call agreeing fields contradictory.
+
+The [October 17 captured SIGMETs](../../../test/fixtures/sigmet-duration-2026-10-17.json)
+contain explicit `CONVECTIVE` metadata and matching three-hour structured/printed
+intervals. Such atypical periods require a complete header, agreeing issuer,
+number and supplied category, and structured start/end equal to the **entire**
+printed interval. Admission is bounded to six hours, a project ingestion ceiling
+covering the longest SIGMET period, not a claim that a three-hour domestic
+convective bulletin conforms to normal issuance guidance. No missing-category
+inference or clipped atypical interval qualifies through this path. Recognized
+time contradictions remain `validity-conflict`; coherent periods lacking this
+proof remain `unsupported-bulletin` issues.
+
+Qualified atypical records retain `classification.sourceDurationMs`, the exact
+source interval, original properties and bulletin. Health exposes the committed
+`sourceDurationAnomalies` count and a `source-duration-anomaly` warning; it does
+not discard interpretable source coverage or conceal stale/failed/partial sources.
+The annotation grants no freshness, adds no duration and makes no operational
+applicability judgment. Legacy records without it remain readable. Regression
+coverage in `weather-advisory-duration.test.ts` checks the captured cases, both
+SIGMET categories, inference boundaries, calendar rollover, real contradictions,
+HTTP publication, diagnostic warnings and restart without freshening source time.
+
 A proven convective header yields `CONVECTIVE`, preserving the existing map toggle
 and old-client contract. A proven non-convective header yields `UNK` when its hazard
 is missing: it remains inspectable under SIGMET with **Unspecified hazard**. Present

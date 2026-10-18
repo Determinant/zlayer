@@ -181,18 +181,20 @@ test('equivalent fields and repeated delivery preserve identity; unknown/qualifi
     assert.equal(r.altitudeFt, null); assert.deepEqual(r.quality, [flag]);
   }
   const negative = reportXml.replace('icing_intensity="MOD"', 'icing_intensity="NEG"');
-  assert.match((await parse(envelope([negative]))).reports[0]!.icing[0]!, /NEG/);
+  assert.match((await parse(envelope([negative]))).reports[0]!.icing[0]!, /MOD/, 'complete raw icing owns its intensity despite a conflicting structured summary');
+  const rawNegative = negative.replace('/IC MOD', '/IC NEG');
+  assert.match((await parse(envelope([rawNegative]))).reports[0]!.icing[0]!, /NEG/);
 });
 
-test('only complete raw flight-level uncertainty markers override the structured altitude', () => {
+test('raw altitude conflicts, malformed levels and uncertainty cannot become a confident structured altitude', () => {
   for (const altitude of [0, 8000]) {
     for (const [text, expected] of [
       ...['DURC', 'DURD', 'UNKN', ' durc '].map(flightLevel => [`AMA UA /OV AMA/TM 0620/FL${flightLevel}/SK OVC045-TOPS053`, null] as const),
-      ['AMA UA /OV AMA/TM 0620/FL000', altitude],
-      ['AMA UA /OV AMA/TM 0620/FL070/RM DURC /FLUNKN', altitude],
+      ['AMA UA /OV AMA/TM 0620/FL000', altitude === 0 ? 0 : null],
+      ['AMA UA /OV AMA/TM 0620/FL070/RM DURC /FLUNKN', null],
       ['AMA UA /OV AMA/TM 0620/RM /FLDURC', altitude],
-      ['AMA UA /OV AMA/TM 0620/FLDURC020', altitude],
-      ['AMA UA /OV AMA/TM 0620/FLDURC/FL080', altitude],
+      ['AMA UA /OV AMA/TM 0620/FLDURC020', null],
+      ['AMA UA /OV AMA/TM 0620/FLDURC/FL080', null],
     ] as const) {
       const member = `<AircraftReport><observation_time>2026-10-13T06:20:00Z</observation_time>
         <latitude>35.2194</latitude><longitude>-101.7059</longitude><altitude_ft_msl>${altitude}</altitude_ft_msl>
@@ -234,6 +236,18 @@ test('equivalent XML attribute order, numeric fields and qualifier order keep on
   }
 });
 
+test('conflicting finite condition heights remain inspectable without reversing or discarding them', async () => {
+  for (const [element, prefix, property] of [['sky_condition', 'cloud', 'sky'],
+    ['icing_condition', 'icing', 'icing'], ['turbulence_condition', 'turbulence', 'turbulence']] as const) {
+    const member = reportXml.replace(/<raw_text>.*?<\/raw_text>/s, '<raw_text>Source-only condition fixture</raw_text>')
+      .replace('<aircraft_ref>', `<${element} ${prefix}_base_ft_msl="15000" ${prefix}_top_ft_msl="2000"/><aircraft_ref>`);
+    const parsed = await parse(envelope([member]));
+    assert.ok(isPirepSnapshot(parsed)); assert.equal(parsed.issues.length, 0);
+    assert.ok(parsed.reports[0]![property].includes('Unspecified · reported base 15000 / top 2000 ft MSL (inconsistent)'));
+    assert.equal(parsed.reports[0]!.sourceXml, member);
+  }
+});
+
 test('malformed condition heights and ambiguous qualifiers are issues with complete original evidence', async () => {
   for (const bad of ['INVALID', '', '1.5', '1e3', '-2001', '100001']) {
     const member = reportXml.replace('icing_base_ft_msl="10500"', `icing_base_ft_msl="${bad}"`);
@@ -242,7 +256,6 @@ test('malformed condition heights and ambiguous qualifiers are issues with compl
     assert.equal(parsed.issues[0]!.sourceXml, member);
   }
   for (const member of [
-    reportXml.replace('icing_base_ft_msl="10500"', 'icing_base_ft_msl="15000"'),
     reportXml.replace('icing_type="RIME"', 'unknown_condition="RIME"'),
     reportXml.replace('<raw_text>', '<raw_text><AircraftReport/>'),
     reportXml.replace('<aircraft_ref>', '<quality_control_flags><bad_location>FALSE</bad_location><bad_location>TRUE</bad_location></quality_control_flags><aircraft_ref>'),
@@ -255,12 +268,12 @@ test('malformed condition heights and ambiguous qualifiers are issues with compl
   }
 });
 
-test('AWC location/time exclusions remain classified when raw text cannot recover their flagged fields', async () => {
+test('AWC location/time exclusions remain classified when neither raw text nor receipt can recover their flagged fields', async () => {
   for (const [flag, field] of [['no_time_stamp', 'observation_time'], ['bad_location', 'latitude']]) {
     for (const replacement of ['', `<${field}>invalid</${field}>`]) {
       let flagged = reportXml.replace(new RegExp(`<${field}>[^<]*</${field}>`), replacement)
         .replace('<aircraft_ref>', `<quality_control_flags><${flag}>TRUE</${flag}></quality_control_flags><aircraft_ref>`);
-      if (flag === 'no_time_stamp') flagged = flagged.replace(/\/TM\s*\d{4}/, '/TM UNKN');
+      if (flag === 'no_time_stamp') flagged = flagged.replace(/\/TM\s*\d{4}/, '/TM UNKN').replace(/<receipt_time>.*?<\/receipt_time>/, '');
       const partial = await parse(envelope([reportXml, flagged]));
       assert.equal(partial.reports.length, 1);
       assert.equal(partial.issues.length, 1);
@@ -282,7 +295,7 @@ test('unlocated observations retain validated fields for /OV recovery without pr
     const report = partial.issues[0]!.report!;
     assert.ok(report); assert.equal(report.observedAt, Date.parse('2026-10-13T05:21:00Z'));
     assert.equal(report.aircraft, 'B737'); assert.equal(report.altitudeFt, 14000);
-    assert.deepEqual(report.icing, ['RIME MOD · 10500–14000 ft MSL']);
+    assert.deepEqual(report.icing, ['RIME MOD'], 'raw icing has no layer; structured heights cannot be attached to it');
     assert.equal(partial.issues[0]!.sourceXml, member); assert.equal('sourceXml' in report, false);
     assert.equal('latitude' in report, false); assert.equal('longitude' in report, false);
     assert.equal(isPirepSnapshot({ ...partial, issues: [{ ...partial.issues[0], report: { ...report, latitude: 0 } }] }), false);
@@ -301,7 +314,8 @@ test('unlocated observations retain validated fields for /OV recovery without pr
   assert.ok(isPirepSnapshot(recovered));
   assert.equal(recovered.issues[0]!.report?.timeSource, 'raw');
   assert.equal(recovered.issues[0]!.report?.observedAt, Date.parse('2026-10-13T05:21:00Z'));
-  assert.equal((await parse(envelope([missingTime.replace('/TM 0521', '/TM UNKN')]))).issues[0]!.report, undefined);
+  const receiptRecovered = (await parse(envelope([missingTime.replace('/TM 0521', '/TM UNKN')]))).issues[0]!.report!;
+  assert.equal(receiptRecovered.timeSource, 'receipt'); assert.equal(receiptRecovered.observedAt, receiptRecovered.receivedAt);
 });
 
 test('report selection respects clock, altitude and negative reports without changing forecast altitude', () => {
@@ -379,6 +393,77 @@ test('browser caches raw source and interprets it on live acquisition and offlin
   assert.deepEqual(await [...stored.values()][0]!.clone().json(), raw, 'saved source includes duplicates and undecodable members');
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('Offline restore must not fetch'); });
   assert.deepEqual(await new PirepClient(endpoint).restore(signal), { snapshot: decoded, loading: false, restored: true });
+});
+
+for (const flagged of [false, true]) test(`earliest receipt survives replacement, expiry and offline restore (unlocated=${flagged})`, async t => {
+  const { PirepClient } = await import('../src/layers/weather-awc/pireps/client');
+  t.mock.timers.enable({ apis: ['Date'], now: NOW });
+  const { stored } = browserCache(t), signal = new AbortController().signal;
+  const endpoint = 'https://fixture.invalid/api/weather/pireps.json';
+  const firstAt = NOW - 80 * 60_000;
+  let early = reportXml.replace(/<observation_time>.*?<\/observation_time>/, '')
+    .replace(/\/TM\s*\d{4}/, '/TM UNKN').replace(/<receipt_time>.*?<\/receipt_time>/, `<receipt_time>${new Date(firstAt).toISOString()}</receipt_time>`);
+  if (flagged) early = early.replace('<aircraft_ref>', '<quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags><aircraft_ref>');
+  const later = early.replace(new Date(firstAt).toISOString(), new Date(NOW - 5 * 60_000).toISOString());
+  let payload = { ...source, records: [early] };
+  t.mock.method(globalThis, 'fetch', async () => Response.json(payload));
+  const client = new PirepClient(endpoint);
+  const member = (snapshot: ReturnType<typeof decodePirepSource>) => snapshot.reports[0] ?? snapshot.issues[0]!.report!;
+  const first = await client.refresh(signal); assert.equal(member(first).observedAt, firstAt);
+  // The source now contains only the later retransmission. Neither raw source
+  // replacement nor crossing the old receipt's age boundary may re-date it.
+  const at = NOW + 20 * 60_000; t.mock.timers.setTime(at);
+  payload = { ...payload, checkedAt: at, records: [later] };
+  const expired = await client.refresh(signal);
+  assert.equal(member(expired).observedAt, firstAt); assert.equal(member(expired).id, member(first).id);
+  assert.equal(expired.reports[0]?.sourceXml ?? expired.issues[0]!.sourceXml, early);
+  const saved = (await Promise.all([...stored.values()].map(response => response.clone().json()))).find(value => value.cacheVersion === 1)!;
+  assert.deepEqual(saved.source, payload, 'the complete current source is retained unchanged');
+  assert.deepEqual(saved.receiptEvidence, [early], 'only the missing original witness is added');
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('Offline'); });
+  const restoredClient = new PirepClient(endpoint);
+  const restored = await restoredClient.restore(signal);
+  assert.deepEqual(restored.snapshot, expired);
+  assert.equal(selectedPireps({ selectedTime: null, now: at, pireps: { loading: false, snapshot: expired },
+    preferences: weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }) }).length, 0);
+  t.mock.method(globalThis, 'fetch', async () => Response.json(payload));
+  assert.deepEqual(await restoredClient.refresh(signal), expired, 'live refresh inherits restored receipt evidence');
+  payload = { ...payload, source: 'Independent source identity', checkedAt: at + 1000 };
+  const independent = await restoredClient.refresh(signal);
+  assert.equal(member(independent).observedAt, NOW - 5 * 60_000, 'a different source cannot inherit receipt evidence');
+  // Withdrawal ends this consecutive-publication history. A witness cannot add
+  // an absent report or affect an independent identity.
+  payload = { ...payload, checkedAt: at + 2000, records: [] };
+  assert.equal((await restoredClient.refresh(signal)).reports.length, 0);
+  assert.deepEqual(decodePirepSource(payload, [early]).issues, []);
+  payload = { ...payload, checkedAt: at + 3000, records: [later] };
+  assert.equal(member(await restoredClient.refresh(signal)).observedAt, NOW - 5 * 60_000);
+});
+
+for (const sameTime of [false, true]) test(`a delayed optional save cannot rewind a newer PIREP publication (same time=${sameTime})`, async t => {
+  const { PirepClient } = await import('../src/layers/weather-awc/pireps/client');
+  t.mock.timers.enable({ apis: ['Date'], now: NOW });
+  const { storage } = browserCache(t), signal = new AbortController().signal;
+  const endpoint = 'https://fixture.invalid/api/weather/pireps.json';
+  let payload = { ...source, records: [reportXml] };
+  t.mock.method(globalThis, 'fetch', async () => Response.json(payload));
+  const digest = crypto.subtle.digest.bind(crypto.subtle);
+  let release!: () => void, entered!: () => void, hold = true;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  t.mock.method(crypto.subtle, 'digest', async (...args: Parameters<typeof digest>) => {
+    if (hold) { hold = false; entered(); await blocked; }
+    return digest(...args);
+  });
+  const client = new PirepClient(endpoint), first = client.refresh(signal);
+  try {
+    await started;
+    payload = { ...payload, checkedAt: NOW + (sameTime ? 0 : 1000), records: [] };
+    const latest = await client.refresh(signal), pointer = storage.getItem();
+    release(); await first;
+    assert.equal(storage.getItem(), pointer);
+    assert.deepEqual((await new PirepClient(endpoint).restore(signal)).snapshot, latest);
+  } finally { release(); await first; }
 });
 
 test('server migration reacquires complete source instead of reusing either legacy cache entry', async () => {

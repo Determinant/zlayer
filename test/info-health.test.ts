@@ -46,6 +46,17 @@ test('PIREP health describes complete source delivery, independently of PWA inte
     assert.equal(assessInfoHealth({ ...value, pireps: { ...value.pireps, ...patch } }, NOTAM_NOW).ready, false);
   }
 });
+test('qualified source-duration anomalies warn without hiding stale, unavailable or contradictory advisory coverage', () => {
+  const value = healthy();
+  value.advisories.sigmet = { ...value.advisories.sigmet!, interpretation: { classification: { sourceDurationAnomalies: 2 } } };
+  const result = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(result.ready, true); assert.equal(result.sources['advisory.sigmet']?.coverage, 'complete');
+  assert.deepEqual(result.warnings, [{ product: 'advisory.sigmet', reason: 'source-duration-anomaly', severity: 'warning' }]);
+  for (const patch of [{ ready: false }, { checkedAt: NOTAM_NOW - INFO_FRESHNESS.advisory },
+    { error: 'incomplete-advisories', unresolvedRecords: 1 }]) {
+    assert.equal(assessInfoHealth({ ...value, advisories: { ...value.advisories, sigmet: { ...value.advisories.sigmet!, ...patch } } }, NOTAM_NOW).ready, false);
+  }
+});
 test('coverage readiness separates unpublished forecast stops from missing images and expired horizons', () => {
   const value = healthy();
   value.progsCoverage.validTimes = [NOTAM_NOW - 3600_000];
@@ -117,6 +128,19 @@ test('nonblocking NOTAM metadata remains visible without masking operational or 
     const failure = assessInfoHealth({ ...value, notams: feed }, NOTAM_NOW);
     assert.equal(failure.ready, false); assert.deepEqual(failure.warnings, []);
     assert.deepEqual(failure.problems, [{ product: 'notams', reason: 'unresolved-records', severity: 'error' }]);
+  }
+});
+test('historical evidence remains a distinct warning and cannot hide collection or reconciliation failures', () => {
+  const value = healthy();
+  Object.assign(value.notams, { unresolvedRecords: 1, blockingRecords: 0, historicalIssues: 1, unscopedRecords: 0,
+    recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete' });
+  const warning = { product: 'notams', reason: 'historical-source-issues', severity: 'warning' };
+  const status = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(status.ready, true); assert.deepEqual(status.warnings, [warning]);
+  for (const patch of [{ checkedAt: 0 }, { collectionContinuity: 'incomplete' }, { error: 'source-http-502' },
+    { fullSyncAt: NOTAM_NOW - INFO_FRESHNESS.fullSync }]) {
+    const failure = assessInfoHealth({ ...value, notams: { ...value.notams, ...patch } } as InfoHealthInput, NOTAM_NOW);
+    assert.equal(failure.ready, false); assert.deepEqual(failure.warnings, [warning]);
   }
 });
 test('source diagnostics bound identities and log only transitions and recovery', () => {

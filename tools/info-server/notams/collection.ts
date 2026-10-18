@@ -1,18 +1,25 @@
 import { isDeepStrictEqual } from 'node:util';
 import { NOTAM_MAX_ISSUE_VARIANTS, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { NotamError } from './error';
-import { compareNotamRevision, mergeNotamRecords } from './revision';
+import { compareNotamRevision, resolveNotamRevision } from './revision';
 import { notamCancellationExpiresAt } from './policy';
 
 export const NO_NOTAM_ISSUES: readonly NotamSourceIssue[] = Object.freeze([]);
 type NotamCollection = { records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
+type Observation = { at: number; kind: 'bulk' | 'delta' };
 
-function unresolved(variants: NotamRecord[], reason: NotamSourceIssue['reason'], prior?: NotamSourceIssue): NotamSourceIssue {
+function unresolved(variants: NotamRecord[], reason: NotamSourceIssue['reason'], prior?: NotamSourceIssue, observation?: Observation): NotamSourceIssue {
   const locations = [...new Set([...(prior?.locations ?? []), ...variants.flatMap(r => r.locations)])].sort();
   const icaoLocations = [...new Set([...(prior?.icaoLocations ?? []), ...variants.flatMap(r => r.icaoLocations)])].sort();
   // Keep stable bounded samples and all known associations. Losing association
   // evidence widens the warning; it must never hide an issue from an airport.
+  const observations = observation ? {
+    firstSeenAt: prior ? prior.observations?.firstSeenAt ?? null : observation.at,
+    lastSeenAt: Math.max(observation.at, prior?.observations?.lastSeenAt ?? 0),
+    kinds: [...new Set([...(prior?.observations?.kinds ?? []), observation.kind])].sort(),
+  } : prior?.observations;
   return { id: variants[0]!.id, reason, variants: variants.slice(0, NOTAM_MAX_ISSUE_VARIANTS),
+    ...(observations ? { observations } : {}),
     variantsTruncated: !!prior?.variantsTruncated || variants.length > NOTAM_MAX_ISSUE_VARIANTS,
     locations: locations.slice(0, 32), icaoLocations: icaoLocations.slice(0, 32),
     unscoped: !!prior?.unscoped || locations.length > 32 || icaoLocations.length > 32 ||
@@ -22,7 +29,7 @@ function unresolved(variants: NotamRecord[], reason: NotamSourceIssue['reason'],
 /** Every identifiable source record becomes either usable data or explicit
  * uncertainty. Neither an unfamiliar rendering nor an unknown lifecycle can
  * prevent independent IDs in a structurally valid response from advancing. */
-export function collectNotamRecords(previous: NotamCollection, updates: readonly NotamRecord[]): NotamCollection {
+export function collectNotamRecords(previous: NotamCollection, updates: readonly NotamRecord[], observation?: Observation): NotamCollection {
   if (!updates.length) return previous;
   const records = new Map(previous.records.map(r => [r.id, r]));
   const issues = new Map((previous.issues ?? NO_NOTAM_ISSUES).map(r => [r.id, r]));
@@ -39,21 +46,16 @@ export function collectNotamRecords(previous: NotamCollection, updates: readonly
     const variants = [...new Map([...retained, ...incoming].filter(r => compareNotamRevision(r, newest) === 0)
       .map(r => [r.revision, r])).values()].sort((a, b) => a.revision.localeCompare(b.revision));
     if (old && old.lifecycle !== 'unknown' && variants.length === 1 && variants[0]!.revision === old.revision) continue;
-    let reason: NotamSourceIssue['reason'] | undefined = prior?.variantsTruncated ? prior.reason
-      : variants.some(r => r.lifecycle === 'unknown') ? 'unsupported-lifecycle' : undefined;
-    let resolved: NotamRecord | undefined;
-    if (!reason) {
-      try { resolved = mergeNotamRecords(old ? [old] : [], variants)[0]; }
-      catch (cause) {
-        if (!(cause instanceof NotamError) || !['revision-conflict', 'unsupported-lifecycle', 'invalid-record'].includes(cause.code)) throw cause;
-        reason = cause.code === 'invalid-record' ? 'representation-limit' : cause.code as NotamSourceIssue['reason'];
-      }
-    }
+    const decision = prior?.variantsTruncated
+      ? { kind: 'unresolved' as const, reason: prior.reason }
+      : resolveNotamRevision(old ? [old, ...variants] : variants);
+    const resolved = decision.kind === 'resolved' ? decision.record : undefined;
     if (resolved) {
       if (!issue && old?.revision === resolved.revision) continue;
       records.set(id, resolved); issues.delete(id); changed = true;
     } else {
-      const next = unresolved(variants, reason!, prior);
+      const observed = incoming.some(record => compareNotamRevision(record, newest) === 0) ? observation : undefined;
+      const next = unresolved(variants, decision.kind === 'unresolved' ? decision.reason : 'revision-conflict', prior, observed);
       if (issue && isDeepStrictEqual(issue, next)) continue;
       issues.set(id, next); records.delete(id); changed = true;
     }
@@ -66,7 +68,7 @@ export function collectNotamRecords(previous: NotamCollection, updates: readonly
 /** A replacement snapshot is not evidence that a still-present equal-revision
  * disagreement disappeared. Carry evidence forward through the completed bridge.
  * Absence resolves an issue only when the full snapshot itself is recent enough. */
-export function rebaseNotamRecords(current: NotamCollection, bulk: readonly NotamRecord[], absenceBefore: number | undefined): NotamCollection {
+export function rebaseNotamRecords(current: NotamCollection, bulk: readonly NotamRecord[], absenceBefore: number | undefined, observation?: Observation): NotamCollection {
   const present = new Set(bulk.map(r => r.id));
   // A response may include observations newer than its conservative watermark.
   // An older full snapshot cannot withdraw those observations, even when it
@@ -78,5 +80,5 @@ export function rebaseNotamRecords(current: NotamCollection, bulk: readonly Nota
   const retained: NotamCollection = { records: current.records.filter(r => keep(r.id, r.updatedAt) ||
     (notamCancellationExpiresAt(r) ?? 0) > (absenceBefore ?? Infinity)),
     issues: (current.issues ?? []).filter(r => keep(r.id, r.variants[0]!.updatedAt)) };
-  return collectNotamRecords(retained, bulk);
+  return collectNotamRecords(retained, bulk, observation);
 }

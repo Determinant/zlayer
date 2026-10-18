@@ -8,6 +8,16 @@ import { WeatherSourceError } from './source-error';
 import { SourceDiagnostics, sourceFailureCode } from './diagnostics';
 
 export const PUBLISHED_MOTION = 'noaa-storm-tracks-v1';
+// CONUS WSR-88D roster from https://api.weather.gov/radar/stations, checked 2026-10-19.
+// Directory prefixes also include foreign and retired sites; see the Radar guide for updates.
+const MOTION_SITES = new Set(`KABR KABX KAKQ KAMA KAMX KAPX KARX KATX KBBX KBGM KBHX KBIS KBLX KBMX KBOX KBRO KBUF KBYX KCAE KCBW
+KCBX KCCX KCLE KCLX KCRP KCXX KCYS KDAX KDDC KDFX KDGX KDIX KDLH KDMX KDOX KDTX KDVN KDYX KEAX KEMX
+KENX KEOX KEPZ KESX KEVX KEWX KEYX KFCX KFDR KFDX KFFC KFSD KFSX KFTG KFWS KGGW KGJX KGLD KGRB KGRK
+KGRR KGSP KGWX KGYX KHDC KHDX KHGX KHNX KHPX KHTX KICT KICX KILN KILX KIND KINX KIWA KIWX KJAX KJGX
+KJKL KLBB KLCH KLGX KLNX KLOT KLRX KLSX KLTX KLVX KLWX KLZK KMAF KMAX KMBX KMHX KMKX KMLB KMOB KMPX
+KMQT KMRX KMSX KMTX KMUX KMVX KMXX KNKX KNQA KOAX KOHX KOKX KOTX KPAH KPBZ KPDT KPOE KPUX KRAX KRGX
+KRIW KRLX KRTX KSFX KSGF KSHV KSJT KSOX KSRX KTBW KTFX KTLH KTLX KTWX KTYX KUDX KUEX KVAX KVBX KVNX
+KVTX KVWX KYUX`.split(/\s+/));
 const catalogResource = () => resourceFor('/api/weather/radar/motion/latest.json');
 const fileResource = (file: Pick<RadarMotionFile, 'path'>) => resourceFor(`/api/weather/radar/${file.path}`);
 const input = (url: string, listing = false): Resource => ({ key: url, url, upstream: 'radar', kind: listing ? 'radar-index' : 'radar-data',
@@ -79,8 +89,9 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
       const listing = await cache.get(input(RADAR_MOTION_ROOT, true), undefined, signal);
       const text = listing.body.toString();
       if (!text.trimEnd().endsWith('</html>')) throw new Error('Incomplete NOAA storm tracking station listing');
-      const sites = [...new Set([...text.matchAll(/href="SI\.(k[a-z]{3})\//g)].map(m => m[1]!.toUpperCase()))].sort();
-      if (!sites.length || sites.length > 160) throw new Error('Invalid NOAA storm tracking station listing');
+      const listed = new Set([...text.matchAll(/href="SI\.(k[a-z]{3})\//g)].map(m => m[1]!.toUpperCase()));
+      const sites = [...listed].filter(site => MOTION_SITES.has(site)).sort();
+      if (!sites.length || listed.size > 160) throw new Error('Invalid NOAA storm tracking station listing');
       diagnostics.retain(new Set(sites));
       for (const site of rejected.keys()) if (!sites.includes(site)) rejected.delete(site);
       for (const site of scans.keys()) if (!sites.includes(site)) scans.delete(site);
@@ -125,8 +136,9 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
         if (saved.headers['x-weather-catalog'] !== PUBLISHED_MOTION || !isRadarMotionCatalog(value) || value.checkedAt !== saved.checkedAt || value.checkedAt > now() + 60_000) throw new Error('Invalid saved storm motion');
         const files: RadarMotionFile[] = [];
         for (const file of value.files) if (await cache.check(fileResource(file))) files.push(file);
-        if (files.length !== value.files.length) {
-          value.files = files;
+        const supported = value.unavailable.filter(site => MOTION_SITES.has(site));
+        if (files.length !== value.files.length || supported.length !== value.unavailable.length) {
+          value.files = files; value.unavailable = supported;
           const body = Buffer.from(JSON.stringify(value));
           await cache.put(catalogResource(), { ...saved, body, sha256: digest(body) });
         }
@@ -135,7 +147,7 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
         if (data && latest) {
           const snapshot: unknown = JSON.parse(data.body.toString());
           if (data.sha256 === latest.sha256 && isRadarMotionSnapshot(snapshot)) {
-            for (const scan of snapshot.scans) if (scan.observedAt <= now()) scans.set(scan.site, scan);
+            for (const scan of snapshot.scans) if (MOTION_SITES.has(scan.site) && scan.observedAt <= now()) scans.set(scan.site, scan);
             newestObservedAt = scans.size ? Math.max(...[...scans.values()].map(scan => scan.observedAt)) : null;
           }
         }

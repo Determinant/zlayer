@@ -183,17 +183,18 @@ See [startup status](../features/shared-ui.md#startup-status) for states and pro
 Shared numeric pixel work belongs in `core/graphics/`, date/time labels in
 `core/format/`, and storage compatibility in `offline/compatibility/`.
 
-Each product exposes a UI entry (`index.ts` or `index.tsx`), with separate data
-(`api.ts`) and static-definition (`definitions.ts`) entries where needed. Non-UI
-consumers import these data-only entries, not a UI barrel: offline planning must not
+Each product registers through `plugin.ts` or `plugin.tsx`; its optional shared
+services use `public.ts`. Keep UI (`index.ts` or `index.tsx`), data (`api.ts`) and
+static-definition (`definitions.ts`) entries where consumers need them. Non-UI
+consumers import data-only entries, not a UI barrel: offline planning must not
 pull in airport cards, viewers or their React hooks. Tests can import internals
 directly. Files inside a folder can stay focused without scattering a feature across
 the source root.
 
-Charts, plates, navigation, routes, terrain, obstructions and GPS expose separate
+Charts, plates, navigation, terrain, obstructions and GPS expose separate
 `map.ts` entries; METAR exposes its lightweight adapter as `.map` on the product
-instance. Charts also exposes `worker.ts`
-for its service-worker contribution. These entries preserve environment and loading
+instance, and Routes loads `map-contribution.ts`. Charts retains `worker.ts` as a
+compatibility export of core's whole-file cache. These entries preserve environment and loading
 boundaries: importing a chart selector must not load SQLite or MapLibre;
 listing procedures must not load PDF.js; the service worker must not import React.
 Feature styles live in their product folder. Cross-product placement and responsive

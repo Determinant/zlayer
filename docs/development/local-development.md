@@ -217,6 +217,13 @@ Both are also included in `npm test` and CI verification. The compressed local
 fixture requires no network, credentials or browser; focused semantic cases run
 alongside it in the ordinary suite.
 
+`npm run test:info:notams` checks the server's NMS ingestion and reconciliation
+boundary: identity/lifecycle/representation combinations, captured source cases,
+collection, admission, delivery, restart recovery and readiness. It includes
+explicit contradictions and a simulated daily reconciliation cycle. Use it for
+changes to the [source comparison policy](../../src/layers/notams/source-comparison.md#decision-acceptance-criteria);
+browser and PWA checks are separate.
+
 `npm run test:weather:corpus` runs the [curated METAR/TAF decoder regressions](../../packages/domain/test/fixtures/weather-decoder/README.md)
 alone. The domain workspace also includes them in `npm test` and CI verification.
 Pinned local examples and reviewed expected values require no network or browser.
@@ -387,6 +394,10 @@ untracked notes and new tests in the review; do not remove unrelated local work.
    current contract, design rationale, unfinished proposal, unique evidence or
    fixture provenance/license. Follow the [documentation rules](../README.md#keeping-the-docs-useful)
    when merging duplicates, removing completed worklists or updating links.
+   Trace candidate unused exports through application entries, workers, dynamic
+   imports, tools and tests before removing them. TypeScript's unused-local checks
+   do not catch unused exports. Keep package contracts and compatibility readers
+   whose consumers or saved data live outside the current application graph.
 2. Compare candidate tests using the [coverage rules below](#maintaining-test-coverage).
    Record the surviving scenario for any removed assertion in the change description.
    Share repeated setup when it represents the same operation; keep meaningful

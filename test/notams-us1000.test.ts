@@ -12,10 +12,16 @@ import { createNotamAreaReferences } from '../src/layers/notams/area-references'
 import { notamFlairs } from '../src/layers/notams/flairs';
 import { auditNotam, auditMappedNotam, auditRenderedNotam } from '../tools/audit-notams';
 import manifest from './fixtures/notams-us1000/manifest.json' with { type: 'json' };
+import currentManifest from './fixtures/notams-us1000-2026-10-15/manifest.json' with { type: 'json' };
 import obstructions from './fixtures/notams-us1000/obstructions.json' with { type: 'json' };
+const cohort = manifest.airports.map(airport => airport.faaId).sort();
 
-test('all 1,000 captured airports preserve source content, value bindings, flair evidence and both readers', t => {
-  const payload = gunzipSync(readFileSync(new URL(`./fixtures/notams-us1000/${manifest.payload.file}`, import.meta.url)),
+for (const corpus of [
+  { manifest, directory: 'notams-us1000', records: 19469, date: 'October 5', current: false },
+  { manifest: currentManifest, directory: 'notams-us1000-2026-10-15', records: 19369, date: 'October 15', current: true },
+]) test(`${corpus.date}: all 1,000 airports preserve source content, value bindings, flair evidence and both readers`, t => {
+  const manifest = corpus.manifest;
+  const payload = gunzipSync(readFileSync(new URL(`./fixtures/${corpus.directory}/${manifest.payload.file}`, import.meta.url)),
     { maxOutputLength: manifest.payload.bytes });
   assert.equal(manifest.schemaVersion, 1);
   assert.equal(payload.length, manifest.payload.bytes);
@@ -24,6 +30,7 @@ test('all 1,000 captured airports preserve source content, value bindings, flair
   assert.equal(lines.length, 1000);
   assert.equal(manifest.airports.length, lines.length);
   assert.equal(new Set(manifest.airports.map(a => a.faaId)).size, lines.length);
+  if (corpus.current) assert.deepEqual(manifest.airports.map(a => a.faaId).sort(), cohort, 'same airport cohort');
 
   const versions = new Set<string>(), classifications: Record<string, number> = {};
   let records = 0, issues = 0, issueVariants = 0;
@@ -44,6 +51,17 @@ test('all 1,000 captured airports preserve source content, value bindings, flair
         assert.deepEqual(auditMappedNotam(record), [], 'mapped content');
         assert.deepEqual(auditRenderedNotam(record, true, manifest.capture.reviewTime), [], 'mapped reader');
         const parsed = parseNotam(record);
+        if (corpus.current) {
+          assert.ok(parsed.subject, 'unrecognized subject');
+          if (parsed.subject === 'NAV' && !parsed.categoryTarget) assert.ok(parsed.navigation, 'navigation format not interpreted');
+          for (const issue of parsed.issues) {
+            if (issue === 'facility-dependency') assert.ok(parsed.navigation, 'dependency warning must retain a parsed navigation notice');
+            else {
+              assert.equal(issue, 'headings', 'unexpected interpretation gap');
+              assert.match(parsed.body, /DEPARTURE PROCEDURES AMDT \.\.\./, 'remaining heading limitation requires actual missing source amendment');
+            }
+          }
+        }
         for (const flair of notamFlairs(parsed)) {
           assert.ok(flair.evidence.length > 0, `unsupported flair ${flair.label}`);
           for (const span of flair.evidence) assert.equal(parsed.body.slice(span.start, span.end), span.text, 'flair evidence');
@@ -59,7 +77,7 @@ test('all 1,000 captured airports preserve source content, value bindings, flair
     issueVariants += snapshot.issues?.reduce((sum, issue) => sum + issue.variants.length, 0) ?? 0;
     assert.equal(JSON.stringify(snapshot), line, `${airport.faaId}: source snapshot mutated`);
   }
-  assert.equal(records, 19469);
+  assert.equal(records, corpus.records);
   assert.deepEqual({ airports: lines.length, records, recordVersions: versions.size, issues, issueVariants, classifications }, manifest.totals);
   t.diagnostic(`${lines.length} airports; ${records} records; ${issues} source issues retained separately; no audit findings`);
 });

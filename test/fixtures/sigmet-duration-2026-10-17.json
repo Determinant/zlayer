@@ -1,0 +1,158 @@
+{
+  "source": "Deployed public read-only /api/weather/advisories/sigmet.json; no new upstream acquisition",
+  "checkedAt": 1792274738080,
+  "collection": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "icaoId": "KKCI",
+          "airSigmetType": "SIGMET",
+          "alphaChar": "E",
+          "hazard": "CONVECTIVE",
+          "seriesId": "66E",
+          "validTimeFrom": "2026-10-17T20:55:00.000Z",
+          "validTimeTo": "2026-10-17T23:55:00.000Z",
+          "severity": 5,
+          "altitudeHi1": null,
+          "altitudeHi2": null,
+          "altitudeLow1": null,
+          "altitudeLow2": null,
+          "movementDir": 180,
+          "movementSpd": null,
+          "rawAirSigmet": "WSUS31 KKCI 172055\nMKCE WST 172055\nCONVECTIVE SIGMET 66E\nVALID UNTIL 2355Z\nFL AND CSTL WTRS\nFROM 30ESE PIE-30W PBI-EYW-80WSW EYW-90WSW SRQ-30ESE PIE\nAREA TS MOV FROM 270010KT. TOPS ABV FL450.\n\n"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -82.161,
+                27.714
+              ],
+              [
+                -80.649,
+                26.679
+              ],
+              [
+                -81.8,
+                24.59
+              ],
+              [
+                -83.142,
+                24.064
+              ],
+              [
+                -84.094,
+                26.806
+              ],
+              [
+                -82.161,
+                27.714
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "icaoId": "KKCI",
+          "airSigmetType": "SIGMET",
+          "alphaChar": "E",
+          "hazard": "CONVECTIVE",
+          "seriesId": "67E",
+          "validTimeFrom": "2026-10-17T20:55:00.000Z",
+          "validTimeTo": "2026-10-17T23:55:00.000Z",
+          "severity": 5,
+          "altitudeHi1": 45000,
+          "altitudeHi2": 45000,
+          "altitudeLow1": null,
+          "altitudeLow2": null,
+          "movementDir": 250,
+          "movementSpd": 15,
+          "rawAirSigmet": "WSUS31 KKCI 172055\nMKCE WST 172055\nCONVECTIVE SIGMET 67E\nVALID UNTIL 2355Z\nFL AND CSTL WTRS\nFROM 180ENE OMN-180ESE MIA-EYW-80NE TRV-180ENE OMN\nAREA TS MOV FROM 25015KT. TOPS ABV FL450.\n\n"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -77.913,
+                30.432
+              ],
+              [
+                -77.268,
+                24.599
+              ],
+              [
+                -81.8,
+                24.59
+              ],
+              [
+                -79.418,
+                28.617
+              ],
+              [
+                -77.913,
+                30.432
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "icaoId": "KKCI",
+          "airSigmetType": "SIGMET",
+          "alphaChar": "E",
+          "hazard": "ICE",
+          "seriesId": "QUEBEC 4",
+          "validTimeFrom": "2026-10-17T18:32:00.000Z",
+          "validTimeTo": "2026-10-17T22:32:00.000Z",
+          "severity": 5,
+          "altitudeHi1": null,
+          "altitudeHi2": 27000,
+          "altitudeLow1": 21000,
+          "altitudeLow2": null,
+          "movementDir": 180,
+          "movementSpd": null,
+          "rawAirSigmet": "WSUS02 KKCI 171832\nMIAQ WS 171832\nSIGMET QUEBEC 4 VALID UNTIL 172232\nNC NJ MD DE VA AND CSTL WTRS\nFROM 30W ACK TO 80SSE ACK TO 30SE ECG TO 40ENE RDU TO 20SE DCA TO\n30W ACK\nOCNL SEV MXD ICGICIP BTN FL210 AND FL270. ICING CONDS WL\nGRADUALLY IMPROVE. CONDS ENDG 2232Z.\n...."
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -70.694,
+                41.278
+              ],
+              [
+                -69.351,
+                40.053
+              ],
+              [
+                -75.744,
+                35.896
+              ],
+              [
+                -78.022,
+                36.128
+              ],
+              [
+                -76.739,
+                38.624
+              ],
+              [
+                -70.694,
+                41.278
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}

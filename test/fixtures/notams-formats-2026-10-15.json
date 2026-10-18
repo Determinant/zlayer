@@ -1,0 +1,318 @@
+{
+  "source": "FAA NMS records from prepared ZLayer airport API",
+  "endpoint": "https://zlayer.tedyin.com/api/notams/airports",
+  "capturedAt": "2026-10-15T17:06:28.874Z",
+  "generation": "8b1afb427b7de9e393de66eae95fdfd08edbb37764be1a073e94511132b6380a",
+  "cases": [
+    {
+      "name": "declared-distances",
+      "airport": "JFK",
+      "record": {
+        "id": "1791917150238454",
+        "sourceId": "NMS_ID_1791917150238454",
+        "classification": "INTL",
+        "number": "8258",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "JFK"
+        ],
+        "icaoLocations": [
+          "KJFK"
+        ],
+        "accountability": "KJFK",
+        "issuedAt": 1791917100000,
+        "updatedAt": 1791917100000,
+        "sourceUpdatedAt": "2026-10-13T18:45:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791916860000,
+        "endsAt": 1792209540000,
+        "effectiveStart": "202610131841",
+        "effectiveEnd": "202610170359",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "RWY 13R/31L SE 2629FT CLSD. DECLARED DIST: RWY 13R TORA 11882FT TODA 11882FT \n ASDA 11882FT LDA 9839FT. RWY 31L TORA 11882FT TODA 11882FT ASDA 11882FT LDA 11247FT.",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA8258/26 NOTAMN\nQ) KZNY/QMRLC////000/999/4038N07346W005\nA) KJFK\nB) 2610131841\nC) 2610170359\nE) RWY 13R/31L SE 2629FT CLSD. DECLARED DIST: RWY 13R TORA 11882FT TODA 11882FT \n ASDA 11882FT LDA 9839FT. RWY 31L TORA 11882FT TODA 11882FT ASDA 11882FT LDA 11247FT.\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6bffbb280ab92ccb09ce7dae58f6c8732639056c50acf03ec57caa7ee79987ad"
+      }
+    },
+    {
+      "name": "plural-minima",
+      "airport": "CHD",
+      "record": {
+        "id": "8213530702344588",
+        "sourceId": "NMS_ID_8213530702344588",
+        "classification": "FDC",
+        "number": "8266",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "CHD"
+        ],
+        "icaoLocations": [
+          "KCHD"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791417900000,
+        "updatedAt": 1791417900000,
+        "sourceUpdatedAt": "2026-10-08T00:05:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791417900000,
+        "endsAt": 1810771500000,
+        "effectiveStart": "202610080005",
+        "effectiveEnd": "202705200005EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP CHANDLER MUNI, CHANDLER, AZ.\nRNAV (GPS) RWY 4R, AMDT 1...\nCIRCLING CAT A/B MDAS 1860/HAA 617, CAT C MDA 1960/HAA 717; VISIBILITY CAT C 2. TEMPORARY CRANE 1437 MSL 1.2NM NW OF CHD AIRPORT (2026-AWP-12981-OE). TEMP CRANE 1403 MSL, 1.0NM N OF CHD AIRPORT (2026-AWP-5099-OE).\n2610080005-2705200005EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8266 CHD IAP CHANDLER MUNI, CHANDLER, AZ.\nRNAV (GPS) RWY 4R, AMDT 1...\nCIRCLING CAT A/B MDAS 1860/HAA 617, CAT C MDA 1960/HAA 717; VISIBILITY CAT C 2. TEMPORARY CRANE 1437 MSL 1.2NM NW OF CHD AIRPORT (2026-AWP-12981-OE). TEMP CRANE 1403 MSL, 1.0NM N OF CHD AIRPORT (2026-AWP-5099-OE).\n2610080005-2705200005EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAB/QPIXX/I/NBO/A/000/999/3316N11148W005\nA) KCHD\nB) 2610080003\nC) 2705200003EST\nE) CHD CHANDLER MUNI, CHANDLER, AZ.\nRNAV (GPS) RWY 4R, AMDT 1...\nCIRCLING CAT A/B MDAS 1860/HAA 617, CAT C MDA 1960/HAA 717; VISIBILITY CAT C 2. TEMPORARY CRANE 1437 MSL 1.2NM NW OF CHD AIRPORT (2026-AWP-12981-OE). TEMP CRANE 1403 MSL, 1.0NM N OF CHD AIRPORT (2026-AWP-5099-OE)."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "fa2b6cacc470a52f67a16cabf047042f38dbcd7704294db1b57c4c48f7454b75"
+      }
+    },
+    {
+      "name": "bare-obstacle",
+      "airport": "ATL",
+      "record": {
+        "id": "1791817909362921",
+        "sourceId": "NMS_ID_1791817909362921",
+        "classification": "INTL",
+        "number": "6130",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "ATL"
+        ],
+        "icaoLocations": [
+          "KATL"
+        ],
+        "accountability": "KATL",
+        "issuedAt": 1791817860000,
+        "updatedAt": 1791817910000,
+        "sourceUpdatedAt": "2026-10-12T15:11:50.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791817860000,
+        "endsAt": 1795705860000,
+        "effectiveStart": "202610121511",
+        "effectiveEnd": "202611261511",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "TOWER LGT (ASR 1311275) 333645.70N0842659.60W (1.8NM SW ATL) 1210FT (200FT AGL) U/S",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!ATL 10/187 ATL OBST TOWER LGT (ASR 1311275) 333645.70N0842659.60W (1.8NM SW ATL) 1210FT (200FT AGL) U/S 2610121511-2611261511"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "A6130/26 NOTAMN\nQ) KZTL/QOLAS/IV/M/AE/000/999/3336N08426W001\nA) KATL\nB) 2610121511\nC) 2611261511\nE) TOWER LGT (ASR 1311275) 333645.70N0842659.60W (1.8NM SW ATL) 1210FT (200FT AGL) U/S"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "7bde4e79824a3048d2314fdb45d48dbcd495d6b71b63c2e6a8d2572d7e1eef0b"
+      }
+    },
+    {
+      "name": "conditional-minima",
+      "airport": "IWA",
+      "record": {
+        "id": "6985583101535427",
+        "sourceId": "NMS_ID_6985583101535427",
+        "classification": "FDC",
+        "number": "9830",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "IWA"
+        ],
+        "icaoLocations": [
+          "KIWA"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1792080240000,
+        "updatedAt": 1792080300000,
+        "sourceUpdatedAt": "2026-10-15T16:05:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1792080180000,
+        "endsAt": 1792882800000,
+        "effectiveStart": "202610151603",
+        "effectiveEnd": "202610242300EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP MESA GATEWAY, PHOENIX, AZ.\nRNAV (GPS) RWY 12C, AMDT 1C...\nNOTE: WHEN USING KPHX ALTIMETER SETTING: LPV DA 1688 / HAT 330 ALL CATS. LNAV/VNAV DA 1765 / HAT 407 ALL CATS. LNAV MDA 1820 / HAT 462 ALL CATS. CIRCLING MDA 1880 / HAA 498 CAT A, MDA 1920 / HAA 538 CATS B/C, MDA 2020 / HAA 638 CATS D/E. NOTE: VDP AND BARO-VNAV NA WHEN USING KPHX ALTIMETER SETTING. IWA AWOS OUT OF SERVICE..\n2610151603-2610242300EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/9830 IWA IAP MESA GATEWAY, PHOENIX, AZ.\nRNAV (GPS) RWY 12C, AMDT 1C...\nNOTE: WHEN USING KPHX ALTIMETER SETTING: LPV DA 1688 / HAT 330 ALL CATS. LNAV/VNAV DA 1765 / HAT 407 ALL CATS. LNAV MDA 1820 / HAT 462 ALL CATS. CIRCLING MDA 1880 / HAA 498 CAT A, MDA 1920 / HAA 538 CATS B/C, MDA 2020 / HAA 638 CATS D/E. NOTE: VDP AND BARO-VNAV NA WHEN USING KPHX ALTIMETER SETTING. IWA AWOS OUT OF SERVICE..\n2610151603-2610242300EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZAB/QPIXX/I/NBO/A/000/999/3318N11139W005\nA) KIWA\nB) 2608111525\nC) 2703231525EST\nE) IWA MESA GATEWAY, PHOENIX, AZ.\nRNAV (GPS) RWY 12C, AMDT 1C...\nNOTE: WHEN USING KPHX ALTIMETER SETTING: LPV DA 1688 / HAT 330 ALL CATS. LNAV/VNAV DA 1765 / HAT 407 ALL CATS. LNAV MDA 1820 / HAT 462 ALL CATS. CIRCLING MDA 1880 / HAA 498 CAT A, MDA 1920 / HAA 538 CATS B/C, MDA 2020 / HAA 638 CATS D/E. NOTE: VDP AND BARO-VNAV NA WHEN USING KPHX ALTIMETER SETTING. IWA AWOS OUT OF SERVICE.."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "d4ebcf688ca7eb1159b2303befd750515845d571d5df564191bf0a7d8633ad22"
+      }
+    },
+    {
+      "name": "annotation-letter-o",
+      "airport": "OTZ",
+      "record": {
+        "id": "2009294888475751",
+        "sourceId": "NMS_ID_2009294888475751",
+        "classification": "DOMESTIC",
+        "number": "078",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "OTZ"
+        ],
+        "icaoLocations": [
+          "PAOT"
+        ],
+        "accountability": "OTZ",
+        "issuedAt": 1791657900000,
+        "updatedAt": 1791657900000,
+        "sourceUpdatedAt": "2026-10-10T18:45:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791730800000,
+        "endsAt": 1792044000000,
+        "effectiveStart": "202610111500",
+        "effectiveEnd": "202610150600",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "OBST CRANE (ASN UNKNOWN) 665354N1623548W (O.3NM N OTZ) 95FT (80FT AGL)",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!OTZ 10/078 OTZ OBST CRANE (ASN UNKNOWN) 665354N1623548W (O.3NM N OTZ) 95FT (80FT AGL) DLY 1500-0600 2610111500-2610150600"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "7d2bea4e8255afe5464f25f64f8082315be4d485366cf2f1b6562dfca272706c"
+      }
+    },
+    {
+      "name": "incomplete-heading",
+      "airport": "HIO",
+      "record": {
+        "id": "5923220854228197",
+        "sourceId": "NMS_ID_5923220854228197",
+        "classification": "FDC",
+        "number": "8544",
+        "series": "",
+        "year": "2026",
+        "locations": [
+          "HIO"
+        ],
+        "icaoLocations": [
+          "KHIO"
+        ],
+        "accountability": "FDC",
+        "issuedAt": 1791503760000,
+        "updatedAt": 1791503760000,
+        "sourceUpdatedAt": "2026-10-08T23:56:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1791817200000,
+        "endsAt": 1795218960000,
+        "effectiveStart": "202610121500",
+        "effectiveEnd": "202611202356EST",
+        "endKind": "estimated",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "ODP PORTLAND-HILLSBORO, PORTLAND, OR.\nTAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT ...\nTAKEOFF MINIMUMS: RWY 31R, 300-1 OR DEPARTURE NA.TEMP CRANES STARTING 657 FT FROM DER, 276 FT RIGHT OF CENTERLINE, UP TO 175 AGL/374 MSL (2026-ANM-18-OE).\nADD TAKEOFF OBSTACLE NOTE: RWY 2, TEMPORARY CRANES BEGINNING 3380FT FROM DER, 321FT RIGHT OF CENTERLINE, UP TO 111 AGL/ 324FT MSL (2025-ANM-7058-OE). TEMP CRANE 3379FT FROM DER, 619FF RIGHT OF CENTERLINE, UP TO 111 AGL/322 MSL (2026-ANM-3271-OE)\nALL OTHER DATA REMAINS AS PUBLISHED. 2610121500-2611202356EST",
+        "translations": [
+          {
+            "type": "LOCAL_FORMAT",
+            "text": "!FDC 6/8544 HIO ODP PORTLAND-HILLSBORO, PORTLAND, OR.\nTAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT ...\nTAKEOFF MINIMUMS: RWY 31R, 300-1 OR DEPARTURE NA.TEMP CRANES STARTING 657 FT FROM DER, 276 FT RIGHT OF CENTERLINE, UP TO 175 AGL/374 MSL (2026-ANM-18-OE).\nADD TAKEOFF OBSTACLE NOTE: RWY 2, TEMPORARY CRANES BEGINNING 3380FT FROM DER, 321FT RIGHT OF CENTERLINE, UP TO 111 AGL/ 324FT MSL (2025-ANM-7058-OE). TEMP CRANE 3379FT FROM DER, 619FF RIGHT OF CENTERLINE, UP TO 111 AGL/322 MSL (2026-ANM-3271-OE)\nALL OTHER DATA REMAINS AS PUBLISHED. 2610121500-2611202356EST"
+          },
+          {
+            "type": "OTHER:ICAO",
+            "text": "Q) KZSE/undefined/NBO/A/000/999/4532N12257W005\nA) KHIO\nB) 2610082329\nC) 2705202327EST\nE) HIO PORTLAND-HILLSBORO, PORTLAND, OR.\nTAKEOFF MINIMUMS AND (OBSTACLE) DEPARTURE PROCEDURES AMDT ...\nTAKEOFF MINIMUMS: RWY 31R, 300-1 OR DEPARTURE NA.TEMP CRANES STARTING 657 FT FROM DER, 276 FT RIGHT OF CENTERLINE, UP TO 175 AGL/374 MSL (2026-ANM-18-OE).\nADD TAKEOFF OBSTACLE NOTE: RWY 2, TEMPORARY CRANES BEGINNING 3380FT FROM DER, 321FT RIGHT OF CENTERLINE, UP TO 111 AGL/ 324FT MSL (2025-ANM-7058-OE). TEMP CRANE 3379FT FROM DER, 619FF RIGHT OF CENTERLINE, UP TO 111 AGL/322 MSL (2026-ANM-3271-OE)\nALL OTHER DATA REMAINS AS PUBLISHED."
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "e8258743811e84441c475a4b62271807c5eeea9991ef7cb8c5044bf2b5d9551f"
+      }
+    },
+    {
+      "name": "compact-categories",
+      "airport": "IWA",
+      "record": {
+        "id": "1786109116533645",
+        "sourceId": "NMS_ID_1786109116533645",
+        "classification": "INTL",
+        "number": "566",
+        "series": "A",
+        "year": "2026",
+        "locations": [
+          "IWA"
+        ],
+        "icaoLocations": [
+          "KIWA"
+        ],
+        "accountability": "KIWA",
+        "issuedAt": 1786109100000,
+        "updatedAt": 1786109100000,
+        "sourceUpdatedAt": "2026-08-07T13:25:00.000Z",
+        "canceledAt": "",
+        "referred": null,
+        "startsAt": 1786109040000,
+        "endsAt": 1805462640000,
+        "effectiveStart": "202608071324",
+        "effectiveEnd": "202703191324",
+        "endKind": "fixed",
+        "schedule": "",
+        "changeType": "N",
+        "lifecycle": "active",
+        "text": "IAP MESA GATEWAY, PHOENIX, AZ. RNAV (GPS) RWY 30L, AMDT 1D... LNAV MDA 1900/HAT 526 ALLCATS, VIS CAT C/D 1 1/2. CIRCLING CAT A /B MDA 2000/HAA 616, CAT C/D/E MDA 2160/HAA 776, VIS CAT C 2 1/4, CATD 2 1/2, CAT E 2 3/4. VDP 1.29NM TO RW30L. CRANE 1606 MSL 5040FT SE OF IWA AIRPORT (2024-AWP-4956-NRA),CRANE 1559 MSL 5104FT NE OF IWA AIRPORT (2024-AWP-2028-NRA), CRANE 1494 MSL 5380FT SW OF IWAAIRPORT (2023-AWP-2893-NRA), CRANE 1639 MSL 2.8NM NW OF IWA AIRPORT (2024-AWP-15650-OE), CRANE 1559MSL 5846FT NE OF IWA AIRPORT (2024-AWP-2026-NRA), CRANE 1793 MSL 2.6NM NE OF IWA AIRPORT (2025-AWP-1394-OE). TEMPORARY CRANE, 1748 MSL, 2.93NM NORTH OF KIWA AIRPORT (2025-AWP-3043-OE), TEMPORARY CRANE, 1606FT MSL, 4000FT NE OF RWY 30L(2024-AWP-4953-NRA). TEMPORARY CRANE, 1606FT MSL, 3940FT NE OF RWY 30L (2024-AWP-4953-NRA), TEMPCRANE 1534 MSL, 1.5 NM SE OF KIWA AIRPORT (2026-AWP-3725-OE). TEMP CRANE 1650 MSL, 2.7NM N OF KIWAAIRPORT (2026-AWP-5036-OE). TEMP CRANE 1650 MSL, 2.7NM N OF KIWA AIRPORT (2026-AWP-5036-OE) TEMP CRANE 1734 MSL, 2.6NM N OF KIWA AIRPORT (2025-AWP-13378-OE).",
+        "translations": [
+          {
+            "type": "OTHER:ICAO",
+            "text": "<pre>\nA0566/26 NOTAMN\nQ) KZAB/QPICH/I/NBO/A/000/999/3318N11139W005\nA) KIWA\nB) 2608071324\nC) 2703191324\nE) IAP MESA GATEWAY, PHOENIX, AZ. RNAV (GPS) RWY 30L, AMDT 1D... LNAV MDA 1900/HAT 526 ALLCATS, VIS CAT C/D 1 1/2. CIRCLING CAT A /B MDA 2000/HAA 616, CAT C/D/E MDA 2160/HAA 776, VIS CAT C 2 1/4, CATD 2 1/2, CAT E 2 3/4. VDP 1.29NM TO RW30L. CRANE 1606 MSL 5040FT SE OF IWA AIRPORT (2024-AWP-4956-NRA),CRANE 1559 MSL 5104FT NE OF IWA AIRPORT (2024-AWP-2028-NRA), CRANE 1494 MSL 5380FT SW OF IWAAIRPORT (2023-AWP-2893-NRA), CRANE 1639 MSL 2.8NM NW OF IWA AIRPORT (2024-AWP-15650-OE), CRANE 1559MSL 5846FT NE OF IWA AIRPORT (2024-AWP-2026-NRA), CRANE 1793 MSL 2.6NM NE OF IWA AIRPORT (2025-AWP-1394-OE). TEMPORARY CRANE, 1748 MSL, 2.93NM NORTH OF KIWA AIRPORT (2025-AWP-3043-OE), TEMPORARY CRANE, 1606FT MSL, 4000FT NE OF RWY 30L(2024-AWP-4953-NRA). TEMPORARY CRANE, 1606FT MSL, 3940FT NE OF RWY 30L (2024-AWP-4953-NRA), TEMPCRANE 1534 MSL, 1.5 NM SE OF KIWA AIRPORT (2026-AWP-3725-OE). TEMP CRANE 1650 MSL, 2.7NM N OF KIWAAIRPORT (2026-AWP-5036-OE). TEMP CRANE 1650 MSL, 2.7NM N OF KIWA AIRPORT (2026-AWP-5036-OE) TEMP CRANE 1734 MSL, 2.6NM N OF KIWA AIRPORT (2025-AWP-13378-OE).\n</pre>"
+          }
+        ],
+        "sequence": 1,
+        "correction": 0,
+        "revision": "6a9da9f7880e1734464ba006e40262337db0d0c8ef058682e633e5db8454769c"
+      }
+    }
+  ]
+}

@@ -162,9 +162,23 @@ can identify the same storm independently; their station/cell IDs remain distinc
 Tracks are guidance, not predicted reflectivity or Doppler wind velocity. Tracking
 can miss cells and is less reliable for merging or nonlinearly moving storms.
 
-`radar-motion.ts` independently collects CONUS `Kxxx` products from NOAA's bounded
-`DS.58sti` directory listing, cached for a day. One sequential collector shares the
-radar upstream admission queue. It publishes partial results every 25 stations and
+`radar-motion.ts` independently collects CONUS products from NOAA's bounded
+`DS.58sti` directory listing, cached for a day. It intersects that listing with a
+pinned roster of 143 WSR-88D stations from the [NWS station registry](https://api.weather.gov/radar/stations),
+checked October 19, 2026. Directory prefixes alone are insufficient: `KKJK` and
+`KKSG` are foreign sites, while retired `KLIX` was replaced by `KHDC`. Unsupported
+stations are excluded before acquisition and do not count as missing coverage.
+An incomplete, oversized or unsupported-only listing remains a collection error.
+
+To update the roster, select registry features with `stationType: WSR-88D` and
+locations within 20–55° N, 130–60° W; review additions/removals against the NOAA
+product directory and station-change notices, then update `MOTION_SITES` and this
+provenance together. Collection has no runtime dependency on the registry.
+Supported stations still undergo the same identity, format and freshness checks;
+stale or invalid observations remain visible even when they contain zero tracks.
+
+One sequential collector shares the radar upstream admission queue. It publishes
+partial results every 25 stations and
 waits two minutes between rounds; a motion station cannot occupy either reflectivity
 worker. Raw products are capped at 512 KiB. The decoder validates WMO station/product,
 message length, block boundaries, observation time and geographic coverage. It reads
@@ -200,8 +214,10 @@ snapshots are `/api/weather/radar/motion/<sha256>.json` (≤4 MiB). The shared d
 budget includes both encodings. History gets at most 1/64 of the server budget,
 capped at 64 MiB, with the latest snapshot retained even if it exceeds that allowance.
 Current/building files and six minutes of preceding catalogs are protected. Restart
-restores the latest decoded scans without upstream reads. The browser uses core's
-whole-file cache (24 files/16 MiB, one hour unused, in its own retention category),
+restores supported decoded scans without upstream reads and removes unsupported
+station failures from saved catalogs, preserving their check times and immutable
+file references. The browser uses core's whole-file cache (24 files/16 MiB, one hour
+unused, in its own retention category),
 authenticates each digest, and loads one selected national snapshot. One native
 GeoJSON source and five layers draw all tracks without per-cell DOM markers.
 

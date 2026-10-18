@@ -1,8 +1,9 @@
 import type { NotamRecord } from '@zlayer/contracts';
 import { fdcContinuationEvidence } from './source-text';
 import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey, type IcaoNotice } from './representation';
-import { localKey, sharedLocalNotice, icaoBody, matchesIcaoBody, icaoEvidence } from './notice-evidence';
+import { localKey, sharedLocalNotice, icaoBody, matchesIcaoBody, icaoEvidence, sharedIcaoSchedule } from './notice-evidence';
 import { compareIcaoQualification, type IcaoQualificationProof } from './notice-qualification';
+import { lineBreakNoticeEvidence } from './notice-line-breaks';
 export { sharedLocalNotice } from './notice-evidence';
 
 /** Baseline comparison retains literal entity spelling. Decoding is admitted
@@ -22,7 +23,7 @@ export function translationsByType(record: NotamRecord) {
  * set, so sparse input cannot erase a disagreement or manufacture a correction. */
 type IcaoProof = { body: string; proof: 'icao-notice' | 'icao-rendering' | 'icao-distribution-annotation' | IcaoQualificationProof };
 function sharedIcaoProof(previous: NotamRecord, next: NotamRecord): IcaoProof | undefined {
-  const before = icaoEvidence(previous), after = icaoEvidence(next);
+  const before = icaoEvidence(previous, 'aixm'), after = icaoEvidence(next, 'aixm');
   if (!before || !after) return;
   const annotated = before.bodyAnnotation || after.bodyAnnotation || before.translationAnnotation || after.translationAnnotation;
   // If the disclaimer exists only in a primary body, keep that original body.
@@ -39,8 +40,12 @@ function sharedIcaoProof(previous: NotamRecord, next: NotamRecord): IcaoProof | 
   }
   // Corrections and qualification upgrades need stronger authority than equality
   // of renderings whose shared source metadata may itself be inconsistent.
-  if (!before.recordBound || !after.recordBound) return;
-  const qualification = compareIcaoQualification(notices);
+  // A complete shared D field may bind an omitted structured schedule. This
+  // checks identity, interval and every supplied schedule before qualification;
+  // other unbound source metadata still cannot authorize a correction.
+  const schedule = sharedIcaoSchedule(previous, next);
+  if ((!before.recordBound || !after.recordBound) && !schedule) return;
+  const qualification = compareIcaoQualification(schedule ? notices.map(notice => ({ ...notice, schedule: '' })) : notices);
   return qualification ? witness(qualification) : undefined;
 }
 
@@ -58,7 +63,7 @@ function compatibleIcao(a: string, b: string): boolean {
 }
 
 export type NoticeComparison = { body: string | undefined; translationsCompatible: boolean;
-  proof: IcaoProof['proof'] | 'exact' | 'local-notice' | 'icao-body' | 'fdc-continuation' | null;
+  proof: IcaoProof['proof'] | 'exact' | 'local-notice' | 'icao-body' | 'fdc-continuation' | 'icao-line-break' | null;
   failure: 'unsupported-representation' | 'different-content' | null };
 
 /** Reconciliation consumes complete representations, independently of the PWA's
@@ -67,11 +72,13 @@ export function compareNoticeText(previous: NotamRecord, next: NotamRecord): Not
   const local = sharedLocalNotice(previous, next), icao = sharedIcaoProof(previous, next);
   const before = translationsByType(previous), after = translationsByType(next);
   const continuation = !local && !icao ? fdcContinuationEvidence([previous, next]) : undefined;
+  const lineBreak = !local && !icao && !continuation ? lineBreakNoticeEvidence([previous, next]) : undefined;
   let body: string | undefined, proof: NoticeComparison['proof'] = null;
   if (previous.text === next.text) { body = previous.text; proof = 'exact'; }
   else if (icao) { body = icao.body; proof = icao.proof; }
   else if (local) { body = previous.text; proof = 'local-notice'; }
   else if (continuation) { body = continuation.body; proof = 'fdc-continuation'; }
+  else if (lineBreak) { body = lineBreak.body; proof = 'icao-line-break'; }
   else for (const translation of before.get('OTHER:ICAO') ?? []) {
     if (!after.get('OTHER:ICAO')?.has(translation)) continue;
     // The identical retained rendering can prove its E)-onward substring even
@@ -86,9 +93,9 @@ export function compareNoticeText(previous: NotamRecord, next: NotamRecord): Not
   const translationFailures = [...before].map(([type, values]): NoticeComparison['failure'] => {
     const incoming = after.get(type);
     if (!incoming || values.size === incoming.size && [...values].every(value => incoming.has(value))) return null;
-    if (type === 'LOCAL_FORMAT' && (local || continuation)) return null;
+    if (type === 'LOCAL_FORMAT' && (local || continuation || lineBreak)) return null;
     if (type === 'OTHER:ICAO') {
-      if (local || icao || continuation) return null;
+      if (local || icao || continuation || lineBreak) return null;
       const richer = [...incoming].every(text => values.has(text)) ? previous
         : [...values].every(text => incoming.has(text)) ? next : undefined;
       if (richer && localKey(richer) !== undefined) return null;
@@ -98,13 +105,14 @@ export function compareNoticeText(previous: NotamRecord, next: NotamRecord): Not
       : type === 'OTHER:ICAO' && parseIcaoNotice(value).ok;
     return [...values, ...incoming].every(supported) ? 'different-content' : 'unsupported-representation';
   });
-  const recognized = (record: NotamRecord) => localKey(record) !== undefined || !!icaoEvidence(record);
+  const recognized = (record: NotamRecord) => localKey(record) !== undefined || !!icaoEvidence(record, 'aixm');
   const bodyFailure: NoticeComparison['failure'] = body !== undefined ? null
     : recognized(previous) && recognized(next) ? 'different-content' : 'unsupported-representation';
   const failures = [bodyFailure, ...translationFailures];
   // These policies also explain differences confined to translations, even
   // when the primary bodies were already exactly equal.
   if (icao && icao.proof !== 'icao-notice' && icao.proof !== 'icao-rendering') proof = icao.proof;
+  if (lineBreak) proof = 'icao-line-break';
   return { body, translationsCompatible: translationFailures.every(failure => failure === null), proof,
     failure: failures.includes('different-content') ? 'different-content'
       : failures.includes('unsupported-representation') ? 'unsupported-representation' : null };

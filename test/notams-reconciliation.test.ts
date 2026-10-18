@@ -186,14 +186,16 @@ test('captured filing-scope content remains usable while health distinguishes as
     assert.ok(health.readiness.problems.every((p: { product: string }) => !p.product.startsWith('notams')));
     assert.deepEqual(health.readiness.warnings, [{ product: 'notams', reason: 'association-metadata', severity: 'warning' }]);
     assert.deepEqual(health.notamSourceIssues, service.sourceIssues);
-    assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0,
+    assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0, historical: 0,
       blocking: 0, nonBlocking: 1,
-      samples: [{ id: issue.id, kind: 'association', reason: 'revision-conflict', locations: ['49D'], blocking: false,
+      samples: [{ id: issue.id, kind: 'association', sourceRevision: issue.variants[0]!.sourceUpdatedAt, observations: null,
+        applicability: { state: 'upcoming', fixedEndAt: issue.variants[0]!.endsAt, nextTransitionAt: issue.variants[0]!.startsAt },
+        reason: 'revision-conflict', locations: ['49D'], blocking: false,
         fields: ['icaoLocations'], icaoLocationVariants: issue.variants.map(v => v.icaoLocations), affectedIcaoQueries: [], affectedLocationQueries: [],
         comparisons: [{ outcome: 'contradictory', fields: ['icaoLocations'], proof: 'exact', reason: null }],
         variantsTruncated: false, unscoped: false, impact: 'metadata-only', operatorAction: 'none',
         resolution: 'A newer reconciled source revision or qualified full-snapshot withdrawal can clear the retained issue.' }], samplesTruncated: false });
-    const index = new NotamIndex(); index.publish(generation);
+    const index = new NotamIndex(() => at); index.publish(generation);
     const contradictory = collectNotamRecords({ records: [] }, [issue.variants[0]!, changed(issue.variants[1]!, {
       text: issue.variants[1]!.text.replace('U/S', 'AVBL'),
     })]);

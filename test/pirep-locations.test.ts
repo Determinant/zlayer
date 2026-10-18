@@ -82,8 +82,8 @@ test('a bare seaplane-base identifier resolves at the published point without a 
   }
 });
 
-test('the TEI reader never extracts partial locations, duplicate fields, cloud codes or remarks', () => {
-  for (const ov of ['', 'UNKN', 'NEAR THE AIRPORT', 'GFK361005', 'GFK1801000', 'GFK180005 EXTRA', 'GFK180005/UNKNOWN',
+test('the TEI reader never extracts substrings, duplicate fields, cloud codes or remarks', () => {
+  for (const ov of ['', 'UNKN', 'NEAR THE AIRPORT', 'GFK180005 EXTRA', 'GFK180005/UNKNOWN',
     'GFK180005/', 'GFK--KGFK', 'GFK-', '-GFK', '3960N08446W', '9001N18000E', '3901N18001W',
     'GFK180005 /OV KGFK', Array(17).fill('GFK').join('-'), 'X'.repeat(513)]) {
     assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}/TM 1516`), ov);
@@ -127,17 +127,19 @@ test('compass offsets recover the reporting airport with explicit assumptions an
 });
 
 test('compass recovery accepts bounded equivalent phrases and honors explicit references and units', () => {
-  for (const ov of ['2 N', '2N', 'N 2', 'N2', '2 NORTH', '2 NM NORTH', '2 MILES NORTH']) {
+  for (const ov of ['2 N', '2N', 'N 2', 'N2', '2 NORTH', '2 NM NORTH', '2 MILES NORTH', '2MI NORTH', 'NORTH 2 MI']) {
     assert.deepEqual(recovery(ov).anchor, { ident: 'GFK', source: 'reporting-station' }, ov);
-    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0, distance: { value: 2, unit: 'NM', distanceNm: 2 } }, ov);
+    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0,
+      distance: { value: 2, unit: 'NM', distanceNm: 2, ...(ov.includes('MI') ? { assumedUnit: true } : {}) } }, ov);
   }
   for (const ov of ['2 NNE', '2 NORTH NORTHEAST', '2 NORTH-NORTH-EAST', '2 NM NNE', '2 MILES NNE']) {
     assert.equal(compassDescription(ov).radial, 22.5, ov);
   }
   assert.equal(compassDescription('7 SOUTH').radial, 180);
-  for (const ov of ['2 N OF KHYA', '2 N KHYA', 'KHYA 2 N', 'KHYA N 2', '2 MILES N OF KHYA']) {
+  for (const ov of ['2 N OF KHYA', '2 N KHYA', 'KHYA 2 N', 'KHYA N 2', '2 MILES N OF KHYA', '2MI N KHYA', 'KHYA N 2MI']) {
     assert.deepEqual(recovery(ov).anchor, { ident: 'KHYA', source: 'explicit' }, ov);
-    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0, distance: { value: 2, unit: 'NM', distanceNm: 2 } }, ov);
+    assert.deepEqual(compassDescription(ov), { kind: 'compass', direction: 'N', radial: 0,
+      distance: { value: 2, unit: 'NM', distanceNm: 2, ...(ov.includes('MI') ? { assumedUnit: true } : {}) } }, ov);
   }
   assert.equal(compassDescription('2SM NE').distance.distanceNm, 2 * 1609.344 / 1852);
   assert.equal(compassDescription('.5 NM SW').distance.distanceNm, .5);
@@ -178,7 +180,7 @@ test('compass descriptions without a reporting station cannot become distance-on
   for (const header of ['UA', 'UNKN UA', '123 UA']) {
     for (const direction of ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
       'NORTH EAST', 'NORTH-NORTH-WEST', 'SOUTH', 'WEST']) {
-      for (const unit of ['NM', 'SM', 'MILES']) {
+      for (const unit of ['NM', 'SM', 'MI', 'MILE', 'MILES']) {
         for (const ov of [`2 ${unit} ${direction}`, `${direction} 2 ${unit}`]) {
           assert.equal(readPirepLocation(`${header} /OV ${ov}/TM 1516`).kind, 'rejected', `${header} /OV ${ov}`);
         }
@@ -195,7 +197,7 @@ test('compass descriptions without a reporting station cannot become distance-on
 });
 
 test('recognized invalid syntax stays rejected while unsupported syntax stays unrecognized', () => {
-  for (const ov of ['1000 N', '1000 MILES', '20 NM', 'GFK361005', 'GFK1801000', '3960N08446W', 'ILS RWY 37', 'FINAL 00']) {
+  for (const ov of ['1000 N', '1000 MILES', '20 NM', '3960N08446W', 'ILS RWY 37', 'FINAL 00']) {
     assert.equal(readPirepLocation(`GFK UA /OV ${ov}/TM 1516`).kind, 'rejected', ov);
   }
   for (const ov of ['NEAR THE AIRPORT', '2 NORTH OR SOUTH', 'GFK180005 EXTRA', 'RWY 8L']) {
@@ -237,7 +239,7 @@ test('rejected compact fallbacks cannot hide a published identifier', () => {
 
 test('distance-only locations use an approximate airport reference with the direction left unknown', () => {
   const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences(navigation());
-  for (const ov of ['2SM', '2 SM', '2NM', '2 NM', '2 MILES', '.5 SM', '0 NM', '5 NM', '5 MILES', '5.75 SM']) {
+  for (const ov of ['2SM', '2 SM', '2NM', '2 NM', '2 MI', '2 MILE', '2 MILES', '.5 SM', '0 NM', '5 NM', '5 MI', '5 MILES', '5.75 SM']) {
     const result = resolve(location(ov), time);
     assert.ok('coordinate' in result, ov);
     assert.deepEqual(result.coordinate, airport.geometry.coordinates, 'no direction can be inferred from a distance alone');
@@ -257,7 +259,7 @@ test('distance-only locations use an approximate airport reference with the dire
     'an unambiguous distance needs only an airport reference and no magnetic model');
   const miles = resolve(location('2 MILES OF KGFK'), time);
   assert.ok('coordinate' in miles);
-  assert.equal(miles.description, 'Approx. 2 NM from KGFK; airport reference, direction unknown');
+  assert.equal(miles.description, 'Approx. 2 NM from KGFK; airport reference, direction unknown; miles interpreted as NM');
   for (const ov of ['2', '-2 SM', '1000 NM', '2 SM EXTRA TEXT', '2 SM OF UNKN', '2 SM-3 SM']) {
     assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}/TM 1516`), ov);
   }
@@ -271,9 +273,30 @@ test('distance-only locations use an approximate airport reference with the dire
   assert.ok('reason' in resolve(location('2 SM OF KHYA'), time), 'an unavailable explicit airport cannot fall back to the header');
 });
 
+test('fractional descriptions consume complete amounts and preserve an unknown final-approach position', () => {
+  const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences(navigation());
+  for (const phrase of ['1/2 MILE FINAL', '1/2 MI FINAL', '0.5 NM FINAL']) {
+    const result = resolve(location(phrase), time);
+    assert.ok('coordinate' in result, phrase);
+    assert.deepEqual(result.coordinate, airport.geometry.coordinates);
+    assert.equal(result.estimated, true);
+    assert.equal(result.description, 'Approx. 0.5 NM FINAL at GFK (reporting station); airport reference, position along approach unknown' +
+      (phrase.includes('MI') ? '; miles interpreted as NM' : ''));
+  }
+  for (const [phrase, distance] of [['1/2 NM N', .5], ['2 1/2 NM N', 2.5]] as const) {
+    const result = resolve(location(phrase), time);
+    assert.ok('coordinate' in result, phrase);
+    assert.ok(Math.abs(distanceNm(result.coordinate, airport.geometry.coordinates) - distance) < 1e-7);
+  }
+  for (const phrase of ['1/0 MILE FINAL', '1/ MILE FINAL', '1/2/3 MILE FINAL', '-1/2 MILE FINAL',
+    '1/2 MILE FINAL EXTRA', '1/2 MILE FINAL RWY 37', '1/2 MILE FINAL /OV GFK']) {
+    assert.ok('reason' in readPirepLocation(`GFK UA /OV ${phrase}/TM 1516`), phrase);
+  }
+});
+
 test('distance-only airport markers stay within 5 NM without limiting located offsets or identifiers', () => {
   const time = pirepFixture().checkedAt, resolve = createPirepLocationReferences(navigation());
-  for (const distance of ['5.001 NM', '5.76 SM', '6 MILES', '20 NM', '999 NM']) {
+  for (const distance of ['5.001 NM', '5.76 SM', '6 MI', '6 MILES', '20 NM', '999 NM']) {
     for (const ov of [distance, `${distance} OF KGFK`, `KGFK ${distance}`]) {
       assert.ok('reason' in readPirepLocation(`GFK UA /OV ${ov}/TM 1516`), ov);
     }

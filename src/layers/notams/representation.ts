@@ -264,7 +264,7 @@ export function parseLocalNotice(source: string): RepresentationResult<LocalNoti
         if (!result.office) return fail('header');
         state = 'number'; break;
       case 'number':
-        result.number = cursor.word(result.office === 'FDC' ? /^\d\/\d{4}$/ : /^\d{2}\/\d+$/) ?? '';
+        result.number = cursor.word(result.office === 'FDC' ? /^\d\/\d{4}$/ : /^(?:\d{2}\/\d+|[A-Z]\d{4}\/\d{2})$/) ?? '';
         if (!result.number) return fail('header');
         state = 'location'; break;
       case 'location':

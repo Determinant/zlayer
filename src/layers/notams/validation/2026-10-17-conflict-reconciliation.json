@@ -1,0 +1,31 @@
+{
+  "purpose": "Qualify numbering-year omission and complementary station/FIR lookup rules against every retained production source issue.",
+  "scope": "The 90 retained source issues only; not a replay of unrelated resolved records or a deployment health check.",
+  "method": "Checksum-verified immutable generation, read in place on the production host. Candidate pure functions imported in memory. Only aggregate counts and hashes returned.",
+  "candidateModuleSha256": "143dabea657b2b561061822390ce0df5e42f3bcc46d2967eb5c91c433b6f26ab",
+  "productionChanged": false,
+  "faaRequests": 0,
+  "rawRecordsExported": 0,
+  "assessedAt": "2026-10-17T20:17:30.980Z",
+  "total": 90,
+  "resolved": 90,
+  "unresolved": 0,
+  "bothArrivalOrders": 90,
+  "sparseRebase": 90,
+  "retainedTranslations": 90,
+  "sourceRevisionUnchanged": 90,
+  "yearProvenance": 88,
+  "associationProvenance": 2,
+  "proofs": {
+    "source-record": 90,
+    "exact": 89,
+    "source-year-omission": 88,
+    "complementary-association-scopes": 2,
+    "local-notice": 1
+  },
+  "unresolvedFields": {},
+  "generation": "e8d677349887bf23ba90d34b598e3d82569d4eef00e9085186d59e327c78ba05",
+  "sourceCheckedAt": 1792268229279,
+  "collectionComplete": true,
+  "cohortSha256": "49b0b4636412c7535cd6df20599cd398ffef5df0fdf1f2af4392f1f4c1124826"
+}

@@ -7,29 +7,32 @@ export type NotamMinimaGroup = { kind: 'minima-group'; entries: NotamMinima[] };
 const runway = '(?:0?[1-9]|[12]\\d|3[0-6])[LRC]?';
 const scopePattern = new RegExp(`^([*#]?(?:LNAV/VNAV|LNAV|LPV AND LNAV/VNAV|LPV|LP|GLS|RNP (?:\\d+(?:\\.\\d+)?|\\.\\d+)|` +
   `(?:S|H)- ?(?:ILS|LOC)(?: (?:RWY )?${runway})?(?: (?:SA )?CAT I{1,3})?|ILS|LOC|S-${runway}(?: LOC)?|CIRCLING|SIDESTEP:? (?:RWY )?${runway})[*#]?)(?=\\s|:)[: ]*`);
-const categories = '(ALL CATS?|CATS? [A-E](?:(?:/| AND )[A-E])*)';
-const categoryLabel = (text: string) => /^ALL CATS?$/.test(text) ? 'All categories' : text.replace(/^CATS /, 'CAT ');
+const categories = '(ALL ?CATS?|CATS? ?[A-E](?:(?:/| AND )[A-E])*)';
+const categoryLabel = (text: string) => /^ALL ?CATS?$/.test(text) ? 'All categories' : text.replace(/^CATS? ?/, 'CAT ');
 
 /** Whole-clause grammar: do not lift numbers out of notes, exceptions or unknown prose. */
 export function approachMinima(source: string): NotamMinima | undefined {
   if (source.length > 2048) return undefined;
   let text = source.replace(/\s+/g, ' ').trim().replace(/\.+$/, '');
-  const fix = /^([A-Z0-9]+ FIX MINIMUMS(?: \([A-Z0-9 /-]+\))?):?\s+/.exec(text);
+  const fix = /^([A-Z0-9]+ FIX MINIMUMS(?: \([A-Z0-9 /-]+\))?|DME MINIMUMS):?\s+/.exec(text);
   if (fix) text = text.slice(fix[0].length);
   const scope = scopePattern.exec(text);
   if (scope) text = text.slice(scope[0].length);
   // A standalone amendment retains source order; no procedure/category
   // or units are borrowed from a preceding line of minima.
-  if (!scope && !new RegExp(`^(?:${categories} )?(?:MDA|DA|RA|HAT|HAA|HAS|VISIBILITY|VIS|RVR|MINIMUMS)\\b`).test(text)) return undefined;
+  if (!scope && !new RegExp(`^(?:${categories} )?(?:MDAS?|DA|RA|HAT|HAA|HAS|VISIBILITY|VISIBLITY|VIS|RVR|MINIMUMS)\\b`).test(text)) return undefined;
   const condition = /(?:,?\s+)((?:UNLESS|EXCEPT WHEN)\b.+)$/.exec(text);
   if (condition) text = text.slice(0, condition.index);
-  const segments = text.split(/\s*,\s*/);
+  // A semicolon followed by a new explicit approach scope belongs to the group
+  // parser. A semicolon between labeled rows keeps this scope, never its category.
+  if (text.split(/;\s*/).slice(1).some(part => scopePattern.test(part))) return undefined;
+  const segments = text.split(/\s*[,;]\s*/);
   if (segments.length > 16) return undefined;
   const rows: NotamMinimumRow[] = [];
   for (let segment of segments) {
     if (scope && segment.startsWith(`${scope[1]} `)) segment = segment.slice(scope[1]!.length + 1);
     // Some publishers put a comma before the first row's category qualifier.
-    if (/^ALL CATS?$/.test(segment) && rows.length === 1 && !rows[0]!.categories) {
+    if (/^ALL ?CATS?$/.test(segment) && rows.length === 1 && !rows[0]!.categories) {
       rows[0]!.categories = categoryLabel(segment); continue;
     }
     const row = minimumRow(segment, rows.at(-1));

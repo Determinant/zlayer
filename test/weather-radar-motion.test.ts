@@ -71,8 +71,18 @@ test('background motion publication reuses unchanged artifacts and restores them
   const first = await readCatalog(); assert.equal(first.files.length, 1);
   now += 120_001; warmer.refresh(); await warmer.close();
   const second = await readCatalog(); assert.deepEqual(second.files, first.files);
+  // A catalog from the former directory-prefix collector includes foreign and retired sites.
+  const resource = resourceFor('/api/weather/radar/motion/latest.json'), saved = (await cache.read(resource))!;
+  const body = Buffer.from(JSON.stringify({ ...second, unavailable: ['KKJK', 'KKSG', 'KLIX', 'KTLX'] }));
+  await cache.put(resource, { ...saved, body, sha256: digest(body) });
   const priorReads = reads, restored = createRadarMotionWarming(cache, signal, { now: () => now });
   await restored.restore(); assert.equal(restored.status.stations, 1); assert.equal(reads, priorReads);
+  assert.deepEqual(await readCatalog(), { ...second, unavailable: ['KTLX'] }, 'restore removes only unsupported failures, preserving files and source time');
+  assert.equal(restored.status.unavailable, 1);
+  const restarted = createRadarMotionWarming(cache, signal, { now: () => now });
+  await restarted.restore();
+  assert.equal(restarted.status.unavailable, 1, 'the corrected catalog survives another restart');
+  assert.equal(reads, priorReads);
   now += RADAR_MAX_AGE; restored.refresh(); await restored.close();
   assert.deepEqual((await readCatalog()).unavailable, ['KTLX']);
   assert.equal(restored.status.diagnostics.sources.KTLX?.code, 'stale-source');
@@ -119,4 +129,67 @@ for (const withCurrent of [false, true]) test(`future motion scans preserve publ
   now += 90_000; warmer.refresh(); await warmer.close();
   assert.deepEqual((await published()).map(scan => scan.site), withCurrent ? ['KAMX', 'KHTX'] : ['KAMX']);
   assert.equal(warmer.status.newestObservedAt, futureAt, 'freshness advances with the published snapshot');
+});
+
+test('motion collects supported stations while preserving stale, invalid and recovered source states', async t => {
+  const current = await capture('20260924-210657-khtx-sti.level3'), stale = await capture('20260924-012552-ktlx-sti.level3');
+  let recovering = Buffer.from('invalid STI'), now = Date.parse('2026-09-24T21:11:00Z');
+  const reads: string[] = [], directory = await mkdtemp(join(tmpdir(), 'zlayer-motion-sites-'));
+  const lifetime = new AbortController();
+  const sites = ['KKJK', 'KHTX', 'KKSG', 'KAMX', 'KLIX', 'KTLX', 'KHTX', 'KZZZ', 'PAHG'];
+  const listing = Buffer.from(`<html>${sites.map(site => `<a href="SI.${site.toLowerCase()}/">${site}</a>`).join('')}</html>`);
+  const cache = new WeatherCache({ directory, maxBytes: 16 * 1024 * 1024, now: () => now, async load(resource) {
+    reads.push(resource.url);
+    const body = resource.url === RADAR_MOTION_ROOT ? listing : resource.url.includes('SI.khtx/') ? current
+      : resource.url.includes('SI.ktlx/') ? stale : recovering;
+    return { body, sha256: digest(body), status: 200, checkedAt: now, headers: {} };
+  } });
+  const warmer = createRadarMotionWarming(cache, lifetime.signal, { now: () => now });
+  t.after(async () => { lifetime.abort(); await warmer.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+  await cache.restore(); warmer.refresh(); await warmer.close();
+  assert.deepEqual(reads, [RADAR_MOTION_ROOT, ...['kamx', 'khtx', 'ktlx'].map(site => `${RADAR_MOTION_ROOT}SI.${site}/sn.last`)],
+    'foreign, retired and unknown stations are excluded before acquisition, and duplicate links fetch once');
+  assert.deepEqual(warmer.status.diagnostics.counts, { 'invalid-source': 1, 'stale-source': 1 });
+  assert.equal(warmer.status.diagnostics.sources.KAMX?.code, 'invalid-source');
+  assert.equal(warmer.status.diagnostics.sources.KTLX?.code, 'stale-source');
+  const published = async () => {
+    const saved = (await cache.read(resourceFor('/api/weather/radar/motion/latest.json')))!;
+    const catalog: unknown = JSON.parse(saved.body.toString()); assert.ok(isRadarMotionCatalog(catalog));
+    const latest = catalog.files.at(-1)!;
+    const data = (await cache.read(resourceFor(`/api/weather/radar/${latest.path}`)))!;
+    const snapshot: unknown = JSON.parse(data.body.toString()); assert.ok(isRadarMotionSnapshot(snapshot));
+    return { catalog, snapshot };
+  };
+  const first = await published();
+  assert.deepEqual(first.catalog.unavailable, ['KAMX', 'KTLX']);
+  assert.deepEqual(first.snapshot.scans.map(scan => [scan.site, scan.tracks.length]), [['KHTX', 0]], 'a fresh empty report remains usable');
+  recovering = await capture('20260924-211024-kamx-sti.level3'); now += 120_001;
+  warmer.refresh(); await warmer.close();
+  const recovered = await published();
+  assert.deepEqual(recovered.catalog.unavailable, ['KTLX']);
+  assert.deepEqual(recovered.snapshot.scans.map(scan => scan.site), ['KAMX', 'KHTX']);
+  assert.deepEqual(warmer.status.diagnostics.counts, { 'stale-source': 1 });
+  assert.equal(warmer.status.newestObservedAt, Date.parse('2026-09-24T21:10:24Z'));
+});
+
+test('motion rejects incomplete, oversized or unsupported-only listings instead of publishing empty success', async t => {
+  const oversized = `<html>${Array.from({ length: 161 }, (_, i) =>
+    `<a href="SI.ka${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + i % 26)}/">radar</a>`).join('')}</html>`;
+  for (const listing of ['<html><a href="SI.khtx/">KHTX</a>', '<html></html>',
+    '<html><a href="SI.kkjk/">KKJK</a><a href="SI.kksg/">KKSG</a></html>', oversized]) {
+    const directory = await mkdtemp(join(tmpdir(), 'zlayer-motion-listing-')), lifetime = new AbortController();
+    const reads: string[] = [], now = Date.parse('2026-09-24T21:11:00Z');
+    const cache = new WeatherCache({ directory, maxBytes: 16 * 1024 * 1024, now: () => now, async load(resource) {
+      reads.push(resource.url);
+      const body = Buffer.from(listing);
+      return { body, sha256: digest(body), status: 200, checkedAt: now, headers: {} };
+    } });
+    const warmer = createRadarMotionWarming(cache, lifetime.signal, { now: () => now });
+    t.after(async () => { lifetime.abort(); await warmer.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+    await cache.restore(); warmer.refresh(); await warmer.close();
+    assert.deepEqual(reads, [RADAR_MOTION_ROOT]);
+    assert.equal(warmer.status.ready, false);
+    assert.match(warmer.status.error ?? '', /station listing/);
+    assert.equal(await cache.read(resourceFor('/api/weather/radar/motion/latest.json')), undefined);
+  }
 });

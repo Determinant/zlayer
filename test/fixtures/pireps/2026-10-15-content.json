@@ -1,0 +1,39 @@
+{
+  "captures": [
+    {
+      "schemaVersion": 2,
+      "checkedAt": 1792083512000,
+      "source": "https://aviationweather.gov/data/cache/aircraftreports.cache.xml.gz",
+      "records": [
+        "<AircraftReport><receipt_time>2026-10-15T16:55:10.093Z</receipt_time><observation_time>2026-10-15T16:41:00.000Z</observation_time><aircraft_ref>P28A</aircraft_ref><latitude>48.0280</latitude><longitude>-97.3207</longitude><altitude_ft_msl>3500</altitude_ft_msl><sky_condition sky_cover=\"BKN\" cloud_base_ft_msl=\"3500\" cloud_top_ft_msl=\"4000\"/><temp_c>4</temp_c><report_type>PIREP</report_type><raw_text>GFK UA /OV GFK300007/TM 1641/FL035/TP P28A/SK SCT-BKN035-TOP040/TA 04</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:55:10.026Z</receipt_time><observation_time>2026-10-15T16:39:00.000Z</observation_time><aircraft_ref>A306</aircraft_ref><latitude>38.1741</latitude><longitude>-85.7365</longitude><altitude_ft_msl>0</altitude_ft_msl><report_type>PIREP</report_type><raw_text>SDF UA /OV SDF/TM 1639/FLDURD/TP A306/SK B005 T021</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:40:03.518Z</receipt_time><observation_time>2026-10-15T16:36:00.000Z</observation_time><aircraft_ref>CRJ9</aircraft_ref><latitude>38.3760</latitude><longitude>-81.5929</longitude><altitude_ft_msl>0</altitude_ft_msl><report_type>PIREP</report_type><raw_text>CRW UA /OV CRW/TM 1636/FLDURD/TP CRJ9/SK T050 B018</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:20:14.049Z</receipt_time><observation_time>2026-10-15T16:15:00.000Z</observation_time><aircraft_ref>E75L</aircraft_ref><latitude>43.8569</latitude><longitude>-89.5833</longitude><altitude_ft_msl>26000</altitude_ft_msl><turbulence_condition turbulence_type=\"CHOP\" turbulence_intensity=\"LGT-MOD\" turbulence_freq=\"CONT\" turbulence_base_ft_msl=\"23000\" turbulence_top_ft_msl=\"25000\"/><report_type>PIREP</report_type><raw_text>DLL UA /OV DLL020020/TM 1615/FL260/TP E75L/TB CONS LGT OCNL MOD CHOP 230-250</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:20:13.506Z</receipt_time><observation_time>2026-10-15T16:14:00.000Z</observation_time><aircraft_ref>110</aircraft_ref><latitude>46.8022</latitude><longitude>-92.2029</longitude><altitude_ft_msl>0</altitude_ft_msl><icing_condition icing_intensity=\"NEG\"/><report_type>PIREP</report_type><raw_text>DLH UA /OV DLH/TM 1614/FLB350/TP 110/SK B024 T110/IC NEG</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:20:13.688Z</receipt_time><observation_time>2026-10-15T16:10:00.000Z</observation_time><aircraft_ref>TBM8</aircraft_ref><latitude>40.6601</latitude><longitude>-100.3330</longitude><altitude_ft_msl>14000</altitude_ft_msl><icing_condition icing_type=\"RIME\" icing_intensity=\"MOD\"/><icing_condition icing_intensity=\"NEG\" icing_base_ft_msl=\"15000\" icing_top_ft_msl=\"18000\"/><temp_c>-23</temp_c><report_type>PIREP</report_type><raw_text>LBF UA /OV LBF130030/TM 1610/FL140/TP TBM8/TA M23/IC MOD RIME 180-150 NEG 140/RM ZDVWC-19</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T16:15:18.927Z</receipt_time><observation_time>2026-10-15T16:07:00.000Z</observation_time><quality_control_flags><mid_point_assumed>TRUE</mid_point_assumed></quality_control_flags><aircraft_ref>B738</aircraft_ref><latitude>42.4823</latitude><longitude>-95.3114</longitude><altitude_ft_msl>37000</altitude_ft_msl><turbulence_condition turbulence_type=\"CAT\" turbulence_intensity=\"LGT-MOD\" turbulence_freq=\"OCNL\" turbulence_base_ft_msl=\"37000\"/><report_type>PIREP</report_type><raw_text>SUX UA /OV SUX-FOD/TM 1607/FL370/TP B738/TB OCNL-CONS LGT-MOD CAT 370</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T15:50:09.950Z</receipt_time><observation_time>2026-10-15T15:43:00.000Z</observation_time><aircraft_ref>C525</aircraft_ref><latitude>39.1786</latitude><longitude>-96.6657</longitude><altitude_ft_msl>0</altitude_ft_msl><icing_condition icing_intensity=\"NEG\"/><report_type>PIREP</report_type><raw_text>MHK UA /OV 2N MHK/TM 1543/FL1400/TP C525/SK B14 T46 /IC NEGATIVE</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T15:45:13.673Z</receipt_time><observation_time>2026-10-15T15:41:00.000Z</observation_time><aircraft_ref>PA46</aircraft_ref><latitude>38.0408</latitude><longitude>-87.5285</longitude><altitude_ft_msl>0</altitude_ft_msl><sky_condition sky_cover=\"OVC\" cloud_base_ft_msl=\"700\" cloud_top_ft_msl=\"16000\"/><report_type>PIREP</report_type><raw_text>EVV UA /OV EVV/TM 1541/FLDURD/TP PA46/SK OVC007-TOPS1600</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T15:45:13.596Z</receipt_time><observation_time>2026-10-15T15:37:00.000Z</observation_time><aircraft_ref>BE20</aircraft_ref><latitude>41.2016</latitude><longitude>-99.4547</longitude><altitude_ft_msl>14500</altitude_ft_msl><icing_condition icing_type=\"MIXED\" icing_intensity=\"TRC\"/><icing_condition icing_intensity=\"NEG\" icing_base_ft_msl=\"16000\"/><temp_c>-3</temp_c><report_type>PIREP</report_type><raw_text>BBW UA /OV CUZ140020/TM 1537/FL145/TP BE20/TA M03/IC TRACE MX 160 NEG 150/RM ZDVWC-19</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T15:35:12.492Z</receipt_time><observation_time>2026-10-15T15:32:00.000Z</observation_time><aircraft_ref>B350</aircraft_ref><latitude>35.4365</latitude><longitude>-97.3797</longitude><altitude_ft_msl>8000</altitude_ft_msl><sky_condition cloud_top_ft_msl=\"6000\"/><report_type>PIREP</report_type><raw_text>OKC UA /OV TIK/TM 1532/FL080/TP B350/SK TOPS 060V065</raw_text></AircraftReport>"
+      ]
+    },
+    {
+      "schemaVersion": 2,
+      "checkedAt": 1792085197000,
+      "source": "https://aviationweather.gov/data/cache/aircraftreports.cache.xml.gz",
+      "records": [
+        "<AircraftReport><receipt_time>2026-10-15T17:20:12.850Z</receipt_time><observation_time>2026-10-15T17:18:00.000Z</observation_time><aircraft_ref>PA32</aircraft_ref><latitude>41.9071</latitude><longitude>-88.2480</longitude><altitude_ft_msl>0</altitude_ft_msl><sky_condition sky_cover=\"OVC\" cloud_base_ft_msl=\"1000\"/><report_type>PIREP</report_type><raw_text>DPA UA /OV KDPA/TM 1718/FL0100/TP PA32/SK OVC010</raw_text></AircraftReport>",
+        "<AircraftReport><receipt_time>2026-10-15T17:00:03.679Z</receipt_time><observation_time>2026-10-15T16:52:00.000Z</observation_time><quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags><aircraft_ref>P28A</aircraft_ref><latitude>37.7259</latitude><longitude>-122.2236</longitude><altitude_ft_msl>1500</altitude_ft_msl><report_type>PIREP</report_type><raw_text>OAK UA /OV OAK31706/TM 1652/FL015-/TP P28A/RM MOD TURB REPORTED BETWEEN 015-020 BY A CHEROKEE</raw_text></AircraftReport>"
+      ]
+    },
+    {
+      "schemaVersion": 2,
+      "checkedAt": 1792086574000,
+      "source": "https://aviationweather.gov/data/cache/aircraftreports.cache.xml.gz",
+      "records": [
+        "<AircraftReport><receipt_time>2026-10-15T17:48:51.323Z</receipt_time><observation_time>2026-10-15T17:44:00.000Z</observation_time><aircraft_ref>FA50</aircraft_ref><latitude>39.8479</latitude><longitude>-91.2789</longitude><altitude_ft_msl>3000</altitude_ft_msl><sky_condition sky_cover=\"OVC\" cloud_base_ft_msl=\"1100\" cloud_top_ft_msl=\"4500\"/><icing_condition icing_intensity=\"NEG\"/><report_type>PIREP</report_type><raw_text>UIN UA /OV UIN/TM 1744/FL030/TP FA50/SK OVC011-TOP045-100/IC NEG/RM TOPS RAGGED 045-100 ZKC FDC CW </raw_text></AircraftReport>"
+      ]
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { readPirepLocation } from './location';
 import { createPirepLocationReferences } from './location-references';
 import { readPirepField } from './text';
 
-export type LocatedPirep = AircraftReport & { decodedLocation?: string; locationEstimated?: boolean };
+export type LocatedPirep = AircraftReport & { decodedLocation?: string; locationEstimated?: boolean; locationReferenceOnly?: boolean };
 export type PirepLocations = { reports: LocatedPirep[]; issues: PirepSnapshot['issues'] };
 
 /** Derived view only: never overwrite the source snapshot or persist a decoded
@@ -33,7 +33,8 @@ export function createPirepLocations() {
       if (!prior || (report.receivedAt ?? Infinity) < (prior.receivedAt ?? Infinity)) {
         reports.set(report.id, { ...report, sourceXml: issue.sourceXml,
           longitude: location.coordinate[0], latitude: location.coordinate[1], decodedLocation: location.description,
-          ...(location.estimated ? { locationEstimated: true } : {}) });
+          ...(location.estimated ? { locationEstimated: true } : {}),
+          ...(location.referenceOnly ? { locationReferenceOnly: true } : {}) });
       }
     }
     return result = { reports: [...reports.values()].sort((a, b) => b.observedAt - a.observedAt || a.id.localeCompare(b.id)), issues };

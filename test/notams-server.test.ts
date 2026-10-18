@@ -86,10 +86,12 @@ test('equivalent source IDs and timestamp spellings do not conflict or replace r
 test('same-revision padding and optional translation formats retain source text in either arrival order', () => {
   const { previous, next } = representationPair(), saved = [previous];
   assert.notEqual(previous.revision, next.revision);
-  assert.equal(mergeNotamRecords(saved, [next]), saved, 'a sparse rendering cannot erase the local translation');
+  const retained = mergeNotamRecords(saved, [next]);
+  assert.deepEqual(retained[0]?.translations, [...previous.translations, ...next.translations], 'keep the local notice and both raw ICAO spellings');
+  assert.equal(mergeNotamRecords(retained, [previous, next]), retained);
   const enriched = mergeNotamRecords([next], [previous]);
   assert.equal(enriched[0]?.number, next.number, 'retain the first raw numeric spelling');
-  assert.deepEqual(enriched[0]?.translations, [...next.translations, previous.translations[0]]);
+  assert.deepEqual(enriched[0]?.translations, [...next.translations, ...previous.translations]);
   assert.notEqual(enriched[0]?.revision, next.revision, 'the digest must include added raw content');
   assert.equal(mergeNotamRecords(enriched, [previous, next]), enriched, 'replay is idempotent');
   const reordered = normalized(notice({ ...previous, translations: [...previous.translations].reverse() }));
@@ -145,7 +147,10 @@ test('full ICAO bodies reconcile only with an identical retained translation and
   const next = normalized(notice({ ...previous, number: '43', referred: null, text: icao,
     translations: [{ type: 'OTHER:ICAO', text: `<pre>\n${icao}\n</pre>` }] }));
   const saved = [previous];
-  assert.equal(mergeNotamRecords(saved, [next]), saved);
+  const retained = mergeNotamRecords(saved, [next]);
+  assert.equal(retained[0]?.text, previous.text); assert.deepEqual(retained[0]?.referred, previous.referred);
+  assert.deepEqual(retained[0]?.translations, [...previous.translations, ...next.translations]);
+  assert.equal(mergeNotamRecords(retained, [previous, next]), retained);
   const reversed = mergeNotamRecords([next], saved);
   assert.equal(reversed[0]?.text, text); assert.deepEqual(reversed[0]?.referred, previous.referred);
   assert.equal(reversed[0]?.lifecycle, 'active');
@@ -165,7 +170,9 @@ test('captured FDC bodies and estimated-end spellings reconcile through their sh
       assert.equal(record.endKind, 'estimated');
       assert.equal(record.startsAt, previous.startsAt); assert.equal(record.endsAt, previous.endsAt);
       assert.equal(record.updatedAt, previous.updatedAt); assert.equal(record.sourceUpdatedAt, previous.sourceUpdatedAt);
-      assert.equal(record.translations.length, 2, 'retain the optional ICAO rendering without using its old dates as equivalence evidence');
+      assert.deepEqual(new Set(record.translations.map(t => JSON.stringify(t))),
+        new Set([...previous.translations, ...next.translations].map(t => JSON.stringify(t))),
+        'retain all raw native and ICAO renderings without using old conversion dates as equivalence evidence');
       assert.equal(mergeNotamRecords(merged, [previous, next]), merged);
     }
     for (const subject of ['SID', 'IAP', 'STAR', 'ODP']) {
@@ -210,13 +217,23 @@ test('FDC rendering equivalence requires matching identity, complete local text 
 });
 test('duplicate inactive records do not depend on presentation or cancel other source IDs', () => {
   for (const lifecycle of ['cancelled', 'cancellation'] as const) {
-    const previous = normalized(notice({ lifecycle, changeType: lifecycle === 'cancellation' ? 'C' : 'N' }));
+    const previous = normalized(notice({ lifecycle, changeType: lifecycle === 'cancellation' ? 'C' : 'N',
+      ...(lifecycle === 'cancellation' ? { series: 'M', number: '0042', translations: [] } : {}) }));
     const next = normalized(notice({ ...previous, text: 'M0042/26 NOTAMC M0041/26\nA) KTST',
       translations: [{ type: 'LOCAL_FORMAT', text: 'M0042/26 NOTAMC M0041/26' }],
       referred: { series: 'M', number: '0041', year: '2026' } }));
     const saved = [previous];
-    assert.equal(mergeNotamRecords(saved, [next]), saved, 'retain the raw inactive record already held');
-    assert.equal(mergeNotamRecords([next], saved)[0], next, 'either representation proves the same inactive state');
+    if (lifecycle === 'cancelled') {
+      assert.equal(mergeNotamRecords(saved, [next]), saved, 'retain the raw inactive record already held');
+      assert.equal(mergeNotamRecords([next], saved)[0], next, 'either representation proves the same inactive state');
+    } else {
+      const merged = mergeNotamRecords(saved, [next]);
+      assert.equal(merged[0]!.text, next.text, 'keep the primary cancellation header as identity evidence');
+      assert.deepEqual(merged[0]!.referred, next.referred);
+      assert.deepEqual(merged[0]!.translations, next.translations);
+      assert.equal(mergeNotamRecords(merged, [next]), merged, 'retained cancellation evidence is idempotent');
+      assert.equal(mergeNotamRecords([next], saved)[0], next);
+    }
     const active = normalized(notice({ id: '1757600000000002', sourceId: '1757600000000002' }));
     assert.ok(mergeNotamRecords([previous, active], [next]).includes(active), 'references never delete another source ID');
     if (lifecycle === 'cancelled') {
@@ -697,7 +714,9 @@ test('a saved representation conflict recovers by full replay and stays healthy 
     service.refresh(); await service.settled();
     assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete'); assert.equal(service.status.error, null);
     assert.equal(calls.length, 2); assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), NOTAM_NOW - 600_000);
-    assert.deepEqual(service.readAirport({ faaId: 'TST' })?.records, [previous]);
+    const restored = service.readAirport({ faaId: 'TST' })?.records[0];
+    assert.equal(restored?.text, previous.text);
+    assert.deepEqual(restored?.translations, [...previous.translations, ...next.translations]);
     const checkedAt = service.status.checkedAt!;
     time += 180_000; service.refresh(); await service.settled();
     assert.equal(service.status.state, 'ready'); assert.ok(service.status.checkedAt! > checkedAt);
@@ -730,10 +749,12 @@ test('captured FDC conflicts recover every airport, survive restart and advance 
     service.refresh(); await service.settled();
     assert.equal(service.status.state, 'ready'); assert.equal(service.status.continuity, 'complete');
     assert.equal(Date.parse(calls[1]!.searchParams.get('lastUpdatedDate')!), baseline - 600_000);
-    for (const { previous } of pairs) {
+    for (const { previous, next } of pairs) {
       const record = service.readAirport({ faaId: previous.locations[0]! })?.records[0];
       assert.equal(record?.id, previous.id); assert.equal(record?.text, previous.text);
-      assert.equal(record?.translations.length, 2); assert.equal(record?.endKind, 'estimated');
+      assert.deepEqual(new Set(record?.translations.map(t => JSON.stringify(t))),
+        new Set([...previous.translations, ...next.translations].map(t => JSON.stringify(t))));
+      assert.equal(record?.endKind, 'estimated');
     }
     let checkedAt = service.status.checkedAt!;
     await service.close(); service = create(); await service.restore();
@@ -752,7 +773,8 @@ test('captured FDC conflicts recover every airport, survive restart and advance 
 test('inactive rendering conflicts recover the complete feed and stay excluded across restart', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-inactive-recovery-')), controller = new AbortController();
   let time = NOTAM_NOW;
-  const cancelledMessage = normalized(notice({ changeType: 'C', text: 'ARFF CAPABILITY DOWNGRADED\nCANCELED' }));
+  const cancelledMessage = normalized(notice({ changeType: 'C', series: 'M', number: '0042', translations: [],
+    text: 'ARFF CAPABILITY DOWNGRADED\nCANCELED' }));
   const active = normalized(notice({ id: '1757600000000002', sourceId: '1757600000000002' }));
   const added = normalized(notice({ id: '1757600000000003', sourceId: '1757600000000003', text: 'RWY 09L CLSD' }));
   const sparse = notice({ ...cancelledMessage, text: 'M0042/26 NOTAMC M0041/26\nA) KTST',
@@ -845,7 +867,7 @@ test('unrecoverable continuity keeps its original cause while waiting for the du
     assert.equal(requests, 0); assert.equal(service.status.error, 'revision-conflict');
   } finally { controller.abort(); await service.close(); await rm(directory, { recursive: true, force: true }); }
 });
-test('26 hours of collection preserve a persistent conflict through restarts, transient failures and daily reconciliation', async () => {
+test('26 hours of collection preserve conflict evidence and update historical impact through restarts and reconciliation', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-soak-')), controller = new AbortController();
   let time = NOTAM_NOW, pulls = 0, bulkPulls = 0;
   const independent = notice({ id: '1757600000000002', sourceId: 'NMS_ID_1757600000000002', locations: ['AUX'], icaoLocations: ['KAUX'] });
@@ -874,7 +896,11 @@ test('26 hours of collection preserve a persistent conflict through restarts, tr
       service.refresh(); await service.settled();
       assert.ok(service.status.watermark! >= before);
       assert.equal(service.status.collectionContinuity, 'complete');
-      assert.equal(service.readAirport({ faaId: 'TST' })?.issues?.length, 1);
+      const snapshot = service.readAirport({ faaId: 'TST' })!;
+      const historical = time >= NOTAM_NOW + NOTAM_DAY_MS;
+      assert.equal(snapshot.issues?.length, historical ? 0 : 1);
+      assert.equal(snapshot.historicalIssues?.length ?? 0, historical ? 1 : 0);
+      assert.equal(service.status.unresolvedRecords, 1);
       assert.equal(service.readAirport({ faaId: 'AUX' })?.contentCoverage, 'complete');
       if (round === 160 || round === 360) {
         const checkpoint = service.status;
@@ -887,7 +913,8 @@ test('26 hours of collection preserve a persistent conflict through restarts, tr
     assert.ok(dataTimes.every((at, i) => !i || at - dataTimes[i - 1]! >= 180_000));
     assert.ok(service.status.checkedAt! > NOTAM_NOW + 26 * 3600_000);
     assert.ok(service.status.fullSyncAt! >= NOTAM_NOW + NOTAM_DAY_MS);
-    assert.equal(service.status.error, 'unresolved-records');
+    assert.equal(service.status.error, null);
+    assert.equal(service.status.historicalIssues, 1);
     assert.match(service.readAirport({ faaId: 'AUX' })?.records[0]?.text ?? '', new RegExp(`observation ${pulls}$`));
     const files = await readdir(join(directory, 'staging'));
     assert.ok(files.filter(name => name.endsWith('.ndjson')).length <= 3);

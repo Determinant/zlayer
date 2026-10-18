@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isNotamSourceIssue, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import capture from './fixtures/notams-rkti-2026-10-11.json';
+import { permutations } from './helpers/permutations';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
 import { compareNotamContent, resolveNotamFilingScope } from '../tools/info-server/notams/revision';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
@@ -27,9 +28,6 @@ const variant = (body: string, code = 'QMRLC', purpose = 'NBO') => changed(sourc
 const translated = (record: NotamRecord, fn: (text: string) => string) => changed(record, {
   translations: record.translations.map(t => ({ ...t, text: fn(t.text) })),
 });
-function permutations<T>(values: readonly T[]): T[][] {
-  return values.length ? values.flatMap((value, i) => permutations(values.filter((_, j) => i !== j)).map(rest => [value, ...rest])) : [[]];
-}
 function assertMerged(records: NotamRecord[], proof: string) {
   const result = collectNotamRecords({ records: [] }, records);
   assert.equal(result.issues?.length ?? 0, 0); assert.equal(result.records.length, 1);
@@ -121,7 +119,7 @@ test('filing-scope recovery uses the complete qualification evidence while retai
     assert.deepEqual(new Set(projected.translations.map(t => t.text)), new Set(variants.flatMap(r => r.translations.map(t => t.text))));
     assert.equal(projected.updatedAt, source.updatedAt);
   }
-  const index = new NotamIndex();
+  const index = new NotamIndex(() => capture.checkedAt);
   index.publish({ ...collection, schemaVersion: 2, environment: 'production', generation: 'fixture',
     complete: true, checkedAt: capture.checkedAt, watermark: capture.checkedAt, baselineAt: capture.checkedAt, fullSyncAt: capture.checkedAt });
   assert.equal(index.read('RKTI').records.length, 1);

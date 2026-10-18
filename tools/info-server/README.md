@@ -214,6 +214,13 @@ source times, preparation progress and failures. Use the
 [deployment readiness checklist](#deployment-readiness) before serving a release;
 `ok: true` alone is insufficient.
 
+Open `/api/weather/healthz` in a browser for a compact, automatically refreshed
+view of that assessment, including source freshness and NOTAM conflicts. Clients
+without an explicit HTML preference continue to receive JSON; the page's JSON
+link opens `?format=json`. See
+[status-page behavior](maintenance.md#health-and-diagnostics) for refresh and
+connection-failure handling.
+
 The [maintenance guide](maintenance.md) describes the aggregate readiness policy,
 durable full-sync history, bounded source diagnostics, runtime measurements and
 focused workload replay. Expected source coverage gaps and ordinary cache eviction

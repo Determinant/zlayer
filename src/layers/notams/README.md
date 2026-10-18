@@ -45,8 +45,9 @@ Current interpretation limits: explicit IAP headings, named SID/STAR/ODP heading
 takeoff/DVA/radar minimums, all-IAP scope, runway identity, explicit runway
 ILS/LOC/glideslope outages and scoped ILS category prohibitions are supported.
 Ambiguous procedure targets are review candidates; facility dependency
-graphs, broader regional applicability,
-multipart assembly and every publisher alias are not established. Simple daily
+graphs, broader regional applicability and every publisher alias are not established.
+Complete ordered multipart transport is recognized; incomplete transport remains
+unresolved. Simple daily
 and weekday list/range UTC schedules with one time window are evaluated, including
 overnight windows and agreeing machine/readable daily or weekday wrappers.
 Days without hours and unsupported or contradictory schedules remain **Check Schedule**. These limits cannot
@@ -407,6 +408,12 @@ source body. The charted reader removes only that occurrence, never all tokens
 with the same numeric position. Quoted/repeated coordinates remain readable.
 The independent mapped-reader audit checks those spans and detects removal of
 coordinates outside the mapped occurrence, alongside status/qualification loss.
+The ordered field reader also accepts the observed `O.3NM` relative annotation
+when the separate coordinate is valid. It retains the complete source text,
+including the letter `O`; that annotation cannot repair a coordinate, provide a
+position or justify eliding the location prose. Unknown operating qualifications
+inside an annotation still reject the point. Obstacle outage/marking facts use
+the shared document control states and retain negations and `ONLY` qualifications.
 
 Farm descriptions without supported boundaries, multiple ambiguous coordinates, unrecoverable coordinates, unknown
 positions and runway-relative descriptions stay in the readable list without a
@@ -1133,11 +1140,14 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    The raw record digest includes original spellings; it is not a semantic revision
    number. Equal source ordering does not establish byte-identical FAA renderings.
 
-   Reconciliation first distinguishes active records from inactive lifecycle state.
+   Reconciliation establishes notice identity before applying lifecycle evidence.
    At equal ordering, the same source ID and the same `cancelled` or `cancellation`
-   lifecycle are an idempotent inactive observation: retain the earlier raw record
-   unless a later cancellation timestamp extends retention, in which case retain
-   that original record. Presentation differences do not break continuity, and
+   lifecycle are an idempotent inactive observation: use the earlier record as the
+   base unless a later cancellation timestamp extends retention. Preserve witnessed
+   year omissions; NOTAMC messages also retain raw translations, a primary header
+   and supplied references so later sparse observations cannot erase identity
+   constraints. Supplied headers must agree even when structured years are empty.
+   Presentation differences do not break continuity, and
    neither choice advances source revision ordering or collection freshness.
    These records are excluded from the active airport index; their text may shrink to a terse
    cancellation rendering without affecting active coverage. A cancellation
@@ -1147,7 +1157,9 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    over a rendering that omits that field. Cancellation is an independent event
    and need not advance `lastUpdated`; requiring timestamp equality would leave
    confirmed cancellations unresolved. Source ID, classification, notice
-   number/series/year and change type must agree. Absence of the optional field
+   number/series/year and change type must agree through the shared
+   [identity evidence rules](source-comparison.md#numbering-year-omissions).
+   These rules also constrain duplicate inactive records. Absence of the optional field
    cannot resurrect this tombstone. Missing, invalid or older cancellation
    evidence and active/NOTAMC disagreements remain unresolved. Newer source
    revisions follow the usual ordering. Envelope, source-ID,
@@ -1218,9 +1230,11 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    qualify under the documented OPADD surface-closure subset, retaining both codes.
    The same qualification policy covers FAA-coded aerodrome/apron closures,
    OPADD QXXXX replacement and supplied `M → B → BO → NBO` purpose upgrades.
-   All unaffected fields must agree. An initially conflicting pair is retried
-   once against evidence admitted from the rest of its batch, so a confirming
-   third rendering can complete the proof without making digest order authority.
+   All unaffected fields must agree. Initially conflicting pairs are retried
+   against admitted evidence until no further observation can merge. Each
+   successful pass removes pending work; remaining disagreements stay explicit.
+   Confirming renderings can complete chains of proofs without making digest
+   order authority.
    The [October 12 OBBI variants](../../../test/fixtures/notams-obbi-2026-10-12.json)
    qualify as foreign distribution annotations, retaining both original renderings
    and the supplied structured/header years. Exact terminal USNOF disclaimers are
@@ -1465,6 +1479,66 @@ The source issue and both variants stay in durable storage, and global unresolve
 counts remain unchanged; no airport alias is guessed. Captured JOH/JNU 10/015
 demonstrates agreed station content with conflicting PJOH/PACV associations.
 Publication builds these projections; query reads do no reconciliation or FAA work.
+
+Two qualified cases resolve through the ordinary comparator before that fallback:
+a supplied numbering year can supplement a witnessed omission, retaining both
+spellings in `sourceYears`; a complete shared native notice and matching FIR
+conversion can establish complementary station-prefixed and FIR lookup scopes,
+retaining their union and original sets in `sourceIcaoLocations`. These are source
+query memberships, not airport aliases. The
+[field-specific proof rules](source-comparison.md#field-and-transformation-rules)
+require all unaffected fields and every retained rendering to agree. Populated
+year contradictions, arbitrary airport disputes and incomplete evidence still
+produce source issues. Raw translations survive lexical comparison unchanged;
+exceeding the eight-translation bound remains unresolved.
+
+### Issue impact over time
+
+Source uncertainty and operational impact are separate. `impact.ts` can classify
+a retained revision conflict as **historical** only when its evidence is complete
+and scoped, contains at least two active variants at the same source revision,
+and every variant agrees on a valid fixed start/end interval. Structured raw times
+must match the normalized interval. Every supplied local/ICAO translation must
+parse completely and agree on that interval; unknown translations, conflicting
+validity, EST/PERM/unknown ends, unsupported lifecycle, unscoped evidence and
+truncated variants remain unqualified and blocking. Upcoming conflicts remain
+blocking when their content or supported associations are unresolved.
+
+At or after the agreed fixed end, the durable issue and all variants remain.
+Scoped schema-1 responses move that raw evidence to optional `historicalIssues`,
+separate from current `issues`; historical evidence does not reduce current
+`contentCoverage`. The combined record/current-issue/historical-issue limits and
+ID uniqueness still apply. Feed `historicalIssues` counts this retained evidence,
+`unresolvedRecords` still includes it, and `blockingRecords` excludes it. Legacy
+`continuity` remains incomplete while any issue is retained. Aggregate health emits
+`historical-source-issues`; collection, freshness, reconciliation and current
+content/association failures remain independent readiness gates.
+
+The index derives applicability against the injected clock and tracks its next
+start/end transition. A transition or a rollback across its assessment time rebuilds
+the derived indexes and summary even when durable arrays are unchanged. Feed
+counts change the HTTP cache boundary. Assessment never changes source clocks,
+generation bytes, request journals or the retained lifecycle.
+
+Optional issue `observations` records diagnostic `firstSeenAt`, `lastSeenAt` and
+the observed bulk/delta source kinds. These describe local collection observations,
+not source revision authority or freshness. An existing issue without recorded
+history retains a null first observation; restore does not invent observations.
+The latest recorded wall time does not regress on clock rollback. Observation
+metadata is checksummed with the issue, bounded by the existing variant/ID limits,
+and cleared with that issue when a newer qualified revision resolves it. Health
+samples include this history, the source revision, applicability/next transition,
+failed content proofs, affected queries and the existing recovery event description.
+
+The retained [October 16 NMS variants](../../../test/fixtures/notams-state-2026-10-16.json)
+were captured through deployed scoped reads without a new FAA request. DAA
+demonstrates an omitted separator before an interval; LSU and VIO demonstrate
+usable filing content with disputed supported ICAO/FIR associations. The bounded
+`icao-line-break` proof is specified in the
+[source-comparison contract](source-comparison.md#field-and-transformation-rules).
+`notams-state-machine.test.ts` generates arrival orders and batch partitions with
+sparse and contradictory observations, then checks lifecycle precedence, rebasing,
+historical boundaries, rollback, HTTP caching, restart and unchanged admission.
 
 Collection-level failures remain strict: malformed/truncated envelopes, missing
 source identity or ordering, invalid boundaries, download/parse limits, and failed
@@ -1726,6 +1800,10 @@ in `main.ts`, not in parsers or request handlers.
 | --- | --- |
 | `tools/info-server/notams/service.ts` | Single ingestion owner, admission, bootstrap/delta/recovery state, query indexes and lifecycle |
 | `tools/info-server/notams/collection.ts` | Per-ID resolution, bounded source issues, and full-reconciliation evidence |
+| `tools/info-server/notams/identity.ts` | Precise revision ordering, shared notice identity/year evidence and source-ID cancellation predicate |
+| `tools/info-server/notams/association-scopes.ts` | Qualified complementary station and FIR source lookup scopes |
+| `tools/info-server/notams/impact.ts` | Pure fixed-interval assessment for retained issues, independent of source resolution |
+| `tools/replay-notams.ts` | Isolated baseline/candidate checkpoint replay and reviewed release differences |
 | `tools/info-server/notams/revision.ts` | Qualified revision ordering, explicit comparison decisions and lifecycle precedence; no collection scheduling |
 | `representation.ts`, `notice-evidence.ts`, `notice-comparison.ts`, `source-text.ts` | Shared bounded envelope parsing, original source spans and complete text-equivalence evidence; no acquisition or UI state |
 | `tools/info-server/notams/client.ts` | OAuth renewal, allowlisted NMS requests, bounded downloads and source error classification |
@@ -1890,6 +1968,7 @@ The parser is organized by responsibility:
 | Module | Responsibility |
 | --- | --- |
 | `parser.ts`, `interpretation.ts` | Source selection, bounded orchestration, shared evidence/types and interpretation coverage |
+| `notice-subject.ts`, `navigation-notice.ts` | Record-bound ICAO subject evidence, explicit military envelopes, and ordered station/facility/component/effect fields |
 | `source-text.ts` | Identity/interval/whole-body proof for alternate FDC renderings, shared with collection |
 | `representation.ts`, `notice-evidence.ts`, `notice-comparison.ts` | Local/ICAO envelope state machines and complete source comparison, including qualified encoding and multipart evidence |
 | `procedure-targets.ts`, `procedure-title.ts` | Complete headings/amendments and a state machine for facility, variant, designation and qualifications; stopped before narrative references |
@@ -1899,6 +1978,7 @@ The parser is organized by responsibility:
 | `multipart.ts` | Bounded ordered transport proof and offset-preserving marker masking, shared by spatial consumers and national TFR matching |
 | `areas.ts`, `area-tail.ts` | Typed spatial definitions, boundary cursor and whole-suffix grammar; no geometric approximation of unknown qualifications |
 | `area-geometry.ts`, `area-references.ts`, `coordinate-recovery.ts` | Geometry construction, unique navigation resolution and corroborated coordinate recovery |
+| `obstacle-fields.ts` | Ordered kind/reference, coordinate, annotation and height fields shared by subject recognition and point extraction |
 | `obstacles.ts`, `radials.ts`, `activity-points.ts` | Scoped point/direction interpretation; obstacle coordinate evidence retains exact source occurrences |
 | `minima.ts`, `minima-row.ts` | Procedure/category scope and token-driven field/value state machine |
 | `takeoff.ts`, `distances.ts` | Bounded whole-clause grammars for takeoff alternatives and declared distances |
@@ -1920,6 +2000,16 @@ escapes. A row accepts at most eight fields. A category on a later field cannot
 retroactively scope earlier fields. Categories never carry to a later row;
 the one supported shorthand is a category-only visibility row immediately after
 a single explicit, non-RVR visibility row. Its units remain exactly as written.
+The declared-distance machine moves through heading, runway, field, value and
+unit states. A field is committed only after its own `FT` token; an unknown token,
+duplicate label or unfinished transition rejects the entire clause. A declaration
+may precede or follow the runway. Each later runway row must supply its own runway,
+labels, values and units, even when it omits the declaration heading. The one
+context transition is an immediately preceding, operative `RWY … THR DISPLACED
+… FT` statement naming exactly one runway. That source statement remains visible
+and supplies an independently checked evidence span for the next `DECLARED DIST`
+clause. Paired runways, unknown qualifications, intervening content and control
+scopes prevent the transition.
 The approach-title machine consumes the prefix, facility/combined branch, runway
 or bearing, then complete category qualifications. Unknown branches and unbalanced
 qualifications reject the whole title. It returns recognition only; source titles
@@ -1930,11 +2020,55 @@ Start with NMS's vocabulary: `RWY`, `TWY`, `APRON`, `AD`, `OBST`, `NAV`, `COM`, 
 `AIRSPACE`, `ODP`, `SID`, `STAR`, `CHART`, `DATA`, `DVA`, `IAP`, `VFP`, `ROUTE`,
 `SPECIAL`, `SECURITY`. Preserve unknowns. A D pointer mentioning an FDC notice keeps
 its original classification.
+An omitted `OBST` keyword may be recognized only through the shared ordered
+obstacle fields: supported kind/reference, one coordinate, optional location
+annotation, and explicit height fields. Incidental tower/crane mentions and
+unknown prefixes cannot supply a subject. Subject recognition does not resolve
+coordinates that still require independent navigation corroboration. Those records
+retain their complete source prose in the mapped reader.
+Military and international subjects can also use a matching ICAO Q-code subject
+pair from [FAA Appendix B](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/appendix_b.html).
+Every retained ICAO rendering must agree and bind the complete body, identity,
+location, interval and schedule. `QXXXX`, a conflicting code or an unbound rendering
+cannot supply a subject. The original body remains the reader/evidence source.
+Explicit military aerodrome, ramp, ARFF, taxiway, service and airspace envelopes
+can establish their own subjects without a domestic keyword. Their operating
+hours, parking restrictions, construction activity and light outages retain the
+whole qualification as evidence; a ramp restriction cannot close the airport.
+
+`navigation-notice.ts` consumes heading/station, facility, optional runway and
+variant, component list or named locator, effect, then qualification. It accepts
+published `AZM`, `OM`/`IM`/`MM`, named `LOM`, `LOC TYPE DIRECTIONAL AID`, combined
+`LOC/GP/DME` spellings, ground checkpoints and explicit radial/distance/altitude
+coverage. Unknown components, repeated components and incomplete transitions
+reject the form. `DECOMMISSIONED`, `NOT MNT`, `U/S` and qualified `UNUSABLE` remain
+distinct. A compact source interval is retained separately and does not repair
+validity metadata. Qualified runway effects produce review matches; an explicit
+LOC/GP failure within a validated list can establish its own approach dependency.
+Marker, DME, locator and station-to-procedure dependencies remain unconfirmed
+without the chart's equipment/fix evidence. These warnings retain a fully parsed
+navigation notice and must not be counted as unsupported navigation syntax.
+An initial slash reference such as `/RYN/`, or a leading airport identifier bound
+to the record's locations, is retained separately from an explicit station such
+as `RBJ` in `/RYN/ NAV RBJ NDB U/S`; the wrapper cannot replace the station identity.
+
+Airport-wide `AD AP RVR ALL U/S` and runway-specific `RVR`, `RVRT`, `RVRM`
+and `RVRR` sensor outages retain their explicit scope. These are sensor status
+facts, not visibility minima or runway closures. The complete status statement
+must be consumed; an exception, condition or unknown suffix prevents an
+unqualified outage fact.
 
 Attach effects to their subject and clause. Retain exceptions, conditions, aircraft
 categories, transitions and time windows. Context-specific abbreviation expansion
 must preserve values, units, direction and scope. Unknown clauses stay in the
 default readable body; raw disclosure is not a reason to omit qualifications there.
+Surface closure facts require an affirmative primary heading and status. A Q-code
+subject or a later `CLSD` mention cannot turn negated, hypothetical, past, quoted
+or construction wording into a closure. Supported prose headings name a ramp,
+parking spot or military taxiway directly; unknown heading/tail forms remain prose.
+Conditions, aircraft limits and cross-sentence exceptions produce a cautionary
+closure restriction with the complete evidence, including for tower closures.
+A named spot or segment within a larger ramp cannot produce a whole-ramp closure.
 Every derived fact retains supporting source-field or text-span evidence. Badge
 selection is a separate pure presentation step, driven by fact kinds rather than
 display-label comparisons. It cannot change procedure matching, geometry or source
@@ -1992,6 +2126,14 @@ Explicitly labeled `DA/RVR/HAT` triplets retain the published field order. Adjac
 explicitly labeled altitude/height/visibility values, including colon labels,
 compact `FT`/`SM` units and value-before-RVR ordering, share a row only with their
 published category scope. `CAT C AND D` remains that written category group.
+The field state accepts the explicit plural label `MDAS` as `MDA`; category states
+accept compact `ALLCATS` and `CATD` spellings, including spaced category slashes.
+These aliases do not supply omitted altitude types or category labels. A semicolon
+can separate complete rows under one approach scope; a new explicit approach scope
+starts a separate section. Every row still owns its category and field bindings.
+The observed `VISIBLITY` label is a supported visibility spelling; a repeated
+slash is accepted only before another explicit field label, never inside a value
+or fraction. Explicit `DME MINIMUMS` context remains attached to its own rows.
 `MINIMUMS NA` retains its explicit prohibition. Multiple
 explicit approach scopes separated by commas, semicolons or publisher newlines
 become separate minimums sections only when
@@ -2008,10 +2150,17 @@ and endpoints under **Minimum climb** and **Then minimum climb**. An explicit
 `THEN 280 FT/NM TO 6300` can omit the repeated climb introduction but must still
 supply the gradient unit and destination altitude. An explicit
 `OR DEPARTURE NA` remains a prohibition alternative, never standard minima.
+An explicit `FOR VCOA` alternative retains that source condition.
 Unknown aircraft types, missing units or extra qualifications retain the whole
 clause as prose. `distances.ts`
 displays explicitly labeled TORA/TODA/ASDA/LDA values in feet, in source order;
 missing labels are not synthesized and conflicting duplicate labels remain prose.
+It accepts `DECLARED DIST: RWY 13R ...`, `RWY 13R DECLARED DIST: ...`, and
+self-contained `RWY 31L TORA ...` rows, with optional label colons and compact
+quantity/unit pairs. The fixed **Declared distances** display label does not imply
+that any missing field or runway was supplied. A `DECLARED DIST: TORA ...` clause
+without its own runway or the verified adjacent displaced-threshold context
+remains prose because it does not establish that identity.
 
 Note blocks distinguish **Add note**, **Replace note**, **Change note**,
 **Disregard note** and **Delete note**, along with equipment conditions, exceptions
@@ -2021,6 +2170,17 @@ inside a disregarded/replaced note into current-minimum rows. After an instructi
 or embedded editorial directive, later numeric clauses in that notice stay as
 source prose: sentence punctuation alone cannot establish the end of quoted or
 conditional wording. Unknown instructions and unsupported notation remain visible.
+Before interpreting a complete multipart body, `multipart.ts` proves ordered,
+nonempty parts, agreeing totals, every closing marker and no trailing content.
+The document machine displays each original marker without changing the current
+instruction/condition state. Markers never close a note; incomplete transport
+still prevents numeric interpretation. Fields interrupted by a marker remain
+prose unless a complete supported clause exists on its own side of that marker.
+Named-procedure heading lexing keeps periods inside parenthesized route identifiers
+such as `(SWFFT.SWFFT3)` within the heading. Minima narrative cannot become an
+additional procedure target. An explicit `AMDT ...` with no identifier retains
+`amendmentMissing` and always requires plate-applicability review; no edition is
+borrowed from the catalog.
 
 Structured runway grammar must consume the entire clause. Extra exceptions,
 conditions, unfamiliar units or unsupported runway forms leave that whole clause
@@ -2162,9 +2322,11 @@ Only verified part identifiers establish multipart groups; retain each part's ra
 source and expose missing parts. Cross-format translations are representations of
 one record, not additional independent notices.
 An initial `PART 1 OF N` envelope may precede an explicit IAP/ODP/SID/STAR subject.
-Recognize that part's headings only before `END PART`; retain a multipart coverage
-issue and suppress numeric minima/climb extraction. Do not infer a second part's
-subject or assemble numeric clauses across parts.
+For incomplete transport, recognize that part's headings only before `END PART`,
+retain a multipart coverage issue and suppress numeric minima/climb extraction.
+Complete transport uses the ordered proof and document-state rules described
+above. Do not infer a second part's subject or assemble numeric fields across
+markers.
 
 ## Procedure matching
 
@@ -2424,7 +2586,7 @@ time limitations. This README remains the canonical guide after implementation.
   cancelled saves. Core record tests cover unavailable locks/reads, queue timeout,
   cancellation and output validation.
 - `test/notams-us1000.test.ts` replays every delivered record in the frozen
-  1,000-airport commercial/GA capture through the current parser and both React
+  October 5 and October 15 1,000-airport commercial/GA captures through the current parser and both React
   reader paths. It checks source integrity, value bindings, evidence and mapped
   content preservation. A separate obstruction inventory checks point coordinates,
   map publication and every reviewed omission. It runs in `npm test`; see the
@@ -2486,6 +2648,18 @@ time limitations. This README remains the canonical guide after implementation.
   ambiguities. Deliberately swapped fields, units and scopes must fail the
   independent audit. The browser suite checks compact units, newline scopes,
   conditional RVR, shortened climb stages and raw character escapes at 320/1280 px.
+- `test/notams-format-variants.test.ts` retains complete October 15 source records
+  for alternate declared-distance headings, plural minima and compact categories,
+  omitted obstacle subjects and malformed relative annotations. Independent expected
+  values and deliberate category, field, runway and scope mutations check the
+  extensions without rewriting the source. Conditional minima and incomplete
+  amendment headings remain conservative fallbacks.
+- `test/notams-interpretation-variants.test.ts` covers the remaining navigation,
+  military subject/effect, complete transport, route-code, equipment-minimums,
+  visibility spelling and displaced-threshold context families. It includes
+  independently specified meanings and failures for changed source identity,
+  interval, code, components, coordinates, qualifications and document scope,
+  plus airport-wide and runway-specific RVR sensor status.
 - `test/notams-flairs.test.ts` covers distinct amendment summaries, complete-scope
   facility combinations, retained procedure names, specific interpretation causes
   and mapped status preservation independent of badge selection. The mapped audit
@@ -2655,6 +2829,20 @@ source field and translation, empty-airport snapshots, feed/coverage status, and
 the 12 source conflicts with their 24 variants. Conflicts remain separate from
 the delivered records; they are not promoted to resolved notices for the audit.
 
+`test/fixtures/notams-us1000-2026-10-15/` retains a second complete capture of that
+same airport cohort from October 15, 17:04:52–17:06:28 UTC: all 19,369 records,
+including FAA-only airport identities and empty snapshots, from one ready source
+generation with complete collection/content coverage and no source issues. Its
+separate manifest and compressed payload preserve source hashes and capture times.
+The shared replay runs both dates. The October 15 replay additionally requires a
+recognized subject for every record and a complete typed navigation interpretation
+or explicit ILS-category restriction for every NAV record. Its remaining heading
+warnings must identify an actual missing source amendment; facility-dependency
+warnings must retain the parsed navigation fields. These assertions do not turn
+missing chart equipment/fix dependencies into resolved applicability or claim that
+every prose clause has a numeric interpretation. The October 5 obstruction inventory
+below remains tied to its original source; the second capture does not rewrite it.
+
 The sample combines operational public-use land airports in the 50 states and DC
 using FAA FY2025 Terminal Area Forecast activity and October 1, 2026 NASR identities.
 Selection uses the best rank across total operations, GA operations, and itinerant
@@ -2694,7 +2882,7 @@ No fixture source records were rewritten to repair coordinates. The pinned
 [omission inventory](../../../test/fixtures/notams-us1000/obstructions.json) owns
 individual IDs and reasons; punctuation alone cannot close instruction scope.
 
-This is broad preservation coverage, not an assertion that every notice has a
+These are broad preservation and supported-format coverage, not an assertion that every notice has a
 complete structured interpretation. Unsupported wording may correctly remain
 prose, and the reader replay preserves its captured source conflicts. The separate
 `test/notams-reconciliation.test.ts` exercises the exact retained conflict pairs

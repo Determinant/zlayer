@@ -74,10 +74,16 @@ function dates(code: string, reference: number): number[] {
   }
   return result;
 }
-function covers(header: Header, from: number, to: number): boolean {
-  const limit = (header.convective ? 2 : 4) * 3_600_000;
-  return dates(header.issued, from).some(start => {
-    if (from < start || from >= start + limit) return false;
+type ValidityEvidence = { kind: 'matched'; sourceDurationMs?: number } | { kind: 'unsupported' | 'conflict' };
+function validityEvidence(header: Header, from: number, to: number, suppliedHazard: boolean): ValidityEvidence {
+  const nominal = (header.convective ? 2 : 4) * 3_600_000;
+  // Acquisition bound, not a declaration that an atypical domestic period
+  // conforms to publication guidance. Six hours covers the longest SIGMET
+  // product period without borrowing a same-number notice from another day.
+  const maximum = 6 * 3_600_000;
+  let coherent = false;
+  for (const start of dates(header.issued, from)) {
+    if (from < start || from >= start + maximum) continue;
     const ends = header.until.length === 6 ? dates(header.until, start) : (() => {
       const hour = Number(header.until.slice(0, 2)), minute = Number(header.until.slice(2));
       if (hour > 23 || minute > 59) return [];
@@ -87,8 +93,19 @@ function covers(header: Header, from: number, to: number): boolean {
     })();
     // AWC may clip effective validity when replacing a bulletin. It may not
     // extend beyond the bulletin or borrow a same-number notice from another day.
-    return ends.some(end => end > start && end <= start + limit && from < to && to <= end);
-  });
+    for (const end of ends) {
+      if (end <= start || from >= end || from >= to || to > end) continue;
+      const duration = end - start;
+      if (duration <= nominal) return { kind: 'matched' };
+      coherent = true;
+      // A complete supplied category and exact source interval are stronger
+      // evidence than an expected issuance duration. Never infer a missing
+      // category or supplement clipped times through this exceptional path.
+      if (duration <= maximum && suppliedHazard && from === start && to === end)
+        return { kind: 'matched', sourceDurationMs: duration };
+    }
+  }
+  return { kind: coherent ? 'unsupported' : 'conflict' };
 }
 
 type Resolution = { kind: 'resolved'; hazard: string; classification: AwcAdvisoryClassification }
@@ -119,9 +136,13 @@ export function advisorySourceHazard(product: AwcAdvisoryProduct, properties: Re
   if (evidence.kind === 'unsupported') return hazard ? resolved(hazard, 'metadata', 'unsupported') : issue('unsupported-bulletin');
   const header = evidence.value;
   if (typeof properties.seriesId !== 'string' || series(properties.seriesId.trim()) !== series(header.identifier)) return issue('identity-conflict');
-  if (validTo === null || !covers(header, validFrom, validTo)) return issue('validity-conflict');
+  if (validTo === null) return issue('validity-conflict');
+  const validity = validityEvidence(header, validFrom, validTo, hazard !== null);
+  if (validity.kind !== 'matched') return issue(validity.kind === 'conflict' ? 'validity-conflict' : 'unsupported-bulletin');
   // A non-convective header proves the display category, not its meteorological
   // hazard. Preserve that uncertainty instead of guessing from body keywords.
-  return resolved(hazard ?? (header.convective ? 'CONVECTIVE' : 'UNK'),
+  const result = resolved(hazard ?? (header.convective ? 'CONVECTIVE' : 'UNK'),
     hazard ? 'metadata' : header.convective ? 'bulletin' : 'unspecified', 'matched');
+  if (validity.sourceDurationMs !== undefined && result.kind === 'resolved') result.classification.sourceDurationMs = validity.sourceDurationMs;
+  return result;
 }

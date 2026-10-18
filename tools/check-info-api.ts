@@ -134,7 +134,8 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
     assert.equal(health.notamReconciliation.error, null, 'NOTAM reconciliation failed');
     const blocking = feed.blockingRecords ?? feed.unresolvedRecords ?? 0;
     if (blocking) warnings.push(`unresolved-notam-records:${blocking}`);
-    const metadata = (feed.unresolvedRecords ?? 0) - blocking;
+    const metadata = (feed.unresolvedRecords ?? 0) - blocking - (feed.historicalIssues ?? 0);
+    if (feed.historicalIssues) warnings.push(`historical-notam-issues:${feed.historicalIssues}`);
     if (metadata) warnings.push(`notam-association-metadata:${metadata}`);
     assert.ok(feed.fullSyncAt !== null);
     if (options.allowOverdueFullSync && feed.fullSyncAt <= Date.now() && !freshAt(feed.fullSyncAt, Date.now(), INFO_FRESHNESS.fullSync, 0)) {

@@ -3,11 +3,12 @@ import { distanceNm, featureIdent, featureIdentifiers, isAirportFeature, isRadia
   isVorReference, positionOnRadial, radialReference, referenceForDefinition } from '@zlayer/domain';
 import { magneticField, type MagneticModel } from '../../../core/geo/magnetic-model';
 import type { PirepLocation, PirepLocationRecovery, PirepLocationReference } from './location';
+import { referenceRank } from './location';
 import stations from './station-references.json';
 
 type Point = [number, number];
 type SourceLocationHint = { station: string; coordinate: Point };
-export type PirepLocationResult = { coordinate: Point; description: string; estimated?: boolean } | { reason: string };
+export type PirepLocationResult = { coordinate: Point; description: string; estimated?: boolean; referenceOnly?: boolean } | { reason: string };
 
 /** Resolve published identities before inferring offsets. Local runway and
  * distance-only descriptions use an explicitly labeled airport reference without
@@ -52,18 +53,34 @@ export function createPirepLocationReferences(data?: NavigationData, model?: Mag
         location = location.fallback;
       } else location = { kind: 'points', text: location.text, points: [{ kind: 'reference', ident: location.ident }] };
     }
+    if (location.kind === 'recovery-options') {
+      if (!data?.airports || !data.navaids) return { reason: `${location.text}: reference data unavailable` };
+      const needsFixes = location.options.some(option => option.anchor.ident.length === 5);
+      if (needsFixes && !data.fixes) return { reason: `${location.text}: fix data unavailable` };
+      if ([data.airports, data.navaids, ...(needsFixes ? [data.fixes] : [])].some(collection => collection?.meta.truncated)) {
+        return { reason: `${location.text}: reference data incomplete` };
+      }
+      const known = location.options.filter(option => excludedIdentities.has(option.anchor.ident) || candidatesFor(recoveryReference(option)).length);
+      if (known.length !== 1) return { reason: `${location.text}: ${known.length ? 'ambiguous reference encoding' : 'reference unavailable'}` };
+      location = known[0]!;
+    }
     const recovery = location.kind === 'recovery' ? location : undefined;
     const definitions = location.kind === 'points' ? location.points : [recoveryReference(location)];
     const points: Point[] = [];
     const stationReferences = new Set<string>(), recovered = new Set<string>();
+    let referenceOnly = false;
     for (let point of definitions) {
       if (point.kind === 'coordinate') { points.push(point.coordinate); continue; }
       if (point.kind === 'alternatives') {
         if (!data?.airports || !data.navaids) return { reason: `${location.text}: reference data unavailable` };
         if (point.options.some(option => option.ident.length === 5) && !data.fixes) return { reason: `${location.text}: fix data unavailable` };
-        const known = point.options.filter(option => candidatesFor(option).length);
-        const standard = known.filter(option => option.kind === 'reference' || !option.recovered), choices = standard.length ? standard : known;
+        const known = point.options.filter(option => excludedIdentities.has(option.ident) || candidatesFor(option).length);
+        const bestRank = Math.min(...known.map(referenceRank));
+        const choices = known.filter(option => referenceRank(option) === bestRank);
         if (choices.length !== 1) return { reason: `${location.text}: ${choices.length ? 'ambiguous reference encoding' : 'reference unavailable'}` };
+        if (bestRank > 0 && [data.airports, data.navaids, data.fixes].some(collection => collection?.meta.truncated)) {
+          return { reason: `${location.text}: reference data incomplete` };
+        }
         point = choices[0]!;
       }
       // The two files arrive independently. Do not briefly resolve an airport
@@ -88,6 +105,13 @@ export function createPirepLocationReferences(data?: NavigationData, model?: Mag
       if (matches.length !== 1) return { reason: `${point.ident}: ${matches.length ? 'ambiguous reference' : 'reference unavailable'}` };
       const feature = matches[0]!;
       if (feature.properties.kind === 'weather-station') stationReferences.add(point.ident);
+      if (point.kind === 'reference-only') {
+        referenceOnly = true;
+        points.push([...feature.geometry.coordinates]);
+        recovered.add(`${point.ident}: reported radial ${point.radial.toString().padStart(3, '0')}°${point.radial > 360 ? ' (invalid)' : ''}; ` +
+          (point.distanceNm === undefined ? 'distance unknown' : `reported distance ${point.distanceNm} NM${point.distanceNm > 999 ? ' (invalid)' : ''}`));
+        continue;
+      }
       if (point.kind === 'offset' && point.recovered && !recovery) recovered.add(`${point.ident} ${point.radial.toString().padStart(3, '0')}° / ${point.distanceNm} NM`);
       if (point.kind === 'reference' || point.distanceNm === 0) { points.push([...feature.geometry.coordinates]); continue; }
       const reference = point.bearing === 'magnetic' && isVorReference(feature) ? radialReference(feature) : referenceForDefinition(feature,
@@ -102,10 +126,11 @@ export function createPirepLocationReferences(data?: NavigationData, model?: Mag
       points.push(positionOnRadial(reference, point.radial, point.distanceNm).coordinate);
     }
     const coordinate = points.length === 1 ? points[0] : routeMidpoint(points);
-    const description = recovery ? recoveryDescription(recovery) : `${points.length > 1 ? 'Route midpoint' : 'Decoded /OV'} · ${location.text}`;
+    const description = recovery ? recoveryDescription(recovery)
+      : `${referenceOnly ? 'Reference location only; observation position unknown' : points.length > 1 ? 'Route midpoint' : recovered.size ? 'Approx. decoded /OV (assumed padding)' : 'Decoded /OV'} · ${location.text}`;
     return coordinate ? { coordinate, description: [description, ...recovered,
       ...(stationReferences.size ? [`AWC station reference: ${[...stationReferences].join(', ')}`] : [])].join(' · '),
-      ...(recovery || stationReferences.size ? { estimated: true } : {}) }
+      ...(recovery || stationReferences.size || referenceOnly || recovered.size ? { estimated: true } : {}), ...(referenceOnly ? { referenceOnly: true } : {}) }
       : { reason: 'Route location is ambiguous' };
   };
 }
@@ -123,10 +148,11 @@ function recoveryReference({ anchor, description }: PirepLocationRecovery): Pire
 /** Presentation follows resolved semantics; labels never determine recovery policy. */
 function recoveryDescription({ anchor, description }: PirepLocationRecovery): string {
   const reference = `${anchor.ident}${anchor.source === 'reporting-station' ? ' (reporting station)' : ''}`;
+  const units = 'distance' in description && description.distance?.assumedUnit ? '; miles interpreted as NM' : '';
   switch (description.kind) {
-    case 'compass': return `Approx. ${description.distance.value} ${description.distance.unit} ${description.direction} of ${reference}`;
-    case 'distance': return `Approx. ${description.distance.value} ${description.distance.unit} from ${reference}; airport reference, direction unknown`;
-    case 'approach': return `Approx. ${description.name} at ${reference}; airport reference, position along approach unknown`;
+    case 'compass': return `Approx. ${description.distance.value} ${description.distance.unit} ${description.direction} of ${reference}${units}`;
+    case 'distance': return `Approx. ${description.distance.value} ${description.distance.unit} from ${reference}; airport reference, direction unknown${units}`;
+    case 'approach': return `Approx. ${description.distance ? `${description.distance.value} ${description.distance.unit} ` : ''}${description.name} at ${reference}; airport reference, position along approach unknown${units}`;
     case 'departure': return `Approx. DEP RWY ${description.runway} at ${reference}; airport reference, position along departure unknown`;
     case 'radial': return `Approx. ${description.distanceNm} NM on ${description.radial.toString().padStart(3, '0')}° magnetic bearing from ${reference}`;
   }

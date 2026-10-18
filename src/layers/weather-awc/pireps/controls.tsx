@@ -71,7 +71,7 @@ const PirepEntry = memo(function PirepEntry({ controller, report, age, selected,
   const conditions = pirepConditions(report);
   const aircraftName = pirepAircraftName(report);
   const quality = report.quality.filter(q => (!report.decodedLocation || q !== 'bad_location') &&
-    (report.timeSource !== 'raw' || q !== 'no_time_stamp'));
+    (!report.timeSource || q !== 'no_time_stamp'));
   const kind = report.urgent || report.type === 'PIREP' ? 'Pilot report' : report.type === 'AIREP' ? 'Air report'
     : report.type === 'Unknown' ? 'Type unspecified' : report.type;
   useEffect(() => active && (hovered || focused) ? controller.highlightPirep(report.id) : undefined,
@@ -87,23 +87,24 @@ const PirepEntry = memo(function PirepEntry({ controller, report, age, selected,
             {aircraftName && <span className="ui-note"> ({aircraftName})</span>}
           </strong>
           {report.urgent && <span className="ui-badge awc-pirep-urgent">Urgent</span>}
-          <span className="ui-meta awc-pirep-age">{age} ago</span>
+          <span className="ui-meta awc-pirep-age">{report.timeSource === 'receipt' ? 'Received ' : ''}{age} ago</span>
         </span>
         <span className="awc-pirep-heading">
           <span className="ui-panel-content">{pirepAltitude(report)}</span>
           <span className="ui-meta" title={`Report type: ${report.type}`}>{kind}</span>
-          {report.locationEstimated && <span className="ui-meta">Approx. location</span>}
-          {report.timeSource === 'raw' && <span className="ui-meta">Time unverified</span>}
+          {report.locationReferenceOnly ? <span className="ui-meta">Reference location</span>
+            : report.locationEstimated && <span className="ui-meta">Approx. location</span>}
+          {report.timeSource && <span className="ui-meta">{report.timeSource === 'receipt' ? 'Observation time unknown' : 'Time unverified'}</span>}
         </span>
         {!!conditions.length && <span className="ui-note">{conditions.join(' · ')}</span>}
       </span>
     </button>
     {selected && <div className="awc-pirep-expanded">
       <table className="ui-data-table"><tbody>
-        <tr><th scope="row">Observed</th><td>{formatTimestamp(report.observedAt)}
+        <tr><th scope="row">Observed</th><td>{report.timeSource === 'receipt' ? 'Unknown; age and expiry use receipt time' : formatTimestamp(report.observedAt)}
           {report.timeSource === 'raw' && <span className="ui-note"> · Decoded /TM</span>}</td></tr>
         {report.receivedAt !== null && <tr><th scope="row">Received</th><td>{formatTimestamp(report.receivedAt)}</td></tr>}
-        <tr><th scope="row">Position</th><td>{report.latitude.toFixed(4)}, {report.longitude.toFixed(4)}</td></tr>
+        <tr><th scope="row">{report.locationReferenceOnly ? 'Reference position' : 'Position'}</th><td>{report.latitude.toFixed(4)}, {report.longitude.toFixed(4)}</td></tr>
         {report.decodedLocation && <tr><th scope="row">Location</th><td>{report.decodedLocation}</td></tr>}
       </tbody></table>
       {!!quality.length && <p className="ui-note">Source qualifiers: {quality.map(q => q.replaceAll('_', ' ')).join(', ')}</p>}

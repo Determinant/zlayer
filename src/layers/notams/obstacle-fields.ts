@@ -1,3 +1,5 @@
+import { coordinateToken } from './coordinate-recovery';
+
 /** Non-positional fields of a standalone obstacle report. These grammars never
  * turn an ASN, relative annotation or unqualified height into a map position. */
 export function obstacleKind(prefix: string) {
@@ -16,12 +18,22 @@ export function obstacleKind(prefix: string) {
     lighting: /\bLGT\b/.test(kind[0]), preserveText: truncated || !/^OBST /.test(prefix) };
 }
 
-export function obstacleAnnotation(source: string): number {
+function obstacleAnnotation(source: string): { length: number; preserveText: boolean } {
   // A parenthesized height belongs to the next field, not an airport annotation.
-  if (/^\s*\(\d+(?:\.\d+)?\s*FT\s+(?:AGL|MSL)\s*\)/.test(source)) return 0;
+  if (/^\s*\(\d+(?:\.\d+)?\s*FT\s+(?:AGL|MSL)\s*\)/.test(source)) return { length: 0, preserveText: false };
   const direction = '(?:[NSEW]{1,3}|(?:NORTH|SOUTH)(?: (?:NORTH|SOUTH))?(?: ?(?:EAST|WEST))?|EAST|WEST)';
-  const relative = new RegExp(`^\\s*\\(\\s*[.\\d]+\\s*(?:NM|FT)\\s*(?:${direction}\\s+)?(?:OF\\s+)?(?:APCH END(?: OF)? RWY \\d{1,2}[LRC]?|RWY \\d{1,2}[LRC]?(?:/\\d{1,2}[LRC]?)?|[A-Z0-9]{2,5}(?: [A-Z0-9]{2,5}){0,2})\\s*\\)`);
-  return (relative.exec(source) ?? /^\s*\([A-Z0-9]{2,5}\d{6}(?:\.\d+)?\s*\)/.exec(source))?.[0].length ?? 0;
+  const relative = new RegExp(`^\\s*\\(\\s*(?:[.\\d]+|O\\.\\d+(?=\\s*NM))\\s*(?:NM|FT)\\s*(?:${direction}\\s+)?(?:OF\\s+)?(?:APCH END(?: OF)? RWY \\d{1,2}[LRC]?|RWY \\d{1,2}[LRC]?(?:/\\d{1,2}[LRC]?)?|[A-Z0-9]{2,5}(?: [A-Z0-9]{2,5}){0,2})\\s*\\)`);
+  const annotation = (relative.exec(source) ?? /^\s*\([A-Z0-9]{2,5}\d{6}(?:\.\d+)?\s*\)/.exec(source))?.[0];
+  if (!annotation) {
+    // Some ICAO renderings truncate the airport annotation before the closing
+    // parenthesis. Consume only its bounded location fields and require the
+    // next complete MSL/AGL fields. The original annotation stays visible.
+    const truncated = /^\s*\(\d+(?:\.\d+)?NM [NSEW]{1,3} [A-Z0-9]{2,5}(?=\s+-?\d+(?:\.\d+)?FT \(\d+(?:\.\d+)?FT AGL\))/.exec(source);
+    if (truncated) return { length: truncated[0].length, preserveText: true };
+  }
+  // Letter O in a relative NM annotation does not repair or locate a coordinate.
+  // Keep the whole source visible; only a separately proven coordinate can map.
+  return { length: annotation?.length ?? 0, preserveText: !!annotation && /\(\s*O\./.test(annotation) };
 }
 
 export function obstacleHeights(source: string) {
@@ -38,4 +50,30 @@ export function obstacleHeights(source: string) {
   const heightAglFt = single[1] !== undefined ? Number(single[1]) : single[3] === 'AGL' ? Number(single[2]) : undefined;
   const elevationMslFt = heightAglFt === undefined ? Number(single[2]) : undefined;
   return { length: single[0].length, heightAglFt, elevationMslFt, complete: false };
+}
+
+/** Ordered field cursor shared by subject recognition and point extraction.
+ * Kind -> coordinate -> optional location annotation -> heights -> retained tail.
+ * An unknown field cannot be skipped to find a later useful value. Coordinates
+ * requiring external corroboration remain unresolved tokens for the map caller. */
+export function obstacleBodyFields(body: string) {
+  if (body.length > 64 * 1024) return;
+  const original = body.replace(/\s+/g, ' ').trim(), text = original.toUpperCase();
+  if (text.length !== original.length || /\b(?:AREA|RADIUS|FARM|FARMS|BTN|BETWEEN|WITHIN)\b/.test(text)) return;
+  const candidate = /\b\d{4,9}(?:\.\d+)?[NSM]\s*\/?\s*\d{5,10}(?:\.\d+)?[EW]?(?=\s|[().,;]|$)/gi;
+  const points = [...text.matchAll(candidate)], sourcePoints = [...body.matchAll(candidate)];
+  if (points.length !== 1 || sourcePoints.length !== 1) return;
+  const point = points[0]!, kind = obstacleKind(text.slice(0, point.index));
+  if (!kind) return;
+  const coordinate = coordinateToken(text.slice(point.index));
+  if (!coordinate) return;
+  let cursor = point.index + point[0].length;
+  const annotation = obstacleAnnotation(text.slice(cursor));
+  cursor += annotation.length;
+  const heights = obstacleHeights(text.slice(cursor));
+  if (!heights) return;
+  cursor += heights.length;
+  const start = sourcePoints[0]!.index;
+  return { kind, coordinate, coordinateSpan: { start, end: start + sourcePoints[0]![0].length }, heights,
+    preserveText: kind.preserveText || annotation.preserveText || !heights.complete, tail: original.slice(cursor).trim() };
 }

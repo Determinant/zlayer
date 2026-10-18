@@ -2,24 +2,15 @@ import { isDeepStrictEqual } from 'node:util';
 import { isNotamRecord, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { recordWithRevision } from './normalize';
-import { compareNoticeText, sharedLocalNotice, translationContent, translationsByType, type NoticeComparison } from '../../../src/layers/notams/notice-comparison';
+import { compareNoticeText, sharedLocalNotice, type NoticeComparison } from '../../../src/layers/notams/notice-comparison';
 import { notamEndKind, notamTime } from '../../../src/layers/notams/validity';
 import { notamCancellationExpiresAt } from './policy';
 import { parseNotamSchedule, equalNotamSchedules, notamBodySchedule, notamScheduleFits, conflictingNotamSchedules } from '../../../src/layers/notams/schedule';
 import { sharedIcaoSchedule } from '../../../src/layers/notams/notice-evidence';
-
-const fraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? '').padEnd(9, '0');
-/** NMS modification time is the revision clock, preserving sub-millisecond
- * precision. Zero means the same source time, not identical content or counters.
- * AIXM sequence/correction values require TimeSlice context to order corrections;
- * they remain retained evidence and never silently supersede a tied NMS record. */
-export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
-  return next.updatedAt - previous.updatedAt || fraction(next.sourceUpdatedAt).localeCompare(fraction(previous.sourceUpdatedAt));
-}
-
-// Compare representation separately from content; never rewrite the retained raw
-// spelling. Only decimal numbers admit zero padding (not composite identifiers).
-const numberContent = (value: string) => /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, '') : value;
+import { compareNotamIdentity, compareNotamRevision, hasPositiveNotamCancellation, notamNumberContent as numberContent } from './identity';
+import { complementaryNotamScopes } from './association-scopes';
+import { notamCancellationConflicts, notamCancellationIdentity } from './cancellation-identity';
+export { compareNotamRevision } from './identity';
 function equivalentSchedule(previous: NotamRecord, next: NotamRecord): string | undefined {
   const before = parseNotamSchedule(previous.schedule), after = parseNotamSchedule(next.schedule);
   if (equalNotamSchedules(before, after)) return previous.schedule;
@@ -47,15 +38,17 @@ function effectiveEndContent(record: NotamRecord): string {
 const contentFields = ['id', 'classification', 'number', 'series', 'year', 'locations', 'icaoLocations', 'accountability',
   'updatedAt', 'canceledAt', 'referred', 'startsAt', 'endsAt', 'endKind', 'effectiveStart', 'effectiveEnd',
   'schedule', 'changeType', 'lifecycle', 'text', 'translations'] as const satisfies readonly (keyof NotamRecord)[];
-export function notamContentDifferences(previous: NotamRecord, next: NotamRecord, text = compareNoticeText(previous, next)) {
+function contentDifferences(previous: NotamRecord, next: NotamRecord, text: NoticeComparison, complementaryScopes: boolean,
+  cancellationConflicts = notamCancellationConflicts(previous, next)) {
   return contentFields.filter(field => {
+    if (cancellationConflicts.some(conflict => conflict === field)) return true;
     if (field === 'number') return numberContent(previous.number) !== numberContent(next.number);
     if (field === 'effectiveEnd') return effectiveEndContent(previous) !== effectiveEndContent(next);
     if (field === 'schedule') return equivalentSchedule(previous, next) === undefined;
     if (field === 'icaoLocations') {
       // FNSE's optional association is absent from some renderings. Absence
       // cannot withdraw a supplied association at the same source revision.
-      return previous.icaoLocations.length > 0 && next.icaoLocations.length > 0 &&
+      return !complementaryScopes && previous.icaoLocations.length > 0 && next.icaoLocations.length > 0 &&
         !isDeepStrictEqual([...previous.icaoLocations].sort(), [...next.icaoLocations].sort());
     }
     if (field === 'endKind' && previous.endKind !== next.endKind) {
@@ -77,59 +70,103 @@ export function notamContentDifferences(previous: NotamRecord, next: NotamRecord
   });
 }
 
+export function notamContentDifferences(previous: NotamRecord, next: NotamRecord, text?: NoticeComparison) {
+  const { before, after } = compareNotamIdentity(previous, next);
+  return contentDifferences(before, after, text ?? compareNoticeText(before, after), !!complementaryNotamScopes(before, after));
+}
+
 /** Decisions describe content evidence only; source ordering and cancellation
  * precedence remain owned by the collection/lifecycle path. */
 export function compareNotamContent(previous: NotamRecord, next: NotamRecord): {
   outcome: 'equivalent' | 'compatible-evidence' | 'contradictory' | 'unproven';
   fields: ReturnType<typeof notamContentDifferences>; text: NoticeComparison;
+  evidence: ('source-year-omission' | 'complementary-association-scopes')[];
 } {
-  const text = compareNoticeText(previous, next), fields = notamContentDifferences(previous, next, text);
+  const { before, after, proofs } = compareNotamIdentity(previous, next);
+  const scopes = complementaryNotamScopes(before, after);
+  const cancellationConflicts = notamCancellationConflicts(before, after);
+  const text = compareNoticeText(before, after), fields = contentDifferences(before, after, text, !!scopes, cancellationConflicts);
+  const evidence: ('source-year-omission' | 'complementary-association-scopes')[] = [...proofs];
+  if (scopes) evidence.push('complementary-association-scopes');
   const beforeSchedule = parseNotamSchedule(previous.schedule), afterSchedule = parseNotamSchedule(next.schedule);
   const beforeTypes = new Set(previous.translations.map(t => t.type)), afterTypes = new Set(next.translations.map(t => t.type));
-  const missing = !!previous.icaoLocations.length !== !!next.icaoLocations.length || !!previous.referred !== !!next.referred ||
+  const missing = !!proofs.length || !!previous.icaoLocations.length !== !!next.icaoLocations.length || !!previous.referred !== !!next.referred ||
     beforeTypes.size !== afterTypes.size || [...beforeTypes].some(type => !afterTypes.has(type)) ||
     (beforeSchedule.kind === 'empty') !== (afterSchedule.kind === 'empty') ||
     beforeSchedule.kind === 'weekly' && afterSchedule.kind === 'weekly' && !!beforeSchedule.window !== !!afterSchedule.window;
   const knownScheduleDifference = fields.includes('schedule') && conflictingNotamSchedules(beforeSchedule, afterSchedule);
-  return { outcome: fields.length ? fields.some(field => field !== 'text' && field !== 'translations' && field !== 'schedule') ||
+  return { outcome: cancellationConflicts.length ? 'contradictory' : fields.length ? fields.some(field => field !== 'text' && field !== 'translations' && field !== 'schedule') ||
     knownScheduleDifference || text.failure === 'different-content'
-    ? 'contradictory' : 'unproven' : missing ? 'compatible-evidence' : 'equivalent', fields, text };
+    ? 'contradictory' : 'unproven' : missing || evidence.length ? 'compatible-evidence' : 'equivalent', fields, text, evidence };
 }
 
-function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRecord {
+type RevisionProof = NonNullable<NoticeComparison['proof']> | 'source-record' | 'source-revision' | 'positive-cancellation' | 'inactive-record' |
+  ReturnType<typeof compareNotamContent>['evidence'][number];
+type ConflictEvidence = { previous: NotamRecord; next: NotamRecord; comparison: ReturnType<typeof compareNotamContent> };
+export type NotamRevisionDecision =
+  | { kind: 'resolved'; record: NotamRecord; proofs: RevisionProof[] }
+  | { kind: 'unresolved'; reason: NotamSourceIssue['reason']; conflicts: ConflictEvidence[] };
+function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): NotamRevisionDecision {
+  const identity = compareNotamIdentity(previous, next);
+  // No lifecycle shortcut may erase a disagreement about which notice this is.
+  if (identity.fields.length || notamCancellationConflicts(identity.before, identity.after).length) return { kind: 'unresolved', reason: 'revision-conflict',
+    conflicts: [{ previous, next, comparison: compareNotamContent(previous, next) }] };
+  const inactive = (selected: NotamRecord, proof: RevisionProof): NotamRevisionDecision => {
+    const year = identity.before.year;
+    const years = [...new Set([previous, next].flatMap(record => record.sourceYears ?? [record.year]))].sort();
+    const sourceYears = years.length > 1 ? years : undefined;
+    // Keep cancellation identity evidence through sparse repeats and restarts.
+    // Otherwise choosing a terse rendering could erase a supplied reference.
+    const referred = selected.lifecycle === 'cancellation' ? previous.referred ?? next.referred : selected.referred;
+    const translations = selected.lifecycle === 'cancellation' ? [...new Map([previous, next].flatMap(r => r.translations)
+      .map(t => [JSON.stringify([t.type, t.text]), t])).values()] : selected.translations;
+    const text = selected.lifecycle === 'cancellation' && !notamCancellationIdentity(selected).primaryHeader
+      ? [previous, next].find(r => notamCancellationIdentity(r).primaryHeader)?.text ?? selected.text : selected.text;
+    const { revision: _revision, ...facts } = selected;
+    const record = selected.year === year && isDeepStrictEqual(selected.sourceYears, sourceYears) &&
+      selected.text === text && isDeepStrictEqual(selected.referred, referred) && isDeepStrictEqual(selected.translations, translations) ? selected
+      : recordWithRevision({ ...facts, year, text, referred, translations, ...(sourceYears ? { sourceYears } : {}) });
+    if (!isNotamRecord(record)) return { kind: 'unresolved', reason: 'representation-limit', conflicts: [] };
+    return { kind: 'resolved', record, proofs: [proof, ...identity.proofs] };
+  };
   // A timestamped original-ID cancellation is positive source evidence. An
   // omitted optional canceled field at that same revision is not a resurrection.
   // Cancellation can occur after lastUpdated without advancing the source
   // revision. Older cancellation evidence must not withdraw that revision.
   for (const [cancelled, active] of [[previous, next], [next, previous]] as const) {
-    const canceledAt = notamTime(cancelled.canceledAt);
-    if (cancelled.id === active.id && cancelled.classification === active.classification &&
-      numberContent(cancelled.number) === numberContent(active.number) && cancelled.series === active.series && cancelled.year === active.year &&
-      cancelled.changeType === active.changeType && cancelled.lifecycle === 'cancelled' && active.lifecycle === 'active' && !active.canceledAt &&
-      canceledAt !== null && (canceledAt > cancelled.updatedAt ||
-        canceledAt === cancelled.updatedAt && fraction(cancelled.canceledAt) >= fraction(cancelled.sourceUpdatedAt))) return cancelled;
+    if (active.lifecycle === 'active' && !active.canceledAt && hasPositiveNotamCancellation(cancelled))
+      return inactive(cancelled, 'positive-cancellation');
   }
   // These records have no active-airport membership. NMS can replace their text
-  // with a terse cancellation rendering at the same source revision. Preserve
-  // the retained raw record unless a later cancellation extends its retention;
-  // presentation differences cannot break continuity.
+  // with a terse cancellation rendering at the same source revision. Keep the
+  // retained record as the base unless a later cancellation extends retention,
+  // preserving identity evidence from both. Presentation alone is not a conflict.
   // A NOTAMC message and an original-ID tombstone remain distinct lifecycle kinds.
-  if (previous.id === next.id && previous.lifecycle === next.lifecycle &&
+  if (previous.lifecycle === next.lifecycle &&
     (previous.lifecycle === 'cancelled' || previous.lifecycle === 'cancellation')) {
-    return notamCancellationExpiresAt(next)! > notamCancellationExpiresAt(previous)! ? next : previous;
+    return inactive(notamCancellationExpiresAt(next)! > notamCancellationExpiresAt(previous)! ? next : previous, 'inactive-record');
   }
   const comparison = compareNotamContent(previous, next);
-  if (comparison.fields.length) throw new NotamRevisionConflict(previous, next, comparison.fields);
-  const types = translationsByType(previous);
-  const added = next.translations.filter(t => !types.get(t.type)?.has(translationContent(t.text)));
+  if (comparison.fields.length) return { kind: 'unresolved', reason: 'revision-conflict', conflicts: [{ previous, next, comparison }] };
+  // Comparison views can be equal while the source bytes differ. Keep both
+  // actual renderings; bounded overflow remains an explicit source issue.
+  const added = next.translations.filter(t => !previous.translations.some(old => old.type === t.type && old.text === t.text));
   // Issue time is publication metadata, not the revision or effective boundary.
   // Alternate FAA renderings can report it differently. Retain the earliest
   // supplied issue time; never use this reconciliation to advance freshness.
   const issued = [previous.issuedAt, next.issuedAt].filter((time): time is number => time !== null);
   const issuedAt = issued.length ? Math.min(...issued) : null;
   const text = comparison.text.body!, referred = previous.referred ?? next.referred;
-  const schedule = equivalentSchedule(previous, next)!;
-  const icaoLocations = previous.icaoLocations.length ? previous.icaoLocations : next.icaoLocations;
+  const year = previous.year || next.year;
+  const schedule = equivalentSchedule(previous.year === year ? previous : { ...previous, year }, next.year === year ? next : { ...next, year })!;
+  const scopes = comparison.evidence.includes('complementary-association-scopes')
+    ? [...new Set([...previous.icaoLocations, ...next.icaoLocations])].sort() : undefined;
+  const icaoLocations = scopes ?? (previous.icaoLocations.length ? previous.icaoLocations : next.icaoLocations);
+  const years = [...new Set([previous, next].flatMap(record => record.sourceYears ?? [record.year]))].sort();
+  const sourceYears = years.length > 1 ? years : undefined;
+  const associationSets = [...new Map([previous, next].flatMap(record => record.sourceIcaoLocations ?? [record.icaoLocations])
+    .map(set => [[...set].sort().join(','), set])).values()].sort((a, b) => a.join(',').localeCompare(b.join(',')));
+  const sourceIcaoLocations = scopes ? associationSets : previous.sourceIcaoLocations ?? next.sourceIcaoLocations;
   const translations = added.length ? [...previous.translations, ...added] : previous.translations;
   const endKind = notamEndKind({ ...previous, translations });
   // Equivalent operational content needs no temporal winner. Retain each actual
@@ -141,14 +178,18 @@ function mergeSameNotamRevision(previous: NotamRecord, next: NotamRecord): Notam
     .sort((a, b) => a.sequence - b.sequence || a.correction - b.correction);
   const { sequence, correction } = counters[0]!;
   const sourceCounters = counters.length > 1 ? counters : undefined;
-  if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred &&
-    icaoLocations === previous.icaoLocations && endKind === previous.endKind && schedule === previous.schedule &&
-    sequence === previous.sequence && correction === previous.correction && isDeepStrictEqual(sourceCounters, previous.sourceCounters)) return previous;
+  const resolved = (record: NotamRecord): NotamRevisionDecision => ({ kind: 'resolved', record,
+    proofs: [comparison.text.proof!, ...comparison.evidence] });
+  if (!added.length && issuedAt === previous.issuedAt && text === previous.text && referred === previous.referred && year === previous.year &&
+    isDeepStrictEqual(icaoLocations, previous.icaoLocations) && endKind === previous.endKind && schedule === previous.schedule &&
+    sequence === previous.sequence && correction === previous.correction && isDeepStrictEqual(sourceCounters, previous.sourceCounters) &&
+    isDeepStrictEqual(sourceYears, previous.sourceYears) && isDeepStrictEqual(sourceIcaoLocations, previous.sourceIcaoLocations)) return resolved(previous);
   const { revision: _revision, ...facts } = previous;
-  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, icaoLocations, endKind, schedule, translations,
+  const merged = recordWithRevision({ ...facts, issuedAt, text, referred, year, icaoLocations, endKind, schedule, translations,
+    ...(sourceYears ? { sourceYears } : {}), ...(sourceIcaoLocations ? { sourceIcaoLocations } : {}),
     sequence, correction, ...(sourceCounters ? { sourceCounters } : {}) });
-  if (!isNotamRecord(merged)) throw new NotamError('invalid-record');
-  return merged;
+  if (!isNotamRecord(merged)) return { kind: 'unresolved', reason: 'representation-limit', conflicts: [] };
+  return resolved(merged);
 }
 
 export class NotamRevisionConflict extends NotamError {
@@ -169,62 +210,76 @@ export function resolveNotamFilingScope(issue: NotamSourceIssue): NotamRecord | 
     [[...r.icaoLocations].sort().join(','), r.icaoLocations])).values()];
   if (sets.length < 2) return;
   const withoutAssociation = (record: NotamRecord) => {
-    const { revision: _revision, ...facts } = record;
+    const { revision: _revision, sourceIcaoLocations: _sourceIcaoLocations, ...facts } = record;
     return recordWithRevision({ ...facts, icaoLocations: [] });
   };
-  let resolved: NotamRecord;
-  try {
-    // Use the collection's evidence retry: a later variant may prove an earlier
-    // pair. Only the disputed associations are excluded from that same proof.
-    resolved = mergeNotamRecords([], issue.variants.map(withoutAssociation))[0]!;
-  } catch (cause) { if (cause instanceof NotamError) return; throw cause; }
+  const decision = resolveNotamRevision(issue.variants.map(withoutAssociation));
+  if (decision.kind !== 'resolved') return;
+  const resolved = decision.record;
   const { revision: _revision, ...facts } = resolved;
   const record = recordWithRevision({ ...facts,
     icaoLocations: sets[0]!.filter(code => sets.every(set => set.includes(code))), icaoLocationVariants: sets });
   return isNotamRecord(record) ? record : undefined;
 }
 
+/** Pure decision for one identity. Only the newest qualified source-time group
+ * constrains content. Expected uncertainty is data, not an exception. */
+export function resolveNotamRevision(observations: readonly NotamRecord[]): NotamRevisionDecision {
+  const first = observations[0];
+  if (!first || observations.some(record => record.id !== first.id)) throw new Error('Expected one NOTAM identity');
+  const newest = observations.reduce((a, b) => compareNotamRevision(b, a) > 0 ? b : a);
+  const variants = [...new Map(observations.filter(record => compareNotamRevision(record, newest) === 0)
+    .map(record => [record.revision, record])).values()];
+  if (variants.some(record => record.lifecycle === 'unknown'))
+    return { kind: 'unresolved', reason: 'unsupported-lifecycle', conflicts: [] };
+  let record = variants[0]!;
+  const proofs = new Set<RevisionProof>([observations.some(value => compareNotamRevision(value, newest) < 0) ? 'source-revision' : 'source-record']);
+  const pending: NotamRecord[] = [];
+  for (const next of variants.slice(1)) {
+    const decision = mergeSameNotamRevision(record, next);
+    if (decision.kind === 'unresolved') {
+      if (decision.reason !== 'revision-conflict') return decision;
+      pending.push(next);
+    } else { record = decision.record; decision.proofs.forEach(proof => proofs.add(proof)); }
+  }
+  // Each accepted observation can establish evidence needed by another. Retry
+  // to a fixed point; each successful pass removes an observation, so this
+  // terminates without guessing a winner or accepting an unproved variant.
+  while (pending.length) {
+    const before = pending.length, conflicts: ConflictEvidence[] = [];
+    for (let i = 0; i < pending.length;) {
+      const decision = mergeSameNotamRevision(record, pending[i]!);
+      if (decision.kind === 'unresolved') {
+        if (decision.reason !== 'revision-conflict') return decision;
+        conflicts.push(...decision.conflicts); i++;
+      } else {
+        record = decision.record; decision.proofs.forEach(proof => proofs.add(proof)); pending.splice(i, 1);
+      }
+    }
+    if (pending.length === before) return { kind: 'unresolved', reason: 'revision-conflict', conflicts };
+  }
+  return { kind: 'resolved', record, proofs: [...proofs] };
+}
+
+/** Compatibility API for callers that require a complete record array. Collection
+ * and filing-scope publication consume the typed decision directly. */
 export function mergeNotamRecords(previous: readonly NotamRecord[], updates: readonly NotamRecord[]): readonly NotamRecord[] {
   if (!updates.length) return previous;
   const records = new Map(previous.map(record => [record.id, record]));
+  const groups = new Map<string, NotamRecord[]>();
+  for (const record of updates) {
+    const group = groups.get(record.id) ?? []; group.push(record); groups.set(record.id, group);
+  }
   let changed = false;
-  const pending: NotamRecord[] = [];
-  let conflict: NotamRevisionConflict | undefined;
-  for (let next of updates) {
-    if (next.lifecycle === 'unknown') throw new NotamError('unsupported-lifecycle');
-    const old = records.get(next.id);
-    if (old) {
-      const order = compareNotamRevision(next, old);
-      if (order < 0) continue;
-      if (!order && next.revision !== old.revision) {
-        try { next = mergeSameNotamRevision(old, next); }
-        catch (cause) {
-          if (!(cause instanceof NotamRevisionConflict)) throw cause;
-          pending.push(next);
-          continue;
-        }
-      }
-      if (next.revision === old.revision) continue;
+  for (const [id, group] of groups) {
+    const old = records.get(id), decision = resolveNotamRevision(old ? [old, ...group] : group);
+    if (decision.kind === 'unresolved') {
+      if (decision.reason !== 'revision-conflict') throw new NotamError(decision.reason === 'representation-limit' ? 'invalid-record' : decision.reason);
+      const errors = decision.conflicts.map(({ previous, next, comparison }) => new NotamRevisionConflict(previous, next, comparison.fields));
+      const conflict = errors[0]!; conflict.related.push(...errors.slice(1, 32)); throw conflict;
     }
-    records.set(next.id, next); changed = true;
+    if (old?.revision !== decision.record.revision) { records.set(id, decision.record); changed = true; }
   }
-  // A later member of this batch may supply the complete witness missing from
-  // an earlier pair. Retry deferred variants once against the admitted evidence;
-  // every variant must still pass the same content and lifecycle rules. This
-  // bounded second pass never treats digest/arrival order as source authority.
-  for (const next of pending) {
-    const old = records.get(next.id)!;
-    if (compareNotamRevision(next, old) < 0 || next.revision === old.revision) continue;
-    try {
-      const merged = mergeSameNotamRevision(old, next);
-      if (merged.revision !== old.revision) { records.set(next.id, merged); changed = true; }
-    } catch (cause) {
-      if (!(cause instanceof NotamRevisionConflict)) throw cause;
-      if (!conflict) conflict = cause;
-      else if (conflict.related.length < 31) conflict.related.push(cause);
-    }
-  }
-  if (conflict) throw conflict;
   if (records.size > 150_000) throw new NotamError('record-limit');
   return changed ? [...records.values()].sort((a, b) => a.id.localeCompare(b.id)) : previous;
 }

@@ -13,7 +13,7 @@ import { mappedObstacleRemainder, notamObstacles } from '../src/layers/notams/ob
 import { notamArea } from '../src/layers/notams/areas';
 import { NOTAM_COORDINATE, notamCoordinate } from '../src/layers/notams/coordinates';
 import { operativePrefix } from '../src/layers/notams/clauses';
-import { auditValueBindings } from './notam-value-audit';
+import { auditValueBindings, auditNavigationBindings } from './notam-value-audit';
 
 // Source character escapes are display encoding, not operational numbers or words.
 const characters = (text: string) => text.replace(/&(?:apos|#39|#x27);/g, "'").replace(/&(?:quot|#34|#x22);/g, '"').replace(/&amp;/g, '&');
@@ -33,6 +33,8 @@ function words(text: string, kind: NotamBodyBlock['kind']): string[] {
       .replace(/\bVIS\b/g, 'VISIBILITY').replace(/\bSTD\b/g, 'STANDARD')
       .replace(/\bFEET\b/g, 'FT').replace(/\bDIST\b/g, 'DISTANCES');
   }
+  if (kind === 'minima' || kind === 'minima-group') value = value.replace(/\bMDAS\b/g, 'MDA')
+    .replace(/\bALLCATS?\b/g, 'ALL CAT').replace(/\bCATS?([A-E])\b/g, 'CAT $1').replace(/\bVISIBLITY\b/g, 'VISIBILITY');
   if (kind === 'takeoff' || kind === 'takeoff-group') value = value.replace(/STANDARD MINIMUMS/g, 'STANDARD')
     .replace(/(?:WITH (?:A )?)?MINIMUM CLIMB(?: GRADIENT)?(?: OF)?/g, 'MINIMUM CLIMB').replace(/FT PER NM/g, 'FT/NM')
     .replace(/\bTHEN (?=\d+(?:\.\d+)?\s*FT\/NM TO \d+)/g, 'THEN MINIMUM CLIMB ');
@@ -45,16 +47,20 @@ function sourceWords(source: string, block: NotamBodyBlock): string[] {
   if (block.kind === 'minima') {
     const scope = block.scope.toUpperCase();
     if (!['MINIMUMS', 'VISIBILITY'].includes(scope)) {
-      source = source.split(/(,\s*)/).map((part, i) => i > 0 && part.startsWith(`${scope} `) ? part.slice(scope.length + 1) : part).join('');
+      source = source.split(/([,;]\s*)/).map((part, i) => i > 0 && part.startsWith(`${scope} `) ? part.slice(scope.length + 1) : part).join('');
     }
     const result = words(source, block.kind);
     if (['Minimums', 'Visibility'].includes(block.scope)) result.push(block.scope.toUpperCase());
-    const explicit = (source.match(/\bVIS(?:IBILITY)?\b/g) ?? []).length;
+    const explicit = (source.match(/\bVIS(?:IBILITY|IBLITY)?\b/g) ?? []).length;
     const displayed = block.rows.flatMap(row => row.values).filter(v => v.label === 'Visibility').length;
     result.push(...Array(Math.max(0, displayed - explicit)).fill('VISIBILITY'));
     if (/^SIDESTEP:? \d/.test(source)) result.push('RUNWAY');
     return result.sort();
   }
+  // The runway and explicit TORA/TODA/ASDA/LDA fields can establish the table
+  // without a DECLARED DIST heading. Only this fixed display label is added;
+  // the independent binding audit still requires every source field and unit.
+  if (block.kind === 'distances' && !/\bDECLARED\b/.test(source)) source += ' DECLARED DIST';
   return words(source, block.kind);
 }
 
@@ -72,12 +78,19 @@ export function auditNotam(record: NotamRecord, presentation?: NotamPresentation
     const identityLength = body.length - localNotamContent(body, record).length;
     if (gap.trim() && !(index === 0 && span.start === identityLength)) fail(`uncovered text before ${index}`);
     const source = body.slice(span.start, span.end);
+    const runway = block.kind === 'distances' && block.runwaySource;
+    if (runway && (runway.start < 0 || runway.end > span.start || runway.end < runway.start ||
+      body.slice(runway.start, runway.end) !== runway.text || body.slice(runway.end, span.start).trim())) fail(`runway context span ${index}`);
+    // A displaced-threshold declaration can license only the immediately next
+    // DECLARED DIST clause. The binding audit validates that prior grammar and
+    // runway; the complete threshold clause stays visible separately.
+    const scopedSource = block.kind === 'distances' && runway ? `RWY ${block.runway} ${source}` : source;
     let display = notamBlockText(block);
     if (block.kind === 'instruction' && ['Condition', 'Exception', 'Inoperative equipment condition'].includes(block.label)) display = block.text;
     // Value order may change when categories precede numbers or labeled triplets
     // become a table. Exact field/category associations are tested by golden cases.
-    if (!equal(numbers(source).sort(), numbers(display).sort())) fail(`numeric preservation ${index}`);
-    if (body && !equal(sourceWords(source, block), words(display, block.kind))) fail(`word preservation ${index}`);
+    if (!equal(numbers(scopedSource).sort(), numbers(display).sort())) fail(`numeric preservation ${index}`);
+    if (body && !equal(sourceWords(scopedSource, block), words(display, block.kind))) fail(`word preservation ${index}`);
     for (const issue of auditValueBindings(source, block)) fail(`${issue} ${index}`);
     end = span.end;
   }
@@ -91,6 +104,9 @@ export function auditNotam(record: NotamRecord, presentation?: NotamPresentation
   for (const item of [...parsed.facts, ...parsed.targets]) {
     if (body.slice(item.evidence.start, item.evidence.end) !== item.evidence.text) fail('invalid evidence span');
   }
+  if (parsed.navigation && body.slice(parsed.navigation.evidence.start, parsed.navigation.evidence.end) !== parsed.navigation.evidence.text) fail('invalid navigation evidence span');
+  if (parsed.navigation) for (const issue of auditNavigationBindings(parsed.navigation.evidence.text, parsed.navigation,
+    [...record.locations, ...record.icaoLocations])) fail(issue);
   if (JSON.stringify(record) !== before) fail('source mutated');
   return issues;
 }

@@ -11,7 +11,8 @@ export function freshAt(time: unknown, now: number, maxAge: number, futureTolera
   return typeof time === 'number' && Number.isFinite(time) && time <= now + futureTolerance && now - time < maxAge;
 }
 type Published = { ready: boolean; checkedAt?: number | null | undefined; error?: string | null | undefined;
-  nextAttemptAt?: number | null | undefined; unresolvedRecords?: number };
+  nextAttemptAt?: number | null | undefined; unresolvedRecords?: number;
+  interpretation?: { classification: { sourceDurationAnomalies?: number } } | null };
 type Forecast = Published & { runTime?: number | undefined; validThrough?: number | undefined };
 type Charts = Published & { validTimes?: number[] | undefined; unavailableTimes?: number[] | undefined };
 type Radar = Published & { observedAt?: number | undefined; unavailable?: string[] | undefined };
@@ -60,6 +61,8 @@ export function assessInfoHealth(input: InfoHealthInput, now: number) {
     const value = input.advisories[product] ?? { ready: false };
     source(`advisory.${product}`, value, INFO_FRESHNESS.advisory,
       { coverage: !value.ready ? 'unknown' : value.unresolvedRecords ? 'partial' : 'complete' });
+    if (value.interpretation?.classification.sourceDurationAnomalies)
+      warnings.push({ product: `advisory.${product}`, reason: 'source-duration-anomaly', severity: 'warning' });
   }
   source('pireps', input.pireps, INFO_FRESHNESS.advisory,
     { coverage: input.pireps.ready ? 'complete' : 'unknown' });
@@ -68,9 +71,10 @@ export function assessInfoHealth(input: InfoHealthInput, now: number) {
   if (feed.enabled) {
     source('notams', { ready: feed.generation !== null, checkedAt: feed.checkedAt, error: feed.error, nextAttemptAt: feed.nextAttemptAt },
       INFO_FRESHNESS.notams, { valid: (feed.collectionContinuity ?? feed.continuity) === 'complete', coverage: feed.continuity === 'complete' ? 'complete' : 'partial' });
-    if ((feed.unresolvedRecords ?? 0) > (feed.blockingRecords ?? feed.unresolvedRecords ?? 0)) {
+    if ((feed.unresolvedRecords ?? 0) - (feed.historicalIssues ?? 0) > (feed.blockingRecords ?? feed.unresolvedRecords ?? 0)) {
       warnings.push({ product: 'notams', reason: 'association-metadata', severity: 'warning' });
     }
+    if (feed.historicalIssues) warnings.push({ product: 'notams', reason: 'historical-source-issues', severity: 'warning' });
     const reconciliation = input.notamReconciliation;
     const overdue = !freshAt(feed.fullSyncAt, now, INFO_FRESHNESS.fullSync, 0);
     if (overdue || reconciliation?.error) problems.push({ product: 'notams.reconciliation',

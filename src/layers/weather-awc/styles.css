@@ -157,6 +157,8 @@
   .awc-pirep-row:hover { background: var(--surface-control); }
 }
 .awc-pirep-expanded { padding: 0 var(--ui-panel-gap) var(--ui-panel-gap); }
+.awc-pirep-expanded .ui-data-table { table-layout: fixed; }
+.awc-pirep-expanded th { width: 30%; overflow-wrap: normal; }
 .awc-pirep-raw { margin: 0; font-family: var(--font-mono); font-size: var(--ui-text-compact); white-space: pre-wrap; overflow-wrap: anywhere; }
 .awc-pirep-source-entry { display: grid; gap: var(--ui-panel-gap); overflow-wrap: anywhere; }
 .awc-pirep-source-entry .ui-data-table { table-layout: fixed; }

@@ -1,0 +1,204 @@
+{
+  "source": "Retained FAA NMS variants read from the ZLayer KLSF and MYEH airport endpoints on 2026-10-19 before the radar-motion rollout; no new FAA acquisition. checkedAt is the latest retained feed source time.",
+  "checkedAt": 1792440745136,
+  "issues": [
+    {
+      "id": "1826935263174370",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792440536145,
+        "lastSeenAt": 1792440536145,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "LSF"
+      ],
+      "icaoLocations": [
+        "KLSF"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1826935263174370",
+          "sourceId": "NMS_ID_1826935263174370",
+          "classification": "MIL",
+          "number": "0792",
+          "series": "M",
+          "year": "",
+          "locations": [
+            "LSF"
+          ],
+          "icaoLocations": [
+            "KLSF"
+          ],
+          "accountability": "KLSF",
+          "issuedAt": 1792440180000,
+          "updatedAt": 1792440180000,
+          "sourceUpdatedAt": "2026-10-19T20:03:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792668600000,
+          "endsAt": 1792692000000,
+          "effectiveStart": "202610221130",
+          "effectiveEnd": "202610221800",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "PARACHUTE JUMPING EXERCISES MILITARY FREE FALL AT TRIMBLE/MAKAYLA/LINDERER/GARCIA DROP ZONE",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0792/26 NOTAMN Q) ZTL/QWPLW/IV/BO/W/000//3219N08459W005 A) KLSF B) 2610221130 C) 2610221800 E) PARACHUTE JUMPING EXERCISES MILITARY FREE FALL AT TRIMBLE/MAKAYLA/LINDERER/GARCIA DROP ZONE F) SFC G) 10000FT AGL"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "01237474c0b492a0c40fe8d14b77916ce300fceacad54c5fb2c4fdf36d5c642b"
+        },
+        {
+          "id": "1826935263174370",
+          "sourceId": "NMS_ID_1826935263174370",
+          "classification": "MIL",
+          "number": "792",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "LSF"
+          ],
+          "icaoLocations": [
+            "KLSF"
+          ],
+          "accountability": "KLSF",
+          "issuedAt": 1792440180000,
+          "updatedAt": 1792440180000,
+          "sourceUpdatedAt": "2026-10-19T20:03:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792668600000,
+          "endsAt": 1792692000000,
+          "effectiveStart": "202610221130",
+          "effectiveEnd": "202610221800",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "PARACHUTE JUMPING EXERCISES MILITARY FREE FALL AT TRIMBLE/MAKAYLA/LINDERER/GARCIA DROP ZONE",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!KLSF M0792/26 LSF PJE MILITARY FREE FALL AT TRIMBLE/MAKAYLA/LINDERER/GARCIA DROP ZONE 2610221130-2610221800"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0792/26 NOTAMN \r\nQ) ZTL/QWPLW/IV/BO/W/000//3219N08459W005 \r\nA) KLSF \r\nB) 2610221130 \r\nC) 2610221800 \r\nE) PARACHUTE JUMPING EXERCISES MILITARY FREE FALL AT TRIMBLE/MAKAYLA/LINDERER/GARCIA DROP ZONE \r\nF) SFC \r\nG) 10000FT AGL"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "e9f1e1a3a4dfde46bcc14856b9ee6544cde5cf614ce3482a90c09807feb105e2"
+        }
+      ]
+    },
+    {
+      "id": "1792440524166000",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792440746560,
+        "lastSeenAt": 1792440746560,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "MYEH"
+      ],
+      "icaoLocations": [
+        "MYEH"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1792440524166000",
+          "sourceId": "NMS_ID_1792440524166000",
+          "classification": "INTL",
+          "number": "0574",
+          "series": "A",
+          "year": "2026",
+          "locations": [
+            "MYEH"
+          ],
+          "icaoLocations": [
+            "MYEH"
+          ],
+          "accountability": "MYNNYNYX",
+          "issuedAt": 1792440480000,
+          "updatedAt": 1792440480000,
+          "sourceUpdatedAt": "2026-10-19T20:08:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792537200000,
+          "endsAt": 1793008800000,
+          "effectiveStart": "202610202300",
+          "effectiveEnd": "202610261000",
+          "endKind": "fixed",
+          "schedule": "DLY 2300-1000",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "DRONE OPS WILL TAKE PLACE AT PSN 252830N0764101W WI 0.20NM\r\nRADIUS. AIRMEN ARE ADZ TO EXER CTN DURING LDG AND DEP.",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0574/26 NOTAMN\r Q) MYNA/QWULW/IV/BO/W/000/004/2528N07641W001\r A) MYEH\r B) 2610202300 C) 2610261000\r D) DLY 2300-1000\r E) DRONE OPS WILL TAKE PLACE AT PSN 252830N0764101W WI 0.20NM\r RADIUS. AIRMEN ARE ADZ TO EXER CTN DURING LDG AND DEP.\r F) GND G) 400FT AGL"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "0fb68ea3d603bf5a0f366f52a7f4ae2d63d4750a14b8949cc04935b8c13f418b"
+        },
+        {
+          "id": "1792440524166000",
+          "sourceId": "NMS_ID_1792440524166000",
+          "classification": "INTL",
+          "number": "0574",
+          "series": "A",
+          "year": "2026",
+          "locations": [
+            "MYEH"
+          ],
+          "icaoLocations": [
+            "MYEH"
+          ],
+          "accountability": "MYNNYNYX",
+          "issuedAt": 1792440535000,
+          "updatedAt": 1792440480000,
+          "sourceUpdatedAt": "2026-10-19T20:08:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792537200000,
+          "endsAt": 1793008800000,
+          "effectiveStart": "202610202300",
+          "effectiveEnd": "202610261000",
+          "endKind": "fixed",
+          "schedule": "DLY 2300-1000",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "DRONE OPS WILL TAKE PLACE AT PSN 252830N0764101W WI 0.20NM\r\nRADIUS. AIRMEN ARE ADZ TO EXER CTN DURING LDG AND DEP.",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0574/26 NOTAMN\r Q) MYNA/QWULW/IV/BO/W/000/004/2528N07641W001\r A) MYEH\r B) 2610202300 C) 2610261000\r D) DLY 2300-1000\r E) DRONE OPS WILL TAKE PLACE AT PSN 252830N0764101W WI 0.20NM\r RADIUS. AIRMEN ARE ADZ TO EXER CTN DURING LDG AND DEP.\r F) GND G) 400FT AGL\r UNITED STATES NOTAM OFFICE DISCLAIMS FOREIGN NOTAM ACCURACY\r OR COMPLETENESS"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "4ec76abaf9b9022e0ebf761624b8dd5b5c204f3c45de8a351c83fc0e1b391ad7"
+        }
+      ]
+    }
+  ]
+}

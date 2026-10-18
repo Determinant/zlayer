@@ -9,7 +9,7 @@ const heading = new RegExp(`^TAKE-?OFF MINIMUMS:? RWYS? (${runwayGroup})[:,] +`)
 const minimum = '(?:STANDARD|STD|\\d+\\s*-\\s*(?:\\d+ \\d+/\\d+|\\d+/\\d+|\\d+))';
 const option = new RegExp(`^(${minimum})(?: WITH (?:A )?MINIMUM CLIMB(?: GRADIENT)?(?: OF)? ` +
   '(\\d+(?:\\.\\d+)?)\\s*(?:FT/NM|FT PER NM|FEET PER NM) TO (\\d+))?' +
-  '(?: (FOR CLIMB IN VISUAL CONDITIONS))?$');
+  '(?: (FOR CLIMB IN VISUAL CONDITIONS|FOR VCOA))?$');
 const stage = /^(?:MINIMUM CLIMB(?: GRADIENT)?(?: OF)? )?(\d+(?:\.\d+)?)\s*(?:FT\/NM|FT PER NM|FEET PER NM) TO (\d+)$/;
 
 /** Parse every alternative, or leave the entire clause as prose. Never borrow a prior runway. */
@@ -35,7 +35,7 @@ export function takeoffMinimums(source: string): NotamTakeoff | undefined {
     options.push({ minimums: /^(?:STANDARD|STD)$/.test(parsed[1]!) ? 'Standard minimums' : parsed[1]!,
       ...(parsed[2] ? { climb: { gradient: parsed[2], altitude: parsed[3]! } } : {}),
       ...(then.length ? { then: then.map(s => ({ gradient: s![1]!, altitude: s![2]! })) } : {}),
-      ...(parsed[4] ? { condition: 'For climb in visual conditions' } : {}) });
+      ...(parsed[4] ? { condition: parsed[4] === 'FOR VCOA' ? 'For VCOA' : 'For climb in visual conditions' } : {}) });
   }
   return { kind: 'takeoff', runway: match[1]!, options, ...(reference ? { reference: reference[1]! } : {}) };
 }

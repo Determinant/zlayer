@@ -21,6 +21,33 @@ is only a compatibility path for older binaries without the lifecycle protocol.
 
 ## Health and diagnostics
 
+Opening `/api/weather/healthz` in a browser shows a compact HTML view of its
+readiness assessment. It shows overall readiness, source-check ages, partial
+coverage, source errors, reconciliation warnings and unresolved NOTAM counts.
+Expected coverage gaps remain distinct from failures; disabled NOTAM collection
+is explicit. The page needs no PWA build or additional proxy route. An explicit
+`Accept: text/html` preference selects HTML; other clients keep the existing JSON
+response. The JSON link uses `?format=json` to show raw data in a browser, and
+responses declare `Vary: Accept`.
+
+The page uses core's B612 fonts, palette, compact controls and table styles, with
+the device color scheme selecting the shared light/dark colors. The server build
+embeds these assets, including the fonts, so direct local access needs no PWA or
+asset proxy. Source check times and the page timestamp use core's date formatters.
+When embedded styles or scripts change, the next refresh reloads the whole page
+to keep its markup, styles and security policy together.
+
+Visible pages refresh every 30 seconds using local server status only, with an
+eight-second request timeout. Failed refreshes and snapshots older than 45 seconds
+hide the previous status instead of leaving a green result visible. Returning
+from a hidden tab or browser history rechecks the page. Without JavaScript, use
+the Refresh link; the server timestamp identifies the displayed snapshot. Both
+HTML and JSON use `Cache-Control: no-store`. The page makes no source acquisitions
+and applies the existing health policy without adding readiness exceptions.
+Its inline script opts out of Cloudflare Rocket Loader so CDN rewriting cannot
+disable refresh under the page's hash-based Content Security Policy. Check the
+delivered script and policy through public HTTPS when deploying behind a proxy.
+
 `/api/weather/healthz` retains its raw product statuses and `ok` process-liveness
 flag. `readiness` applies the same freshness limits as the artifact probe, reporting
 availability, freshness and coverage separately. Partial terminal-radar coverage,
@@ -43,7 +70,7 @@ Progs exposes its next attempt; chart and grid failure logs report transitions
 instead of repeating identical errors on every retry.
 
 `notamSourceIssues` summarizes the committed generation's source ambiguity without
-new acquisition: total, association-only, unresolved content, unscoped, blocking
+new acquisition: total, association-only, unresolved content, historical, unscoped, blocking
 and nonblocking counts, plus at most 16 samples and an explicit truncation flag.
 Samples identify the differing fields, raw ICAO alternatives, affected supported
 queries, impact, operator action and source events that can clear the issue.
@@ -53,11 +80,25 @@ variant. These report `equivalent`, `compatible-evidence`, `contradictory` or
 means supplied fields or completely recognized content differ; it does not claim
 that FAA intended an operational amendment. Unproven distinguishes unsupported
 representations from established differences. These diagnostics grant no readiness
-exception: unresolved content and incomplete evidence remain blocking.
+exception. Current unresolved content and incomplete evidence remain blocking;
+complete agreeing fixed intervals can become historical under the
+[issue-impact contract](../../src/layers/notams/README.md#issue-impact-over-time).
+Samples include source revision, diagnostic first/latest observations, source
+kinds, applicability and the next clock transition. Historical issues remain raw
+evidence and produce their own warning, independently of association metadata.
 The [source-comparison contract](../../src/layers/notams/source-comparison.md)
 links each transformation to official guidance and retained NMS evidence.
 Its [conflict priorities](../../src/layers/notams/source-comparison.md#conflict-resolution-priority)
 separate implemented decisions from rules needing additional provenance.
+Identity proof now precedes lifecycle and operational-content comparison. The
+same identity rules apply to active and inactive observations; a witnessed year
+omission can compose with an original-ID cancellation or a complete NOTAMC
+envelope witnessing the cancellation message's own identity. NOTAMC headers and
+references remain constraints through merges and restart; no reference deletes
+another source ID. Deferred observations are reconsidered while admitted evidence
+grows. The [composition policy](../../src/layers/notams/source-comparison.md#decision-acceptance-criteria)
+requires cross-rule tests in addition to captured-conflict replay. A clean saved
+cohort does not establish that future lifecycle combinations are covered.
 [Revision ordering](../../src/layers/notams/source-comparison.md#nms-revision-ordering)
 uses only precise NMS update time. At equal times, sequence/correction differences
 remain comparison evidence; a higher counter, later HTTP response or another
@@ -72,6 +113,15 @@ both. These three need stronger record-bound evidence. All original translations
 remain available; no synthesized Q line replaces the source.
 These proof labels concern representation reconciliation, not certification that
 all facts within a source notice are correct.
+
+Revision decisions additionally report `source-year-omission` for a supplied
+numbering year backed by complete matching notice evidence, and
+`complementary-association-scopes` for the qualified native station/FIR case.
+Records retain the actual year spellings in `sourceYears` and original association
+sets in `sourceIcaoLocations`; the latter establishes source lookup membership,
+not airport aliases. Both rules run during collection and authenticated restore,
+with no source requests or clock/admission changes. The release replay reports
+their proofs and resulting query/health changes through its existing review gate.
 The `fdc-continuation` text proof identifies the qualified ODP repeated-footer/
 airport-heading representation family described in the
 [NOTAM reconciliation contract](../../src/layers/notams/README.md#collection-and-delivery).
@@ -81,9 +131,10 @@ it preserves source clocks and admission journals and makes no source request.
 Association-only means the existing filing-scope proof supplies usable matching
 content while source aliases disagree; it does not resolve those aliases or remove
 the durable issue. Cold collection reports null. `source-issues.ts` uses the same
-proof for publication and readiness: an issue is nonblocking only when complete,
-scoped evidence establishes usable content and none of the disputed ICAO/FIR
-associations selects a supported query. All other issues block readiness.
+proof for publication and readiness: a current issue is nonblocking only when
+complete, scoped evidence establishes usable content and none of the disputed
+ICAO/FIR associations selects a supported query. Historical qualification is
+separate and retains all source uncertainty. Other issues block readiness.
 `blockingRecords` governs feed state/error and the release probe; legacy responses
 without it treat every unresolved record as blocking. Aggregate health retains
 nonblocking ambiguity in `readiness.warnings`, independently of its blocking
@@ -159,7 +210,15 @@ before increasing cache capacity.
 
 ## Focused qualification
 
-Run `npm run check`, relevant `node --import tsx --test ...` suites and
+Run `npm run test:info:notams` for NMS identity/representation composition,
+collection, admission, delivery, authenticated recovery and readiness. This
+includes generated combinations over retained source profiles, explicit rejection
+cases and the existing collection-cycle simulation. Unknown source semantics and
+actual contradictions remain observable; qualification never requires clearing
+all issues by weakening evidence checks.
+
+Run `npm run check:imports`, appropriate TypeScript checks, relevant
+`node --import tsx --test ...` suites and
 `npm run info:build`. Full repository verification is a separate release policy;
 do not infer it passed from these checks. Recovery/health tests live in
 `test/notams-admission.test.ts`, `notams-server.test.ts`,
@@ -173,6 +232,37 @@ probe. Diagnostics alone do not establish the decision is correct. Regressions
 include metadata-only evidence, supported disputed queries, substantive conflicts,
 truncated/unscoped evidence, a blocking issue beyond the diagnostic sample limit,
 and independent collection/freshness/reconciliation failures.
+
+### Retained-state release replay
+
+The server build includes `replay-notams.js`. Give it a frozen environment
+checkpoint directory containing `current.json`, its authenticated NDJSON and the
+admission/provisioning journals. It rejects symlinks and restores independent
+temporary copies with fake credentials, updates disabled and all source calls
+rejected. Baseline and candidate receive the same frozen input and clock.
+The gate checks source boundaries, collection completeness and byte-identical
+journals, then compares records, issues and every supported single-selector
+airport/navaid/ARTCC/FIR query. It reports content and membership hashes, named
+resolution proofs, per-issue query impact, operational health differences and health
+diagnostics. Combined-selector union behavior remains covered by the focused HTTP tests.
+
+```bash
+node tools/info-server/dist/replay-notams.js /private/frozen/production production \
+  --baseline=/private/previous/server.js --at=2026-10-16T21:52:26.208Z \
+  --output=/tmp/notam-replay.json --report-only
+```
+
+Review the report against the intended contract changes. Rerun the same frozen
+input, baseline and clock with `--expect=/private/reviewed-notam-replay.json` to
+require exact agreement on record, query, impact and health changes. A supplied
+review cannot waive source requests or changed clocks/journals. A report-only run
+does not satisfy the release gate. Input checksums/journals must remain unchanged
+through replay; a changing live directory is not a qualified frozen input.
+Output reports must be new files outside the frozen input; a report cannot
+overwrite its expected review.
+Retain private inputs/reports outside the public source tree. The private deployment
+helper owns staging, review binding and activation; no replay operation restarts
+production or resets admission.
 
 Reliability qualification must cover successive refreshes at realistic feed sizes,
 not only a healthy startup. `notams-tfr-scheduling.test.ts` checks both clocks over

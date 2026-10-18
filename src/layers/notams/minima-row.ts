@@ -2,7 +2,8 @@ import type { NotamMinimumRow } from './minima';
 
 type Token = { text: string; start: number; end: number };
 type State = 'field' | 'value' | 'separator' | 'category-end' | 'done';
-const fields = new Set(['DA', 'MDA', 'RA', 'HAT', 'HAA', 'HAS', 'VIS', 'VISIBILITY', 'RVR', 'MINIMUMS']);
+const fields = new Set(['DA', 'MDA', 'MDAS', 'RA', 'HAT', 'HAA', 'HAS', 'VIS', 'VISIBILITY', 'VISIBLITY', 'RVR', 'MINIMUMS']);
+const fieldLabel = (field: string) => field === 'MDAS' ? 'MDA' : field;
 const heights = new Set(['HAT', 'HAA', 'HAS']);
 const isNumber = (token?: Token) => !!token && /^\d+(?:\.\d+)?$/.test(token.text);
 const isInteger = (token?: Token) => !!token && /^\d+$/.test(token.text);
@@ -27,25 +28,34 @@ class RowCursor {
 
 function category(cursor: RowCursor): string | undefined {
   const start = cursor.position;
-  if (cursor.take('ALL')) {
+  // Compact publisher spellings are tokens only in the category state. Never
+  // split arbitrary words or carry a preceding row's categories into this one.
+  if (/^ALLCATS?$/.test(cursor.peek()?.text ?? '')) { cursor.position++; return 'All categories'; }
+  const compact = /^CATS?([A-E])$/.exec(cursor.peek()?.text ?? '');
+  if (compact) cursor.position++;
+  if (!compact && cursor.take('ALL')) {
     if (cursor.take('CATS') || cursor.take('CAT')) return 'All categories';
     cursor.position = start; return;
   }
-  if (!(cursor.take('CAT') || cursor.take('CATS'))) return;
-  if (!/^[A-E]$/.test(cursor.peek()?.text ?? '')) { cursor.position = start; return; }
-  cursor.position++;
+  if (!compact) {
+    if (!(cursor.take('CAT') || cursor.take('CATS'))) return;
+    if (!/^[A-E]$/.test(cursor.peek()?.text ?? '')) { cursor.position = start; return; }
+    cursor.position++;
+  }
   while (cursor.peek()?.text === '/' || cursor.peek()?.text === 'AND') {
     cursor.position++;
     if (!/^[A-E]$/.test(cursor.peek()?.text ?? '')) { cursor.position = start; return; }
     cursor.position++;
   }
-  return cursor.slice(start).replace(/^CATS /, 'CAT ');
+  return cursor.slice(start).replace(/^CATS?\s*(?=[A-E]\b)/, 'CAT ');
 }
+
+const beginsCategory = (token?: Token) => /^(?:CAT|CATS|ALL|ALLCATS?|CATS?[A-E])$/.test(token?.text ?? '');
 
 function fieldValue(cursor: RowCursor, field: string): string | undefined {
   if (cursor.take('NA')) return 'NA';
   if (field === 'MINIMUMS') return;
-  const visibility = field === 'VIS' || field === 'VISIBILITY';
+  const visibility = field === 'VIS' || field === 'VISIBILITY' || field === 'VISIBLITY';
   const rvr = visibility && cursor.take('RVR');
   const start = cursor.position;
   if (!(field === 'RVR' || rvr ? isInteger(cursor.peek()) : isNumber(cursor.peek()))) return;
@@ -100,15 +110,15 @@ export function minimumRow(source: string, previous?: NotamMinimumRow): NotamMin
         if (!field || !fields.has(field) || values.length >= 8) return;
         cursor.position++;
         const marker = ['*', '#'].includes(cursor.peek()?.text ?? '') ? cursor.tokens[cursor.position++]!.text : '';
-        pending = [{ field, marker }]; pair = false;
+        pending = [{ field: fieldLabel(field), marker }]; pair = false;
         // DA/HAT 600/300 and DA/RVR/HAT 600/2400/300 declare ordered labels.
         while (cursor.peek()?.text === '/' && fields.has(cursor.peek(1)?.text ?? '')) {
           cursor.position++;
-          pending.push({ field: cursor.tokens[cursor.position++]!.text, marker: '' });
+          pending.push({ field: fieldLabel(cursor.tokens[cursor.position++]!.text), marker: '' });
           if (pending.length > 3) return;
         }
         if (pending.length > 1) {
-          if (marker || !['DA', 'MDA'].includes(field) ||
+          if (marker || !['DA', 'MDA'].includes(fieldLabel(field)) ||
               !heights.has(pending.at(-1)!.field) || pending.length === 3 && pending[1]!.field !== 'RVR') return;
           pair = true;
         }
@@ -116,7 +126,7 @@ export function minimumRow(source: string, previous?: NotamMinimumRow): NotamMin
         cursor.take(':');
         // A category between a later label and value cannot retroactively scope
         // the fields already consumed. Keep such a mixed-scope row as prose.
-        if (values.length && ['CAT', 'CATS', 'ALL'].includes(cursor.peek()?.text ?? '')) return;
+        if (values.length && beginsCategory(cursor.peek())) return;
         if (!readCategory()) return;
         state = 'value'; break;
       }
@@ -126,7 +136,7 @@ export function minimumRow(source: string, previous?: NotamMinimumRow): NotamMin
           const value = fieldValue(cursor, field);
           if (!value || pair && value === 'NA' || heights.has(field) &&
               values.some(v => /^(?:DA|MDA)[*#]?$/.test(v.label) && v.value === 'NA')) return;
-          const label = field === 'VIS' || field === 'VISIBILITY' ? 'Visibility' : field === 'MINIMUMS' ? 'Minimums' : field;
+          const label = field === 'VIS' || field === 'VISIBILITY' || field === 'VISIBLITY' ? 'Visibility' : field === 'MINIMUMS' ? 'Minimums' : field;
           if (values.some(v => v.label === `${label}${marker}`)) return;
           values.push({ label: `${label}${marker}`, value });
         }
@@ -134,12 +144,16 @@ export function minimumRow(source: string, previous?: NotamMinimumRow): NotamMin
       }
       case 'separator': {
         if (cursor.done) { state = 'done'; break; }
-        if (cursor.peek()?.text === 'CAT' || cursor.peek()?.text === 'CATS' || cursor.peek()?.text === 'ALL') {
+        if (beginsCategory(cursor.peek())) {
           if (!readCategory()) return;
           state = 'category-end'; break;
         }
         if (pair) return;
-        const separated = cursor.take('/') || cursor.peek()!.start > cursor.tokens[cursor.position - 1]!.end;
+        const slash = cursor.take('/');
+        // A duplicated separator before another explicit field does not change
+        // that field's binding. Never collapse a slash inside a fraction/value.
+        if (slash && cursor.peek()?.text === '/' && fields.has(cursor.peek(1)?.text ?? '')) cursor.position++;
+        const separated = slash || cursor.peek()!.start > cursor.tokens[cursor.position - 1]!.end;
         if (!separated) return;
         state = 'field'; break;
       }

@@ -18,6 +18,8 @@ const records = await Promise.all(['lwm', 'cybl-kbfi'].map(name =>
 const fixRecords = await Promise.all(['forck', 'skn'].map(name =>
   readFile(new URL(`./fixtures/pireps/2026-10-14-${name}.xml`, import.meta.url), 'utf8')));
 const departureRecord = await readFile(new URL('./fixtures/pireps/2026-10-14-ama-dep.xml', import.meta.url), 'utf8');
+const october15 = JSON.parse(await readFile(new URL('./fixtures/pireps/2026-10-15-unplotted.json', import.meta.url), 'utf8')) as
+  Extract<PirepPayload, { schemaVersion: 2 }>;
 const references = JSON.parse(await readFile(new URL('./fixtures/pireps/2026-10-01-locations.json', import.meta.url), 'utf8')) as
   { airports: GeoPointFeature[]; navaids: GeoPointFeature[]; fixes: GeoPointFeature[] };
 function navigation(airports = references.airports, navaids = references.navaids, fixes = references.fixes): NavigationData {
@@ -34,6 +36,171 @@ function location(text: string) {
 const vor = (ident: string): GeoPointFeature => ({ type: 'Feature', id: `fixture:${ident}`,
   geometry: { type: 'Point', coordinates: [-97, 35] },
   properties: { kind: 'navaid', ident, type: 'VORTAC', stationDeclinationDeg: 9 } });
+
+test('all six exclusions in the 16:58 October 15 capture become selectable from either wire format', () => {
+  assert.ok(isMagneticModel(modelJson));
+  const payloads: PirepPayload[] = [october15,
+    { schemaVersion: 1, source: october15.source, checkedAt: october15.checkedAt, reports: [],
+      issues: october15.records.map((sourceXml, i) => ({ id: `legacy-oct15-${i}`, sourceXml, reason: 'Unusable source report' })) }];
+  const awg = references.airports.find(f => f.properties.faaId === 'AWG')!;
+  const pou = references.airports.find(f => f.properties.faaId === 'POU')!;
+  const djt = references.airports.find(f => f.properties.faaId === 'DJT')!;
+  const dpa = references.navaids.find(f => f.properties.ident === 'DPA')!;
+  const ekr = references.navaids.find(f => f.properties.ident === 'EKR')!;
+  for (const payload of payloads) {
+    const snapshot = decodePirepSource(payload), before = JSON.stringify(snapshot), derive = createPirepLocations();
+    assert.ok(isPirepSnapshot(snapshot)); assert.equal(snapshot.issues.length, 5);
+    assert.equal(derive(snapshot)!.reports.length, 1, 'receipt recovery is independent of navigation');
+    const resolved: PirepLocations = derive(snapshot, navigation(), modelJson)!;
+    assert.equal(resolved.reports.length, 6); assert.equal(resolved.issues.length, 0);
+    const reportFor = (station: string) => resolved.reports.find(report => report.text.startsWith(`${station} `))!;
+    const cid = reportFor('CID'), pouReport = reportFor('POU'), eeo = reportFor('EEO');
+    assert.equal(cid.decodedLocation, 'Approx. 3 NM NW of KAWG');
+    assert.equal(pouReport.decodedLocation, 'Approx. 1 NM W of POU; miles interpreted as NM');
+    assert.equal(eeo.decodedLocation, 'Approx. decoded /OV (assumed padding) · EKR0304053 · EKR 304° / 53 NM');
+    assert.equal(eeo.locationEstimated, true);
+    assert.equal(cid.locationEstimated, true); assert.equal(pouReport.locationEstimated, true);
+    for (const [report, origin, radial, distance] of [[cid, awg, 315, 3], [pouReport, pou, 270, 1]] as const) {
+      const expected = positionOnRadial({ id: origin.id!, ident: '', coordinate: origin.geometry.coordinates,
+        declination: 0, revision: '', sourceKey: '' }, radial, distance).coordinate;
+      assert.deepEqual([report.longitude, report.latitude], expected);
+    }
+    assert.deepEqual([eeo.longitude, eeo.latitude], positionOnRadial(radialReference(ekr)!, 304, 53).coordinate);
+    for (const [station, anchor, detail] of [['PBI', djt, /radial 820° \(invalid\)/], ['DPA', dpa, /distance unknown/]] as const) {
+      const report = reportFor(station);
+      assert.deepEqual([report.longitude, report.latitude], anchor.geometry.coordinates);
+      assert.equal(report.locationReferenceOnly, true); assert.equal(report.locationEstimated, true);
+      assert.match(report.decodedLocation!, /observation position unknown/); assert.match(report.decodedLocation!, detail);
+    }
+    const lts = reportFor('LTS');
+    assert.equal(lts.timeSource, 'receipt'); assert.equal(lts.observedAt, lts.receivedAt);
+    assert.equal(lts.receivedAt, Date.parse('2026-10-15T16:23:42.373Z'));
+    assert.deepEqual([lts.longitude, lts.latitude], [-99.2678, 34.668]);
+    assert.match(lts.text, /TM 1711/); assert.deepEqual(lts.quality, ['no_time_stamp']);
+    for (const report of resolved.reports) {
+      const issue = snapshot.issues.find(issue => issue.report?.id === report.id);
+      if (!issue) { assert.deepEqual(report, snapshot.reports.find(original => original.id === report.id)); continue; }
+      const { longitude: _lon, latitude: _lat, sourceXml, decodedLocation: _label,
+        locationEstimated: _estimated, locationReferenceOnly: _reference, ...observation } = report;
+      assert.deepEqual(observation, issue.report, 'weather, altitude, time, quality and raw text survive recovery');
+      assert.equal(sourceXml, issue.sourceXml);
+    }
+    assert.deepEqual(selectedPireps({ selectedTime: null, now: october15.checkedAt, pireps: { loading: false, snapshot, resolved },
+      preferences: weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }) }), resolved.reports);
+    assert.deepEqual(derive(snapshot, navigation([], [], []), modelJson)!.reports, [lts], 'withdrawing references withdraws every derived point');
+    assert.equal(JSON.stringify(snapshot), before);
+  }
+  const records = october15.records.slice(3).map(xml => xml.replace('<quality_control_flags><bad_location>TRUE</bad_location></quality_control_flags>', ''));
+  const snapshot = decodePirepSource({ ...october15, records });
+  assert.deepEqual(createPirepLocations()(snapshot, navigation(), modelJson)!.reports, snapshot.reports,
+    'valid source coordinates retain precedence over every new recovery');
+});
+
+test('seventh distinct captured failure, STJ reversed cloud heights, preserves both heights and its source point', async () => {
+  const sourceXml = (await readFile(new URL('./fixtures/pireps/2026-10-15-stj.xml', import.meta.url), 'utf8')).trim();
+  const checkedAt = Date.parse('2026-10-15T17:26:37Z');
+  const payloads: PirepPayload[] = [
+    { schemaVersion: 2, source: 'AWC capture', checkedAt, records: [sourceXml] },
+    { schemaVersion: 1, source: 'AWC capture', checkedAt, reports: [], issues: [{ id: 'legacy-stj', sourceXml, reason: 'Invalid fields' }] },
+  ];
+  for (const payload of payloads) {
+    const snapshot = decodePirepSource(payload), resolved = createPirepLocations()(snapshot)!;
+    assert.ok(isPirepSnapshot(snapshot)); assert.equal(resolved.issues.length, 0); assert.equal(resolved.reports.length, 1);
+    const report = resolved.reports[0]!;
+    assert.deepEqual(report.sky, ['OVC · reported base 25000 / top 2000 ft MSL (inconsistent)']);
+    assert.deepEqual([report.longitude, report.latitude], [-94.9252, 39.9606]);
+    assert.equal(report.sourceXml, sourceXml); assert.equal(report.observedAt, Date.parse('2026-10-15T16:50:00Z'));
+    assert.deepEqual(selectedPireps({ selectedTime: null, now: checkedAt, pireps: { loading: false, snapshot, resolved },
+      preferences: weatherAwcPreferences.select({ awcEnabled: true, awcPireps: true }) }), [report]);
+  }
+});
+
+test('incomplete or invalid offsets expose only a unique published reference, never an invented observation position', () => {
+  const gfk = vor('GFK'), lwm = vor('LWM'), forck = references.fixes[0]!;
+  const data = navigation([], [gfk, lwm], [forck]), resolve = createPirepLocationReferences(data);
+  for (const [phrase, anchor] of [['GFK020', gfk], ['GFK361005', gfk], ['GFK1801000', gfk],
+    ['LWM 230 1000', lwm], ['LWM 361 01', lwm], ['FORCK361010', forck], ['FORCK2701000', forck]] as const) {
+    const result = resolve(location(phrase), checkedAt);
+    assert.ok('coordinate' in result, phrase);
+    assert.deepEqual(result.coordinate, anchor.geometry.coordinates, phrase);
+    assert.equal(result.referenceOnly, true); assert.equal(result.estimated, true);
+    assert.match(result.description, /observation position unknown/);
+    assert.match(result.description, /invalid|unknown/);
+  }
+  for (const navaids of [[], [gfk, { ...gfk, id: 'duplicate' }], [{ ...gfk, properties: { ...gfk.properties, type: 'NDB' } }]]) {
+    assert.ok('reason' in createPirepLocationReferences(navigation([], navaids, []))(location('GFK020'), checkedAt));
+  }
+  const ordinary = resolve(location('GFK180005'), checkedAt);
+  assert.ok('coordinate' in ordinary); assert.equal(ordinary.referenceOnly, undefined);
+  assert.deepEqual(ordinary.coordinate, positionOnRadial(radialReference(gfk)!, 180, 5).coordinate);
+  for (const phrase of ['GFK02', 'GFK020 EXTRA', 'GFK020/UNKNOWN', 'GFK020 /OV GFK', 'DEP 004', 'ILS 004']) {
+    assert.ok('reason' in readPirepLocation(`GFK UA /OV ${phrase}`), phrase);
+  }
+});
+
+test('compact compass/reference boundaries resolve against complete published identities', () => {
+  const resolve = createPirepLocationReferences(navigation());
+  for (const [compact, spaced] of [['3NWKAWG', '3 NW KAWG'], ['3 NWKAWG', '3 NW KAWG'],
+    ['3NMNWKAWG', '3 NM NW KAWG'], ['3SMNWKAWG', '3 SM NW KAWG'], ['.5MIWKAWG', '.5 MI W KAWG']]) {
+    assert.deepEqual(resolve(location(compact!), checkedAt), resolve(location(spaced!), checkedAt), compact);
+    assert.ok('coordinate' in resolve(location(compact!), checkedAt));
+  }
+  const abc = vor('ABC'), eabc = vor('EABC');
+  const compact = location('3NEABC');
+  for (const [reference, phrase] of [[abc, '3 NE ABC'], [eabc, '3 N EABC']] as const) {
+    const resolve = createPirepLocationReferences(navigation([], [reference]));
+    assert.deepEqual(resolve(compact, checkedAt), resolve(location(phrase), checkedAt));
+  }
+  for (const alternate of [eabc, { ...eabc, properties: { ...eabc.properties, type: 'NDB' } }]) {
+    const result = createPirepLocationReferences(navigation([], [abc, alternate]))(compact, checkedAt);
+    assert.ok('reason' in result); assert.match(result.reason, /ambiguous reference encoding/);
+  }
+  const ambiguous = createPirepLocationReferences(navigation([], [abc, { ...abc, id: 'duplicate' }]))(compact, checkedAt);
+  assert.ok('reason' in ambiguous); assert.match(ambiguous.reason, /ambiguous reference/);
+  for (const layer of ['airports', 'navaids', 'fixes'] as const) {
+    const data = navigation();
+    const collection = data[layer]!;
+    assert.ok('reason' in createPirepLocationReferences({ ...data, [layer]: undefined })(location('3NWKAWG'), checkedAt));
+    const partial = { ...data, [layer]: { ...collection, meta: { ...collection.meta, truncated: true } } };
+    assert.ok('reason' in createPirepLocationReferences(partial)(location('3NWKAWG'), checkedAt));
+  }
+  for (const phrase of ['3NWZZZ', '3NEABC']) assert.ok('reason' in resolve(location(phrase), checkedAt), 'unknown references cannot use the header');
+  for (const phrase of ['1000NWKAWG', '3NWKAWG EXTRA', '3NWKAWG-GFK', '-3NWKAWG', '3NWKAWG /OV POU']) {
+    assert.ok('reason' in readPirepLocation(`CID UA /OV ${phrase}/TM 1553`), phrase);
+  }
+  assert.ok('reason' in readPirepLocation('CID UA /RM /OV 3NWKAWG'), 'remarks cannot supply a compact location');
+});
+
+test('extra radial zero recovery preserves ordinary readings and real identifier boundaries', () => {
+  const ekr = vor('EKR'), ekr0 = vor('EKR0');
+  const resolve = createPirepLocationReferences(navigation([], [ekr]));
+  for (const phrase of ['EKR0304053', 'EKR 0304053', 'EKR 0304 053']) {
+    const result = resolve(location(phrase), checkedAt);
+    assert.ok('coordinate' in result, phrase);
+    assert.deepEqual(result.coordinate, positionOnRadial(radialReference(ekr)!, 304, 53).coordinate);
+    assert.match(result.description, /EKR 304° \/ 53 NM/);
+  }
+  const ordinary = resolve(location('EKR0300053'), checkedAt);
+  assert.ok('coordinate' in ordinary);
+  assert.deepEqual(ordinary.coordinate, positionOnRadial(radialReference(ekr)!, 30, 53).coordinate,
+    'an already valid three-digit radial is never reinterpreted as 300 degrees');
+  const standard = createPirepLocationReferences(navigation([], [ekr, ekr0]))(location('EKR0304053'), checkedAt);
+  assert.ok('coordinate' in standard);
+  assert.deepEqual(standard.coordinate, positionOnRadial(radialReference(ekr0)!, 304, 53).coordinate);
+  const unaligned = { ...ekr0, properties: { ...ekr0.properties } };
+  delete unaligned.properties.stationDeclinationDeg;
+  assert.ok('reason' in createPirepLocationReferences(navigation([], [ekr, unaligned]))(location('EKR0304053'), checkedAt));
+  const unsupported = { ...ekr0, properties: { ...ekr0.properties, type: 'NDB' } };
+  assert.ok('reason' in createPirepLocationReferences(navigation([], [ekr, unsupported]))(location('EKR0304053'), checkedAt),
+    'a known unsupported standard reference cannot silently become a padded radial');
+  const data = navigation([], [ekr]);
+  const partial = { ...data, navaids: { ...data.navaids!, meta: { ...data.navaids!.meta, truncated: true } } };
+  assert.ok('reason' in createPirepLocationReferences(partial)(location('EKR0304053'), checkedAt),
+    'partial reference data cannot establish that EKR0 is absent');
+  for (const phrase of ['EKR 0361 053', 'EKR 1304 053', 'EKR 0304 53', 'EKR 00304 053', 'EKR 0304 0053', 'EKR 0304053 EXTRA']) {
+    assert.ok('reason' in readPirepLocation(`EEO UA /OV ${phrase}`), phrase);
+  }
+});
 
 test('reported RNT distance-only text recovers from either wire format with the missing direction disclosed', () => {
   const raw = 'RNT UA /OV 2SM/TM 1835/FL023/TP M20/RM DURD';
@@ -174,7 +341,7 @@ test('five-letter fixes support complete point, bearing and route fields without
   assert.ok('coordinate' in resolve(location('FORCK-SLN'), checkedAt));
   assert.ok('coordinate' in resolve(location('2 N OF FORCK'), checkedAt));
   assert.ok('reason' in createPirepLocationReferences(navigation(undefined, undefined, [fix, { ...fix, id: 'duplicate' }]))(location('FORCK'), checkedAt));
-  for (const text of ['FORCK361010', 'FORCK2701000', 'FORCK270010 EXTRA', 'FORCKS270010', 'F0RCK270010']) {
+  for (const text of ['FORCK270010 EXTRA', 'FORCKS270010', 'F0RCK270010']) {
     assert.ok('reason' in readPirepLocation(`TRL UA /OV ${text}/TM 0054`), text);
   }
 });
@@ -237,7 +404,7 @@ test('captured LWM and CYBL-KBFI entries recover through both source formats and
     assert.deepEqual(lwm.quality, ['bad_location']);
     assert.match(bfi.decodedLocation!, /^Route midpoint · CYBL-KBFI · AWC station reference: CYBL$/);
     assert.equal(bfi.locationEstimated, true); assert.equal(bfi.sourceXml, records[1]);
-    assert.deepEqual(bfi.turbulence, ['NEG · ?–3000 ft MSL']);
+    assert.deepEqual(bfi.turbulence, ['NEG · below 3000 ft MSL']);
     const campbell: [number, number] = [-125.269, 49.951]; // AWC station capture, not an invented route endpoint.
     const boeing = references.airports.find(f => f.properties.icaoId === 'KBFI')!.geometry.coordinates;
     const midpoint: [number, number] = [bfi.longitude, bfi.latitude];
@@ -273,7 +440,7 @@ test('distance padding recovery uses actual references without swallowing identi
   delete unaligned.properties.stationDeclinationDeg;
   assert.ok('reason' in createPirepLocationReferences(navigation([], [mqp, unaligned]))(location('MQP2260020'), checkedAt),
     'a known standard identity cannot fall back to another interpretation because its alignment is missing');
-  for (const text of ['LWM2300010 EXTRA', 'LWM 230 00001', 'LWM 230 1000', 'LWM 23 01', 'LWM 361 01']) {
+  for (const text of ['LWM2300010 EXTRA', 'LWM 230 00001', 'LWM 23 01']) {
     assert.ok('reason' in readPirepLocation(`LWM UA /OV ${text}`), text);
   }
 });

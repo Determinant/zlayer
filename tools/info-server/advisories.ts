@@ -8,10 +8,11 @@ const products: AwcAdvisoryProduct[] = ['gairmet', 'sigmet', 'cwa'];
 /** Derive diagnostics from the committed publication, including after restart.
  * Bound examples and omit raw bulletins; the artifact retains complete evidence. */
 function interpretation(snapshot: AwcAdvisorySnapshot) {
-  const classification = { metadata: 0, bulletin: 0, unspecified: 0, legacy: 0, unsupportedBulletins: 0 };
+  const classification = { metadata: 0, bulletin: 0, unspecified: 0, legacy: 0, unsupportedBulletins: 0, sourceDurationAnomalies: 0 };
   for (const advisory of snapshot.advisories) {
     classification[advisory.classification?.basis ?? 'legacy']++;
     if (advisory.classification?.bulletin === 'unsupported') classification.unsupportedBulletins++;
+    if (advisory.classification?.sourceDurationMs !== undefined) classification.sourceDurationAnomalies++;
   }
   const issueReasons: Record<string, number> = {}, issueDetails: Record<string, number> = {};
   for (const issue of snapshot.issues ?? []) {

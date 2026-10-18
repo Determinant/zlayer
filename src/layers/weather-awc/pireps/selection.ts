@@ -14,4 +14,5 @@ export function selectedPireps(state: Pick<WeatherState, 'preferences' | 'select
 export const pirepAltitude = (report: AircraftReport) => report.altitudeFt === null ? 'Altitude unknown / qualified' : `${report.altitudeFt.toLocaleString('en-US')} ft MSL`;
 export const pirepConditions = (report: AircraftReport) => [
   ...report.turbulence.map(v => `Turbulence: ${v}`), ...report.icing.map(v => `Icing: ${v}`), ...report.sky.map(v => `Sky: ${v}`),
+  ...report.contentNotes ?? [],
 ];

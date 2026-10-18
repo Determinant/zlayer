@@ -286,6 +286,16 @@ remain explicit issues. G-AIRMET requires its structured hazard. In every case,
 `sourceProperties` remains unchanged, including null/missing fields. Optional
 `classification` records its `basis` (`metadata`, `bulletin`, or `unspecified`)
 and, for SIGMET, whether the bulletin grammar was `matched` or `unsupported`.
+Optional `classification.sourceDurationMs` records a supplied atypical SIGMET
+period only with metadata classification, a matched complete header and exact
+structured/printed interval agreement. It must equal `validTo - validFrom`,
+exceed the nominal two-hour convective or four-hour non-convective period, and
+remain within the six-hour project ingestion bound. It preserves the source's
+duration, not a synthesized extension or a standards-conformance assertion. Health
+counts these records and reports a duration warning separately from unresolved
+coverage. Missing classification and clipped atypical periods cannot use this
+proof. The [advisory policy](../../src/layers/weather-awc/README.md#advisory-ingestion-policy)
+owns the evidence and rejection rules.
 Unsupported syntax cannot recover missing metadata, but does not by itself
 invalidate usable supplied metadata; recognized contradictions still block.
 Older saved advisories without provenance remain readable. An
@@ -346,6 +356,25 @@ which the PWA decodes from their retained XML.
 An interpreted `bad_location` issue may retain a bounded, untrusted source
 coordinate to corroborate a narrowly constrained identifier recovery. It never
 supplies the plotted coordinate directly; the published navigation reference does.
+Incomplete offsets may produce explicitly labeled reference-only markers while
+leaving the observation position unknown. Derived `timeSource: 'receipt'` means
+the observation time is unknown and `observedAt === receivedAt` supplies the
+sorting/filtering/expiry basis; it does not assert a receipt-time observation.
+The earliest known receipt constrains duplicates before age filtering, including
+expired receipts and consecutive source replacements. The browser can retain an
+earlier original XML receipt witness alongside its unchanged cached source;
+the public wire format is unchanged. This evidence cannot add absent reports,
+override known observation times or establish navigation-derived positions.
+Conflicting finite condition heights retain their named values with an
+inconsistency label rather than discarding the report.
+Optional `contentNotes` exposes altitude conflicts, incomplete encodings, missing
+hazard observations and interpretation assumptions. `N/A`, attribution-only
+condition fields and AWC's `NEGclr` source qualifier do not populate the hazard
+observation arrays. Recognized ambiguous cloud fields retain their known facts
+with explicit unit/role uncertainty; this does not establish a complete measurement.
+Complete raw condition clauses own their interpretation; unsupported raw fields
+remain visible with an incomplete-decoding label. Successful plotting alone does
+not establish content accuracy.
 The bounded shared guards, source evidence, observation/altitude meanings,
 replacement policy and expiry are owned by the
 [PIREP guide](../../src/layers/weather-awc/pireps/README.md).
@@ -431,6 +460,20 @@ establishes temporal precedence; NMS source update time still owns ordering.
 Legacy records without the field retain their scalar pair. Raw counter provenance
 cannot override differences in identity, applicability, lifecycle or content.
 
+Optional `NotamRecord.sourceYears` retains exactly the two actual numbering-year
+spellings after a qualified omission: an empty string and the supplied four-digit
+`year`. This identity evidence can survive an original-ID cancellation and sparse
+repeats at the same precise source revision; it grants no operational-content or
+lifecycle authority by itself. Optional `sourceIcaoLocations` retains two distinct original singleton
+association sets when complete native/FIR evidence establishes complementary
+station and FIR lookup scopes. `icaoLocations` is then their union; the codes are
+source query memberships, not aliases for one physical airport. This field and
+the disputed-association projection `icaoLocationVariants` are mutually exclusive.
+The [source comparison rules](../../src/layers/notams/source-comparison.md#field-and-transformation-rules)
+define evidence, profile and rejection boundaries for both additive fields.
+Raw translations, including distinct whitespace spellings, survive merging;
+the eight-translation bound remains enforced as an unresolved representation limit.
+
 `NotamAirportSnapshot` in `packages/contracts/src/notams.ts` owns the validated
 wire shape. Airport schema 1 supports legacy snapshots and adds paired `issues`
 and `contentCoverage` fields for unresolved source records. Resolved and unresolved
@@ -463,11 +506,24 @@ the uncertain airport association and preserves the raw alternatives.
 Optional feed `blockingRecords` counts retained issues affecting usable content or
 supported queries; it is bounded by `unscopedRecords <= blockingRecords <=
 unresolvedRecords`. Its absence conservatively treats all unresolved records as
-blocking. Only complete filing-scope evidence with no disputed supported ICAO/FIR
-query can be nonblocking. A ready feed requires zero blocking issues as well as
+blocking. Complete filing-scope evidence with no disputed supported ICAO/FIR
+query can be nonblocking. Complete, scoped revision conflicts with an agreeing
+fixed interval can also become historical under the
+[issue-impact contract](../../src/layers/notams/README.md#issue-impact-over-time).
+Optional feed `historicalIssues` counts these retained issues, bounded by
+`historicalIssues + blockingRecords <= unresolvedRecords`. Scoped snapshots carry
+their raw evidence in optional `historicalIssues`, separate from current `issues`;
+all IDs remain disjoint and share the existing response bounds. Historical evidence
+does not reduce current content coverage or become an authoritative record.
+A ready feed requires zero blocking issues as well as
 healthy collection; the legacy `continuity` still remains incomplete whenever any
 issue is retained. Aggregate health reports nonblocking ambiguity separately in
 `readiness.warnings`, preserving partial coverage and the raw source evidence.
+
+Optional `NotamSourceIssue.observations` retains local first/latest observation
+times and at most the two bulk/delta source kinds. Null first observation preserves
+unknown legacy history; it cannot grant revision precedence or source freshness.
+It is authenticated with the issue and survives restart without new observations.
 
 `NotamRegionSnapshot` adds the separate `region-location` scope and
 `{ artccId?, firId? }` query, requiring at least one explicit regional identifier.

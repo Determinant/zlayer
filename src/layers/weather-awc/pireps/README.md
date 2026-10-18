@@ -53,24 +53,38 @@ complete original entries remain in the source cache. Decoding runs on acquisiti
 or restoration, never on hover or map movement.
 
 For rollout and offline compatibility, the PWA also accepts legacy schema-1
-responses and saved files. It retains their validated point reports and redecodes
+responses and saved files. It retains their validated positions/times, refreshes
+raw observation content in point reports, and redecodes
 **every legacy issue from its retained XML**, whether or not the older server
 supplied `issue.report`. Client location recovery therefore does not depend on
 a coordinated server rollout. Previously truncated legacy evidence cannot be
 reconstructed; new source deliveries replace it.
 
 Interpreted reports retain original XML and raw text, observation/receipt times,
-location, source altitude, aircraft reference, report type, sky/turbulence/icing
+location, altitude evidence, aircraft reference, report type, sky/turbulence/icing
 descriptions and quality flags. Conditions retain NEG and other source qualifiers;
 absence of an icing/turbulence field does not mean negative conditions. The AWC
 schema labels numeric altitude in feet MSL; we preserve that meaning rather than
 substituting a forecast altitude. Missing, ranged or AGL-qualified altitudes remain
-unknown for filtering. A complete raw `/FL DURC`, `/FL DURD` or `/FL UNKN` also
-leaves altitude unknown, even if XML supplies a number: the AMA departure capture
+unknown for filtering. Complete raw `/FL DURC`, `/FL DURD` or `/FL UNKN` also
+leave altitude unknown, even if XML supplies a number: the AMA departure capture
 supplies zero for a climb-only report without an altitude quality flag. The
-original XML number remains in source evidence. Numeric flight levels and mentions
-of climb/descent in remarks do not override the structured altitude; zero remains
-valid when no explicit uncertainty applies. Raw uncertainty cannot suppress
+original XML number remains in source evidence. A single complete raw numeric
+`/FL` of one to three digits means hundreds of feet MSL. It can recover a missing
+number, but disagreement with a structured number leaves altitude unknown and
+adds a visible `contentNotes` explanation. Four-digit levels without explicit
+units, partial tokens, unsupported values and duplicate `/FL` fields also leave
+altitude unknown; they cannot turn an AWC default zero into a measured altitude.
+The altitude value/endpoint/units states retain an incomplete range's known
+endpoint, distinguish `VFR` and nonstandard `DURA` from numeric heights, and
+accept explicitly stated feet while retaining AGL qualification. A known aircraft
+type in `/FL` paired with a numeric `/TP` identifies a possible transposition:
+the candidate aircraft and altitude appear in an **unconfirmed** note, while both
+interpreted values remain unknown. No zero removal or cloud-height corroboration
+silently supplies a missing altitude unit.
+Zero remains valid for `/FL000` with an agreeing or missing structured number.
+Mentions of climb/descent or `/FL` in terminal remarks do not change altitude.
+Raw uncertainty cannot suppress
 validation of a malformed structured altitude. `bad_location` prevents plotting
 source coordinates; valid observation fields remain available for PWA `/OV`
 recovery. A finite source position
@@ -91,13 +105,61 @@ repeated condition layers keep source order. The source cache preserves every
 original delivery regardless of the derived display identity.
 
 The bounded raw-text reader interprets `/OV` for location, `/TM` for time
-recovery, and complete `/FL` uncertainty markers. It does not synthesize numeric
-altitudes or other observation fields from free text. Wind,
-temperature, visibility, weather strings and vertical gusts remain in XML/raw evidence; the compact summary
+recovery, `/FL` for altitude reconciliation and `/SK`, `/TB`, `/IC` for conditions.
+The field machine retains repeated fields and treats `/RM` as terminal prose.
+Empty repeated condition fields do not erase a following observation. The
+`content.ts` coordinates the bounded altitude, hazard and sky token machines in
+`content-altitude.ts`, `content-hazards.ts` and `content-sky.ts`. They consume complete fields, including slash-separated
+layers and terminal ARTCC attribution. They preserve turbulence frequency and
+intensity per clause, coverage/intensity/frequency ranges, explicit above/below
+limits, and each hazard clause's altitude. `CONS LGT OCNL MOD` therefore remains
+continuous light plus occasional moderate; `MOD RIME 180-150 NEG 140` keeps the
+icing layer separate from the negative observation at 14,000 ft.
+Sky states also recover explicit `B`/`BA`/`BASE(S)` and `T`/`TPS`/`TOP(S)` shorthand
+and unknown heights, without inventing cloud coverage. `SKC`/`CLR` following a
+known cloud top retains its clear-above context instead of claiming a clear sky
+below that layer. Hazard ranges may describe
+an ascent or descent and retain the interval between their endpoints; explicitly
+named cloud base/top values retain their distinct roles.
+Hazard states also preserve inclusive `AND BELOW`/`AND ABOVE` limits, `THRU`
+with an unspecified other bound, and `SHORT FINAL` context. A named hazard or a
+frequency/height clause can have unspecified intensity; `CONT TURB` must not
+become light turbulence, and `MOD 170 OCNL BLO 160` must not transfer the 17,000-ft
+observation to the lower layer. The bounded spelling aliases `LGHT` and `LEGT`
+interpret light intensity with a visible assumption note, without generic fuzzy
+matching. `N/A` and a standalone ARTCC/controller attribution supply no hazard
+observation and remain visible in notes, outside the hazard-filter arrays.
+AWC's structured `NEGclr` qualifier is also retained as a source note rather than
+an explicit pilot report of negative icing.
+
+Raw condition fields take precedence over AWC's flattened condition summaries,
+which can omit cloud shorthand or attach heights to the wrong hazard clause.
+Structured conditions remain validated and are used when no corresponding
+nonempty raw field is available, including AIREPs and unsupported report headers.
+Unconsumed suffixes and unsupported forms retain the complete field with a
+**not fully decoded** label instead of publishing a partial parse or
+claiming the structured summary is accurate. Display excerpts above 2,000
+characters are labeled; full evidence remains in the original report/XML.
+This is explicit incomplete interpretation, not proof that every field is decoded.
+Recognized source ambiguity retains the recoverable facts without claiming the
+missing meaning: `OVC013-040` keeps both heights with base/top roles unspecified;
+`OVC007-TOPS1600` keeps the 700-ft base and the literal top value with unresolved
+units. `UNKNOVC056` retains OVC and 5,600 ft with the unknown qualifier's scope
+unclear. `TOPS VRB/060` retains a variable top and the supplied 6,000-ft value
+without inventing another bound. `TOP` alone explicitly lacks a height.
+`VV002` describes 200 ft of vertical visibility, not a 200-ft MSL cloud base.
+`CLR AT 010, CLOUDS ABOVE. NO ESTIMATE` and `B027 T032 LYRS ABV` preserve the
+clear-at/cloud-layer context and the existence of higher clouds with unknown
+heights. These are supported readings of incomplete evidence, not confirmed
+values for every component. Wind, temperature,
+visibility, weather strings and vertical gusts remain in XML/raw evidence; the compact summary
 covers sky, turbulence and icing. Nested scalar/condition content, duplicate
 quality flags and unsupported condition attributes remain explicit issues.
-Condition heights must be integer feet from −2,000 to 100,000 with base no higher
-than top. Malformed nested reports retain their original member XML as evidence.
+Condition heights must be integer feet from −2,000 to 100,000. A reported base
+above its top does not discard the observation: the summary preserves both named
+values and labels them **inconsistent**, without swapping them or presenting a
+valid altitude interval. Malformed nested reports retain their original member XML
+as evidence.
 
 The [October 13–14 source captures](../../../../test/fixtures/pireps/README.md)
 each contain roughly 90 minutes of observations, including AWC-flagged bad
@@ -110,12 +172,14 @@ guarantee future source coverage or support for every raw location phrase.
 and the [AWC PIREP format](https://aviationweather.gov/help/data/#pireps). The shared
 bounded reader in `text.ts` advances through text-element indicators, consumes the whole `/OV` field,
 and treats `/RM` as terminal free text. Duplicate locations, unconsumed suffixes,
-invalid bearings/minutes/coordinates and oversized fields/routes stay unresolved.
+invalid coordinates/minutes and oversized fields/routes stay unresolved. Incomplete
+or invalid offsets may still identify a named reference, as described below.
 Cloud-layer slashes and `/OV` quoted in remarks cannot supply a position.
 
 Readers return explicit `parsed`, `unrecognized` or `rejected` outcomes. Only
 unrecognized syntax can try another grammar; recognized syntax with invalid
-values or missing context retains its rejection. Standard coordinates, routes
+values or missing context retains its rejection unless its production explicitly
+retains a reference-only reading. Standard coordinates, routes
 and reference/bearing forms take precedence over local descriptions. A complete
 local description is recognized before looking for an explicit anchor, so compass
 words cannot become airport identifiers when the reporting station is missing.
@@ -123,8 +187,16 @@ Compact identifier/recovery choices and ambiguous identifier splits are explicit
 alternatives resolved against published references. Even when a compact token's
 recovery is rejected, its published identifier can still resolve.
 
-Parsed locations use distinct types for coordinates, references, offsets, routes
-and recovery choices. Recovery metadata carries the anchor, its source and the
+The whole-field state machine advances through literal, standard, local, compact
+and bare-radial productions. `location-grammar.ts` supplies bounded token machines:
+amount → unit → direction (or direction first), ordered procedure qualifiers →
+runway → suffix, and bearing → distance. Lexical tokens retain source boundaries;
+only the owning state splits a compact unit or digit group. Every successful
+production consumes the whole field. Adding another whole-field regex fallback
+would bypass this ownership and is not the extension pattern.
+
+Parsed locations use distinct types for coordinates, references, offsets,
+reference-only markers, routes and recovery choices. Recovery metadata carries the anchor, its source and the
 description kind (compass, distance, approach, departure or magnetic bearing). Reference
 resolution uses those fields; human-readable labels are formatted afterward.
 Extending a grammar requires defining its complete syntax and rejection rules,
@@ -145,14 +217,34 @@ borrow a nearby VOR's station alignment. Explicit compass offsets such as
 
 Distance-padding recovery also accepts one/two digits or four digits with a
 leading zero: `LWM23001` means LWM, 230°, 1 NM; `MQP2260020` can mean MQP, 226°,
-20 NM. The radial stays three digits and the distance is bounded to 0–999 NM.
+20 NM. The radial normally stays three digits and the distance is bounded to 0–999 NM.
 Supported identifier splits remain alternatives until reference lookup;
-a standard three-digit distance with a known reference wins. Otherwise exactly
+a standard three-digit radial/distance pair with a known reference wins. Otherwise exactly
 one nonstandard interpretation must have a known reference. This prevents greedily
 turning `MQP2260020` into an unknown `MQP2`, while retaining real alphanumeric IDs.
 Ambiguous identities or missing alignment cannot trigger a different interpretation.
-Recovered padding shows the decoded reference, bearing and distance in details.
-Explicit spacing respects the identifier boundary; partial fields remain invalid.
+Recovered padding shows the decoded reference, bearing and distance in details,
+labels the padding assumption, and marks the location approximate.
+Explicit spacing respects the identifier boundary; partial fields cannot establish an offset.
+An extra leading zero on a four-digit radial is recoverable only with a complete
+three-digit distance and no valid three-digit-radial reading: `EKR0304053` or
+`EKR 0304 053` can mean EKR, 304°, 53 NM. A published four-character identifier
+with standard encoding still wins; unsupported or unaligned known references
+cannot fall back to the padded interpretation. Truncated reference collections
+cannot establish the absence needed to select a nonstandard split. Already usable
+readings such as `EKR0300053` retain 030° / 53 NM. Arbitrary digit repairs are
+never used to construct an observation position.
+
+A complete named reference plus a three-digit radial can retain a reference-only
+reading when the distance is missing or the radial/distance is out of range.
+`DPA020` identifies DPA but supplies no distance; `DJT820006` identifies DJT but
+reports an invalid 820° radial. A unique published reference supplies a
+representative marker with **Reference location** in the compact row and
+**observation position unknown** plus the original offset values in details.
+It does not supply a corrected bearing or missing distance. Full standard
+encodings take precedence, then supported padding, then reference-only readings;
+unknown or ambiguous identities never become the reporting airport. Procedure
+words such as `DEP` or `ILS` followed by a runway do not enter this production.
 
 Bare identifiers are standard FAA location syntax: `/OV KJFK` or `/OV W55`
 means over the named facility, with no radial or distance required. Seaplane bases
@@ -164,14 +256,24 @@ An additional bounded recovery grammar handles understandable compass offsets:
 `2 N`, `30NW`, `40SW`, `7 SOUTH`, `2NM NE`, `N 2`, and explicit-reference forms such as
 `2 N OF KHYA` or `KHYA 2 N`. The 16 compass directions accept abbreviations and
 spelled-out words. Distances may be fractional; `SM` is converted to nautical
-miles, while omitted units or plain `MILES` assume NM. Compass words use geographic
-directions rather than station radials. Compact number-first tokens such as
+miles, while omitted units or plain `MI`, `MILE` or `MILES` assume NM. Explicit
+`MI`/`MILE(S)` recovery labels that unit assumption in location details. Compass words
+use geographic directions rather than station radials. Compact number-first tokens such as
 `10N` or `30NW` retain both possible readings until the reference data arrives:
 a published identifier wins, while an absent identifier permits the compass-offset
 reading. Ambiguous published identifiers stay unresolved. Both airport and NAVAID
 collections must be available before making this choice; token length alone does
 not distinguish an airport from an offset. Letter-first compact IDs such as `W55`
 remain explicit references. Arbitrary prose/partial phrases remain unresolved.
+
+Missing separators between a compass description and an explicit reference are
+also recoverable: `3NWKAWG` means approximately 3 NM northwest of KAWG when that
+is the only published interpretation. Every complete split remains a candidate;
+`3NEABC` could mean north of EABC or northeast of ABC. Recovery requires complete
+airport and NAVAID collections, plus fixes when a five-letter split is possible,
+and exactly one known interpretation. Ambiguous, unsupported or unavailable
+references stay unresolved. These forms preserve the explicit reference, units,
+direction and **Approx. location** label used by their spaced equivalents.
 
 When this offset supplies no reference, a unique airport matching the report's
 header is used: `HYA UA /OV 2 N` becomes approximately 2 NM north of HYA airport.
@@ -203,8 +305,10 @@ distance. It requires WMM at observation time; a compass direction or same-ID
 VOR cannot substitute for that magnetic airport bearing.
 
 Approach descriptions such as `RNAV 15`, `RNAV (GPS) Z RWY 15`, `ILS RWY 15`
-and `FINAL RWY 15` also use an explicit airport or the reporting airport. The
-reader recognizes RNAV, ILS, LOC, GPS, VOR and NDB runway approach names, with
+and `FINAL RWY 15` also use an explicit airport or the reporting airport. A
+distance followed by `FINAL`, including `1/2 MILE FINAL`, can omit the runway;
+the reported distance remains in the label without inventing a final-approach track.
+The reader recognizes RNAV, ILS, LOC, GPS, VOR and NDB runway approach names, with
 runway numbers 01–36 and optional L/C/R suffixes. It consumes the whole location
 field and does not extract an approach from remarks. An approach name alone
 does not identify a point along the procedure: these reports use the airport
@@ -290,7 +394,7 @@ quoted after `/RM` cannot recover an observation.
 The raw field supplies no date. The PWA chooses the single occurrence within
 the 90 minutes ending at the source publication time, allowing the preceding
 UTC date across midnight. Times outside this window, including future times,
-remain unresolved. This uses the original source clock, never the device's
+cannot establish an observation time. This uses the original source clock, never the device's
 current date, so offline restoration cannot make an old observation current.
 This is a recovery assumption from the bounded feed; it does not establish which
 conflicting upstream timestamp was entered correctly. Unflagged, valid source
@@ -307,12 +411,32 @@ mapped row's qualifier list because the observed-time label explains its recover
 Time recovery composes with `/OV` recovery and preserves normal age, timeline,
 altitude and condition filters. Remaining fields must still pass validation.
 
+When source observation time is missing/flagged and `/TM` cannot establish it,
+a valid nonfuture receipt supplies an explicitly qualified expiry basis.
+The derived `timeSource: 'receipt'` explicitly means observation time is unknown;
+`observedAt` equals `receivedAt` only as the existing sorting/filtering/expiry
+basis. The compact row says **Received … ago** and **Observation time unknown**;
+the Observed detail explains receipt-based age and expiry. Receipt time is never
+presented as a corrected observation. Future, absent or malformed receipts cannot
+supply this fallback. Expired receipts remain in the interpreted evidence so
+deduplication sees the earliest receipt before age filtering; an expired earlier
+copy cannot be rejected in favor of a newer retransmission. Receipt-based identity
+excludes the fallback time. For identities present in consecutive publications,
+the client retains the earliest original XML witness, including unlocated reports,
+even when the next source contains only a later copy. A witness can only constrain
+the same current receipt-based identity; it cannot add an absent report or override
+a known observation time or changed content. Withdrawal or a changed source
+identity ends that consecutive history. This also composes with location recovery.
+Original source fields remain unchanged; no device time supplies an observation
+or receipt.
+
 ## Time, display and inspection
 
 Age filters are 30, 60 and 90 minutes, initially 90. Now follows the weather clock.
 Past timeline selections show only retained reports observed at or before that
 instant, within the selected age window and the current 90-minute retention
-window. Future selections hide reports. This is a lookback filter, not an asserted
+window. Receipt-based reports use their explicitly labeled receipt in these
+comparisons. Future selections hide reports. This is a lookback filter, not an asserted
 weather-validity interval; source-check and observation ages remain separate.
 PIREPs do not add a stop for every individual report to the shared timeline.
 
@@ -354,7 +478,8 @@ AIREP flight references retain their source label without an invented name.
 Reported conditions appear once beneath the summary; expanded metadata uses core's
 data table with labeled rows. Core item titles, compact content, notes, metadata, badges and
 buttons own typography and touch targets; list spacing uses the core related-content
-token rather than section-sized gaps.
+token rather than section-sized gaps. Expanded metadata reserves 30% of its table
+for labels so longer uncertainty descriptions do not split labels inside words.
 The selected row keeps the same core background highlight as hover, including
 when selection comes from the map; its divider retains the ordinary neutral color.
 The row owns this single background, using the same 6px rounded corners as core
@@ -419,7 +544,15 @@ for up to 90 minutes of non-use; other weather products cannot evict that pool.
 Only a small endpoint/time/digest reference is written to localStorage, after the
 file is saved. Full snapshot byte limits match delivery limits. Saved bytes are
 authenticated and validated before decoding. Derived reports and navigation-dependent
-positions are not saved in place of source entries. Older inline snapshots remain readable
+positions are not saved in place of source entries. When an earlier receipt witness
+is absent from the current delivery, a client-only `cacheVersion: 1` envelope saves
+the complete unchanged `source` plus `receiptEvidence` containing original XML.
+Evidence is revalidated and reinterpreted on restore, bounded by the same 10,000
+member and 8 MiB XML limits; the complete saved artifact remains within 16 MiB.
+Retention overflow fails visibly rather than forgetting an earlier receipt.
+Raw source files without this envelope remain readable. A delayed optional save
+cannot replace a newer publication's pointer or its receipt evidence, including
+when two publications have the same check time. Older inline snapshots remain readable
 until a successful save replaces them. Live data is displayed before optional
 persistence completes, and a delayed restore cannot replace live data or advance
 its source clock. Restoration is cancelled on disable/detach. Future-dated saved snapshots are ignored using the same
@@ -430,6 +563,15 @@ out while offline and after app resume. Regional chart saves do not imply PIREP
 coverage.
 
 ## Verification
+
+`test/pirep-content.test.ts` compares parsed fields with independently specified
+expectations from the six-member October 15 capture, STJ, and additional captured
+content errors. It checks altitude conflicts, sky shorthand and ranges, frequency
+scope, icing-height ownership, unsupported-field disclosure, terminal remarks and
+legacy re-interpretation stability. These are semantic regressions, distinct from
+tests proving that location recovery preserves an existing interpretation.
+Browser coverage checks EEO's separate turbulence clauses and STJ's explicit
+unknown altitude and conflicting cloud heights.
 
 `test/pireps.test.ts` covers complete verbatim delivery (including duplicate and
 uninterpretable entries), raw browser persistence, legacy XML recovery and server
@@ -462,6 +604,16 @@ wire formats, source-coordinate precedence and withdrawal of its airport referen
 The captured AMA `DEP 4` case covers both wire formats through map selection,
 departure labeling, airport withdrawal and preservation of cloud layers while
 `/FLDURC` keeps the aircraft altitude unknown despite the source XML's zero.
+The [October 15 exclusions](../../../../test/fixtures/pireps/README.md) cover compact
+compass/reference boundaries, `MI` units and extra radial padding through both
+wire formats and map selection. The invalid bearing and incomplete location
+retain explicitly labeled reference-only markers; unusable observation time
+retains receipt-based expiry. The later STJ capture preserves its conflicting
+cloud heights. All seven captured cases remain selectable with source evidence
+intact. Synthetic variants check competing identifiers, incomplete reference
+collections, fractional descriptions, receipt expiry/deduplication, source-coordinate
+precedence and reference withdrawal. Browser coverage checks the six-member
+capture's map/list visibility and reference/receipt labels.
 `test/pirep-corpus.test.ts` checks all 358 PIREPs in the two bulk captures through
 map selection, including all 11 bad-location recoveries, preservation of every
 observation and withdrawal of derived locations when references disappear. It

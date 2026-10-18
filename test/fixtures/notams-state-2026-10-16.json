@@ -1,0 +1,294 @@
+{
+  "capturedAt": "2026-10-16T21:52:26.208784+00:00",
+  "source": "Deployed ZLayer read-only scoped NOTAM responses; no new FAA acquisition",
+  "issues": [
+    {
+      "id": "3017691019865671",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "DAA"
+      ],
+      "icaoLocations": [
+        "KDAA"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "3017691019865671",
+          "sourceId": "NMS_ID_3017691019865671",
+          "classification": "MIL",
+          "number": "0898",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "DAA"
+          ],
+          "icaoLocations": [
+            "KDAA"
+          ],
+          "accountability": "KDAA",
+          "issuedAt": 1792117860000,
+          "updatedAt": 1792117860000,
+          "sourceUpdatedAt": "2026-10-16T02:31:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792117860000,
+          "endsAt": 1792144800000,
+          "effectiveStart": "202610160231",
+          "effectiveEnd": "202610161000",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 14/32 WET OBSERVED AT 2610160230 CONDITIONS NOT MONITORED2610160400-2610161000.",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0898/26 NOTAMN Q) ZDC/QMRXX/IV/NBO/A/000/999/3842N07710W005 A) KDAA B) 2610160231 C) 2610161000 E) RWY 14/32 WET OBSERVED AT 2610160230 CONDITIONS NOT MONITORED2610160400-2610161000."
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "813a5458c856fa36cd92dc8b7d90da5df7878a05cbe823f033babe278b7f450a"
+        },
+        {
+          "id": "3017691019865671",
+          "sourceId": "NMS_ID_3017691019865671",
+          "classification": "MIL",
+          "number": "898",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "DAA"
+          ],
+          "icaoLocations": [
+            "KDAA"
+          ],
+          "accountability": "KDAA",
+          "issuedAt": 1792117860000,
+          "updatedAt": 1792117860000,
+          "sourceUpdatedAt": "2026-10-16T02:31:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792117860000,
+          "endsAt": 1792144800000,
+          "effectiveStart": "202610160231",
+          "effectiveEnd": "202610161000",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "RWY 14/32 WET OBSERVED AT 2610160230 CONDITIONS NOT MONITORED\r\n2610160400-2610161000.",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!KDAA M0898/26 DAA RWY 14/32 WET OBSERVED AT 2610160230 CONDITIONS NOT MONITORED 2610160400-2610161000. 2610160231-2610161000"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0898/26 NOTAMN \r\nQ) ZDC/QMRXX/IV/NBO/A/000/999/3842N07710W005 \r\nA) KDAA \r\nB) 2610160231 \r\nC) 2610161000 \r\nE) RWY 14/32 WET OBSERVED AT 2610160230 CONDITIONS NOT MONITORED\r\n2610160400-2610161000."
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "a269d0350b64726cf91d23ff7ffd102da72159b373964481f10f3955b6f149e9"
+        }
+      ]
+    },
+    {
+      "id": "7840155920100223",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "LSU"
+      ],
+      "icaoLocations": [
+        "KLSU",
+        "KZHU"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "7840155920100223",
+          "sourceId": "NMS_ID_7840155920100223",
+          "classification": "DOMESTIC",
+          "number": "044",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "LSU"
+          ],
+          "icaoLocations": [
+            "KZHU"
+          ],
+          "accountability": "BTR",
+          "issuedAt": 1792085880000,
+          "updatedAt": 1792085880000,
+          "sourceUpdatedAt": "2026-10-15T17:38:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792242000000,
+          "endsAt": 1801958340000,
+          "effectiveStart": "202610171300",
+          "effectiveEnd": "202702062359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN 2026-ASW-11665-OE) 302105N0910026W (11.2NM NNW REG) 516FT (500FT AGL) FLAGGED AND LGTD",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!BTR 10/044 LSU OBST CRANE (ASN 2026-ASW-11665-OE) 302105N0910026W (11.2NM NNW REG) 516FT (500FT AGL) FLAGGED AND LGTD 2610171300-2702062359"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A3404/26 NOTAMN Q) KZHU/QOBCE/IV/M/AE/000/999/3029N09117W005 A) KZHU B) 2610171300 C) 2702062359 E) OBST CRANE (ASN 2026-ASW-11665-OE) 302105N0910026W (11.2NM NNW REG) 516FT (500FT AGL) FLAGGED AND LGTD"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "099cfaae517b1362446a16aa7a2799962e4f309d86ab819e42369b38d1b75538"
+        },
+        {
+          "id": "7840155920100223",
+          "sourceId": "NMS_ID_7840155920100223",
+          "classification": "DOMESTIC",
+          "number": "44",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "LSU"
+          ],
+          "icaoLocations": [
+            "KLSU"
+          ],
+          "accountability": "BTR",
+          "issuedAt": 1792085700000,
+          "updatedAt": 1792085880000,
+          "sourceUpdatedAt": "2026-10-15T17:38:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792242000000,
+          "endsAt": 1801958340000,
+          "effectiveStart": "202610171300",
+          "effectiveEnd": "202702062359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "OBST CRANE (ASN 2026-ASW-11665-OE) 302105N0910026W (11.2NM NNW REG) 516FT (500FT AGL) FLAGGED AND LGTD",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!BTR 10/044 LSU OBST CRANE (ASN 2026-ASW-11665-OE) 302105N0910026W (11.2NM NNW REG) 516FT (500FT AGL) FLAGGED AND LGTD 2610171300-2702062359"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "f2b5fc5d689d4fb8da51a10bc3a45bc252fd4a8d552c6523eb25d18881cfe1b4"
+        }
+      ]
+    },
+    {
+      "id": "8772586032064970",
+      "reason": "revision-conflict",
+      "variantsTruncated": false,
+      "locations": [
+        "VIO"
+      ],
+      "icaoLocations": [
+        "KVIO",
+        "KZAU"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "8772586032064970",
+          "sourceId": "NMS_ID_8772586032064970",
+          "classification": "DOMESTIC",
+          "number": "83",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "VIO"
+          ],
+          "icaoLocations": [
+            "KVIO"
+          ],
+          "accountability": "GRR",
+          "issuedAt": 1792089000000,
+          "updatedAt": 1792089060000,
+          "sourceUpdatedAt": "2026-10-15T18:31:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792089000000,
+          "endsAt": 1792627140000,
+          "effectiveStart": "202610151830",
+          "effectiveEnd": "202610212359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "NAV DME U/S",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!GRR 10/083 VIO NAV DME U/S 2610151830-2610212359"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/083 NOTAMR \r\nQ)ZAU//IV/BO/AE/000/999/4247N08529W025 \r\nA) VIO \r\nB) 2610151830 \r\nC) 2610212359 \r\nE) DME U/S"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "1de10e6eda4352d7c6ff2783f8124e90205b9375dbb8b5b42bdb0ae418580c85"
+        },
+        {
+          "id": "8772586032064970",
+          "sourceId": "NMS_ID_8772586032064970",
+          "classification": "DOMESTIC",
+          "number": "083",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "VIO"
+          ],
+          "icaoLocations": [
+            "KZAU"
+          ],
+          "accountability": "GRR",
+          "issuedAt": 1792089060000,
+          "updatedAt": 1792089060000,
+          "sourceUpdatedAt": "2026-10-15T18:31:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792089000000,
+          "endsAt": 1792627140000,
+          "effectiveStart": "202610151830",
+          "effectiveEnd": "202610212359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "NAV DME U/S",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!GRR 10/083 VIO NAV DME U/S 2610151830-2610212359"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0670/26 NOTAMN Q) KZAU/QNDAS////000/999/4247N08529W005 A) KZAU B) 2610151830 C) 2610212359 E) VIO NAV DME U/S"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "db570d1a07366c9fa12e24da8c6c5a037f256ae88b101b94cca5be5c5d193919"
+        }
+      ]
+    }
+  ]
+}

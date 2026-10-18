@@ -1,12 +1,10 @@
 import {
   G,
   RAD,
-  add,
   finiteVector,
   fromEuler,
   norm,
   scale,
-  sub,
   toEuler,
   unit,
   wrap,
@@ -660,53 +658,4 @@ export class Ahrs {
       altitudeFusion: { ...s.altitude },
     };
   }
-}
-
-/** Explicit stationary calibration; cannot distinguish constant rotation from bias. */
-export function estimateGyroBias(samples: readonly ImuSample[]): Vec3 {
-  if (samples.length < 30 || samples.at(-1)!.time - samples[0]!.time < 2)
-    throw new Error("Collect at least two seconds of stationary samples");
-  if (
-    samples.some(
-      (s) =>
-        !finiteVector(s.gyro) ||
-        !finiteVector(s.specificForce) ||
-        !Number.isFinite(s.time),
-    )
-  )
-    throw new Error("Invalid calibration sample");
-  if (
-    samples.some(
-      (s, i) =>
-        i > 0 &&
-        (s.time <= samples[i - 1]!.time || s.time - samples[i - 1]!.time > 0.25),
-    )
-  )
-    throw new Error("Sampling interrupted. Retry calibration.");
-  const mean = scale(
-    samples.reduce<Vec3>((v, s) => add(v, s.gyro), [0, 0, 0]),
-    1 / samples.length,
-  );
-  const spread = Math.sqrt(
-    samples.reduce((v, s) => v + norm(sub(s.gyro, mean)) ** 2, 0) /
-      samples.length,
-  );
-  const gravity = scale(
-    samples.reduce<Vec3>((v, s) => add(v, s.specificForce), [0, 0, 0]),
-    1 / samples.length,
-  );
-  if (
-    norm(mean) > 3 * RAD ||
-    spread > 0.18 * RAD ||
-    samples.some(
-      (s) =>
-        Math.abs(norm(s.specificForce) / G - 1) > 0.06 ||
-        norm(sub(s.specificForce, gravity)) > 0.35,
-    )
-  ) {
-    throw new Error(
-      "Movement detected. Place the phone on a stable surface and retry.",
-    );
-  }
-  return mean;
 }

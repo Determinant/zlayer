@@ -46,7 +46,7 @@ export function createNotamService(options: NotamOptions | undefined,
   const source = store ? createNotamSource({ environment: environment!, credentials: options!.credentials!, admission: store.admission, ...dependencies, signal }) : undefined;
   const reconciliation = store ? new NotamReconciliation(store, now, dependencies.log) : undefined;
   let current: NotamGeneration | undefined, candidate: NotamGeneration | undefined;
-  const indexes = new NotamIndex();
+  const indexes = new NotamIndex(now);
   let error: string | null = enabled && !configurationValid ? 'configuration-error' : null;
   let initialized = false, restoring: Promise<void> | undefined, pending: Promise<void> | undefined, stopped = false, quiescing = false;
   let retryAt = 0, recoveryAttempted = false;
@@ -67,13 +67,13 @@ export function createNotamService(options: NotamOptions | undefined,
     const fresh = current && now() >= current.checkedAt && now() - current.checkedAt < NOTAM_STALE_MS;
     const collectionContinuity = current?.complete && now() >= current.watermark && now() - current.watermark + OVERLAP_MS < NOTAM_DAY_MS ? 'complete' : 'incomplete';
     const unresolvedRecords = current?.issues?.length ?? 0;
-    const blockingRecords = indexes.sourceIssues.blocking;
+    const { blocking: blockingRecords, historical: historicalIssues } = indexes.sourceIssues;
     const continuity = collectionContinuity === 'complete' && !unresolvedRecords ? 'complete' : 'incomplete';
     return { enabled, environment, state: !enabled ? 'disabled' : !configurationValid ? 'unavailable'
       : !initialized && !error ? 'loading' : !current ? 'unavailable' : error || !fresh || collectionContinuity !== 'complete' || blockingRecords ? 'degraded' : 'ready',
       generation: current?.generation ?? null, checkedAt: current?.checkedAt ?? null, watermark: current?.watermark ?? null,
       fullSyncAt: current?.fullSyncAt ?? null, recordCount: (current?.records.length ?? 0) + unresolvedRecords,
-      collectionContinuity, unresolvedRecords, blockingRecords, unscopedRecords: indexes.unscopedCount,
+      collectionContinuity, unresolvedRecords, blockingRecords, historicalIssues, unscopedRecords: indexes.unscopedCount,
       continuity, error: current?.incompleteReason ?? error ?? (blockingRecords ? 'unresolved-records' : null),
       nextAttemptAt: store && initialized ? Math.max(retryAt, store.admission.nextDataAt, !current && !candidate ? store.admission.nextBulkAt : 0) : null };
   }
@@ -131,7 +131,7 @@ export function createNotamService(options: NotamOptions | undefined,
   async function applyDelta(base: NotamGeneration) {
     const delta = await acquire('delta', base.watermark - OVERLAP_MS); validSignal();
     if (delta.requestedAt < base.watermark || current && delta.requestedAt < current.watermark) throw new NotamError('invalid-source-boundary');
-    const merged = merge(() => collectNotamRecords(base, delta.records));
+    const merged = merge(() => collectNotamRecords(base, delta.records, { at: now(), kind: 'delta' }));
     const expired = (record: NotamRecord) => (notamCancellationExpiresAt(record) ?? Infinity) <= now();
     const records = merged.records.some(expired) ? merged.records.filter(record => !expired(record)) : merged.records;
     const { incompleteReason: _reason, ...verified } = base;
@@ -152,8 +152,8 @@ export function createNotamService(options: NotamOptions | undefined,
       const attemptedAt = await reconciliation!.started();
       try {
         const bulk = await acquire('bulk'); validSignal();
-        const collection = merge(() => current ? rebaseNotamRecords(current, bulk.records, bulk.snapshotAt >= current.watermark ? bulk.snapshotAt : undefined)
-          : collectNotamRecords({ records: [] }, bulk.records));
+        const collection = merge(() => current ? rebaseNotamRecords(current, bulk.records, bulk.snapshotAt >= current.watermark ? bulk.snapshotAt : undefined, { at: now(), kind: 'bulk' })
+          : collectNotamRecords({ records: [] }, bulk.records, { at: now(), kind: 'bulk' }));
         candidate = await measure('notams.persist', () => store!.publish({ schemaVersion: 2, environment: environment!, ...collection,
           checkedAt: bulk.snapshotAt, watermark: bulk.snapshotAt, baselineAt: bulk.snapshotAt,
           fullSyncAt: bulk.requestedAt, complete: false }, true));
@@ -205,26 +205,26 @@ export function createNotamService(options: NotamOptions | undefined,
     get reconciliation() { return reconciliation?.status(current?.fullSyncAt ?? null, acquiringBulk || !!candidate) ?? null; },
     readRegion(query: NotamRegionQuery): NotamRegionSnapshot | undefined {
       if (!current) return undefined;
-      const { records, issues } = indexes.read(query.artccId, query.firId);
+      const { records, issues, historicalIssues } = indexes.read(query.artccId, query.firId);
       const feed = status();
       return { schemaVersion: 1, query, feed, scope: 'region-location',
-        associationCoverage: query.artccId ? 'complete' : 'incomplete', records, issues,
+        associationCoverage: query.artccId ? 'complete' : 'incomplete', records, issues, ...(historicalIssues ? { historicalIssues } : {}),
         contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
     },
     readNavaid(query: NotamNavaidQuery): NotamNavaidSnapshot | undefined {
       if (!current) return undefined;
-      const { records, issues } = indexes.read(query.navaidId);
+      const { records, issues, historicalIssues } = indexes.read(query.navaidId);
       const feed = status();
       // Preserve the schema-1 value accepted by already deployed clients.
-      return { schemaVersion: 1, query, feed, scope: 'navaid-location', associationCoverage: 'incomplete', records, issues,
+      return { schemaVersion: 1, query, feed, scope: 'navaid-location', associationCoverage: 'incomplete', records, issues, ...(historicalIssues ? { historicalIssues } : {}),
         contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
     },
     readAirport(query: NotamAirportQuery): NotamAirportSnapshot | undefined {
       if (!current) return undefined;
-      const { records, issues } = indexes.read(query.faaId, query.icaoId);
+      const { records, issues, historicalIssues } = indexes.read(query.faaId, query.icaoId);
       const feed = status();
       return { schemaVersion: 1, query, feed, scope: 'airport-location',
-        associationCoverage: query.faaId ? 'complete' : 'incomplete', records, issues,
+        associationCoverage: query.faaId ? 'complete' : 'incomplete', records, issues, ...(historicalIssues ? { historicalIssues } : {}),
         contentCoverage: feed.collectionContinuity === 'complete' && !issues.length ? 'complete' : 'incomplete' };
     },
     async settled() { await pending; },

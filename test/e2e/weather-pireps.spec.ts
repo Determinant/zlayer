@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { WEATHER_NOW } from '../fixtures/awc-advisories';
 import { pirepFixture } from '../fixtures/pireps';
 import type { GeoJSONSource } from 'maplibre-gl';
+import type { GeoPointFeature, NavigationData, PirepSourceSnapshot } from '@zlayer/contracts';
+
+const october15 = JSON.parse(readFileSync(new URL('../fixtures/pireps/2026-10-15-unplotted.json', import.meta.url), 'utf8')) as PirepSourceSnapshot;
+const octoberReferences = JSON.parse(readFileSync(new URL('../fixtures/pireps/2026-10-01-locations.json', import.meta.url), 'utf8')) as
+  Record<'airports' | 'navaids' | 'fixes', GeoPointFeature[]>;
 
 const LAYER = 'weather-awc-pirep-circles';
 test.beforeEach(async ({ request, page }) => {
@@ -67,6 +73,136 @@ test('raw /TM and /OV recovery updates map and list when navigation arrives or c
   await expect(row).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pirepView.length)).toBe(0);
   await expect.poll(() => page.evaluate(layer => window.progsMapAudit.map.queryRenderedFeatures(undefined, { layers: [layer] }).length, LAYER)).toBe(0);
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+});
+
+test('a later receipt-only retransmission cannot revive an expired map marker or list row', async ({ page }) => {
+  const firstAt = WEATHER_NOW - 80 * 60_000;
+  const member = (receivedAt: number) => `<AircraftReport><receipt_time>${new Date(receivedAt).toISOString()}</receipt_time>
+    <report_type>PIREP</report_type><latitude>37.3</latitude><longitude>-122</longitude>
+    <raw_text>PAO UA /TM UNKN/FL030/TP C172</raw_text></AircraftReport>`;
+  const original = member(firstAt);
+  let payload = { schemaVersion: 2, checkedAt: WEATHER_NOW, source: 'AWC synthetic receipt regression', records: [original] };
+  await page.route('**/api/weather/pireps.json', route => route.fulfill({ json: payload }));
+  await page.goto('/test/browser/weather-progs.html?pireps');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  await page.evaluate(() => window.progsMapAudit.change({ awcPireps: true, awcProgs: false }));
+  await expect(page.locator('.awc-pirep-list [data-report-id]')).toHaveCount(1);
+  await expect(page.getByText('Observation time unknown', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(layer => window.progsMapAudit.map.queryRenderedFeatures(undefined, { layers: [layer] }).length, LAYER)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.loading)).toBe(false);
+  payload = { ...payload, checkedAt: WEATHER_NOW + 11 * 60_000, records: [member(WEATHER_NOW - 5 * 60_000)] };
+  await page.clock.fastForward(11 * 60_000);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.snapshot?.checkedAt)).toBe(payload.checkedAt);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.snapshot?.reports[0]?.observedAt)).toBe(firstAt);
+  expect(await page.evaluate(() => window.progsMapAudit.state().pireps.snapshot?.reports[0]?.sourceXml)).toBe(original);
+  await expect(page.locator('.awc-pirep-list [data-report-id]')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(layer => window.progsMapAudit.map.queryRenderedFeatures(undefined, { layers: [layer] }).length, LAYER)).toBe(0);
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+});
+
+test('October 15 recovered reports draw with explicit reference-only positions and unknown observation time', async ({ page }, testInfo) => {
+  await page.clock.setSystemTime(october15.checkedAt);
+  await page.route('**/api/weather/pireps.json', route => route.fulfill({ json: october15 }));
+  await page.goto('/test/browser/weather-progs.html?pireps');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  const data: NavigationData = {};
+  for (const layer of ['airports', 'navaids', 'fixes'] as const) {
+    const features = octoberReferences[layer];
+    data[layer] = { type: 'FeatureCollection', features,
+      meta: { layer, revision: '2026-10-01', returned: features.length, truncated: false } };
+  }
+  await page.evaluate(data => {
+    window.progsMapAudit.setNavigation(data);
+    window.progsMapAudit.change({ awcPireps: true, awcProgs: false });
+    window.progsMapAudit.map.jumpTo({ center: [-98, 38], zoom: 3 });
+  }, data);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.resolved?.reports.length)).toBe(6);
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.resolved?.issues.length)).toBe(0);
+  await expect.poll(() => page.evaluate(layer => window.progsMapAudit.map.queryRenderedFeatures(undefined, { layers: [layer] }).length, LAYER)).toBe(6);
+  const reports = await page.evaluate(() => window.progsMapAudit.state().pireps.resolved!.reports.map(report => ({ id: report.id, text: report.text })));
+  const eeo = reports.find(report => report.text.startsWith('EEO '))!;
+  const eeoRow = page.locator(`[data-report-id="${eeo.id}"]`);
+  await expect(eeoRow).toContainText('Turbulence: LGT CONT · Turbulence: MOD OCNL');
+  await eeoRow.getByRole('button').click();
+  await expect(eeoRow.getByText('Approx. location', { exact: true })).toBeVisible();
+  await expect(eeoRow.getByText(/assumed padding/)).toBeVisible();
+  await eeoRow.getByRole('button').click();
+  for (const station of ['PBI', 'DPA', 'LTS']) {
+    const report = reports.find(report => report.text.startsWith(`${station} `))!;
+    const row = page.locator(`[data-report-id="${report.id}"]`);
+    await row.getByRole('button').click();
+    if (station === 'LTS') {
+      await expect(row.getByText('Observation time unknown', { exact: true })).toBeVisible();
+      await expect(row.getByText(/^Received .* ago$/)).toBeVisible();
+      await expect(row.getByRole('row', { name: 'Observed Unknown; age and expiry use receipt time', exact: true })).toBeVisible();
+    } else {
+      await expect(row.getByText('Reference location', { exact: true })).toBeVisible();
+      await expect(row.getByRole('row', { name: /^Reference position / })).toBeVisible();
+      await expect(row.getByText(/Reference location only; observation position unknown/)).toBeVisible();
+      await expect(row.getByText(station === 'PBI' ? /radial 820° \(invalid\)/ : /distance unknown/)).toBeVisible();
+    }
+    await page.screenshot({ path: testInfo.outputPath(`pirep-${station.toLowerCase()}-recovered.png`) });
+    await row.getByRole('button').click();
+  }
+  await page.evaluate(() => window.progsMapAudit.setNavigation({}));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.resolved?.reports.length)).toBe(1);
+  await expect.poll(() => page.evaluate(layer => window.progsMapAudit.map.queryRenderedFeatures(undefined, { layers: [layer] }).length, LAYER)).toBe(1);
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+});
+
+test('PIREP content accuracy shows STJ altitude uncertainty and conflicting cloud heights', async ({ page }, testInfo) => {
+  const checkedAt = Date.parse('2026-10-15T17:26:37Z');
+  const sourceXml = readFileSync(new URL('../fixtures/pireps/2026-10-15-stj.xml', import.meta.url), 'utf8').trim();
+  await page.clock.setSystemTime(checkedAt);
+  await page.route('**/api/weather/pireps.json', route => route.fulfill({ json: { ...october15, checkedAt, records: [sourceXml] } }));
+  await page.goto('/test/browser/weather-progs.html?pireps');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  await page.evaluate(() => {
+    window.progsMapAudit.change({ awcPireps: true, awcProgs: false });
+    window.progsMapAudit.map.jumpTo({ center: [-94.9252, 39.9606], zoom: 8 });
+  });
+  const row = page.locator('.awc-pirep-list [data-report-id]');
+  await expect(row).toHaveCount(1);
+  await expect(row.getByText('Altitude unknown / qualified', { exact: true })).toBeVisible();
+  await expect(row).toContainText('reported base 25000 / top 2000 ft MSL (inconsistent)');
+  await expect(row).toContainText('Altitude unresolved: /FL2000');
+  await row.getByRole('button').click();
+  await page.screenshot({ path: testInfo.outputPath('pirep-stj-content.png') });
+  expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
+});
+
+test('PIREP content accuracy preserves uncertain cloud heights and excludes unavailable hazard observations', async ({ page }, testInfo) => {
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/pireps/2026-10-15-content-remaining.json', import.meta.url), 'utf8')) as { captures: PirepSourceSnapshot[] };
+  const checkedAt = Math.max(...fixture.captures.map(source => source.checkedAt));
+  const records = fixture.captures.flatMap(source => source.records).filter(xml => /<raw_text>(?:MOT|IND|STL) UA/.test(xml));
+  expect(records).toHaveLength(3);
+  await page.clock.setSystemTime(checkedAt);
+  await page.route('**/api/weather/pireps.json', route => route.fulfill({ json: { ...october15, checkedAt, records } }));
+  await page.goto('/test/browser/weather-progs.html?pireps');
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.map.loaded())).toBe(true);
+  await page.evaluate(() => window.progsMapAudit.change({ awcPireps: true, awcProgs: false, awcPirepAge: '90' }));
+  await expect.poll(() => page.evaluate(() => window.progsMapAudit.state().pireps.snapshot?.reports.length)).toBe(3);
+  for (const [station, condition] of [
+    ['IND', 'reported height 5600 ft MSL (UNKN qualifier scope unclear)'],
+    ['STL', 'base 1000 ft MSL / top variable (reported 6000 ft MSL; bounds unspecified)'],
+    ['MOT', 'Icing not reported (/IC N/A)'],
+  ]) {
+    const id = await page.evaluate(station => {
+      const report = window.progsMapAudit.state().pireps.snapshot!.reports.find(report => report.text.startsWith(station!))!;
+      window.progsMapAudit.map.jumpTo({ center: [report.longitude, report.latitude], zoom: 8 });
+      return report.id;
+    }, station);
+    const row = page.locator(`.awc-pirep-list [data-report-id="${id}"]`);
+    await expect(row).toBeVisible(); await expect(row).toContainText(condition!);
+    await row.getByRole('button').click();
+    await page.screenshot({ path: testInfo.outputPath(`pirep-${station!.toLowerCase()}-content.png`) });
+    await row.getByRole('button').click();
+  }
+  await page.evaluate(() => window.progsMapAudit.change({ awcPirepHazard: 'icing' }));
+  await expect(page.locator('.awc-pirep-list [data-report-id]')).toHaveCount(0);
+  await page.evaluate(() => window.progsMapAudit.change({ awcPirepHazard: 'turbulence' }));
+  await expect(page.locator('.awc-pirep-list [data-report-id]')).toHaveCount(0);
   expect(await page.evaluate(() => window.progsMapAudit.errors)).toEqual([]);
 });
 

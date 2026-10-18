@@ -1,10 +1,10 @@
 import type { NotamRecord, ProcedureKind, ProcedureRecord } from '@zlayer/contracts';
 import type { PlateNoticeContext } from '../plates/public';
 import { normalizeRunway, parseNotam, type ParsedNotam } from './parser';
-import { approachFacilities } from './interpretation';
+import { approachFacilityComponents } from './interpretation';
 import { approachTitleIdentity, approachTitleKey, type ApproachCategory } from './procedure-title';
 
-export const NOTAM_MATCHER_VERSION = 8;
+export const NOTAM_MATCHER_VERSION = 9;
 export type PlateNotamMatch = { record: NotamRecord; parsed: ParsedNotam; outcome: 'applies' | 'review'; reason: string };
 const numbers = ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN',
   'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN', 'TWENTY'];
@@ -146,14 +146,16 @@ export function matchPlateNotams(records: readonly NotamRecord[], context: Plate
       const displayed = plate.source.amendmentNumber;
       const mismatch = targets.find(({ target }) => target.amendment && (!displayed || normalizeProcedureAmendment(target.amendment) !== normalizeProcedureAmendment(displayed)));
       const unknownEdition = !displayed && ['takeoff-minimums', 'diverse-vector-area', 'radar-minimums'].includes(plate.kind);
+      const missingNoticeEdition = targets.some(({ target }) => target.amendmentMissing);
       const titleReview = targets.find(({ relation }) => relation.review)?.relation.review;
       const reason = parsed.broadRestricted
         ? 'Addresses all approaches with an exclusion or condition. Review applicability to this plate.' : mismatch
         ? `Procedure matches; notice amendment ${mismatch.target.amendment}, displayed plate ${displayed ?? 'unknown'}. Review applicability.`
+        : missingNoticeEdition ? 'Procedure matches; the notice amendment is missing from its source heading. Review applicability.'
         : unknownEdition ? 'Procedure matches; the displayed plate amendment is unavailable. Review applicability.'
         : parsed.broad ? 'Explicitly addresses all instrument approaches at this airport.' : targets.map(({ target, relation }) =>
           `Names ${target.title}.${relation.scope ? ` Affected scope on this plate: ${relation.scope}.` : ''}`).join(' ');
-      matches.push({ record, parsed, outcome: mismatch || unknownEdition || parsed.broadRestricted || titleReview ? 'review' : 'applies',
+      matches.push({ record, parsed, outcome: mismatch || missingNoticeEdition || unknownEdition || parsed.broadRestricted || titleReview ? 'review' : 'applies',
         reason: titleReview ? `${titleReview} ${reason.replace(/^Procedure matches; notice/, 'Notice')}` : reason });
     } else if (parsed.categoryTarget) {
       const scope = categoryScope(parsed, plate);
@@ -161,9 +163,17 @@ export function matchPlateNotams(records: readonly NotamRecord[], context: Plate
         reason: `Explicit ${scope} restriction for runway ${runway}. Read the stated effect and exceptions.` });
     } else if (plate.kind === 'approach' && runway && parsed.facilityTarget?.runway === normalizeRunway(runway)) {
       const facility = parsed.facilityTarget.facility;
-      const supported = approachFacilities.has(facility);
-      const usesFacility = facility === 'ILS' || facility.startsWith('LOC') ? /\b(?:ILS|LOC)\b/i.test(plate.name) : /\bILS\b/i.test(plate.name);
-      if (supported && usesFacility) matches.push({ record, parsed, outcome: 'applies',
+      const components = approachFacilityComponents(facility), supported = components.length > 0;
+      const usesFacility = components.some(component => component === 'LDA' ? /\bLDA\b/i.test(plate.name)
+        : component === 'ILS' || component === 'LOC' ? /\b(?:ILS|LOC)\b/i.test(plate.name) : /\bILS\b/i.test(plate.name));
+      const variant = parsed.facilityTarget.variant, variants = approachTitleIdentity(plate.name)?.variants;
+      if (variant && variants?.length && !variants.includes(variant)) continue;
+      const variantReview = variant && (!variants?.length || /\bOR\b/i.test(plate.name));
+      if (variantReview && (!supported || usesFacility)) matches.push({ record, parsed, outcome: 'review',
+        reason: `Runway ${runway} matches; the notice explicitly names variant ${variant}. Confirm that variant's facility dependency on this plate.` });
+      else if (parsed.facilityTarget.qualification && (!supported || usesFacility)) matches.push({ record, parsed, outcome: 'review',
+        reason: `Runway ${runway} matches; the ${facility} restriction is qualified by ${parsed.facilityTarget.qualification}. Review the stated limits.` });
+      else if (supported && usesFacility) matches.push({ record, parsed, outcome: 'applies',
         reason: `Explicit ${facility} ${parsed.facilityTarget.effect === 'unmonitored' ? 'monitoring restriction' : 'outage'} for runway ${runway} used by this procedure. Read the stated effect and exceptions.` });
       else if (!supported) {
         matches.push({ record, parsed, outcome: 'review', reason: `Runway ${runway} matches; the ${facility} dependency is unconfirmed.` });

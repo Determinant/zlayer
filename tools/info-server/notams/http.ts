@@ -21,12 +21,12 @@ function snapshotBytes(snapshot: NotamSnapshot): Buffer {
   const array = <T>(items: readonly T[], write: (item: T) => void) => {
     append('['); items.forEach((item, i) => { if (i) append(','); write(item); }); append(']');
   };
-  const { records, issues, ...metadata } = snapshot;
+  const { records, issues, historicalIssues, ...metadata } = snapshot;
   append(JSON.stringify(metadata).slice(0, -1)); append(',"records":');
   array(records, record => append(JSON.stringify(record)));
-  if (issues) {
-    append(',"issues":');
-    array(issues, ({ variants, ...issue }) => {
+  for (const [name, items] of [['issues', issues], ['historicalIssues', historicalIssues]] as const) if (items) {
+    append(',"' + name + '":');
+    array(items, ({ variants, ...issue }) => {
       append(JSON.stringify(issue).slice(0, -1)); append(',"variants":');
       array(variants, record => append(JSON.stringify(record))); append('}');
     });

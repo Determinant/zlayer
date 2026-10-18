@@ -27,27 +27,43 @@ export class NotamIndex {
   private domesticIssues = new Map<string, NotamSourceIssue[]>();
   private icaoIssues = new Map<string, NotamSourceIssue[]>();
   private unscoped: NotamSourceIssue[] = [];
+  private historicalDomestic = new Map<string, NotamSourceIssue[]>();
+  private historicalIcao = new Map<string, NotamSourceIssue[]>();
+  private generation: NotamGeneration | undefined;
+  private assessedAt = -Infinity;
+  private nextTransitionAt = Infinity;
   private summary = emptyNotamIssueSummary();
-  get unscopedCount() { return this.unscoped.length; }
-  get sourceIssues() { return this.summary; }
+  constructor(private readonly now = Date.now) {}
+  private update() { if (this.generation) this.publish(this.generation); }
+  get unscopedCount() { this.update(); return this.unscoped.length; }
+  get sourceIssues() { this.update(); return this.summary; }
   publish(generation: NotamGeneration) {
-    if (this.records === generation.records && this.issues === generation.issues) return;
+    const now = this.now(); this.generation = generation;
+    if (this.records === generation.records && this.issues === generation.issues && now >= this.assessedAt && now < this.nextTransitionAt) return;
     const domestic = new Map<string, NotamRecord[]>(), icao = new Map<string, NotamRecord[]>();
     const domesticIssues = new Map<string, NotamSourceIssue[]>(), icaoIssues = new Map<string, NotamSourceIssue[]>();
     const unscoped: NotamSourceIssue[] = [];
+    const historicalDomestic = new Map<string, NotamSourceIssue[]>(), historicalIcao = new Map<string, NotamSourceIssue[]>();
+    let nextTransitionAt = Infinity;
     const summary = emptyNotamIssueSummary();
     for (const record of generation.records) {
       if (record.lifecycle === 'cancelled' || record.lifecycle === 'cancellation') continue;
       add(domestic, record.locations, record); add(icao, record.icaoLocations, record);
     }
     for (const issue of generation.issues ?? []) {
-      const classification = classifyNotamIssue(issue), { resolved, blocking } = classification;
+      const classification = classifyNotamIssue(issue, now), { resolved, blocking, applicability } = classification;
+      nextTransitionAt = Math.min(nextTransitionAt, applicability.nextTransitionAt ?? Infinity);
       summary.total++;
       if (resolved) summary.associationOnly++; else summary.contentUnresolved++;
       if (issue.unscoped) summary.unscoped++;
       if (blocking) summary.blocking++; else summary.nonBlocking++;
       if (summary.samples.length < 16) summary.samples.push(describeNotamIssue(issue, classification));
       else summary.samplesTruncated = true;
+      if (applicability.state === 'historical') {
+        summary.historical++;
+        add(historicalDomestic, issue.locations, issue); add(historicalIcao, issue.icaoLocations, issue);
+        continue;
+      }
       if (resolved) { add(domestic, resolved.locations, resolved); add(icao, resolved.icaoLocations, resolved); }
       if (issue.unscoped) unscoped.push(issue);
       else { add(domesticIssues, issue.locations, issue); add(icaoIssues, issue.icaoLocations, issue); }
@@ -55,12 +71,17 @@ export class NotamIndex {
     this.domestic = domestic; this.icao = icao; this.domesticIssues = domesticIssues; this.icaoIssues = icaoIssues;
     this.unscoped = unscoped; this.records = generation.records; this.issues = generation.issues;
     this.summary = summary;
+    this.historicalDomestic = historicalDomestic; this.historicalIcao = historicalIcao;
+    this.assessedAt = now; this.nextTransitionAt = nextTransitionAt;
   }
   read(domestic?: string, icao?: string) {
+    this.update();
     const records = union([domestic ? this.domestic.get(domestic) ?? [] : [], icao ? this.icao.get(icao) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS);
     const qualified = new Set(records.map(r => r.id));
     const issues = union([this.unscoped, domestic ? this.domesticIssues.get(domestic) ?? [] : [],
       icao ? this.icaoIssues.get(icao) ?? [] : []].map(group => group.filter(issue => !qualified.has(issue.id))), NOTAM_AIRPORT_MAX_RECORDS - records.length);
-    return { records, issues };
+    const historicalIssues = union([domestic ? this.historicalDomestic.get(domestic) ?? [] : [],
+      icao ? this.historicalIcao.get(icao) ?? [] : []], NOTAM_AIRPORT_MAX_RECORDS - records.length - issues.length);
+    return { records, issues, ...(historicalIssues.length ? { historicalIssues } : {}) };
   }
 }

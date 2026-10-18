@@ -3,7 +3,7 @@ const variants = /^[A-Z]$/, runwaySides = new Set(['L', 'R', 'C']);
 const categories = new Set(['I', 'II', 'III']);
 const categoryNumbers: Record<string, string> = { '1': 'I', '2': 'II', '3': 'III' };
 export type ApproachCategory = { special: boolean; values: string[] };
-export type ApproachIdentity = { key: string; base: string; categories: ApproachCategory[] };
+export type ApproachIdentity = { key: string; base: string; categories: ApproachCategory[]; variants: string[] };
 
 /** Title tokens have no semantic meaning outside their current grammar state.
  * Keep the original title for identity/evidence; build a separate comparison key. */
@@ -11,6 +11,7 @@ class TitleCursor {
   readonly tokens: string[];
   readonly key: string[];
   categories: ApproachCategory[] = [];
+  variants: string[] = [];
   position = 0;
   constructor(source: string) {
     this.tokens = source.toUpperCase().match(/[A-Z]+|\d+|\S/g) ?? [];
@@ -21,7 +22,7 @@ class TitleCursor {
     if (this.peek() !== text) return false;
     this.position++; return true;
   }
-  variant() { if (variants.test(this.peek() ?? '')) this.position++; }
+  variant() { if (variants.test(this.peek() ?? '')) this.variants.push(this.tokens[this.position++]!); }
   dme(): boolean { return !this.take('/') || this.take('DME'); }
   get done() { return this.position === this.tokens.length; }
 }
@@ -100,7 +101,7 @@ export function approachTitleIdentity(source: string): ApproachIdentity | undefi
   const cursor = new TitleCursor(source);
   const identity = (): ApproachIdentity => {
     const key = cursor.key.join('');
-    return { key, base: key.replace(/(?:SA)?CAT\[[I,]+\]/g, ''), categories: cursor.categories };
+    return { key, base: key.replace(/(?:SA)?CAT\[[I,]+\]/g, ''), categories: cursor.categories, variants: cursor.variants };
   };
   if (cursor.take('RADAR')) {
     cursor.take('-');

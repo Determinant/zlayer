@@ -1,0 +1,111 @@
+{
+  "source": "Retained FAA NMS variants read from the deployed ZLayer OJKF airport endpoint on 2026-10-18; no new FAA acquisition. checkedAt is the retained feed source time.",
+  "checkedAt": 1792359295416,
+  "issues": [
+    {
+      "id": "1792355985226701",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792356199386,
+        "lastSeenAt": 1792356619468,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "OJKF"
+      ],
+      "icaoLocations": [
+        "OJKF"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "1792355985226701",
+          "sourceId": "NMS_ID_1792355985226701",
+          "classification": "MIL",
+          "number": "0730",
+          "series": "M",
+          "year": "",
+          "locations": [
+            "OJKF"
+          ],
+          "icaoLocations": [
+            "OJKF"
+          ],
+          "accountability": "OJKF",
+          "issuedAt": 1792355940000,
+          "updatedAt": 1792355940000,
+          "sourceUpdatedAt": "2026-10-18T20:39:00.000Z",
+          "canceledAt": "",
+          "referred": {
+            "series": "M",
+            "number": "0728",
+            "year": "2026"
+          },
+          "startsAt": 1792355940000,
+          "endsAt": 1792615140000,
+          "effectiveStart": "202610182039",
+          "effectiveEnd": "202610212039",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "C",
+          "lifecycle": "cancellation",
+          "text": "ILS OTS\nCANCELED",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0730/26 NOTAMC M0728/26 Q) OJAC/QXXXX/IV/NBO/A/000/999/3020N03608E005 A) OJKF B) 2610182039 E) ILS OTS CANCELED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "016ee4fa5ffc8de229a1761b3406fe492d943227aad79d8069383b73a7992eaa"
+        },
+        {
+          "id": "1792355985226701",
+          "sourceId": "NMS_ID_1792355985226701",
+          "classification": "MIL",
+          "number": "730",
+          "series": "M",
+          "year": "2026",
+          "locations": [
+            "OJKF"
+          ],
+          "icaoLocations": [
+            "OJKF"
+          ],
+          "accountability": "OJKF",
+          "issuedAt": 1792355940000,
+          "updatedAt": 1792355940000,
+          "sourceUpdatedAt": "2026-10-18T20:39:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792355940000,
+          "endsAt": 1792615140000,
+          "effectiveStart": "202610182039",
+          "effectiveEnd": "202610212039",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "C",
+          "lifecycle": "cancellation",
+          "text": "M0730/26 NOTAMC M0728/26\nA) OJKF",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "M0730/26 NOTAMC M0728/26"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "M0730/26 NOTAMC M0728/26\nA) OJKF"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "34ce5b2b25949aa93d8dbba776834027e8b6c2db697d63c4bf46fe815571e51b"
+        }
+      ]
+    }
+  ]
+}

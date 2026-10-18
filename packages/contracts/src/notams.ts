@@ -17,6 +17,11 @@ export type NotamRecord = {
   /** Query projection: conflicting source association sets, with only their
    * intersection in icaoLocations. Primary filing locations remain agreed. */
   icaoLocationVariants?: string[][];
+  /** Original source sets when complete native/FIR evidence establishes
+   * complementary lookup scopes. icaoLocations is their union, not an alias. */
+  sourceIcaoLocations?: string[][];
+  /** Actual numbering-year spellings retained after a witnessed omission. */
+  sourceYears?: string[];
   issuedAt: number | null; updatedAt: number;
   sourceUpdatedAt: string; canceledAt: string;
   referred: { series: string; number: string; year: string } | null;
@@ -42,6 +47,8 @@ export type NotamFeedStatus = {
   /** Retained issues that affect usable content or supported query associations.
    * Absence identifies older servers: treat every unresolved record as blocking. */
   blockingRecords?: number;
+  /** Retained, complete issues whose agreeing fixed interval is definitely past. */
+  historicalIssues?: number;
   unscopedRecords?: number;
 };
 export type NotamSourceIssue = {
@@ -53,6 +60,9 @@ export type NotamSourceIssue = {
   locations: string[]; icaoLocations: string[];
   /** Missing or over-limit associations must qualify every location query. */
   unscoped: boolean;
+  /** Diagnostic observation history, independent of source ordering/freshness.
+   * Null firstSeenAt preserves unknown history for pre-existing issues. */
+  observations?: { firstSeenAt: number | null; lastSeenAt: number; kinds: ('bulk' | 'delta')[] };
 };
 export type NotamAirportSnapshot = {
   schemaVersion: 1; query: NotamAirportQuery; feed: NotamFeedStatus;
@@ -61,6 +71,8 @@ export type NotamAirportSnapshot = {
   /** Added together; absence identifies a legacy snapshot. */
   contentCoverage?: 'complete' | 'incomplete';
   issues?: NotamSourceIssue[];
+  /** Raw evidence retained separately from issues affecting this query now. */
+  historicalIssues?: NotamSourceIssue[];
 };
 export type NotamNavaidSnapshot = Omit<NotamAirportSnapshot, 'query' | 'scope' | 'associationCoverage'> & {
   query: NotamNavaidQuery; scope: 'navaid-location';
@@ -108,6 +120,13 @@ export function isNotamRecord(v: unknown): v is NotamRecord {
     (v.sourceId === v.id || v.sourceId === `NMS_ID_${v.id}`) && isSha256(v.revision) &&
     text(v.classification, 64) && text(v.number, 64) && text(v.series, 16) && text(v.year, 8) &&
     codes(v.locations) && codes(v.icaoLocations) && text(v.accountability, 32) &&
+    (v.sourceYears === undefined || Array.isArray(v.sourceYears) && v.sourceYears.length === 2 &&
+      v.sourceYears.includes('') && v.sourceYears.includes(v.year) && typeof v.year === 'string' && /^\d{4}$/.test(v.year) &&
+      new Set(v.sourceYears).size === 2) &&
+    (v.sourceIcaoLocations === undefined || v.icaoLocationVariants === undefined && Array.isArray(v.sourceIcaoLocations) &&
+      v.sourceIcaoLocations.length === 2 && v.sourceIcaoLocations.every(set => codes(set) && set.length === 1) &&
+      new Set(v.sourceIcaoLocations.flat()).size === 2 &&
+      [...new Set(v.sourceIcaoLocations.flat())].sort().join(',') === [...v.icaoLocations].sort().join(',')) &&
     (v.icaoLocationVariants === undefined || v.locations.length > 0 && Array.isArray(v.icaoLocationVariants) &&
       v.icaoLocationVariants.length >= 2 && v.icaoLocationVariants.length <= NOTAM_MAX_ISSUE_VARIANTS &&
       v.icaoLocationVariants.every(set => codes(set) && set.length > 0) &&
@@ -140,6 +159,8 @@ export function isNotamFeedStatus(v: unknown): v is NotamFeedStatus {
     (v.blockingRecords === undefined || integer(v.blockingRecords) && integer(v.unresolvedRecords) && integer(v.unscopedRecords) &&
       v.unscopedRecords <= v.blockingRecords && v.blockingRecords <= v.unresolvedRecords &&
       (v.state !== 'ready' || v.blockingRecords === 0)) &&
+    (v.historicalIssues === undefined || integer(v.historicalIssues) && integer(v.blockingRecords) && integer(v.unresolvedRecords) &&
+      v.historicalIssues + v.blockingRecords <= v.unresolvedRecords) &&
     (v.collectionContinuity === undefined && v.unresolvedRecords === undefined && v.unscopedRecords === undefined ||
       ['complete', 'incomplete'].includes(String(v.collectionContinuity)) && integer(v.unresolvedRecords) &&
       integer(v.unscopedRecords) && v.unscopedRecords <= v.unresolvedRecords && v.unresolvedRecords <= v.recordCount &&
@@ -154,7 +175,11 @@ export function isNotamSourceIssue(v: unknown): v is NotamSourceIssue {
       (v.unscoped || (r.locations.length > 0 || r.icaoLocations.length > 0) &&
         r.locations.every(code => (v.locations as string[]).includes(code)) &&
         r.icaoLocations.every(code => (v.icaoLocations as string[]).includes(code)))) &&
-    new Set(v.variants.map(r => r.revision)).size === v.variants.length;
+    new Set(v.variants.map(r => r.revision)).size === v.variants.length &&
+    (v.observations === undefined || isRecord(v.observations) && optionalTime(v.observations.firstSeenAt) && time(v.observations.lastSeenAt) &&
+      (v.observations.firstSeenAt === null || v.observations.firstSeenAt <= v.observations.lastSeenAt) &&
+      Array.isArray(v.observations.kinds) && v.observations.kinds.length >= 1 && v.observations.kinds.length <= 2 &&
+      v.observations.kinds.every(kind => kind === 'bulk' || kind === 'delta') && new Set(v.observations.kinds).size === v.observations.kinds.length);
 }
 export function isNotamAirportSnapshot(v: unknown): v is NotamAirportSnapshot {
   return isRecord(v) && v.scope === 'airport-location' && isNotamAirportQuery(v.query) && isSnapshotContent(v);
@@ -169,16 +194,24 @@ export function isNotamSnapshot(v: unknown): v is NotamSnapshot {
   return isNotamAirportSnapshot(v) || isNotamNavaidSnapshot(v) || isNotamRegionSnapshot(v);
 }
 function isSnapshotContent(v: Record<string, unknown>): boolean {
+  const historical = v.historicalIssues ?? [];
   return v.schemaVersion === 1 &&
     isNotamFeedStatus(v.feed) && v.feed.generation !== null && v.feed.environment !== null &&
     ['complete', 'incomplete'].includes(String(v.associationCoverage)) &&
     Array.isArray(v.records) && v.records.length <= NOTAM_AIRPORT_MAX_RECORDS && v.records.every(isNotamRecord) &&
     new Set(v.records.map(r => r.id)).size === v.records.length &&
+    Array.isArray(historical) && historical.every(issue => isNotamSourceIssue(issue) && !issue.unscoped && !issue.variantsTruncated &&
+      issue.reason === 'revision-conflict' && issue.variants.length >= 2 && issue.variants[0]!.startsAt !== null &&
+      issue.variants[0]!.endsAt !== null && issue.variants[0]!.endsAt! > issue.variants[0]!.startsAt! &&
+      issue.variants.every(record => record.lifecycle === 'active' && record.endKind === 'fixed' &&
+        record.startsAt === issue.variants[0]!.startsAt && record.endsAt === issue.variants[0]!.endsAt)) &&
+    historical.length <= (v.feed.historicalIssues ?? 0) &&
+    (v.historicalIssues === undefined || v.issues !== undefined && v.contentCoverage !== undefined) &&
     (v.contentCoverage === undefined && v.issues === undefined ||
       ['complete', 'incomplete'].includes(String(v.contentCoverage)) && Array.isArray(v.issues) &&
-      v.records.length + v.issues.length <= NOTAM_AIRPORT_MAX_RECORDS && v.issues.every(isNotamSourceIssue) &&
-      new Set([...v.records, ...v.issues].map(r => r.id)).size === v.records.length + v.issues.length &&
-      v.feed.collectionContinuity !== undefined && (v.feed.unresolvedRecords ?? 0) >= v.issues.length &&
+      v.records.length + v.issues.length + historical.length <= NOTAM_AIRPORT_MAX_RECORDS && v.issues.every(isNotamSourceIssue) &&
+      new Set([...v.records, ...v.issues, ...historical].map(r => r.id)).size === v.records.length + v.issues.length + historical.length &&
+      v.feed.collectionContinuity !== undefined && (v.feed.unresolvedRecords ?? 0) >= v.issues.length + historical.length &&
       v.issues.filter(issue => issue.unscoped).length === v.feed.unscopedRecords &&
       (v.contentCoverage !== 'complete' || v.feed.collectionContinuity === 'complete' && v.issues.length === 0));
 }

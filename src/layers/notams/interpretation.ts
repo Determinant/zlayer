@@ -14,13 +14,20 @@ export type NotamFact = { kind: NotamFactKind; label: string; tone: NotamFlairTo
 export type NotamFlair = { label: string; tone: NotamFlairTone; evidence: NotamEvidence[] };
 export type NotamInterpretationIssue = 'subject' | 'procedure-target' | 'procedure-exceptions' | 'facility-dependency'
   | 'headings' | 'multipart' | 'fact-limit' | 'body-limit';
-export type NotamTarget = { title: string; amendment?: string; evidence: NotamEvidence };
+export type NotamTarget = { title: string; amendment?: string; amendmentMissing?: boolean; evidence: NotamEvidence };
 export type ParsedNotam = { body: string; subject: string | undefined; facts: NotamFact[];
   targets: NotamTarget[]; broad: boolean; broadRestricted: boolean; runwayTargets: string[];
   categoryTarget?: { runway: string; special: boolean; values: string[] };
-  facilityTarget?: { facility: string; runway: string; effect: 'unavailable' | 'unmonitored' }; procedureNotice: boolean;
+  facilityTarget?: { facility: string; runway: string; effect: 'unavailable' | 'unmonitored'; qualification?: string; variant?: string }; procedureNotice: boolean;
+  navigation?: import('./navigation-notice').NotamNavigation;
+  subjectBasis?: import('./notice-subject').NotamSubjectBasis;
   issues: NotamInterpretationIssue[]; unresolved: boolean };
 /** Dependencies established by a runway-specific navigation notice, not inferred from proximity. */
-export const approachFacilities = new Set(['ILS', 'LOC', 'GP', 'GS', 'LOC/GP', 'LOC/GS']);
+export const approachFacilities = new Set(['ILS', 'LOC', 'GP', 'GS', 'LDA', 'LOC/GP', 'LOC/GS']);
+/** A failed member of a validated component list remains its own dependency.
+ * Other members (DME, markers, locators) never inherit that dependency. */
+export function approachFacilityComponents(facility: string): string[] {
+  return facility.split('/').filter(component => approachFacilities.has(component));
+}
 export const evidence = (body: string, start: number, length: number): NotamEvidence => ({ start, end: start + length, text: body.slice(start, start + length) });
 export function normalizeRunway(value: string): string { return value.toUpperCase().replace(/^0(?=\d)/, ''); }

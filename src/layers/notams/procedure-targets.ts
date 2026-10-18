@@ -5,12 +5,30 @@ import { operativePrefix } from './clauses';
 const MAX_HEADING_LENGTH = 320, MAX_TARGETS = 16;
 const incidentalHeading = /\b(?:MISSED|EXC|EXCEPT|OBST|CRANE|NOTE|TRANSITION|CIRCLING|SEE|SPECIAL)\b/i;
 // A later quoted or conditional procedure name is not another affected heading.
-const headingNarrative = /\b(?:MISSED|EXC|EXCEPT|EXCLUDING|OBST|CRANES?|NOTES?|TRANSITIONS?|CIRCLING|SEE|DISREGARD|DELETE|REMOVE|ADD|CHANGE|IF|WHEN|UNLESS|PROVIDED|LNAV|LPV|VDP|CHART)\b|\b(?:THIS IS|EQUIPMENT REQUIREMENTS)\b|\bRNP\s+[.\d]|\bS-(?:ILS|LOC)\b/i;
+const headingNarrative = /\b(?:MISSED|EXC|EXCEPT|EXCLUDING|OBST|CRANES?|NOTES?|TRANSITIONS?|CIRCLING|SEE|DISREGARD|DELETE|REMOVE|ADD|CHANGE|IF|WHEN|UNLESS|PROVIDED|LNAV|LPV|VDP|CHART)\b|\bLP(?=\s+(?:CATS?|MDA|DA|VIS)\b)|\b(?:MDA|DA)\s+\d|\b(?:THIS IS|EQUIPMENT REQUIREMENTS)\b|\bRNP\s+[.\d]|\bS-(?:ILS|LOC)\b/i;
 const amendmentText = '(?:(?:AMDT\\s*|AMT\\s+)([0-9]+[A-Z]?)|(?:AMDT\\s*)?ORIG(?:INAL)?(?:[- ]([A-Z0-9]+))?)';
 const amendmentSuffix = new RegExp(`(?:,\\s*|\\s+)${amendmentText}\\s*$`, 'i');
 const amendmentOnly = new RegExp(`^\\s*${amendmentText}\\s*$`, 'i');
 const amendmentValue = (match: RegExpExecArray) => match[1] ?? (match[2] ? `ORIG-${match[2]}` : 'ORIG');
-const namedTitle = /^\s*([A-Z][A-Z0-9 '\n-]{1,100}?)\s+(?:RNAV\s+)?(DEPARTURE|DEP|ARRIVAL|ARR)(?:\s*\(RNAV\))?(?:\s*,\s*AMDT\s+([A-Z0-9-]+))?(?:\s+(NOT AUTHORIZED|NA))?\s*$/i;
+const namedTitle = /^\s*([A-Z][A-Z0-9 '\n-]{1,100}?)\s+(?:RNAV\s+)?(DEPARTURE|DEP|ARRIVAL|ARR)(?:\s*\(RNAV\))?(?:\s+\([A-Z0-9]+\.[A-Z0-9]+\))?(?:\s*,\s*AMDT\s+([A-Z0-9-]+))?(?:\s+(NOT AUTHORIZED|NA))?\s*$/i;
+
+/** Periods in a parenthesized route identifier belong to that identifier.
+ * Outside parentheses, punctuation ends a named heading. Unbalanced forms
+ * remain whole and fail the anchored title grammar. */
+function namedClauses(source: string): { source: string; index: number }[] {
+  const clauses: { source: string; index: number }[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === '(') depth++;
+    else if (source[i] === ')') depth--;
+    else if (depth === 0 && '.:;'.includes(source[i]!)) {
+      if (i > start) clauses.push({ source: source.slice(start, i), index: start });
+      start = i + 1;
+    }
+  }
+  if (start < source.length) clauses.push({ source: source.slice(start), index: start });
+  return clauses;
+}
 
 export function procedureTargets(content: string, subject: string | undefined, body: string, header: number) {
   // Recognize an initial airport/city/state envelope as a whole. Periods in an
@@ -84,7 +102,10 @@ export function procedureTargets(content: string, subject: string | undefined, b
       if (/^(?:(?:IFR )?TAKE-?OFF MINIMUMS(?: AND \(OBSTACLE\) DEPARTURE PROCEDURES)?|DIVERSE VECTOR AREA(?:\s*\((?:DVA|RADAR VECTORS)\))?)$/i.test(title)) {
         const index = add(title, clause.index + source.indexOf(title), amendment ? amendmentValue(amendment) : undefined);
         if (!amendment && index !== undefined) previous = { index, end: clause.index + source.trimEnd().length };
-        if (!amendment && /\bAMDT\s*$/i.test(source)) limited = true;
+        if (!amendment && /\bAMDT\s*$/i.test(source)) {
+          limited = true;
+          if (index !== undefined) targets[index]!.amendmentMissing = true;
+        }
       }
     }
     if (targets.length || subject === 'DVA') return { targets, limited };
@@ -92,19 +113,19 @@ export function procedureTargets(content: string, subject: string | undefined, b
   if (subject === 'SID' || subject === 'STAR' || subject === 'ODP') {
     // A line wrap is not a heading boundary. Require a complete name and
     // procedure type, ending at punctuation or an explicit prohibition.
-    for (const clause of content.slice(0, namedHeadingStop).matchAll(/[^.:;]+/g)) {
-      if (clause[0].length > MAX_HEADING_LENGTH) continue;
-      const heading = clause.index === 0 ? clause[0].replace(/^\s*(?:SID|STAR|ODP)\s+/, '') : clause[0];
+    for (const clause of namedClauses(content.slice(0, namedHeadingStop))) {
+      if (clause.source.length > MAX_HEADING_LENGTH) continue;
+      const heading = clause.index === 0 ? clause.source.replace(/^\s*(?:SID|STAR|ODP)\s+/, '') : clause.source;
       const whole = namedTitle.exec(heading);
       // Airport context occasionally ends at a line break, without a period.
       // Only the initial, comma-bearing airport clause can use this boundary;
       // never discard an arbitrary prefix from a later affected heading.
-      const candidates = whole ? [whole] : clause.index === 0 && clause[0].includes(',')
-        ? clause[0].split('\n').map(line => namedTitle.exec(line)).filter(m => m !== null) : [];
+      const candidates = whole ? [whole] : clause.index === 0 && clause.source.includes(',')
+        ? clause.source.split('\n').map(line => namedTitle.exec(line)).filter(m => m !== null) : [];
       for (const named of candidates) {
-        if (!named[4] && !/[.:;]/.test(content[clause.index + clause[0].length] ?? '')) continue;
+        if (!named[4] && !/[.:;]/.test(content[clause.index + clause.source.length] ?? '')) continue;
         if ((subject !== 'STAR') !== /^(?:DEP|DEPARTURE)$/i.test(named[2]!)) continue;
-        const title = named[1]!.trim(); add(title, clause.index + clause[0].indexOf(title), named[3]);
+        const title = named[1]!.trim(); add(title, clause.index + clause.source.indexOf(title), named[3]);
       }
     }
   }

@@ -161,6 +161,8 @@ test('deployment readiness requires current weather as well as authenticated sav
     { name: 'old-full-sync', failure: 'old-full-sync', reconciliation: { state: 'overdue', error: null }, error: /NOTAM full synchronization/ },
     { name: 'source-issue', failure: 'source-issue', reconciliation, error: /Unexpected unresolved/ },
     { name: 'metadata-only', failure: 'metadata-only', reconciliation },
+    { name: 'historical-only', failure: 'historical-only', reconciliation },
+    { name: 'historical with failed reconciliation', failure: 'historical-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
     { name: 'blocking-association', failure: 'blocking-association', reconciliation, error: /Unexpected unresolved/ },
     { name: 'stale with metadata warning', failure: 'metadata-stale', reconciliation, error: /NOTAM source check: stale/ },
     { name: 'failed sync with metadata warning', failure: 'metadata-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
@@ -180,6 +182,8 @@ test('deployment readiness requires current weather as well as authenticated sav
       unresolvedRecords: 1, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', unscopedRecords: 0 });
     if (failure === 'blocking-association') airport.feed.blockingRecords = 1;
     if (failure?.startsWith('metadata')) Object.assign(airport.feed, { blockingRecords: 0, state: 'ready', error: null });
+    if (failure === 'historical-only') Object.assign(airport.feed, { unresolvedRecords: 1, historicalIssues: 1, blockingRecords: 0,
+      unscopedRecords: 0, recordCount: 1, continuity: 'incomplete', collectionContinuity: 'complete', state: 'ready', error: null });
     if (failure === 'metadata-stale') airport.feed.checkedAt = WEATHER_NOW - 20 * MINUTE;
     const navaid = { ...airport, scope: 'navaid-location', associationCoverage: 'complete', query: { navaidId: 'SAU' } };
     const region = { ...airport, scope: 'region-location', associationCoverage: 'incomplete', query: { artccId: 'ZOA' } };
@@ -202,7 +206,8 @@ test('deployment readiness requires current weather as well as authenticated sav
     else {
       const result = await checkInfoApi('https://info.test', 'staging');
       assert.ok(result.reads > 25);
-      assert.deepEqual(result.warnings, failure === 'metadata-only' ? ['notam-association-metadata:1'] : []);
+      assert.deepEqual(result.warnings, failure === 'metadata-only' ? ['notam-association-metadata:1']
+        : failure === 'historical-only' ? ['historical-notam-issues:1'] : []);
     }
     if (failure === 'old-full-sync') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
       { allowOverdueFullSync: true })).warnings, ['full-sync-overdue'], 'an explicit rollout exception remains visible');

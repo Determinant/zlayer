@@ -4,7 +4,7 @@ import { notamEndKind } from './validity';
 import { approachMinimaGroup, type NotamMinima, type NotamMinimaGroup } from './minima';
 import { readableAirportName, readableNotamText } from './readable-text';
 import { takeoffMinimumsGroup, type NotamTakeoff, type NotamTakeoffGroup } from './takeoff';
-import { declaredDistances, type NotamDistances } from './distances';
+import { declaredDistances, type NotamDistances, type DistanceContext } from './distances';
 import { notamClauses } from './clauses';
 
 export type NotamBodyBlock =
@@ -27,7 +27,7 @@ function withoutRepeatedValidity(body: string, record: NotamRecord): string {
     kind === (range[3] ? 'estimated' : 'fixed') ? body.slice(0, range.index) : body;
 }
 
-function bodyBlock(source: string, allowValues: boolean): NotamBodyBlock {
+function bodyBlock(source: string, allowValues: boolean, previous?: DistanceContext): NotamBodyBlock {
   const text = source.replace(/\s+/g, ' ').trim();
   const minima = allowValues && approachMinimaGroup(source);
   if (minima) return minima;
@@ -35,7 +35,7 @@ function bodyBlock(source: string, allowValues: boolean): NotamBodyBlock {
   // keeps the complete source clause in view rather than creating a partial summary.
   const takeoff = allowValues && takeoffMinimumsGroup(text);
   if (takeoff) return takeoff;
-  const distances = allowValues && declaredDistances(text);
+  const distances = allowValues && declaredDistances(text, previous);
   if (distances) return distances;
 
   const departure = /^TAKE-?OFF MINIMUMS AND \(OBSTACLE\) DEPARTURE PROCEDURES(?:,)? (?:AMDT ([A-Z0-9-]+)|(ORIG(?:-[A-Z0-9]+)?))\.{2,}$/i.exec(text);
@@ -85,8 +85,12 @@ export function presentNotam(record: NotamRecord): NotamPresentation {
     if (clauses?.length) {
       const offset = body.indexOf(content);
       sourceSpans = clauses.map(clause => ({ start: offset + clause.start, end: offset + clause.end }));
-      blocks = clauses.map(clause => clause.source.length <= MAX_CLAUSE
-        ? bodyBlock(clause.source, clause.state === 'operative') : { kind: 'text', text: clause.source });
+      blocks = clauses.map((clause, index) => {
+        const previous = clauses[index - 1];
+        return clause.source.length <= MAX_CLAUSE ? bodyBlock(clause.source, clause.state === 'operative',
+          previous?.state === 'operative' ? { source: previous.source, offset: offset + previous.start } : undefined)
+          : { kind: 'text', text: clause.source };
+      });
     }
     const identifiers = [...record.locations, ...record.icaoLocations, record.accountability];
     const readable = (text: string) => readableNotamText(text, identifiers);

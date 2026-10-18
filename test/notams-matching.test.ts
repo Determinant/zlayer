@@ -7,6 +7,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { isNotamAirportSnapshot, isProcedureCatalog, type NotamRecord, type ProcedureRecord } from '@zlayer/contracts';
 import { parseNotam } from '../src/layers/notams/parser';
+import { notamParts } from '../src/layers/notams/multipart';
 import { approachTitleKey } from '../src/layers/notams/procedure-title';
 import { matchPlateNotams, normalizeProcedureAmendment, procedureTargetMatch } from '../src/layers/notams/matcher';
 import { PlateNotamResults } from '../src/layers/notams/ui';
@@ -106,13 +107,14 @@ test('takeoff, named obstacle departures, DVA and radar notices use their actual
   }
 });
 
-test('multipart subjects and first-part headings are recognized without assembling numeric clauses', () => {
+test('multipart interpretation requires complete ordered transport and retains instruction scope', () => {
   for (const [faa, number, subject] of [['MIA', '1519', 'ODP'], ['IAD', '7644', 'ODP'], ['OAK', '5325', 'ODP'], ['SUS', '5681', 'ODP'], ['IWA', '2812', 'IAP']]) {
     const record = captured(faa!, number!), parsed = parseNotam(record);
     assert.equal(parsed.subject, subject);
-    assert.ok(parsed.issues.includes('multipart'));
+    const complete = !!notamParts(record.text);
+    assert.equal(parsed.issues.includes('multipart'), !complete);
     assert.equal(parsed.targets.length, 1);
-    assert.ok(!parsed.facts.some(f => ['minima', 'visibility', 'climb', 'takeoff'].includes(f.kind)));
+    if (!complete) assert.ok(!parsed.facts.some(f => ['minima', 'visibility', 'climb', 'takeoff'].includes(f.kind)));
     assert.deepEqual(auditNotam(record), []);
     assert.deepEqual(auditRenderedNotam(record, false, manifest.capture.reviewTime), []);
   }

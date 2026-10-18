@@ -15,8 +15,10 @@ export type AircraftReport = {
   type: string; urgent: boolean; aircraft: string;
   turbulence: string[]; icing: string[]; sky: string[];
   quality: string[]; text: string; sourceXml: string;
-  /** PWA recovered the observation time from /TM; source flags/XML stay intact. */
-  timeSource?: 'raw';
+  /** A recovered /TM, or receipt-based sorting/expiry with observation time unknown. */
+  timeSource?: 'raw' | 'receipt';
+  /** Content conflicts, missing observations and interpretation assumptions; evidence is retained. */
+  contentNotes?: string[];
 };
 /** Valid observation fields retained when the source cannot supply a usable point. */
 export type UnlocatedAircraftReport = Omit<AircraftReport, 'longitude' | 'latitude' | 'sourceXml'>;
@@ -43,11 +45,12 @@ export function isPirepPayload(v: unknown): v is PirepPayload {
 }
 function isObservation(v: unknown): v is UnlocatedAircraftReport {
   return isRecord(v) && text(v.id) && /^[a-f0-9]{64}$/.test(v.id) && instant(v.observedAt) &&
-    (v.timeSource === undefined || v.timeSource === 'raw') &&
+    (v.timeSource === undefined || v.timeSource === 'raw' || v.timeSource === 'receipt' && v.observedAt === v.receivedAt) &&
     (v.receivedAt === null || instant(v.receivedAt)) &&
     (v.altitudeFt === null || typeof v.altitudeFt === 'number' && Number.isInteger(v.altitudeFt) && v.altitudeFt >= -2000 && v.altitudeFt <= 100_000) &&
     text(v.type) && !!v.type.trim() && typeof v.urgent === 'boolean' && v.urgent === (v.type === 'Urgent PIREP') &&
     text(v.aircraft) && strings(v.turbulence) && strings(v.icing) && strings(v.sky) && strings(v.quality) &&
+    (v.contentNotes === undefined || strings(v.contentNotes)) &&
     text(v.text) && !!v.text.trim();
 }
 export function isUnlocatedAircraftReport(v: unknown): v is UnlocatedAircraftReport {
@@ -69,6 +72,6 @@ export function isPirepSnapshot(v: unknown): v is PirepSnapshot {
         i.sourceCoordinate.length === 2 && i.sourceCoordinate.every(n => typeof n === 'number' && Number.isFinite(n)) &&
         Math.abs(i.sourceCoordinate[0]) <= 180 && Math.abs(i.sourceCoordinate[1]) <= 90) &&
       (i.report === undefined || i.qualityFlag !== 'no_time_stamp' && isUnlocatedAircraftReport(i.report) &&
-        (!i.report.quality.includes('no_time_stamp') || i.report.timeSource === 'raw') && i.report.observedAt <= checkedAt + 60_000)) &&
+        (!i.report.quality.includes('no_time_stamp') || i.report.timeSource === 'raw' || i.report.timeSource === 'receipt') && i.report.observedAt <= checkedAt + 60_000)) &&
     new Set([...v.reports, ...v.issues].map(r => r.id)).size === v.reports.length + v.issues.length;
 }

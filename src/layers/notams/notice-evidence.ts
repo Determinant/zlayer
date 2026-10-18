@@ -2,6 +2,7 @@ import type { NotamRecord } from '@zlayer/contracts';
 import { fdcBodyForms, noticeIntervalMatches } from './source-text';
 import { equalNotamSchedules, parseNotamSchedule, notamScheduleFits, type WeeklyNotamSchedule } from './schedule';
 import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey, type IcaoContent, type Representation } from './representation';
+import { compareIcaoQualification } from './notice-qualification';
 
 const bodyContent = (text: string) => noticeRepresentation(text)?.text;
 const numberContent = (value: string) => /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, '') : value;
@@ -93,15 +94,17 @@ export type IcaoEvidence = {
 };
 // Retain compact comparison contents, never the national dataset's token graph.
 const icaoCache = new WeakMap<NotamRecord, IcaoEvidence | null>();
+const aixmIcaoCache = new WeakMap<NotamRecord, IcaoEvidence | null>();
 
-function bindsIcaoIdentityAndInterval(record: NotamRecord, notice: IcaoContent): boolean {
-  return /^[A-Z]$/.test(record.series) && /^\d{1,4}$/.test(record.number) && /^\d{4}$/.test(record.year) &&
+export function bindsIcaoIdentityAndInterval(record: NotamRecord, notice: IcaoContent): boolean {
+  const number = numberContent(record.number);
+  return /^[A-Z]$/.test(record.series) && /^\d{1,4}$/.test(number) && /^\d{4}$/.test(record.year) &&
     record.changeType === notice.change &&
-    notice.identity === `${record.series}${record.number.padStart(4, '0')}/${record.year.slice(-2)}` &&
+    notice.identity === `${record.series}${number.padStart(4, '0')}/${record.year.slice(-2)}` &&
     notice.locations.some(code => [...record.locations, ...record.icaoLocations].includes(code)) &&
     noticeIntervalMatches(record, notice, true);
 }
-function bindsIcaoRecord(record: NotamRecord, notice: IcaoContent): boolean {
+export function bindsIcaoRecord(record: NotamRecord, notice: IcaoContent): boolean {
   return bindsIcaoIdentityAndInterval(record, notice) &&
     equalNotamSchedules(parseNotamSchedule(notice.schedule), parseNotamSchedule(record.schedule));
 }
@@ -110,21 +113,25 @@ function bindsIcaoRecord(record: NotamRecord, notice: IcaoContent): boolean {
  * timing evaluation. Bind identity/interval/body first, then check every
  * supplied schedule and every retained rendering against that same witness. */
 export function sharedIcaoSchedule(previous: NotamRecord, next: NotamRecord): WeeklyNotamSchedule | undefined {
-  let witness: WeeklyNotamSchedule | undefined, key: string | undefined;
+  let witness: WeeklyNotamSchedule | undefined;
+  const notices: IcaoContent[] = [];
   for (const record of [previous, next]) {
     if (record.lifecycle !== 'active' || record.changeType !== 'N') return;
-    const evidence = icaoEvidence(record);
+    const evidence = icaoEvidence(record, 'aixm');
     if (!evidence?.notices.length) return;
     for (const notice of evidence.notices) {
       const schedule = parseNotamSchedule(notice.schedule);
       if (!bindsIcaoIdentityAndInterval(record, notice) || schedule.kind !== 'weekly' || !schedule.window ||
         !notamScheduleFits(parseNotamSchedule(record.schedule), schedule)) return;
-      const content = icaoContentKey({ ...notice, schedule: '' });
-      if ((key !== undefined && key !== content) || (witness && !equalNotamSchedules(witness, schedule))) return;
-      key = content; witness = schedule;
+      if (witness && !equalNotamSchedules(witness, schedule)) return;
+      notices.push({ ...notice, schedule: '' }); witness = schedule;
     }
   }
-  return witness;
+  // Schedule agreement and record binding are established above. Other content
+  // must be equal or independently qualified across the complete retained set;
+  // a corrected Q field must not invalidate the same complete D-field witness.
+  const key = notices[0] && icaoContentKey(notices[0]);
+  return notices.every(notice => icaoContentKey(notice) === key) || compareIcaoQualification(notices) ? witness : undefined;
 }
 
 /** All supplied ICAO renderings must parse and account for the whole primary
@@ -132,9 +139,13 @@ export function sharedIcaoSchedule(previous: NotamRecord, next: NotamRecord): We
  * Record binding is separately required for semantic corrections. Unchanged
  * envelopes can prove representation equality even when source metadata itself
  * is inconsistent; this never repairs or chooses between those metadata fields. */
-export function icaoEvidence(record: NotamRecord): IcaoEvidence | undefined {
-  if (icaoCache.has(record)) return icaoCache.get(record) ?? undefined;
-  icaoCache.set(record, null);
+export function icaoEvidence(record: NotamRecord, textKind: 'rendered' | 'aixm' = 'rendered'): IcaoEvidence | undefined {
+  // AIXM event:text owns E); F/G remain separate fields in every full translation.
+  // Reconciliation accepts that E-only body or the existing complete E-through-G
+  // rendering. Client subject recovery keeps its existing rendered-body contract.
+  const cache = textKind === 'aixm' ? aixmIcaoCache : icaoCache;
+  if (cache.has(record)) return cache.get(record) ?? undefined;
+  cache.set(record, null);
   const translations = record.translations.filter(t => t.type === 'OTHER:ICAO');
   if (!translations.length) return;
   const view = noticeRepresentation(record.text);
@@ -148,12 +159,14 @@ export function icaoEvidence(record: NotamRecord): IcaoEvidence | undefined {
     if (!view) return;
     const rendering = distribution ? distributionContent(view) : { source: text, annotated: false };
     const parsed = parseIcaoNotice(rendering.source);
-    if (!parsed.ok || parsed.value.change !== 'N' || !matchesIcaoBody(primary.text, parsed.value, 32)) return;
+    if (!parsed.ok || parsed.value.change !== 'N') return;
+    if (!matchesIcaoBody(primary.text, parsed.value, 32) &&
+      !(textKind === 'aixm' && primary.text === parsed.value.body)) return;
     const { representation: _representation, segments: _segments, ...content } = parsed.value;
     recordBound &&= bindsIcaoRecord(record, content);
     translationAnnotation ||= rendering.annotated;
     notices.push(content);
   }
   const evidence = { notices, recordBound, bodyAnnotation: primary.annotated, translationAnnotation };
-  icaoCache.set(record, evidence); return evidence;
+  cache.set(record, evidence); return evidence;
 }

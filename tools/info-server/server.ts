@@ -18,6 +18,7 @@ import { createPirepWarming, PUBLISHED_PIREPS } from './pireps';
 import { createAdvisoryWarming } from './advisories';
 import { assessInfoHealth } from './health';
 import { InfoMetrics } from './metrics';
+import { prefersStatusPage, renderStatusPage, statusPagePolicy } from './status-page';
 const compress = promisify(gzip);
 const catalogMarkers: Record<PreparedFamily, string> = {
   pireps: PUBLISHED_PIREPS,
@@ -139,13 +140,21 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
           Vary: 'Accept-Encoding', ...(compressed ? { 'Content-Encoding': 'gzip' } : {}), ...(!snapshot ? { 'Retry-After': '30' } : {}) });
         response.end(request.method === 'HEAD' ? undefined : body); return;
       }
-      if (request.url === '/api/weather/healthz') {
-        response.setHeader('Content-Type', 'application/json');
+      if (request.url === '/api/weather/healthz' || request.url === '/api/weather/healthz?format=json') {
+        response.setHeader('Vary', 'Accept');
         const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
           radar: radar.status, radarMotion: motion.status, advisories: advisories.status, pireps: pireps.status, notams: notams.status,
           notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, tfrs: tfrs.status };
+        const now = (options.now ?? Date.now)(), readiness = assessInfoHealth(data, now);
+        if (request.url === '/api/weather/healthz' && prefersStatusPage(request.headers.accept)) {
+          response.setHeader('Content-Type', 'text/html; charset=utf-8');
+          response.setHeader('Content-Security-Policy', statusPagePolicy);
+          response.setHeader('Referrer-Policy', 'no-referrer');
+          response.end(request.method === 'HEAD' ? undefined : renderStatusPage(readiness, data.notams, now, options.sourceUrl)); return;
+        }
+        response.setHeader('Content-Type', 'application/json');
         response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ...data,
-          readiness: assessInfoHealth(data, (options.now ?? Date.now)()), runtime: metrics.status,
+          readiness, runtime: metrics.status,
           delivery: { ...deliveries }, cache: cache.stats, lifecycle: { ...lifecycle }, ...(options.sourceUrl ? { source: options.sourceUrl } : {}) })); return;
       }
       if (request.url?.startsWith('/api/notams/')) {

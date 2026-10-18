@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NotamRecord } from '@zlayer/contracts';
 import { notice, NOTAM_NOW } from './fixtures/notams';
+import { permutations } from './helpers/permutations';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { compareNotamRevision, mergeNotamRecords } from '../tools/info-server/notams/revision';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
@@ -16,9 +17,6 @@ const record = (fields: Partial<NotamRecord> = {}) => {
 };
 const variants = [record(), record({ sequence: 2 }), record({ correction: 1 })];
 const digests = (records: readonly NotamRecord[]) => records.map(record => record.revision).sort();
-function permutations<T>(values: readonly T[]): T[][] {
-  return values.length ? values.flatMap((value, i) => permutations(values.filter((_, j) => i !== j)).map(rest => [value, ...rest])) : [[]];
-}
 
 test('NMS revision ordering uses the precise update instant and never AIXM counters or publication time', () => {
   const original = record();

@@ -1,0 +1,103 @@
+{
+  "source": "Retained FAA NMS variants read from the deployed ZLayer DWH airport endpoint on 2026-10-18; no new FAA acquisition. checkedAt is the retained feed source time.",
+  "checkedAt": 1792348231451,
+  "issues": [
+    {
+      "id": "9745974410620576",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792342982222,
+        "lastSeenAt": 1792343611865,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "DWH"
+      ],
+      "icaoLocations": [
+        "KDWH"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "9745974410620576",
+          "sourceId": "NMS_ID_9745974410620576",
+          "classification": "DOMESTIC",
+          "number": "032",
+          "series": "",
+          "year": "",
+          "locations": [
+            "DWH"
+          ],
+          "icaoLocations": [
+            "KDWH"
+          ],
+          "accountability": "DWH",
+          "issuedAt": 1792342740000,
+          "updatedAt": 1792342740000,
+          "sourceUpdatedAt": "2026-10-18T16:59:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792342740000,
+          "endsAt": 1792429200000,
+          "effectiveStart": "202610181659",
+          "effectiveEnd": "202610191700",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "AD AP FUEL NOT AVBL",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DWH 10/032 DWH AD AP FUEL NOT AVBL 2610181659-2610191700"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "6b484acb12b05a03ec7cb7c5414253fbb4838b149de542e3c877f14850677389"
+        },
+        {
+          "id": "9745974410620576",
+          "sourceId": "NMS_ID_9745974410620576",
+          "classification": "DOMESTIC",
+          "number": "32",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "DWH"
+          ],
+          "icaoLocations": [
+            "KDWH"
+          ],
+          "accountability": "DWH",
+          "issuedAt": 1792342740000,
+          "updatedAt": 1792342740000,
+          "sourceUpdatedAt": "2026-10-18T16:59:00.000Z",
+          "canceledAt": "2026-10-18T16:59:00.000Z",
+          "referred": null,
+          "startsAt": 1792342740000,
+          "endsAt": 1792429200000,
+          "effectiveStart": "202610181659",
+          "effectiveEnd": "202610191700",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "cancelled",
+          "text": "AD AP FUEL NOT AVBL",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!DWH 10/032 DWH AD AP FUEL NOT AVBL 2610181659-2610191700"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "d2988268cfda4507579b10bc1131485d1f5f75e718bd0776d3e71948d1dd64d8"
+        }
+      ]
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+import { notamParts, maskNotamParts } from './multipart';
+
 /** Document interpretation states are independent of the UI and of plate matching.
  * Once a note or condition opens, punctuation cannot prove that its scope ended.
  * Multipart envelopes require separate assembly proof before structured values. */
@@ -51,19 +53,29 @@ export function notamScopes(source: string): NotamClause[] | undefined {
  * the supplied text; whitespace inside a clause remains available to its grammar. */
 export function notamClauses(source: string, maxClauses: number): NotamClause[] | undefined {
   const result: NotamClause[] = [];
+  const parts = notamParts(source), masked = parts ? maskNotamParts(source, parts) : source;
+  const markers = parts?.flatMap(part => [part.opening, part.closing].filter(p => p !== undefined)) ?? [];
   let state: NotamClauseState = 'operative', start = 0;
   const consume = (end: number) => {
     const text = source.slice(start, end);
-    if (!text) return;
-    const tokens = [...text.matchAll(controls)].map(token => controlState(token[0]));
+    if (!text.trim()) return;
+    const tokens = [...masked.slice(start, end).matchAll(controls)].map(token => controlState(token[0]));
     result.push({ source: text, start, end, state: tokens.includes('multipart') ? 'multipart' : state });
     for (const control of tokens) state = transitions[state][control];
   };
   // No boundary at a decimal, slash, comma, semicolon, or publisher line wrap.
-  for (const separator of source.matchAll(/\n\s*\n|(?<=\.)\s+(?=[A-Z0-9*#])/g)) {
-    consume(separator.index);
+  const boundaries = [...source.matchAll(/\n\s*\n|(?<=\.)\s+(?=[A-Z0-9*#])/g)]
+    .map(separator => ({ start: separator.index, end: separator.index + separator[0].length, marker: false }));
+  boundaries.push(...markers.map(marker => ({ ...marker, marker: true })));
+  for (const separator of boundaries.sort((a, b) => a.start - b.start)) {
+    if (separator.start < start) continue;
+    consume(separator.start);
     if (result.length > maxClauses) return;
-    start = separator.index + separator[0].length;
+    start = separator.start;
+    // A proven marker is still displayed from its exact source span. It does
+    // not change scope; in particular, it cannot close an earlier instruction.
+    if (separator.marker) consume(separator.end);
+    start = separator.end;
   }
   consume(source.length);
   return result.length <= maxClauses ? result : undefined;

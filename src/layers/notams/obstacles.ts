@@ -7,7 +7,7 @@ import { coordinateToken, resolveCoordinate } from './coordinate-recovery';
 import type { NotamAreaReferences } from './area-references';
 import { notamClauses, notamScopes } from './clauses';
 import { notamParts, maskNotamParts, type SourceSpan } from './multipart';
-import { obstacleAnnotation, obstacleHeights, obstacleKind } from './obstacle-fields';
+import { obstacleBodyFields } from './obstacle-fields';
 
 export type NotamObstacle = {
   coordinates: [number, number]; name: string; heightAglFt?: number; elevationMslFt?: number;
@@ -112,35 +112,19 @@ export function notamObstacles(record: NotamRecord, references?: NotamAreaRefere
   return result;
 }
 function parseObstacle(body: string, offset: number, record: NotamRecord, references?: NotamAreaReferences): { point: NotamObstacle; remainder?: { text: string; lighting: boolean } } | undefined {
-  if (body.length > 64 * 1024) return undefined;
-  const original = body.replace(/\s+/g, ' ').trim(), text = original.toUpperCase();
-  if (text.length !== original.length) return undefined;
-  // A farm/area/boundary's coordinate is not an individual obstacle position.
-  if (/\b(?:AREA|RADIUS|FARM|FARMS|BTN|BETWEEN|WITHIN)\b/.test(text)) return undefined;
-  const candidate = /\b\d{4,9}(?:\.\d+)?[NSM]\s*\/?\s*\d{5,10}(?:\.\d+)?[EW]?(?=\s|[().,;]|$)/gi;
-  const points = [...text.matchAll(candidate)], sourcePoints = [...body.matchAll(candidate)];
-  if (points.length !== 1 || sourcePoints.length !== 1) return undefined;
-  const point = points[0]!;
-  const token = coordinateToken(text.slice(point.index));
-  const coordinates = token && (Array.isArray(token.location) ? token.location : resolveCoordinate(token.location, record, references));
+  const fields = obstacleBodyFields(body);
+  if (!fields) return;
+  const { kind, coordinate: token, heights, preserveText, tail, coordinateSpan } = fields;
+  const coordinates = Array.isArray(token.location) ? token.location : resolveCoordinate(token.location, record, references);
   if (!coordinates) return undefined;
-  const prefix = text.slice(0, point.index);
-  const kind = obstacleKind(prefix);
-  if (!kind) return undefined;
-  let cursor = point.index + point[0].length;
-  cursor += obstacleAnnotation(text.slice(cursor));
-  const heights = obstacleHeights(text.slice(cursor));
-  if (!heights) return undefined;
   const { elevationMslFt, heightAglFt } = heights;
-  const start = offset + sourcePoints[0]!.index;
-  return { point: { coordinates, coordinateSpan: { start, end: start + sourcePoints[0]![0].length }, ...(token?.recovered ? { recovered: true } : {}), name: kind.name,
-    ...(kind.preserveText || !heights.complete ? { preserveText: true } : {}),
+  return { point: { coordinates, coordinateSpan: { start: offset + coordinateSpan.start, end: offset + coordinateSpan.end }, ...(token.recovered ? { recovered: true } : {}), name: kind.name,
+    ...(preserveText ? { preserveText: true } : {}),
     ...(elevationMslFt === undefined ? {} : { elevationMslFt }), ...(heightAglFt === undefined ? {} : { heightAglFt }),
     shape: heightAglFt === undefined ? 'unknown' : kind.name.startsWith('Wind') ? 'wind' : heightAglFt >= 1000 ? 'tall' : 'low',
     grouped: kind.grouped, standalone: true },
     // Unqualified source values remain in the reader; only explicitly known/unknown heights move into labels.
-    ...(!token?.recovered && !kind.preserveText && heights.complete ? { remainder: {
-      text: original.slice(cursor + heights.length).trim(), lighting: kind.lighting } } : {}) };
+    ...(!token.recovered && !preserveText ? { remainder: { text: tail, lighting: kind.lighting } } : {}) };
 }
 
 /** Only the validated location description is represented by the point symbol. */

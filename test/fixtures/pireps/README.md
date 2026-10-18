@@ -1,4 +1,4 @@
-# AWC aircraft reports, October 13–14, 2026
+# AWC aircraft reports, October 13–15, 2026
 
 `2026-10-13.xml.gz` is an unmodified capture of the public AWC bulk file:
 https://aviationweather.gov/data/cache/aircraftreports.cache.xml.gz
@@ -68,12 +68,87 @@ the airport's rounded coordinate and encodes `altitude_ft_msl` as zero despite
 through both wire formats, keeps aircraft altitude unknown and preserves the
 complete original XML, times, cloud layer and quality flag.
 
+`2026-10-15-unplotted.json` retains the six original XML members that remained
+unplotted after decoding and location recovery against the complete October 1
+navigation edition. It is a subset of the public
+`https://zlayer.tedyin.com/api/weather/pireps.json` response checked October 15 at
+16:58:32 UTC, with the response's source identity and check time retained.
+The original response contained 2,387 members; its byte SHA-256 was
+`8c858cc6290422c1e6b2932a735f467595dc8d82a00b5397a6df930408fca338`.
+This is a member-interpretation fixture, not a complete-envelope capture.
+
+All six now reach map selection. CID's `3NWKAWG`, POU's `1MI W POU` and EEO's
+`EKR0304053` exercise bounded offset recovery. `DJT820006` has no published DJT8
+reference and an invalid 820° DJT radial; `DPA020` lacks distance. These two use
+explicit reference-only markers at the unique published DJT/DPA identities,
+with observation position unknown. LTS carries `no_time_stamp` and raw `/TM 1711`,
+later than publication; it uses receipt-based age/expiry with observation time
+unknown. Tests cover both wire formats, selection, preserved source fields,
+valid-source coordinate precedence and reference withdrawal. They do not invent
+a corrected bearing, missing distance or report time.
+
+`2026-10-15-stj.xml` is a seventh distinct failure captured from the same endpoint
+at source-check time 17:26:37 UTC. It was received at 17:05:07.812 UTC, after the
+six-member capture, so it does not establish which seventh report was visible in
+the earlier user session. Its raw location is `1/2 MILE FINAL`; its valid source
+position survives, and the reversed cloud heights (base 25,000 / top 2,000 ft MSL)
+remain visible with an inconsistency label. Both wire formats reach selection.
+Its nonstandard `/FL2000` also leaves altitude unknown with an explicit note;
+the XML's zero is not a supported aircraft altitude.
+
+`2026-10-15-content.json` retains fourteen additional original XML members grouped
+by their first captured source-check time in the four October 15 responses below.
+These are subsets, not complete envelopes. They expose cloud shorthand omitted
+by AWC, lost coverage/frequency ranges, icing heights assigned to the wrong clause,
+and unsupported altitude/top encodings. `test/pirep-content.test.ts` supplies
+independent expected values from their raw fields. For example, continuous light
+and occasional moderate turbulence remain separate clauses, and `TRACE MX 160
+NEG 150` retains trace mixed icing at 16,000 ft and negative icing at 15,000 ft.
+Ambiguous four-digit heights remain explicitly unresolved rather than receiving
+an inferred decimal/zero correction.
+
+`2026-10-15-content-remaining.json` retains 27 original members from the same
+four responses, grouped by first captured source-check time. Nineteen reports
+contain the 20 condition fields left unsupported by the first content pass; the
+other eight contain nonstandard altitude values. The regression gives each of
+those 20 fields an explicit expected interpretation and checks all eight altitude
+outcomes, source preservation and repeated legacy restoration. Known facts survive
+ambiguous cloud roles/units, missing intensity and incomplete altitude ranges.
+The likely `/FLB350/TP110` transposition remains an unconfirmed candidate, not a
+confirmed aircraft/altitude. `N/A`, source attribution and AWC's `NEGclr` are not
+pilot hazard observations. Explicit `NEG` remains an observation.
+
+After that extension, the four October 15 captures replayed with all 8,851 members
+plotted and no unsupported `/SK`, `/TB` or `/IC` fields among 710 distinct PIREP
+texts (332 sky, 313 turbulence and 119 icing fields). This is syntax coverage of
+the captured fields: uncertain units, height roles and source contradictions are
+still labeled, and the eight altitude cases still lack a confirmed single
+altitude. Wind, temperature and visibility remain raw/XML evidence. This dated
+replay does not establish complete semantic accuracy or future syntax coverage.
+
+The October 15 location state-machine change, before the subsequent content
+accuracy corrections, was replayed against complete public
+snapshots checked at 16:58:32, 17:26:37, 17:41:32 and 17:49:34 UTC (2,387, 2,239,
+2,139 and 2,086 members). All four had zero unresolved entries. Every previously plotted
+report retained identical decoded values, identity, position and labels. The
+later captures also exercised AFW's `2MI SOUTH`. A raw-location comparison across
+the first three snapshots and the October 13–14 bulk captures preserved all 1,569
+previously resolvable readings and resolved 17 additional readings (including
+repeated reports across snapshots). These are dated replay results,
+not a guarantee about future free text or a deployment claim.
+The subsequent content audit found that preserving AWC's interpreted fields did
+not establish fidelity to the raw report. The retained content regressions above
+cover those findings; they supersede the earlier claim of unchanged field values
+as an accuracy check.
+
 `2026-10-01-locations.json` contains unchanged LWM/KBFI/SLN airport features,
 LWM/MQP/SLN NAVAID features and the FORCK fix from the public October 1 navigation
 edition, retrieved October 13–14. It also includes the AMA/LAS/ASE/OPF/LAF/APA/DPA/DEN
 airports and all same-ID NAVAIDs for the bulk captures' bad-location recoveries.
 This subset was compared with the complete national collections to confirm the
 same derived results for the October 14 capture, including DPA's VOR precedence.
+The unchanged AWG/POU/DJT airports and EKR VOR/DME were added October 15 for the
+six-member regression; its derived results also match the complete collections.
 LWM is a DME without VOR alignment in this source; the LWM airport
 bearing therefore needs WMM. CYBL is absent from the national airport collection
 and uses the separately documented [AWC station reference](../../../src/layers/weather-awc/pireps/station-references.md).

@@ -240,7 +240,8 @@ test('short climb stages retain gradient units and stage order; absent labels re
   assert.ok(blocks('missing-altitude-label').some(b => b.kind === 'text' && /CAT A 6540\/HAA 655/.test(b.text)));
   assert.ok(minima('missing-altitude-label').every(b => b.scope !== 'Circling'));
   assert.ok(blocks('missing-climb-unit').every(b => b.kind !== 'takeoff'));
-  assert.equal(parseNotam(record('multipart')).unresolved, true);
+  assert.equal(parseNotam(record('multipart')).unresolved, false, 'complete ordered transport is assembled');
+  assert.equal(parseNotam({ ...record('multipart'), text: record('multipart').text.replace('END PART 2 OF 2', '') }).unresolved, true);
 });
 
 test('source character escapes and runway-relative annotations do not manufacture source facts', () => {

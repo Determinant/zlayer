@@ -2411,6 +2411,477 @@
           }
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:03555.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.09559194,
+          26.68316166
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "03555.",
+        "facilityType": "A",
+        "faaId": "DJT",
+        "icaoId": "KDJT",
+        "name": "PRESIDENT DONALD J TRUMP INTL",
+        "city": "WEST PALM BEACH",
+        "state": "FL",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 19.6,
+        "chart": "MIAMI",
+        "notamId": "DJT",
+        "responsibleArtcc": "ZMA",
+        "towerType": "ATCT-TRACON",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 10001,
+        "frequencies": [
+          {
+            "type": "TOWER",
+            "frequencyMHz": 118.75,
+            "use": "LCL/S",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 119.1,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.9,
+            "use": "GND/P",
+            "hours": "24"
+          },
+          {
+            "type": "D-ATIS",
+            "frequencyMHz": 123.75,
+            "use": "D-ATIS",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 257.8,
+            "use": "LCL/P",
+            "hours": "24"
+          },
+          {
+            "type": "GROUND",
+            "frequencyMHz": 284.6,
+            "use": "GND/P",
+            "hours": "24"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 384.6,
+            "use": "LCL/S",
+            "hours": "24"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 123.75,
+            "use": "DJT ASOS"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 121.6,
+            "use": "CD/P",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 125.2,
+            "use": "APCH/P DEP/P",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "sector": "SOUTH",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 128.3,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "hours": "24"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 284.6,
+            "use": "CD/P",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 317.4,
+            "use": "APCH/P DEP/P IC",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "hours": "24"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 343.6,
+            "use": "APCH/P DEP/P",
+            "facilityId": "DJT",
+            "facilityName": "PALM BEACH",
+            "sector": "SOUTH",
+            "hours": "24"
+          }
+        ],
+        "runways": [
+          {
+            "id": "10L/28R",
+            "lengthFt": 10001,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "10L",
+                "trueHeadingDeg": 93,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 99
+              },
+              {
+                "id": "28R",
+                "trueHeadingDeg": 273,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 279
+              }
+            ]
+          },
+          {
+            "id": "10R/28L",
+            "lengthFt": 3214,
+            "widthFt": 75,
+            "surface": "ASPH",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "10R",
+                "trueHeadingDeg": 93,
+                "trafficPattern": "right",
+                "magneticHeadingDeg": 99
+              },
+              {
+                "id": "28L",
+                "trueHeadingDeg": 273,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 279
+              }
+            ]
+          },
+          {
+            "id": "14/32",
+            "lengthFt": 6931,
+            "widthFt": 150,
+            "surface": "ASPH",
+            "condition": "FAIR",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "14",
+                "trueHeadingDeg": 135,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 141
+              },
+              {
+                "id": "32",
+                "trueHeadingDeg": 315,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 321
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:06398.:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -91.67608333,
+          41.27569444
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "06398.",
+        "facilityType": "A",
+        "faaId": "AWG",
+        "icaoId": "KAWG",
+        "name": "WASHINGTON MUNI",
+        "city": "WASHINGTON",
+        "state": "IA",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 754.4,
+        "chart": "CHICAGO",
+        "notamId": "AWG",
+        "responsibleArtcc": "ZAU",
+        "towerType": "NON-ATCT",
+        "towered": false,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 4000,
+        "frequencies": [
+          {
+            "type": "CTAF",
+            "frequencyMHz": 122.7,
+            "use": "CTAF",
+            "remarks": "ACTVT MIRL RY 13/31, MIRL RY 18/36; PAPI RYS 18/36 AND 13/31 AND REIL RYS 18/36 AND 13/31- CTAF."
+          },
+          {
+            "type": "AWOS",
+            "frequencyMHz": 127.825,
+            "use": "AWG AWOS-3"
+          }
+        ],
+        "centerFrequencies": [
+          {
+            "type": "CENTER",
+            "frequencyMHz": 135.6,
+            "use": "BURLINGTON RCAG",
+            "facilityId": "ZAU",
+            "facilityName": "CHICAGO",
+            "sector": "LOW",
+            "remarks": "APCH/DEP SVC PRVDD BY CHICAGO ARTCC ON FREQS 135.6/370.95 (BURLINGTON RCAG)."
+          },
+          {
+            "type": "CENTER",
+            "frequencyMHz": 370.95,
+            "use": "BURLINGTON RCAG",
+            "facilityId": "ZAU",
+            "facilityName": "CHICAGO",
+            "sector": "LOW",
+            "remarks": "APCH/DEP SVC PRVDD BY CHICAGO ARTCC ON FREQS 135.6/370.95 (BURLINGTON RCAG)."
+          }
+        ],
+        "runways": [
+          {
+            "id": "13/31",
+            "lengthFt": 3401,
+            "widthFt": 60,
+            "surface": "CONC",
+            "condition": "EXCELLENT",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "13",
+                "trueHeadingDeg": 135,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 136
+              },
+              {
+                "id": "31",
+                "trueHeadingDeg": 315,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 316
+              }
+            ]
+          },
+          {
+            "id": "18/36",
+            "lengthFt": 4000,
+            "widthFt": 75,
+            "surface": "CONC",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "18",
+                "trueHeadingDeg": 183,
+                "magneticHeadingDeg": 184
+              },
+              {
+                "id": "36",
+                "trueHeadingDeg": 3,
+                "magneticHeadingDeg": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "airport:15989.2:A",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.88418861,
+          41.626585
+        ]
+      },
+      "properties": {
+        "kind": "landing-facility",
+        "siteNumber": "15989.2",
+        "facilityType": "A",
+        "faaId": "POU",
+        "icaoId": "KPOU",
+        "name": "HUDSON VALLEY RGNL",
+        "city": "POUGHKEEPSIE",
+        "state": "NY",
+        "country": "US",
+        "ownership": "PU",
+        "use": "PU",
+        "status": "O",
+        "elevationFt": 163.5,
+        "chart": "NEW YORK",
+        "notamId": "POU",
+        "responsibleArtcc": "ZNY",
+        "towerType": "ATCT",
+        "towered": true,
+        "fuelTypes": "100LL,A",
+        "longestRunwayFt": 5001,
+        "frequencies": [
+          {
+            "type": "GROUND",
+            "frequencyMHz": 121.8,
+            "use": "GND/P",
+            "hours": "0700-2200 (15 MAY-14 SEP);                   0700-2100 (15 SEP- 14 MAY)"
+          },
+          {
+            "type": "CTAF",
+            "frequencyMHz": 124,
+            "use": "CTAF",
+            "remarks": "WHEN ATCT CLSD ACTVT MALSR RWY 06; REIL RWY 24; HIRL RWY 06/24 - CTAF."
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 124,
+            "use": "LCL/P",
+            "hours": "0700-2200 (15 MAY-14 SEP);                   0700-2100 (15 SEP- 14 MAY)"
+          },
+          {
+            "type": "ATIS",
+            "frequencyMHz": 126.75,
+            "use": "ATIS",
+            "hours": "0700-2200 (15 MAY-14 SEP);                   0700-2100 (15 SEP- 14 MAY)"
+          },
+          {
+            "type": "TOWER",
+            "frequencyMHz": 269.15,
+            "use": "LCL/P",
+            "hours": "0700-2200 (15 MAY-14 SEP);                   0700-2100 (15 SEP- 14 MAY)"
+          },
+          {
+            "type": "ASOS",
+            "frequencyMHz": 126.75,
+            "use": "POU ASOS"
+          }
+        ],
+        "terminalFrequencies": [
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 132.75,
+            "use": "APCH/P DEP/P",
+            "facilityId": "N90",
+            "facilityName": "NEW YORK"
+          },
+          {
+            "type": "APPROACH/DEPARTURE",
+            "frequencyMHz": 363.1,
+            "use": "APCH/P DEP/P",
+            "facilityId": "N90",
+            "facilityName": "NEW YORK"
+          },
+          {
+            "type": "CLEARANCE",
+            "frequencyMHz": 121.8,
+            "use": "CD/P",
+            "facilityId": "POU",
+            "facilityName": "DUTCHESS COUNTY",
+            "hours": "0700-2200 (15 MAY-14 SEP);                   0700-2100 (15 SEP- 14 MAY)"
+          }
+        ],
+        "runways": [
+          {
+            "id": "06/24",
+            "lengthFt": 5001,
+            "widthFt": 100,
+            "surface": "ASPH",
+            "condition": "EXCELLENT",
+            "lighting": "HIGH",
+            "ends": [
+              {
+                "id": "06",
+                "trueHeadingDeg": 51,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 63
+              },
+              {
+                "id": "24",
+                "trueHeadingDeg": 231,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 243
+              }
+            ]
+          },
+          {
+            "id": "07/25",
+            "lengthFt": 1357,
+            "widthFt": 100,
+            "surface": "TURF",
+            "condition": "GOOD",
+            "ends": [
+              {
+                "id": "07",
+                "trueHeadingDeg": 51,
+                "magneticHeadingDeg": 63
+              },
+              {
+                "id": "25",
+                "trueHeadingDeg": 231,
+                "magneticHeadingDeg": 243
+              }
+            ]
+          },
+          {
+            "id": "15/33",
+            "lengthFt": 2743,
+            "widthFt": 100,
+            "surface": "ASPH-CONC",
+            "condition": "GOOD",
+            "lighting": "MED",
+            "ends": [
+              {
+                "id": "15",
+                "trueHeadingDeg": 139,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 151
+              },
+              {
+                "id": "33",
+                "trueHeadingDeg": 319,
+                "trafficPattern": "left",
+                "magneticHeadingDeg": 331
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "navaids": [
@@ -2633,6 +3104,35 @@
         "elevationFt": 5371.8,
         "frequency": "110",
         "publicUse": true
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "navaid:US:CO:MEEKER:EKR:VOR/DME",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -107.92494958,
+          40.06744188
+        ]
+      },
+      "properties": {
+        "kind": "navaid",
+        "ident": "EKR",
+        "type": "VOR/DME",
+        "name": "MEEKER",
+        "status": "OPERATIONAL RESTRICTED",
+        "city": "MEEKER",
+        "state": "CO",
+        "country": "US",
+        "highArtcc": "ZDV",
+        "lowArtcc": "ZDV",
+        "elevationFt": 7629.6,
+        "frequency": "115.2",
+        "stationDeclinationDeg": 9,
+        "channel": "99X",
+        "publicUse": true,
+        "notamId": "DEN"
       }
     }
   ],
