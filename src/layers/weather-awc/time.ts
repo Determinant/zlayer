@@ -23,6 +23,12 @@ export function advisoryFrame(snapshot: AwcAdvisorySnapshot | undefined, request
 } {
   if (!snapshot) return { time: undefined, advisories: [] };
   if (snapshot.product === 'gairmet') {
+    if (snapshot.schemaVersion === 3) {
+      const frames = new Map(snapshot.cycleTimes!.map(base => [base, currentFrame([0, 3, 6, 9, 12].map(hour => base + hour * HOUR), requested, 3 * HOUR)]));
+      const selected = [...frames.values()].filter((time): time is number => time !== undefined);
+      return { time: selected.length ? Math.max(...selected) : undefined,
+        advisories: snapshot.advisories.filter(a => a.validFrom === frames.get(a.validFrom - a.forecastHour! * HOUR)) };
+    }
     const time = currentFrame(snapshot.frameTimes, requested, 3 * HOUR);
     return { time, advisories: snapshot.advisories.filter(a => a.validFrom === time) };
   }

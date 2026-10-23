@@ -7,7 +7,7 @@ COPY tsconfig*.json ./
 RUN npm ci
 COPY src ./src
 COPY tools/info-server ./tools/info-server
-COPY tools/check-info-api.ts ./tools/check-info-api.ts
+COPY tools/check-info-api.ts tools/replay-notams.ts tools/replay-notam-bulk.ts tools/replay-info-capacity.ts ./tools/
 RUN npm run info:build
 
 FROM node:24-bookworm-slim

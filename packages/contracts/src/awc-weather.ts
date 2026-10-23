@@ -52,7 +52,9 @@ export const AWC_CLASSIFICATION_FAILURES = ['missing-hazard', 'malformed-hazard'
 export type AwcClassificationFailure = typeof AWC_CLASSIFICATION_FAILURES[number];
 export type AwcAdvisorySnapshot = {
   /** Partial collections use v2 so older clients cannot mistake them for complete. */
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
+  /** v3 preserves independently issued G-AIRMET cycles and their original leads. */
+  cycleTimes?: number[];
   product: AwcAdvisoryProduct;
   checkedAt: number;
   source: string;
@@ -65,6 +67,9 @@ export type AwcAdvisoryIssue = {
   id: string; issuer: string; identifier: string;
   reason: 'invalid-feature' | 'invalid-geometry' | 'invalid-validity' | 'invalid-hazard';
   detail?: AwcClassificationFailure;
+  /** Bounded preparation rule; raw geometry stays in sourceFeature. Older
+   * clients still recognize invalid-geometry and may omit this explanation. */
+  geometryError?: string;
   /** Inert JSON evidence, or an explicitly marked excerpt when too large. */
   sourceFeature: string;
   sourceFeatureTruncated?: true;
@@ -116,21 +121,33 @@ export function isWeatherAdvisory(v: unknown): v is WeatherAdvisory {
 }
 
 export function isAwcAdvisorySnapshot(v: unknown): v is AwcAdvisorySnapshot {
-  if (!isRecord(v) || (v.schemaVersion !== 1 && v.schemaVersion !== 2) || !AWC_ADVISORY_PRODUCTS.some(p => p === v.product) ||
-    !instant(v.checkedAt) || !text(v.source) || !Array.isArray(v.frameTimes) || v.frameTimes.length > 5 ||
+  if (!isRecord(v) || (v.schemaVersion !== 1 && v.schemaVersion !== 2 && v.schemaVersion !== 3) || !AWC_ADVISORY_PRODUCTS.some(p => p === v.product) ||
+    !instant(v.checkedAt) || !text(v.source) || !Array.isArray(v.frameTimes) || v.frameTimes.length > (v.schemaVersion === 3 ? 160 : 5) ||
     !v.frameTimes.every(instant) || new Set(v.frameTimes).size !== v.frameTimes.length ||
     !Array.isArray(v.advisories) || v.advisories.length > 2_000 || !v.advisories.every(isWeatherAdvisory)) return false;
-  if (v.schemaVersion === 1 ? v.issues !== undefined :
+  if (v.schemaVersion === 1 && v.issues !== undefined || v.schemaVersion === 2 && (!Array.isArray(v.issues) || !v.issues.length)) return false;
+  if (v.issues !== undefined && (
     !Array.isArray(v.issues) || !v.issues.length || v.advisories.length + v.issues.length > 2000 ||
     !v.issues.every(issue => isRecord(issue) && text(issue.id) && !!issue.id && text(issue.issuer) && text(issue.identifier) &&
       typeof issue.reason === 'string' && ['invalid-feature', 'invalid-geometry', 'invalid-validity', 'invalid-hazard'].includes(issue.reason) &&
       (issue.detail === undefined || issue.reason === 'invalid-hazard' && AWC_CLASSIFICATION_FAILURES.some(detail => detail === issue.detail)) &&
+      (issue.geometryError === undefined || issue.reason === 'invalid-geometry' && typeof issue.geometryError === 'string' &&
+        issue.geometryError.length > 0 && issue.geometryError.length <= 300) &&
       text(issue.sourceFeature) && !!issue.sourceFeature &&
       (issue.sourceFeatureTruncated === undefined || issue.sourceFeatureTruncated === true)) ||
-    new Set([...v.advisories, ...v.issues].map(a => a.id)).size !== v.advisories.length + v.issues.length) return false;
+    new Set([...v.advisories, ...v.issues].map(a => a.id)).size !== v.advisories.length + v.issues.length)) return false;
   const frames = v.frameTimes as number[];
   if (!frames.every(time => advisoryValidityWithinWindow(time, null, v.checkedAt as number)) ||
     !v.advisories.every(a => advisoryValidityWithinWindow(a.validFrom, a.validTo, v.checkedAt as number))) return false;
+  if (v.schemaVersion === 3) {
+    if (v.product !== 'gairmet' || !Array.isArray(v.cycleTimes) || v.cycleTimes.length < 2 || v.cycleTimes.length > 32 ||
+      !v.cycleTimes.every(instant) || v.cycleTimes.some((time, i) => i > 0 && time <= (v.cycleTimes as number[])[i - 1]!)) return false;
+    const expected = [...new Set(v.cycleTimes.flatMap(base => [0, 3, 6, 9, 12].map(hour => base + hour * 3_600_000)))].sort((a, b) => a - b);
+    return frames.length === expected.length && frames.every((time, i) => time === expected[i]) &&
+      new Set(v.advisories.map(a => a.id)).size === v.advisories.length &&
+      v.advisories.every(a => a.product === 'gairmet' && (v.cycleTimes as number[]).includes(a.validFrom - a.forecastHour! * 3_600_000));
+  }
+  if (v.cycleTimes !== undefined) return false;
   if (v.product === 'gairmet' && frames.length && (frames.length !== 5 ||
     frames.some((time, index) => time !== frames[0]! + index * 3 * 3_600_000))) return false;
   return new Set(v.advisories.map(a => a.id)).size === v.advisories.length &&

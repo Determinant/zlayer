@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RADAR_MOTION_ROOT, type RadarMotionSnapshot, type RadarMotionCatalog } from '@zlayer/contracts';
+import { RADAR_MOTION_ROOT, progsCoverageSource, type RadarMotionSnapshot, type RadarMotionCatalog } from '@zlayer/contracts';
 import { checkInfoApi } from '../tools/check-info-api';
 import { modelPath, SOURCE_ROOT, type NativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { digest, type Payload } from '../tools/info-server/upstream';
@@ -138,6 +138,113 @@ test('deployment readiness requires current weather as well as authenticated sav
     if (edit?.path === '/api/weather/healthz' && edit.error) await assert.rejects(checkInfoApi('https://info.test', 'production',
       { allowOverdueFullSync: true, maxUnresolvedNotams: 1 }), edit.error, 'NOTAM exceptions cannot waive weather failures');
   });
+  await t.test('advertised canonical G-AIRMET endpoint is checked instead of the compatibility projection', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW }); let canonical = false;
+    t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)), path = url.pathname + url.search;
+      assert.notEqual(path, '/api/weather/advisories/gairmet.json');
+      const artifact = /\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
+      const saved = responses.get(path === '/api/weather/advisories/gairmet-v3.json' ? '/api/weather/advisories/gairmet.json' : path)
+        ?? (artifact ? { body: Buffer.from('prepared grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
+      assert.ok(saved); let body = saved.body;
+      if (path === '/api/weather/healthz') {
+        const value = JSON.parse(body.toString()); value.advisories = { gairmet: { endpoint: '/api/weather/advisories/gairmet-v3.json' } };
+        body = Buffer.from(JSON.stringify(value));
+      }
+      if (path === '/api/weather/advisories/gairmet-v3.json') canonical = true;
+      return new Response(Uint8Array.from(body), { status: /^\/api\/notams\/(airports|navaids|regions)/.test(path) ? 503 : 200,
+        headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
+    });
+    await checkInfoApi('https://info.test'); assert.equal(canonical, true);
+  });
+  await t.test('reviewed G-AIRMET geometry is pinned to exact source bytes and cannot waive freshness or other failures', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW }); let change = '';
+    const issue = { id: 'gairmet:issue:abc123', issuer: 'SIERRA', identifier: '1E', reason: 'invalid-geometry',
+      sourceFeature: '{"type":"Feature","geometry":null}' };
+    const options = { retainedFailures: { gairmetGeometry: { issues: [
+      { id: issue.id, sourceFeatureSha256: digest(Buffer.from(issue.sourceFeature)) },
+      { id: 'gairmet:issue:abc456', sourceFeatureSha256: 'a'.repeat(64) },
+    ] } } };
+    t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)), path = url.pathname + url.search;
+      const artifact = /\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
+      const saved = responses.get(path === '/api/weather/advisories/gairmet-v3.json' ? '/api/weather/advisories/gairmet.json' : path)
+        ?? (artifact ? { body: Buffer.from('prepared grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
+      assert.ok(saved); let body = saved.body;
+      if (path === '/api/weather/healthz' || path.startsWith('/api/weather/advisories/')) {
+        const value = JSON.parse(body.toString());
+        if (path.endsWith('healthz')) {
+          value.advisories = { gairmet: { endpoint: '/api/weather/advisories/gairmet-v3.json' } };
+          const state = value.readiness.sources['advisory.gairmet'];
+          state.error = change === 'recovered' ? null : change === 'transport' ? 'source-http-503' : 'incomplete-advisories';
+          if (change === 'stale-health') state.fresh = false;
+          if (change === 'forecast') value.readiness.sources.winds.fresh = false;
+        } else if (path.includes('gairmet')) {
+          value.schemaVersion = change === 'recovered' ? 1 : 2;
+          if (change === 'recovered') delete value.issues;
+          else value.issues = [{ ...issue }];
+          if (change === 'different-id') value.issues[0].id = 'gairmet:issue:ffff';
+          if (change === 'different-bytes') value.issues[0].sourceFeature += ' ';
+          if (change === 'different-reason') value.issues[0].reason = 'invalid-time';
+          if (change === 'truncated') value.issues[0].sourceFeatureTruncated = true;
+          if (change === 'duplicate') value.issues.push({ ...issue });
+          if (change === 'stale-snapshot') value.checkedAt -= 11 * MINUTE;
+          if (change === 'future-snapshot') value.checkedAt += MINUTE;
+        } else if (change === 'other-family') {
+          value.schemaVersion = 2; value.issues = [{ ...issue, id: `${value.product}:issue:abc123` }];
+        }
+        body = Buffer.from(JSON.stringify(value));
+      }
+      return new Response(Uint8Array.from(body), { status: /^\/api\/notams\/(airports|navaids|regions)/.test(path) ? 503 : 200,
+        headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
+    });
+    await assert.rejects(checkInfoApi('https://info.test'), /source refresh failed/);
+    assert.deepEqual((await checkInfoApi('https://info.test', 'disabled', options)).warnings, ['retained-gairmet-geometry:1']);
+    for (change of ['different-id', 'different-bytes', 'different-reason', 'truncated', 'duplicate', 'stale-snapshot',
+      'future-snapshot', 'stale-health', 'transport', 'forecast', 'other-family'])
+      await assert.rejects(checkInfoApi('https://info.test', 'disabled', options), change);
+    change = 'recovered';
+    assert.deepEqual((await checkInfoApi('https://info.test', 'disabled', options)).warnings, []);
+    const baseline = options.retainedFailures.gairmetGeometry;
+    for (const invalid of [null, {}, { issues: [] }, { ...baseline, extra: true }, { issues: [baseline.issues[0], baseline.issues[0]] },
+      { issues: [{ ...baseline.issues[0], sourceFeatureSha256: 'invalid' }] }, { issues: [{ ...baseline.issues[0], id: 'sigmet:issue:abc123' }] }])
+      await assert.rejects(checkInfoApi('https://info.test', 'disabled', { retainedFailures: { gairmetGeometry: invalid as any } }), /Invalid G-AIRMET/);
+  });
+  await t.test('missing-analysis baseline preserves exact retained artifacts and cannot waive other errors', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW }); let change = '';
+    const analysisTime = WEATHER_NOW - 8 * HOUR, checkedAt = WEATHER_NOW - 11 * MINUTE;
+    t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)), path = url.pathname + url.search;
+      const artifact = /\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
+      const saved = responses.get(path) ?? (artifact ? { body: Buffer.from('prepared grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
+      assert.ok(saved); let body = saved.body;
+      if (path === '/api/weather/healthz' || ['/api/weather/progs/analysis.json', '/api/weather/progs/coverage.json'].includes(path)) {
+        const value = JSON.parse(body.toString());
+        if (path.endsWith('healthz')) {
+          const status = { ready: true, checkedAt, error: 'AWC catalog has no surface analysis' };
+          value.progs.analysis = { ...status, validTimes: [analysisTime] }; value.progsCoverage = { ...status, analysisTime };
+          for (const name of ['progs.analysis', 'progs.coverage']) Object.assign(value.readiness.sources[name], status, { fresh: false });
+          if (change === 'other-error') value.progsCoverage.error = 'other error';
+          if (change === 'forecast') value.readiness.sources['progs.forecast'].fresh = false;
+          if (change === 'different-check') value.progs.analysis.checkedAt--;
+        } else {
+          value.checkedAt = checkedAt;
+          value.frames[0].validTime = analysisTime;
+          if (path.endsWith('analysis.json')) value.frames[0].referenceTime = analysisTime;
+          else { value.frames[0].chartReferenceTime = analysisTime; value.frames[0].source = progsCoverageSource(analysisTime, analysisTime); }
+          if (change === 'different-artifact') value.checkedAt--;
+        }
+        body = Buffer.from(JSON.stringify(value));
+      }
+      return new Response(Uint8Array.from(body), { status: /^\/api\/notams\/(airports|navaids|regions)/.test(path) ? 503 : 200,
+        headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
+    });
+    const options = { retainedFailures: { missingAnalysis: { analysisTime, analysisCheckedAt: checkedAt, coverageCheckedAt: checkedAt } } };
+    await assert.rejects(checkInfoApi('https://info.test'), /stale/);
+    const result = await checkInfoApi('https://info.test', 'disabled', options);
+    assert.ok(result.warnings.some(value => value.includes('retained-missing-analysis')));
+    for (change of ['other-error', 'forecast', 'different-check', 'different-artifact']) await assert.rejects(checkInfoApi('https://info.test', 'disabled', options), change);
+  });
   await t.test('recent collection cannot freshen old storm observations', async t => {
     t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
     const stale = structuredClone(motion); stale.scans[0]!.observedAt -= 16 * MINUTE;
@@ -165,7 +272,7 @@ test('deployment readiness requires current weather as well as authenticated sav
     { name: 'historical with failed reconciliation', failure: 'historical-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
     { name: 'blocking-association', failure: 'blocking-association', reconciliation, error: /Unexpected unresolved/ },
     { name: 'stale with metadata warning', failure: 'metadata-stale', reconciliation, error: /NOTAM source check: stale/ },
-    { name: 'failed sync with metadata warning', failure: 'metadata-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
+    { name: 'failed sync with metadata diagnostic', failure: 'metadata-only', reconciliation: { state: 'failed', error: 'source-http-502' }, error: /NOTAM reconciliation failed/ },
     { name: 'pending replacement', reconciliation: { state: 'pending', error: null } },
     ...['source-http-502', 'reconciliation-interrupted', 'reconciliation-history-invalid', 'reconciliation-history-unavailable']
       .map(code => ({ name: code, reconciliation: { state: 'failed', error: code }, error: /NOTAM reconciliation failed/ })),
@@ -206,8 +313,8 @@ test('deployment readiness requires current weather as well as authenticated sav
     else {
       const result = await checkInfoApi('https://info.test', 'staging');
       assert.ok(result.reads > 25);
-      assert.deepEqual(result.warnings, failure === 'metadata-only' ? ['notam-association-metadata:1']
-        : failure === 'historical-only' ? ['historical-notam-issues:1'] : []);
+      assert.deepEqual(result.warnings, failure === 'historical-only' ? ['historical-notam-issues:1'] : []);
+      assert.deepEqual(result.notices, failure === 'metadata-only' ? ['notam-association-metadata:1'] : []);
     }
     if (failure === 'old-full-sync') assert.deepEqual((await checkInfoApi('https://info.test', 'staging',
       { allowOverdueFullSync: true })).warnings, ['full-sync-overdue'], 'an explicit rollout exception remains visible');
@@ -219,5 +326,60 @@ test('deployment readiness requires current weather as well as authenticated sav
       await assert.rejects(checkInfoApi('https://info.test', 'staging', { allowOverdueFullSync: true, maxUnresolvedNotams: 1 }),
         error, 'explicit age and source-issue exceptions cannot waive reconciliation failures');
     }
+  });
+  await t.test('repair rollout preserves only the exact observed failures and still checks fresh collection and artifacts', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: WEATHER_NOW });
+    const staleAnalysisAt = WEATHER_NOW - 8 * HOUR;
+    const failure = { fullSyncAt: WEATHER_NOW - 25 * HOUR, attemptedAt: WEATHER_NOW - HOUR, at: WEATHER_NOW - HOUR + MINUTE, code: 'parse-failed' as const };
+    const { fullSyncAt, ...lastFailure } = failure;
+    const airport = notamSnapshot([], { query: { faaId: 'SFO', icaoId: 'KSFO' } });
+    Object.assign(airport.feed, { checkedAt: WEATHER_NOW, watermark: WEATHER_NOW, fullSyncAt });
+    let change = '';
+    t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+      const url = new URL(String(input)), path = url.pathname + url.search;
+      const artifact = /^\/api\/weather\/grids\/.+-([a-f0-9]{64})\.zw[pt]\.gz$/.exec(path);
+      const saved = responses.get(path) ?? (artifact ? { body: Buffer.from('grid'), headers: { 'x-weather-artifact': artifact[1]! } } : undefined);
+      assert.ok(saved, path);
+      let body = saved.body, value: any;
+      if (path === '/api/weather/healthz') {
+        value = JSON.parse(body.toString());
+        value.progs.analysis = { ready: true, validTimes: [staleAnalysisAt] };
+        value.progsCoverage = { ready: true, analysisTime: staleAnalysisAt };
+        for (const name of ['progs.analysis', 'progs.coverage']) Object.assign(value.readiness.sources[name],
+          { fresh: false, checkedAt: WEATHER_NOW });
+        value.notamReconciliation = { error: failure.code, fullSyncAt, lastAttemptAt: failure.attemptedAt, lastFailure: { ...lastFailure } };
+        if (change === 'new-failure') value.notamReconciliation.lastFailure.at++;
+        if (change === 'new-attempt') value.notamReconciliation.lastAttemptAt++;
+        if (change === 'other-error') value.notamReconciliation.error = 'reconciliation-history-invalid';
+        if (change === 'radar') value.readiness.sources.radar.fresh = false;
+        if (change === 'old-check') value.readiness.sources['progs.analysis'].checkedAt -= 11 * MINUTE;
+        if (change === 'chart-error') value.readiness.sources['progs.coverage'].error = 'download failed';
+      } else if (path === '/api/weather/progs/analysis.json') {
+        value = JSON.parse(body.toString());
+        value.frames[0].validTime = value.frames[0].referenceTime = staleAnalysisAt - (change === 'different-analysis' ? HOUR : 0);
+      } else if (path === '/api/weather/progs/coverage.json') {
+        value = JSON.parse(body.toString());
+        value.frames[0].validTime = value.frames[0].chartReferenceTime = staleAnalysisAt;
+        value.frames[0].source = progsCoverageSource(staleAnalysisAt, staleAnalysisAt);
+      } else if (path === '/api/notams/healthz') value = { ...airport.feed, ...(change === 'stale-deltas' ? { checkedAt: WEATHER_NOW - HOUR } : {}) };
+      else if (path.startsWith('/api/notams/airports')) value = airport;
+      else if (path.startsWith('/api/notams/navaids')) value = { ...airport, scope: 'navaid-location', query: { navaidId: 'SAU' } };
+      else if (path.startsWith('/api/notams/regions')) value = { ...airport, scope: 'region-location', query: { artccId: 'ZOA' } };
+      if (value) body = Buffer.from(JSON.stringify(value));
+      if (change === 'damaged-artifact' && path.startsWith('/api/weather/progs/analysis/')) body = Buffer.from('{}');
+      return new Response(Uint8Array.from(body), { headers: { ...saved.headers, 'cache-control': 'no-store', 'x-weather-sha256': digest(body) } });
+    });
+    const options = { allowOverdueFullSync: true, retainedFailures: { staleAnalysisAt, reconciliation: failure } };
+    await assert.rejects(checkInfoApi('https://info.test', 'staging'), /stale/);
+    const result = await checkInfoApi('https://info.test', 'staging', options);
+    assert.equal(result.warnings.length, 4);
+    assert.ok(result.warnings.some(warning => warning.startsWith('retained-notam-reconciliation:')));
+    for (change of ['new-failure', 'new-attempt', 'other-error', 'radar', 'old-check', 'chart-error',
+      'different-analysis', 'stale-deltas', 'damaged-artifact']) {
+      await assert.rejects(checkInfoApi('https://info.test', 'staging', options), change);
+    }
+    change = '';
+    await assert.rejects(checkInfoApi('https://info.test', 'staging',
+      { ...options, retainedFailures: { staleAnalysisAt: WEATHER_NOW + 1 } }), /Invalid retained analysis time/);
   });
 });

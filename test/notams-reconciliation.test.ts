@@ -184,7 +184,14 @@ test('captured filing-scope content remains usable while health distinguishes as
     assert.equal(health.readiness.sources.notams.available, true); assert.equal(health.readiness.sources.notams.fresh, true);
     assert.equal(health.readiness.sources.notams.coverage, 'partial'); assert.equal(health.readiness.sources.notams.error, null);
     assert.ok(health.readiness.problems.every((p: { product: string }) => !p.product.startsWith('notams')));
-    assert.deepEqual(health.readiness.warnings, [{ product: 'notams', reason: 'association-metadata', severity: 'warning' }]);
+    assert.deepEqual(health.readiness.warnings, []);
+    assert.deepEqual(health.readiness.notices, [{ product: 'notams', reason: 'association-metadata', severity: 'info', count: 1 }]);
+    const html = await (await fetch(origin + '/api/weather/healthz', { headers: { Accept: 'text/html' } })).text();
+    const row = html.match(/<tr><th scope="row">NOTAMs[\s\S]*?<\/tr>/)?.[0];
+    assert.ok(row); assert.match(row, /class="good">Ready/);
+    assert.match(row, /metadata discrepancy; no supported queries affected/);
+    assert.match(row, /Partial source metadata/);
+    assert.doesNotMatch(row, />Warning<|>Attention</);
     assert.deepEqual(health.notamSourceIssues, service.sourceIssues);
     assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0, historical: 0,
       blocking: 0, nonBlocking: 1,

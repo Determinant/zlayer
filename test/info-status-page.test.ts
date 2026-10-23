@@ -12,7 +12,8 @@ import { notamSnapshot, NOTAM_NOW } from './fixtures/notams';
 function readiness() {
   const source = { available: true, fresh: true, coverage: 'complete' as const, checkedAt: NOTAM_NOW, nextAttemptAt: NOTAM_NOW + 60_000, error: null };
   return { ready: true, state: 'ready', sources: { clouds: source, radar: { ...source, coverage: 'partial' as const }, notams: source },
-    problems: [] as { product: string; reason: string; severity: 'warning' | 'error' }[], warnings: [] as { product: string; reason: string; severity: 'warning' | 'error' }[] };
+    problems: [] as { product: string; reason: string; severity: 'warning' | 'error' }[], warnings: [] as { product: string; reason: string; severity: 'warning' | 'error' }[],
+    notices: [] as { product: string; reason: string; severity: 'info'; count: number }[] };
 }
 
 test('status page preserves readiness, expected partial coverage and nonblocking warnings', () => {
@@ -20,11 +21,17 @@ test('status page preserves readiness, expected partial coverage and nonblocking
   let html = renderStatusPage(value, feed, NOTAM_NOW);
   assert.match(html, /<title>Healthy \| ZLayer/);
   assert.match(html, /Partial coverage/);
-  assert.match(html, /0 unresolved NOTAMs · 0 blocking/);
-  value.warnings.push({ product: 'notams', reason: 'association-metadata', severity: 'warning' });
+  assert.match(html, /0 blocking NOTAM issues/);
+  value.notices.push({ product: 'notams', reason: 'association-metadata', severity: 'info', count: 1 });
   html = renderStatusPage(value, { ...feed, unresolvedRecords: 1, blockingRecords: 0 }, NOTAM_NOW);
+  assert.match(html, /<title>Healthy \| ZLayer/);
+  assert.match(html, /0 blocking NOTAM issues · 1 metadata discrepancy/);
+  assert.match(html, /1 metadata discrepancy; no supported queries affected/);
+  assert.doesNotMatch(html, />Warning<|Ready with warnings/);
+  value.warnings.push({ product: 'notams', reason: 'historical-source-issues', severity: 'warning' });
+  html = renderStatusPage(value, { ...feed, unresolvedRecords: 2, blockingRecords: 0, historicalIssues: 1 }, NOTAM_NOW);
   assert.match(html, /<title>Ready with warnings/);
-  assert.match(html, /1 unresolved NOTAMs · 0 blocking/);
+  assert.match(html, /0 blocking NOTAM issues · 1 metadata discrepancy · 1 historical issues/);
   value.ready = false;
   value.problems.push({ product: 'notams.reconciliation', reason: 'full-sync-overdue', severity: 'warning' });
   html = renderStatusPage(value, feed, NOTAM_NOW);

@@ -3,6 +3,8 @@ import { SaxesParser, type SaxesTagNS } from 'saxes';
 import { isNotamRecord, type NotamRecord } from '@zlayer/contracts';
 import { NotamError } from './error';
 import { notamEndKind, notamTime } from '../../../src/layers/notams/validity';
+import type { NotamMemberRejection } from './ingestion';
+export type { NotamMemberRejection } from './ingestion';
 
 const AIXM = 'http://www.aixm.aero/schema/5.1';
 const EVENT = `${AIXM}/event`, MESSAGE = `${AIXM}/message`, FNSE = `${AIXM}/extensions/FAA/FNSE`;
@@ -12,11 +14,26 @@ const NOTAM_XML_MAX_BYTES = 512 * 1024 * 1024;
 const MAX_MEMBER_BYTES = 2 * 1024 * 1024;
 type Element = { uri: string; name: string; text: string; attributes: SaxesTagNS['attributes']; children: Element[]; parts: (string | Element)[] };
 function descendants(node: Element, uri: string, name: string): Element[] {
-  return node.children.flatMap(child => [
-    ...(child.uri === uri && child.name === name ? [child] : []), ...descendants(child, uri, name),
-  ]);
+  const matches: Element[] = [];
+  const visit = (parent: Element) => {
+    for (const child of parent.children) {
+      if (child.uri === uri && child.name === name) matches.push(child);
+      visit(child);
+    }
+  };
+  visit(node);
+  return matches;
 }
-const childText = (node: Element, uri: string, name: string) => node.children.find(c => c.uri === uri && c.name === name)?.text.trim() ?? '';
+function singleValue(values: string[]): string {
+  if (new Set(values).size > 1) throw new NotamError('conflicting-member-field');
+  return values[0] ?? '';
+}
+function childText(node: Element, uri: string, name: string): string {
+  return singleValue(node.children.filter(c => c.uri === uri && c.name === name).map(child => {
+    if (child.children.length) throw new NotamError('unsupported-member-field');
+    return child.text.trim();
+  }));
+}
 const attribute = (node: Element, uri: string, name: string) => Object.values(node.attributes)
   .find(a => a.uri === uri && a.local === name)?.value;
 const contentText = (node: Element): string => node.name === 'br' && node.uri === 'http://www.w3.org/1999/xhtml' ? '\n'
@@ -34,7 +51,7 @@ export function upgradeNotamRecord(record: NotamRecord): NotamRecord {
   return recordWithRevision(facts);
 }
 
-function normalize(node: Element): NotamRecord {
+function memberParts(node: Element) {
   const sourceId = attribute(node, GML, 'id') ?? '';
   if (!/^(?:NMS_ID_)?\d{16}$/.test(sourceId)) throw new NotamError('invalid-source-id');
   const slices = descendants(node, EVENT, 'EventTimeSlice').filter(slice => descendants(slice, EVENT, 'NOTAM').length > 0);
@@ -42,13 +59,16 @@ function normalize(node: Element): NotamRecord {
   const slice = slices[0]!;
   const notices = descendants(slice, EVENT, 'NOTAM'), extensions = descendants(slice, FNSE, 'EventExtension');
   if (notices.length !== 1 || extensions.length !== 1) throw new NotamError('invalid-event');
-  const notice = notices[0]!, extension = extensions[0]!;
+  return { sourceId, slice, notice: notices[0]!, extension: extensions[0]! };
+}
+function normalize(node: Element): NotamRecord {
+  const { sourceId, slice, notice, extension } = memberParts(node);
   const field = (name: string) => childText(notice, EVENT, name);
   const extra = (name: string) => childText(extension, FNSE, name);
   const sourceUpdatedAt = extra('lastUpdated'), updatedAt = notamTime(sourceUpdatedAt);
   if (updatedAt === null) throw new NotamError('missing-update-time');
   const effectiveStart = field('effectiveStart'), effectiveEnd = field('effectiveEnd');
-  const changeType = field('type'), cancel = extra('canceled') || extra('cancelationDate') || extra('cancellationDate');
+  const changeType = field('type'), cancel = singleValue(['canceled', 'cancelationDate', 'cancellationDate'].map(extra).filter(Boolean));
   const rawClass = extra('classification'), classification = rawClass === 'DOM' ? 'DOMESTIC' : rawClass || 'UNKNOWN';
   const codeList = (s: string) => [...new Set(s.split(/[\s,]+/).filter(Boolean).map(s => s.toUpperCase()))];
   const sequence = childText(slice, AIXM, 'sequenceNumber'), correction = childText(slice, AIXM, 'correctionNumber');
@@ -70,8 +90,8 @@ function normalize(node: Element): NotamRecord {
     lifecycle: cancel ? notamTime(cancel) !== null ? 'cancelled' : 'unknown'
       : changeType === 'C' ? 'cancellation' : ['', 'N', 'R'].includes(changeType) ? 'active' : 'unknown',
     text: field('text'), translations: descendants(notice, EVENT, 'NOTAMTranslation').map(t => ({
-      type: childText(t, EVENT, 'type'), text: childText(t, EVENT, 'simpleText') ||
-        t.children.filter(c => c.uri === EVENT && c.name === 'formattedText').map(contentText).join('\n').trim(),
+      type: childText(t, EVENT, 'type'), text: singleValue([childText(t, EVENT, 'simpleText'),
+        ...t.children.filter(c => c.uri === EVENT && c.name === 'formattedText').map(c => contentText(c).trim())].filter(Boolean)),
     })), sequence: Number(sequence), correction: Number(correction),
   };
   const record = recordWithRevision(facts);
@@ -81,7 +101,7 @@ function normalize(node: Element): NotamRecord {
 
 /** Namespace-aware streaming reader retaining at most one bounded AIXM member. */
 export function createNotamXmlParser(onRecord: (record: NotamRecord) => void,
-  fragment?: { count: number; snapshotAt: number }) {
+  fragment?: { count: number; snapshotAt: number }, onRejected?: (rejection: NotamMemberRejection) => void) {
   const parser = new SaxesParser({ xmlns: true });
   let bytes = 0, depth = 0, memberBytes = 0, nodes = 0, records = 0;
   let collectionSeen = !!fragment, expected: number | undefined = fragment?.count, snapshotAt: number | null = fragment?.snapshotAt ?? null;
@@ -132,7 +152,21 @@ export function createNotamXmlParser(onRecord: (record: NotamRecord) => void,
     const node = stack.pop();
     if (!node || stack.length) return;
     if (++records > NOTAM_MAX_RECORDS) throw new NotamError('record-limit');
-    onRecord(normalize(node));
+    let record: NotamRecord;
+    try { record = normalize(node); }
+    catch (cause) {
+      const sourceId = attribute(node, GML, 'id') ?? '';
+      // Only bounded, well-formed members with a trustworthy source identity can
+      // be isolated. Envelope, resource-limit and local processing failures abort.
+      if (!onRejected || !(cause instanceof NotamError) || !/^(?:NMS_ID_)?\d{16}$/.test(sourceId)) throw cause;
+      let sourceUpdatedAt: string | null = null;
+      try {
+        const value = childText(memberParts(node).extension, FNSE, 'lastUpdated');
+        if (value.length <= 64 && notamTime(value) !== null) sourceUpdatedAt = value;
+      } catch (cause) { if (!(cause instanceof NotamError)) throw cause; /* No unambiguous ordering evidence. */ }
+      onRejected({ id: sourceId.replace(/^NMS_ID_/, ''), reason: cause.code, sourceUpdatedAt }); return;
+    }
+    onRecord(record);
   });
   return {
     write(chunk: string) {

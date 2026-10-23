@@ -71,7 +71,7 @@ export class WeatherCache {
           const origin = new URL(entry.resource.url).origin;
           const route = preparedRoute(entry.resource), prepared = route?.resource.key === entry.resource.key;
           const immutable = prepared && route?.type === 'artifact';
-          if (!(prepared || ['https://aviationweather.gov', 'https://nomads.ncep.noaa.gov', 'https://storage.googleapis.com', 'https://noaa-mrms-pds.s3.amazonaws.com', 'https://tgftp.nws.noaa.gov'].includes(origin) &&
+          if (!(prepared || ['https://aviationweather.gov', 'https://nomads.ncep.noaa.gov', 'https://storage.googleapis.com', 'https://noaa-hrrr-bdp-pds.s3.amazonaws.com', 'https://noaa-mrms-pds.s3.amazonaws.com', 'https://tgftp.nws.noaa.gov'].includes(origin) &&
             ['json', 'gairmet-cache', 'pirep-cache', 'index', 'model-metadata', 'range', 'surface', 'coverage-image', 'radar-index', 'radar-data'].includes(entry.resource.kind)) ||
             typeof entry.resource.key !== 'string' || !entry.resource.key ||
             !Number.isSafeInteger(entry.resource.ttl) || entry.resource.ttl <= 0 || entry.resource.ttl > 86_400_000 ||

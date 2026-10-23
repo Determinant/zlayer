@@ -360,6 +360,31 @@ test('unchanged deltas advance freshness without rewriting data or replacing dis
     assert.equal(JSON.parse(await readFile(join(directory, 'previous.json'), 'utf8')).generation, previous.generation);
   } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
 });
+test('a completeness-only transition replaces older history with the latest complete recovery checkpoint', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notam-completeness-'));
+  let store = new NotamStore(directory, 'staging', () => NOTAM_NOW + 600_000);
+  try {
+    await store.restore(); await store.publish(generation([normalized(notice())]));
+    const record = normalized(notice({ updatedAt: NOTAM_NOW, text: 'LATEST COMPLETE RECORD' }));
+    const complete = await store.publish(generation([record], NOTAM_NOW + 180_000));
+    const pendingMembers = [{ id: record.id, reason: 'conflicting-member-field', sourceUpdatedAt: record.sourceUpdatedAt, observedAt: NOTAM_NOW + 180_000 }];
+    const partial = { ...complete, complete: false, incompleteReason: 'invalid-source-members', pendingMembers };
+    await store.publish(partial);
+    assert.equal((await store.restorePrevious())?.generation, complete.generation);
+    assert.equal((await store.restorePrevious())?.watermark, complete.watermark);
+    await store.close(); store = new NotamStore(directory, 'staging', () => NOTAM_NOW + 600_000);
+    assert.equal((await store.restore())?.complete, false);
+    await store.publish({ ...partial, records: [normalized(notice({ updatedAt: NOTAM_NOW + 240_000 }))] });
+    await store.publish(generation([normalized(notice({ updatedAt: NOTAM_NOW + 360_000 }))], NOTAM_NOW + 360_000));
+    assert.equal((await store.restorePrevious())?.generation, complete.generation);
+    await store.close(); await writeFile(join(directory, 'current.json'), '{interrupted');
+    store = new NotamStore(directory, 'staging', () => NOTAM_NOW + 600_000);
+    const restored = await store.restore();
+    assert.equal(restored?.generation, complete.generation); assert.equal(restored?.watermark, complete.watermark);
+    assert.equal(restored?.records[0]?.text, record.text); assert.equal(restored?.complete, false);
+    assert.equal(store.recoveryError, 'invalid-checkpoint');
+  } finally { await store.close(); await rm(directory, { recursive: true, force: true }); }
+});
 test('only current, previous and candidate manifests retain datasets across replacement and restart', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-prune-'));
   const store = new NotamStore(directory, 'staging', () => NOTAM_NOW);

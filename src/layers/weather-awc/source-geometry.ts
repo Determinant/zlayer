@@ -2,18 +2,28 @@ import clipping, { type Polygon, type MultiPolygon, type Pair } from 'polygon-cl
 import { isRecord, isWeatherGeometry, type WeatherGeometry } from '@zlayer/contracts';
 import { wrapLongitude, longitudeNear, dateLineCrossing } from './geographic';
 
+/** Expected interpretation limits qualify one member. Unexpected failures must
+ * fail preparation, not falsely identify a source feature as malformed. */
+export class AdvisoryGeometryError extends Error {}
+export class AdvisoryGeometryProcessingError extends Error {
+  constructor(cause: unknown) { super('Advisory geometry processing failed', { cause }); }
+}
+
 function line(value: unknown, budget: { points: number }): Pair[] {
-  if (!Array.isArray(value) || value.length < 2 || value.length > budget.points) throw new Error('Invalid advisory line');
+  if (!Array.isArray(value) || value.length < 2 || value.length > budget.points) throw new AdvisoryGeometryError('Invalid advisory line or coordinate limit');
   budget.points -= value.length;
   const points: Pair[] = [];
   for (const p of value) {
     if (!Array.isArray(p) || p.length !== 2 || !p.every(n => typeof n === 'number' && Number.isFinite(n)) ||
-      Math.abs(p[0]) > 540 || Math.abs(p[1]) > 90) throw new Error('Invalid advisory coordinate');
+      Math.abs(p[0]) > 540 || Math.abs(p[1]) > 90) throw new AdvisoryGeometryError('Invalid advisory coordinate');
     const previous = points.at(-1)?.[0] ?? wrapLongitude(p[0]);
     const lon = longitudeNear(p[0], previous);
-    if (Math.abs(lon - previous) >= 180) throw new Error('Ambiguous advisory edge');
+    if (Math.abs(lon - previous) >= 180) throw new AdvisoryGeometryError('Ambiguous advisory edge');
     points.push([lon, p[1]]);
   }
+  // Validate each source component before flattening split parts. Otherwise an
+  // empty line can disappear beside a valid sibling and claim complete coverage.
+  if (!points.some(point => !same(point, points[0]!))) throw new AdvisoryGeometryError('Advisory path has no distinct positions');
   return points;
 }
 const longitudeBounds = (ring: Pair[]) => [Math.min(...ring.map(p => p[0])), Math.max(...ring.map(p => p[0]))] as const;
@@ -36,8 +46,26 @@ function sameBoundary(source: Pair[], canonical: Pair[]): boolean {
   return start >= 0 && [1, -1].some(direction => before.every((point, i) =>
     same(point, after[(start + direction * i + after.length) % after.length]!)));
 }
+/** Bounded diagnostic only, never an acceptance/repair rule. Near-collinear
+ * arithmetic stays unclassified; the complete boundary check remains decisive. */
+function crossingDetail(ring: Pair[]): string {
+  const side = (a: Pair, b: Pair, c: Pair) => {
+    const left = (b[0] - a[0]) * (c[1] - a[1]), right = (b[1] - a[1]) * (c[0] - a[0]);
+    const value = left - right;
+    return Math.abs(value) > 8 * Number.EPSILON * (Math.abs(left) + Math.abs(right)) ? Math.sign(value) : 0;
+  };
+  let remaining = 50_000;
+  for (let i = 0; i < ring.length - 1; i++) for (let j = i + 2; j < ring.length - 1; j++) {
+    if (--remaining < 0) return '';
+    const a = ring[i]!, b = ring[i + 1]!, c = ring[j]!, d = ring[j + 1]!;
+    if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0) {
+      return `: crossing edges ${i + 1} and ${j + 1}`;
+    }
+  }
+  return '';
+}
 function polygon(value: unknown, budget: { points: number }): Polygon {
-  if (!Array.isArray(value) || !value.length || value.length > 100) throw new Error('Invalid advisory polygon');
+  if (!Array.isArray(value) || !value.length || value.length > 100) throw new AdvisoryGeometryError('Invalid advisory polygon');
   const rings: Polygon = [];
   for (const raw of value) {
     let ring = line(raw, budget);
@@ -46,20 +74,20 @@ function polygon(value: unknown, budget: { points: number }): Polygon {
     // declared boundary, with the same edge and size limits as supplied edges.
     // Topology validation below still rejects crossings, retracing and no area.
     if (first[0] !== last[0] || first[1] !== last[1]) {
-      if (Math.abs(first[0] - last[0]) >= 180 || budget.points < 1) throw new Error('Invalid advisory closing edge');
+      if (Math.abs(first[0] - last[0]) >= 180 || budget.points < 1) throw new AdvisoryGeometryError('Invalid advisory closing edge or coordinate limit');
       budget.points--;
       ring.push([...first]);
     }
     const [west, east] = longitudeBounds(ring);
     if (ring.length < 4 || ring[0]![0] !== ring.at(-1)![0] || ring[0]![1] !== ring.at(-1)![1] ||
-      east - west >= 360) throw new Error('Invalid advisory ring');
+      east - west >= 360) throw new AdvisoryGeometryError('Invalid advisory ring');
     // Clipping must not silently repair a crossing, retraced or empty ring.
     // Canonicalization must preserve the complete cyclic sequence of turns.
     // Comparing perimeter alone could hide a short retraced edge or repair.
     // Winding, forward collinear vertices and adjacent duplicates do not matter.
     const simple = clipping.union([ring]);
     if (simple.length !== 1 || simple[0]!.length !== 1 || !sameBoundary(ring, simple[0]![0]!)) {
-      throw new Error('Unsupported advisory ring topology');
+      throw new AdvisoryGeometryError('Unsupported advisory ring topology' + crossingDetail(ring));
     }
     if (rings.length) {
       // A hole belongs to its exterior, not to the world copy nearest an
@@ -67,11 +95,11 @@ function polygon(value: unknown, budget: { points: number }): Polygon {
       // the full area test also rejects excursions across a concave exterior.
       const [outerWest, outerEast] = longitudeBounds(rings[0]!);
       const first = Math.ceil((outerWest - west) / 360), last = Math.floor((outerEast - east) / 360);
-      if (first !== last) throw new Error('Uncontained advisory hole');
+      if (first !== last) throw new AdvisoryGeometryError('Uncontained advisory hole');
       ring = ring.map(([lon, lat]): Pair => [lon + first * 360, lat]);
       if (clipping.difference([ring], [rings[0]!]).length ||
         rings.length > 1 && clipping.intersection([ring], rings.slice(1).map(hole => [hole])).length) {
-        throw new Error('Invalid advisory hole topology');
+        throw new AdvisoryGeometryError('Invalid advisory hole topology');
       }
     }
     rings.push(ring);
@@ -83,7 +111,7 @@ function polygon(value: unknown, budget: { points: number }): Polygon {
     if (whole.length !== 1 || whole[0]!.length !== rings.length ||
       !sameBoundary(rings[0]!, whole[0]![0]!) ||
       !rings.slice(1).every(hole => whole[0]!.slice(1).some(candidate => sameBoundary(hole, candidate)))) {
-      throw new Error('Invalid advisory polygon topology');
+      throw new AdvisoryGeometryError('Invalid advisory polygon topology');
     }
   }
   return rings;
@@ -126,13 +154,13 @@ export function prepareAdvisoryGeometry(value: unknown): {
   geometry: WeatherGeometry;
   outlineGeometry?: Extract<WeatherGeometry, { type: 'LineString' | 'MultiLineString' }>;
 } {
-  if (!isRecord(value) || !Array.isArray(value.coordinates)) throw new Error('Invalid advisory geometry');
+  if (!isRecord(value) || !Array.isArray(value.coordinates)) throw new AdvisoryGeometryError('Invalid advisory geometry');
   const budget = { points: 10_000 };
   let result: WeatherGeometry;
   let outlineGeometry: Extract<WeatherGeometry, { type: 'LineString' | 'MultiLineString' }> | undefined;
   if (value.type === 'Polygon' || value.type === 'MultiPolygon') {
     const source = value.type === 'Polygon' ? [value.coordinates] : value.coordinates;
-    if (!source.length || source.length > 100) throw new Error('Advisory geometry exceeds its bound');
+    if (!source.length || source.length > 100) throw new AdvisoryGeometryError('Advisory geometry exceeds its bound');
     const polygons = source.map(p => polygon(p, budget));
     const parts = polygons.flatMap(splitPolygon);
     result = parts.length === 1 ? { type: 'Polygon', coordinates: parts[0]! } : { type: 'MultiPolygon', coordinates: parts };
@@ -142,14 +170,14 @@ export function prepareAdvisoryGeometry(value: unknown): {
       const lines = polygons.flatMap(rings => rings.flatMap(splitLine));
       outlineGeometry = lines.length === 1 ? { type: 'LineString', coordinates: lines[0]! }
         : { type: 'MultiLineString', coordinates: lines };
-      if (!isWeatherGeometry(outlineGeometry)) throw new Error('Invalid advisory outline');
+      if (!isWeatherGeometry(outlineGeometry)) throw new AdvisoryGeometryError('Unsupported advisory outline or output limit');
     }
   } else if (value.type === 'LineString' || value.type === 'MultiLineString') {
     const source = value.type === 'LineString' ? [value.coordinates] : value.coordinates;
-    if (!source.length || source.length > 100) throw new Error('Advisory geometry exceeds its bound');
+    if (!source.length || source.length > 100) throw new AdvisoryGeometryError('Advisory geometry exceeds its bound');
     const parts = source.flatMap(p => splitLine(line(p, budget)));
     result = parts.length === 1 ? { type: 'LineString', coordinates: parts[0]! } : { type: 'MultiLineString', coordinates: parts };
-  } else throw new Error('Unsupported advisory geometry');
-  if (!isWeatherGeometry(result)) throw new Error('Invalid normalized advisory geometry');
+  } else throw new AdvisoryGeometryError('Unsupported advisory geometry');
+  if (!isWeatherGeometry(result)) throw new AdvisoryGeometryError('Unsupported normalized advisory geometry or output limit');
   return { geometry: result, ...(outlineGeometry ? { outlineGeometry } : {}) };
 }

@@ -399,7 +399,7 @@ test('combined GRIB ranges validate every message boundary and remain strict for
   }
 });
 
-test('G-AIRMET refresh reads one atomic package and retains freezing lines and heights; mixed cycles fail', async () => {
+test('G-AIRMET refresh reads one atomic package and retains freezing lines and heights across independent cycles', async () => {
   const urls: string[] = []; let mixed = false;
   const upstream = createUpstream({ signal, spacing: 0, fetch: async input => {
     urls.push(String(input));
@@ -410,7 +410,9 @@ test('G-AIRMET refresh reads one atomic package and retains freezing lines and h
   assert.equal(data.length, 5); assert.deepEqual(urls, ['https://aviationweather.gov/data/cache/gairmets.cache.xml.gz']);
   assert.equal(data[4].features[1].geometry.type, 'LineString');
   assert.equal(data[4].features[1].properties.level, '120');
-  mixed = true; await assert.rejects(upstream(resource), { status: 502 });
+  mixed = true; const overlap = JSON.parse((await upstream(resource)).body.toString());
+  assert.equal(overlap.flatMap((c: { features: unknown[] }) => c.features).length, 10);
+  assert.equal(Date.parse(overlap[3].features[0].properties.validTime), WEATHER_NOW + 10 * 3_600_000);
 });
 
 test('gateway serves and caches the complete CWA family when AWC omits a hazard classification', async t => {

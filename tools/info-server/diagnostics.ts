@@ -1,10 +1,11 @@
 import { HttpError, InvalidForecastSourceError } from './weather-resources';
-import { WeatherSourceError } from './source-error';
+import { WeatherSourceError, WeatherPreparationError } from './source-error';
 
 type SourceFailureCode = 'stale-source' | 'future-source' | 'invalid-source' | 'upstream-unavailable' |
   'upstream-backoff' | 'storage-unavailable' | 'processing-failed';
 export function sourceFailureCode(cause: unknown): SourceFailureCode {
   if (cause instanceof WeatherSourceError) return cause.code;
+  if (cause instanceof WeatherPreparationError) return 'processing-failed';
   if (cause instanceof InvalidForecastSourceError) return 'invalid-source';
   if (cause instanceof HttpError) return cause.status === 507 ? 'storage-unavailable'
     : cause.status === 503 || cause.status === 429 ? 'upstream-backoff' : 'upstream-unavailable';

@@ -1,5 +1,5 @@
 import { PIREP_MAX_BYTES, PIREP_SOURCE_MAX_AGE_MS, PROGS_COVERAGE_MAX_BYTES, PROGS_COVERAGE_CATALOG_MAX_BYTES, RADAR_MOTION_MAX_BYTES, SURFACE_MAX_BYTES, SURFACE_CATALOG_MAX_BYTES } from '@zlayer/contracts';
-import { isModelVersion, modelVersionKey, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
+import { isModelVersion, modelVersionKey, type ModelVersion, type ModelMirror } from '../../src/layers/weather-awc/grids/source-version';
 
 export const MiB = 1024 * 1024;
 export const GAIRMET_SOURCE = 'https://aviationweather.gov/data/cache/gairmets.cache.xml.gz';
@@ -63,9 +63,9 @@ export function cacheProduct(resource: Resource): string {
   if (resource.kind === 'surface') return 'progs-inputs';
   if (resource.kind === 'coverage-image') return 'coverage';
   if (resource.upstream === 'radar') return path.includes('DS.58sti') ? 'motion' : 'radar';
-  const product = /^\/api\/weather\/(?:grids|advisories)\/(clouds|icing|winds|gairmet|sigmet|cwa)\.json$/.exec(path)?.[1]
+  const product = /^\/api\/weather\/(?:grids|advisories)\/(clouds|icing|winds|gairmet(?:-v3)?|sigmet|cwa)\.json$/.exec(path)?.[1]
     ?? /^\/api\/weather\/grids\/(clouds|icing|winds)\//.exec(path)?.[1];
-  if (product) return product;
+  if (product) return product.replace('-v3', '');
   if (path.startsWith('/api/weather/radar/')) return path.includes('/motion/') ? 'motion' : 'radar';
   if (path.startsWith('/api/weather/progs/coverage')) return 'coverage';
   const progs = /^\/api\/weather\/progs\/(analysis|forecast)[/.]/.exec(path)?.[1];
@@ -84,12 +84,12 @@ export function routeFor(path: string, range?: string): WeatherRoute {
   const query = url.searchParams;
   if ([...query.keys()].some(key => query.getAll(key).length !== 1)) throw new HttpError(400, 'Duplicate query parameter');
   const prepared = preparedRoutes.find(route => route.pattern.test(url.pathname));
-  const advisory = /^\/api\/weather\/advisories\/(gairmet|sigmet|cwa)\.json$/.test(url.pathname);
+  const advisory = /^\/api\/weather\/advisories\/(gairmet(?:-v3)?|sigmet|cwa)\.json$/.test(url.pathname);
   if (prepared || advisory) {
     if (query.size || range) throw new HttpError(400, 'Prepared weather takes no query or range');
     const resource: Resource = { key: url.pathname, upstream: 'prepared', url: url.href, kind: 'prepared',
       ttl: prepared?.type === 'artifact' ? artifactRetention[prepared.family]
-        : prepared?.family === 'pireps' ? PIREP_SOURCE_MAX_AGE_MS : advisory ? (url.pathname.endsWith('/gairmet.json') ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
+        : prepared?.family === 'pireps' ? PIREP_SOURCE_MAX_AGE_MS : advisory ? (/\/gairmet(?:-v3)?\.json$/.test(url.pathname) ? ADVISORY_MAX_AGE_MS : 60_000) : 86400_000,
       maxBytes: prepared?.maxBytes ?? 4 * MiB };
     return prepared ? { type: prepared.type, family: prepared.family, resource } : { type: 'query', resource };
   }
@@ -136,23 +136,25 @@ export function advisoryResource(product: 'gairmet' | 'sigmet' | 'cwa'): Resourc
     ttl: product === 'gairmet' ? ADVISORY_MAX_AGE_MS : 60_000, maxBytes: 4 * MiB };
 }
 
-export function modelMetadataResource(path: string): Resource {
-  const index = modelResource(path + '.idx'), url = index.url.slice(0, -4);
+export function modelMetadataResource(path: string, mirror?: ModelMirror): Resource {
+  const index = modelResource(path + '.idx', undefined, undefined, undefined, mirror), url = index.url.slice(0, -4);
   return { ...index, key: url + '|metadata', url, kind: 'model-metadata', maxBytes: 2048, revalidate: true };
 }
 
-export function modelResource(path: string, range?: string, indexHash?: string, version?: ModelVersion): Resource {
+export function modelResource(path: string, range?: string, indexHash?: string, version?: ModelVersion, mirror: ModelMirror | undefined = version?.mirror): Resource {
   const hrrr = /^(hrrr\/prod\/hrrr\.(\d{8})\/conus\/hrrr\.t(\d{2})z\.wrf(?:sfc|prs)f(\d{2})\.grib2)(\.idx)?$/.exec(path);
   const file = hrrr ?? /^(dafs\/prod\/dafs\.(\d{8})\/dafs\.t(\d{2})z\.ifi\.3km\.conus\.f(\d{3})\.grib2)(\.idx)?$/.exec(path);
   if (!file) throw new HttpError(404, 'Unknown weather resource');
+  if (mirror !== undefined && (mirror !== 'noaa-hrrr-s3' || !hrrr) || version && version.mirror !== mirror) throw new HttpError(400, 'Invalid model mirror');
   const day = file[2]!, date = new Date(`${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}T00:00:00Z`);
   if (!Number.isFinite(+date) || date.toISOString().slice(0, 10).replaceAll('-', '') !== day || Number(file[3]) > 23 ||
     Number(file[4]) < (hrrr ? 0 : 1) || Number(file[4]) > 18) throw new HttpError(400, 'Invalid model cycle or forecast hour');
   const index = !!file[5];
   if (indexHash !== undefined && (index || !/^[a-f0-9]{64}$/.test(indexHash))) throw new HttpError(400, 'Invalid index identity');
   if (version !== undefined && (index || !isModelVersion(version))) throw new HttpError(400, 'Invalid model object version');
-  // Use the ordinary Google object URL on the server; index and ranges share it.
-  const upstream = hrrr ? 'https://storage.googleapis.com/high-resolution-rapid-refresh/' + file[1]!.slice('hrrr/prod/'.length) + (index ? '.idx' : '')
+  // Discovery pins one mirror's index and object together. Range requests never
+  // switch providers under an existing index hash or object validator.
+  const upstream = hrrr ? (mirror ? 'https://noaa-hrrr-bdp-pds.s3.amazonaws.com/' : 'https://storage.googleapis.com/high-resolution-rapid-refresh/') + file[1]!.slice('hrrr/prod/'.length) + (index ? '.idx' : '')
     : nomads + file[1] + (index ? '.idx' : '');
   const family = hrrr ? 'hrrr' : 'nomads';
   if (index) {

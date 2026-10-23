@@ -12,6 +12,9 @@ packages/*/dist
 !src/**
 !tools/
 !tools/check-info-api.ts
+!tools/replay-notams.ts
+!tools/replay-notam-bulk.ts
+!tools/replay-info-capacity.ts
 !tools/info-server/
 !tools/info-server/**
 tools/info-server/dist

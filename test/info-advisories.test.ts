@@ -12,6 +12,47 @@ import { createInfoServer } from '../tools/info-server/server';
 import { advisorySnapshot, advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
 import classifiedSigmets from './fixtures/sigmet-classification-2026-10-10.json' with { type: 'json' };
 import { normalizeAdvisories } from '../src/layers/weather-awc/source';
+import clipping from 'polygon-clipping';
+import { gairmetResponse } from './fixtures/gairmet-cache';
+import { WeatherPreparationError } from '../tools/info-server/source-error';
+
+test('geometry processing failures preserve publication, distinguish source validity and recover across advisory families', async t => {
+  for (const product of ['gairmet', 'sigmet', 'cwa'] as const) {
+    const directory = await mkdtemp(join(tmpdir(), 'info-geometry-failure-'));
+    let now = WEATHER_NOW, calls = 0;
+    const app = await createInfoServer({ directory, spacing: 0, now: () => now, startUpdates: false, fetch: async () => {
+      calls++;
+      return product === 'gairmet' ? gairmetResponse([0, 3, 6, 9, 12].map(hour => advisorySource(product, hour)), now)
+        : Response.json(advisorySource(product));
+    } });
+    const resource = resourceFor(`/api/weather/advisories/${product === 'gairmet' ? 'gairmet-v3' : product}.json`);
+    try {
+      await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
+      const address = app.server.address(); assert.ok(address && typeof address === 'object');
+      const status = async () => (await (await fetch(`http://127.0.0.1:${address.port}/api/weather/healthz`)).json()).advisories[product];
+      const baseline = await app.cache.get(resource);
+      now += product === 'gairmet' ? 61_000 : 21_000;
+      const fault = t.mock.method(clipping, 'union', () => { throw new Error('fixture geometry library failure'); });
+      try {
+        await assert.rejects(app.cache.get(resource, 0), cause => cause instanceof WeatherPreparationError);
+        const retained = await app.cache.read(resource);
+        assert.deepEqual(retained?.body, baseline.body); assert.equal(retained?.checkedAt, baseline.checkedAt);
+        const state = await status();
+        assert.equal(state.error, 'processing-failed'); assert.equal(state.unresolvedRecords, 0);
+        assert.equal(state.checkedAt, baseline.checkedAt);
+        if (product !== 'gairmet') {
+          assert.equal(app.cache.failure(advisoryResource(product)), undefined, 'processing cannot quarantine valid source input');
+          assert.equal((await app.cache.read(advisoryResource(product)))?.checkedAt, now);
+        } else assert.match(state.evidenceId!, /^[a-f0-9]{64}$/, 'failed bulk preparation retains raw evidence');
+      } finally { fault.mock.restore(); }
+      now += 6_000;
+      const before = calls, recovered = await app.cache.get(resource, 0);
+      assert.equal((await status()).error, null);
+      assert.equal(JSON.parse(recovered.body.toString()).issues, undefined);
+      if (product !== 'gairmet') assert.equal(calls, before, 'retry can reuse the valid input without reacquisition');
+    } finally { await app.close(); await rm(directory, { recursive: true, force: true }); }
+  }
+});
 
 test('SIGMET classification survives HTTP publication and restart, while real conflicts degrade and recover', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'info-sigmet-classification-'));

@@ -27,8 +27,8 @@ RestartSec=5
 # Signal the owner first; its flock helpers must survive through the checkpoint.
 # The final timeout still kills every remaining process in the service group.
 KillMode=mixed
-# Application grace is 130 seconds; allow its abort/write/lock cleanup to finish.
-TimeoutStopSec=150
+# Application grace is 330 seconds; allow its abort/write/lock cleanup to finish.
+TimeoutStopSec=350
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict

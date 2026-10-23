@@ -4,18 +4,94 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
+import { isAwcAdvisorySnapshot } from '@zlayer/contracts';
+import { advisoryFrame } from '../src/layers/weather-awc/time';
 import { readGairmetCache } from '../tools/info-server/gairmet';
 import { createUpstream, digest } from '../tools/info-server/upstream';
 import { WeatherCache } from '../tools/info-server/cache';
 import { advisoryResource, ADVISORY_MAX_AGE_MS, GAIRMET_SOURCE, resourceFor } from '../tools/info-server/weather-resources';
 import { createInfoServer } from '../tools/info-server/server';
 import { createAdvisoryWarming } from '../tools/info-server/advisories';
-import { normalizeAdvisories, type SourceCollection, type SourceFeature } from '../src/layers/weather-awc/source';
+import { normalizeAdvisories, legacyAdvisories, type SourceCollection, type SourceFeature } from '../src/layers/weather-awc/source';
 import { gairmetResponse, gairmetXml } from './fixtures/gairmet-cache';
 import { advisorySource, advisorySnapshot, WEATHER_NOW } from './fixtures/awc-advisories';
+import crossing from './fixtures/gairmet-crossing-2026-10-21.json' with { type: 'json' };
 
 const fixture = new URL('./fixtures/gairmet-bulk-2026-10-09/', import.meta.url);
 const frames = (base = WEATHER_NOW) => [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour, base));
+test('G-AIRMET XML accepts equivalent finite coordinate spellings and preserves their source text', async () => {
+  const xml = gairmetXml(frames()), baseline = await readGairmetCache(gzipSync(xml));
+  const formats = [
+    (number: number) => number.toExponential(8),
+    (number: number) => (number >= 0 ? '+' : '') + number.toFixed(8),
+    (number: number) => Number.isInteger(number) ? number + '.' : String(number),
+  ];
+  for (const format of formats) {
+    const changed = xml.replace(/<(longitude|latitude)>([^<]+)<\//g, (_, name: string, value: string) => `<${name}>${format(Number(value))}</`);
+    const result = await readGairmetCache(gzipSync(changed));
+    const geometries = (collections: SourceCollection[]) => collections.flatMap(c => c.features).map(f => (f as SourceFeature).geometry);
+    assert.deepEqual(geometries(result), geometries(baseline));
+    assert.match(JSON.stringify(result), new RegExp(format(-124).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.equal(normalizeAdvisories('gairmet', result, WEATHER_NOW, GAIRMET_SOURCE, true).issues, undefined);
+  }
+  const fractional = xml.replace('<longitude>-124</longitude>', '<longitude>-.5</longitude>');
+  assert.match(JSON.stringify(await readGairmetCache(gzipSync(fractional))), /-0\.5/);
+  for (const value of ['NaN', 'INF', '1e999', '0x10', '1_000', '1e', '1 2']) {
+    const changed = xml.replace(/<longitude>[^<]+<\/longitude>/, `<longitude>${value}</longitude>`);
+    const result = normalizeAdvisories('gairmet', await readGairmetCache(gzipSync(changed)), WEATHER_NOW, GAIRMET_SOURCE, true);
+    assert.equal(result.advisories.length, 9); assert.equal(result.issues?.length, 1);
+    assert.match(result.issues![0]!.sourceFeature, /invalid coordinate number/);
+  }
+});
+
+test('captured XML crossing publishes neighbors, retains its rule through restart and clears on source replacement', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'gairmet-crossing-'));
+  let now = crossing.checkedAt, includeCrossing = true, calls = 0;
+  const base = Date.parse(crossing.feature.properties.validTime);
+  type Xml = { name: string; attributes: Record<string, string>; text: string; children: Xml[] };
+  const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+  const xml = (node: Xml): string => `<${node.name}${Object.entries(node.attributes).map(([k, v]) => ` ${k}="${escape(v)}"`).join('')}>` +
+    escape(node.text) + node.children.map(xml).join('') + `</${node.name}>`;
+  const options = { directory, startUpdates: false, spacing: 0, now: () => now, fetch: async () => {
+    calls++;
+    let body = gairmetXml(frames(base));
+    if (includeCrossing) body = body.replace('num_results="10"', 'num_results="11"').replace('</data>', xml(crossing.feature.properties.sourceXml as Xml) + '</data>');
+    return new Response(Uint8Array.from(gzipSync(body)), { headers: { 'last-modified': new Date(now).toUTCString() } });
+  } };
+  let app = await createInfoServer(options);
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const listen = async () => {
+    await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
+    const address = app.server.address(); assert.ok(address && typeof address === 'object'); return `http://127.0.0.1:${address.port}`;
+  };
+  let origin = await listen();
+  const path = '/api/weather/advisories/gairmet-v3.json';
+  const snapshot = await (await fetch(origin + path)).json();
+  assert.equal(snapshot.advisories.length, 10); assert.equal(snapshot.issues.length, 1);
+  const rule = 'Unsupported advisory ring topology: crossing edges 5 and 7';
+  assert.equal(snapshot.issues[0].geometryError, rule);
+  assert.deepEqual(JSON.parse(snapshot.issues[0].sourceFeature), crossing.feature);
+  const before = await (await fetch(origin + '/api/weather/healthz')).json();
+  assert.equal(before.advisories.gairmet.error, 'incomplete-advisories');
+  assert.equal(before.advisories.gairmet.interpretation.issueSamples[0].rule, rule);
+  assert.equal(before.advisories.gairmet.errorDetail, `1 unresolved; example TANGO 2W: ${rule}`);
+  const page = await (await fetch(origin + '/api/weather/healthz', { headers: { Accept: 'text/html' } })).text();
+  assert.match(page, /TANGO 2W: Unsupported advisory ring topology: crossing edges 5 and 7/);
+  assert.match(before.advisories.gairmet.evidenceId, /^[a-f0-9]{64}$/);
+  await app.close(); app = await createInfoServer(options); origin = await listen();
+  const restored = await (await fetch(origin + '/api/weather/healthz')).json();
+  assert.equal(calls, 1); assert.equal(restored.advisories.gairmet.checkedAt, snapshot.checkedAt);
+  assert.deepEqual(restored.advisories.gairmet.interpretation, before.advisories.gairmet.interpretation);
+  assert.equal(restored.advisories.gairmet.errorDetail, before.advisories.gairmet.errorDetail);
+  includeCrossing = false; now += 61_000;
+  await app.cache.get(resourceFor(path), 0);
+  const recovered = await (await fetch(origin + '/api/weather/healthz')).json();
+  assert.equal(recovered.advisories.gairmet.error, null);
+  assert.equal(recovered.advisories.gairmet.errorDetail, null);
+  assert.equal(recovered.advisories.gairmet.unresolvedRecords, 0);
+  assert.deepEqual(recovered.advisories.gairmet.interpretation.issueSamples, []);
+});
+
 test('the captured complete bulk feed preserves all 149 AWC GeoJSON records, including closed freezing contours', async () => {
   const actual = await readGairmetCache(await readFile(new URL('gairmets.xml.gz', fixture)));
   const reference: SourceCollection[] = JSON.parse(gunzipSync(await readFile(new URL('reference.json.gz', fixture))).toString());
@@ -39,14 +115,22 @@ test('gzip/XML envelope, counts, times and package bounds reject incomplete or u
     xml.replace('<errors/>', '<errors><error>partial</error></errors>'),
     xml.replace('<warnings/>', '<warnings><warning>truncated</warning></warnings>'),
     xml.replace('num_results="10"', 'num_results="11"'),
+    xml.replace('<data ', '<unknown/><data ').replace('<GAIRMET>', '<unknown>'),
+    xml.replace('<product>ZULU</product>', '<product>' + '<nested>'.repeat(13) + 'ZULU' + '</nested>'.repeat(13) + '</product>')];
+  for (const value of cases) await assert.rejects(readGairmetCache(gzipSync(value)));
+  const memberCases = [
     xml.replace('num_points="5"', 'num_points="4"'),
     xml.replace('num_points="5"', 'num_points="10001"'),
     xml.replace('<valid_time>', '<valid_time>bad'),
     xml.replace('>12</roughly_', '>11</roughly_'),
-    xml.replace('<tag>ICE-0</tag>', '<tag>ICE-0</tag><tag>duplicate</tag>'),
-    xml.replace('<data ', '<unknown/><data ').replace('<GAIRMET>', '<unknown>'),
-    xml.replace('<product>ZULU</product>', '<product>' + '<nested>'.repeat(13) + 'ZULU' + '</nested>'.repeat(13) + '</product>')];
-  for (const value of cases) await assert.rejects(readGairmetCache(gzipSync(value)));
+    xml.replace('<tag>ICE-0</tag>', '<tag>ICE-0</tag><tag>duplicate</tag>')
+  ];
+  for (const value of memberCases) {
+    const partial = normalizeAdvisories('gairmet', await readGairmetCache(gzipSync(value)), WEATHER_NOW, GAIRMET_SOURCE, true);
+    assert.ok(isAwcAdvisorySnapshot(partial));
+    assert.equal(partial.advisories.length + partial.issues!.length, 10);
+    assert.match(partial.issues![0]!.sourceFeature, /adaptationError/);
+  }
   await assert.rejects(readGairmetCache(Buffer.from('not gzip')));
   await assert.rejects(readGairmetCache(gzipSync(xml).subarray(0, 20)));
   await assert.rejects(readGairmetCache(gzipSync(' '.repeat(8 * 1024 * 1024 + 1))));
@@ -172,4 +256,93 @@ test('upgrade immediately refreshes a legacy source and protects its publication
   release(); await warming.close();
   const current = JSON.parse((await cache.read(resource))!.body.toString());
   assert.equal(current.source, GAIRMET_SOURCE); assert.equal(current.checkedAt, now);
+});
+
+
+test('independent captured cycles retain every original lead, validity and product through v3 and explicit legacy projection', async () => {
+  const body = await readFile(new URL('./fixtures/gairmet-cycle-overlap-2026-10-21/gairmets.xml.gz', import.meta.url));
+  const checkedAt = Date.parse('2026-10-21T02:50:31Z');
+  const collections = await readGairmetCache(body);
+  const snapshot = normalizeAdvisories('gairmet', collections, checkedAt, GAIRMET_SOURCE, true);
+  assert.ok(isAwcAdvisorySnapshot(snapshot)); assert.equal(snapshot.schemaVersion, 3);
+  assert.equal(snapshot.advisories.length, 161); assert.equal(snapshot.issues, undefined);
+  assert.deepEqual(snapshot.cycleTimes, [Date.parse('2026-10-20T21:00Z'), Date.parse('2026-10-21T03:00Z')]);
+  assert.equal(snapshot.frameTimes.length, 7);
+  assert.equal(snapshot.advisories.filter(a => a.issuer === 'SIERRA').length, 18);
+  for (const advisory of snapshot.advisories) {
+    assert.equal(advisory.forecastHour, advisory.sourceProperties.forecast);
+    assert.equal(advisory.validFrom, Date.parse(advisory.sourceProperties.validTime as string));
+  }
+  const shared = Date.parse('2026-10-21T03:00Z');
+  const frame = advisoryFrame(snapshot, shared);
+  assert.ok(frame.advisories.some(a => a.issuer === 'SIERRA' && a.forecastHour === 6));
+  assert.ok(frame.advisories.some(a => a.issuer !== 'SIERRA' && a.forecastHour === 0));
+  const legacy = legacyAdvisories(snapshot);
+  assert.ok(isAwcAdvisorySnapshot(legacy)); assert.equal(legacy.schemaVersion, 2);
+  assert.equal(legacy.advisories.length, 143); assert.equal(legacy.issues?.length, 18);
+  assert.ok(legacy.issues!.every(issue => issue.sourceFeature.includes('sourceXml')));
+  assert.ok(!isAwcAdvisorySnapshot({ ...snapshot, schemaVersion: 1 }));
+  assert.ok(!isAwcAdvisorySnapshot({ ...snapshot, cycleTimes: snapshot.cycleTimes!.slice().reverse() }));
+  assert.ok(!isAwcAdvisorySnapshot({ ...snapshot, frameTimes: snapshot.frameTimes.slice(1) }));
+});
+
+test('explicit bulk counts permit 400 records in one frame while query responses retain their truncation guard', async () => {
+  const record = advisorySource('gairmet', 0).features[0] as SourceFeature;
+  const collections: SourceCollection[] = Array.from({ length: 5 }, () => ({ type: 'FeatureCollection', features: [] }));
+  collections[0]!.features = Array.from({ length: 400 }, (_, i) => ({ ...record, properties: { ...record.properties, tag: `bulk-${i}` } }));
+  const adapted = await readGairmetCache(gzipSync(gairmetXml(collections)));
+  assert.equal(normalizeAdvisories('gairmet', adapted, WEATHER_NOW, GAIRMET_SOURCE, true).advisories.length, 400);
+  assert.throws(() => normalizeAdvisories('gairmet', adapted, WEATHER_NOW, GAIRMET_SOURCE), /incomplete/);
+  await assert.rejects(readGairmetCache(gzipSync(gairmetXml(collections).replace('num_results="400"', 'num_results="2001"'))), /2000/);
+});
+
+test('v3 and legacy routes share one acquisition and restore without refetching or rewriting source time', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'gairmet-v3-'));
+  const body = await readFile(new URL('./fixtures/gairmet-cycle-overlap-2026-10-21/gairmets.xml.gz', import.meta.url));
+  const now = Date.parse('2026-10-21T02:50:51Z'); let calls = 0;
+  const options = { directory, startUpdates: false, spacing: 0, now: () => now, fetch: async () => {
+    calls++; return new Response(Uint8Array.from(body), { headers: { 'last-modified': 'Wed, 21 Oct 2026 02:50:31 GMT' } });
+  } };
+  let app = await createInfoServer(options);
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const canonical = resourceFor('/api/weather/advisories/gairmet-v3.json'), legacy = resourceFor('/api/weather/advisories/gairmet.json');
+  const full = JSON.parse((await app.cache.get(canonical)).body.toString());
+  const older = JSON.parse((await app.cache.get(legacy)).body.toString());
+  assert.equal(full.schemaVersion, 3); assert.equal(older.schemaVersion, 2); assert.equal(calls, 1);
+  await app.close(); app = await createInfoServer(options);
+  assert.deepEqual(JSON.parse((await app.cache.get(canonical)).body.toString()), full);
+  assert.deepEqual(JSON.parse((await app.cache.get(legacy)).body.toString()), older); assert.equal(calls, 1);
+});
+
+
+test('v3 selection follows each cycle independently instead of discarding another cycle between its native stops', () => {
+  const inputs = frames();
+  for (const [i, collection] of inputs.entries()) collection.features.push(...advisorySource('gairmet', [0, 3, 6, 9, 12][i]!, WEATHER_NOW + 3600_000).features);
+  const snapshot = normalizeAdvisories('gairmet', inputs, WEATHER_NOW + 3600_000, GAIRMET_SOURCE, true);
+  const selected = advisoryFrame(snapshot, WEATHER_NOW + 4 * 3600_000);
+  assert.equal(selected.advisories.length, 4);
+  assert.deepEqual([...new Set(selected.advisories.map(a => a.validFrom))], [WEATHER_NOW + 3 * 3600_000, WEATHER_NOW + 4 * 3600_000]);
+  assert.equal(advisoryFrame(snapshot, WEATHER_NOW + 13 * 3600_000).advisories.length, 2, 'expired earlier cycle cannot borrow another cycle horizon');
+});
+
+
+test('cycle regression is checked per issuer while newly observed independent cycles remain admissible', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'gairmet-regression-'));
+  let now = WEATHER_NOW, mode = 0;
+  const app = await createInfoServer({ directory, startUpdates: false, spacing: 0, now: () => now, fetch: async () => {
+    const inputs = frames(mode === 2 ? WEATHER_NOW - 6 * 3600_000 : WEATHER_NOW);
+    if (mode > 0) for (const [i, collection] of inputs.entries()) {
+      const record = advisorySource('gairmet', [0, 3, 6, 9, 12][i]!, WEATHER_NOW - 6 * 3600_000).features[0] as SourceFeature;
+      collection.features.push({ ...record, properties: { ...record.properties, product: 'SIERRA', tag: `SIERRA-${i}` } });
+    }
+    return gairmetResponse(inputs, now);
+  } });
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const resource = resourceFor('/api/weather/advisories/gairmet-v3.json');
+  await app.cache.get(resource); mode = 1; now += 61_000;
+  const accepted = await app.cache.get(resource, 0);
+  assert.equal(JSON.parse(accepted.body.toString()).schemaVersion, 3);
+  mode = 2; now += 61_000;
+  await assert.rejects(app.cache.get(resource, 0), /ZULU cycle regressed/);
+  assert.deepEqual((await app.cache.read(resource))?.body, accepted.body);
 });

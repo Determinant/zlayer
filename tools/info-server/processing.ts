@@ -1,11 +1,12 @@
-import { WeatherSourceError } from './source-error';
+import { WeatherSourceError, WeatherPreparationError } from './source-error';
 import type { Worker } from 'node:worker_threads';
 import { availableParallelism } from 'node:os';
-import { normalizeAdvisories, isSourceCollection } from '../../src/layers/weather-awc/source';
+import { normalizeAdvisories, legacyAdvisories } from '../../src/layers/weather-awc/source';
+import { AdvisoryGeometryProcessingError } from '../../src/layers/weather-awc/source-geometry';
 import { gridKey, forecastPath } from '../../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../../src/layers/weather-awc/grids/model-terrain';
 import { createTaskLimiter } from '../../src/core/data/task-limiter';
-import type { AwcAdvisoryProduct, AwcGridProduct } from '@zlayer/contracts';
+import { isAwcAdvisorySnapshot, type AwcAdvisoryProduct, type AwcGridProduct } from '@zlayer/contracts';
 import type { NativeFrame, NativeManifest, SourceRecord } from '../../src/layers/weather-awc/grids/native-source';
 import { discover } from './discovery';
 import type { WeatherCache } from './cache';
@@ -15,6 +16,7 @@ import { workerError, type ConversionJob, type ConversionRequest, type Conversio
 import { createServerWorker, workerModule } from './worker-job';
 import { sourceBlocks, sourceRecordKey } from './source-records';
 import { selectNativeFrame } from '../../src/layers/weather-awc/grids/selection';
+import type { ModelMirror } from '../../src/layers/weather-awc/grids/source-version';
 
 export function forecastResource(manifest: NativeManifest, frame: NativeFrame): Resource {
   const identity = digest(Buffer.from(gridKey(manifest, frame)));
@@ -25,7 +27,7 @@ export function terrainResource(manifest: NativeManifest, frame: NativeFrame): R
 }
 
 /** Background preparation owns these workers. HTTP readers never queue conversions. */
-export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now = Date.now) {
+export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now = Date.now, log?: (message: string) => void) {
   type Slot = { worker?: Worker | undefined; idle?: ReturnType<typeof setTimeout> | undefined;
     stopped?: Promise<number> | undefined; busy: boolean };
   // Native grids allocate large decoded arrays. Leave headroom for independent
@@ -41,8 +43,8 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
   // Composite responses inherit their oldest dependency's check time. Refresh
   // aging inputs before assembling them, leaving time to finish within the TTL.
   const readMetadata = (resource: Resource, signal: AbortSignal) => cache.get(resource, resource.ttl / 2, signal);
-  const read = async (path: string, signal: AbortSignal) => { signal.throwIfAborted();
-    return readMetadata(path.endsWith('.idx') ? modelResource(path) : modelMetadataResource(path), signal); };
+  const read = async (path: string, signal: AbortSignal, mirror?: ModelMirror) => { signal.throwIfAborted();
+    return readMetadata(path.endsWith('.idx') ? modelResource(path, undefined, undefined, undefined, mirror) : modelMetadataResource(path, mirror), signal); };
   const plans = new WeakMap<NativeManifest, ReturnType<typeof sourceBlocks>>();
   const reader = (manifest: NativeManifest) => {
     let plan = plans.get(manifest);
@@ -137,32 +139,51 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
     return { body, checkedAt, sha256: digest(body), status: 200, headers: { 'content-type': 'application/json' } };
   };
   async function load(resource: Resource): Promise<Payload> {
-    const advisory = /^\/api\/weather\/advisories\/(gairmet|sigmet|cwa)\.json$/.exec(new URL(resource.url).pathname);
+    const advisory = /^\/api\/weather\/advisories\/(gairmet(?:-v3)?|sigmet|cwa)\.json$/.exec(new URL(resource.url).pathname);
     if (!advisory) throw new HttpError(404, 'Forecasts are published by the background updater');
-    const product = advisory[1] as AwcAdvisoryProduct, source = advisoryResource(product);
+    const product = advisory[1]!.replace('-v3', '') as AwcAdvisoryProduct, source = advisoryResource(product);
+    if (advisory[1] === 'gairmet') {
+      const canonical = await cache.get(resourceFor('/api/weather/advisories/gairmet-v3.json'), advisoryRefreshAge(product), shutdown);
+      return json(legacyAdvisories(JSON.parse(canonical.body.toString())), canonical.checkedAt);
+    }
     const input = await cache.get(source, advisoryRefreshAge(product), shutdown);
     try {
       const parsed: unknown = JSON.parse(input.body.toString()), collections = product === 'gairmet' && Array.isArray(parsed) ? parsed : [parsed];
-      if (!collections.every(isSourceCollection)) throw new WeatherSourceError('Invalid advisory collection');
-      const snapshot = normalizeAdvisories(product, collections, input.checkedAt, product === 'gairmet' ? source.url : source.url.split('?')[0]!);
+      const snapshot = normalizeAdvisories(product, collections, input.checkedAt, product === 'gairmet' ? source.url : source.url.split('?')[0]!, product === 'gairmet');
       if (product === 'gairmet') {
         const previous = await cache.read(resource);
         if (previous) {
           const saved = JSON.parse(previous.body.toString());
-          if (input.checkedAt < previous.checkedAt || snapshot.frameTimes.length && saved.frameTimes?.length &&
-            snapshot.frameTimes[0]! < saved.frameTimes[0]) throw new WeatherSourceError('G-AIRMET publication regressed', 'stale-source');
+          if (input.checkedAt < previous.checkedAt) throw new WeatherSourceError('G-AIRMET check time regressed', 'stale-source');
+          if (isAwcAdvisorySnapshot(saved)) {
+            const latest = (records: typeof snapshot.advisories) => {
+              const cycles = new Map<string, number>();
+              for (const record of records) cycles.set(record.issuer, Math.max(cycles.get(record.issuer) ?? 0, record.validFrom - record.forecastHour! * 3_600_000));
+              return cycles;
+            };
+            const before = latest(saved.advisories);
+            for (const [issuer, cycle] of latest(snapshot.advisories)) {
+              if (cycle < (before.get(issuer) ?? 0)) throw new WeatherSourceError(`G-AIRMET ${issuer.slice(0, 80)} cycle regressed`, 'stale-source');
+            }
+          }
         }
       }
-      return json(snapshot, input.checkedAt);
+      const payload = json(snapshot, input.checkedAt);
+      if (input.headers['x-weather-evidence']) payload.headers['x-weather-evidence'] = input.headers['x-weather-evidence'];
+      return payload;
     }
     catch (cause) {
-      const error = cause instanceof WeatherSourceError ? cause : new WeatherSourceError('Invalid advisory source');
+      // A failed transformation cannot quarantine otherwise usable source bytes
+      // or commit a new partial snapshot blaming those bytes for a local failure.
+      if (cause instanceof AdvisoryGeometryProcessingError) throw new WeatherPreparationError(cause.message);
+      const error = cause instanceof WeatherSourceError ? cause : new WeatherSourceError(cause instanceof Error ? cause.message.slice(0, 300) : 'Invalid advisory source');
       await cache.reject(source, input, error);
       throw error;
     }
   }
   async function catalog(product: AwcGridProduct): Promise<Payload> {
-    const manifest = await discover(read, product, shutdown, now());
+    const manifest = await discover(read, product, shutdown, now(), undefined, (run, mirror, reason) =>
+      log?.(`Forecast source rejected (${product}, ${new Date(run).toISOString()}, ${mirror ?? (product === 'icing' ? 'nomads-ifi' : 'google-hrrr')}): ${reason}`));
     return json(manifest, manifest.checkedAt);
   }
   async function forecast(manifest: NativeManifest, frame: NativeFrame, terrainOnly = false): Promise<Payload> {

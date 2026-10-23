@@ -3,41 +3,55 @@ import { modelPath, parseGribIndex, HRRR_FIELDS, WIND_FIELDS, WIND_PRESSURES, SO
   type SourceRecord, type NativeFrame, type NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { digest, type Payload } from './upstream';
 import { HttpError, InvalidForecastIndexError } from './weather-resources';
-import { isModelVersion, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
+import { isModelVersion, type ModelVersion, type ModelMirror } from '../../src/layers/weather-awc/grids/source-version';
 type Row = ReturnType<typeof parseGribIndex>[number];
 type Index = { path: string; lead: number; rows: Map<string, Row | null>; hash: string; version: ModelVersion };
-export type ReadSource = (path: string, signal: AbortSignal) => Promise<Payload>;
+export type ReadSource = (path: string, signal: AbortSignal, mirror?: ModelMirror) => Promise<Payload>;
+const publicationGap = (error: unknown) => error instanceof InvalidForecastIndexError || error instanceof HttpError && [403, 404].includes(error.status);
 function select(index: Index, parameter: string, surface: string): SourceRecord {
   const row = index.rows.get(`${parameter}:${surface}`);
   if (!row) throw new InvalidForecastIndexError(`NOAA forecast lacks an unambiguous ${parameter} / ${surface}`);
   if (row.time !== (index.lead === 0 ? 'anl' : `${index.lead} hour fcst`)) throw new InvalidForecastIndexError('NOAA field forecast time mismatch');
   const { start, end } = row;
   if (end !== undefined && end - start + 1 > 8 * 1024 * 1024) throw new InvalidForecastIndexError('NOAA field exceeds its byte limit');
-  if (start >= index.version.byteLength || end !== undefined && end >= index.version.byteLength) throw new InvalidForecastIndexError('NOAA index exceeds its model object');
+  if (start >= index.version.byteLength || end !== undefined && end >= index.version.byteLength) throw new InvalidForecastIndexError(`${index.path}: NOAA index exceeds its model object`);
   return { path: index.path, start, ...(end === undefined ? {} : { end }), indexHash: index.hash, version: index.version };
 }
 
 /** The same index selection as the former PWA path, with shared server acquisition. */
 export async function discover(read: ReadSource, product: AwcGridProduct, signal: AbortSignal, now = Date.now(),
-  selection?: { runTime: number; lead?: number }): Promise<NativeManifest> {
-  if (selection) return discoverRun(read, product, signal, selection.runTime, selection.lead);
+  selection?: { runTime: number; lead?: number; mirror?: ModelMirror },
+  rejected?: (runTime: number, mirror: ModelMirror | undefined, reason: string) => void): Promise<NativeManifest> {
+  if (selection) return discoverRun(read, product, signal, selection.runTime, selection.lead, selection.mirror);
   const hour = Math.floor(now / 3600000) * 3600000;
   for (let age = 1; age <= 6; age++) {
     try { return await discoverRun(read, product, signal, hour - age * 3600000); }
     catch (error) {
       signal.throwIfAborted();
-      // Publication gaps can fall back; transport failures and rate limits cannot.
-      if (!(error instanceof InvalidForecastIndexError) && !(error instanceof HttpError && [403, 404].includes(error.status))) throw error;
+      // A mirror can contain a truncated object beside a complete index. Try one
+      // independent NOAA mirror for this complete HRRR run before aging a cycle.
+      // Transport errors/rate limits stop discovery; they cannot amplify probes.
+      if (!publicationGap(error)) throw error;
+      if (error instanceof InvalidForecastIndexError) rejected?.(hour - age * 3600000, undefined, error.message.slice(0, 300));
+      if (product !== 'icing') {
+        try { return await discoverRun(read, product, signal, hour - age * 3600000, undefined, 'noaa-hrrr-s3'); }
+        catch (alternate) {
+          signal.throwIfAborted();
+          if (!publicationGap(alternate)) throw alternate;
+          if (alternate instanceof InvalidForecastIndexError) rejected?.(hour - age * 3600000, 'noaa-hrrr-s3', alternate.message.slice(0, 300));
+        }
+      }
     }
   }
   throw new HttpError(502, 'No complete recent NOAA model run is available', 5);
 }
 
 async function discoverRun(read: ReadSource, product: AwcGridProduct, signal: AbortSignal,
-  runTime: number, selectedLead?: number): Promise<NativeManifest> {
+  runTime: number, selectedLead?: number, mirror?: ModelMirror): Promise<NativeManifest> {
+  if (mirror && product === 'icing') throw new Error('IFI has no HRRR mirror');
   let checkedAt = Infinity;
   const readIndex = async (product: AwcGridProduct, runTime: number, lead: number, signal: AbortSignal) => {
-    const path = modelPath(product, runTime, lead), source = await read(path + '.idx', signal);
+    const path = modelPath(product, runTime, lead), source = await read(path + '.idx', signal, mirror);
     checkedAt = Math.min(checkedAt, source.checkedAt);
     const rows = new Map<string, Row | null>();
     let parsed: Row[];
@@ -47,12 +61,12 @@ async function discoverRun(read: ReadSource, product: AwcGridProduct, signal: Ab
       const key = `${row.parameter}:${row.surface}`;
       rows.set(key, rows.has(key) ? null : row);
     }
-    const metadata = await read(path, signal);
+    const metadata = await read(path, signal, mirror);
     let version: unknown;
     try { version = JSON.parse(metadata.body.toString()); } catch { /* Invalid metadata below. */ }
     if (!isModelVersion(version)) throw new InvalidForecastIndexError('NOAA model lacks a usable object version');
     checkedAt = Math.min(checkedAt, metadata.checkedAt);
-    return { path, lead, rows, hash: digest(source.body), version };
+    return { path, lead, rows, hash: digest(source.body), version: { ...version, ...(mirror ? { mirror } : {}) } };
   };
   signal.throwIfAborted();
   const latest = await readIndex(product, runTime, selectedLead ?? 18, signal);

@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-10-22T03:36:15.052282+00:00",
+  "source": "https://zlayer.tedyin.com/api/notams/airports?faaId=EWR&icaoId=KEWR",
+  "responseSha256": "d7d91e4447fd9f4603ebf4ab4026317ef7525ee380dcbf4b45aa4c42f846db06",
+  "checkedAt": 1792640065537,
+  "issues": [
+    {
+      "id": "6692331137640166",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792631246607,
+        "lastSeenAt": 1792639924119,
+        "kinds": [
+          "bulk",
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "EWR"
+      ],
+      "icaoLocations": [
+        "KEWR"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "6692331137640166",
+          "sourceId": "NMS_ID_6692331137640166",
+          "classification": "DOMESTIC",
+          "number": "178",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "EWR"
+          ],
+          "icaoLocations": [
+            "KEWR"
+          ],
+          "accountability": "EWR",
+          "issuedAt": 1792630920000,
+          "updatedAt": 1792630980000,
+          "sourceUpdatedAt": "2026-10-22T01:03:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792630800000,
+          "endsAt": 1792674000000,
+          "effectiveStart": "202610220100",
+          "effectiveEnd": "202610221300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "APRON TERMINAL A RAMP TXL A 12 WEST OF TXL F3 CLSD",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!EWR 10/178 EWR APRON TERMINAL A RAMP TXL A 12 WEST OF TXL F3 CLSD 2610220100-2610221300"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "af7c10823810240c2ecb59cbf074fec12131a74297e6ac95016cd9e385ba6943"
+        },
+        {
+          "id": "6692331137640166",
+          "sourceId": "NMS_ID_6692331137640166",
+          "classification": "DOMESTIC",
+          "number": "178",
+          "series": "",
+          "year": "",
+          "locations": [
+            "EWR"
+          ],
+          "icaoLocations": [
+            "KEWR"
+          ],
+          "accountability": "EWR",
+          "issuedAt": 1792630980000,
+          "updatedAt": 1792630980000,
+          "sourceUpdatedAt": "2026-10-22T01:03:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792630800000,
+          "endsAt": 1792674000000,
+          "effectiveStart": "202610220100",
+          "effectiveEnd": "202610221300",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "APRON TERMINAL A RAMP TXL A12 WEST OF TXL F3 CLSD",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!EWR 10/178 EWR APRON TERMINAL A RAMP TXL A12 WEST OF TXL F3 CLSD 2610220100-2610221300"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A5245/26 NOTAMN Q) KZNY/QMNLC////000/999/4041N07410W005 A) KEWR B) 2610220100 C) 2610221300 E) APRON TERMINAL A RAMP TXL A12 WEST OF TXL F3 CLSD"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "d1173dc552330bd6ffddaac5797e0034135ad42b9911c3730efefe5eb6100f77"
+        }
+      ]
+    }
+  ]
+}

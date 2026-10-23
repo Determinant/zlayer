@@ -1,0 +1,12 @@
+{
+  "source": "https://aviationweather.gov/api/data/progchart",
+  "capturedAt": "Wed, 21 Oct 2026 07:29:35 GMT",
+  "sha256": "39dadbd0330ddafe31ada9a3bc9fb4c8b8e0826453f97de49c65d90bb9f08db3",
+  "byteLength": 873,
+  "headers": {
+    "date": "Wed, 21 Oct 2026 07:29:35 GMT",
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"369-bvDlGs0fp4ZcWMjtQFnhi3zOjmQ\""
+  },
+  "observation": "Eleven explicitly listed forecast charts; no F000 analysis entry."
+}

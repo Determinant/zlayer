@@ -13,7 +13,9 @@ const catalogResource = (product: AwcGridProduct) => resourceFor(`/api/weather/g
 function generation(manifest: NativeManifest, payload: Payload) {
   const files = manifest.frames.map(frame => ({ resource: forecastResource(manifest, frame), frame, terrain: false }));
   if (manifest.product === 'winds') files.unshift({ resource: terrainResource(manifest, manifest.frames[0]!), frame: manifest.frames[0]!, terrain: true });
-  return { manifest, payload, files, validThrough: Math.max(...manifest.frames.map(frame => frame.validTime)) };
+  const sourceMirrors = [...new Set(manifest.frames.flatMap(frame => Object.values(frame.records).map(record =>
+    record.version?.mirror ?? (record.path.startsWith('hrrr/') ? 'google-hrrr' : 'nomads-ifi'))))].sort();
+  return { manifest, payload, files, sourceMirrors, validThrough: Math.max(...manifest.frames.map(frame => frame.validTime)) };
 }
 type Generation = ReturnType<typeof generation>;
 type State = { current?: Generation | undefined; candidate?: Generation | undefined;
@@ -124,6 +126,7 @@ export function createForecastWarming(cache: WeatherCache, processing: Pick<Retu
       return Object.fromEntries([...states].map(([product, state]) => [product, {
         ready: !!state.current && cache.has(catalogResource(product)) && state.current.files.every(file => cache.has(file.resource)),
         runTime: state.current?.manifest.runTime, checkedAt: state.current?.manifest.checkedAt,
+        sourceMirrors: state.current?.sourceMirrors, candidateRunTime: state.candidate?.manifest.runTime,
         validThrough: state.current?.validThrough, nextAttemptAt: state.nextCheck,
         preparing: !!state.task, completed: state.completed, total: state.candidate?.files.length,
         ...(state.error ? { error: state.error } : {}),

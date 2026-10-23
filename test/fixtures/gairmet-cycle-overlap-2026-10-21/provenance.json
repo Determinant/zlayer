@@ -1,0 +1,30 @@
+{
+  "source": "https://aviationweather.gov/data/cache/gairmets.cache.xml.gz",
+  "receivedAt": "2026-10-21T02:50:51Z",
+  "lastModified": "2026-10-21T02:50:31Z",
+  "sha256": "06baefe03508a821269077af294e72d950107f4b0556ff96ef850801a1796744",
+  "compressedBytes": 30412,
+  "records": 161,
+  "cycles": [
+    {
+      "base": "2026-10-20T21:00:00Z",
+      "products": [
+        "SIERRA"
+      ],
+      "records": 18,
+      "expiresAt": "2026-10-21T03:00:00Z"
+    },
+    {
+      "base": "2026-10-21T03:00:00Z",
+      "products": [
+        "TANGO",
+        "ZULU"
+      ],
+      "records": 143,
+      "expiresAt": "2026-10-21T09:00:00Z"
+    }
+  ],
+  "currentBehavior": "readGairmetCache rejects the combined document; separating by the supplied cycle yields 161 accepted advisories and zero interpretation issues.",
+  "repairConstraint": "Preserve all source members and their actual forecast leads. Selecting the newest cycle would omit all SIERRA records. Shared snapshot contract and client selection currently assume one cycle.",
+  "documentation": "https://aviationweather.gov/data/api/"
+}

@@ -18,6 +18,7 @@ export class NotamAdmission {
   private budgetWrite: Promise<void> = Promise.resolve();
   constructor(private readonly directory: string, private readonly environment: NotamEnvironment,
     readonly assertHeld: () => void, private readonly now = Date.now) {}
+  get ready() { return !!this.journal; }
   get nextDataAt() { return Math.max(this.journal?.dataAt ?? 0, this.journal?.backoffAt ?? 0); }
   get nextBulkAt() { return Math.max(this.nextDataAt, this.journal?.bulkAt ?? 0); }
   get nextAnyAt() { return Math.max(this.journal?.anyAt ?? 0, this.journal?.backoffAt ?? 0); }
@@ -47,6 +48,7 @@ export class NotamAdmission {
     return write;
   }
   async restore() {
+    this.journal = undefined;
     this.assertHeld();
     const provisioned = join(this.directory, 'provisioned');
     let exists = true;
@@ -54,7 +56,7 @@ export class NotamAdmission {
     if (!exists) {
       // Mark before creating allowance. An interrupted provisioning cannot reset a spent budget.
       await atomicStateFile(provisioned, this.environment);
-      if ((await readdir(this.directory)).some(name => /^(budget|current|previous|candidate|reconciliation)\.json$|\.ndjson$/.test(name))) {
+      if ((await readdir(this.directory)).some(name => name === 'bulk-archive' || name === 'delta-failures' || /^(budget|current|previous|candidate|reconciliation|bulk-source)\.json$|\.ndjson$|^bulk-source-.*\.bin$/.test(name))) {
         throw new NotamError('state-recovery-required');
       }
       await this.saveJournal({ schemaVersion: 1, environment: this.environment, lastAttemptAt: 0, dataAt: 0, bulkAt: 0, anyAt: 0, backoffAt: 0, authAt: 0 });

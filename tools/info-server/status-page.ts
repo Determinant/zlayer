@@ -102,20 +102,27 @@ export function renderStatusPage(readiness: Readiness, notams: NotamFeedStatus, 
   const kind = !readiness.ready ? 'bad' : readiness.warnings.length ? 'warn' : 'good';
   const title = !readiness.ready ? 'Needs attention' : readiness.warnings.length ? 'Ready with warnings' : 'Healthy';
   const problems = [...readiness.problems, ...readiness.warnings];
+  const blocking = notams.blockingRecords ?? notams.unresolvedRecords ?? 0;
+  const historical = notams.historicalIssues ?? 0;
+  const metadata = Math.max(0, (notams.unresolvedRecords ?? 0) - blocking - historical);
   const rows = Object.entries(readiness.sources).map(([product, value]) => {
-    const applies = (problem: Readiness['problems'][number]) => problem.product === product || problem.product.startsWith(product + '.');
+    const applies = (problem: { product: string }) => problem.product === product || problem.product.startsWith(product + '.');
     const blocked = readiness.problems.some(applies);
     const warning = readiness.warnings.some(applies);
     const state = !value.available ? 'Unavailable' : !value.fresh ? 'Stale' : value.error || blocked ? 'Attention' : warning ? 'Warning' : 'Ready';
     const color = !value.available || !value.fresh || value.error || blocked ? 'bad' : warning ? 'warn' : 'good';
-    const details = [...new Set([...(value.error ? [value.error] : []), ...problems.filter(applies).map(problem =>
+    const details = [...new Set([...(value.error ? [value.error] : []), ...(value.errorDetail ? [value.errorDetail] : []),
+      ...(value.freshness ?? []).filter(check => !check.fresh).map(check => `${check.clock}: ${check.timestamp === null ? 'missing timestamp' : new Date(check.timestamp).toISOString()}${check.maxAgeMs ? ` (limit ${check.maxAgeMs / 60_000} min)` : ' (horizon expired)'}`), ...problems.filter(applies).map(problem =>
       problem.product === product ? problem.reason : `${label(problem.product)}: ${problem.reason}`),
-      ...(value.coverage === 'partial' ? ['Partial coverage'] : value.coverage === 'unknown' ? ['Coverage unknown'] : [])])];
+      ...readiness.notices.filter(applies).map(notice => notice.reason === 'association-metadata'
+        ? `${notice.count} metadata ${notice.count === 1 ? 'discrepancy' : 'discrepancies'}; no supported queries affected` : notice.reason),
+      ...(value.coverage === 'partial' ? [product === 'notams' && metadata > 0 && blocking === 0 && historical === 0
+        ? 'Partial source metadata' : 'Partial coverage'] : value.coverage === 'unknown' ? ['Coverage unknown'] : [])])];
     const checked = value.checkedAt === null ? '—' : formatCheckedAt(value.checkedAt, now).replace(/^Checked /, '');
     return `<tr><th scope="row">${escape(label(product))}${details.length ? `<small class="ui-meta detail">${escape(details.join(' · '))}</small>` : ''}</th>
       <td class="${color}">${state}</td><td class="ui-meta" title="${escape(formatTimestamp(value.checkedAt, { now }))}">${escape(checked)}</td></tr>`;
   }).join('');
-  const conflicts = notams.enabled ? `${notams.unresolvedRecords ?? 0} unresolved NOTAMs · ${notams.blockingRecords ?? notams.unresolvedRecords ?? 0} blocking` : 'NOTAM collection disabled';
+  const conflicts = notams.enabled ? `${blocking} blocking NOTAM issues${metadata ? ` · ${metadata} metadata ${metadata === 1 ? 'discrepancy' : 'discrepancies'}` : ''}${historical ? ` · ${historical} historical issues` : ''}` : 'NOTAM collection disabled';
   const sourceLink = source && /^https?:\/\//.test(source) ? `<a href="${escape(source)}">Source code</a>` : '';
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

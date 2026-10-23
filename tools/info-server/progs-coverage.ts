@@ -1,3 +1,4 @@
+import type { createSourceEvidence } from './source-evidence';
 import { isProgsCoverageCatalog, progsCoverageSource, PROGS_COVERAGE_SOURCE, PROGS_COVERAGE_MAX_BYTES,
   type ProgsCoverageCatalog, type ProgsCoverageFrame, type ProgsCoverageFile } from '@zlayer/contracts';
 import type { WeatherCache } from './cache';
@@ -14,7 +15,7 @@ const imageResource = (file: ProgsCoverageFile) => resourceFor(`/api/weather/pro
 /** Coverage may be unpublished at a chart stop. Keep those gaps explicit;
  * failures other than 404 retain the preceding authenticated catalog. */
 export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSignal,
-  options: { now?: () => number; log?: (message: string) => void } = {}) {
+  options: { now?: () => number; log?: (message: string) => void; evidence?: ReturnType<typeof createSourceEvidence> } = {}) {
   const now = options.now ?? Date.now;
   let catalog: ProgsCoverageCatalog | undefined, task: Promise<void> | undefined, nextCheck = 0, clock = now(), error: string | undefined;
   const building = new Set<string>();
@@ -26,7 +27,7 @@ export function createProgsCoverageWarming(cache: WeatherCache, signal: AbortSig
   async function update() {
     try {
       const { payload: input, charts } = await readProgsCatalog(cache, signal, 'coverage',
-        catalog && catalog.checkedAt <= now() ? catalog.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) : []);
+        catalog && catalog.checkedAt <= now() ? catalog.frames.map(frame => ({ validTime: frame.validTime, referenceTime: frame.chartReferenceTime })) : [], options.evidence);
       const frames: ProgsCoverageFrame[] = [], changed: { source: string; file: ProgsCoverageFile; payload: Payload }[] = [];
       for (const chart of charts) {
         const source = progsCoverageSource(chart.validTime, chart.referenceTime);

@@ -15,7 +15,7 @@ export type ForecastFrame = SourceFrame | WindFrame;
 export const nativeManifest = (manifest: ForecastManifest): manifest is NativeManifest => 'encoding' in manifest && manifest.encoding === 'grib2';
 export const SOURCE_ROOT = 'https://nomads.ncep.noaa.gov/pub/data/nccf/com/';
 // Retained source-addressed browser cache identity. The server reads the same
-// Google bucket through its ordinary object URL; the PWA downloads prepared grids.
+// Google bucket through its ordinary object URL or a pinned NOAA mirror; the PWA downloads prepared grids.
 export const HRRR_DOWNLOAD_ROOT = 'https://storage.googleapis.com/download/storage/v1/b/high-resolution-rapid-refresh/o/';
 /** Source-addressed offline identity, not a browser acquisition URL. */
 export function nativeSourceUrl(baseUrl: string, path: string): string {
@@ -90,8 +90,8 @@ export function isNativeManifest(value: unknown): value is NativeManifest {
     if (JSON.stringify(f.sources) !== JSON.stringify(paths.map(path => SOURCE_ROOT + path))) return false;
     for (const field of [...AWC_GRID_FIELDS[product], ...(product !== 'clouds' ? ['terrain'] : [])]) {
       const r = f.records[field];
-      if (!isRecord(r) || r.path !== paths[field === 'terrain' ? 1 : 0] || typeof r.indexHash !== 'string' || !/^[a-f0-9]{64}$/.test(r.indexHash) ||
-        (r.version !== undefined && (!isModelVersion(r.version) || Number(r.start) >= r.version.byteLength ||
+      if (!isRecord(r) || typeof r.path !== 'string' || r.path !== paths[field === 'terrain' ? 1 : 0] || typeof r.indexHash !== 'string' || !/^[a-f0-9]{64}$/.test(r.indexHash) ||
+        (r.version !== undefined && (!isModelVersion(r.version) || r.version.mirror && !r.path.startsWith('hrrr/prod/') || Number(r.start) >= r.version.byteLength ||
           r.end !== undefined && Number(r.end) >= r.version.byteLength)) ||
         !Number.isSafeInteger(r.start) || Number(r.start) < 0 || (r.end !== undefined && (!Number.isSafeInteger(r.end) || Number(r.end) < Number(r.start) || Number(r.end) - Number(r.start) >= 8 * 1024 * 1024))) return false;
     }

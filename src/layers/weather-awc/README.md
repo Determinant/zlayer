@@ -148,19 +148,43 @@ selected bulletins remain readable and labeled until selection or the feed chang
 `source.ts` normalizes advisories on the server. The shared guard in
 `packages/contracts/src/awc-weather.ts` validates snapshots and explicit coverage. G-AIRMET uses
 one complete [AWC bulk cache](https://aviationweather.gov/data/cache/gairmets.cache.xml.gz)
-for all five frames, avoiding five independently queried database responses.
-The bounded gzip/XML adapter rejects DTDs, incomplete envelopes, count mismatches,
-mixed cycles and invalid forecast times. Source-check time is capped by the
-file's HTTP Last-Modified time; a missing, future or ten-minute-old publication
-cannot become fresh merely because an intermediary returned HTTP 200. Each
-member retains its original XML fields in `sourceProperties.sourceXml`.
+for all 0/3/6/9/12-hour leads. TANGO, ZULU and SIERRA can update independently;
+the [October 21 capture](../../../test/fixtures/gairmet-cycle-overlap-2026-10-21/provenance.json)
+contains 161 valid records across two cycles. The canonical
+`/api/weather/advisories/gairmet-v3.json` endpoint uses schema 3 for overlaps,
+with sorted `cycleTimes` and the union of each cycle's five `frameTimes`.
+Every member retains its actual `forecastHour`, `validFrom` and original XML.
+Selection follows the preceding frame independently within each cycle's horizon.
+Single-cycle publications retain schema 1 (complete) or schema 2 (partial).
+The legacy `/gairmet.json` endpoint projects the newest cycle and explicitly
+accounts for every other record as an issue with original evidence. Its coverage
+is incomplete during overlap; it must not be used to qualify canonical feed health.
+Older clients remain able to read it. The app requests v3 through the gateway;
+custom endpoints retain their existing path. Separate cache keys preserve rollback
+compatibility, and restart can seed the canonical key from validated legacy bytes
+without changing their original check time or contacting AWC.
+
+The bounded gzip/XML adapter rejects DTDs, incomplete envelopes and count mismatches.
+Malformed individual members become explicit issues with the rejected field/rule;
+valid neighbors still publish. Source-check time is capped by HTTP Last-Modified;
+a missing, future or ten-minute-old publication cannot become fresh because an
+intermediary returned HTTP 200. All records retain `sourceProperties.sourceXml`,
+or that same evidence in an issue. Complete bulk envelopes permit up to 2,000
+members, bounded by 4 MiB compressed, 8 MiB expanded XML and the existing output
+byte limits. The normalizer accepts overlapping cycles only from the atomic bulk
+path; separately queried frames retain the consistency check.
+XML coordinates accept equivalent finite decimal and exponent spellings, including
+leading signs and decimal points, as allowed by the
+[AWC schema's float fields](https://aviationweather.gov/data/schema/gairmet2_0.xsd).
+Original XML text stays in the evidence. Nonfinite values, malformed numbers and
+the geographic bounds below remain rejected.
 FZLVL isolines remain lines even when the XML calls a closed contour an area;
 M_FZLVL remains an area. Foot-based XML heights become the existing hundreds-foot
 source fields, retaining the original surface/missing encodings as evidence.
 The [captured bulk/GeoJSON comparison](../../../test/fixtures/gairmet-bulk-2026-10-09/README.md)
 covers every record and forecast hour, including those representation differences.
 Unknown member geometry remains an explicit issue. Transfer-limit flags, malformed
-collection envelopes and results at the conservative 400-record ceiling reject
+collection envelopes and query results at the conservative 400-record ceiling reject
 a replacement. Empty GeoJSON collections
 are successful; a missing advisory document is not an empty snapshot.
 
@@ -170,14 +194,16 @@ and obey upstream backoff. The last complete normalized package remains readable
 for the existing ten-minute freshness window, including across restart, with its
 original timestamp. Failed refreshes remain errors in health and fail the strict
 release probe; retention does not mark them successful. At the age limit the
-package stops being available. Older publication times or forecast cycles cannot
-replace a newer retained package. SIGMET/CWA retain their existing refresh cadence
-and 60-second server delivery lifetime.
+package stops being available. Older publication times or a regressing cycle for
+an issuer still present in the new observation cannot replace a newer retained package. One issuer advancing
+does not discredit another issuer still on its earlier cycle. SIGMET/CWA retain
+their existing refresh cadence and 60-second server delivery lifetime.
 
 Member interpretation is separate from envelope completeness. Unsupported geometry,
 bad interval validity or malformed fields become source issues while valid neighbors
-publish. Complete snapshots use schema 1; partial snapshots use schema 2 with
-nonempty issues, so old clients cannot treat them as complete. Enabled partial
+publish. Single-cycle complete snapshots use schema 1; partial snapshots use schema 2 with
+nonempty issues, so old clients cannot treat them as complete. Schema 3 uses the
+same explicit issues for overlapping cycles. Enabled partial
 families show **Coverage incomplete** outside the collapsed status disclosure;
 the disclosure lists unavailable entries and their raw evidence. Oversized evidence
 is explicitly labeled as an excerpt. All-invalid is partial, never a successful
@@ -203,7 +229,23 @@ worlds cannot change the covered area. Uncontained or empty holes become explici
 source issues instead of being silently discarded by clipping. It bounds source longitudes to
 ±540°, latitudes to ±90° and geometry to 10,000 points; ambiguous 180° edges remain
 unsupported. Canonical wire geometry stays within ±180°, and changed records retain
-their original geometry JSON. The [October 8 capture](../../../test/fixtures/cwa-dateline-2026-10-08.json)
+their original geometry JSON. Every source line component must contain distinct
+geographic positions after unwrapping; an all-duplicate component cannot disappear
+from a multipart feature and leave apparently complete coverage.
+
+The [October 21 TANGO 2W capture](../../../test/fixtures/gairmet-crossing-2026-10-21.json)
+contains a crossing between boundary edges 5 and 7 in both bulk-derived XML evidence
+and an independently retrieved AWC GeoJSON frame. The source points agree exactly;
+neither representation supplies a corrected boundary. It remains an explicit issue.
+Automatic union, vertex reordering or dropping a lobe would choose an interpretation
+without source authority. Geometry issues carry optional bounded `geometryError`
+text with the rejected rule, also exposed in health `issueSamples[].rule` after
+restart. A bounded diagnostic may identify crossing edge numbers; its absence does
+not establish simple topology. Unexpected geometry-library exceptions fail preparation
+as `processing-failed`, preserve the previous publication at its original time and
+do not quarantine valid source bytes or publish false source-geometry issues.
+
+The [October 8 capture](../../../test/fixtures/cwa-dateline-2026-10-08.json)
 contains seven CWAs including Anchorage 103 with longitudes below −180°.
 `weather-advisory-source.test.ts` verifies all seven publish, the Alaska boundary
 does not span the world, wide and date-line polygon holes survive changes of ring

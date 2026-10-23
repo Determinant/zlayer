@@ -8,7 +8,8 @@ const notamTimeFraction = (value: string) => (/\.(\d+)Z$/.exec(value)?.[1] ?? ''
 export const notamNumberContent = (value: string) => /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, '') : value;
 
 /** NMS source time orders revisions; AIXM counters and retrieval order do not. */
-export function compareNotamRevision(next: NotamRecord, previous: NotamRecord): number {
+export function compareNotamRevision(next: Pick<NotamRecord, 'updatedAt' | 'sourceUpdatedAt'>,
+  previous: Pick<NotamRecord, 'updatedAt' | 'sourceUpdatedAt'>): number {
   return next.updatedAt - previous.updatedAt || notamTimeFraction(next.sourceUpdatedAt).localeCompare(notamTimeFraction(previous.sourceUpdatedAt));
 }
 

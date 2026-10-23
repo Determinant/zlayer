@@ -360,7 +360,7 @@ test('snapshot refresh only caches complete successes; failures and cancellation
   });
   const client = new AdvisoryClient('https://app.test/api/weather/advisories/', true), signal = new AbortController().signal;
   const live = await client.refresh('gairmet', signal, WEATHER_NOW);
-  assert.deepEqual(urls.map(u => u.href), ['https://app.test/api/weather/advisories/gairmet.json']);
+  assert.deepEqual(urls.map(u => u.href), ['https://app.test/api/weather/advisories/gairmet-v3.json']);
   assert.deepEqual(client.restore('gairmet'), { snapshot: live, loading: false });
   assert.equal(new AdvisoryClient('https://other.test/').restore('gairmet').snapshot, undefined);
   fail = true;

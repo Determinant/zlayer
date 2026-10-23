@@ -49,6 +49,27 @@ The combined exterior and holes must also preserve those boundaries under union,
 even when no date-line split is needed. A hole duplicating the exterior or sharing
 an edge cannot publish an empty or silently repaired hazard area.
 
+Every source line component must have at least two distinct unwrapped positions.
+Repeated adjacent vertices are harmless when a component still has extent; a
+collapsed component cannot be silently discarded while publishing its siblings.
+Expected validation/interpretation failures retain a bounded `geometryError` rule
+with the raw feature. Unexpected library exceptions are preparation failures and
+leave the previous publication unchanged, with its original freshness deadline.
+They cannot establish that the upstream geometry is invalid.
+
+The [captured TANGO crossing](../../../test/fixtures/gairmet-crossing-2026-10-21.json)
+is present in both source XML and independent AWC GeoJSON. The clipping library
+[interprets self-crossing rings using the nonzero rule](https://github.com/mfogel/polygon-clipping#input);
+that library policy does not establish AWC's intended corrected hazard area.
+Keep the issue until corrected source data or a qualified source interpretation
+is available. Crossing-edge diagnostics inspect at most 50,000 pairs only after
+the complete topology check fails. They skip numerically uncertain turns and do
+not participate in acceptance, coordinate repair or source-boundary selection.
+The later [SIERRA 1E capture](../../../test/fixtures/gairmet-sierra-crossings-2026-10-21.json)
+contains two further crossings at the 9- and 12-hour leads, also identical in AWC's
+independent GeoJSON. Recovery of one source issue cannot establish that later
+publications have valid boundaries; each member is checked anew.
+
 Grid sampling and wind rotation share one Lambert setup. Longitude differences
 are wrapped around the central meridian for both the first source cell and target
 samples; a date-line crossing cannot itself imply missing coverage. GRIB2 source
@@ -78,6 +99,13 @@ modulo. Supported projection/scanning profiles retain their other existing bound
 - Captured advisory/Progs fixtures and GDAL grid/wind references remain separate
   regression oracles. Synthetic invariants complement these references; they do
   not replace them or justify relaxing the source and wire bounds.
+- `weather-advisory-source.test.ts` exercises the captured crossing across open/
+  closed rings, winding, starting vertices and longitude worlds, plus collapsed
+  multipart components across advisory families. `gairmet-cache.test.ts` replays
+  the retained XML member through publication, health, restart and source withdrawal,
+  and checks equivalent finite coordinate spellings. `info-advisories.test.ts`
+  injects geometry-library failure across all advisory families and verifies retained
+  publication, failure classification, unquarantined inputs and recovery.
 
 Use fixed seeds and retain a minimal failing case when generated checks expose a
 defect. Area oracles translate coordinates before taking cross products so tiny

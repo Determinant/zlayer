@@ -1139,6 +1139,12 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    [field-specific conflict priorities](source-comparison.md#conflict-resolution-priority).
    The raw record digest includes original spellings; it is not a semantic revision
    number. Equal source ordering does not establish byte-identical FAA renderings.
+   Every record field has an explicit comparison rule or owning stage in
+   `structured-fields.ts`. Location-list order and equivalent supported UTC
+   spellings do not create conflicts; membership, exact instants through
+   nanoseconds and validity semantics remain significant. Comparison retains an
+   original source representation. See the [processing stages and field rules](source-comparison.md#processing-stages)
+   for evidence requirements and rejection boundaries.
 
    Reconciliation establishes notice identity before applying lifecycle evidence.
    At equal ordering, the same source ID and the same `cancelled` or `cancellation`
@@ -1407,10 +1413,12 @@ the verified live generation usable; continue its deltas when budget permits.
 When a replacement bridge fails and the live generation remains eligible for deltas,
 discard that candidate and resume the live feed at the next allowed attempt. A
 bootstrap candidate without a usable live baseline remains available for bridge
-retry within the lookback window. Only a continuity failure in the live delta path
-marks its current checkpoint incomplete; replacement failures do not change that checkpoint.
-Before that invalidation, retain the exact verified prefix as the previous
-generation. A rejected delta has not changed its records or watermark. Recovery
+retry within the lookback window. Transport/envelope replacement failures do not
+change the live checkpoint. Identifiable malformed members use the explicit
+partial-publication policy below.
+
+Before invalidating a complete checkpoint, retain its exact verified prefix as the
+previous generation. A rejected envelope has not changed its records or watermark. Recovery
 can replay every delta from that authenticated prefix when its boundary plus
 overlap is still inside the source window. It can also recover an older invalidated
 checkpoint from a separately verified complete previous generation. Publish and
@@ -1418,6 +1426,13 @@ clear the failure only after the entire replay validates; never set an incomplet
 checkpoint complete merely because code changed or the server restarted. Missing,
 corrupt, incomplete or expired recovery prefixes require the next permitted bulk
 load. Replays consume the normal global delta allowance.
+
+Bridge validation uses the candidate's own remaining ingestion gaps: a complete
+replacement that resolved a live gap must not inherit it again. A failed bootstrap
+or recovery bridge retains its gaps privately with the candidate; it cannot publish
+an initial baseline. Empty retries and restart preserve those gaps. After the replay
+window expires, keep the evidence for the next full load without dispatching an
+out-of-window delta. Only a qualifying full replacement can then resolve it.
 
 A due full reconciliation takes priority over replay or an old candidate bridge.
 A failing replay must not hold the feed incomplete until its lookback expires
@@ -1434,6 +1449,44 @@ records are not made complete merely by upgrading the implementation. During tha
 replay, unresolved IDs enter the new issue collection and independent updates can
 commit normally. Missing or expired prefixes still require a budgeted full load.
 Honor 429/503 backoff and `Retry-After`; retries consume budget.
+
+### Malformed source members
+
+XML scalar fields have one unambiguous value. Identical repeated values may
+collapse; conflicting duplicates, conflicting cancellation aliases, unsupported
+nested scalar content and conflicting simple/formatted translations are rejected.
+The parser never selects whichever conflicting field happened to appear first.
+This structural validation precedes content comparison.
+
+A bounded, well-formed member with a valid NMS ID can fail independently. With a
+verified baseline, qualified updates for other IDs still publish, while the
+collection remains explicitly incomplete. Neither source-check time nor watermark
+advances. All queries retain the incomplete-coverage qualification, and the next
+budgeted delta retries from the same verified prefix. An incomplete full snapshot
+cannot establish an initial baseline or withdraw absent records. Invalid XML,
+missing identity, envelope/count errors, resource-limit failures and local worker
+failures reject the whole attempt.
+
+The authenticated version-2 manifest retains up to 32 `pendingMembers`, with
+their NMS IDs, rejection reasons, observation times and trustworthy source update
+times when available. Overflow rejects the attempt. These are ingestion gaps,
+separate from normalized record conflicts; health exposes `notamIngestion` and
+`invalid-source-members`. Empty retries, equal/older revisions and restart cannot
+erase them. A strictly newer qualified revision clears a known revision; an
+unknown source time requires a valid subsequent observation updated after the
+last rejection was observed. Observation time is only a conservative recovery
+bound, never a fabricated source timestamp. A later complete full snapshot can
+also establish withdrawal. Older malformed input cannot discredit a qualified
+newer revision already retained or supplied in the same batch.
+
+Partial publications preserve the last complete checkpoint even when only manifest
+completeness changes and the record-content hash stays identical. That checkpoint
+survives repeated partial updates and gap closure; request-admission history stays
+independent. A damaged checkpoint does not acquire replay authority merely from an
+error label: the bounded pending-member metadata, original prefix and checksum must validate.
+If the prefix leaves the delta lookback window, recovery requires the next
+permitted full load. Rejected bytes remain available under the bounded private
+[source archive policy](#storage-and-query-indexes).
 
 ### Unresolved source records
 
@@ -1485,12 +1538,18 @@ a supplied numbering year can supplement a witnessed omission, retaining both
 spellings in `sourceYears`; a complete shared native notice and matching FIR
 conversion can establish complementary station-prefixed and FIR lookup scopes,
 retaining their union and original sets in `sourceIcaoLocations`. These are source
-query memberships, not airport aliases. The
+query memberships, not airport aliases. The conversion binds Q's FIR and A's
+station/region roles independently, accepting either numbering format and a
+witnessed leading keyword omission without removing any native notice content. The
 [field-specific proof rules](source-comparison.md#field-and-transformation-rules)
 require all unaffected fields and every retained rendering to agree. Populated
 year contradictions, arbitrary airport disputes and incomplete evidence still
 produce source issues. Raw translations survive lexical comparison unchanged;
 exceeding the eight-translation bound remains unresolved.
+Native identity/content evidence has one shared parser and comparison key;
+domestic notice-number padding is independent of its month and of international
+series/year syntax. The content comparison supplies the schedule and association
+values used by publication, so merge and diagnostics apply the same decision.
 
 ### Issue impact over time
 
@@ -1536,6 +1595,11 @@ demonstrates an omitted separator before an interval; LSU and VIO demonstrate
 usable filing content with disputed supported ICAO/FIR associations. The bounded
 `icao-line-break` proof is specified in the
 [source-comparison contract](source-comparison.md#field-and-transformation-rules).
+The [surface-identifier spelling rule](source-comparison.md#surface-identifier-spelling)
+also reconciles bounded `TXL`/`TWY` letter-number spacing, including the captured
+EWR `A 12`/`A12` pair. It requires complete bound native notices and agreement
+across all retained renderings, preserves originals, and does not join arbitrary
+words, dimensions, lists or other identifier types.
 `notams-state-machine.test.ts` generates arrival orders and batch partitions with
 sparse and contradictory observations, then checks lifecycle precedence, rebasing,
 historical boundaries, rollback, HTTP caching, restart and unchanged admission.
@@ -1607,10 +1671,77 @@ XML, 150,000 records, 2 MiB per XML member, depth 80 and 256 MiB per normalized
 generation. Airport responses stop at 5,000 records or 16 MiB, returning unavailable
 instead of truncating. UTF-8 decoding is strict for envelopes and XML; invalid
 bytes cannot silently rewrite source text. Downloads have a 120-second deadline.
-One 60-second parsing worker handles each round. Measured
-staging parsing fits that deadline; deployment headroom still needs qualification.
-Keep current, the previous distinct dataset and one candidate generation, and retain
-cancellation messages/tombstones for two days after the later of their source
+One parsing worker handles each round, with a 180-second bulk deadline and a
+60-second delta deadline. Timeout reports `parse-timeout`, separately from source
+validation failures. A deployment-host replay on October 20 of 100,000 repeated
+FAA sample members (400,301,070 expanded bytes) took 72.6 seconds with the previous
+worker, exceeding its common 60-second limit. This is a parser capacity sample,
+not a complete live-source or combined-load qualification.
+Normalization traverses descendants without allocating intermediate result arrays;
+the worker buffers output and gzip chunks in 64 KiB blocks while preserving every
+record, byte limit and source boundary.
+
+Before parsing a complete bulk download, the collector durably retains one
+checksummed source file of at most 64 MiB plus its environment and original request
+time. A local timeout, processing failure or interruption leaves it available for
+one local replay after restart, without contacting FAA or changing admission.
+A rejected source envelope loses its automatic replay checkpoint. Failed replay resumes ordinary live
+deltas instead of repeatedly occupying the collector. Replay still validates the
+XML snapshot boundary and saves a candidate that must bridge through a budgeted
+delta before clearing reconciliation failure. Expired, future, already published
+and superseded recovery checkpoints are removed; corrupt bytes are rejected. This optional
+checkpoint never replaces a generation or quota journal, and its orphaned presence
+cannot provision a new allowance. Raw downloads deleted by older releases cannot
+be recovered by this mechanism.
+
+Independently, every completed bulk download is archived **before parsing** under
+`<NOTAMS_STATE_DIR>/<environment>/bulk-archive/`. The last seven downloads remain
+after successful publication, parser rejection, replay expiry and restart. Retention
+is by original request time, not file modification time; it does not expire the
+last useful debugging input merely because no subsequent download succeeds.
+Each `<requestedAt>-<sha256>.bin` contains the exact downloaded bytes, including
+their original compression. Its checksummed `.json` sidecar records environment,
+request time, byte length, SHA-256 and the acquisition release's public source URL.
+Legacy checkpoints without that release identity record `sourceUrl: null`.
+Archive creation uses a hard link on the durable state filesystem, then commits
+the sidecar with a directory fsync. Removing the replay checkpoint leaves those
+bytes intact. A restart preserves existing acquisition metadata.
+
+Seven payloads of at most 64 MiB bound committed archive storage to 448 MiB;
+the existing one-file recovery checkpoint has its separate 64 MiB bound and shares
+archived bytes when linked. Rotation can temporarily retain an eighth archive
+until the new entry is durable. The collector prunes only its owned archive names,
+including interrupted archive temporaries. Failed/truncated network downloads
+are not complete archive entries. Archive directories and sidecars remain private;
+there is no HTTP route serving raw downloads or credentials. Archive presence is
+evidence of prior provisioning and cannot initialize a replacement quota journal.
+
+Failed delta responses have a separate `delta-failures` archive using the same
+checksummed sidecar and seven-download/448 MiB bound. They do not evict full-sync
+archives or become replay checkpoints. Sidecars identify the delta kind, rejection
+reason and acquisition release. Capture failures remain diagnostic and cannot
+hide the ingestion failure or grant request admission.
+
+Use [`tools/replay-notam-bulk.ts`](../../../tools/replay-notam-bulk.ts) for offline
+parser investigation. It checks the sidecar and raw digest, then writes normalized
+NDJSON and a complete/partial/failure report into a **new** output directory.
+The same command accepts failed-delta sidecars; partial results list rejected
+member IDs and reasons and never claim a complete collection. It uses the
+original source/request times even for old archives, contacts no source, and opens
+no collector, live generation or quota journal. The bundled server release includes
+`replay-notam-bulk.js` for the same operation. This is diagnostic parsing, not a
+new source observation or authorization to publish an archived snapshot as current.
+
+```bash
+node --import=tsx tools/replay-notam-bulk.ts /private/bulk-archive/REQUEST-SHA.json /tmp/notam-debug-new
+```
+
+Keep current, one complete recovery checkpoint and one candidate generation. During
+complete collection, the recovery checkpoint retains the previous distinct dataset;
+entering partial collection instead preserves the latest complete manifest, even
+when it references the same dataset as current.
+
+Retain cancellation messages/tombstones for two days after the later of their source
 update and valid cancellation timestamps. Missing cancellation timestamps use the
 source update time; active notices do not expire under this rule. A bulk snapshot's
 absence cannot shorten this retention, and the bridge applies the same expiry as
@@ -1714,8 +1845,13 @@ supported query; all content conflicts, supported disputed queries and incomplet
 evidence remain blocking. Missing `blockingRecords` means all unresolved records
 are blocking. With fresh continuous collection and no other error, feed `state`
 is ready when that blocking count is zero. Nonblocking source ambiguity remains
-visible in aggregate `readiness.warnings` and bounded `notamSourceIssues` samples;
-it needs no release-probe allowance. See the [health policy](../../../tools/info-server/maintenance.md#health-and-diagnostics).
+visible as informational aggregate `readiness.notices` and bounded
+`notamSourceIssues` samples. Proven metadata-only cases have no affected supported
+queries and need no operator action; they do not mark a usable feed as warning.
+The source variants, unresolved counts and incomplete global source continuity
+remain intact. Historical issues retain their separate warning, and every
+content conflict, supported disputed query or incomplete proof remains blocking.
+Informational metadata needs no release-probe allowance. See the [health policy](../../../tools/info-server/maintenance.md#health-and-diagnostics).
 New clients use airport `contentCoverage` together with association coverage and
 original source-check age. An unrelated airport can have fresh, complete content
 while global feed health reports unresolved records. Offline persistence validates
@@ -1860,8 +1996,9 @@ merges revisions, builds indexes and publishes generations with asynchronous fil
 writes. Merge, sorting, hashing and serialization still consume parent event-loop
 time. Combined weather/NMS load measurements must qualify that work before
 deployment; move generation construction into the worker if latency requires it.
-The 60-second worker deadline handled the measured staging load, but needs
-deployment headroom qualification.
+The [parsing bounds](#storage-and-query-indexes) distinguish bulk and delta
+deadlines and retain completed downloads for local recovery. Qualify both parsing
+headroom and live delivery under combined deployment load.
 
 Measure weather latency and preparation during bootstrap, deltas and NMS failure.
 The checked-in systemd unit defaults to a shared budget of four CPUs' worth of
@@ -3139,3 +3276,13 @@ updates compare record identities, reference identity and per-notice validity
 states before geometry preparation/serialization. Schedule transitions, expiry,
 clock rollback and changed source/reference data invalidate that result; unchanged
 validity keeps the same collection. No second national geometry cache is added.
+
+
+Collector startup and recovery use one pending restore per service. Transient
+writer-lock/storage failures retry after three minutes; an uncertain admission
+write or lost lock drains before releasing ownership and rereading durable state.
+No recovery path recreates a missing/corrupt provisioned journal or resets an
+FAA allowance. Shutdown closes admission before waiting for restoration and work.
+`nextAttemptAt` remains visible while initialization is unavailable. Focused
+lock-contention, storage repair, uncertain-write and shutdown regressions are in
+`test/info-collector-recovery.test.ts`.

@@ -4,6 +4,7 @@ import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey
 import { localKey, sharedLocalNotice, icaoBody, matchesIcaoBody, icaoEvidence, sharedIcaoSchedule } from './notice-evidence';
 import { compareIcaoQualification, type IcaoQualificationProof } from './notice-qualification';
 import { lineBreakNoticeEvidence } from './notice-line-breaks';
+import { surfaceDesignatorEvidence } from './notice-designators';
 export { sharedLocalNotice } from './notice-evidence';
 
 /** Baseline comparison retains literal entity spelling. Decoding is admitted
@@ -63,7 +64,7 @@ function compatibleIcao(a: string, b: string): boolean {
 }
 
 export type NoticeComparison = { body: string | undefined; translationsCompatible: boolean;
-  proof: IcaoProof['proof'] | 'exact' | 'local-notice' | 'icao-body' | 'fdc-continuation' | 'icao-line-break' | null;
+  proof: IcaoProof['proof'] | 'exact' | 'local-notice' | 'icao-body' | 'fdc-continuation' | 'icao-line-break' | 'surface-designator-spacing' | null;
   failure: 'unsupported-representation' | 'different-content' | null };
 
 /** Reconciliation consumes complete representations, independently of the PWA's
@@ -71,14 +72,20 @@ export type NoticeComparison = { body: string | undefined; translationsCompatibl
 export function compareNoticeText(previous: NotamRecord, next: NotamRecord): NoticeComparison {
   const local = sharedLocalNotice(previous, next), icao = sharedIcaoProof(previous, next);
   const before = translationsByType(previous), after = translationsByType(next);
-  const continuation = !local && !icao ? fdcContinuationEvidence([previous, next]) : undefined;
-  const lineBreak = !local && !icao && !continuation ? lineBreakNoticeEvidence([previous, next]) : undefined;
+  // Each rule must account for the complete supplied evidence independently.
+  // Selecting a body below must not disable a proof needed by retained translations
+  // after merging/restart. Priority selects presentation, never which rules run.
+  const continuation = fdcContinuationEvidence([previous, next]);
+  const lineBreak = lineBreakNoticeEvidence([previous, next]);
+  const designators = surfaceDesignatorEvidence([previous, next]);
+  const nativeCompatible = !!(local || continuation || lineBreak || designators);
   let body: string | undefined, proof: NoticeComparison['proof'] = null;
   if (previous.text === next.text) { body = previous.text; proof = 'exact'; }
   else if (icao) { body = icao.body; proof = icao.proof; }
   else if (local) { body = previous.text; proof = 'local-notice'; }
   else if (continuation) { body = continuation.body; proof = 'fdc-continuation'; }
   else if (lineBreak) { body = lineBreak.body; proof = 'icao-line-break'; }
+  else if (designators) { body = designators.body; proof = 'surface-designator-spacing'; }
   else for (const translation of before.get('OTHER:ICAO') ?? []) {
     if (!after.get('OTHER:ICAO')?.has(translation)) continue;
     // The identical retained rendering can prove its E)-onward substring even
@@ -93,9 +100,9 @@ export function compareNoticeText(previous: NotamRecord, next: NotamRecord): Not
   const translationFailures = [...before].map(([type, values]): NoticeComparison['failure'] => {
     const incoming = after.get(type);
     if (!incoming || values.size === incoming.size && [...values].every(value => incoming.has(value))) return null;
-    if (type === 'LOCAL_FORMAT' && (local || continuation || lineBreak)) return null;
+    if (type === 'LOCAL_FORMAT' && nativeCompatible) return null;
     if (type === 'OTHER:ICAO') {
-      if (local || icao || continuation || lineBreak) return null;
+      if (nativeCompatible || icao) return null;
       const richer = [...incoming].every(text => values.has(text)) ? previous
         : [...values].every(text => incoming.has(text)) ? next : undefined;
       if (richer && localKey(richer) !== undefined) return null;
@@ -113,6 +120,7 @@ export function compareNoticeText(previous: NotamRecord, next: NotamRecord): Not
   // when the primary bodies were already exactly equal.
   if (icao && icao.proof !== 'icao-notice' && icao.proof !== 'icao-rendering') proof = icao.proof;
   if (lineBreak) proof = 'icao-line-break';
+  if (designators) proof = 'surface-designator-spacing';
   return { body, translationsCompatible: translationFailures.every(failure => failure === null), proof,
     failure: failures.includes('different-content') ? 'different-content'
       : failures.includes('unsupported-representation') ? 'unsupported-representation' : null };

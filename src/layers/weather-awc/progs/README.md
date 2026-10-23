@@ -287,6 +287,15 @@ remain errors; cache revalidation does not guarantee upstream correctness.
 Upstream catalogs are bounded to 16 KiB, published catalogs to 64 KiB, source charts
 to 512 KiB each, and the sum of prepared chart files in a family to 8 MiB. Runtime
 validation also limits 32 frames, 2,500 features per frame, 5,000 positions per prepared line, 400,000 total positions, and 3 MiB of original chart text.
+A catalog may temporarily omit analysis while listing valid forecasts, as in the
+[October 21 capture](../../../../test/fixtures/wpc-missing-analysis-2026-10-21/provenance.json).
+Forecast publication continues from those explicitly listed files. Analysis and
+its companion coverage retain their preceding publication and source time with
+`AWC catalog has no surface analysis`; they do not quarantine the shared catalog
+or prevent forecast updates. Coverage schema 1 requires the analysis stop, so it
+remains unavailable for replacement until that stop returns. This does not infer
+a current analysis from forecast charts.
+
 Unknown feature codes, invalid coordinates, missing metadata/isobars, mismatched
 catalog/filename/metadata times, duplicate valid times and partial acquisitions
 reject the replacement. HTTP checks declared response lengths. As with other

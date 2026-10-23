@@ -27,7 +27,7 @@ export class AdvisoryClient {
   }
 
   async refresh(product: AwcAdvisoryProduct, signal: AbortSignal, now = Date.now()): Promise<AwcAdvisorySnapshot> {
-    const snapshot = await requestJson(new URL(`${product}.json`, this.baseUrl).href, isAwcAdvisorySnapshot, 'AWC advisories', { signal });
+    const snapshot = await requestJson(new URL(`${product === 'gairmet' && this.gateway ? 'gairmet-v3' : product}.json`, this.baseUrl).href, isAwcAdvisorySnapshot, 'AWC advisories', { signal });
     if (snapshot.product !== product || snapshot.checkedAt > now + 60_000) throw new Error('Weather feed has an invalid product or future source timestamp');
     signal.throwIfAborted();
     try { pluginStorage.slot(product).write(JSON.stringify({ endpoint: this.baseUrl, snapshot })); }

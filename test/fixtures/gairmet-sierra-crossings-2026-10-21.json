@@ -1,0 +1,1366 @@
+{
+  "source": "https://aviationweather.gov/data/cache/gairmets.cache.xml.gz",
+  "checkedAt": 1792618240000,
+  "snapshotSha256": "31d4904f86d5447574475672497b25a210cb55adc556ece02732518ed96c6ee9",
+  "captures": [
+    {
+      "feature": {
+        "type": "Feature",
+        "properties": {
+          "product": "SIERRA",
+          "tag": "1E",
+          "hazard": "MT_OBSC",
+          "forecast": 9,
+          "validTime": "2026-10-22T06:00:00.000Z",
+          "issueTime": "2026-10-21T21:19:00.000Z",
+          "receiptTime": "2026-10-21T21:19:59.622Z",
+          "expireTime": "2026-10-22T03:00:00.000Z",
+          "sourceXml": {
+            "name": "GAIRMET",
+            "attributes": {},
+            "text": "",
+            "children": [
+              {
+                "name": "receipt_time",
+                "attributes": {},
+                "text": "2026-10-21T21:19:59.622Z",
+                "children": []
+              },
+              {
+                "name": "issue_time",
+                "attributes": {},
+                "text": "2026-10-21T21:19:00.000Z",
+                "children": []
+              },
+              {
+                "name": "expire_time",
+                "attributes": {},
+                "text": "2026-10-22T03:00:00.000Z",
+                "children": []
+              },
+              {
+                "name": "product",
+                "attributes": {},
+                "text": "SIERRA",
+                "children": []
+              },
+              {
+                "name": "tag",
+                "attributes": {},
+                "text": "1E",
+                "children": []
+              },
+              {
+                "name": "roughly_the_number_of_hours_between_the_issue_time_and_the_valid_time",
+                "attributes": {},
+                "text": "9",
+                "children": []
+              },
+              {
+                "name": "valid_time",
+                "attributes": {},
+                "text": "2026-10-22T06:00:00.000Z",
+                "children": []
+              },
+              {
+                "name": "hazard",
+                "attributes": {
+                  "type": "MT_OBSC",
+                  "severity": ""
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "geometry_type",
+                "attributes": {},
+                "text": "AREA",
+                "children": []
+              },
+              {
+                "name": "due_to",
+                "attributes": {},
+                "text": "MTNS OBSC BY CLDS PCPN BR",
+                "children": []
+              },
+              {
+                "name": "altitude",
+                "attributes": {
+                  "min_ft_msl": "null00",
+                  "max_ft_msl": "-1"
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "fzl_altitude",
+                "attributes": {},
+                "text": "",
+                "children": [
+                  {
+                    "name": "min_ft_msl",
+                    "attributes": {},
+                    "text": "-1",
+                    "children": []
+                  },
+                  {
+                    "name": "max_ft_msl",
+                    "attributes": {},
+                    "text": "-1",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "name": "altitude",
+                "attributes": {
+                  "level_ft_msl": ""
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "area",
+                "attributes": {
+                  "num_points": "17"
+                },
+                "text": "",
+                "children": [
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.1293",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.5166",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.0271",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "38.9769",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-117.1029",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "36.7542",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-117.7439",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "36.2937",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-116.4759",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "32.7305",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-117.3429",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "32.7503",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-118.3588",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "33.91",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.5984",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "34.4477",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-123.9312",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "39.8176",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.0728",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.2793",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.3223",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "39.8468",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-121.997",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "38.166",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.0755",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.4739",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-118.7989",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.1257",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.2346",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "39.974",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.087",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.3708",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.1293",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.5166",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "dueTo": "MTNS OBSC BY CLDS PCPN BR"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -120.1293,
+                41.5166
+              ],
+              [
+                -120.0271,
+                38.9769
+              ],
+              [
+                -117.1029,
+                36.7542
+              ],
+              [
+                -117.7439,
+                36.2937
+              ],
+              [
+                -116.4759,
+                32.7305
+              ],
+              [
+                -117.3429,
+                32.7503
+              ],
+              [
+                -118.3588,
+                33.91
+              ],
+              [
+                -120.5984,
+                34.4477
+              ],
+              [
+                -123.9312,
+                39.8176
+              ],
+              [
+                -122.0728,
+                41.2793
+              ],
+              [
+                -122.3223,
+                39.8468
+              ],
+              [
+                -121.997,
+                38.166
+              ],
+              [
+                -120.0755,
+                35.4739
+              ],
+              [
+                -118.7989,
+                35.1257
+              ],
+              [
+                -122.2346,
+                39.974
+              ],
+              [
+                -122.087,
+                41.3708
+              ],
+              [
+                -120.1293,
+                41.5166
+              ]
+            ]
+          ]
+        }
+      },
+      "reference": {
+        "source": "https://aviationweather.gov/api/data/gairmet?format=geojson&date=2026-10-22T06:00:00.000Z&fore=9",
+        "responseSha256": "642c2f91a6f575a8760b31ded5b55f5bd7d21e01018e1890462b1cc1ceb17d1e",
+        "feature": {
+          "type": "Feature",
+          "properties": {
+            "product": "SIERRA",
+            "hazard": "MT_OBSC",
+            "tag": "1E",
+            "issueTime": "2026-10-21T21:19:00.000Z",
+            "validTime": "2026-10-22T06:00:00.000Z",
+            "receiptTime": "2026-10-21T21:19:59.622Z",
+            "forecast": 9,
+            "dueTo": "MTNS OBSC BY CLDS PCPN BR"
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -120.1293,
+                  41.5166
+                ],
+                [
+                  -120.0271,
+                  38.9769
+                ],
+                [
+                  -117.1029,
+                  36.7542
+                ],
+                [
+                  -117.7439,
+                  36.2937
+                ],
+                [
+                  -116.4759,
+                  32.7305
+                ],
+                [
+                  -117.3429,
+                  32.7503
+                ],
+                [
+                  -118.3588,
+                  33.91
+                ],
+                [
+                  -120.5984,
+                  34.4477
+                ],
+                [
+                  -123.9312,
+                  39.8176
+                ],
+                [
+                  -122.0728,
+                  41.2793
+                ],
+                [
+                  -122.3223,
+                  39.8468
+                ],
+                [
+                  -121.997,
+                  38.166
+                ],
+                [
+                  -120.0755,
+                  35.4739
+                ],
+                [
+                  -118.7989,
+                  35.1257
+                ],
+                [
+                  -122.2346,
+                  39.974
+                ],
+                [
+                  -122.087,
+                  41.3708
+                ],
+                [
+                  -120.1293,
+                  41.5166
+                ]
+              ]
+            ]
+          }
+        }
+      },
+      "crossingEdges": [
+        9,
+        15
+      ]
+    },
+    {
+      "feature": {
+        "type": "Feature",
+        "properties": {
+          "product": "SIERRA",
+          "tag": "1E",
+          "hazard": "MT_OBSC",
+          "forecast": 12,
+          "validTime": "2026-10-22T09:00:00.000Z",
+          "issueTime": "2026-10-21T21:19:00.000Z",
+          "receiptTime": "2026-10-21T21:19:59.622Z",
+          "expireTime": "2026-10-22T03:00:00.000Z",
+          "sourceXml": {
+            "name": "GAIRMET",
+            "attributes": {},
+            "text": "",
+            "children": [
+              {
+                "name": "receipt_time",
+                "attributes": {},
+                "text": "2026-10-21T21:19:59.622Z",
+                "children": []
+              },
+              {
+                "name": "issue_time",
+                "attributes": {},
+                "text": "2026-10-21T21:19:00.000Z",
+                "children": []
+              },
+              {
+                "name": "expire_time",
+                "attributes": {},
+                "text": "2026-10-22T03:00:00.000Z",
+                "children": []
+              },
+              {
+                "name": "product",
+                "attributes": {},
+                "text": "SIERRA",
+                "children": []
+              },
+              {
+                "name": "tag",
+                "attributes": {},
+                "text": "1E",
+                "children": []
+              },
+              {
+                "name": "roughly_the_number_of_hours_between_the_issue_time_and_the_valid_time",
+                "attributes": {},
+                "text": "12",
+                "children": []
+              },
+              {
+                "name": "valid_time",
+                "attributes": {},
+                "text": "2026-10-22T09:00:00.000Z",
+                "children": []
+              },
+              {
+                "name": "hazard",
+                "attributes": {
+                  "type": "MT_OBSC",
+                  "severity": ""
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "geometry_type",
+                "attributes": {},
+                "text": "AREA",
+                "children": []
+              },
+              {
+                "name": "due_to",
+                "attributes": {},
+                "text": "MTNS OBSC BY CLDS PCPN BR",
+                "children": []
+              },
+              {
+                "name": "altitude",
+                "attributes": {
+                  "min_ft_msl": "null00",
+                  "max_ft_msl": "-1"
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "fzl_altitude",
+                "attributes": {},
+                "text": "",
+                "children": [
+                  {
+                    "name": "min_ft_msl",
+                    "attributes": {},
+                    "text": "-1",
+                    "children": []
+                  },
+                  {
+                    "name": "max_ft_msl",
+                    "attributes": {},
+                    "text": "-1",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "name": "altitude",
+                "attributes": {
+                  "level_ft_msl": ""
+                },
+                "text": "",
+                "children": []
+              },
+              {
+                "name": "area",
+                "attributes": {
+                  "num_points": "21"
+                },
+                "text": "",
+                "children": [
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-121.6574",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "42.9248",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-119.7338",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "42.6266",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-119.8691",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "42.1069",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-119.9789",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "38.9618",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-115.949",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.8063",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-116.8448",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.2748",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-116.2334",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "32.7426",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-117.2683",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "32.7581",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-118.2548",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "33.9143",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-120.6557",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "34.487",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-124.2541",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "40.1116",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-124.3897",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.9552",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-123.9854",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "42.0108",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-123.044",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.188",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.2468",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "40.129",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-122.0319",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "38.0906",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-119.8658",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.4259",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-118.7801",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.0129",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-119.0216",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "35.7995",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-123.0787",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "41.1752",
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "name": "point",
+                    "attributes": {},
+                    "text": "",
+                    "children": [
+                      {
+                        "name": "longitude",
+                        "attributes": {},
+                        "text": "-121.6574",
+                        "children": []
+                      },
+                      {
+                        "name": "latitude",
+                        "attributes": {},
+                        "text": "42.9248",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "dueTo": "MTNS OBSC BY CLDS PCPN BR"
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -121.6574,
+                42.9248
+              ],
+              [
+                -119.7338,
+                42.6266
+              ],
+              [
+                -119.8691,
+                42.1069
+              ],
+              [
+                -119.9789,
+                38.9618
+              ],
+              [
+                -115.949,
+                35.8063
+              ],
+              [
+                -116.8448,
+                35.2748
+              ],
+              [
+                -116.2334,
+                32.7426
+              ],
+              [
+                -117.2683,
+                32.7581
+              ],
+              [
+                -118.2548,
+                33.9143
+              ],
+              [
+                -120.6557,
+                34.487
+              ],
+              [
+                -124.2541,
+                40.1116
+              ],
+              [
+                -124.3897,
+                41.9552
+              ],
+              [
+                -123.9854,
+                42.0108
+              ],
+              [
+                -123.044,
+                41.188
+              ],
+              [
+                -122.2468,
+                40.129
+              ],
+              [
+                -122.0319,
+                38.0906
+              ],
+              [
+                -119.8658,
+                35.4259
+              ],
+              [
+                -118.7801,
+                35.0129
+              ],
+              [
+                -119.0216,
+                35.7995
+              ],
+              [
+                -123.0787,
+                41.1752
+              ],
+              [
+                -121.6574,
+                42.9248
+              ]
+            ]
+          ]
+        }
+      },
+      "reference": {
+        "source": "https://aviationweather.gov/api/data/gairmet?format=geojson&date=2026-10-22T09:00:00.000Z&fore=12",
+        "responseSha256": "5e9617fa70b4cfbf56fa1d004cbf0b239a9ec5cb24aa92d193cde73cc70b8872",
+        "feature": {
+          "type": "Feature",
+          "properties": {
+            "product": "SIERRA",
+            "hazard": "MT_OBSC",
+            "tag": "1E",
+            "issueTime": "2026-10-21T21:19:00.000Z",
+            "validTime": "2026-10-22T09:00:00.000Z",
+            "receiptTime": "2026-10-21T21:19:59.622Z",
+            "forecast": 12,
+            "dueTo": "MTNS OBSC BY CLDS PCPN BR"
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -121.6574,
+                  42.9248
+                ],
+                [
+                  -119.7338,
+                  42.6266
+                ],
+                [
+                  -119.8691,
+                  42.1069
+                ],
+                [
+                  -119.9789,
+                  38.9618
+                ],
+                [
+                  -115.949,
+                  35.8063
+                ],
+                [
+                  -116.8448,
+                  35.2748
+                ],
+                [
+                  -116.2334,
+                  32.7426
+                ],
+                [
+                  -117.2683,
+                  32.7581
+                ],
+                [
+                  -118.2548,
+                  33.9143
+                ],
+                [
+                  -120.6557,
+                  34.487
+                ],
+                [
+                  -124.2541,
+                  40.1116
+                ],
+                [
+                  -124.3897,
+                  41.9552
+                ],
+                [
+                  -123.9854,
+                  42.0108
+                ],
+                [
+                  -123.044,
+                  41.188
+                ],
+                [
+                  -122.2468,
+                  40.129
+                ],
+                [
+                  -122.0319,
+                  38.0906
+                ],
+                [
+                  -119.8658,
+                  35.4259
+                ],
+                [
+                  -118.7801,
+                  35.0129
+                ],
+                [
+                  -119.0216,
+                  35.7995
+                ],
+                [
+                  -123.0787,
+                  41.1752
+                ],
+                [
+                  -121.6574,
+                  42.9248
+                ]
+              ]
+            ]
+          }
+        }
+      },
+      "crossingEdges": [
+        13,
+        20
+      ]
+    }
+  ],
+  "finding": "The two SIERRA 1E MT_OBSC source boundaries cross. Bulk-derived coordinates exactly match the independent AWC GeoJSON frames; no corrected geometry was supplied."
+}

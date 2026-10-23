@@ -105,30 +105,36 @@ test('fresh deltas and available weather cannot hide an overdue or failed full s
   assert.equal(freshAt(NOTAM_NOW + 1, NOTAM_NOW, 100, 0), false);
   assert.equal(freshAt(NaN, NOTAM_NOW, 100), false);
 });
-test('nonblocking NOTAM metadata remains visible without masking operational or content failures', () => {
+test('proved metadata-only NOTAM discrepancies are informational without masking operational or content failures', () => {
   const value = healthy();
   Object.assign(value.notams, { unresolvedRecords: 1, blockingRecords: 0, unscopedRecords: 0, recordCount: 1,
     continuity: 'incomplete', collectionContinuity: 'complete' });
-  const warning = { product: 'notams', reason: 'association-metadata', severity: 'warning' };
+  const notice = { product: 'notams', reason: 'association-metadata', severity: 'info', count: 1 };
   const status = assessInfoHealth(value, NOTAM_NOW);
   assert.equal(status.ready, true); assert.equal(status.state, 'ready'); assert.deepEqual(status.problems, []);
-  assert.deepEqual(status.warnings, [warning]); assert.equal(status.sources.notams?.coverage, 'partial');
+  assert.deepEqual(status.warnings, []); assert.deepEqual(status.notices, [notice]);
+  assert.equal(status.sources.notams?.coverage, 'partial', 'original source uncertainty remains visible');
   for (const patch of [
     { checkedAt: NOTAM_NOW - INFO_FRESHNESS.notams }, { generation: null },
     { collectionContinuity: 'incomplete' as const }, { error: 'source-http-502' },
     { fullSyncAt: NOTAM_NOW - INFO_FRESHNESS.fullSync },
   ]) {
     const failure = assessInfoHealth({ ...value, notams: { ...value.notams, ...patch } }, NOTAM_NOW);
-    assert.equal(failure.ready, false, JSON.stringify(patch)); assert.deepEqual(failure.warnings, [warning]);
+    assert.equal(failure.ready, false, JSON.stringify(patch)); assert.deepEqual(failure.notices, [notice]);
   }
   assert.equal(assessInfoHealth({ ...value, notamReconciliation: { state: 'failed', error: 'source-http-502', nextAttemptAt: NOTAM_NOW } }, NOTAM_NOW).ready, false);
   for (const blocking of [undefined, 1]) {
     const feed = { ...value.notams, state: 'degraded' as const, error: 'unresolved-records' };
     if (blocking === undefined) delete feed.blockingRecords; else feed.blockingRecords = blocking;
     const failure = assessInfoHealth({ ...value, notams: feed }, NOTAM_NOW);
-    assert.equal(failure.ready, false); assert.deepEqual(failure.warnings, []);
+    assert.equal(failure.ready, false); assert.deepEqual(failure.warnings, []); assert.deepEqual(failure.notices, []);
     assert.deepEqual(failure.problems, [{ product: 'notams', reason: 'unresolved-records', severity: 'error' }]);
   }
+  const mixed = assessInfoHealth({ ...value, notams: { ...value.notams, state: 'degraded', error: 'unresolved-records',
+    unresolvedRecords: 3, blockingRecords: 1, historicalIssues: 1 } }, NOTAM_NOW);
+  assert.equal(mixed.ready, false); assert.deepEqual(mixed.notices, [notice]);
+  assert.deepEqual(mixed.warnings, [{ product: 'notams', reason: 'historical-source-issues', severity: 'warning' }]);
+  assert.deepEqual(mixed.problems, [{ product: 'notams', reason: 'unresolved-records', severity: 'error' }]);
 });
 test('historical evidence remains a distinct warning and cannot hide collection or reconciliation failures', () => {
   const value = healthy();
@@ -171,4 +177,16 @@ test('bounded duration metrics retain failures, active work and approximate perc
     assert.equal(metrics.status.operations['notams.merge']!.active, 0);
     assert.ok(metrics.status.memory.peakRssBytes >= metrics.status.memory.rssBytes * 0.9);
   } finally { metrics.close(); }
+});
+
+
+test('health identifies analysis validity separately from a recent successful poll', () => {
+  const value = healthy();
+  value.progs.analysis = { ready: true, checkedAt: NOTAM_NOW, validTimes: [NOTAM_NOW - INFO_FRESHNESS.analysis] };
+  const status = assessInfoHealth(value, NOTAM_NOW), source = status.sources['progs.analysis']!;
+  assert.equal(source.fresh, false); assert.equal(source.checkedAt, NOTAM_NOW);
+  assert.deepEqual(source.freshness?.filter(check => !check.fresh), [
+    { clock: 'analysis-valid', timestamp: NOTAM_NOW - INFO_FRESHNESS.analysis, maxAgeMs: INFO_FRESHNESS.analysis, fresh: false },
+  ]);
+  assert.equal(source.freshness?.find(check => check.clock === 'source-check')?.fresh, true);
 });

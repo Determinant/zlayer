@@ -56,6 +56,22 @@ test('captured separator loss reconciles across arrival orders, batch partitions
   if (decision.kind === 'resolved') assert.ok(decision.proofs.includes('icao-line-break'));
 });
 
+test('a shared ICAO proof cannot disable the independent proof for retained native separators', () => {
+  const native = changed(rich, { translations: rich.translations.map(t => t.type === 'LOCAL_FORMAT'
+    ? { ...t, text: t.text.replace('MONITORED 261016', 'MONITORED261016') } : t) });
+  assert.equal(compareNotamContent(rich, native).outcome, 'equivalent');
+  for (const order of permutations([rich, native, daa.variants[0]!])) for (const batches of partitions(order)) {
+    let collection: ReturnType<typeof collectNotamRecords> = { records: [] };
+    for (const batch of batches) collection = collectNotamRecords(collection, batch);
+    assert.equal(collection.issues?.length ?? 0, 0); assert.equal(collection.records.length, 1);
+    for (const record of order) for (const translation of record.translations)
+      assert.ok(collection.records[0]!.translations.some(t => t.type === translation.type && t.text === translation.text));
+    assert.equal(collectNotamRecords(collection, order), collection);
+    assert.equal(rebaseNotamRecords(collection, [native], end).issues?.length ?? 0, 0);
+    assert.equal(collectNotamRecords(collection, [different]).issues?.length, 1, 'proof composition cannot erase a real contradiction');
+  }
+});
+
 test('changed content, boundaries and unsupported evidence survive all sequence partitions', () => {
   for (const order of permutations([...daa.variants, different])) for (const batches of partitions(order)) {
     let collection: ReturnType<typeof collectNotamRecords> = { records: [] };

@@ -30,7 +30,8 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   let index: ReturnType<typeof parseTfrIndex> = [];
   let view: { published: TfrSnapshot; value: TfrSnapshot } | undefined;
   let pending: Promise<void> | undefined, restoring: Promise<void> | undefined;
-  let restored = false, stopped = false, quiescing = false;
+  let restored = false, stopped = false, quiescing = false, retryAt = 0, clock = now();
+  let recoveryFailure: unknown;
   const details = new Map<string, TfrNotice>();
   function held() { signal.throwIfAborted(); if (!lock || stopped) throw new Error('TFR collector unavailable'); lock.assertHeld(); }
   async function saveBudget(value: Budget) {
@@ -76,7 +77,10 @@ export function createTfrService(options: { directory: string; signal: AbortSign
     snapshot = candidate;
   }
   function restore(): Promise<void> {
-    return restoring ??= (async () => {
+    if (restoring) return restoring;
+    if (restored || stopped || quiescing || signal.aborted || now() < retryAt) return Promise.resolve();
+    return restoring = (async () => {
+      error = undefined; details.clear(); index = []; nextDetailAt = Infinity;
       try { snapshot = await savedSnapshot(file); }
       catch (cause) { if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') error = 'saved-data-invalid'; }
       for (const notice of snapshot?.notices ?? []) details.set(notice.id, notice);
@@ -116,11 +120,12 @@ export function createTfrService(options: { directory: string; signal: AbortSign
               (notice.detailCheckedAt ?? 0) > (published.detailCheckedAt ?? 0)) details.set(notice.id, notice);
           }
         } catch { /* Optional progress cache cannot reset admission or discredit published data. */ }
-        restored = true;
-      } catch {
-        budget = undefined; error = 'storage-unavailable'; await lock?.release(); lock = undefined;
+        held(); restored = true; retryAt = 0; recoveryFailure = undefined;
+      } catch (cause) {
+        recoveryFailure = cause; budget = undefined; restored = false; retryAt = now() + TFR_REFRESH_MS;
+        error = 'storage-unavailable'; await lock?.release(); lock = undefined;
       }
-    })();
+    })().finally(() => { restoring = undefined; });
   }
   async function download(url: string, maxBytes: number): Promise<{ text: string; checkedAt: number }> {
     held(); if (!budget || now() < budget.backoffAt) throw new Error('TFR source backing off');
@@ -226,13 +231,23 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   const nextAttempt = () => Math.max(admissionAt, budget?.backoffAt ?? 0, Math.min(nextIndexAt, nextDetailAt));
   function refresh(): Promise<void> {
     if (pending) return pending;
-    if (!restored || !budget || stopped || quiescing || signal.aborted || now() < nextAttempt()) return Promise.resolve();
-    pending = collect().catch(() => {
+    if (now() < clock) retryAt = Math.min(retryAt, now() + TFR_REFRESH_MS);
+    clock = now();
+    if (stopped || quiescing || signal.aborted) return Promise.resolve();
+    if (!restored || !budget) return restore();
+    if (restoring || now() < nextAttempt()) return Promise.resolve();
+    pending = collect().catch(async cause => {
       if (signal.aborted) return;
       nextIndexAt = Math.max(nextIndexAt, budget?.nextAt ?? now() + TFR_REFRESH_MS);
       admissionAt = nextIndexAt;
       nextDetailAt = Infinity;
       error = 'refresh-failed'; options.log?.('TFR refresh failed; retaining published snapshot');
+      let owned = true;
+      try { held(); } catch (cause) { owned = false; recoveryFailure = cause; }
+      if (!owned || !budget) {
+        recoveryFailure ??= cause; restored = false; budget = undefined; retryAt = now() + TFR_REFRESH_MS;
+        await lock?.release(); lock = undefined;
+      }
     }).finally(() => { pending = undefined; });
     return pending;
   }
@@ -241,7 +256,7 @@ export function createTfrService(options: { directory: string; signal: AbortSign
   return { restore, refresh,
     // Close admission synchronously, before awaiting a request or disk write.
     // Keep ownership until close(); another owner must not race this checkpoint.
-    async quiesce() { quiescing = true; await restoring; await pending; if (restored) held(); },
+    async quiesce() { quiescing = true; await restoring; await pending; if (recoveryFailure) throw recoveryFailure; if (restored) held(); },
     close: async () => { stopped = true; lifetime.abort(); await restoring; await pending; await lock?.release(); lock = undefined; },
     read: (): TfrSnapshot | undefined => {
       if (!snapshot) return;
@@ -254,6 +269,6 @@ export function createTfrService(options: { directory: string; signal: AbortSign
       }
       return view.value;
     },
-    get status() { return { ready: !!snapshot, checkedAt: snapshot?.checkedAt ?? null, loading: !!pending, error: sourceError() ?? null, unresolvedRecords: snapshot?.issues?.length ?? 0,
-      nextAttemptAt: budget ? nextAttempt() : null }; } };
+    get status() { return { ready: !!snapshot, checkedAt: snapshot?.checkedAt ?? null, loading: !!pending || !!restoring, error: sourceError() ?? null, unresolvedRecords: snapshot?.issues?.length ?? 0,
+      nextAttemptAt: budget ? nextAttempt() : retryAt }; } };
 }

@@ -11,7 +11,8 @@ await build({ configFile: false, publicDir: false, logLevel: 'warn', ssr: { noEx
       'radar-worker': 'tools/info-server/radar-worker.ts', 'progs-worker': 'tools/info-server/progs-worker.ts',
       'progs-coverage-worker': 'tools/info-server/progs-coverage-worker.ts',
       'notams-worker': 'tools/info-server/notams-worker.ts', 'check-info-api': 'tools/check-info-api.ts',
-      'replay-notams': 'tools/replay-notams.ts' },
+      'replay-notams': 'tools/replay-notams.ts', 'replay-notam-bulk': 'tools/replay-notam-bulk.ts',
+      'replay-info-capacity': 'tools/replay-info-capacity.ts' },
       output: { entryFileNames: '[name].js', chunkFileNames: 'shared-[hash].js' } } } });
 
 await writeFile('tools/info-server/dist/package.json', JSON.stringify({ private: true, type: 'module' }) + '\n');

@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-10-22T22:37:05.089363+00:00",
+  "source": "https://zlayer.tedyin.com/api/notams/regions?firId=KZLA",
+  "responseSha256": "572d66e89c58c7a7a7397dd5b550800c5ad8ea357c77ac0d026c726ec086ef45",
+  "checkedAt": 1792708549127,
+  "issues": [
+    {
+      "id": "4705423378802976",
+      "reason": "revision-conflict",
+      "observations": {
+        "firstSeenAt": 1792701620362,
+        "lastSeenAt": 1792702040297,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "FIM"
+      ],
+      "icaoLocations": [
+        "KFIM",
+        "KZLA"
+      ],
+      "unscoped": false,
+      "variants": [
+        {
+          "id": "4705423378802976",
+          "sourceId": "NMS_ID_4705423378802976",
+          "classification": "DOMESTIC",
+          "number": "125",
+          "series": "",
+          "year": "",
+          "locations": [
+            "FIM"
+          ],
+          "icaoLocations": [
+            "KZLA"
+          ],
+          "accountability": "HHR",
+          "issuedAt": 1792701360000,
+          "updatedAt": 1792701360000,
+          "sourceUpdatedAt": "2026-10-22T20:36:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792701240000,
+          "endsAt": null,
+          "effectiveStart": "202610222034",
+          "effectiveEnd": "PERM",
+          "endKind": "permanent",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "COM VOR VOICE 122.1 DECOMMISSIONED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!HHR 10/125 FIM COM VOR VOICE 122.1 DECOMMISSIONED 2610222034-PERM"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "067d9044c30e4f19aaefa3649bbc286c8f920ff00d687a2c58a396ca7bd5ff42"
+        },
+        {
+          "id": "4705423378802976",
+          "sourceId": "NMS_ID_4705423378802976",
+          "classification": "DOMESTIC",
+          "number": "125",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "FIM"
+          ],
+          "icaoLocations": [
+            "KFIM"
+          ],
+          "accountability": "HHR",
+          "issuedAt": 1792701360000,
+          "updatedAt": 1792701360000,
+          "sourceUpdatedAt": "2026-10-22T20:36:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1792701240000,
+          "endsAt": null,
+          "effectiveStart": "202610222034",
+          "effectiveEnd": "PERM",
+          "endKind": "permanent",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "COM VOR VOICE 122.1 DECOMMISSIONED",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!HHR 10/125 FIM COM VOR VOICE 122.1 DECOMMISSIONED 2610222034-PERM"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "10/125 NOTAMN \r\nQ) KZLA/QCAAW/IV/B/AE/000/999/3421N11852W025 \r\nA) FIM \r\nB) 2610222034 \r\nC) PERM \r\nE) VOR VOICE 122.1 DECOMMISSIONED"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "2c467d04638378005b303da665badc540b4e7a784be5c9bcb2a92376e0a5a7cf"
+        }
+      ]
+    }
+  ]
+}

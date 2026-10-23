@@ -13,7 +13,7 @@ FAA sources ──► faa-regs builder ──► dated static files ──► ch
 AWC reports / advisories ────────────────────► TypeScript info server ──────────┘
 AWC/WPC analysis / forecast GeoJSON ─────────► TypeScript info server ──────────┘
 NOAA IFI on NOMADS ──────────────────────────► TypeScript info server ──────────┘
-NOAA HRRR on Google Cloud ───────────────────► TypeScript info server ──────────┘
+NOAA HRRR on Google Cloud / AWS ─────────────► TypeScript info server ──────────┘
 FAA NMS ────────────────────────────────────► TypeScript info server ──────────┘
 FAA graphical TFR index / XML ───────────────► TypeScript info server ──────────┘
 NOAA radar / storm motion ───────────────────► TypeScript info server ──────────┘
@@ -162,8 +162,8 @@ Source acquisition, catalog validation, advisory normalization, GRIB decoding,
 projection and wind rotation run on the server, with numeric preparation in
 bounded Node workers using TypeScript. The browser caches compact artifacts
 through core; its worker validates native bands and interpolates selected wind
-altitudes for rendering and point extraction. Google remains the server's HRRR
-source; IFI uses NOMADS.
+altitudes for rendering and point extraction. HRRR uses Google with a qualified
+NOAA AWS fallback for incomplete source publications; IFI uses NOMADS.
 Model run, source check and forecast-valid times remain independent of advisories.
 One bounded disk cache shares source responses and processed forecasts across
 viewers. Background updates prepare complete native generations before replacing

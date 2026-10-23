@@ -1,6 +1,6 @@
 import { isRecord, isAwcAdvisorySnapshot, isWeatherAdvisory, advisoryValidityWithinWindow, type AwcAdvisoryIssue, type AwcAdvisoryProduct,
   type AwcAdvisorySnapshot, type WeatherAdvisory, type WeatherGeometry } from '@zlayer/contracts';
-import { prepareAdvisoryGeometry } from './source-geometry';
+import { prepareAdvisoryGeometry, AdvisoryGeometryError, AdvisoryGeometryProcessingError } from './source-geometry';
 import { advisorySourceHazard } from './source-hazard';
 
 export const FORECAST_HOURS = [0, 3, 6, 9, 12] as const;
@@ -9,9 +9,9 @@ export type SourceCollection = { type: 'FeatureCollection'; features: unknown[] 
 
 /** Envelope completeness and member interpretation are independent. Unknown
  * members remain accounted for as source issues; truncation rejects the envelope. */
-export function isSourceCollection(v: unknown): v is SourceCollection {
+export function isSourceCollection(v: unknown, maxRecords = 399): v is SourceCollection {
   return isRecord(v) && v.type === 'FeatureCollection' && v.exceededTransferLimit !== true &&
-    Array.isArray(v.features) && v.features.length < 400;
+    Array.isArray(v.features) && v.features.length <= maxRecords;
 }
 
 function instant(value: unknown): number | null {
@@ -54,20 +54,21 @@ function identity(value: unknown): string {
 }
 
 export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonly unknown[],
-  checkedAt: number, source: string): AwcAdvisorySnapshot {
-  if (inputs.length !== (product === 'gairmet' ? FORECAST_HOURS.length : 1) || !inputs.every(isSourceCollection)) {
+  checkedAt: number, source: string, completeBulk = false): AwcAdvisorySnapshot {
+  if (inputs.length !== (product === 'gairmet' ? FORECAST_HOURS.length : 1) || !inputs.every(input => isSourceCollection(input, completeBulk && product === 'gairmet' ? 2000 : 399))) {
     throw new Error('AWC returned an incomplete or unsupported advisory collection');
   }
+  if (inputs.reduce((count, input) => count + input.features.length, 0) > 2000) throw new Error('AWC advisory collection exceeds record limit');
   const advisories = new Map<string, WeatherAdvisory>(), issues = new Map<string, AwcAdvisoryIssue>();
   const bases = new Set<number>();
   for (const [index, collection] of inputs.entries()) for (const feature of collection.features) {
     const p = isRecord(feature) && isRecord(feature.properties) ? feature.properties : {};
     const issuer = string(p.icaoId ?? p.cwsu ?? p.product) || 'AWC';
     const identifier = string(p.seriesId ?? p.tag) || 'Unknown identifier';
-    const reject = (reason: AwcAdvisoryIssue['reason'], detail?: AwcAdvisoryIssue['detail']) => {
+    const reject = (reason: AwcAdvisoryIssue['reason'], detail?: AwcAdvisoryIssue['detail'], geometryError?: string) => {
       const id = `${product}:issue:${identity(feature)}`, sourceFeature = JSON.stringify(feature) ?? 'null';
       issues.set(id, { id, issuer: issuer.slice(0, 100_000), identifier: identifier.slice(0, 100_000), reason,
-        ...(detail ? { detail } : {}), sourceFeature: sourceFeature.slice(0, 100_000),
+        ...(detail ? { detail } : {}), ...(geometryError ? { geometryError: geometryError.slice(0, 300) } : {}), sourceFeature: sourceFeature.slice(0, 100_000),
         ...(sourceFeature.length > 100_000 ? { sourceFeatureTruncated: true } : {}) });
     };
     if (!isRecord(feature) || feature.type !== 'Feature' || !isRecord(feature.properties)) { reject('invalid-feature'); continue; }
@@ -77,7 +78,7 @@ export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonl
     if (validFrom === null || (product !== 'gairmet' && (validTo === null || validTo <= validFrom)) ||
       !advisoryValidityWithinWindow(validFrom, validTo, checkedAt) ||
       (product === 'gairmet' && forecastHour !== FORECAST_HOURS[index])) {
-      if (product === 'gairmet') throw new Error('AWC advisory has invalid forecast times');
+      if (product === 'gairmet' && !completeBulk) throw new Error('AWC advisory has invalid forecast times');
       reject('invalid-validity'); continue;
     }
     if (forecastHour !== null) bases.add(validFrom - forecastHour * 3_600_000);
@@ -86,7 +87,10 @@ export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonl
     const { hazard, classification } = resolution;
     let prepared: ReturnType<typeof prepareAdvisoryGeometry>;
     try { prepared = prepareAdvisoryGeometry(feature.geometry); }
-    catch { reject('invalid-geometry'); continue; }
+    catch (cause) {
+      if (!(cause instanceof AdvisoryGeometryError)) throw new AdvisoryGeometryProcessingError(cause);
+      reject('invalid-geometry', undefined, cause.message); continue;
+    }
     const { geometry, outlineGeometry } = prepared;
     // Include resolved classification and prepared geometry so an upgraded
     // interpretation cannot reuse a stale receipt for an unchanged source feature.
@@ -100,11 +104,31 @@ export function normalizeAdvisories(product: AwcAdvisoryProduct, inputs: readonl
     if (!isWeatherAdvisory(advisory)) { reject('invalid-feature'); continue; }
     advisories.set(id, advisory);
   }
-  if (bases.size > 1) throw new Error('G-AIRMET forecast package changed during refresh; retaining the previous package');
-  const base = [...bases][0];
-  const snapshot: AwcAdvisorySnapshot = { schemaVersion: issues.size ? 2 : 1, product, checkedAt, source,
-    frameTimes: base === undefined ? [] : FORECAST_HOURS.map(hour => base + hour * 3_600_000),
+  if (bases.size > 1 && !completeBulk) throw new Error('G-AIRMET forecast package changed during refresh; retaining the previous package');
+  const cycles = [...bases].sort((a, b) => a - b);
+  if (cycles.length > 32) throw new Error('G-AIRMET cycle limit exceeded');
+  const snapshot: AwcAdvisorySnapshot = { schemaVersion: cycles.length > 1 ? 3 : issues.size ? 2 : 1, product, checkedAt, source,
+    frameTimes: [...new Set(cycles.flatMap(base => FORECAST_HOURS.map(hour => base + hour * 3_600_000)))].sort((a, b) => a - b),
+    ...(cycles.length > 1 ? { cycleTimes: cycles } : {}),
     advisories: [...advisories.values()], ...(issues.size ? { issues: [...issues.values()] } : {}) };
   if (!isAwcAdvisorySnapshot(snapshot)) throw new Error('AWC advisory normalization failed validation');
   return snapshot;
+}
+
+/** Older clients can draw only one cycle. Account for every omitted member as
+ * explicit uncertainty, with original evidence, until they upgrade to v3. */
+export function legacyAdvisories(snapshot: AwcAdvisorySnapshot): AwcAdvisorySnapshot {
+  if (snapshot.schemaVersion !== 3) return snapshot;
+  const { cycleTimes, ...rest } = snapshot, base = cycleTimes!.at(-1)!;
+  const advisories: WeatherAdvisory[] = [], issues = [...(snapshot.issues ?? [])];
+  for (const advisory of snapshot.advisories) {
+    if (advisory.validFrom - advisory.forecastHour! * 3_600_000 === base) advisories.push(advisory);
+    else {
+      const evidence = JSON.stringify({ explanation: 'This valid overlapping cycle requires the v3 G-AIRMET endpoint', advisory });
+      issues.push({ id: advisory.id, issuer: advisory.issuer, identifier: advisory.identifier, reason: 'invalid-validity',
+        sourceFeature: evidence.slice(0, 100_000), ...(evidence.length > 100_000 ? { sourceFeatureTruncated: true as const } : {}) });
+    }
+  }
+  return { ...rest, schemaVersion: issues.length ? 2 : 1, advisories,
+    frameTimes: FORECAST_HOURS.map(hour => base + hour * 3_600_000), ...(issues.length ? { issues } : {}) };
 }

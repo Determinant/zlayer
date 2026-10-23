@@ -11,10 +11,12 @@ export function createServerWorker(module: URL): Worker {
 }
 
 /** One bounded, cancellable CPU job. Termination finishes before its slot is released. */
-export async function workerJob<T>(module: URL, input: unknown, signal: AbortSignal, transfer: ArrayBuffer[] = []): Promise<T> {
+export async function workerJob<T>(module: URL, input: unknown, signal: AbortSignal, transfer: ArrayBuffer[] = [],
+  timeoutMs = 60_000): Promise<T> {
   signal.throwIfAborted();
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 180_000) throw new RangeError('Invalid worker deadline');
   const worker = createServerWorker(module);
-  const deadline = AbortSignal.any([signal, AbortSignal.timeout(60_000)]);
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]);
   try {
     return await new Promise<T>((resolve, reject) => {
       const cleanup = () => {

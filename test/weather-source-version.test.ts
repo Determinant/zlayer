@@ -9,7 +9,7 @@ import { sourceBlocks, sourceRecordKey } from '../tools/info-server/source-recor
 import { WeatherCache } from '../tools/info-server/cache';
 import { createProcessing } from '../tools/info-server/processing';
 import { nativeForecastFiles } from './fixtures/awc-native.mjs';
-import type { ModelVersion } from '../src/layers/weather-awc/grids/source-version';
+import { isModelVersion, modelVersionKey, type ModelVersion } from '../src/layers/weather-awc/grids/source-version';
 
 const path = 'dafs/prod/dafs.20260922/dafs.t20z.ifi.3km.conus.f001.grib2';
 const now = Date.UTC(2026, 8, 22, 21), signal = new AbortController().signal;
@@ -55,6 +55,58 @@ test('metadata requires a usable validator and range batching separates object v
   assert.notEqual(plan.get(sourceRecordKey(first)), plan.get(sourceRecordKey(next)));
   assert.notEqual(modelResource(path, 'bytes=0-31', first.indexHash, version).key,
     modelResource(path, 'bytes=0-31', first.indexHash, next.version).key);
+});
+
+test('mirror identity is bounded, separates raw blocks, and preserves existing identities', () => {
+  const version: ModelVersion = { byteLength: 64, etag: '"same-validator"' };
+  const mirror: ModelVersion = { ...version, mirror: 'noaa-hrrr-s3' };
+  assert.equal(modelVersionKey(version), JSON.stringify([64, version.etag, null]));
+  assert.notEqual(modelVersionKey(version), modelVersionKey(mirror));
+  assert.ok(isModelVersion(mirror));
+  for (const bad of ['unknown', 'https://other.test', null, 1]) assert.equal(isModelVersion({ ...version, mirror: bad }), false);
+  assert.throws(() => modelResource(path, 'bytes=0-31', 'a'.repeat(64), mirror), /Invalid model mirror/);
+  const hrrr = 'hrrr/prod/hrrr.20260922/conus/hrrr.t20z.wrfprsf01.grib2';
+  const first = { path: hrrr, start: 0, end: 31, indexHash: 'a'.repeat(64), version };
+  const second = { ...first, start: 32, end: 63, version: mirror };
+  const plan = sourceBlocks([first, second]);
+  assert.notEqual(plan.get(sourceRecordKey(first)), plan.get(sourceRecordKey(second)));
+  assert.equal(new URL(plan.get(sourceRecordKey(second))!.resource.url).host, 'noaa-hrrr-bdp-pds.s3.amazonaws.com');
+});
+
+test('mirror recovery pins its index and conditional ranges through conversion and raw-cache restart', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'zlayer-hrrr-mirror-')), shutdown = new AbortController();
+  const files = nativeForecastFiles(); let requests = 0, mirrorRanges = 0;
+  const load = createUpstream({ signal: shutdown.signal, spacing: 0, now: () => now, fetch: async (url, init) => {
+    requests++;
+    const parsed = new URL(String(url)), mirror = parsed.host === 'noaa-hrrr-bdp-pds.s3.amazonaws.com';
+    const sourcePath = '/weather/noaa/hrrr/prod/' + parsed.pathname.replace(/^\/(?:high-resolution-rapid-refresh\/)?/, '');
+    let raw = files.get(sourcePath); assert.ok(raw, sourcePath);
+    const etag = `"${mirror ? 'mirror-' : ''}${digest(raw)}"`;
+    if (init?.method === 'HEAD') return new Response(null, { headers: { etag,
+      'content-length': String(!mirror && sourcePath.endsWith('wrfsfcf04.grib2') ? 1 : raw.length) } });
+    if (sourcePath.endsWith('.idx')) return new Response(mirror ? raw.toString().replaceAll('\n', '\r\n') : Uint8Array.from(raw));
+    assert.ok(mirror, 'recovered conversion must not return to the damaged primary'); mirrorRanges++;
+    const headers = new Headers(init?.headers), range = /^bytes=(\d+)-(\d*)$/.exec(headers.get('range')!)!;
+    assert.equal(headers.get('if-match'), etag);
+    const start = Number(range[1]), end = range[2] ? Number(range[2]) : raw.length - 1;
+    return new Response(Uint8Array.from(raw.subarray(start, end + 1)), { status: 206,
+      headers: { etag, 'content-range': `bytes ${start}-${end}/${raw.length}`, 'content-length': String(end - start + 1) } });
+  } });
+  const options = { directory, maxBytes: 32 * 1024 * 1024, now: () => now, signal: shutdown.signal, load };
+  const cache = new WeatherCache(options); await cache.restore();
+  const processing = createProcessing(cache, shutdown.signal, () => now);
+  t.after(async () => { shutdown.abort(); await processing.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+  const manifest = JSON.parse((await processing.catalog('clouds')).body.toString());
+  assert.ok(manifest.frames.every((frame: any) => Object.values(frame.records).every((record: any) => record.version.mirror === 'noaa-hrrr-s3')));
+  const frame = manifest.frames[4], converted = await processing.forecast(manifest, frame);
+  assert.ok(converted.body.length > 0); assert.ok(mirrorRanges > 0);
+  const records = Object.values(frame.records) as import('../src/layers/weather-awc/grids/native-source').SourceRecord[];
+  const resource = sourceBlocks(records).get(sourceRecordKey(records[0]!))!.resource;
+  const saved = await cache.read(resource); assert.ok(saved);
+  await cache.drain(); const before = requests;
+  const restored = new WeatherCache(options); await restored.restore();
+  assert.deepEqual((await restored.read(resource))?.body, saved.body);
+  assert.equal(requests, before, 'restart reads validated mirror input without acquisition');
 });
 
 test('a decoder-rejected cached GRIB is quarantined and the same selection recovers after backoff', async t => {

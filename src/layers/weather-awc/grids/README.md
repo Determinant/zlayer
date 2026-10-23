@@ -325,6 +325,10 @@ Source check, browser check, model run and forecast valid time remain separate.
 Runs older than three hours, source checks older than 90 minutes, browser checks
 older than ten minutes, failed checks and restored-only data are visibly outdated.
 Future metadata is rejected; reading a saved artifact never advances freshness.
+Server HRRR discovery can recover a damaged primary copy from NOAA's alternate
+mirror before selecting an older run. The complete horizon and terrain remain
+pinned to one provider's indexes and object validators; see the
+[server source contract](../../../../tools/info-server/README.md#source-and-cache-contract).
 
 ### Forecast download scope
 

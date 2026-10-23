@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { DEFAULT_WEATHER_CACHE_BYTES, WeatherCache } from './cache.ts';
 import { HttpError, routeFor, type PreparedFamily } from './weather-resources.ts';
+import { createSourceEvidence } from './source-evidence';
 import { createUpstream, type Payload } from './upstream.ts';
 import { createProcessing } from './processing';
 import { createForecastWarming, PUBLISHED_CATALOG } from './warming';
@@ -34,7 +35,7 @@ function acceptsGzip(value: string | undefined): boolean {
   });
 }
 
-const INFO_SHUTDOWN_GRACE_MS = 130_000;
+const INFO_SHUTDOWN_GRACE_MS = 330_000;
 export async function createInfoServer(options: { directory: string; maxBytes?: number; maxEntries?: number; origin?: string; sourceUrl?: string; notams?: NotamOptions;
   shutdownGraceMs?: number;
   notamWait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
@@ -70,15 +71,16 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
   }
   let tfrResponse: { snapshot: ReturnType<typeof tfrs.read>; body: Buffer; encoded?: Promise<Buffer> } | undefined;
   void notams.restore();
-  const upstream = createUpstream({ ...options, signal: shutdown.signal });
+  const evidence = createSourceEvidence(options.directory, options);
+  const upstream = createUpstream({ ...options, evidence, signal: shutdown.signal });
   const cache = new WeatherCache({ directory: options.directory, maxBytes: options.maxBytes ?? DEFAULT_WEATHER_CACHE_BYTES, now: options.now, signal: shutdown.signal,
     ...(options.maxEntries !== undefined ? { maxEntries: options.maxEntries } : {}),
     load: (resource, signal) => resource.kind === 'prepared' ? processing.load(resource) : upstream(resource, signal),
     ...(options.log ? { log: options.log } : {}) });
-  const processing = createProcessing(cache, shutdown.signal, options.now);
+  const processing = createProcessing(cache, shutdown.signal, options.now, options.log);
   const warming = createForecastWarming(cache, processing, shutdown.signal, { ...options, metrics });
-  const progs = createProgsWarming(cache, shutdown.signal, options);
-  const coverage = createProgsCoverageWarming(cache, shutdown.signal, options);
+  const progs = createProgsWarming(cache, shutdown.signal, { ...options, evidence });
+  const coverage = createProgsCoverageWarming(cache, shutdown.signal, { ...options, evidence });
   const radar = createRadarWarming(cache, shutdown.signal, options);
   const motion = createRadarMotionWarming(cache, shutdown.signal, options);
   const pireps = createPirepWarming(cache, shutdown.signal, options);
@@ -88,7 +90,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
     const results = await Promise.allSettled([tfrs.close(), notams.close(), processing.close(),
       warming.close(), progs.close(), coverage.close(), radar.close(), motion.close(), advisories.close(), pireps.close()]);
     // Producers have settled, so no new cache publications can join this drain.
-    results.push(...await Promise.allSettled([cache.drain()]));
+    results.push(...await Promise.allSettled([cache.drain(), evidence.close()]));
     metrics.close();
     const failures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);
     if (failures.length) throw new AggregateError(failures, 'Info server shutdown failed');
@@ -144,7 +146,7 @@ export async function createInfoServer(options: { directory: string; maxBytes?: 
         response.setHeader('Vary', 'Accept');
         const data = { forecasts: warming.status, progs: progs.status, progsCoverage: coverage.status,
           radar: radar.status, radarMotion: motion.status, advisories: advisories.status, pireps: pireps.status, notams: notams.status,
-          notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, tfrs: tfrs.status };
+          notamReconciliation: notams.reconciliation, notamSourceIssues: notams.sourceIssues, notamIngestion: notams.ingestion, tfrs: tfrs.status };
         const now = (options.now ?? Date.now)(), readiness = assessInfoHealth(data, now);
         if (request.url === '/api/weather/healthz' && prefersStatusPage(request.headers.accept)) {
           response.setHeader('Content-Type', 'text/html; charset=utf-8');

@@ -1,18 +1,25 @@
+import type { createSourceEvidence } from './source-evidence';
 import { createHash } from 'node:crypto';
 import { isMetarFeatureCollection, isTafReport } from '@zlayer/contracts';
 import { HttpError, InvalidForecastIndexError, InvalidForecastSourceError, type Resource } from './weather-resources.ts';
 import { UpstreamQueue } from './upstream-queue';
 import { retryAfterAt } from './retry-after';
 import { readPirepCache } from './pirep-source';
+import { normalizeAdvisories } from '../../src/layers/weather-awc/source';
+import { AdvisoryGeometryProcessingError } from '../../src/layers/weather-awc/source-geometry';
 import { readGairmetCache } from './gairmet';
 import { ADVISORY_MAX_AGE_MS } from './weather-resources';
-import { WeatherSourceError } from './source-error';
+import { WeatherSourceError, WeatherPreparationError } from './source-error';
 import { isModelVersion, strongEtag, type ModelVersion } from '../../src/layers/weather-awc/grids/source-version';
 
 export type Payload = { body: Buffer; status: number; headers: Record<string, string>; checkedAt: number; sha256: string };
 export const digest = (body: Uint8Array) => createHash('sha256').update(body).digest('hex');
 
-export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number }) {
+const evidenceHeaders = (response: Response) => Object.fromEntries(['last-modified', 'etag', 'content-type', 'content-length'].flatMap(name => {
+  const value = response.headers.get(name); return value === null ? [] : [[name, value.slice(0, 1000)]];
+}));
+
+export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fetch; spacing?: number; userAgent?: string; now?: () => number; evidence?: ReturnType<typeof createSourceEvidence> }) {
   const queues = { awc: new UpstreamQueue(2, options.spacing ?? 1000), nomads: new UpstreamQueue(4, options.spacing ?? 600),
     hrrr: new UpstreamQueue(4, options.spacing ?? 100), radar: new UpstreamQueue(2, options.spacing ?? 250) };
   const fetcher = options.fetch ?? fetch;
@@ -21,6 +28,8 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
     const queue = queues[resource.upstream];
     return queue.run(signal, async () => {
       let checkedAt = (options.now ?? Date.now)();
+      const requestedAt = checkedAt;
+      let downloaded: Buffer | undefined;
       const response = await fetcher(resource.url, { signal, redirect: 'error',
         ...(resource.kind === 'model-metadata' ? { method: 'HEAD' } : {}), headers: {
         'User-Agent': options.userAgent ?? 'ZLayer-info-server/0.1', 'Accept-Encoding': 'identity',
@@ -65,6 +74,7 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         }
         if (length !== null && Number(length) !== size) throw new HttpError(502, 'Incomplete upstream response');
         let body = Buffer.concat(chunks, size);
+        if (resource.kind === 'gairmet-cache' || resource.kind === 'pirep-cache') downloaded = body;
         const headers: Record<string, string> = {};
         let status = response.status;
         if (resource.kind === 'gairmet-cache' || resource.kind === 'pirep-cache') {
@@ -76,7 +86,13 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
               modified > checkedAt ? 'future-source' : 'stale-source');
           }
           checkedAt = Math.min(checkedAt, modified);
-          body = Buffer.from(JSON.stringify(resource.kind === 'pirep-cache' ? await readPirepCache(body, checkedAt) : await readGairmetCache(body)));
+          const adapted = resource.kind === 'pirep-cache' ? await readPirepCache(body, checkedAt) : await readGairmetCache(body);
+          if (resource.kind === 'gairmet-cache' && Array.isArray(adapted) && normalizeAdvisories('gairmet', adapted, checkedAt, resource.url, true).issues?.length) {
+            const evidenceId = await options.evidence?.capture(body, { source: resource.url, requestedAt, checkedAt, phase: 'member-adaptation',
+              headers: evidenceHeaders(response), rule: 'G-AIRMET has unsupported members; see sourceXml and member issues in publication' });
+            if (evidenceId) headers['x-weather-evidence'] = evidenceId;
+          }
+          body = Buffer.from(JSON.stringify(adapted));
           if (body.length > resource.maxBytes) throw new InvalidForecastSourceError('AWC package exceeds its size limit');
           headers['content-type'] = 'application/json; charset=utf-8';
         } else if (resource.kind === 'range') {
@@ -140,7 +156,15 @@ export function createUpstream(options: { signal: AbortSignal; fetch?: typeof fe
         }
         return { body, status, headers, checkedAt, sha256: digest(body) };
       } catch (cause) {
-        if (cause instanceof HttpError) throw cause;
+        const failure = cause instanceof AdvisoryGeometryProcessingError ? new WeatherPreparationError(cause.message)
+          : downloaded && !(cause instanceof HttpError)
+            ? new WeatherSourceError(cause instanceof Error ? cause.message.slice(0, 300) : 'AWC package validation failed') : cause;
+        if (downloaded) {
+          const id = await options.evidence?.capture(downloaded, { source: resource.url, requestedAt, checkedAt, headers: evidenceHeaders(response),
+            phase: 'download-validation', rule: failure instanceof Error ? failure.message : 'Source validation failed' });
+          if (failure instanceof WeatherSourceError || failure instanceof WeatherPreparationError) failure.evidenceId = id;
+        }
+        if (failure instanceof HttpError) throw failure;
         throw new HttpError(502, 'Upstream response failed', 5);
       } finally { if (!response.bodyUsed) await response.body?.cancel().catch(() => {}); }
     });

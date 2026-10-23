@@ -68,8 +68,11 @@ export function collectNotamRecords(previous: NotamCollection, updates: readonly
 /** A replacement snapshot is not evidence that a still-present equal-revision
  * disagreement disappeared. Carry evidence forward through the completed bridge.
  * Absence resolves an issue only when the full snapshot itself is recent enough. */
-export function rebaseNotamRecords(current: NotamCollection, bulk: readonly NotamRecord[], absenceBefore: number | undefined, observation?: Observation): NotamCollection {
-  const present = new Set(bulk.map(r => r.id));
+export function rebaseNotamRecords(current: NotamCollection, bulk: readonly NotamRecord[], absenceBefore: number | undefined,
+  observation?: Observation, presentIds: readonly string[] = []): NotamCollection {
+  // An identifiable obsolete malformed member still establishes presence. Its
+  // newer retained revision must not become a fabricated full-snapshot withdrawal.
+  const present = new Set([...bulk.map(r => r.id), ...presentIds]);
   // A response may include observations newer than its conservative watermark.
   // An older full snapshot cannot withdraw those observations, even when it
   // covers the watermark. Equality remains conservative at timestamp precision.

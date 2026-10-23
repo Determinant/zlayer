@@ -637,3 +637,37 @@ test('client refreshes only the catalog for unchanged charts and optional saves 
   const aborted = new AbortController(); aborted.abort();
   await assert.rejects(client.restore('analysis', aborted.signal), { name: 'AbortError' });
 });
+
+
+test('a captured catalog with no analysis preserves all independently listed forecasts', async () => {
+  const text = await readFile(new URL('./fixtures/wpc-missing-analysis-2026-10-21/catalog.json', import.meta.url), 'utf8');
+  const charts = parseSurfaceCatalog(text, Date.parse('2026-10-21T08:00Z'));
+  assert.equal(charts.length, 11); assert.ok(charts.every(chart => chart.forecastHour > 0));
+  assert.deepEqual(charts.map(chart => chart.file).sort(), JSON.parse(text).prog.map((entry: any) => entry.file).sort());
+  assert.throws(() => parseSurfaceCatalog(JSON.stringify({ prog: [...JSON.parse(text).prog, JSON.parse(text).prog[0]] }), Date.parse('2026-10-21T08:00Z')), /Duplicate/);
+});
+
+test('an absent analysis cannot quarantine a shared catalog or stop forecast publication and recovery', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'progs-missing-analysis-'));
+  let now = WEATHER_NOW, omit = false, catalogCalls = 0;
+  const app = await createInfoServer({ directory, startUpdates: false, spacing: 0, now: () => now, fetch: async input => {
+    const url = String(input);
+    if (url === SURFACE_CATALOG) {
+      catalogCalls++; const catalog = surfaceCatalog();
+      if (omit) catalog.prog = catalog.prog.filter(entry => entry.fhr > 0);
+      return Response.json(catalog);
+    }
+    return Response.json(surfaceChart(url.split('/').at(-1)!));
+  } });
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  app.progs.refresh(); await app.progs.close();
+  const before = app.progs.status.analysis!.checkedAt;
+  omit = true; now += 300_000; app.progs.refresh(); await app.progs.close();
+  assert.equal(app.progs.status.analysis!.checkedAt, before);
+  assert.equal(app.progs.status.analysis!.error, 'AWC catalog has no surface analysis');
+  assert.equal(app.progs.status.forecast!.checkedAt, now); assert.equal(app.progs.status.forecast!.error, undefined);
+  assert.equal(catalogCalls, 2);
+  now += 30_000; app.progs.refresh(); await app.progs.close(); assert.equal(catalogCalls, 2, 'missing member does not reject shared source bytes');
+  omit = false; now += 300_000; app.progs.refresh(); await app.progs.close();
+  assert.equal(app.progs.status.analysis!.error, undefined); assert.equal(app.progs.status.analysis!.checkedAt, now);
+});

@@ -40,8 +40,8 @@ export function parseSurfaceCatalog(text: string, checkedAt: number): SurfaceCha
     return { file: entry.file, referenceTime: reference, validTime: reference + hour * HOUR, forecastHour: hour,
       source: `https://aviationweather.gov/data/products/wpc/${entry.file.slice(0, 8)}/${entry.file}` };
   }).sort((a, b) => a.validTime - b.validTime);
-  if (charts.filter(c => c.forecastHour === 0).length !== 1 || new Set(charts.map(c => c.validTime)).size !== charts.length ||
-    new Set(charts.map(c => c.file)).size !== charts.length) throw new SurfaceSourceError('Incomplete or duplicate surface catalog');
+  if (charts.filter(c => c.forecastHour === 0).length > 1 || new Set(charts.map(c => c.validTime)).size !== charts.length ||
+    new Set(charts.map(c => c.file)).size !== charts.length) throw new SurfaceSourceError('Duplicate surface catalog entries');
   return charts;
 }
 function position(value: unknown, context: string): GeographicPosition {

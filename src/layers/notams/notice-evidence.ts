@@ -1,44 +1,65 @@
 import type { NotamRecord } from '@zlayer/contracts';
 import { fdcBodyForms, noticeIntervalMatches } from './source-text';
 import { equalNotamSchedules, parseNotamSchedule, notamScheduleFits, type WeeklyNotamSchedule } from './schedule';
-import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey, type IcaoContent, type Representation } from './representation';
+import { noticeRepresentation, parseIcaoNotice, parseLocalNotice, icaoContentKey, type IcaoContent, type LocalNotice, type Representation } from './representation';
 import { compareIcaoQualification } from './notice-qualification';
 
 const bodyContent = (text: string) => noticeRepresentation(text)?.text;
 const numberContent = (value: string) => /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, '') : value;
 
-export function completeLocalNotice(record: NotamRecord, text: string): boolean {
+/** Domestic month/number and international series-number/year are different
+ * identities. Padding changes only the decimal number, never the month. */
+export function domesticNoticeNumber(value: string): string | undefined {
+  const parts = /^(\d{2})\/(\d+)$/.exec(value);
+  return parts ? `${parts[1]}/${numberContent(parts[2]!)}` : undefined;
+}
+export function bindsDomesticLocalNotice(record: NotamRecord, notice: LocalNotice): boolean {
+  const identity = domesticNoticeNumber(notice.number);
+  return identity !== undefined && record.classification === 'DOMESTIC' && !record.series && notice.office === record.accountability &&
+    record.locations.includes(notice.location) &&
+    (numberContent(record.number) === identity.split('/')[1] || domesticNoticeNumber(record.number) === identity) && noticeIntervalMatches(record, notice);
+}
+
+function completeLocalNotice(record: NotamRecord, notice: LocalNotice, source: string): boolean {
   const body = bodyContent(record.text);
   if (body === undefined) return false;
-  if (record.classification === 'FDC') return !!fdcBodyForms(record, text)?.has(body);
-  if (record.classification !== 'DOMESTIC' || record.series) return false;
-  const parsed = parseLocalNotice(text); if (!parsed.ok) return false;
-  const notice = parsed.value, number = notice.number.split('/')[1]!;
-  if (notice.office !== record.accountability || !record.locations.includes(notice.location) ||
-    (numberContent(record.number) !== numberContent(number) && record.number !== notice.number) || !noticeIntervalMatches(record, notice)) return false;
+  if (record.classification === 'FDC') return !!fdcBodyForms(record, source)?.has(body);
+  if (!bindsDomesticLocalNotice(record, notice)) return false;
   if (notice.body === body) return true;
   const schedule = parseNotamSchedule(record.schedule);
   return schedule.kind !== 'empty' && notice.body.startsWith(`${body} `) &&
     equalNotamSchedules(schedule, parseNotamSchedule(notice.body.slice(body.length + 1)));
 }
 
-export function localKey(record: NotamRecord): string | undefined {
+type LocalContent = Readonly<Omit<LocalNotice, 'representation' | 'segments'>>;
+export type LocalEvidence = Readonly<{ key: string; notice: LocalContent }>;
+// Immutable record identity owns this compact evidence. Never retain token
+// graphs or change the record's original headers, translations or body.
+const localCache = new WeakMap<NotamRecord, LocalEvidence | null>();
+export function localEvidence(record: NotamRecord): LocalEvidence | undefined {
+  if (localCache.has(record)) return localCache.get(record) ?? undefined;
+  localCache.set(record, null);
   const local = record.translations.filter(t => t.type === 'LOCAL_FORMAT');
   if (!local.length) return;
-  let key: string | undefined;
+  let evidence: LocalEvidence | undefined;
   for (const { text } of local) {
     const parsed = parseLocalNotice(text);
-    if (!parsed.ok || !completeLocalNotice(record, text)) return;
+    if (!parsed.ok || !completeLocalNotice(record, parsed.value, text)) return;
     const { representation: _representation, segments: _segments, ...content } = parsed.value;
-    const next = JSON.stringify(content);
-    if (key !== undefined && key !== next) return;
-    key = next;
+    const key = JSON.stringify({ ...content, number: record.classification === 'DOMESTIC'
+      ? domesticNoticeNumber(content.number) : content.number });
+    if (evidence && evidence.key !== key) return;
+    evidence ??= { key, notice: content };
   }
-  return key;
+  localCache.set(record, evidence!); return evidence;
+}
+export const localKey = (record: NotamRecord): string | undefined => localEvidence(record)?.key;
+export function sharedLocalEvidence(previous: NotamRecord, next: NotamRecord): LocalEvidence | undefined {
+  const before = localEvidence(previous);
+  return before && before.key === localEvidence(next)?.key ? before : undefined;
 }
 export function sharedLocalNotice(previous: NotamRecord, next: NotamRecord): boolean {
-  const before = localKey(previous);
-  return before !== undefined && before === localKey(next);
+  return sharedLocalEvidence(previous, next) !== undefined;
 }
 export const icaoBody = (notice: IcaoContent) => notice.body + (notice.lower ? ` F) ${notice.lower}` : '') + (notice.upper ? ` G) ${notice.upper}` : '');
 

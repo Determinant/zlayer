@@ -1,0 +1,18 @@
+{
+  "capturedAt": "2026-10-21T21:36:06.352301+00:00",
+  "runTime": "2026-10-21T15:00:00Z",
+  "lead": 4,
+  "indexSha256": "d1cbea92aee7bcd1ea8733b4b1cd06744967ceb8651fd5f26f3b7bcc196dd6a3",
+  "mirrorIndexSha256": "d1f5484334877baced19725e7163fe032cbf3e1a2448bd46d4a34958869e7531",
+  "google": {
+    "url": "https://storage.googleapis.com/high-resolution-rapid-refresh/hrrr.20261021/conus/hrrr.t15z.wrfprsf04.grib2",
+    "byteLength": 83886080,
+    "etag": "\"4d20cbce03e4e2b72021a342a02c1ae8\""
+  },
+  "mirror": {
+    "url": "https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.20261021/conus/hrrr.t15z.wrfprsf04.grib2",
+    "byteLength": 419917396,
+    "etag": "\"44a5ec9b8eaa495e2f87e221f60af666\""
+  },
+  "finding": "Both published indexes extend beyond the 80 MiB Google object. NOAA AWS and NOMADS copies have 419917396 bytes. Index parameter spellings differ, so each mirror must retain its own index hash and object validator. No full GRIB object is included."
+}

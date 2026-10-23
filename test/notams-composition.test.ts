@@ -11,7 +11,9 @@ import { icaoEvidence } from '../src/layers/notams/notice-evidence';
 import intl from './fixtures/notams-rkti-2026-10-11.json';
 import schedules from './fixtures/notams-schedule-2026-10-13.json';
 import scopes from './fixtures/notams-state-2026-10-16.json';
-import { aixm, departureNotice } from './fixtures/notams';
+import ewr from './fixtures/notams-ewr-designator-2026-10-22.json';
+import fim from './fixtures/notams-fim-association-2026-10-22.json';
+import { aixm, departureNotice, notice } from './fixtures/notams';
 import { permutations, batchPartitions } from './helpers/permutations';
 import { recordWithRevision, createNotamXmlParser } from '../tools/info-server/notams/normalize';
 import { compareNotamContent, resolveNotamRevision } from '../tools/info-server/notams/revision';
@@ -24,6 +26,7 @@ const changed = (record: NotamRecord, fields: Partial<NotamRecord>) => {
   const { revision: _revision, ...facts } = record; return recordWithRevision({ ...facts, ...fields });
 };
 const original: NotamSourceIssue = (() => { const value: unknown = dwh.issues[0]; assert.ok(isNotamSourceIssue(value)); return value; })();
+const ewrIssue: NotamSourceIssue = (() => { const value: unknown = ewr.issues[0]; assert.ok(isNotamSourceIssue(value)); return value; })();
 const active = original.variants.find(r => r.lifecycle === 'active')!;
 const cancelled = original.variants.find(r => r.lifecycle === 'cancelled')!;
 const cancel = (r: NotamRecord) => changed(r, { lifecycle: 'cancelled', canceledAt: r.sourceUpdatedAt });
@@ -142,6 +145,18 @@ test('separate E text never erases supplied limits, partial bodies, changed datu
 
 const cancellationIssue: NotamSourceIssue = (() => { const value: unknown = notamc.issues[0]; assert.ok(isNotamSourceIssue(value)); return value; })();
 const cancellationPair = cancellationIssue.variants;
+test('structured representation changes compose with NOTAMC identity and retained references', () => {
+  const full = changed(cancellationPair[0]!, { locations: [...cancellationPair[0]!.locations, 'ZZX'] });
+  const brief = changed(cancellationPair[1]!, { locations: [...full.locations].reverse(),
+    effectiveStart: new Date(full.startsAt!).toISOString() });
+  assertSequence([full, brief], 'cancellation');
+  const contrary = changed(brief, { referred: { series: 'M', number: '729', year: '2026' } });
+  for (const order of permutations([full, brief, contrary])) for (const batches of batchPartitions(order)) {
+    let state: ReturnType<typeof collectNotamRecords> = { records: [] };
+    for (const batch of batches) state = collectNotamRecords(state, batch);
+    assert.equal(state.issues?.length, 1); assert.equal(state.records.length, 0);
+  }
+});
 test('captured NOTAMC identity composes with missing years, terse renderings and sparse repeats', () => {
   assert.ok(isNotamSourceIssue(cancellationIssue));
   const parsed: NotamRecord[] = [];
@@ -256,15 +271,19 @@ test('NOTAMC referenced identifiers normalize decimal padding only', () => {
 // are invented. The oracle is the specified identity/lifecycle, not the comparator.
 const profiles = [changed(active, { year: '2026' }), record(departureNotice()), record(intl.issues[0]!.variants[0]),
   ...schedules.issues.map(issue => record(issue.variants[0]))];
-for (const base of profiles) test(`representation/lifecycle composition matrix: ${base.classification} ${base.locations[0]}`, () => {
-  for (let mask = 0; mask < 64; mask++) {
+for (const profile of profiles) test(`representation/lifecycle composition matrix: ${profile.classification} ${profile.locations[0]}`, () => {
+  const base = changed(profile, { locations: [...profile.locations, 'ZZX'], icaoLocations: [...profile.icaoLocations, 'KZZX'] });
+  for (let mask = 0; mask < 256; mask++) {
     const variant = changed(base, {
       year: mask & 1 ? '' : base.year,
       number: mask & 2 ? base.number.padStart(5, '0') : base.number,
       ...(mask & 4 ? { sequence: base.sequence + 1, correction: base.correction + 2 } : {}),
-      icaoLocations: mask & 8 ? [] : base.icaoLocations,
+      locations: mask & 64 ? [...base.locations].reverse() : base.locations,
+      icaoLocations: mask & 8 ? [] : mask & 64 ? [...base.icaoLocations].reverse() : base.icaoLocations,
       translations: mask & 16 ? base.translations.map(t => ({ ...t, text: `\n ${t.text.replace(/ /g, '  ')}\n` })) : base.translations,
       ...(mask & 32 ? { issuedAt: (base.issuedAt ?? base.updatedAt) + 1000, sourceUpdatedAt: base.sourceUpdatedAt.replace('.000Z', 'Z') } : {}),
+      ...(mask & 128 ? { effectiveStart: base.startsAt === null ? base.effectiveStart : new Date(base.startsAt).toISOString(),
+        effectiveEnd: base.endsAt === null ? base.effectiveEnd : new Date(base.endsAt).toISOString() } : {}),
     });
     for (const lifecycle of ['active', 'left-cancelled', 'right-cancelled', 'both-cancelled']) {
       const before = lifecycle === 'left-cancelled' || lifecycle === 'both-cancelled' ? cancel(base) : base;
@@ -275,8 +294,30 @@ for (const base of profiles) test(`representation/lifecycle composition matrix: 
   }
 });
 
+test('captured designator spellings compose with identity, omissions, counters, UTC forms and cancellation', () => {
+  const [spaced, compact] = ewr.issues[0]!.variants.map(record) as [NotamRecord, NotamRecord];
+  for (let mask = 0; mask < 64; mask++) {
+    const before = changed(spaced, { locations: [...spaced.locations, 'ZZX'] });
+    const after = changed(compact, {
+      year: mask & 1 ? '2026' : '', number: mask & 2 ? '00178' : compact.number,
+      ...(mask & 4 ? { sequence: compact.sequence + 1, correction: compact.correction + 2 } : {}),
+      icaoLocations: mask & 8 ? [] : compact.icaoLocations,
+      translations: compact.translations.filter(t => !(mask & 16) || t.type === 'LOCAL_FORMAT').map(t =>
+        mask & 2 && t.type === 'LOCAL_FORMAT' ? { ...t, text: t.text.replace('10/178', '10/00178') } : t),
+      locations: ['ZZX', ...compact.locations], effectiveStart: new Date(compact.startsAt!).toISOString(),
+      ...(mask & 32 ? { issuedAt: compact.issuedAt! + 1000, sourceUpdatedAt: compact.sourceUpdatedAt.replace('.000Z', 'Z') } : {}),
+    });
+    for (const lifecycle of ['active', 'left-cancelled', 'right-cancelled', 'both-cancelled']) {
+      const left = lifecycle === 'left-cancelled' || lifecycle === 'both-cancelled' ? cancel(before) : before;
+      const right = lifecycle === 'right-cancelled' || lifecycle === 'both-cancelled' ? cancel(after) : after;
+      try { assertSequence([left, right], lifecycle === 'active' ? 'active' : 'cancelled'); }
+      catch (error) { throw new Error(`designator mask=${mask}, lifecycle=${lifecycle}`, { cause: error }); }
+    }
+  }
+});
+
 test('year, schedule and complementary-scope proofs compose across three observations and lifecycle transitions', () => {
-  for (const issue of [...schedules.issues, ...scopes.issues.slice(1)]) {
+  for (const issue of [...schedules.issues, ...scopes.issues.slice(1), ...fim.issues]) {
     const [a, b] = issue.variants.map(record) as [NotamRecord, NotamRecord];
     const missing = changed(b, { year: '' });
     assertSequence([a, b, missing], 'active');
@@ -290,6 +331,25 @@ test('year, schedule and complementary-scope proofs compose across three observa
     const replayed = collectNotamRecords(inactive, [changed(missing, { translations: [] })]);
     assert.equal(replayed.issues?.length ?? 0, 0); assert.equal(replayed.records[0]?.lifecycle, 'cancelled');
     assert.deepEqual(replayed.records[0]?.sourceYears, ['', b.year]);
+  }
+});
+
+test('station/FIR roles compose with omissions, padding, counters, UTC forms, sparse replay and cancellation', () => {
+  const [a, b] = fim.issues[0]!.variants.map(record) as [NotamRecord, NotamRecord];
+  for (let mask = 0; mask < 64; mask++) {
+    const partial = changed(b, { year: mask & 1 ? '' : b.year, number: mask & 2 ? b.number.padStart(5, '0') : b.number,
+      ...(mask & 4 ? { sequence: 2, correction: 1 } : {}),
+      icaoLocations: mask & 8 ? [] : b.icaoLocations,
+      translations: mask & 16 ? [] : b.translations.map(t => ({ ...t, text: `\n ${(mask & 2 && t.type === 'LOCAL_FORMAT'
+        ? t.text.replace('10/125', '10/00125') : t.text).replaceAll(' ', '  ')}\n` })),
+      ...(mask & 32 ? { effectiveStart: new Date(b.startsAt!).toISOString(),
+        sourceUpdatedAt: b.sourceUpdatedAt.replace('.000Z', 'Z'), issuedAt: b.issuedAt! + 1000 } : {}),
+    });
+    try {
+      const resolved = assertSequence([a, b, partial], 'active');
+      assert.deepEqual(resolved.icaoLocations, ['KFIM', 'KZLA']);
+      assertSequence([a, partial, cancel(b)], 'cancelled');
+    } catch (cause) { throw new Error(`station/FIR mask=${mask}`, { cause }); }
   }
 });
 
@@ -368,7 +428,14 @@ test('identity proof grants no cancellation authority, body correction, new revi
   assert.equal(separate.records.find(r => r.id === independent.id)?.lifecycle, 'active');
 });
 
-for (const fixture of [{ issue: original, checkedAt: dwh.checkedAt, selectors: ['faaId=DWH', 'icaoId=KDWH'] },
+const structuredBase = changed(notice(), { locations: ['TST', 'ZZX'] });
+const structuredVariant = changed(structuredBase, { locations: ['ZZX', 'TST'],
+  effectiveStart: '2026-10-04T11:59:00.000000000Z', effectiveEnd: '2026-10-05T12:00:00Z' });
+const structuredIssue: NotamSourceIssue = { id: structuredBase.id, reason: 'revision-conflict', variants: [structuredBase, structuredVariant],
+  variantsTruncated: false, locations: structuredBase.locations, icaoLocations: structuredBase.icaoLocations, unscoped: false };
+for (const fixture of [{ issue: structuredIssue, checkedAt: structuredBase.updatedAt, selectors: ['faaId=TST', 'faaId=ZZX', 'icaoId=KTST'] },
+  { issue: ewrIssue, checkedAt: ewr.checkedAt, selectors: ['faaId=EWR', 'icaoId=KEWR'] },
+  { issue: original, checkedAt: dwh.checkedAt, selectors: ['faaId=DWH', 'icaoId=KDWH'] },
   { issue: cancellationIssue, checkedAt: notamc.checkedAt, selectors: ['icaoId=OJKF'] },
   ...separateLimitIssues.map(issue => ({ issue, checkedAt: separateLimits.checkedAt, selectors: issue.icaoLocations.map(code => `icaoId=${code}`) }))])
 test(`authenticated recovery publishes ${fixture.issue.id} without freshening clocks or admission`, async () => {

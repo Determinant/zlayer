@@ -1,3 +1,4 @@
+import type { createSourceEvidence } from './source-evidence';
 import { isSurfaceCatalog, SURFACE_PRODUCTS, SURFACE_PROCESSING, type SurfaceProduct, type SurfaceCatalog, type SurfaceFile } from '@zlayer/contracts';
 import { SURFACE_CATALOG } from '../../src/layers/weather-awc/progs/source';
 import type { WeatherCache } from './cache';
@@ -16,7 +17,7 @@ type State = { catalog?: SurfaceCatalog; task?: Promise<void> | undefined; nextC
 /** Small atomic catalogs reference immutable charts. CPU preparation runs only
  * for changed sources, in workers; HTTP serves previously published bytes. */
 export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
-  options: { now?: () => number; log?: (message: string) => void } = {}) {
+  options: { now?: () => number; log?: (message: string) => void; evidence?: ReturnType<typeof createSourceEvidence> } = {}) {
   const now = options.now ?? Date.now;
   let clock = now();
   const states = new Map(SURFACE_PRODUCTS.map(product => [product, { nextCheck: 0, building: new Set<string>() } as State]));
@@ -28,7 +29,7 @@ export function createProgsWarming(cache: WeatherCache, signal: AbortSignal,
   async function update(product: SurfaceProduct, state: State) {
     try {
       const { payload: catalog, charts } = await readProgsCatalog(cache, signal, product,
-        state.catalog && state.catalog.checkedAt <= now() ? state.catalog.frames : []);
+        state.catalog && state.catalog.checkedAt <= now() ? state.catalog.frames : [], options.evidence);
       const frames: SurfaceFile[] = [], jobs: SurfaceJob[] = [];
       for (const chart of charts) {
         const input = await cache.get(progsSourceResource(chart.source, 512 * 1024), 150_000, signal);

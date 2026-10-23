@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AwcGridProduct, AwcGridFrame, AwcGridManifest } from '@zlayer/contracts';
@@ -14,10 +14,12 @@ import { nativeForecastFiles } from './fixtures/awc-native.mjs';
 import { selectForecast } from '../src/layers/weather-awc/grids/selection';
 import { preparedSource } from '../src/layers/weather-awc/grids/prepared-client';
 import { forecastResource } from '../tools/info-server/processing';
+import type { ModelMirror } from '../src/layers/weather-awc/grids/source-version';
+import truncated from './fixtures/hrrr-truncated-2026-10-21/provenance.json' with { type: 'json' };
 
 const hour = 3600000, older = Date.UTC(2026, 8, 22, 20), latest = older + hour, now = latest + hour;
 const signal = new AbortController().signal, files = nativeForecastFiles();
-function source(change: (path: string, body: string) => string = (_path, body) => body) {
+function source(change: (path: string, body: string, mirror?: ModelMirror) => string = (_path, body) => body) {
   const entries = new Map<string, Payload>(), calls: string[] = [];
   for (const run of [older, latest]) for (const product of ['clouds', 'winds', 'icing'] as const) {
     for (let lead = product === 'icing' ? 1 : 0; lead <= 18; lead++) {
@@ -31,11 +33,11 @@ function source(change: (path: string, body: string) => string = (_path, body) =
         checkedAt: now - (run === latest ? 55_000 : 1000) });
     }
   }
-  const read: ReadSource = async (path, signal) => {
+  const read: ReadSource = async (path, signal, mirror) => {
     signal.throwIfAborted(); calls.push(path);
     const entry = entries.get(path);
     if (!entry) throw new HttpError(404, 'Missing cycle');
-    const body = Buffer.from(change(path, entry.body.toString()));
+    const body = Buffer.from(change(path, entry.body.toString(), mirror));
     return { ...entry, body, sha256: digest(body) };
   };
   return { read, calls };
@@ -75,7 +77,50 @@ test('discovery does not substitute cycles for immutable selections, outages, ba
   assert.equal(canceledSource.calls.length, 0);
   const absent = source(() => { throw new HttpError(404, 'No cycle'); });
   await assert.rejects(discover(absent.read, 'clouds', signal, now), /No complete recent NOAA model run/);
-  assert.equal(absent.calls.length, 6, 'fallback remains bounded');
+  assert.equal(absent.calls.length, 12, 'six cycles and at most two HRRR mirrors remain bounded');
+});
+
+test('a truncated HRRR object tries one complete alternate mirror before aging the run', async () => {
+  for (const product of ['clouds', 'winds'] as const) {
+    const broken = modelPath(product, latest, 4);
+    const { read, calls } = source((path, body, mirror) => path === broken && !mirror
+      ? JSON.stringify({ ...JSON.parse(body), byteLength: 1 }) : body);
+    const manifest = await discover(read, product, signal, now);
+    assert.equal(manifest.runTime, latest); assert.ok(isNativeManifest(manifest));
+    assert.ok(manifest.frames.every(frame => Object.values(frame.records).every(record => record.version?.mirror === 'noaa-hrrr-s3')),
+      'the full run and terrain use one qualified mirror, including its indexes and validators');
+    assert.ok(calls.every(path => path.includes('t21z')), 'successful mirror recovery never requests an older cycle');
+  }
+  const failed = source((path, body, mirror) => {
+    if (path === modelPath('winds', latest, 4) && !mirror) return JSON.stringify({ ...JSON.parse(body), byteLength: 1 });
+    if (mirror) throw new HttpError(503, 'Alternate mirror is backing off', 30);
+    return body;
+  });
+  await assert.rejects(discover(failed.read, 'winds', signal, now), /Alternate mirror is backing off/);
+  assert.ok(failed.calls.every(path => path.includes('t21z')), 'alternate backoff cannot amplify older-cycle probes');
+});
+
+test('the captured 15Z wind index rejects the truncated Google object and qualifies the NOAA mirror', async () => {
+  const capturedIndex = await readFile(new URL('./fixtures/hrrr-truncated-2026-10-21/hrrr.t15z.wrfprsf04.grib2.idx', import.meta.url));
+  const mirrorIndex = await readFile(new URL('./fixtures/hrrr-truncated-2026-10-21/hrrr.t15z.wrfprsf04.mirror.grib2.idx', import.meta.url));
+  assert.equal(digest(capturedIndex), truncated.indexSha256);
+  assert.equal(digest(mirrorIndex), truncated.mirrorIndexSha256);
+  assert.notEqual(truncated.indexSha256, truncated.mirrorIndexSha256);
+  const run = Date.parse(truncated.runTime), checkedAt = run + 2 * hour;
+  const read: ReadSource = async (path, _signal, mirror) => {
+    const wind = path.includes('wrfprs'), index = path.endsWith('.idx');
+    const metadata = mirror ? truncated.mirror : truncated.google;
+    const terrain = files.get('/weather/noaa/' + modelPath('clouds', older, 0))!;
+    const body = wind ? index ? (mirror ? mirrorIndex : capturedIndex) : Buffer.from(JSON.stringify({ byteLength: metadata.byteLength, etag: metadata.etag }))
+      : index ? Buffer.from(files.get('/weather/noaa/' + modelPath('clouds', older, 0) + '.idx')!.toString().replaceAll('d=2026092220', 'd=2026102115'))
+        : Buffer.from(JSON.stringify({ byteLength: terrain.length, etag: '"fixture-terrain"' }));
+    return { body, checkedAt, status: 200, headers: {}, sha256: digest(body) };
+  };
+  await assert.rejects(discover(read, 'winds', signal, checkedAt, { runTime: run, lead: truncated.lead }), /index exceeds its model object/);
+  const recovered = await discover(read, 'winds', signal, checkedAt, { runTime: run, lead: truncated.lead, mirror: 'noaa-hrrr-s3' });
+  assert.equal(recovered.frames.length, 37);
+  assert.ok(recovered.frames.every(frame => Object.values(frame.records).every(record => record.version?.mirror === 'noaa-hrrr-s3')));
+  assert.ok(recovered.frames.every(frame => frame.records.windHeight!.indexHash === truncated.mirrorIndexSha256));
 });
 
 test('catalog assembly refreshes an index that would expire while the remaining horizon loads', async t => {

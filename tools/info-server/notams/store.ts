@@ -10,17 +10,21 @@ import { upgradeNotamRecord } from './normalize';
 import { collectNotamRecords, NO_NOTAM_ISSUES } from './collection';
 import { atomicStateFile, readStateJson } from '../state-file';
 import { NotamAdmission } from './admission';
+import { isNotamPendingMembers, type NotamPendingMember } from './ingestion';
 
 export { NOTAM_DAY_MS } from './policy';
 export const NOTAM_GENERATION_MAX_BYTES = 256 * 1024 * 1024;
 export type NotamGeneration = { schemaVersion: 1 | 2; environment: NotamEnvironment; generation: string;
   checkedAt: number; watermark: number; fullSyncAt: number; baselineAt: number; complete: boolean;
-  incompleteReason?: string; records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
+  incompleteReason?: string; pendingMembers?: readonly NotamPendingMember[];
+  records: readonly NotamRecord[]; issues?: readonly NotamSourceIssue[] };
 type Manifest = Omit<NotamGeneration, 'records' | 'issues'> & { count: number; bytes: number; issueCount?: number; sha256?: string };
 type Contents = Pick<Manifest, 'generation' | 'count' | 'bytes'>;
 const instant = (v: unknown): v is number => Number.isSafeInteger(v) && typeof v === 'number' && v >= 0;
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function sealManifest(value: Manifest): Manifest {
+  if (value.pendingMembers !== undefined && (!isNotamPendingMembers(value.pendingMembers) || value.complete ||
+    value.incompleteReason !== 'invalid-source-members')) throw new NotamError('invalid-checkpoint');
   const { sha256: _sha256, ...fields } = value;
   const content = { ...fields, schemaVersion: 2 as const, issueCount: fields.issueCount ?? 0 };
   return { ...content, sha256: digest(content) };
@@ -47,6 +51,7 @@ export class NotamStore {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     this.lock = await acquireNotamLock(join(this.directory, 'writer.lock'));
     await this.admission.restore();
+    this.recoveryError = undefined; this.manifest = undefined; this.contents.clear();
     // Only the lock owner may discard private, interrupted writes.
     for (const name of await readdir(this.directory)) if (name.endsWith('.tmp')) await rm(join(this.directory, name), { force: true });
     await this.prune();
@@ -102,6 +107,8 @@ export class NotamStore {
   }
   private async readGeneration(value: unknown, name: string): Promise<NotamGeneration> {
     if (!isRecord(value) || value.schemaVersion !== 1 && value.schemaVersion !== 2 || value.environment !== this.environment ||
+      value.pendingMembers !== undefined && (value.schemaVersion !== 2 || !isNotamPendingMembers(value.pendingMembers) ||
+        value.complete || value.incompleteReason !== 'invalid-source-members') ||
       typeof value.generation !== 'string' || !/^[a-f0-9]{64}$/.test(value.generation) || typeof value.complete !== 'boolean' ||
       value.incompleteReason !== undefined && (typeof value.incompleteReason !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(value.incompleteReason)) ||
       !['checkedAt', 'watermark', 'fullSyncAt', 'baselineAt', 'bytes', 'count'].every(k => instant(value[k])) ||
@@ -191,8 +198,9 @@ export class NotamStore {
         await atomicStateFile(join(this.directory, 'candidate.json'), JSON.stringify(manifest));
         return { ...manifest, records, issues };
       }
-      // Keep the preceding distinct dataset, not another manifest for the same file.
-      if (this.manifest && this.manifest.generation !== manifest.generation) {
+      // A partial member update cannot displace the last verified recovery prefix.
+      // Preserve it even when only completeness changed, then through gap closure.
+      if (this.manifest?.complete && (this.manifest.generation !== manifest.generation || !manifest.complete)) {
         await atomicStateFile(join(this.directory, 'previous.json'), JSON.stringify(this.manifest));
       }
       await atomicStateFile(join(this.directory, 'current.json'), JSON.stringify(manifest));

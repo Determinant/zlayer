@@ -23,7 +23,10 @@ is only a compatibility path for older binaries without the lifecycle protocol.
 
 Opening `/api/weather/healthz` in a browser shows a compact HTML view of its
 readiness assessment. It shows overall readiness, source-check ages, partial
-coverage, source errors, reconciliation warnings and unresolved NOTAM counts.
+coverage, source errors, reconciliation warnings and separate blocking, metadata
+and historical NOTAM counts. Proven metadata discrepancies with no affected
+supported queries appear as neutral details on a ready NOTAM row; they do not
+turn the overall title into “Ready with warnings.”
 Expected coverage gaps remain distinct from failures; disabled NOTAM collection
 is explicit. The page needs no PWA build or additional proxy route. An explicit
 `Accept: text/html` preference selects HTML; other clients keep the existing JSON
@@ -137,8 +140,14 @@ ICAO/FIR associations selects a supported query. Historical qualification is
 separate and retains all source uncertainty. Other issues block readiness.
 `blockingRecords` governs feed state/error and the release probe; legacy responses
 without it treat every unresolved record as blocking. Aggregate health retains
-nonblocking ambiguity in `readiness.warnings`, independently of its blocking
-`problems`. Source coverage and legacy `continuity` remain partial/incomplete.
+current metadata-only ambiguity in `readiness.notices`, with `severity: info`
+and its count, independently of blocking `problems` and operational `warnings`.
+This classification uses the complete collector proof and counts, never the
+bounded diagnostic samples or an allowlist of identifiers. A mixed cohort still
+exposes every blocking issue and historical warning. Stale collection, incomplete
+continuity, failed reconciliation and content/query-impact uncertainty continue
+to require attention. Source coverage and legacy `continuity` remain
+partial/incomplete; all original variants and issue counts are preserved.
 For example, the captured October 9 `49D`/`PA49D` pair has
 matching content and filing location but conflicting FAA ICAO-location fields;
 the schema allows both values, so neither may be selected by a format guess.
@@ -208,6 +217,82 @@ and eviction counters and publication queue timing. Use those measurements to
 distinguish source-input reuse, released output retention and publication pressure
 before increasing cache capacity.
 
+## October 21, 2026 audit findings and repairs
+
+The findings below describe the implementation captured by the audit. The repair
+status that follows distinguishes code changes from upstream availability; none
+of these repairs waives production readiness.
+
+- **G-AIRMET rollover rejects a complete source observation.** The
+  [captured cache](../../test/fixtures/gairmet-cycle-overlap-2026-10-21/provenance.json)
+  contains 143 TANGO/ZULU records on the 03Z cycle and 18 still-current SIERRA
+  records on the preceding 21Z cycle. The audited `gairmet.ts` rejected that document;
+  parsing each supplied cycle separately accepts all 161 records with no member
+  issues. The single-cycle assumption also existed in advisory normalization,
+  regression detection, the shared snapshot guard and client frame selection.
+  A repair must preserve each member's actual lead and validity and explicitly
+  qualify compatibility with existing clients. Selecting only the newest cycle
+  would omit every SIERRA record in this capture. The then-existing mixed-cycle test
+  asserted rejection; it is not evidence that the upstream guarantees one cycle.
+- **The bulk adapter inherits a query-size assumption.** An otherwise complete
+  synthetic cache with 399 records in one frame passed; 400 failed. AWC recommends
+  complete cache files for requests exceeding its API result limits. Separate
+  query truncation detection from explicit bulk counts and bounded resource use;
+  this threshold was not the cause of the 161-record incident.
+- **FAA collector initialization can remain stuck after a transient failure.**
+  Both NOTAM and TFR services memoized `restore()` even after failure, while their
+  refresh paths required successful initialization. In an isolated lock-contention
+  reproduction, releasing the original owner and retrying did not recover either
+  existing service; fresh instances initialized from the same files. Recovery
+  needs a bounded, single-owner reinitialization path or an explicit supervisor
+  restart policy, preserving admission journals. This was not observed as the
+  cause of the current production alerts. Never repair it by resetting quota.
+- **Diagnostics obscure the failed condition.** G-AIRMET envelope, member and
+  cycle failures shared a generic invalid-source message. Original compressed
+  weather bytes were not retained when adaptation failed. The HTML status page
+  displayed source-check age, while a chart can be stale because its analysis
+  validity time is old. Expose the failing clock/rule separately from successful
+  polling and preserve bounded replay evidence; do not advance timestamps or
+  weaken freshness to clear an alert.
+
+The NOTAM bulk timeout/raw-retention repair preceded this audit. The next actual
+production bulk parsed in 61.5 seconds, exceeding the old 60-second deadline but
+within the new 180-second bound. Its complete raw archive and subsequent delta
+bridge were verified. This is one successful production acquisition, not proof
+of the worst-case processing bound. The two remaining chart alerts at that check
+shared AWC's old analysis timestamp; repeated successful catalog checks could
+not make that analysis current.
+
+The container build also omitted both replay entry points from its Dockerfile
+and restricted build context. Those inputs are now included. Qualify the actual
+container build as well as `info:build` when changing bundled entry points.
+
+### Repair status
+
+The current code accepts atomic multi-cycle G-AIRMET observations through a v3
+endpoint, preserves original leads/times, and provides an explicitly partial
+legacy projection. API query limits remain separate from complete bulk counts.
+NOTAM/TFR restore and uncertain-admission recovery are single-flight, retry after
+three minutes, and preserve journals. Raw rejected weather downloads now have a
+bounded private checksum/evidence store; health identifies the failed clock and
+bounded source-validation rule. See the owning guides for the current contracts.
+
+A further live observation found the AWC chart catalog had removed analysis
+entirely while retaining eleven forecasts. The former global requirement for
+one analysis also stopped valid forecasts. Parsing now separates family presence
+from envelope validity; analysis/coverage remain explicitly unavailable for
+replacement while independently listed forecasts can publish. The captured
+catalog is retained in `test/fixtures/wpc-missing-analysis-2026-10-21/`.
+Source absence and old analysis timestamps require upstream recovery; they are
+not reasons to retimestamp retained data or relax readiness thresholds.
+
+The combined release must pass focused parser/collector/lifecycle/client checks,
+TypeScript/import/build checks, a reviewed diff, isolated production-state restore
+and rollback qualification, and final live artifact verification. A release probe
+may report an exact previously reviewed missing-analysis baseline while checking
+all retained artifacts; that exception does not alter server health and cannot
+waive new failures or stale NOTAM collection.
+
 ## Focused qualification
 
 Run `npm run test:info:notams` for NMS identity/representation composition,
@@ -222,7 +307,7 @@ Run `npm run check:imports`, appropriate TypeScript checks, relevant
 `npm run info:build`. Full repository verification is a separate release policy;
 do not infer it passed from these checks. Recovery/health tests live in
 `test/notams-admission.test.ts`, `notams-server.test.ts`,
-`notams-reconciliation-health.test.ts`, `info-health.test.ts` and
+`notams-reconciliation-health.test.ts`, `notams-bulk-source.test.ts`, `info-health.test.ts` and
 `info-advisories.test.ts`. Existing persistence, lifecycle, delivery and weather
 worker tests cover their respective boundaries.
 
@@ -232,6 +317,36 @@ probe. Diagnostics alone do not establish the decision is correct. Regressions
 include metadata-only evidence, supported disputed queries, substantive conflicts,
 truncated/unscoped evidence, a blocking issue beyond the diagnostic sample limit,
 and independent collection/freshness/reconciliation failures.
+
+### Raw bulk investigation
+
+The collector archives the last seven complete downloads under each environment's
+private `bulk-archive/` directory before parsing. Exact bytes survive successful
+publication, parser rejection and expiry of automatic recovery. A sidecar records
+the original request time, environment, byte length, raw checksum and acquisition
+release source URL; an unknown legacy release stays null. See the owning
+[retention contract](../../src/layers/notams/README.md#storage-and-query-indexes)
+for the 448 MiB archive bound, hard links, crash recovery and quota invariants.
+`notams-bulk-source.test.ts` exercises successful/rejected downloads, rotation,
+corruption, restart, legacy migration and offline parsing without changing admission.
+
+Copy a selected `.json` and matching `.bin` together when retaining an incident
+beyond routine rotation. Use a new output directory with the installed release or
+a candidate parser:
+
+```bash
+node tools/info-server/dist/replay-notam-bulk.js /private/bulk-archive/REQUEST-SHA.json /tmp/notam-debug-new
+```
+
+The command also accepts `delta-failures` sidecars. It verifies the archived bytes,
+parses them using their original times, and saves `records.ndjson` plus `result.json`.
+Identifiable member failures produce a partial report with every rejected member;
+an envelope or processing failure rejects the whole parse. Parse failures save their diagnostic
+report while leaving the input untouched. No credentials, network calls, live
+generation, writer lock or admission journal are used. Never install the debug
+output as a current snapshot: a historical input does not establish new source
+freshness or resolve live reconciliation. Last night's input deleted by an older
+release cannot be reconstructed by enabling retention now.
 
 ### Retained-state release replay
 
@@ -291,6 +406,38 @@ sources only. Weather grids are small: this qualifies responsiveness under that
 workload, not production weather memory capacity. Compare identical runs before
 and after performance changes, without other test workloads competing for CPU.
 
+### Captured-input capacity replay
+
+`replay-info-capacity.js` exercises real retained native grids, full CONUS radar
+and a national NOTAM bulk while serving concurrent local HTTP reads. Two forecast
+workers repeatedly prepare and persist captured frames; a radar worker repeatedly
+processes the full national raster; a fixture collector performs full parsing,
+reconciliation, publication and a delta bridge with the real retained NOTAM data.
+The independent HTTP sampler records stalls even while the main event loop is busy.
+
+Prepare an independent private copy containing `weather/` and `notams/` (including
+production records, raw bulk archives and TFR state). Pin immutable weather files
+before copying; never restore against live or hard-linked production bytes. After
+capture, add `.capacity-replay.json` with `purpose: "isolated-info-capacity"`,
+the capture time in UTC milliseconds as `capturedAt`, and the intended cache
+`maxBytes`/`maxEntries`. The command requires this marker and a new `replay/`
+subdirectory. Run it under the deployment CPU/memory limits with external
+networking disabled and only that copy writable:
+
+```bash
+node tools/info-server/dist/replay-info-capacity.js /private/isolated-copy /private/capacity-result.json 600
+```
+
+The result records input hashes, completed work, HTTP latency/failures, process
+memory, and unchanged original admission bytes. Retain the exact bundle hash and
+service-manager memory peak, anonymous/file memory and OOM counters alongside it.
+A missing source-cache dependency fails qualification; the tool never downloads
+a replacement. The fixture has a new private request journal and an invented due
+schedule; it cannot spend or reset production allowance. The source clock stays
+fixed while elapsed workload duration uses a monotonic clock. This measures
+sustained overlap for captured production-sized inputs; live upstream scheduling
+and future larger inputs remain separate observations.
+
 For a bounded read-only sample of a running server:
 
 ```bash
@@ -319,8 +466,38 @@ does not waive reconciliation errors or missing diagnostic status.
 A compatible rollout may also supply `--allow-unresolved-notams=N` for a captured
 pre-existing source ambiguity. The probe still requires fresh, continuous
 collection and reports the blocking issue count in `warnings`. Proven nonblocking
-metadata needs no allowance and is reported separately as
-`notam-association-metadata:N`. A deployment must
+metadata needs no allowance and is reported in the probe's `notices` array as
+`notam-association-metadata:N`, without an operational warning. A deployment must
 independently compare source IDs against its stopped baseline; a numeric allowance
 alone does not prove the candidate preserved the same ambiguity.
 This source-issue allowance also cannot waive reconciliation failures.
+
+An incident repair can explicitly supply `--retained-failures=/private/reviewed.json`
+to the artifact probe. This separate, narrowly scoped exception accepts
+`staleAnalysisAt` (the exact already stale surface-analysis time) and/or
+`reconciliation` with the exact `fullSyncAt`, `attemptedAt`, `at` and
+`parse-failed`/`parse-timeout` code. The private rollout must verify that the live
+AWC catalog still advertises that analysis and bind this reviewed baseline into
+its release evidence. It must qualify the parser repair independently.
+New reconciliation attempts/failures, changed old analysis times, stale source
+checks/deltas, transport errors and missing/damaged artifacts still fail.
+The full-sync age needs its separate explicit allowance. Every retained failure
+appears in probe warnings; the server's actual health remains degraded until
+upstream replacement or a successfully bridged full sync resolves it. The ordinary
+probe remains strict. This lets a qualified repair reach a server whose preceding
+binary already deleted the failed bulk download, without clearing history,
+freshening data, resetting quota or claiming the incident has recovered.
+
+The same file may contain `gairmetGeometry: { issues: [{ id,
+sourceFeatureSha256 }] }` for at most five independently reviewed upstream
+geometry failures. Each digest covers the exact UTF-8 `sourceFeature` string.
+Before freezing the release, compare those boundaries with the official AWC
+forecast products and replay the same captured bulk input through both deployed
+and candidate bundles; accepted advisories and issue identities must agree.
+Only a subset of these exact IDs and bytes may remain, with reason
+`invalid-geometry` and untruncated evidence. Acquisition and snapshot timestamps
+must remain fresh. New identities, changed bytes, other error types and other
+products still fail. Staging and activation check the canonical G-AIRMET
+publication against this baseline. The probe reports
+`retained-gairmet-geometry:N`; public health and incomplete-coverage warnings
+remain unchanged until the source is corrected or the affected members expire.

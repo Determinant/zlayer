@@ -48,6 +48,10 @@ test('one-shot workers send input, propagate typed failures, and release cancell
     parentPort.once('message', () => { throw new Error('Worker crashed'); });
   `));
   await assert.rejects(workerJob(crashed, {}, new AbortController().signal), { message: 'Worker crashed' });
+  await assert.rejects(workerJob(waiting, {}, new AbortController().signal, [], 25), { name: 'TimeoutError' });
+  for (const timeout of [0, -1, NaN, Infinity, 180_001]) {
+    await assert.rejects(workerJob(waiting, {}, new AbortController().signal, [], timeout), RangeError);
+  }
 });
 
 test('surface workers identify malformed source members without quarantining local preparation failures', async () => {

@@ -1,13 +1,80 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AWC_ADVISORY_WINDOW_MS, isAwcAdvisorySnapshot, isWeatherGeometry } from '@zlayer/contracts';
-import { normalizeAdvisories } from '../src/layers/weather-awc/source';
+import { normalizeAdvisories, type SourceFeature } from '../src/layers/weather-awc/source';
 import { prepareAdvisoryGeometry } from '../src/layers/weather-awc/source-geometry';
 import captured from './fixtures/cwa-dateline-2026-10-08.json' with { type: 'json' };
 import openRing from './fixtures/cwa-open-ring-2026-10-09.json' with { type: 'json' };
+import crossing from './fixtures/gairmet-crossing-2026-10-21.json' with { type: 'json' };
+import sierraCrossings from './fixtures/gairmet-sierra-crossings-2026-10-21.json' with { type: 'json' };
 import { advisorySource, WEATHER_NOW } from './fixtures/awc-advisories';
 
 const normalizeAdvisoryGeometry = (value: unknown) => prepareAdvisoryGeometry(value).geometry;
+
+test('later SIERRA crossings remain explicit and match independently retrieved AWC frames', () => {
+  const frames = [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour, Date.parse('2026-10-21T21:00:00Z')));
+  for (const capture of sierraCrossings.captures) {
+    assert.deepEqual(capture.feature.geometry, capture.reference.feature.geometry);
+    frames[capture.feature.properties.forecast / 3]!.features.push(capture.feature as SourceFeature);
+  }
+  const result = normalizeAdvisories('gairmet', frames, sierraCrossings.checkedAt, sierraCrossings.source, true);
+  assert.equal(result.advisories.length, 10); assert.equal(result.issues?.length, 2);
+  for (const [i, issue] of result.issues!.entries()) {
+    const capture = sierraCrossings.captures[i]!;
+    assert.equal(issue.geometryError, `Unsupported advisory ring topology: crossing edges ${capture.crossingEdges.join(' and ')}`);
+    assert.deepEqual(JSON.parse(issue.sourceFeature), capture.feature);
+  }
+});
+
+test('captured G-AIRMET crossing remains explicit across source representations without changing valid neighbors', () => {
+  assert.deepEqual(crossing.feature.geometry, crossing.reference.feature.geometry);
+  const original = structuredClone(crossing.feature), ring = original.geometry.coordinates[0]!.slice(0, -1);
+  for (const world of [-360, 0, 360]) for (const reverse of [false, true]) for (let start = 0; start < ring.length; start++) {
+    const rotated = [...ring.slice(start), ...ring.slice(0, start)].map(([lon, lat]) => [lon! + world, lat!]);
+    if (reverse) rotated.reverse();
+    for (const closed of [false, true]) {
+      const feature = { ...original, type: 'Feature' as const, geometry: { type: 'Polygon' as const, coordinates: [closed ? [...rotated, rotated[0]!] : rotated] } };
+      const frames = [0, 3, 6, 9, 12].map(hour => advisorySource('gairmet', hour, Date.parse(original.properties.validTime)));
+      frames[0]!.features.push(feature);
+      const snapshot = normalizeAdvisories('gairmet', frames, crossing.checkedAt, crossing.source, true);
+      assert.ok(isAwcAdvisorySnapshot(snapshot));
+      assert.equal(snapshot.advisories.length, 10); assert.equal(snapshot.issues?.length, 1);
+      const issue = snapshot.issues![0]!;
+      assert.equal(issue.reason, 'invalid-geometry'); assert.match(issue.geometryError!, /topology: crossing edges/);
+      assert.deepEqual(JSON.parse(issue.sourceFeature), feature);
+      for (const geometryError of ['', 'x'.repeat(301), 1, null]) {
+        assert.equal(isAwcAdvisorySnapshot({ ...snapshot, issues: [{ ...issue, geometryError }] }), false);
+      }
+      assert.equal(isAwcAdvisorySnapshot({ ...snapshot, issues: [{ ...issue, reason: 'invalid-feature' }] }), false);
+    }
+  }
+  assert.deepEqual(crossing.feature, original, 'diagnosis never mutates source evidence');
+  const issue = normalizeAdvisories('gairmet', [{ type: 'FeatureCollection', features: [original] },
+    ...Array.from({ length: 4 }, () => ({ type: 'FeatureCollection', features: [] }))], crossing.checkedAt, crossing.source, true).issues![0]!;
+  assert.equal(issue.geometryError, 'Unsupported advisory ring topology: crossing edges 5 and 7');
+  const legacy = { ...issue }; delete legacy.geometryError;
+  assert.ok(isAwcAdvisorySnapshot({ schemaVersion: 2, product: 'gairmet', checkedAt: crossing.checkedAt,
+    source: crossing.source, frameTimes: [], advisories: [], issues: [legacy] }), 'retained issues without a rule stay readable');
+});
+
+test('a collapsed component cannot silently vanish from a multipart advisory', () => {
+  for (const product of ['gairmet', 'sigmet', 'cwa'] as const) for (const shift of [-360, 0, 360]) {
+    const frames = product === 'gairmet' ? [0, 3, 6, 9, 12].map(hour => advisorySource(product, hour)) : [advisorySource(product)];
+    const first = structuredClone(frames[0]!.features[0]!);
+    const damaged = { ...first, geometry: { type: 'MultiLineString' as const, coordinates: [
+      [[10, 20], [11, 21]], [[2, 2], [2 + shift, 2], [2, 2]],
+    ] } };
+    frames[0]!.features.push(damaged);
+    const expected = frames.flatMap(frame => frame.features).length - 1;
+    const snapshot = normalizeAdvisories(product, frames, WEATHER_NOW, 'test:source');
+    assert.equal(snapshot.advisories.length, expected); assert.equal(snapshot.issues?.length, 1);
+    assert.equal(snapshot.issues![0]!.geometryError, 'Advisory path has no distinct positions');
+    assert.deepEqual(JSON.parse(snapshot.issues![0]!.sourceFeature), damaged);
+  }
+  const geometry = { type: 'MultiLineString', coordinates: [[[0, 0], [0, 0], [1, 1]], [[180, 2], [-180, 2], [-179, 2]]] };
+  const result = prepareAdvisoryGeometry(geometry).geometry;
+  assert.deepEqual(result, { type: 'MultiLineString', coordinates: [[[0, 0], [1, 1]], [[-180, 2], [-179, 2]]] });
+});
 
 test('whole-polygon validation preserves a hole touching its exterior at a single point', () => {
   const source = { type: 'Polygon', coordinates: [

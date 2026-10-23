@@ -25,7 +25,9 @@ The cache warm/swap procedure must preserve that state and one active collector.
 Collection defaults to disabled for new deployments. Staging and production
 full-load and delta paths were exercised; see the NOTAM guide's
 [production verification](../../src/layers/notams/README.md#production-verification-october-5-2026).
-Sustained combined weather/NMS capacity checks remain release work.
+Capacity qualification uses the [captured-input overlap replay](maintenance.md#captured-input-capacity-replay)
+under the intended deployment limits. Keep its measured workload and limits with
+the release; default settings alone are not capacity evidence.
 
 `GET`/`HEAD /api/notams/airports?faaId=…&icaoId=…` reads the local dataset, accepting
 at least one named selector. `GET`/`HEAD /api/notams/navaids?navaidId=…` reads exact
@@ -94,6 +96,11 @@ Version 2 admission journals are checksummed, serialize reservation/completion/
 backoff writes and preserve token-request cooldowns across restart. Legacy version
 1 journals retain their existing deadlines and upgrade on the next write. An
 uncertain durable write prevents further source calls from stale in-memory state.
+NOTAM and TFR initialization failures retry after their three-minute collection
+interval. Only one restore runs at a time; shutdown waits for it and releases its
+lock. Lost ownership or uncertain admission writes drain before reinitialization.
+Recovery rereads the checksummed journal under the lock; missing/corrupt journals
+remain blocked, and retry never grants new quota. Status exposes the retry deadline.
 Version 2 generations include resolved records and explicit unresolved source
 records in one checksum. Known-record disagreements do not stop independent
 updates; blocking disagreements degrade global health, while airport responses
@@ -104,8 +111,20 @@ restore an older quota journal or erase issues to start an old binary. The
 owns evidence bounds, scope uncertainty and resolution rules.
 Unchanged deltas update only the manifest and reuse records/indexes. The lock owner
 collects unreferenced datasets at startup and after publication/candidate disposal;
-it retains the current dataset, the previous distinct dataset and one candidate.
+it retains current, one complete recovery checkpoint and one candidate. A transition
+to partial collection preserves the latest complete manifest even when record
+contents are unchanged; the [storage contract](../../src/layers/notams/README.md#storage-and-query-indexes)
+defines retention and recovery.
 Failed replacement syncs preserve live continuity and resume live deltas when eligible.
+Completed bulk downloads also retain their exact raw bytes in the latest seven
+private `bulk-archive/` entries per environment, with checksums, request times and
+acquisition-release identity. Successful publication or parser failure does not
+delete that debug archive. It is bounded to 448 MiB of committed raw payloads and
+remains separate from the one-file automatic replay checkpoint. Use the bundled
+`replay-notam-bulk.js` against a selected sidecar and a new output directory for
+offline parsing; it never opens live state or makes source requests. The
+[raw retention contract](../../src/layers/notams/README.md#storage-and-query-indexes)
+describes rotation, crash recovery and quota independence.
 Saved records are checksummed before derived validity/revision upgrades; upgrades
 preserve source times and the separate quota journal.
 
@@ -179,7 +198,14 @@ describes classification evidence, date-line geometry normalization and versione
 Each family's health `interpretation` summarizes accepted records, classification
 bases, unsupported SIGMET bulletins and legacy records without provenance. It also
 reports issue counts by reason/detail and at most five bounded issuer/identifier
-examples; raw evidence stays in the advisory artifact. The summary derives from
+examples, including the geometry validation rule when recorded; raw evidence stays
+in the advisory artifact. Older issues without that optional rule remain readable.
+Partial-publication `errorDetail` gives a bounded count and example on the HTML
+health page; an active refresh failure takes precedence over that explanation.
+Unexpected geometry-library exceptions report `processing-failed` and retain the
+prior publication at its original age. They cannot publish a partial replacement
+claiming source-geometry errors or quarantine otherwise valid source inputs.
+The summary derives from
 the authenticated committed publication on both acquisition and restart, clears
 on invalid publications, and cannot imply a newer check time or complete coverage.
 Recovered/unspecified classification is diagnostic information, not a readiness
@@ -250,7 +276,8 @@ corrections neither stall requests nor shorten a source-requested backoff.
 | --- | --- | --- |
 | `/api/weather/metars.geojson?ids=…` or `?bbox=…` | Original AWC METAR GeoJSON | 30 seconds |
 | `/api/weather/tafs.json?ids=…` or `?bbox=…` | Original AWC TAF JSON | 60 seconds |
-| `/api/weather/advisories/gairmet.json` | Complete normalized G-AIRMET package | One-minute bulk checks; retained for at most ten minutes from source publication, with original time and visible refresh errors |
+| `/api/weather/advisories/gairmet-v3.json` | Complete normalized G-AIRMET package, including independent cycle overlap | One-minute bulk checks; retained for at most ten minutes from source publication, with original time and visible refresh errors |
+| `/api/weather/advisories/gairmet.json` | Legacy single-cycle projection; omitted overlapping members are explicit issues | Same acquisition and original timestamps |
 | `/api/weather/advisories/{sigmet,cwa}.json` | Normalized advisories | 60 seconds |
 | `/api/weather/pireps.json` | Complete original PIREP/AIREP XML members in a source snapshot | Background minute checks; retained for ten minutes from source publication; HTTP never acquires upstream |
 | `/api/weather/radar/latest.json` and `/api/weather/radar/<site>/<time>-<hash>.json` | MRMS/NEXRAD composite and TDWR numerical contours, with recent history | Background checks every minute; immutable prepared scans, two-hour history and 15-minute observation-age limit |
@@ -272,17 +299,18 @@ reports it cannot plot. Those display outcomes do not affect delivery health.
 
 Raw AWC and model index/range acquisition is internal; the API exposes no upstream
 proxy routes. G-AIRMET reads the official minute-updated `gairmets.cache.xml.gz`
-once for all 0/3/6/9/12 h frames, validates the complete envelope and common cycle,
+once for all 0/3/6/9/12 h leads, validates the complete envelope and each supplied cycle,
 and preserves freezing contours and original XML fields. Last-Modified caps the
 source-check time; stale/future/undated publications, older retained-source times
-and regressing cycles fail visibly. The captured source comparison and XML
+and per-issuer cycle regressions fail visibly. The captured source comparison and XML
 representation rules live in the [AWC guide](../../src/layers/weather-awc/README.md#acquisition-freshness-and-persistence).
 METAR/TAF batching, nearby queries and report interpretation remain in their plugin.
 Station requests allow up to 100 IDs or one bounding box. Unknown hosts, paths,
 parameters and multipart ranges fail locally. Only METAR/TAF 204 responses become
 empty report results. Advisory GeoJSON requires a successful document, including
-an explicit empty feature collection; a missing G-AIRMET frame rejects the package.
-Responses at the 400-record ceiling fail rather than silently truncate.
+an explicit empty feature collection. Atomic G-AIRMET bulk files have declared
+member counts and a 2,000-record bound; the 400-record rejection threshold remains
+limited to API query results. Unsupported bulk members are retained as explicit issues.
 METAR features and TAF records pass the same shared document guards used by the
 PWA before caching or delivery. Valid source bytes and extra source properties
 are preserved; malformed records reject the complete response.
@@ -292,14 +320,27 @@ cycles. Clouds/winds cover F00–F18; IFI covers F001–F018 at all 60 native al
 Wind catalogs contain 37 native pressure levels per hour. These support all 71 PWA
 altitude/flight-level selections without producing 71 derived grids on the server.
 Each candidate must supply every required index, selected field and same-cycle
-terrain before it is accepted. Publication gaps or invalid indexes try an older
-cycle; outages and rate limits fail without probing more cycles. Expected missing
-index probes do not produce error logs; exhausted discovery and failed pinned
-preparation errors are logged. Artifacts stay pinned to their cycle, lead,
+terrain before it is accepted. For HRRR, publication gaps or invalid indexes try
+the same run once on NOAA's AWS mirror before trying an older cycle. The entire
+accepted horizon, including terrain, is validated on that mirror; index hashes,
+object validators and mirror identity remain pinned through conversion. IFI has
+no alternate source. Outages and rate limits fail without probing more cycles or
+mirrors. Expected missing index probes do not produce error logs; invalid indexes
+log the rejected cycle, provider and rule even when an older run is usable.
+Exhausted discovery and failed pinned preparation errors are also logged.
+Artifacts stay pinned to their cycle, lead,
 altitude and converter/source identity. A missing HTTP artifact returns 404;
 it never starts discovery or conversion.
-HRRR indexes and ranges use the same Google bucket, including model terrain; IFI
-uses NOMADS. An index is limited to 512 KiB, a GRIB range to 8 MiB, and a prepared
+HRRR normally uses Google's bucket and falls back to the
+[NOAA-managed AWS HRRR bucket](https://registry.opendata.aws/noaa-hrrr-pds/) after
+a publication/validation gap. Each run uses indexes and ranges from the same
+provider, including model terrain; IFI uses NOMADS. The
+[October 21 truncated-object fixture](../../test/fixtures/hrrr-truncated-2026-10-21/provenance.json)
+captures a complete index beside an 80 MiB Google object, while NOAA's alternate
+object contains 419,917,396 bytes. The mirror indexes also differ in unselected
+parameter spellings, so borrowing an index or ETag across providers is forbidden.
+Health reports the committed `sourceMirrors` and in-progress `candidateRunTime`.
+An index is limited to 512 KiB, a GRIB range to 8 MiB, and a prepared
 artifact to 16 MiB. Exact HTTP 206 range/length and GRIB envelope checks precede
 model/field/level/geometry validation. A source-index change cannot satisfy an older artifact identity.
 Discovery also reads the model object's HEAD metadata with intermediary
@@ -310,7 +351,11 @@ validator and complete-object length must agree. A precondition failure triggers
 rediscovery. The IFI fallback relies on the publisher changing Last-Modified with
 content, cannot detect changes preserving both time and length, and excludes
 modifications within the preceding minute. Previously prepared catalogs without
-versions remain usable during replacement and offline restoration.
+versions remain usable during replacement and offline restoration. The optional
+version `mirror` field identifies the qualified HRRR alternate. Existing artifact
+identities without it are unchanged. Previous code can restore the newly prepared
+files because their complete frame identity already includes the version object;
+it may discard alternate raw inputs and rediscover its own supported sources.
 Internal ranges without an index hash have a 60-second cache lifetime.
 Adjacent model records from the same index share downloads of at most 8 MiB through
 the existing source cache. Each GRIB envelope in the combined range is validated;
@@ -665,9 +710,13 @@ Process environment (systemd optionally reads `/etc/zlayer-info.env`):
 
 Alternatively build and run the container from the repository root:
 
+The Dockerfile and restricted `.dockerignore` context must include every entry in
+`build.mjs`, including the readiness probe and both offline NOTAM replay tools.
+A successful build in the full checkout does not verify that restricted context.
+
 ```bash
 docker build -f tools/info-server/Dockerfile -t zlayer-info .
-docker run -d --name zlayer-info --restart unless-stopped --stop-timeout=150 --memory=4g --cpus=4 \
+docker run -d --name zlayer-info --restart unless-stopped --stop-timeout=350 --memory=4g --cpus=4 \
   -p 127.0.0.1:8787:8787 -v zlayer-weather:/var/lib/weather \
   -v zlayer-notams:/var/lib/notams zlayer-info
 ```
@@ -694,8 +743,11 @@ pending bulk candidate. Neither collector releases its writer lock while quiesci
 Both recheck ownership before declaring completion; a lost lock fails the handoff
 even when the collection loop has already recorded the error and retained its data.
 
-The default grace is 130 seconds: the NMS download deadline is 120 seconds, with
-ten seconds of additional processing headroom. This is a bounded opportunity to
+The default grace is 330 seconds: the NMS download deadline is 120 seconds, followed
+by up to 180 seconds of bulk parsing and 30 seconds of publication headroom.
+Completed bulk downloads are retained for authenticated local replay after a
+processing failure or interruption; their original source times and admission
+remain authoritative. This is a bounded opportunity to
 finish, not a guarantee against stalled storage or excessive processing. On expiry,
 shutdown cancels remaining work, preserves conservative request reservations, drains
 writes and reports failure; it cannot claim a clean handoff. Writer locks release
@@ -705,7 +757,7 @@ unsuccessfully on forced or failed cleanup. Source freshness is never advanced b
 shutdown. A deployment must require a successful stop before switching releases.
 
 Set the supervisor stop deadline to at least the advertised grace plus 20 seconds
-for cleanup: the supplied systemd unit and Docker command allow 150 seconds. Update
+for cleanup: the supplied systemd unit and Docker command allow 350 seconds. Update
 existing installations as well as application code. Systemd must use
 `KillMode=mixed`: SIGTERM goes to the main owner, leaving its flock helpers alive
 until checkpointing releases them. The default `control-group` mode kills those
@@ -798,3 +850,31 @@ The server build includes `worker.js`, `radar-worker.js`, `progs-worker.js`,
 `progs-coverage-worker.js` and `notams-worker.js`; deploy the entire build with its matching `main.js`,
 package metadata and shared files. See the [Radar guide](../../src/layers/weather-awc/radar/README.md)
 for exact source semantics, binary format qualification and client/storage limits.
+
+
+## Source failure evidence
+
+Complete rejected G-AIRMET/PIREP downloads and unsupported G-AIRMET members retain
+exact downloaded bytes in private `<WEATHER_CACHE_DIR>/source-failures/` files.
+Rejected surface catalogs, including a catalog missing its analysis member, use
+the same store. Each JSON sidecar records the SHA-256, byte count, source URL,
+request/check times, available response headers, validation phase/rule and release
+source URL. The directory is 0700 and files are 0600; there is no raw HTTP endpoint.
+At most seven distinct downloads of at most 4 MiB each are retained (28 MiB total,
+separate from cache accounting). Identical URL/bytes/phase deduplicate; writes are
+serialized, queued buffers are bounded to four, and interrupted files are pruned.
+Diagnostic storage failures are logged but do not replace the original failure
+or suppress usable records. Advisory health exposes bounded `errorDetail` and
+`evidenceId`; published issues retain their own original member evidence.
+
+For offline debugging, verify the sidecar byte count and SHA-256, then pass a
+G-AIRMET `.bin` to `readGairmetCache` and `normalizeAdvisories(..., true)`, a PIREP
+file to `readPirepCache`, or catalog text to `parseSurfaceCatalog`, using the saved
+check time and the sidecar's release source. These parsers perform no requests.
+Do not replay against live collector state. Exact-download, checksum, rotation,
+failed-storage and offline parser regressions live in `test/info-source-evidence.test.ts`.
+
+Health `sources.*.freshness` separates source-check, model-run, analysis-valid,
+forecast-horizon and radar-observation clocks with their timestamps and limits.
+The status page displays the failed clock as well as the poll age. This does not
+change the freshness thresholds or make an old analysis current.
