@@ -100,6 +100,95 @@ test('a truncated HRRR object tries one complete alternate mirror before aging t
   assert.ok(failed.calls.every(path => path.includes('t21z')), 'alternate backoff cannot amplify older-cycle probes');
 });
 
+test('icing qualifies alternate HRRR terrain independently while pinning IFI to NOMADS', async () => {
+  const terrain = modelPath('clouds', latest, 0);
+  const gaps: { suffix: string; change: (body: string) => string }[] = [
+    { suffix: '.idx', change: () => { throw new HttpError(404, 'Missing terrain'); } },
+    { suffix: '.idx', change: () => { throw new HttpError(403, 'Unpublished terrain'); } },
+    { suffix: '.idx', change: body => body.replace(':HGT:surface:', ':UNKNOWN:surface:') },
+    { suffix: '.idx', change: body => body.replaceAll('d=2026092221', 'd=2026092220') },
+    { suffix: '', change: () => { throw new HttpError(404, 'Missing terrain object'); } },
+    { suffix: '', change: body => JSON.stringify({ ...JSON.parse(body), byteLength: 1 }) },
+    { suffix: '', change: body => JSON.stringify({ ...JSON.parse(body), etag: 'W/"weak"' }) },
+  ];
+  for (const gap of gaps) {
+    const probes: { path: string; mirror?: ModelMirror }[] = [];
+    const upstream = source((path, body, mirror) => {
+      probes.push({ path, ...(mirror ? { mirror } : {}) });
+      if (path === terrain + gap.suffix && !mirror) return gap.change(body);
+      if (path === terrain + '.idx' && mirror) return body.replaceAll(':TMP:', ':OTHER:');
+      if (path === terrain && mirror) return JSON.stringify({ ...JSON.parse(body), etag: '"alternate-terrain"' });
+      return body;
+    });
+    const read: ReadSource = async (path, signal, mirror) => ({ ...await upstream.read(path, signal, mirror),
+      checkedAt: path === terrain + '.idx' && !mirror ? now - 59_000 : now - 1000 });
+    const manifest = await discover(read, 'icing', signal, now);
+    assert.ok(isNativeManifest(manifest)); assert.equal(manifest.runTime, latest);
+    assert.equal(manifest.checkedAt, now - 1000, 'rejected terrain cannot age the accepted catalog');
+    const alternateIndex = await upstream.read(terrain + '.idx', signal, 'noaa-hrrr-s3');
+    assert.ok(manifest.frames.every(frame => frame.records.terrain?.version?.mirror === 'noaa-hrrr-s3' &&
+      frame.records.terrain.indexHash === alternateIndex.sha256 &&
+      'etag' in frame.records.terrain.version && frame.records.terrain.version.etag === '"alternate-terrain"'));
+    assert.ok(manifest.frames.every(frame => Object.entries(frame.records).every(([field, record]) =>
+      field === 'terrain' || record.path.startsWith('dafs/') && !record.version?.mirror)));
+    assert.ok(probes.every(probe => probe.path.includes('t21z')), 'terrain recovery stays on the newest complete cycle');
+    assert.ok(probes.filter(probe => probe.mirror).every(probe => probe.path === terrain || probe.path === terrain + '.idx'));
+  }
+});
+
+test('icing validation diagnostics identify the failed terrain or IFI provider', async () => {
+  for (const broken of ['terrain', 'ifi'] as const) {
+    const upstream = source((path, body) => {
+      if (broken === 'terrain' && path === modelPath('clouds', latest, 0) + '.idx') return body.replace(':HGT:surface:', ':UNKNOWN:surface:');
+      if (broken === 'ifi' && path === modelPath('icing', latest, 5) + '.idx') return body.replaceAll(':ICPRB:', ':UNKNOWN:');
+      return body;
+    });
+    const reports: { run: number; provider: string }[] = [];
+    const manifest = await discover(upstream.read, 'icing', signal, now, undefined,
+      (run, provider) => reports.push({ run, provider }));
+    assert.equal(manifest.runTime, older);
+    assert.deepEqual(reports, (broken === 'terrain' ? ['google-hrrr', 'noaa-hrrr-s3'] : ['nomads-ifi'])
+      .map(provider => ({ run: latest, provider })));
+  }
+});
+
+test('icing terrain fallback respects pinned selections, outage/backoff, cancellation and the six-cycle bound', async () => {
+  const terrain = modelPath('clouds', latest, 0) + '.idx';
+  for (const alternate of [false, true]) for (const error of [new HttpError(503, 'Backoff', 30), new HttpError(502, 'Outage'), new TypeError('Network failed')]) {
+    let mirrors = 0;
+    const upstream = source((path, body, mirror) => {
+      if (mirror) mirrors++;
+      if (path === terrain) {
+        if (alternate && !mirror) throw new HttpError(404, 'Missing primary');
+        throw error;
+      }
+      return body;
+    });
+    await assert.rejects(discover(upstream.read, 'icing', signal, now), cause => cause === error);
+    assert.equal(mirrors, alternate ? 1 : 0);
+    assert.ok(upstream.calls.every(path => path.includes('t21z')));
+  }
+  let mirrors = 0;
+  const pinned = source((path, body, mirror) => {
+    if (mirror) mirrors++;
+    if (path === terrain) throw new HttpError(404, 'Missing pinned terrain');
+    return body;
+  });
+  await assert.rejects(discover(pinned.read, 'icing', signal, now, { runTime: latest, lead: 1 }), { status: 404 });
+  assert.equal(mirrors, 0);
+  const controller = new AbortController();
+  const canceled = source((path, body, mirror) => {
+    if (mirror) mirrors++;
+    if (path === terrain) { controller.abort(); throw new HttpError(404, 'Canceled terrain'); }
+    return body;
+  });
+  await assert.rejects(discover(canceled.read, 'icing', controller.signal, now), { name: 'AbortError' });
+  assert.equal(mirrors, 0);
+  const absent = source(() => { throw new HttpError(404, 'No IFI cycle'); });
+  await assert.rejects(discover(absent.read, 'icing', signal, now), /No complete recent NOAA model run/);
+  assert.equal(absent.calls.length, 6, 'missing IFI never probes an HRRR mirror');
+});
+
 test('the captured 15Z wind index rejects the truncated Google object and qualifies the NOAA mirror', async () => {
   const capturedIndex = await readFile(new URL('./fixtures/hrrr-truncated-2026-10-21/hrrr.t15z.wrfprsf04.grib2.idx', import.meta.url));
   const mirrorIndex = await readFile(new URL('./fixtures/hrrr-truncated-2026-10-21/hrrr.t15z.wrfprsf04.mirror.grib2.idx', import.meta.url));

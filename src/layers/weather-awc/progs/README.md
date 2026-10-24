@@ -268,7 +268,12 @@ arriving despite it, including restart and independent family recovery.
 
 Transport success alone does not admit a source observation. Catalog validation
 and rollback checks share one acquisition boundary in `progs-source.ts`.
-Rejected catalogs and decoder-rejected chart/image inputs are quarantined by
+Catalog observations are reused for at most 30 seconds, matching the failure
+retry interval; healthy families still update every five minutes. A family's
+missing member or regressed horizon rejects only that family's replacement.
+Other families can use the same observation, and the affected family reacquires
+the catalog at its next retry without discarding useful shared bytes.
+Malformed catalog envelopes and decoder-rejected chart/image inputs are quarantined by
 their acquisition timestamp and body hash: the positive source entry is removed,
 and consumers share a 30-second retry deadline. Repeated rejection of that exact
 observation cannot extend the deadline, and a late rejection cannot discard a
@@ -280,8 +285,8 @@ establish that particular source bytes are invalid, so they retain the cached
 inputs and report a processing error with the chart filename when available.
 Quarantine affects disposable
 source entries, never the published artifacts or their original source times.
-Retries therefore reacquire rejected bytes instead of reusing them through the
-150-second positive-cache window. Persistent older/invalid upstream responses
+Retries therefore reacquire rejected chart/image bytes instead of reusing them
+through their 150-second positive-cache window. Persistent older/invalid upstream responses
 remain errors; cache revalidation does not guarantee upstream correctness.
 
 Upstream catalogs are bounded to 16 KiB, published catalogs to 64 KiB, source charts

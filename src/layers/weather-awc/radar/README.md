@@ -169,6 +169,10 @@ checked October 19, 2026. Directory prefixes alone are insufficient: `KKJK` and
 `KKSG` are foreign sites, while retired `KLIX` was replaced by `KHDC`. Unsupported
 stations are excluded before acquisition and do not count as missing coverage.
 An incomplete, oversized or unsupported-only listing remains a collection error.
+A transport-valid listing that fails validation is removed from the source cache
+with a 60-second retry deadline. It cannot occupy the one-day cache through
+recovery attempts or survive a restart as reusable input. A failed listing leaves
+the preceding publication and its observation times intact.
 
 To update the roster, select registry features with `stationType: WSR-88D` and
 locations within 20–55° N, 130–60° W; review additions/removals against the NOAA

@@ -8,13 +8,13 @@ export function progsSourceResource(url: string, maxBytes: number, image = false
     ttl: 5 * 60_000, maxBytes, revalidate: true };
 }
 
-/** All Progs families share acquisition and quarantine, while each validates
- * against its own published horizon. A rejected observation cannot occupy the
- * positive source cache through several nominal recovery attempts. */
+/** Families share acquisition and malformed-envelope quarantine, but validate
+ * horizons independently. Catalog reuse is bounded by the 30-second recovery
+ * interval so a family rejection need not poison other readers of those bytes. */
 export async function readProgsCatalog(cache: WeatherCache, signal: AbortSignal,
   product: 'analysis' | 'forecast' | 'coverage', previous: readonly Pick<SurfaceChart, 'validTime' | 'referenceTime'>[], evidence?: ReturnType<typeof createSourceEvidence>) {
   const resource = progsSourceResource(SURFACE_CATALOG, 16 * 1024);
-  const payload = await cache.get(resource, 150_000, signal);
+  const payload = await cache.get(resource, 30_000, signal);
   let charts: SurfaceChart[];
   const capture = async (rule: string) => evidence?.capture(payload.body, { source: resource.url, requestedAt: payload.checkedAt,
     checkedAt: payload.checkedAt, headers: payload.headers, phase: 'catalog-validation', rule });
@@ -33,7 +33,7 @@ export async function readProgsCatalog(cache: WeatherCache, signal: AbortSignal,
   if (!charts.length) throw new HttpError(502, 'AWC catalog has no surface forecasts', 30);
   if (isOlderSurfaceCatalog(charts, previous)) {
     const error = new HttpError(502, product === 'coverage' ? 'NOAA returned older NDFD coverage charts' : 'NOAA returned older surface charts', 30);
-    await capture(error.message); await cache.reject(resource, payload, error); throw error;
+    await capture(error.message); throw error;
   }
   return { payload, charts };
 }

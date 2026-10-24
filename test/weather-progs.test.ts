@@ -13,6 +13,7 @@ import { createInfoServer } from '../tools/info-server/server';
 import { WeatherCache } from '../tools/info-server/cache';
 import { resourceFor } from '../tools/info-server/weather-resources';
 import { progsResource } from '../tools/info-server/progs';
+import { readProgsCatalog } from '../tools/info-server/progs-source';
 import { surfaceCatalog, surfaceChart } from './fixtures/wpc';
 import { WEATHER_NOW } from './fixtures/awc-advisories';
 import { cacheFixture } from './helpers/cache';
@@ -511,6 +512,8 @@ test('surface HTTP uses prepared files; restart, independent failures, rollback 
   assert.ok(!requested.some(url => url.includes('_F000_')), 'an older catalog is rejected before downloading or preparing analysis');
   assert.equal(restarted.progs.status.analysis!.nextAttemptAt, now + 30_000);
   assert.equal((await restarted.cache.read(progsResource('analysis')))?.body.toString(), latest);
+  assert.equal(restarted.progs.status.forecast!.error, undefined, 'analysis rollback cannot block forecast recovery');
+  assert.equal(restarted.progs.status.forecast!.checkedAt, now);
   now += 30_000; rollback = false; correction = true;
   restarted.progs.refresh(); await restarted.progs.close();
   const corrected = JSON.parse((await restarted.cache.read(progsResource('analysis')))!.body.toString());
@@ -667,7 +670,50 @@ test('an absent analysis cannot quarantine a shared catalog or stop forecast pub
   assert.equal(app.progs.status.analysis!.error, 'AWC catalog has no surface analysis');
   assert.equal(app.progs.status.forecast!.checkedAt, now); assert.equal(app.progs.status.forecast!.error, undefined);
   assert.equal(catalogCalls, 2);
-  now += 30_000; app.progs.refresh(); await app.progs.close(); assert.equal(catalogCalls, 2, 'missing member does not reject shared source bytes');
+  now += 30_000; app.progs.refresh(); await app.progs.close(); assert.equal(catalogCalls, 3, 'missing member is rechecked at the recovery deadline');
   omit = false; now += 300_000; app.progs.refresh(); await app.progs.close();
   assert.equal(app.progs.status.analysis!.error, undefined); assert.equal(app.progs.status.analysis!.checkedAt, now);
+});
+
+test('Progs catalog regressions isolate the affected families and share one acquisition per retry interval', async t => {
+  const current = surfaceCatalog(), prior = parseSurfaceCatalog(JSON.stringify(current), WEATHER_NOW);
+  const families = ['analysis', 'forecast', 'coverage'] as const;
+  const previous = (family: typeof families[number]) => prior.filter(chart => family === 'coverage' ||
+    (family === 'analysis' ? chart.forecastHour === 0 : chart.forecastHour > 0));
+  for (const regressed of ['analysis', 'forecast'] as const) for (const order of [families, [...families].reverse()]) {
+    const directory = await mkdtemp(join(tmpdir(), 'progs-family-'));
+    let now = WEATHER_NOW, calls = 0;
+    const older = structuredClone(current);
+    if (regressed === 'analysis') {
+      older.prog[0]!.file = '20260922_15_F000_wpc.geojson'; older.prog[0]!.vsecs -= 3 * 3600;
+    } else older.prog.pop(); // A retreating forecast horizon leaves analysis unchanged.
+    let body = Buffer.from(JSON.stringify(older));
+    const cache = new WeatherCache({ directory, maxBytes: 1024 * 1024, now: () => now, load: async () => {
+      calls++; return { body, checkedAt: now, status: 200, headers: {}, sha256: digest(body) };
+    } });
+    t.after(async () => { await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+    await cache.restore(); const signal = new AbortController().signal;
+    for (const family of order) {
+      const result = readProgsCatalog(cache, signal, family, previous(family));
+      if (family === regressed || family === 'coverage') await assert.rejects(result, /older/);
+      else assert.deepEqual((await result).charts, previous(family));
+    }
+    assert.equal(calls, 1, 'a family rejection neither poisons nor discards the shared observation');
+    body = Buffer.from(JSON.stringify(current)); now += 29_999;
+    await assert.rejects(readProgsCatalog(cache, signal, regressed, previous(regressed)), /older/);
+    assert.equal(calls, 1, 'a repeated family rejection cannot trigger an early fetch');
+    now++;
+    const recovered = await Promise.all(families.map(family => readProgsCatalog(cache, signal, family, previous(family))));
+    assert.equal(calls, 2, 'all families coalesce on one corrected observation at the retry deadline');
+    recovered.forEach((result, i) => assert.deepEqual(result.charts, previous(families[i]!)));
+    now += 30_000; body = Buffer.from('{"prog":');
+    for (const family of families) await assert.rejects(readProgsCatalog(cache, signal, family, previous(family)));
+    assert.equal(calls, 3, 'a malformed shared envelope is quarantined for every family');
+    body = Buffer.from(JSON.stringify(current)); now += 29_999;
+    await assert.rejects(readProgsCatalog(cache, signal, 'forecast', previous('forecast')));
+    assert.equal(calls, 3);
+    now++;
+    await Promise.all(families.map(family => readProgsCatalog(cache, signal, family, previous(family))));
+    assert.equal(calls, 4, 'shared-envelope rejection retains its bounded recovery');
+  }
 });

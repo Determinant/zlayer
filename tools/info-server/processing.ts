@@ -182,8 +182,8 @@ export function createProcessing(cache: WeatherCache, shutdown: AbortSignal, now
     }
   }
   async function catalog(product: AwcGridProduct): Promise<Payload> {
-    const manifest = await discover(read, product, shutdown, now(), undefined, (run, mirror, reason) =>
-      log?.(`Forecast source rejected (${product}, ${new Date(run).toISOString()}, ${mirror ?? (product === 'icing' ? 'nomads-ifi' : 'google-hrrr')}): ${reason}`));
+    const manifest = await discover(read, product, shutdown, now(), undefined, (run, provider, reason) =>
+      log?.(`Forecast source rejected (${product}, ${new Date(run).toISOString()}, ${provider}): ${reason}`));
     return json(manifest, manifest.checkedAt);
   }
   async function forecast(manifest: NativeManifest, frame: NativeFrame, terrainOnly = false): Promise<Payload> {

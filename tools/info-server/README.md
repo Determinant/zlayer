@@ -323,8 +323,11 @@ Each candidate must supply every required index, selected field and same-cycle
 terrain before it is accepted. For HRRR, publication gaps or invalid indexes try
 the same run once on NOAA's AWS mirror before trying an older cycle. The entire
 accepted horizon, including terrain, is validated on that mirror; index hashes,
-object validators and mirror identity remain pinned through conversion. IFI has
-no alternate source. Outages and rate limits fail without probing more cycles or
+object validators and mirror identity remain pinned through conversion. IFI fields
+have no alternate source, but their same-cycle HRRR terrain independently tries
+the AWS mirror after a publication or validation gap. Accepted catalog check times
+include only the selected dependencies; a rejected terrain observation cannot age
+the replacement. Outages and rate limits fail without probing more cycles or
 mirrors. Expected missing index probes do not produce error logs; invalid indexes
 log the rejected cycle, provider and rule even when an older run is usable.
 Exhausted discovery and failed pinned preparation errors are also logged.
@@ -334,7 +337,8 @@ it never starts discovery or conversion.
 HRRR normally uses Google's bucket and falls back to the
 [NOAA-managed AWS HRRR bucket](https://registry.opendata.aws/noaa-hrrr-pds/) after
 a publication/validation gap. Each run uses indexes and ranges from the same
-provider, including model terrain; IFI uses NOMADS. The
+provider, including model terrain; IFI fields use NOMADS and pin their separately
+qualified HRRR terrain provider. Pinned selections never switch providers. The
 [October 21 truncated-object fixture](../../test/fixtures/hrrr-truncated-2026-10-21/provenance.json)
 captures a complete index beside an 80 MiB Google object, while NOAA's alternate
 object contains 419,917,396 bytes. The mirror indexes also differ in unselected

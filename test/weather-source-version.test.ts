@@ -73,19 +73,22 @@ test('mirror identity is bounded, separates raw blocks, and preserves existing i
   assert.equal(new URL(plan.get(sourceRecordKey(second))!.resource.url).host, 'noaa-hrrr-bdp-pds.s3.amazonaws.com');
 });
 
-test('mirror recovery pins its index and conditional ranges through conversion and raw-cache restart', async t => {
+for (const product of ['clouds', 'icing'] as const) test(`${product} mirror recovery pins its index and conditional ranges through conversion and raw-cache restart`, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'zlayer-hrrr-mirror-')), shutdown = new AbortController();
-  const files = nativeForecastFiles(); let requests = 0, mirrorRanges = 0;
+  const files = nativeForecastFiles(); let requests = 0, mirrorRanges = 0, ifiRanges = 0;
   const load = createUpstream({ signal: shutdown.signal, spacing: 0, now: () => now, fetch: async (url, init) => {
     requests++;
     const parsed = new URL(String(url)), mirror = parsed.host === 'noaa-hrrr-bdp-pds.s3.amazonaws.com';
-    const sourcePath = '/weather/noaa/hrrr/prod/' + parsed.pathname.replace(/^\/(?:high-resolution-rapid-refresh\/)?/, '');
+    const ifi = parsed.host === 'nomads.ncep.noaa.gov';
+    const sourcePath = ifi ? '/weather/noaa/' + parsed.pathname.replace('/pub/data/nccf/com/', '')
+      : '/weather/noaa/hrrr/prod/' + parsed.pathname.replace(/^\/(?:high-resolution-rapid-refresh\/)?/, '');
     let raw = files.get(sourcePath); assert.ok(raw, sourcePath);
     const etag = `"${mirror ? 'mirror-' : ''}${digest(raw)}"`;
     if (init?.method === 'HEAD') return new Response(null, { headers: { etag,
-      'content-length': String(!mirror && sourcePath.endsWith('wrfsfcf04.grib2') ? 1 : raw.length) } });
+      'content-length': String(!mirror && sourcePath.endsWith(product === 'clouds' ? 'wrfsfcf04.grib2' : 'wrfsfcf00.grib2') ? 1 : raw.length) } });
     if (sourcePath.endsWith('.idx')) return new Response(mirror ? raw.toString().replaceAll('\n', '\r\n') : Uint8Array.from(raw));
-    assert.ok(mirror, 'recovered conversion must not return to the damaged primary'); mirrorRanges++;
+    assert.ok(mirror || ifi, 'recovered conversion must not return to the damaged HRRR primary');
+    if (ifi) ifiRanges++; else mirrorRanges++;
     const headers = new Headers(init?.headers), range = /^bytes=(\d+)-(\d*)$/.exec(headers.get('range')!)!;
     assert.equal(headers.get('if-match'), etag);
     const start = Number(range[1]), end = range[2] ? Number(range[2]) : raw.length - 1;
@@ -96,10 +99,12 @@ test('mirror recovery pins its index and conditional ranges through conversion a
   const cache = new WeatherCache(options); await cache.restore();
   const processing = createProcessing(cache, shutdown.signal, () => now);
   t.after(async () => { shutdown.abort(); await processing.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
-  const manifest = JSON.parse((await processing.catalog('clouds')).body.toString());
-  assert.ok(manifest.frames.every((frame: any) => Object.values(frame.records).every((record: any) => record.version.mirror === 'noaa-hrrr-s3')));
+  const manifest = JSON.parse((await processing.catalog(product)).body.toString());
+  assert.ok(manifest.frames.every((frame: any) => Object.entries(frame.records).every(([field, record]: [string, any]) =>
+    product === 'clouds' || field === 'terrain' ? record.version.mirror === 'noaa-hrrr-s3' : record.version.mirror === undefined)));
   const frame = manifest.frames[4], converted = await processing.forecast(manifest, frame);
   assert.ok(converted.body.length > 0); assert.ok(mirrorRanges > 0);
+  assert.equal(ifiRanges > 0, product === 'icing');
   const records = Object.values(frame.records) as import('../src/layers/weather-awc/grids/native-source').SourceRecord[];
   const resource = sourceBlocks(records).get(sourceRecordKey(records[0]!))!.resource;
   const saved = await cache.read(resource); assert.ok(saved);

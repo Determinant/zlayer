@@ -1,7 +1,7 @@
 import { isRadarMotionCatalog, isRadarMotionSnapshot, RADAR_HISTORY_MS, RADAR_HISTORY_STEP, RADAR_MAX_AGE,
   RADAR_MOTION_MAX_BYTES, RADAR_MOTION_ROOT, type RadarMotionCatalog, type RadarMotionFile, type RadarMotionScan } from '@zlayer/contracts';
 import { DEFAULT_WEATHER_CACHE_BYTES, type WeatherCache } from './cache';
-import { resourceFor, type Resource } from './weather-resources';
+import { HttpError, resourceFor, type Resource } from './weather-resources';
 import { digest } from './upstream';
 import { decodeStormTracks } from './radar-motion-decode';
 import { WeatherSourceError } from './source-error';
@@ -86,12 +86,16 @@ export function createRadarMotionWarming(cache: WeatherCache, signal: AbortSigna
   }
   async function update() {
     try {
-      const listing = await cache.get(input(RADAR_MOTION_ROOT, true), undefined, signal);
+      const resource = input(RADAR_MOTION_ROOT, true), listing = await cache.get(resource, undefined, signal);
       const text = listing.body.toString();
-      if (!text.trimEnd().endsWith('</html>')) throw new Error('Incomplete NOAA storm tracking station listing');
       const listed = new Set([...text.matchAll(/href="SI\.(k[a-z]{3})\//g)].map(m => m[1]!.toUpperCase()));
       const sites = [...listed].filter(site => MOTION_SITES.has(site)).sort();
-      if (!sites.length || listed.size > 160) throw new Error('Invalid NOAA storm tracking station listing');
+      const invalid = !text.trimEnd().endsWith('</html>') ? 'Incomplete NOAA storm tracking station listing'
+        : !sites.length || listed.size > 160 ? 'Invalid NOAA storm tracking station listing' : undefined;
+      if (invalid) {
+        const error = new HttpError(502, invalid, 60);
+        await cache.reject(resource, listing, error); throw error;
+      }
       diagnostics.retain(new Set(sites));
       for (const site of rejected.keys()) if (!sites.includes(site)) rejected.delete(site);
       for (const site of scans.keys()) if (!sites.includes(site)) scans.delete(site);

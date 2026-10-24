@@ -8,7 +8,7 @@ import { decodeStormTracks } from '../tools/info-server/radar-motion-decode';
 import { createRadarMotionWarming } from '../tools/info-server/radar-motion';
 import { WeatherCache } from '../tools/info-server/cache';
 import { digest } from '../tools/info-server/upstream';
-import { resourceFor } from '../tools/info-server/weather-resources';
+import { resourceFor, type Resource } from '../tools/info-server/weather-resources';
 import { motionFile, motionScans } from '../src/layers/weather-awc/radar/motion-time';
 
 const capture = (name: string) => readFile(new URL(`./fixtures/radar/${name}`, import.meta.url));
@@ -191,5 +191,34 @@ test('motion rejects incomplete, oversized or unsupported-only listings instead 
     assert.equal(warmer.status.ready, false);
     assert.match(warmer.status.error ?? '', /station listing/);
     assert.equal(await cache.read(resourceFor('/api/weather/radar/motion/latest.json')), undefined);
+  }
+});
+
+test('motion reacquires rejected listings at the retry deadline and cannot restore them after restart', async t => {
+  const raw = await capture('20260924-210657-khtx-sti.level3');
+  for (const restart of [false, true]) {
+    const directory = await mkdtemp(join(tmpdir(), 'zlayer-motion-recovery-')), signal = new AbortController().signal;
+    let now = Date.parse('2026-09-24T21:11:00Z'), broken = true, listingCalls = 0;
+    const options = { directory, maxBytes: 16 * 1024 * 1024, now: () => now, async load(resource: Resource) {
+      if (resource.url === RADAR_MOTION_ROOT) listingCalls++;
+      const body = resource.url === RADAR_MOTION_ROOT
+        ? Buffer.from('<html><a href="SI.khtx/">KHTX</a>' + (broken ? '' : '</html>')) : raw;
+      return { body, sha256: digest(body), status: 200, checkedAt: now, headers: {} };
+    } };
+    let cache = new WeatherCache(options), warmer = createRadarMotionWarming(cache, signal, { now: () => now });
+    t.after(async () => { await warmer.close(); await cache.drain(); await rm(directory, { recursive: true, force: true }); });
+    await cache.restore(); warmer.refresh(); await warmer.close();
+    assert.match(warmer.status.error ?? '', /Incomplete.*station listing/); assert.equal(listingCalls, 1);
+    broken = false; now += 59_999; warmer.refresh(); await warmer.close();
+    assert.equal(listingCalls, 1, 'collection respects its retry deadline');
+    if (restart) {
+      await cache.drain(); cache = new WeatherCache(options);
+      await cache.restore(); warmer = createRadarMotionWarming(cache, signal, { now: () => now }); await warmer.restore();
+    }
+    now++; warmer.refresh(); await warmer.close();
+    assert.equal(listingCalls, 2); assert.equal(warmer.status.ready, true); assert.equal(warmer.status.error, undefined);
+    assert.equal(warmer.status.stations, 1);
+    now += 120_000; warmer.refresh(); await warmer.close();
+    assert.equal(listingCalls, 2, 'a validated listing keeps its normal one-day reuse');
   }
 });
