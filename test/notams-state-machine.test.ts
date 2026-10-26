@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isNotamSourceIssue, isNotamSnapshot, type NotamRecord, type NotamSourceIssue } from '@zlayer/contracts';
 import capture from './fixtures/notams-state-2026-10-16.json';
+import associationCapture from './fixtures/notams-association-2026-10-09.json';
+import { NotamIndex } from '../tools/info-server/notams/index';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { compareNotamContent, resolveNotamRevision } from '../tools/info-server/notams/revision';
@@ -173,6 +175,57 @@ async function seed(directory: string, entries: NotamSourceIssue[], at: number) 
   await store.close(); return state;
 }
 
+test('metadata-only expiry and clock rollback preserve informational health, raw evidence and durable state across restart', async () => {
+  const issue: unknown = associationCapture.issues[0]; assert.ok(isNotamSourceIssue(issue));
+  const expires = issue.variants[0]!.endsAt!;
+  let now = expires - 1;
+  const directory = await mkdtemp(join(tmpdir(), 'notam-metadata-expiry-'));
+  const state = await seed(directory, [issue], now), budget = await readFile(join(state, 'budget.json'));
+  const manifest = await readFile(join(state, 'current.json'));
+  const open = () => createInfoServer({ directory: join(directory, 'weather'), startUpdates: false, now: () => now,
+    notams: { enabled: true, environment: 'production', directory, credentials: { clientId: 'fixture', clientSecret: 'fixture' } },
+    fetch: async () => assert.fail('Metadata expiry must not acquire source data') });
+  let app = await open();
+  try {
+    for (let restart = 0; restart < 2; restart++) {
+      await app.notams.restore();
+      await new Promise<void>(resolve => app.server.listen(0, '127.0.0.1', resolve));
+      const address = app.server.address(); assert.ok(address && typeof address !== 'string');
+      const origin = `http://127.0.0.1:${address.port}`;
+      for (const at of [expires - 1, expires, expires + 1, expires - 1, expires]) {
+        now = at;
+        const historical = now >= expires;
+        const snapshot = app.notams.readAirport({ faaId: '49D' })!;
+        assert.ok(isNotamSnapshot(snapshot));
+        assert.equal(snapshot.feed.historicalIssues, historical ? 1 : 0);
+        assert.equal(snapshot.feed.historicalMetadataIssues, historical ? 1 : 0);
+        assert.equal(snapshot.feed.unresolvedRecords, 1); assert.equal(snapshot.feed.blockingRecords, 0);
+        assert.equal(snapshot.contentCoverage, 'complete'); assert.deepEqual(snapshot.issues, []);
+        if (historical) assert.deepEqual(snapshot.historicalIssues, [issue]);
+        else assert.equal(snapshot.records[0]!.text, issue.variants[0]!.text);
+        const health = await (await fetch(origin + '/api/weather/healthz')).json();
+        assert.deepEqual(health.readiness.warnings, []);
+        assert.deepEqual(health.readiness.notices, [{ product: 'notams', reason: 'association-metadata', severity: 'info', count: 1 }]);
+        assert.ok(health.readiness.problems.every((p: { product: string }) => !p.product.startsWith('notams')));
+        const html = await (await fetch(origin + '/api/weather/healthz', { headers: { Accept: 'text/html' } })).text();
+        const row = html.match(/<tr><th scope="row">NOTAMs[\s\S]*?<\/tr>/)?.[0];
+        assert.ok(row); assert.match(row, /class="good">Ready/);
+        assert.match(row, /Partial source metadata/); assert.doesNotMatch(row, />Warning<|>Attention</);
+      }
+      await app.close(); app = await open();
+    }
+    assert.deepEqual(await readFile(join(state, 'budget.json')), budget);
+    assert.deepEqual(await readFile(join(state, 'current.json')), manifest);
+    const disputed = collectNotamRecords({ records: [] }, issue.variants.map((variant, i) =>
+      changed(variant, { icaoLocations: [i ? 'KBBB' : 'KAAA'] })));
+    const index = new NotamIndex(() => expires);
+    index.publish({ schemaVersion: 2, environment: 'production', ...disputed,
+      complete: true, checkedAt: now, watermark: now, baselineAt: now, fullSyncAt: now, generation: 'a'.repeat(64) });
+    assert.equal(index.sourceIssues.historical, 1);
+    assert.equal(index.sourceIssues.historicalMetadata, 0, 'disputed supported queries retain historical warnings');
+  } finally { await app.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
 test('clock transitions, rollback and restore update health and cached HTTP impact without source or journal changes', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-impact-'));
   let now = end - 1, requests = 0;
@@ -198,6 +251,7 @@ test('clock transitions, rollback and restore update health and cached HTTP impa
         assert.equal(snapshot.issues?.length, historical ? 0 : 1);
         assert.equal(snapshot.historicalIssues?.length ?? 0, historical ? 1 : 0);
         assert.equal(snapshot.feed.historicalIssues, historical ? 1 : 0);
+        assert.equal(snapshot.feed.historicalMetadataIssues, 0, 'content conflicts retain their historical warning');
         assert.equal(snapshot.feed.blockingRecords, historical ? 0 : 1);
         assert.equal(snapshot.feed.unresolvedRecords, 1);
         assert.deepEqual((snapshot.issues?.[0] ?? snapshot.historicalIssues?.[0])?.observations, observed.observations);

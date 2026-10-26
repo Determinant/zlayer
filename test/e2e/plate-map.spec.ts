@@ -4,6 +4,7 @@ import { expectMapPlate, hideMapPlate } from './plate-map-fixture';
 import { gridFixture } from '../fixtures/awc-grids';
 import { WEATHER_NOW } from '../fixtures/awc-advisories';
 import { mapTouchInput } from './touch-input';
+import { mockGps, sendFix, countWatches } from './ownship-fixture';
 
 test.use({ hasTouch: true });
 
@@ -56,6 +57,29 @@ async function center(page: Page) {
   const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
+
+test('showing a plate preserves the track-up bearing and holds the fitted view through GPS updates', async ({ page }) => {
+  await page.clock.install();
+  await mockGps(page);
+  await page.reload();
+  await expect.poll(() => countWatches(page)).toBe(1);
+  const view = () => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!) as {
+    center: [number, number]; zoom: number; bearing: number;
+  });
+  await sendFix(page, { heading: 90 });
+  await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  await expect.poll(async () => (await view()).bearing).toBeCloseTo(90);
+  await openPlate(page);
+  await page.getByRole('button', { name: 'Show on map', exact: true }).click();
+  await expect.poll(async () => (await view()).center[0]).toBeCloseTo(-119.85, 3);
+  expect((await view()).bearing).toBeCloseTo(90);
+  await expect(page.getByRole('button', { name: 'Track up', exact: true })).toHaveAttribute('aria-description', /Following paused/);
+  const fitted = await view();
+  await sendFix(page, { heading: 180, longitude: -121.9 });
+  await page.clock.runFor(3000);
+  expect(await view()).toEqual(fitted);
+  await expectMapPlate(page);
+});
 
 test('weather, plate actions and navigation share one map menu while the AWC toolbox is open', async ({ page, request }) => {
   await page.clock.install({ time: WEATHER_NOW });

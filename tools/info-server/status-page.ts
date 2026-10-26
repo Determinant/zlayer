@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { NotamFeedStatus } from '@zlayer/contracts';
-import type { assessInfoHealth } from './health';
+import { notamHealthCounts, type assessInfoHealth } from './health';
 import { formatCheckedAt, formatTimestamp } from '../../src/core/format/time';
 import { loadStatusStyles } from './status-style';
 
@@ -102,9 +102,7 @@ export function renderStatusPage(readiness: Readiness, notams: NotamFeedStatus, 
   const kind = !readiness.ready ? 'bad' : readiness.warnings.length ? 'warn' : 'good';
   const title = !readiness.ready ? 'Needs attention' : readiness.warnings.length ? 'Ready with warnings' : 'Healthy';
   const problems = [...readiness.problems, ...readiness.warnings];
-  const blocking = notams.blockingRecords ?? notams.unresolvedRecords ?? 0;
-  const historical = notams.historicalIssues ?? 0;
-  const metadata = Math.max(0, (notams.unresolvedRecords ?? 0) - blocking - historical);
+  const { blocking, historicalWarnings: historical, metadata } = notamHealthCounts(notams);
   const rows = Object.entries(readiness.sources).map(([product, value]) => {
     const applies = (problem: { product: string }) => problem.product === product || problem.product.startsWith(product + '.');
     const blocked = readiness.problems.some(applies);

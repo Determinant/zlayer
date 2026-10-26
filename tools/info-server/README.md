@@ -418,8 +418,16 @@ exit after thirty seconds. Each worker reuses geometry/terrain, and the source
 block plan is computed once per candidate. Fields within one admitted conversion
 share a single authenticated read per block, including disk-cache hits. Those
 buffers are released with the job, rather than retained across conversions.
-Terrain is read only when its run
-changes. No selected-altitude slices or full vertical cubes are produced here.
+Terrain is decoded and validated once per retained source identity, then shared
+as an already checked view of its artifact. Each worker retains at most two terrain
+artifacts and one sampling map. Wind rotation reuses Float64 coefficients for that
+map, invalidating them when source geometry, target geometry or vector orientation
+changes. The rotation table costs 16 bytes per output cell (25.4 MiB for CONUS)
+per worker. Packing validates and encodes each band in one pass, then copies it
+into the existing little-endian artifact; nonrepresentable bands keep Float32.
+Temporary compact bands add at most 12.7 MiB for a CONUS wind slice. These bounds
+replace repeated arithmetic and validation without increasing worker admission.
+No selected-altitude slices or full vertical cubes are produced here.
 The [grid guide](../../src/layers/weather-awc/grids/README.md#browser-source-and-cache-contract)
 describes numeric formats and validation.
 
@@ -612,8 +620,9 @@ remain available while its replacement is preparing, but availability and progre
 do not satisfy the freshness gate. An NMS feed with complete collection continuity
 and blocking unresolved source records likewise fails the strict readiness check.
 Fully evidenced association metadata affecting no supported query remains visible
-as a warning and needs no allowance; legacy feeds without `blockingRecords` treat
-all issues as blocking. Retain that distinction in rollout evidence. Enabled NMS also requires an available
+as an informational notice, including after expiration, and needs no allowance.
+Other historical conflicts remain warnings; legacy feeds without `blockingRecords`
+treat all issues as blocking. Retain that distinction in rollout evidence. Enabled NMS also requires an available
 reconciliation summary without an active error; fresh deltas do not clear failed
 full-sync or diagnostic-history checks. The [maintenance guide](maintenance.md#focused-qualification)
 defines the explicit age and source-issue exceptions, which do not waive these errors.

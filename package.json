@@ -27,6 +27,7 @@
     "test:smoke": "playwright test --config playwright.smoke.config.ts",
     "test:graphics": "playwright test --config playwright.graphics.config.ts",
     "verify": "npm run check && npm test && npm run build && npm run info:build",
+    "verify:standard": "npm run verify && npm run test:smoke",
     "verify:full": "node tools/verify-full.mjs",
     "theme:generate": "node --import=tsx tools/generate-theme.ts",
     "check:theme": "node --import=tsx tools/generate-theme.ts --check"

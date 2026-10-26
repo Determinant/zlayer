@@ -3,7 +3,7 @@ import test from 'node:test';
 import proj4 from 'proj4';
 import type { AwcGridManifest } from '@zlayer/contracts';
 import type { LambertGrid } from '../src/layers/weather-awc/grids/grib';
-import { samplingMap, rotateWinds } from '../src/layers/weather-awc/grids/conversion';
+import { samplingMap, windRotation } from '../src/layers/weather-awc/grids/conversion';
 import { randomSequence, type Point } from './helpers/weather-geometry';
 
 const grids: LambertGrid[] = [
@@ -49,7 +49,7 @@ test('wind rotation agrees with independent projected cell directions and conser
     const indices = Int32Array.from({ length: 100 }, () => Math.floor(random() * grid.width * grid.height));
     const east = Float32Array.from(indices, () => random() * 160 - 80), north = Float32Array.from(indices, () => random() * 160 - 80);
     const u = east.slice(), v = north.slice();
-    rotateWinds(grid, indices, east, north);
+    windRotation(grid, indices)(east, north);
     for (const [i, index] of indices.entries()) {
       const x = origin[0] + index % grid.width * grid.dx, y = origin[1] + Math.floor(index / grid.width) * grid.dy;
       const at = projection.inverse<Point>([x, y]), scale = Math.cos(at[1] * Math.PI / 180);

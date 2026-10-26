@@ -19,7 +19,7 @@ function fieldIdentity(field: AwcGridField, frame: NativeFrame): Omit<GribIdenti
 }
 
 const converter = createConverter();
-const terrain = new Map<string, ArrayBuffer>();
+const terrain = new Map<string, ReturnType<typeof converter.prepareTerrain>>();
 let serial = 0;
 const reads = new Map<number, (value: ArrayBuffer) => void>();
 class RejectedRecord extends Error {
@@ -46,7 +46,7 @@ async function convert({ product, manifest, frame, terrainOnly }: ConversionJob)
       terrain.set(key, prepared);
       while (terrain.size > 2) terrain.delete(terrain.keys().next().value!);
     }
-    if (terrainOnly) return compressGrid(prepared);
+    if (terrainOnly) return compressGrid(prepared.buffer);
     converter.init(manifest); converter.terrain(prepared);
   } else converter.init(manifest);
   const readLevel = async (level: NativeFrame) => {

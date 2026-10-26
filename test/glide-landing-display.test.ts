@@ -104,6 +104,29 @@ test('ownship/selected ranges admit and clip polygons without a route and clear 
   assert.equal(removed.status.state, 'route'); assert.equal(removed.collection?.features.length, 0); assert.equal((await worker.inspect([0, 0])), null);
 });
 
+test('cached range presentation clips current coverage without manifest, overview or detail acquisition', async () => {
+  let manifests = 0, summaries = 0, details = 0;
+  const worker = createLandingDisplayWorker(async () => { manifests++; return manifest([parts[0]!]); },
+    async () => { summaries++; return heat(); }, async () => { details++; return [area]; });
+  const first = await worker.query(request({ segments: [], ranges: ranges([-.04, -.04, .04, .04]) }));
+  const counts = [manifests, summaries, details];
+  const clipped = await worker.query(request({ segments: [], ranges: ranges([0, -.02, .02, .02]),
+    renderedKey: first.renderKey, cachedOnly: true, revalidate: true }));
+  assert.deepEqual([manifests, summaries, details], counts);
+  assert.equal(clipped.refreshed, false);
+  assert.equal(clipped.status.state, 'loading');
+  assert.equal(clipped.more, true, 'discovery remains pending after presenting retained candidates');
+  assert.ok(clipped.collection?.features.length);
+  for (const point of clipped.collection!.features[0]!.geometry.coordinates.flat(2)) {
+    assert.ok(point[0]! >= -1e-9 && point[0]! <= .0200001);
+    assert.ok(Math.abs(point[1]!) <= .0200001);
+  }
+  assert.equal((await worker.inspect([.01, 0]))?.id, 'area');
+  assert.equal(await worker.inspect([-.01, 0]), null, 'inspection obeys the newly clipped range');
+  const complete = await worker.query(request({ segments: [], ranges: ranges([0, -.02, .02, .02]), renderedKey: clipped.renderKey }));
+  assert.equal(complete.more, false);
+});
+
 test('failed files and unprepared regions remain incomplete; retry refreshes summaries', async () => {
   let unavailable = true, reads = 0;
   const worker = createLandingDisplayWorker(async () => manifest([parts[0]!]), async () => {

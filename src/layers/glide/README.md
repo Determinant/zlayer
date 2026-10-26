@@ -499,8 +499,11 @@ Dense-image inspection first checks a shaded pixel, then reads only completed
 blocks whose bounds contain the coordinate through the existing verified cache.
 It checks original polygons, region ownership and the current range, returns the
 original stable ID and individual fit/flags, and retains no polygon afterward.
-Range/frame replacement and worker teardown discard pending inspections as empty
-selections; actual read failures for current demand still report an error.
+An open map menu retains its geographic point across completed range refreshes.
+Choosing **Inspect landing area** checks the current accepted detail at that point;
+missing replacement detail or a changed source rejects the action. A range/frame
+replacement during the asynchronous inspection and worker teardown discard pending
+inspections as empty selections; actual read failures for current demand still report an error.
 Missing blocks remain visibly incomplete and retryable; cancellation preserves
 already completed blocks, while source changes discard them. A capacity limit
 alone does not offer Retry: retrying cannot enlarge the budget. Metadata discovery
@@ -529,8 +532,13 @@ range polygons. Manual camera motion/hiding cancels obsolete work, while GPS-fol
 camera movement preserves active preparation. Nonempty range updates also let
 in-flight file acquisition finish, coalescing a query for the latest range without
 restarting the admission timer. Old detail clears immediately and replies for an
-older range cannot publish; the next query clips cached records to the current
-range. Removing all ranges, route edits, retries, disable and teardown still cancel
+older range cannot publish. Before admitting more discovery, a range change runs
+a presentation pass that clips retained vector records or raster pixels to the
+latest range without reading manifests, indexes or candidate files. If discovery
+was already running, it finishes acquiring reusable data first, then this pass
+runs immediately. This prevents repeated slow acquisition from starving current
+range display. Discovery remains pending after the presentation pass; unchanged,
+completed demand still becomes idle. Removing all ranges, route edits, retries, disable and teardown still cancel
 obsolete demand. Queries are serialized. The display worker supplies its accepted
 manifest whenever detail runs, including route-only clearing, so a refresh or
 cancelled refresh cannot leave the next detail query using an older inventory.
@@ -559,6 +567,10 @@ teardown. Existing contract/geometry tests retain candidate validation and inspe
 cached revisits and zoom changes through the real worker, independent ranges,
 GPS loss during inspection, selection identity and unpublished-feed recovery.
 Camera-reuse cases observe worker replies for redundant tile publication.
+Continuous GPS-camera regressions also hold a worker response across twenty camera
+updates: acquisition is not cancelled, only one latest query follows, and completed
+demand does not poll. These work-count checks and the phone/desktop dense-image
+reuse cases are not measurements of frame time or battery use on flight hardware.
 `test/glide-packages.test.ts` decodes the complete publisher conformance fixture,
 checks original IDs/holes, corruption and inflate limits, numeric-only route reads,
 region-local indexes, shared-file retention and cache-only eviction detection.

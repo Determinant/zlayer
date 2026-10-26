@@ -28,6 +28,11 @@ test('status page preserves readiness, expected partial coverage and nonblocking
   assert.match(html, /0 blocking NOTAM issues · 1 metadata discrepancy/);
   assert.match(html, /1 metadata discrepancy; no supported queries affected/);
   assert.doesNotMatch(html, />Warning<|Ready with warnings/);
+  html = renderStatusPage(value, { ...feed, unresolvedRecords: 1, blockingRecords: 0,
+    historicalIssues: 1, historicalMetadataIssues: 1 }, NOTAM_NOW);
+  assert.match(html, /<title>Healthy \| ZLayer/);
+  assert.match(html, /0 blocking NOTAM issues · 1 metadata discrepancy/);
+  assert.doesNotMatch(html, />Warning<|Ready with warnings|1 historical issues/);
   value.warnings.push({ product: 'notams', reason: 'historical-source-issues', severity: 'warning' });
   html = renderStatusPage(value, { ...feed, unresolvedRecords: 2, blockingRecords: 0, historicalIssues: 1 }, NOTAM_NOW);
   assert.match(html, /<title>Ready with warnings/);

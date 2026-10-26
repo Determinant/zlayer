@@ -246,8 +246,15 @@ actual aiding state; GPS loss alone does not imply gravity aiding has stopped.
 
 ## Reproduce and extend the evidence
 
+The standard precommit gate runs all AHRS Node tests and two browser smoke cases:
+calibration with GPS-loss display and cleanup, and denied motion permission.
+Prolonged vibration, uncertainty growth/convergence, magnetic disturbances and
+GPS-outage replays remain in the complete AHRS browser suite. Run the relevant
+cases when changing sensor processing or recovery, and the complete suite for
+sensor-fusion changes. `npm run verify:full` includes every case before release.
+
 ```sh
-npm run verify
+npm run verify:standard
 node --import=tsx --test test/ahrs-*.test.ts
 node --import=tsx tools/ahrs-review-probes.ts
 npm run test:browser -- test/e2e/ahrs.spec.ts

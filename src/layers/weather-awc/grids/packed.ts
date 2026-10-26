@@ -20,36 +20,36 @@ const sentinelStart = (kind: number) => kind <= 2 ? 252 : -32768;
 export function packGrid(values: Float32Array, geometry: Geometry): ArrayBuffer {
   const count = geometry.grid.width * geometry.grid.height;
   if (values.length !== count * geometry.fields.length) throw new Error('Invalid grid sample count');
-  const kinds = geometry.fields.map((field, band) => {
-    let kind = codec(field);
-    const scale = scaleFor(kind), end = (band + 1) * count;
-    for (let i = band * count; i < end; i++) {
-      const value = values[i]!;
+  const bands = geometry.fields.map((field, band) => {
+    const kind = codec(field), scale = scaleFor(kind), sentinel = sentinelStart(kind);
+    const source = values.subarray(band * count, (band + 1) * count);
+    const encoded = kind <= 2 ? new Uint8Array(count) : new Int16Array(count);
+    let exact = true;
+    for (let i = 0; i < count; i++) {
+      const value = source[i]!;
       if (!validGridValue(field, value)) throw new Error('Invalid packed grid value');
-      if (isGridSentinel(value)) continue;
+      if (isGridSentinel(value)) { encoded[i] = sentinel + value - GRID_MISSING; continue; }
       const n = Math.round(value / scale);
-      if (!Object.is(Math.fround(n * scale), value) || (kind <= 2 ? n < 0 || n >= 252 : n < -32764 || n > 32767)) kind = 5;
+      if (!Object.is(Math.fround(n * scale), value) || (kind <= 2 ? n < 0 || n >= 252 : n < -32764 || n > 32767)) exact = false;
+      encoded[i] = n;
     }
-    return kind;
+    return { kind: exact ? kind : 5, values: exact ? encoded : source };
   });
-  const header = 16 + kinds.length * 12;
-  const size = header + kinds.reduce((n, kind) => n + align(count * (kind <= 2 ? 1 : kind <= 4 ? 2 : 4)), 0);
+  const header = 16 + bands.length * 12;
+  const size = header + bands.reduce((n, band) => n + align(band.values.byteLength), 0);
   const bytes = new ArrayBuffer(size), view = new DataView(bytes);
   new Uint8Array(bytes, 0, 8).set(new TextEncoder().encode(magic));
   view.setUint16(8, 1, true); view.setUint16(10, geometry.grid.width, true);
-  view.setUint16(12, geometry.grid.height, true); view.setUint16(14, kinds.length, true);
+  view.setUint16(12, geometry.grid.height, true); view.setUint16(14, bands.length, true);
   let offset = header;
-  for (const [band, kind] of kinds.entries()) {
-    const length = count * (kind <= 2 ? 1 : kind <= 4 ? 2 : 4), at = 16 + band * 12;
+  for (const [band, { kind, values: encoded }] of bands.entries()) {
+    const length = encoded.byteLength, at = 16 + band * 12;
     view.setUint8(at, fields.indexOf(geometry.fields[band]!)); view.setUint8(at + 1, kind);
     view.setUint32(at + 4, offset, true); view.setUint32(at + 8, length, true);
-    const scale = scaleFor(kind), sentinel = sentinelStart(kind);
-    for (let i = 0; i < count; i++) {
-      const value = values[band * count + i]!;
-      const encoded = isGridSentinel(value) ? sentinel + value - GRID_MISSING : Math.round(value / scale);
-      if (kind <= 2) view.setUint8(offset + i, encoded);
-      else if (kind <= 4) view.setInt16(offset + i * 2, encoded, true);
-      else view.setFloat32(offset + i * 4, value, true);
+    if (littleEndian || kind <= 2) new Uint8Array(bytes, offset, length).set(new Uint8Array(encoded.buffer, encoded.byteOffset, length));
+    else for (let i = 0; i < count; i++) {
+      if (kind <= 4) view.setInt16(offset + i * 2, encoded[i]!, true);
+      else view.setFloat32(offset + i * 4, encoded[i]!, true);
     }
     offset += align(length);
   }

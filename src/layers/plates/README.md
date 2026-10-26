@@ -184,7 +184,10 @@ See [deployment readiness](../../../docs/development/deployment.md).
 
 Open an approach from an airport's **Plates** tab and select the **Show on map**
 map icon in the header, immediately left of the full-screen button.
-The viewer closes and the map fits the plate. Only one IAP can be shown: a new
+The viewer closes and the map fits the plate at the workspace's intended bearing,
+including the held bearing while browsing or waiting for GPS track. The fit pauses
+GPS following until Follow or Center aircraft. The georeferenced plate remains
+part of the map and rotates with it. Only one IAP can be shown: a new
 selection replaces the previous overlay once its geographic data and image are
 ready. Opening or closing the normal PDF viewer leaves the current overlay alone.
 

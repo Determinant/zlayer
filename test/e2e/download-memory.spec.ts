@@ -2,14 +2,15 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 
 // WebKit's ephemeral contexts deny OPFS even when the API is exposed. Exercise
 // normal persistent browsing, as used by the installed app, in a fresh profile.
 const test = base.extend({
-  context: async ({ playwright, browserName, baseURL }, use) => {
+  context: async ({ playwright, browserName, baseURL, launchOptions }, use) => {
     const directory = await mkdtemp(join(tmpdir(), 'zlayer-download-profile-'));
     const context = await playwright[browserName].launchPersistentContext(directory, {
+      ...launchOptions,
       ...(baseURL ? { baseURL } : {}),
     });
     try {
@@ -23,6 +24,11 @@ const test = base.extend({
 test.beforeEach(async ({ request }) => { await request.post('/__test/reset'); });
 test.afterEach(async ({ request }) => { await request.post('/__test/reset'); });
 
+async function openControlledPage(page: Page) {
+  await page.goto('/');
+  await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
+}
+
 test('180 MiB book streams to disk, survives reload offline, and is removed with its receipt', async ({ page, context }) => {
   test.setTimeout(120_000);
   const size = 180 * 1024 * 1024;
@@ -32,7 +38,7 @@ test('180 MiB book streams to disk, survives reload offline, and is removed with
   chunk.fill(0);
   for (let offset = chunk.length; offset < size; offset += chunk.length) hash.update(chunk);
   const sha256 = hash.digest('hex');
-  await page.goto('/');
+  await openControlledPage(page);
   const saved = await page.evaluate(async ({ size, sha256 }) => {
     const module = '/assets/download-memory-test.js';
     return (await import(module)).save(size, sha256);
@@ -40,6 +46,7 @@ test('180 MiB book streams to disk, survives reload offline, and is removed with
   expect(saved).toEqual({ saved: true, size, loaded: size, requested: 1,
     maxWrite: 64 * 1024, receiptBytes: 0, available: size, prefix: '%PDF-1.7\n' });
   await page.reload();
+  await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated');
   const reopened = await page.evaluate(async ({ size, sha256 }) => {
     const module = '/assets/download-memory-test.js';
     return (await import(module)).reopen(size, sha256);
@@ -48,7 +55,7 @@ test('180 MiB book streams to disk, survives reload offline, and is removed with
   // Closing the reader deterministically releases its file locks on every engine.
   await page.close();
   const remover = await context.newPage();
-  await remover.goto('/');
+  await openControlledPage(remover);
   const removed = await remover.evaluate(async ({ size, sha256 }) => {
     const module = '/assets/download-memory-test.js';
     return (await import(module)).remove(size, sha256);
@@ -62,8 +69,7 @@ test('large service-worker chart downloads keep only a receipt and serve saved r
   const chunk = Buffer.alloc(256 * 1024);
   for (let offset = 0; offset < size; offset += chunk.length) hash.update(chunk);
   const url = `/chart-data/download-memory/archive.mbtiles?bytes=${size}&sha256=${hash.digest('hex')}`;
-  await page.goto('/');
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await openControlledPage(page);
   const download = await page.evaluate(async url => {
     const response = await fetch(url, { method: 'HEAD' });
     const receipt = await (await caches.open('zlayers-file-receipts-v1:zlayers-chart-archives-v3')).match(url);
@@ -89,7 +95,7 @@ test('two windows can finish the same book and keep reading through replacement 
   for (let offset = chunk.length; offset < size; offset += chunk.length) hash.update(chunk);
   const sha256 = hash.digest('hex');
   const other = await context.newPage(), remover = await context.newPage();
-  await page.goto('/'); await other.goto('/'); await remover.goto('/');
+  await openControlledPage(page); await openControlledPage(other); await openControlledPage(remover);
   const save = (target: typeof page) => target.evaluate(async ({ size, sha256 }) => {
     const module = '/assets/download-memory-test.js';
     return (await import(module)).save(size, sha256, true, true);

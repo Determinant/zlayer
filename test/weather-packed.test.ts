@@ -57,3 +57,23 @@ test('packed reader rejects mismatched geometry, fields, offsets, encoding, valu
   assert.throws(() => unpackGrid(extra.buffer, geometry));
   await assert.rejects(inflatePacked(await compressGrid(new ArrayBuffer(4096)), geometry), /limit/);
 });
+
+test('packing preserves late float fallback, canonical zero, padding and independent output ownership', () => {
+  const geometry = { grid: { width: 3, height: 1 }, fields: ['cloudCover', 'windEast', 'temperature'] as const };
+  const values = Float32Array.from([0, GRID_UNKNOWN, 100, 12.3, GRID_MISSING, 12.34567, -0, -32.1, GRID_OUTSIDE]);
+  const packed = packGrid(values, geometry), bands = unpackGrid(packed, geometry);
+  assert.ok(bands[0]!.values instanceof Uint8Array);
+  assert.ok(bands[1]!.values instanceof Float32Array);
+  assert.ok(bands[2]!.values instanceof Int16Array, 'integer encoding retains the existing canonical zero');
+  assert.equal(new Uint8Array(packed)[55], 0, 'odd byte bands retain zero alignment padding');
+  for (const [band, data] of bands.entries()) for (let cell = 0; cell < 3; cell++) {
+    assert.ok(Object.is(readBand(data)(cell), values[band * 3 + cell] === 0 ? 0 : values[band * 3 + cell]));
+  }
+  values.fill(0);
+  assert.equal(readBand(bands[1]!)(2), Math.fround(12.34567), 'float fallback copies its source');
+  for (const invalid of [NaN, Infinity, 551]) {
+    const bad = Float32Array.of(12.34567, invalid);
+    assert.throws(() => packGrid(bad, { grid: { width: 2, height: 1 }, fields: ['windEast'] }), /Invalid packed grid value/,
+      'fallback must still validate all later samples');
+  }
+});

@@ -156,11 +156,32 @@ Use it when debugging weather through the proxies above.
 
 ## Verification
 
-`npm run verify:full` is the full local CI command. Run it before committing,
-subject to the [server-only scope rule](../../AGENTS.md#verification-and-documentation);
-the smaller automatic GitHub check does not replace it. It runs the existing
-`verify` command, every Chromium browser test (including graphics), and additional
-graphics coverage in Firefox, WebKit and 2× WebKit, without smoke filtering.
+`npm run verify:standard` is the normal precommit gate, subject to the
+[server-only scope rule](../../AGENTS.md#verification-and-documentation). It runs
+checks, all root/workspace Node tests, both production builds, and the Chromium
+smoke suite. AHRS unit coverage stays included; its browser smoke cases cover
+calibration, live attitude through GPS loss, sensor cleanup and permission denial.
+
+Run focused browser tests for the behavior being changed as well. Long AHRS
+sensor replays, exhaustive panel-transition matrices and the complete browser/graphics
+suites stay outside the standard gate. Changes to those behaviors still require
+their relevant cases, such as the AHRS suite for sensor-fusion changes or the
+affected graphics suites for renderer changes. Keep smoke coverage small and
+representative; advancing a virtual sensor clock still executes every callback
+and can drive substantial rendering work.
+
+```bash
+npx playwright install --with-deps chromium
+npm run verify:standard
+# Example: camera and plate-map changes
+npm run test:browser -- test/e2e/map-navigation.spec.ts test/e2e/plate-map.spec.ts
+```
+
+`npm run verify:full` remains exhaustive: it runs `verify`, every Chromium browser
+test (including long AHRS simulations and graphics), and additional graphics
+coverage in Firefox, WebKit and 2× WebKit, without smoke filtering. Run it before
+releases or when a complete regression run is explicitly needed. It is not the
+routine precommit gate.
 
 ```bash
 npx playwright install --with-deps chromium firefox webkit
@@ -188,12 +209,15 @@ docker run --rm --init --shm-size=1g --user "$(id -u):$(id -g)" \
   -e npm_config_cache=/tmp/zlayer-npm \
   -e XDG_CACHE_HOME=/tmp/zlayer-cache -e XDG_CONFIG_HOME=/tmp/zlayer-config \
   -v "$PWD:/work" -w /work \
-  mcr.microsoft.com/playwright:v1.63.0-noble npm run verify:full
+  mcr.microsoft.com/playwright:v1.63.0-noble npm run verify:standard
 ```
 
 The init process reaps browser children and supports Xvfb's startup signalling.
 Writable XDG directories let Firefox initialize its caches even when the host UID
 maps to an image account without a writable home directory.
+Replace `verify:standard` with `verify:full` for an exhaustive container run.
+Run one verification job at a time; overlapping suites compete for CPU, especially
+with software-rendered WebGL, and native runs share a mutable fixture server.
 
 The container's fixture port is isolated from host development servers. For a
 native run with an occupied fixture port, set `ZLAYER_TEST_PORT` to a free port.
@@ -256,10 +280,11 @@ libraries. Alternatively, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a working
 or Chromium executable. That override can use a different version from CI; reproduce
 CI browser failures with Playwright's installed browser before changing assertions.
 GitHub Actions runs `npm run verify` and `npm run test:smoke` as separate jobs on
-pushes and pull requests. The smoke command selects Chromium tests tagged `@smoke`
-for first-visit acknowledgment, map/WebGL recovery, GPS rendering, cold offline
-startup with saved routes and PDFs, app updates across windows, and regional
-download recovery after brief or prolonged storage-lock contention.
+pushes and pull requests, covering the same checks as local `verify:standard`.
+The smoke command selects Chromium tests tagged `@smoke` for first-visit
+acknowledgment, map/WebGL recovery, GPS rendering, AHRS calibration and permission
+denial, cold offline startup with saved routes and PDFs, app updates across
+windows, and regional download recovery after brief or prolonged storage-lock contention.
 It uses the same production-build server and assertions as the complete suite,
 with native weather preparation disabled because these scenarios do not use it.
 Prepared-weather coverage stays in the full browser suite. Adding a smoke case
@@ -330,8 +355,10 @@ Linux Firefox, WebKit and 2× WebKit, and macOS 2× WebKit (15-minute limits).
 Playwright's corresponding suite limits are 85 and 12 minutes, allowing failure
 artifacts to finish before GitHub stops a job.
 Disable **full** to run only the ordinary verification and smoke checks manually.
-Only the full hosted run is opt-in. Full local CI retains all test coverage;
-moving suites off GitHub's automatic path does not resolve their test failures.
+Full hosted and local runs are explicit, with local full verification required
+before releases. All test coverage remains available; excluding a suite from the
+standard gate does not resolve its failures or replace focused checks when its
+behavior changes.
 
 Interactive browser fixtures, served by Vite but excluded from ordinary builds:
 
@@ -406,7 +433,7 @@ untracked notes and new tests in the review; do not remove unrelated local work.
    Retain measured comparisons with their original source, method and limitations;
    keep routine audit inventories and run logs in ignored `tmp/`.
 4. Run affected suites and repository checks. Test counts help detect accidental
-   loss but do not prove equivalent coverage. The [full precommit gate](#verification)
+   loss but do not prove equivalent coverage. The [standard precommit gate](#verification)
    still applies before committing.
 
 ## Maintaining test coverage

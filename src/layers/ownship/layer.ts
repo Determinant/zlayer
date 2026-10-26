@@ -6,11 +6,13 @@ import { estimateTurnRate, MOTION_TIME_EPSILON_SECONDS, smoothMotion, type Displ
 export type OwnshipState = GpsState;
 export type OwnshipSnapshot = DisplayMotion & {
   enabled: boolean; state: OwnshipState; fix: GpsFix | null; centerRequest: number;
+  centerRequestKind: 'initial' | 'explicit';
 };
 
 /** Map presentation and demand; the core GPS source owns sensor acquisition. */
 export function createOwnshipLayer(gps: GpsService) {
-  const store = createLayerStore<OwnshipSnapshot>({ enabled: false, state: 'off', fix: null, centerRequest: 0, turnRate: null, displayTrack: null });
+  const store = createLayerStore<OwnshipSnapshot>({ enabled: false, state: 'off', fix: null,
+    centerRequest: 0, centerRequestKind: 'initial', turnRate: null, displayTrack: null });
   let attached = false, centerOnFix = true, acquiringGps = false;
   let releaseGps: (() => void) | undefined, unsubscribe: (() => void) | undefined;
   let motionHistory: GpsFix[] = [];
@@ -20,7 +22,7 @@ export function createOwnshipLayer(gps: GpsService) {
   const observeGps = () => {
     if (!attached || !store.getSnapshot().enabled) return;
     const { state, fix } = gps.getSnapshot(), previous = store.getSnapshot();
-    let { turnRate, displayTrack, centerRequest } = previous;
+    let { turnRate, displayTrack, centerRequest, centerRequestKind } = previous;
     if (state !== 'tracking' || !fix) {
       resetMotionHistory();
       turnRate = null;
@@ -35,10 +37,12 @@ export function createOwnshipLayer(gps: GpsService) {
       motionHistory = motionHistory.filter(sample => fix.time - sample.time <= GPS_STALE_MS / 1000 + MOTION_TIME_EPSILON_SECONDS);
       if ((fix.speed !== null && fix.speed < 1) || fix.accuracy > GPS_MOTION_ACCURACY_METERS) motionHistory = [];
       if (!motionHistory.length || fix.time - motionHistory.at(-1)!.time >= GPS_MOTION_SAMPLE_MS / 1000 - MOTION_TIME_EPSILON_SECONDS) motionHistory.push(fix);
-      if (centerOnFix && fix.accuracy <= GPS_MOTION_ACCURACY_METERS) { centerRequest++; centerOnFix = false; }
+      if (centerOnFix && fix.accuracy <= GPS_MOTION_ACCURACY_METERS) {
+        centerRequest++; centerRequestKind = 'initial'; centerOnFix = false;
+      }
     }
     if (state !== previous.state || fix !== previous.fix || turnRate !== previous.turnRate || centerRequest !== previous.centerRequest) {
-      store.publish({ ...previous, state, fix, turnRate, displayTrack, centerRequest });
+      store.publish({ ...previous, state, fix, turnRate, displayTrack, centerRequest, centerRequestKind });
     }
   };
   const syncDemand = () => {
@@ -93,7 +97,7 @@ export function createOwnshipLayer(gps: GpsService) {
     center() {
       const snapshot = store.getSnapshot();
       if (snapshot.enabled && snapshot.state === 'tracking' && snapshot.fix && snapshot.fix.accuracy <= GPS_MOTION_ACCURACY_METERS) {
-        store.publish({ ...snapshot, centerRequest: snapshot.centerRequest + 1 });
+        store.publish({ ...snapshot, centerRequest: snapshot.centerRequest + 1, centerRequestKind: 'explicit' });
       }
     },
   };

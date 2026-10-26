@@ -251,6 +251,9 @@ npx playwright install --with-deps chromium firefox webkit
 npm run verify:full
 ```
 
+This exhaustive command is required before releases; normal precommit work uses
+`npm run verify:standard` plus affected graphics tests, as described in the
+[verification guide](../development/local-development.md#verification).
 Full local CI runs all checks, unit tests and browser tests. Chromium graphics
 are included in the browser suite; the other three graphics projects run separately.
 On Linux, its Firefox stage runs headed and automatically uses

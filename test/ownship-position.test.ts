@@ -263,7 +263,7 @@ for (const hz of [1, 5, 10]) {
         timestamp: now + time * 1000, time, estimated: false, altitude: null, altitudeAccuracy: null };
       const raw = structuredClone(fix);
       const motion = smoothMotion(fix, previous, estimateTurnRate(fix, history));
-      const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequest: 0, ...motion });
+      const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequestKind: 'explicit' as const, centerRequest: 0, ...motion });
       const vector = geometry.features.find(feature => feature.properties?.kind === 'projection')!.geometry;
       assert.equal(vector.type, 'LineString');
       if (vector.type !== 'LineString') assert.fail();
@@ -298,7 +298,7 @@ for (const hz of [1, 5, 10]) {
 test('ownship stays exactly at the current fix and only the track vector extends into the future', () => {
   const fix = readGpsFix(position({ heading: 90, speed: 60 }), null, clock)!;
   for (const turnRate of [null, -1, 1, 3]) {
-    const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequest: 1, turnRate, displayTrack: fix.track });
+    const geometry = ownshipGeometry({ enabled: true, state: 'tracking', fix, centerRequestKind: 'explicit' as const, centerRequest: 1, turnRate, displayTrack: fix.track });
     const aircraft = geometry.features.find(feature => feature.properties?.kind === 'aircraft')!;
     assert.deepEqual(aircraft.geometry, { type: 'Point', coordinates: [-122, 37] });
     assert.equal(aircraft.properties?.track, 90);
@@ -313,7 +313,7 @@ test('ownship stays exactly at the current fix and only the track vector extends
 
 test('stale fixes lose the aircraft orientation and projection; disabled layers clear all geometry', () => {
   const fix = readGpsFix(position({ speed: 60, heading: 90 }), null, clock)!;
-  const snapshot = { enabled: true, state: 'tracking' as const, fix, centerRequest: 1, turnRate: 1, displayTrack: fix.track };
+  const snapshot = { enabled: true, state: 'tracking' as const, fix, centerRequestKind: 'explicit' as const, centerRequest: 1, turnRate: 1, displayTrack: fix.track };
   const live = ownshipGeometry(snapshot);
   assert.deepEqual(live.features.map(feature => feature.properties?.kind), ['aircraft', 'accuracy', 'projection']);
   const stale = ownshipGeometry({ ...snapshot, state: 'stale' });

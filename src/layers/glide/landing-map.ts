@@ -28,6 +28,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   let followingGps = false, waitingForCamera = false, heatRevision = 0;
   let detailImage: LandingHeatImage | null = null;
   let running: { revision: number; heatRevision: number } | undefined, queued = false, revalidate = true, lastCheck = -Infinity, refreshAfter = -Infinity;
+  let reclip = false;
   let timer: ReturnType<typeof setTimeout> | undefined, stopInventory: (() => void) | undefined;
   let sources = landingSources(undefined, "http://localhost/"), sourceIdentity = "";
   let lastStatus: LandingStatus = { state: 'idle' };
@@ -80,6 +81,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
   const hasTarget = () => input.segments.length > 0 || input.ranges.features.length > 0;
   const cancel = () => {
     revision++; heatRevision++;
+    reclip = false;
     if (upload) { submission?.invalidate(); upload.abort(); pendingKey = undefined; acknowledgeDetail(''); }
     const id = running?.revision;
     if (id !== undefined && client) void client.call(worker => worker.cancel(id)).catch(() => {});
@@ -94,11 +96,13 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     waitingForCamera = false;
     if (running) { queued = true; return; }
     const job = running = { revision, heatRevision }, bounds = map.getBounds(), zoom = map.getZoom();
+    const cachedOnly = reclip && !!client && !client.retired;
+    reclip = false;
     let more = false;
     const width = bounds.getEast() - bounds.getWest(), height = bounds.getNorth() - bounds.getSouth();
     const discover = map.getZoom() >= 7 && width <= 45 && height <= 25;
     const now = Date.now();
-    const check = discover && (now < lastCheck || now >= refreshAfter && (revalidate || now - lastCheck >= 5 * 60_000));
+    const check = !cachedOnly && discover && (now < lastCheck || now >= refreshAfter && (revalidate || now - lastCheck >= 5 * 60_000));
     status({ ...lastStatus, state: discover ? 'loading' : 'zoom' });
     try {
       if (!client || client.retired) {
@@ -108,7 +112,7 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       const result = await client.call(worker => worker.query({ id: job.revision,
         sources, manifestUrl: new URL(`${chartRoot()}/glide/manifest.json`, location.href).href,
         bounds: [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()], segments: input.segments, ranges: input.ranges, zoom,
-        discover, heatTiles: heatLayer.keys(), revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
+        discover, cachedOnly, heatTiles: heatLayer.keys(), revalidate: check, ...(renderedKey === undefined ? {} : { renderedKey }),
       }));
       if (!map || job.heatRevision !== heatRevision) return;
       // Admission is not completion: canceled refreshes remain pending. Failed
@@ -154,7 +158,9 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
     } finally {
       if (running === job) {
         running = undefined;
-        if (queued || more && job.heatRevision === heatRevision) { queued = false; schedule(more && job.heatRevision === heatRevision); }
+        if (queued || more && job.heatRevision === heatRevision) {
+          queued = false; schedule(reclip || more && job.heatRevision === heatRevision);
+        }
       }
     }
   };
@@ -201,8 +207,12 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
         const y = Math.floor((local[1] - nw[1]) / (se[1] - nw[1]) * detailImage.height);
         if (x < 0 || y < 0 || x >= detailImage.width || y >= detailImage.height || !detailImage.rgba[(y * detailImage.width + x) * 4 + 3]) return;
       } else if (!map.queryRenderedFeatures([point.x, point.y], { layers: [LAYERS[0]!] }).length) return;
-      const active = client, current = revision, sourceKey = lastStatus.sourceKey;
+      const active = client, sourceKey = lastStatus.sourceKey;
       return async () => {
+        // A menu pins the geographic point, not the range generation at opening.
+        // Validate against current accepted detail when the user chooses Inspect.
+        if (active !== client || !input.enabled || sourceKey !== lastStatus.sourceKey || !renderedKey?.split('/')[1]) return null;
+        const current = revision;
         let site: LandingSelection | null;
         try { site = await active.call(worker => worker.inspect([coordinate.lng, coordinate.lat] as Point)); }
         catch (error) {
@@ -263,14 +273,14 @@ export function createLandingLayer(onStatus: (status: LandingStatus) => void): M
       // The queued query clips those cached records to the latest range. Removing
       // all ranges, manual route changes and teardown still cancel obsolete demand.
       if (sourceChanged || routeChanged || toggle || retry || !next.ranges.features.length) cancel();
-      else revision++;
+      else { revision++; reclip = true; }
       if (sourceChanged || rangeChanged || toggle) clearDetail();
       if (sourceChanged || routeChanged || toggle) clearHeat();
       if (sourceChanged) heatLayer.clear();
       if (retry) heatLayer.retry();
       if (retry || sourceChanged) { revalidate = true; refreshAfter = -Infinity; }
       if (sourceChanged && lastStatus.sourceKey) status({ state: 'loading', sourceKey: `pending:${sourceIdentity}` });
-      schedule();
+      schedule(reclip);
     },
     unmount() {
       clearTimeout(retryTimer); retryTimer = undefined;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { GeoPointFeature } from '@zlayer/contracts';
 import type { MapCallbacks, MapAttachment } from './inputs';
 import type { MapView } from './style';
@@ -6,8 +6,9 @@ import { MapRuntime } from './runtime';
 
 type MapCanvasProps = MapCallbacks & MapAttachment & {
   initialView?: MapView; focusTarget: { feature: GeoPointFeature; nonce: number } | undefined;
+  inspectionOpen?: boolean;
 };
-export function MapCanvas({ contributions, orientation, initialView, focusTarget, ...handlers }: MapCanvasProps) {
+export function MapCanvas({ contributions, orientation, initialView, focusTarget, inspectionOpen = false, ...handlers }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<MapRuntime | undefined>(undefined);
   const callbacks = useRef(handlers);
@@ -24,6 +25,7 @@ export function MapCanvas({ contributions, orientation, initialView, focusTarget
         onErrorRecovered: resource => callbacks.current.onErrorRecovered?.(resource),
       });
       runtimeRef.current = runtime;
+      runtime.setInspectionOpen(inspectionOpen);
       return () => { runtime.destroy(); runtimeRef.current = undefined; };
     } catch (error) {
       callbacks.current.onStartupFailure?.();
@@ -32,6 +34,7 @@ export function MapCanvas({ contributions, orientation, initialView, focusTarget
     }
   }, [orientation]);
   useEffect(() => { runtimeRef.current?.setContributions(contributions); }, [contributions]);
+  useLayoutEffect(() => { runtimeRef.current?.setInspectionOpen(inspectionOpen); }, [inspectionOpen, orientation]);
   useEffect(() => { if (focusTarget) runtimeRef.current?.focus(focusTarget.feature); }, [focusTarget]);
   return <div className="map-canvas" ref={containerRef} aria-label="Aviation chart map" />;
 }

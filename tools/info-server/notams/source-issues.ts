@@ -12,8 +12,9 @@ export function classifyNotamIssue(issue: NotamSourceIssue, now = Date.now()) {
     (isNotamAirportQuery({ icaoId: code }) || isNotamRegionQuery({ firId: code }))).sort();
   const affectedLocationQueries = issue.locations.filter(code => !resolved?.locations.includes(code) &&
     (isNotamAirportQuery({ faaId: code }) || isNotamNavaidQuery({ navaidId: code }) || isNotamRegionQuery({ artccId: code }))).sort();
-  return { resolved, affectedIcaoQueries, affectedLocationQueries, applicability,
-    blocking: applicability.state !== 'historical' && (!resolved || affectedIcaoQueries.length > 0 || affectedLocationQueries.length > 0) };
+  const metadataOnly = !!resolved && affectedIcaoQueries.length === 0 && affectedLocationQueries.length === 0;
+  return { resolved, affectedIcaoQueries, affectedLocationQueries, applicability, metadataOnly,
+    blocking: applicability.state !== 'historical' && !metadataOnly };
 }
 
 export function describeNotamIssue(issue: NotamSourceIssue, classification: ReturnType<typeof classifyNotamIssue>) {
@@ -36,6 +37,6 @@ export function describeNotamIssue(issue: NotamSourceIssue, classification: Retu
 }
 
 type NotamIssueSummary = { total: number; associationOnly: number; contentUnresolved: number; unscoped: number; historical: number;
-  blocking: number; nonBlocking: number; samples: ReturnType<typeof describeNotamIssue>[]; samplesTruncated: boolean };
+  historicalMetadata: number; blocking: number; nonBlocking: number; samples: ReturnType<typeof describeNotamIssue>[]; samplesTruncated: boolean };
 export const emptyNotamIssueSummary = (): NotamIssueSummary => ({ total: 0, associationOnly: 0,
-  contentUnresolved: 0, unscoped: 0, historical: 0, blocking: 0, nonBlocking: 0, samples: [], samplesTruncated: false });
+  contentUnresolved: 0, unscoped: 0, historical: 0, historicalMetadata: 0, blocking: 0, nonBlocking: 0, samples: [], samplesTruncated: false });

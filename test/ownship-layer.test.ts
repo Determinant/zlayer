@@ -44,10 +44,12 @@ test('GPS waits for a consumer, uses a single high-accuracy watch and clears eve
   fix();
   assert.equal(layer.getSnapshot().state, 'tracking');
   assert.equal(layer.getSnapshot().centerRequest, 1);
+  assert.equal(layer.getSnapshot().centerRequestKind, 'initial');
   t.mock.timers.tick(1000); fix();
   assert.equal(layer.getSnapshot().centerRequest, 1, 'updates must not keep moving the map');
   layer.center();
   assert.equal(layer.getSnapshot().centerRequest, 2);
+  assert.equal(layer.getSnapshot().centerRequestKind, 'explicit');
   layer.setEnabled(false);
   assert.equal(active.size, 0);
   assert.equal(layer.getSnapshot().fix, null);

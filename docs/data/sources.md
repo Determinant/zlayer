@@ -247,6 +247,14 @@ describes station demand, freshness and forecast interpretation.
 
 ### Source choices and unresolved alternatives
 
+The [AWC OpenAPI schema](https://aviationweather.gov/data/schema/openapi.yaml)
+exposes `/api/data/windtemp` as legacy FD point tables in text form, not the
+native wind/temperature or IFI grids. The separate
+[WIFS API](https://aviationweather.gov/wifs/users_guide/) requires approved access
+and supplies WAFS products, including 0.25-degree wind/temperature and icing grids
+updated four times daily. Those differ from this application's hourly 3 km CONUS
+HRRR/IFI fields, levels and horizon; they are not interchangeable inputs.
+
 AWC remains the report/advisory source through the shared server. The retired
 NWS/GIS experiments did not preserve the complete contract: NWS sensor updates
 could omit coded METAR text, TAF required separate XML/bulletin joins and had

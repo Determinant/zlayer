@@ -78,9 +78,9 @@ test('a failed plate installation retains the prepared canvas for explicit retry
     addSource(id: string) { assert.equal(sources.size, 0); sources.add(id); },
     addLayer({ id }: { id: string }) { layers.add(id); if (fail) throw new Error('GPU unavailable'); },
     removeLayer: (id: string) => layers.delete(id), removeSource: (id: string) => sources.delete(id),
-    fitBounds() { fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
+    fitBounds(_bounds: unknown, options: { bearing: number }, event: { browseCamera: boolean }) { assert.equal(options.bearing, 90); assert.equal(event.browseCamera, true); fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
   } as unknown as MapLibreMap;
-  const adapter = createPlateMapLayer(product); adapter.mount(map);
+  const adapter = createPlateMapLayer(product, () => 90); adapter.mount(map);
   product.open(next.selection); product.showOnMap(next, product.getSnapshot().requestId);
   assert.equal(product.getSnapshot().mapRenderError, 'GPU unavailable');
   assert.equal(product.getSnapshot().mapImage, next);
@@ -111,7 +111,7 @@ test('a failed plate installation retains the prepared canvas for explicit retry
 
 test('map inspection identifies only the current footprint and restores after reattachment', () => {
   const product = createPlatesController();
-  let layer = createPlateMapLayer(product);
+  let layer = createPlateMapLayer(product, () => 90);
   const sources = new Set<string>(), layers = new Set<string>();
   const handlers = new Map<string, () => void>();
   let fits = 0;
@@ -123,7 +123,7 @@ test('map inspection identifies only the current footprint and restores after re
     addLayer: ({ id }: { id: string }, anchor: string) => { assert.equal(anchor, PLATE_LAYER_ANCHOR); layers.add(id); },
     removeLayer: (id: string) => layers.delete(id),
     removeSource: (id: string) => { assert.equal(layers.size, 0); sources.delete(id); },
-    fitBounds() { fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
+    fitBounds(_bounds: unknown, options: { bearing: number }, event: { browseCamera: boolean }) { assert.equal(options.bearing, 90); assert.equal(event.browseCamera, true); fits++; }, unproject: ([lng, lat]: number[]) => ({ lng, lat }),
   } as unknown as MapLibreMap;
   layer.mount(map);
   for (const name of ['first', 'second']) {
@@ -140,7 +140,7 @@ test('map inspection identifies only the current footprint and restores after re
   assert.equal(sources.size, 1);
   assert.equal(fits, 2, 'reattaching after a style change preserves the camera');
   layer.unmount();
-  layer = createPlateMapLayer(product, product.getSnapshot().mapImage);
+  layer = createPlateMapLayer(product, () => 90, product.getSnapshot().mapImage);
   layer.mount(map);
   assert.equal(fits, 2, 'a fresh attachment must not replay an old Show on map action');
   const third = image('third');

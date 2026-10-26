@@ -93,8 +93,10 @@ and local proxy rules in `tools/dev-proxy.ts`. Only `packages/contracts` and
 `dist/`; the [deployment guide](docs/development/deployment.md) covers hosting it
 and putting the info server behind an HTTPS reverse proxy.
 
-Run `npm run verify:full` before committing, subject to the server-only scope rule
-in [AGENTS.md](AGENTS.md#verification-and-documentation). The
+Run `npm run verify:standard` and focused tests for affected behavior before
+committing, subject to the server-only scope rule in
+[AGENTS.md](AGENTS.md#verification-and-documentation). Use `npm run verify:full`
+for exhaustive verification before releases. The
 [verification guide](docs/development/local-development.md#verification) lists
 browser prerequisites, focused commands, and the local and GitHub CI checks.
 

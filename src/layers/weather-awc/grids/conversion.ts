@@ -62,17 +62,26 @@ export function convertValue(field: AwcGridField, value: number): number {
   return feet;
 }
 
-/** Rotate at the actual nearest source cell, not its resampled display position. */
-export function rotateWinds(grid: LambertGrid, indices: Int32Array, east: Float32Array, north: Float32Array): void {
+/** Geometry only: reuse the exact native-cell rotation across times and levels. */
+export function windRotation(grid: LambertGrid, indices: Int32Array): (east: Float32Array, north: Float32Array) => void {
   const { x0, r0 } = lambert(grid);
+  const rotation = new Float64Array(indices.length * 2);
   for (let i = 0; i < indices.length; i++) {
-    const u = east[i]!, v = north[i]!;
-    if (u <= GRID_OUTSIDE || v <= GRID_OUTSIDE) { east[i] = north[i] = u <= GRID_OUTSIDE ? u : v; continue; }
     const at = indices[i]!, x = x0 + (at % grid.width) * grid.dx, r = r0 - Math.floor(at / grid.width) * grid.dy;
-    const length = Math.hypot(x, r), sin = grid.gridRelative ? x / length : 0, cos = grid.gridRelative ? r / length : 1;
-    east[i] = Math.round((u * cos + v * sin) * 10) / 10;
-    north[i] = Math.round((-u * sin + v * cos) * 10) / 10;
+    const length = Math.hypot(x, r);
+    rotation[i * 2] = grid.gridRelative ? x / length : 0;
+    rotation[i * 2 + 1] = grid.gridRelative ? r / length : 1;
   }
+  // Rotation is at the actual nearest source cell, not its display position.
+  return (east, north) => {
+    for (let i = 0; i < indices.length; i++) {
+      const u = east[i]!, v = north[i]!;
+      if (u <= GRID_OUTSIDE || v <= GRID_OUTSIDE) { east[i] = north[i] = u <= GRID_OUTSIDE ? u : v; continue; }
+      const sin = rotation[i * 2]!, cos = rotation[i * 2 + 1]!;
+      east[i] = Math.round((u * cos + v * sin) * 10) / 10;
+      north[i] = Math.round((-u * sin + v * cos) * 10) / 10;
+    }
+  };
 }
 
 export function projectField(field: AwcGridField, source: Float32Array, indices: Int32Array, target: Float32Array,

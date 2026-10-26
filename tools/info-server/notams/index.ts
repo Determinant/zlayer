@@ -61,6 +61,7 @@ export class NotamIndex {
       else summary.samplesTruncated = true;
       if (applicability.state === 'historical') {
         summary.historical++;
+        if (classification.metadataOnly) summary.historicalMetadata++;
         add(historicalDomestic, issue.locations, issue); add(historicalIcao, issue.icaoLocations, issue);
         continue;
       }

@@ -1569,9 +1569,14 @@ separate from current `issues`; historical evidence does not reduce current
 `contentCoverage`. The combined record/current-issue/historical-issue limits and
 ID uniqueness still apply. Feed `historicalIssues` counts this retained evidence,
 `unresolvedRecords` still includes it, and `blockingRecords` excludes it. Legacy
-`continuity` remains incomplete while any issue is retained. Aggregate health emits
-`historical-source-issues`; collection, freshness, reconciliation and current
-content/association failures remain independent readiness gates.
+`continuity` remains incomplete while any issue is retained. The derived feed
+`historicalMetadataIssues` counts the historical subset whose content reconciles
+and whose disputed associations affect no supported query. Those discrepancies
+remain informational `association-metadata` notices after expiration. Other
+historical issues still emit `historical-source-issues` warnings; older feeds
+without the subset count retain that conservative warning. The status page and
+artifact probe use the same counts. Collection, freshness, reconciliation and
+current content/association failures remain independent readiness gates.
 
 The index derives applicability against the injected clock and tracks its next
 start/end transition. A transition or a rollback across its assessment time rebuilds
@@ -3217,7 +3222,9 @@ views. These exercise the real shared controls and list renderer.
 
 Use the [shared UI viewport matrix](../../../docs/features/shared-ui.md) and
 [local verification commands](../../../docs/development/local-development.md#verification).
-Run `npm run verify:full` before committing. Installed-device and
+Before committing UI changes, run `npm run verify:standard` and affected browser
+tests; server-only changes follow the focused scope in
+[AGENTS.md](../../../AGENTS.md#verification-and-documentation). Installed-device and
 production-feed checks remain separate. A fixture pass or ForeFlight comparison
 does not prove operational completeness. Comparisons record airport, exact plate
 edition/page, environment, effective time, source-check time and supported scope.

@@ -7,7 +7,7 @@ import { isRecord, isSurfaceCatalog, isSurfaceArtifact, isProgsCoverageCatalog, 
 import { isNativeManifest } from '../src/layers/weather-awc/grids/native-source';
 import { forecastPath, gridKey } from '../src/layers/weather-awc/grids/identity';
 import { terrainKey, terrainPath } from '../src/layers/weather-awc/grids/model-terrain';
-import { INFO_FRESHNESS, freshAt } from './info-server/health';
+import { INFO_FRESHNESS, freshAt, notamHealthCounts } from './info-server/health';
 
 const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 export type RetainedInfoFailures = {
@@ -208,10 +208,9 @@ export async function checkInfoApi(origin: string, notams: 'disabled' | 'staging
       assert.equal(feed.fullSyncAt, fullSyncAt, 'NOTAM reconciliation baseline changed');
       warnings.push(`retained-notam-reconciliation:${failure.code}:${failure.at}`);
     } else assert.equal(health.notamReconciliation.error, null, 'NOTAM reconciliation failed');
-    const blocking = feed.blockingRecords ?? feed.unresolvedRecords ?? 0;
+    const { blocking, metadata, historicalWarnings } = notamHealthCounts(feed);
     if (blocking) warnings.push(`unresolved-notam-records:${blocking}`);
-    const metadata = (feed.unresolvedRecords ?? 0) - blocking - (feed.historicalIssues ?? 0);
-    if (feed.historicalIssues) warnings.push(`historical-notam-issues:${feed.historicalIssues}`);
+    if (historicalWarnings) warnings.push(`historical-notam-issues:${historicalWarnings}`);
     if (metadata > 0) notices.push(`notam-association-metadata:${metadata}`);
     assert.ok(feed.fullSyncAt !== null);
     if (options.allowOverdueFullSync && feed.fullSyncAt <= Date.now() && !freshAt(feed.fullSyncAt, Date.now(), INFO_FRESHNESS.fullSync, 0)) {

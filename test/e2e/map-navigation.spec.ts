@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { MercatorCoordinate } from 'maplibre-gl';
 import { countWatches, mockGps, sendFix } from './ownship-fixture';
+import { mapTouchInput } from './touch-input';
 
 const camera = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('zlayers-map-view-v1')!) as {
   center: [number, number]; zoom: number; bearing: number;
@@ -75,7 +76,7 @@ test('zoom and orientation align to the left of Layers on desktop and touch scre
   }
 });
 
-test('track up centers each fresh fix, preserves zoom, and stops following in north up', async ({ page }) => {
+test('track up centers each fresh fix, preserves zoom, and stops following in north up', async ({ page }, testInfo) => {
   const toggle = page.getByRole('button', { name: 'Track up', exact: true });
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await sendFix(page);
@@ -96,6 +97,20 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
   await expect.poll(async () => (await camera(page)).zoom).toBe(9);
   const panned = await camera(page);
+  await expect(toggle).toHaveAttribute('aria-description', /Following paused/);
+  await page.setViewportSize({ width: 320, height: 568 });
+  const controls = page.getByRole('group', { name: 'Map navigation', exact: true });
+  await expect(controls.getByRole('button')).toHaveCount(4);
+  const controlBox = (await controls.boundingBox())!;
+  const layerBox = (await page.getByRole('button', { name: 'Open map layers', exact: true }).boundingBox())!;
+  expect(controlBox.x).toBeGreaterThanOrEqual(0);
+  expect(controlBox.x + controlBox.width).toBeLessThan(layerBox.x);
+  await page.screenshot({ path: testInfo.outputPath('track-up-paused-phone.png') });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await sendFix(page, { heading: 180, longitude: -121.9, latitude: 37.1 });
+  await page.clock.runFor(1000);
+  expect(await camera(page)).toEqual(panned);
+  await page.getByRole('button', { name: 'Resume track up', exact: true }).click();
   for (const heading of [350, 10]) {
     // Allow GPS correction and the 2s display filter to settle within the documented 3° deadband.
     // Damping advances on fresh fixes, not while a polling assertion waits.
@@ -175,6 +190,8 @@ test('GPS loss cancels a follow animation and holds the camera until a fresh fix
   await drag();
   await sendFix(page, { longitude: -121.7, heading: 180 });
   await page.mouse.up();
+  await expect(toggle).toHaveAttribute('aria-description', /Following paused/);
+  await page.getByRole('button', { name: 'Resume track up', exact: true }).click();
   await expectCenter(page, -121.7);
 
   // A queued fix must be discarded if GPS is lost before the gesture ends.
@@ -187,6 +204,98 @@ test('GPS loss cancels a follow animation and holds the camera until a fresh fix
   await page.clock.runFor(1000);
   expect((await camera(page)).center[0]).not.toBeCloseTo(-121.6);
   expect(await bearing(page)).toBeCloseTo(180);
+});
+
+test('panning before the first GPS fix stays paused until an explicit Center', async ({ page }) => {
+  const toggle = page.getByRole('button', { name: 'Track up', exact: true });
+  await toggle.click();
+  const box = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width * .5, box.y + box.height * .5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * .65, box.y + box.height * .55, { steps: 10 });
+  await page.mouse.up();
+  await expect(toggle).toHaveAttribute('aria-description', /Following paused/);
+  await page.clock.runFor(1000);
+  const browsed = await camera(page);
+  await sendFix(page); await page.clock.runFor(1000);
+  expect(await camera(page)).toEqual(browsed);
+  await page.getByRole('button', { name: 'Show GPS status', exact: true }).click();
+  await page.getByRole('button', { name: 'Center aircraft', exact: true }).click();
+  await expectCenter(page, -122);
+});
+
+for (const input of ['mouse click', 'touch tap', 'delayed compatibility click']) test(`${input} applies the fix received during the press without another GPS update`, async ({ page }) => {
+  await sendFix(page); await expectCenter(page, -122);
+  await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  await expect.poll(() => bearing(page)).toBeCloseTo(90);
+  const held = await camera(page), box = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  const point = { x: box.x + box.width * .6, y: box.y + box.height * .6 };
+  const session = input !== 'mouse click' ? await mapTouchInput(page) : undefined;
+  if (session) await session.send('touchStart', [point]);
+  else { await page.mouse.move(point.x, point.y); await page.mouse.down(); }
+  await sendFix(page, { longitude: -121.995 });
+  expect(await camera(page)).toEqual(held);
+  if (session) { await session.send('touchEnd', []); await session.close(); }
+  else await page.mouse.up();
+  if (input === 'delayed compatibility click') {
+    // Some browsers deliver compatibility mouse events in a later input task.
+    // Make that ordering deterministic: interrupt an already-resumed animation
+    // with mouse events alone, as a touch-generated compatibility click does.
+    await page.clock.runFor(32);
+    await page.evaluate(point => {
+      const canvas = document.querySelector('.maplibregl-canvas')!;
+      for (const type of ['mousedown', 'mouseup', 'click']) canvas.dispatchEvent(new MouseEvent(type, {
+        bubbles: true, clientX: point.x, clientY: point.y, button: 0, buttons: type === 'mousedown' ? 1 : 0,
+      }));
+    }, point);
+  }
+  await expectCenter(page, -121.995);
+  await expect(page.getByRole('button', { name: 'Track up', exact: true })).not.toHaveAttribute('aria-description', /Following paused/);
+});
+
+for (const touch of [false, true]) test(`${touch ? 'long press' : 'right click'} keeps map actions stable through GPS updates`, async ({ page }, testInfo) => {
+  if (touch) await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
+  await sendFix(page, { speed: 5 });
+  await page.clock.runFor(600);
+  await page.getByRole('button', { name: 'Track up', exact: true }).click();
+  await page.clock.runFor(2500);
+  const held = await camera(page);
+  const canvas = (await page.locator('.maplibregl-canvas').boundingBox())!;
+  const point = { x: canvas.x + canvas.width * .6, y: canvas.y + canvas.height * .55 };
+  const session = touch ? await mapTouchInput(page) : undefined;
+  if (session) {
+    await session.send('touchStart', [point]);
+    await sendFix(page, { longitude: -121.99, heading: 130, speed: 5 });
+    await page.clock.runFor(600);
+  } else await page.mouse.click(point.x, point.y, { button: 'right' });
+  const menu = page.getByRole('menu', { name: 'Map actions' });
+  await expect(menu).toBeVisible();
+  if (session) {
+    await session.send('touchEnd', []);
+    await session.close();
+  }
+  const initialMenu = await menu.boundingBox();
+  for (let i = 1; i <= 4; i++) {
+    await sendFix(page, { longitude: -122 + i * .01, heading: 130, speed: 5 });
+    await page.clock.runFor(1000);
+    await expect(menu).toBeVisible();
+  }
+  expect(await camera(page)).toEqual(held);
+  expect(await menu.boundingBox()).toEqual(initialMenu);
+  await page.screenshot({ path: testInfo.outputPath('track-up-inspection.png') });
+  const action = menu.getByRole('menuitem', { name: 'Show glide range', exact: true });
+  // A GPS update between the new press and click must not reset the menu item.
+  await action.hover(); await page.mouse.down();
+  await sendFix(page, { longitude: -121.95, heading: 130, speed: 5 });
+  await page.clock.runFor(400);
+  await page.mouse.up();
+  await page.clock.runFor(2500);
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByLabel('Selected glide point coordinates')).toBeVisible();
+  await expectCenter(page, -121.95);
+  await expect(page.getByRole('button', { name: 'Resume track up', exact: true })).toHaveCount(0);
 });
 
 test('orientation persists and can be toggled while GPS is unavailable or off', async ({ page }) => {
@@ -261,7 +370,10 @@ test('track-up ignores small GPS track noise while following position', async ({
   await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
   await page.getByRole('button', { name: 'Track up', exact: true }).click();
   await sendFix(page, { speed: 5 });
+  // Advance through the animation and 2s camera save while keeping GPS live.
   await page.clock.runFor(1000);
+  await sendFix(page, { speed: 5 });
+  await page.clock.runFor(1600);
   await expect.poll(() => bearing(page)).toBeCloseTo(90);
   for (let i = 1; i <= 6; i++) {
     await page.clock.runFor(1000);

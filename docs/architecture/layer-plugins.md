@@ -668,6 +668,12 @@ slot until cleanup finishes. Both remove canceled queued work before allocation.
 
 `MapRuntime` owns the map, camera persistence, orientation control and resizing.
 It receives contributions and callbacks, with no individual-feature imports.
+Explicit feature focus and route/plate fitting pass `{ browseCamera: true }` as
+MapLibre event data so GPS following yields until the user resumes it. Automatic
+GPS movement carries `{ gpsCamera: true }`; selection must retain open menus and
+Glide must preserve pending preparation for those events. The workspace holds
+its GPS camera during canvas presses and open selection menus. See
+[track-up interaction](../../src/layers/ownship/README.md) for the user contract.
 `routes/map-contribution.ts` owns route fitting and publishes the live editing
 capability. `workspace/map/selection.ts` owns the shared gesture coordinator's
 lifetime and its own `MapSelectionInput`, independently of that renderer. It observes

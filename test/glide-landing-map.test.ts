@@ -6,14 +6,16 @@ import { expose } from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter.js';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { createLandingLayer, type LandingInput } from '../src/layers/glide/landing-map';
-import { emptyLandings, type LandingStatus } from '../src/layers/glide/landing-data';
+import { emptyLandings, type LandingStatus, type LandingSelection } from '../src/layers/glide/landing-data';
 import type { LandingDisplayWorker, LandingDisplayResult, LandingDisplayQuery } from '../src/layers/glide/landing-display';
 import { emptyAreas } from '../src/layers/glide/types';
 
 function harness(t: TestContext, more = (_batch: number) => false,
-  respond?: (request: LandingDisplayQuery, batch: number) => Promise<LandingDisplayResult>) {
+  respond?: (request: LandingDisplayQuery, batch: number) => Promise<LandingDisplayResult>,
+  inspect: LandingDisplayWorker['inspect'] = async () => null) {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
   const requests: Parameters<LandingDisplayWorker['query']>[0][] = [], workers: TestWorker[] = [];
+  const cancellations: number[] = [];
   class TestWorker extends EventTarget {
     readonly channel = new MessageChannel();
     constructor() {
@@ -23,7 +25,7 @@ function harness(t: TestContext, more = (_batch: number) => false,
         requests.push(request);
         return respond ? respond(request, requests.length) : { renderKey: `heat/detail-${requests.length}`, collection: emptyLandings(),
           status: { state: 'ready' }, more: more(requests.length), refreshed: true };
-      }, cancel() {} }, nodeEndpoint(this.channel.port2));
+      }, inspect, cancel(id: number) { cancellations.push(id); } }, nodeEndpoint(this.channel.port2));
     }
     postMessage(message: unknown, transfer: ArrayBuffer[]) { this.channel.port1.postMessage(message, transfer); }
     terminate() { this.channel.port1.close(); this.channel.port2.close(); }
@@ -44,6 +46,7 @@ function harness(t: TestContext, more = (_batch: number) => false,
   let moving = false;
   const map = {
     getZoom: () => 12, isMoving: () => moving, triggerRepaint: () => {},
+    unproject: () => ({ lng: .1, lat: .2 }), queryRenderedFeatures: () => [{}],
     getBounds: () => ({ getWest: () => -1, getEast: () => 1, getSouth: () => -1, getNorth: () => 1 }),
     addSource: (id: string) => sources.add(id), removeSource: (id: string) => sources.delete(id),
     getSource: (id: string) => ({ setData: () => new Promise<void>(resolve => uploads.push(resolve)),
@@ -62,8 +65,90 @@ function harness(t: TestContext, more = (_batch: number) => false,
   const settle = async () => { for (let i = 0; i < 10; i++) await setImmediate(); };
   const advance = async (ms: number) => { t.mock.timers.tick(ms); await settle(); };
   const fire = (type: string, event: unknown = {}) => handlers.get(type)?.forEach(callback => callback(event));
-  return { layer, uploads, images, statuses, requests, advance, settle, fire, handlers, update, moving: (value: boolean) => { moving = value; } };
+  return { layer, uploads, images, statuses, requests, cancellations, advance, settle, fire, handlers, update, moving: (value: boolean) => { moving = value; } };
 }
+
+test('continuous GPS camera updates preserve pending work and coalesce discovery without idle polling', async t => {
+  const replies: ((result: LandingDisplayResult) => void)[] = [];
+  const h = harness(t, () => false, () => new Promise(resolve => replies.push(resolve)));
+  await h.advance(150);
+  for (let i = 0; i < 20; i++) {
+    h.moving(true); h.fire('movestart', { gpsCamera: true });
+    await h.advance(250);
+    h.moving(false); h.fire('moveend');
+  }
+  assert.equal(h.requests.length, 1, 'one worker call owns all in-flight preparation');
+  assert.equal(h.cancellations.length, 0, 'automatic camera movement never restarts file acquisition');
+  const result: LandingDisplayResult = { renderKey: 'heat/detail', status: { state: 'ready' }, more: false, refreshed: true };
+  replies[0]!(result); await h.settle();
+  h.moving(true); h.fire('movestart', { gpsCamera: true }); await h.advance(150);
+  assert.equal(h.requests.length, 2, 'latest demand can run during continued GPS following');
+  assert.equal(h.requests[1]!.renderedKey, 'heat/detail');
+  replies[1]!(result); await h.settle();
+  await h.advance(60_000);
+  assert.equal(h.requests.length, 2, 'completed demand stays idle');
+});
+
+test('ranges changing faster than discovery still publish current cached detail and then become idle', async t => {
+  const replies: ((result: LandingDisplayResult) => void)[] = [];
+  const result = (key: number, more = false): LandingDisplayResult => ({
+    renderKey: `heat/detail-${key}`, collection: emptyLandings(),
+    raster: { bounds: [-1, -1, 1, 1], width: 1, height: 1, shadedCells: 1, rgba: new Uint8ClampedArray([83, 229, 45, 158]) },
+    status: { state: more ? 'loading' : 'ready', sourceKey: 'source' }, more, refreshed: !more,
+  });
+  const h = harness(t, () => false, async (request, batch) => {
+    if (batch === 1 || request.cachedOnly) return result(batch, !!request.cachedOnly);
+    return new Promise(resolve => replies.push(resolve));
+  });
+  const ranges = (x: number): LandingInput['ranges'] => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: {},
+    geometry: { type: 'MultiPolygon', coordinates: [[[[x, 0], [x + .5, 0], [x + .5, .5], [x, .5], [x, 0]]]] } }] });
+  const uploads = async () => { for (const finish of h.uploads.splice(0)) finish(); await h.settle(); };
+  h.update({ ranges: ranges(0), segments: [] });
+  await h.advance(150); await uploads();
+  const cancellations = h.cancellations.length;
+  h.fire('moveend'); await h.advance(150); // Slow discovery is now in flight.
+  for (let i = 1; i <= 10; i++) {
+    h.update({ ranges: ranges(i * .001) });
+    await h.advance(500); await uploads();
+    if (i % 2) continue;
+    replies.shift()!(result(i)); await h.settle(); await h.advance(0); await uploads();
+    assert.equal(h.requests.at(-1)!.cachedOnly, true);
+    assert.deepEqual(h.requests.at(-1)!.ranges, ranges(i * .001));
+    assert.equal(h.images.length, 1 + i / 2, 'the current range reaches the image before the next slow acquisition');
+    await h.advance(0);
+  }
+  assert.equal(h.cancellations.length, cancellations, 'moving ranges retain acquisition progress');
+  replies.shift()!(result(100)); await h.settle(); await uploads();
+  const calls = h.requests.length;
+  await h.advance(60_000);
+  assert.equal(h.requests.length, calls, 'completed demand has no idle polling');
+});
+
+test('an open landing menu inspects current accepted ranges while rejecting missing or superseded detail', async t => {
+  const replies: ((result: LandingSelection | null) => void)[] = [];
+  const h = harness(t, () => false, async (_request, batch) => ({ renderKey: `heat/detail-${batch}`, collection: emptyLandings(),
+    status: { state: 'ready', sourceKey: 'source' }, more: false, refreshed: true }),
+  () => new Promise(resolve => replies.push(resolve)));
+  await h.advance(150); h.uploads[0]!(); await h.settle();
+  const action = h.layer.inspectAt({ x: 10, y: 20 })!;
+  const range = (x: number) => ({ type: 'FeatureCollection' as const, features: [{ type: 'Feature' as const, properties: {}, geometry: {
+    type: 'MultiPolygon' as const, coordinates: [[[[x, 0], [x + .1, 0], [x + .1, .1], [x, .1], [x, 0]]]],
+  } }] });
+  h.update({ ranges: range(0) });
+  assert.equal(await action(), null, 'unaccepted replacement detail is never inspected');
+  await h.advance(150); h.uploads.at(-1)!(); await h.settle();
+  const selected = action(); await h.settle();
+  assert.equal(replies.length, 1, 'a refresh since opening no longer retires the menu action');
+  const site: LandingSelection = { id: 'site', tier: 2, flags: 0, start: [.1, .2], end: [.11, .2],
+    widthFt: 200, lengthFt: 3000, elevationM: 50, sourceKey: 'source' };
+  replies[0]!(site);
+  assert.deepEqual(await selected, site);
+  const obsolete = action(); await h.settle();
+  h.update({ ranges: range(.01) }); replies[1]!(site);
+  assert.equal(await obsolete, null, 'a range change during inspection still rejects the obsolete result');
+  h.layer.unmount();
+  assert.equal(await action(), null, 'a retained menu cannot call a retired worker');
+});
 
 test('a late failed landing upload cannot overwrite its successful retry receipt', async t => {
   const { layer, uploads, statuses, requests, advance, settle, fire, handlers } = harness(t);

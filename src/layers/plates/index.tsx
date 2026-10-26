@@ -42,7 +42,7 @@ export function createPlatesLayer(Notice?: ComponentType<PlateNoticeProps>) {
     mapContribution: { id: 'plates', async load(context) {
       const initiallyFitted = context.preserveView ? controller.getSnapshot().mapImage : undefined;
       const { createPlateMapLayer } = await import('./map');
-      const layer = createPlateMapLayer(controller, initiallyFitted);
+      const layer = createPlateMapLayer(controller, context.targetBearing, initiallyFitted);
       return [{ ...layer, mount(map) { layer.mount(map); imageAt = layer.imageAt; },
         unmount() { imageAt = undefined; layer.unmount(); } }];
     } },

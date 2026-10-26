@@ -20,8 +20,8 @@ test('dense ranges render every original ring past the vertex budget, preserve t
     const shards = areas.map((a, i) => ({ id: String(i), file: String(i), sha256: String(i), bytes: 100, rawBytes: 100, bounds: box, count: 1, tiers: [a.tier === 1 ? 1 : 0, a.tier === 2 ? 1 : 0] as [number, number] }));
     const manifest = { schemaVersion: 8 as const, builderVersion: 1, generatedAt: '2026-10-03T00:00:00Z', inputSha256: 'a'.repeat(64),
       status: 'experimental-candidates' as const, geometryMeaning: 'generalized-candidate-area' as const, coverage: [{ id: 'test', bounds: box }], shards };
-    let reads = 0;
-    const worker = display(async () => manifest, async () => { throw Error('No route overview'); }, async (_url, shard) => { reads++; return [areas[Number(shard.id)]!]; });
+    let reads = 0, manifests = 0;
+    const worker = display(async () => { manifests++; return manifest; }, async () => { throw Error('No route overview'); }, async (_url, shard) => { reads++; return [areas[Number(shard.id)]!]; });
     const query = { id: 1, manifestUrl: 'https://example.test/glide', discover: true, segments: [], bounds: box, zoom: 10,
       ranges: { type: 'FeatureCollection' as const, features: [{ type: 'Feature' as const, properties: {}, geometry: { type: 'MultiPolygon' as const, coordinates: [[rect(-.35, -.15, .35, .15)]] } }] } };
     let response = await worker.query(query), progress = response.more, image = response.raster;
@@ -40,6 +40,12 @@ test('dense ranges render every original ring past the vertex budget, preserve t
     const before = reads, warm = await worker.query({ ...query, renderedKey: response.renderKey });
     const warmReads = reads - before;
     const inspected = [(await worker.inspect([-.17, 0]))?.id, await worker.inspect([-.2, 0]), (await worker.inspect([.15, 0]))?.id];
+    const cachedReads = [reads, manifests];
+    const clipped = await worker.query({ ...query, cachedOnly: true, revalidate: true, renderedKey: response.renderKey,
+      ranges: { ...query.ranges, features: [{ ...query.ranges.features[0]!, geometry: { type: 'MultiPolygon', coordinates: [[rect(0, -.1, .3, .1)]] } }] } });
+    const cached = { noReads: reads === cachedReads[0] && manifests === cachedReads[1],
+      removed: pixel(-.17, 0, clipped.raster!)[3], kept: pixel(.15, 0, clipped.raster!)[3],
+      inspectRemoved: await worker.inspect([-.17, 0]), more: clipped.more, state: clipped.status.state };
     // The same renderer must honor saved-region ownership and longitude copies.
     const scope = { include: [{ id: 'saved', bounds: [[-.5, -.2, 0, .2] as typeof box] }], exclude: [] };
     const scoped = raster(async (_url, shard) => [areas[Number(shard.id)]!]);
@@ -55,7 +61,7 @@ test('dense ranges render every original ring past the vertex budget, preserve t
     for (let i = 0; partial.more && i < 10; i++) partial = await partialWorker.query(query);
     return { state: response.status.state, progress, more: response.more, size: [image!.width, image!.height], left: pixel(-.17, 0),
       hole: pixel(-.2, 0), green: pixel(.15, 0), purple: pixel(.07, 0), outside: pixel(.4, 0), warmReads,
-      unchanged: warm.raster === undefined && warm.collection === undefined, inspected, outsideScope, scopedInspect,
+      unchanged: warm.raster === undefined && warm.collection === undefined, inspected, cached, outsideScope, scopedInspect,
       partial: partial.status.state, partialImage: !!partial.raster?.shadedCells,
       wrapped: !!wrapped.raster?.shadedCells, cleared: lost.raster === null && await worker.inspect([-.17, 0]) === null };
   });
@@ -65,6 +71,8 @@ test('dense ranges render every original ring past the vertex budget, preserve t
   expect(result.green.slice(0, 3)).toEqual([83, 229, 45]); expect(result.purple.slice(0, 3)).toEqual([162, 59, 255]);
   expect(result.warmReads).toBe(0); expect(result.unchanged).toBe(true);
   expect(result.inspected).toEqual(['large', null, 'preferred']); expect(result.outsideScope[3]).toBe(0); expect(result.scopedInspect).toBeNull();
+  expect(result.cached.noReads).toBe(true); expect(result.cached.removed).toBe(0); expect(result.cached.kept).toBeGreaterThan(0);
+  expect(result.cached.inspectRemoved).toBeNull(); expect(result.cached.more).toBe(true); expect(result.cached.state).toBe('loading');
   expect(result.wrapped).toBe(true); expect(result.cleared).toBe(true);
   expect(result.partial).toBe('partial'); expect(result.partialImage).toBe(true);
 });

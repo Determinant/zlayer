@@ -34,17 +34,21 @@ test.beforeAll(async () => {
   await server.listen(); const address = server.httpServer!.address();
   if (!address || typeof address === 'string') throw new Error('Vite address unavailable');
   origin = `http://127.0.0.1:${address.port}`;
+  resource = { ...resource, url: `${origin}/__test/plates/catalog.json?v=${encodeURIComponent(catalog.generatedAt)}` };
+  catalog = { ...catalog, faaPdfBaseUrl: `${origin}/__test/plates/` };
 });
 test.afterAll(async () => { await server?.close(); if (directory) await rm(directory, { recursive: true, force: true }); });
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, context }) => {
   await page.route('**/api/notams/tfrs', route => route.fulfill({ json: { schemaVersion: 1, source: 'FAA-TFR', checkedAt: Date.now(), notices: [] } }));
   await page.addInitScript(({ resource, selection }) => {
     (window as unknown as { notamFixtureResource: unknown }).notamFixtureResource = resource;
     (window as unknown as { notamFixtureSelection: unknown }).notamFixtureSelection = selection;
     // The container has no external network; local requests are intercepted.
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true });
-  }, { resource, selection: procedureSelection(catalog, testAirport, testProcedure, resource.url, 'https://example.test/', resource) });
-  await page.route('https://example.test/**', route => route.fulfill({ status: 200,
+  }, { resource, selection: procedureSelection(catalog, testAirport, testProcedure, resource.url, origin, resource) });
+  // Keep fixture reads on the local origin; no external DNS or network policy is
+  // part of these NOTAM/plate integration checks. Include worker-owned reads.
+  await context.route(`${origin}/__test/plates/**`, route => route.fulfill({ status: 200,
     ...(route.request().url().includes('catalog.json') ? { contentType: 'application/json', body: JSON.stringify(catalog) }
       : { contentType: 'application/pdf', body: pdf }), headers: { 'Access-Control-Allow-Origin': '*' } }));
   await page.route('**/api/notams/airports?**', route => {
@@ -300,7 +304,7 @@ test('temporary obstacle map context follows open readers, filters, stow and plu
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1280, height: 900 });
   // Reuse the second indexed page as a diagram to exercise procedure/non-procedure transitions.
-  await page.route('https://example.test/**/catalog.json?*', route => route.fulfill({ json: {
+  await page.route('**/__test/plates/catalog.json?*', route => route.fulfill({ json: {
     ...catalog, airports: catalog.airports.map(airport => airport.id === 'PANC' ? { ...airport,
       procedures: airport.procedures.map(procedure => ({ ...procedure, kind: 'airport-diagram', name: 'Airport diagram',
         source: { ...procedure.source, chartCode: 'APD' } })),
@@ -1043,7 +1047,7 @@ test('narrow expanded notices preserve PDF space and collapse independently', as
 for (const recovery of ['retry', 'reconnect'] as const) {
   test(`saved plate catalog recovers after ${recovery} without replacing the PDF`, async ({ page }) => {
     let fail = true, requests = 0;
-    await page.route('https://example.test/**/catalog.json?*', route => {
+    await page.route('**/__test/plates/catalog.json?*', route => {
       requests++;
       return fail ? route.fulfill({ status: 503, body: 'Temporarily unavailable' }) : route.fulfill({ json: catalog });
     });

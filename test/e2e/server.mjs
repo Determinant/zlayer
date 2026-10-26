@@ -369,7 +369,11 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, { 'content-type': fixture?.type ?? types[extname(file)] ?? 'application/octet-stream',
       'content-length': body.length, 'cache-control': 'no-store', 'service-worker-allowed': '/' });
     response.end(request.method === 'HEAD' ? undefined : body);
-  } catch { response.writeHead(404).end(); }
+  } catch {
+    // A body keeps missing-page navigation on the server's HTTP response instead
+    // of Chromium replacing an empty 404 with its internal error document.
+    response.writeHead(404, { 'content-type': 'text/plain' }).end('Not found');
+  }
 });
 server.listen(port, '127.0.0.1', () => { process.send?.('ready'); });
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {

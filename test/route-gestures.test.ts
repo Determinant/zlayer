@@ -139,6 +139,8 @@ test('ordinary map clicks select navigation; context gestures offer plugin actio
   assert.equal(inspected, 0, 'opening a menu must not inspect weather');
   fixture.offeredActions[0]![0]!.select();
   assert.equal(inspected, 1);
+  fixture.handlers.get('movestart')!({ gpsCamera: true });
+  assert.equal(fixture.menuDismissals(), 0, 'GPS following must not dismiss an open inspection');
   fixture.handlers.get('movestart')!({});
   assert.equal(fixture.menuDismissals(), 1);
 });

@@ -9,7 +9,7 @@ import { destination } from '../src/layers/ownship/position';
 
 type Snapshot = ReturnType<OrientationSource['getSnapshot']>;
 function setup(t: test.TestContext, trackUp = false, assistance: Partial<HeadingSource> = {}, initialZoom?: number) {
-  const store = createLayerStore<Snapshot>({ enabled: true, state: 'acquiring', fix: null, centerRequest: 0 });
+  const store = createLayerStore<Snapshot>({ enabled: true, state: 'acquiring', fix: null, centerRequestKind: 'explicit' as const, centerRequest: 0 });
   const listeners = new Map<string, Set<(event: object) => void>>();
   let center = { lng: 0, lat: 0 }, zoom = initialZoom ?? 7, bearing = 0, moving = false, stops = 0;
   let active: { options: { center?: [number, number]; zoom: number; bearing?: number }; event: object } | undefined;
@@ -42,10 +42,13 @@ function setup(t: test.TestContext, trackUp = false, assistance: Partial<Heading
   };
   const camera = createGpsCamera(map as unknown as MapLibreMap, { ...store, ...assistance }, trackUp, () => {});
   t.after(camera.dispose);
-  const fix = (longitude = -122, accuracy = 5, request = store.getSnapshot().centerRequest) => store.publish({
-    enabled: true, state: 'tracking', centerRequest: request, fix: { coordinates: [longitude, 37], accuracy, track: 90, time: (store.getSnapshot().fix?.time ?? 0) + 1 },
+  const fix = (longitude = -122, accuracy = 5, request = store.getSnapshot().centerRequest,
+    centerRequestKind: Snapshot['centerRequestKind'] = 'explicit') => store.publish({
+    enabled: true, state: 'tracking', centerRequestKind, centerRequest: request, fix: { coordinates: [longitude, 37], accuracy, track: 90, time: (store.getSnapshot().fix?.time ?? 0) + 1 },
   });
   return { camera, store, calls, fix, finish, stops: () => stops, moving: () => moving,
+    emit,
+    progress: (value: number) => { zoom = value; },
     userMove: () => { moving = true; active = undefined; emit('movestart'); },
     listenerCount: () => [...listeners.values()].reduce((sum, set) => sum + set.size, 0) };
 }
@@ -63,11 +66,89 @@ test('first and explicit GPS centers defer to user motion and select the latest 
   assert.equal(s.calls.length, 1, 'north up preserves the camera after initial centering');
 });
 
+test('an interrupted explicit center keeps its zoom and latest fix despite ordinary GPS updates', t => {
+  const s = setup(t, true, {}, 5);
+  s.fix(-122, 5, 1); // Center requests zoom 9.
+  s.progress(6);
+  s.fix(-121.99);
+  s.camera.hold('pointer', true);
+  s.camera.hold('pointer', false);
+  assert.equal(s.calls.at(-1)!.options.zoom, 9);
+  assert.deepEqual(s.calls.at(-1)!.options.center, [-121.99, 37]);
+  s.camera.hold('pointer', true);
+  s.camera.resume(); // The newer explicit action preserves the current zoom.
+  s.camera.hold('pointer', false);
+  assert.equal(s.calls.at(-1)!.options.zoom, 6);
+});
+
+for (const trackUp of [false, true]) test(`a late initial fix cannot override manual browsing (track up ${trackUp})`, t => {
+  const s = setup(t, trackUp);
+  s.emit('dragstart', { originalEvent: {} });
+  s.fix(-122, 5, 1, 'initial');
+  assert.equal(s.calls.length, 0);
+  assert.equal(s.camera.browsing(), trackUp);
+  s.fix(-122, 5, 2, 'explicit');
+  assert.deepEqual(s.calls.at(-1)!.options.center, [-122, 37]);
+  assert.equal(s.camera.browsing(), false);
+  s.finish();
+  s.emit('dragstart', { originalEvent: {} });
+  s.store.publish({ ...s.store.getSnapshot(), enabled: false, fix: null });
+  s.store.publish({ ...s.store.getSnapshot(), enabled: true, state: 'acquiring' });
+  s.fix(-121, 5, 3, 'initial');
+  assert.deepEqual(s.calls.at(-1)!.options.center, [-121, 37], 'explicitly enabling GPS permits centering again');
+});
+
+test('presses and map inspection hold the camera, coalesce fixes and resume only after both release', async t => {
+  const s = setup(t, true);
+  s.fix();
+  s.camera.hold('pointer', true);
+  assert.equal(s.stops(), 1, 'stop the camera already moving under the finger');
+  for (let i = 0; i < 10; i++) s.fix(-121 + i * .01);
+  s.camera.hold('inspection', true);
+  s.camera.hold('pointer', false);
+  await Promise.resolve();
+  assert.equal(s.calls.length, 1, 'neither fresh fixes nor releasing the long press moves an open menu');
+  s.camera.hold('inspection', false);
+  assert.equal(s.calls.length, 2);
+  assert.deepEqual(s.calls[1]!.options.center, [-120.91, 37]);
+  s.finish();
+  assert.equal(s.camera.browsing(), false, 'inspection does not turn off following');
+  s.camera.hold('pointer', true);
+  s.fix(-120);
+  s.store.publish({ ...s.store.getSnapshot(), state: 'stale' });
+  s.camera.hold('pointer', false);
+  assert.equal(s.calls.length, 2, 'GPS loss discards held movement');
+});
+
+for (const event of [{ type: 'dragstart', originalEvent: {} }, { type: 'rotatestart', originalEvent: {} },
+  { type: 'movestart', originalEvent: { key: 'ArrowLeft' } }, { type: 'movestart', browseCamera: true }]) {
+  test(`${event.type} browsing holds position and bearing through new fixes and GPS recovery`, t => {
+    const s = setup(t, true);
+    s.fix(); s.finish();
+    s.emit(event.type, event);
+    assert.equal(s.camera.browsing(), true);
+    for (let i = 0; i < 10; i++) s.fix(-121 + i * .01);
+    s.store.publish({ ...s.store.getSnapshot(), state: 'stale' });
+    s.fix(-120);
+    assert.equal(s.calls.length, 1);
+    assert.equal(s.camera.getTargetBearing(), 90);
+    s.camera.resume();
+    assert.equal(s.camera.browsing(), false);
+    assert.deepEqual(s.calls.at(-1)!.options.center, [-120, 37]);
+    assert.equal(s.calls.at(-1)!.options.zoom, 7, 'Follow preserves the chosen zoom');
+    s.finish();
+    s.emit(event.type, event);
+    s.fix(-119, 5, 1);
+    assert.equal(s.camera.browsing(), false, 'Center aircraft also resumes following');
+    assert.deepEqual(s.calls.at(-1)!.options.center, [-119, 37]);
+  });
+}
+
 test('high-zoom stationary jitter stays idle while travel, flight and explicit centering still follow', t => {
   const s = setup(t, true, {}, 15), home: [number, number] = [-122, 37];
   let time = 0;
   const fix = (meters: number, speed: number | null = 0, centerRequest = 0) => s.store.publish({
-    enabled: true, state: 'tracking', centerRequest,
+    enabled: true, state: 'tracking', centerRequestKind: 'explicit', centerRequest,
     fix: { coordinates: destination(home, 90, meters), accuracy: 10, track: speed ? 90 : null, speed, time: ++time },
   });
   fix(5); s.finish();
@@ -79,6 +160,11 @@ test('high-zoom stationary jitter stays idle while travel, flight and explicit c
   assert.equal(s.calls.length, 3, 'confirmed flight preserves fine position following');
   fix(27, 0, 1); s.finish();
   assert.equal(s.calls.length, 4, 'explicit centering bypasses the uncertainty threshold');
+  s.emit('dragstart', { originalEvent: {} });
+  fix(26);
+  s.camera.resume();
+  assert.deepEqual(s.calls.at(-1)!.options.center, destination(home, 90, 26), 'Follow also centers inside the uncertainty threshold');
+  assert.equal(s.calls.at(-1)!.options.zoom, 15);
 });
 
 for (const trackUp of [false, true]) {
@@ -170,7 +256,7 @@ test('heading demand follows camera mode and GPS quality without publishing Owns
   let now = 0, acquired = 0, released = 0, notify: HeadingListener = () => {};
   t.mock.method(performance, 'now', () => now * 1000);
   const s = setup(t, false, { acquireHeading(listener) { acquired++; notify = listener; return () => { released++; }; } });
-  s.store.publish({ enabled: true, state: 'tracking', centerRequest: 0,
+  s.store.publish({ enabled: true, state: 'tracking', centerRequestKind: 'explicit' as const, centerRequest: 0,
     fix: { coordinates: [-122, 37], accuracy: 5, track: 90, time: 0, speed: 55, estimated: false } });
   assert.equal(acquired, 0);
   s.camera.setTrackUp(true); s.finish();
@@ -196,6 +282,8 @@ test('heading demand follows camera mode and GPS quality without publishing Owns
   s.camera.setTrackUp(true); s.finish(); assert.equal(acquired, 3);
   s.store.publish({ ...s.store.getSnapshot(), state: 'paused' }); assert.equal(released, 3);
   s.store.publish({ ...s.store.getSnapshot(), state: 'tracking' }); assert.equal(acquired, 4);
-  s.camera.dispose(); assert.equal(released, 4);
+  s.emit('dragstart', { originalEvent: {} }); assert.equal(released, 4, 'browsing releases camera-only sensor demand');
+  s.camera.resume(); assert.equal(acquired, 5);
+  s.camera.dispose(); assert.equal(released, 5);
   unsubscribe();
 });

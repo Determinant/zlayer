@@ -116,7 +116,7 @@ test('failed restore retains the exact source for retry and does not change the 
   let fits = 0, sources = 0;
   const map = { on() {}, off() {}, getSource: () => false, getLayer: () => false,
     addSource: () => sources++, addLayer() {}, fitBounds: () => fits++ } as unknown as MapLibreMap;
-  const layer = createPlateMapLayer(product);
+  const layer = createPlateMapLayer(product, () => 0);
   layer.mount(map);
   assert.equal(sources, 1);
   assert.equal(fits, 0, 'restoring the overlay respects the saved camera');

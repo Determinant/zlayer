@@ -49,6 +49,8 @@ export type NotamFeedStatus = {
   blockingRecords?: number;
   /** Retained, complete issues whose agreeing fixed interval is definitely past. */
   historicalIssues?: number;
+  /** Historical subset with agreed content and no disputed supported queries. */
+  historicalMetadataIssues?: number;
   unscopedRecords?: number;
 };
 export type NotamSourceIssue = {
@@ -161,6 +163,8 @@ export function isNotamFeedStatus(v: unknown): v is NotamFeedStatus {
       (v.state !== 'ready' || v.blockingRecords === 0)) &&
     (v.historicalIssues === undefined || integer(v.historicalIssues) && integer(v.blockingRecords) && integer(v.unresolvedRecords) &&
       v.historicalIssues + v.blockingRecords <= v.unresolvedRecords) &&
+    (v.historicalMetadataIssues === undefined || integer(v.historicalMetadataIssues) && integer(v.historicalIssues) &&
+      v.historicalMetadataIssues <= v.historicalIssues) &&
     (v.collectionContinuity === undefined && v.unresolvedRecords === undefined && v.unscopedRecords === undefined ||
       ['complete', 'incomplete'].includes(String(v.collectionContinuity)) && integer(v.unresolvedRecords) &&
       integer(v.unscopedRecords) && v.unscopedRecords <= v.unresolvedRecords && v.unresolvedRecords <= v.recordCount &&

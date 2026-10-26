@@ -14,7 +14,7 @@ export function fitRoute(map: MapLibreMap, route: RoutePlan, preview: RouteMapPr
     if (!first) return;
     const bearing = targetBearing();
     if (coordinates.length === 1) {
-      map.flyTo({ center: first, zoom: 10.5, bearing, duration: 500 });
+      map.flyTo({ center: first, zoom: 10.5, bearing, duration: 500 }, { browseCamera: true });
       return;
     }
     const bounds = coordinates.slice(1).reduce(
@@ -26,5 +26,5 @@ export function fitRoute(map: MapLibreMap, route: RoutePlan, preview: RouteMapPr
     const padding = inset ? { top: 36, left: 36,
       right: 36 + Math.min(inset.right, Math.max(0, container.clientWidth - 144)),
       bottom: 36 + Math.min(inset.bottom, Math.max(0, container.clientHeight - 144)) } : 72;
-    map.fitBounds(bounds, { padding, bearing, maxZoom: 10.5, duration: 550 });
+    map.fitBounds(bounds, { padding, bearing, maxZoom: 10.5, duration: 550 }, { browseCamera: true });
 }

@@ -10,7 +10,7 @@ import { jsonIdentity } from '../../core/data/json-identity';
 import { emptyAreas } from './types';
 import { createLandingRasterWorker, type LandingRasterResult } from './landing-raster';
 
-export type LandingDisplayQuery = LandingQuery & { zoom: number; heatTiles?: string[] };
+export type LandingDisplayQuery = LandingQuery & { zoom: number; heatTiles?: string[]; cachedOnly?: boolean };
 export type LandingDisplayResult = LandingRasterResult & {
   heat?: LandingHeatUpdate[] | null; more: boolean; detailPending?: boolean; refreshed: boolean;
 };
@@ -29,6 +29,9 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
     async query(request: LandingDisplayQuery): Promise<LandingDisplayResult> {
       const task = { id: request.id, controller: new AbortController() }; job = task;
       const signal = task.controller.signal, ranges = request.ranges ?? emptyAreas();
+      // Range presentation must not wait behind another round of file discovery.
+      // Existing planners already retain and reclip their data without discovery.
+      const discover = request.discover && !request.cachedOnly;
       let refreshed = false;
       try {
         const nextSources = request.sources ? jsonIdentity(request.sources) : '';
@@ -41,7 +44,7 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
           await details.query({ ...request, ranges }, manifest);
           return { collection: emptyLandings(), heat: null, raster: null, status: { state: 'route' }, renderKey: '', more: false, refreshed };
         }
-        if (request.discover && (!manifest || request.revalidate) && (request.revalidate || !manifestFailure || Date.now() < lastAttempt || Date.now() - lastAttempt >= 60_000)) {
+        if (discover && (!manifest || request.revalidate) && (request.revalidate || !manifestFailure || Date.now() < lastAttempt || Date.now() - lastAttempt >= 60_000)) {
           lastAttempt = Date.now();
           try {
             const next = await loadManifest(source, signal, request.sources); signal.throwIfAborted();
@@ -55,13 +58,13 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
             manifestFailure = error instanceof JsonResponseError && error.status === 404 ? 'unavailable' : 'error';
           }
         }
-        if (!manifest) return { collection: emptyLandings(), heat: null, raster: null, status: { state: request.discover ? manifestFailure ?? 'error' : 'zoom' }, renderKey: '', more: false, refreshed };
-        const heat = await overview.query(request, manifest, signal);
+        if (!manifest) return { collection: emptyLandings(), heat: null, raster: null, status: { state: request.discover ? manifestFailure ?? 'error' : 'zoom' }, renderKey: '', more: !!request.cachedOnly, refreshed };
+        const heat = await overview.query({ ...request, discover }, manifest, signal);
         const previous = request.renderedKey?.split('/');
         const retained = new Set(request.heatTiles);
         const heatChanged = previous?.[0] !== heat.revision || request.heatTiles !== undefined && heat.tiles.some(tile => !retained.has(tile.key));
         const reply = (detail?: LandingRasterResult): LandingDisplayResult => {
-          const more = !detail || !!detail.more || heat.more;
+          const more = !!request.cachedOnly || !detail || !!detail.more || heat.more;
           const flags = heat.flags;
           const detailStatus = detail?.status ?? { state: 'loading' };
           const incomplete = heat.incomplete || !!manifestFailure
@@ -86,24 +89,25 @@ export function createLandingDisplayWorker(loadManifest = loadLandingManifest, l
         // Return ready imagery before acquiring/unioning detailed polygons. The
         // map acknowledges heat separately and immediately schedules the next
         // batch; detail starts once that imagery has reached the map.
-        if (ranges.features.length && heat.tiles.length && heatChanged) return reply();
+        if (!request.cachedOnly && ranges.features.length && heat.tiles.length && heatChanged) return reply();
         const { renderedKey: _renderedKey, ...detailRequest } = request;
         // Once a range needs raster detail, that renderer owns frame changes.
         // Camera zoom must not destroy its completed inputs or restart vector work.
         if (!ranges.features.length) { rasterMode = false; raster.reset(); }
-        const query = { ...detailRequest, ranges, revalidate: detailRevalidate, ...(previous?.[1] ? { renderedKey: previous[1] } : {}) };
+        const query = { ...detailRequest, ranges, discover, revalidate: detailRevalidate && !request.cachedOnly,
+          ...(previous?.[1] ? { renderedKey: previous[1] } : {}) };
         let detail: LandingRasterResult;
         if (rasterMode) detail = await raster.query(query, manifest);
         else {
           detail = { ...await details.query(query, manifest), raster: null };
-          if (request.discover && ranges.features.length && detail.limited) {
+          if (discover && ranges.features.length && detail.limited) {
             // Release the retained vector geometry before starting the bounded image.
             await details.query({ ...query, ranges: emptyAreas() }, manifest);
             rasterMode = true; detail = await raster.query(query, manifest);
           }
         }
         signal.throwIfAborted();
-        detailRevalidate = false;
+        if (!request.cachedOnly) detailRevalidate = false;
         return reply(detail);
       } finally { if (job === task) job = undefined; }
     },

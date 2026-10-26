@@ -120,7 +120,9 @@ behavior separately; display scaling and browser chrome affect the available vie
   taps on a PIREP circle open the temporary **PIREP in View** list; other weather
   uses the context action. The list follows the viewport and active report filters,
   using core DetailPanel and typography. Closing it preserves the enabled overlay. Releasing a long press cannot activate a newly opened
-  menu item. Moving the map dismisses the menu, and keyboard arrows/Home/End select
+  menu item. A map press and an open menu hold the automatic GPS camera; live GPS
+  data still updates. Deliberate camera movement dismisses the menu, while automatic
+  GPS movement cannot dismiss it. Keyboard arrows/Home/End select
   its actions. Plugins retain ownership of the commands and revoke them on unload.
 - Component styles consume the shared 44px touch minimum, including tablets with a
   mouse or trackpad. Text-entry controls use 16px on touch devices. MapLibre CSS is

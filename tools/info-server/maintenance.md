@@ -19,6 +19,35 @@ Deployment must allow the advertised grace plus cleanup time, require a successf
 process stop, and keep the latest request journals through rollback. Idle polling
 is only a compatibility path for older binaries without the lifecycle protocol.
 
+## Forecast conversion measurements
+
+Run `node --import=tsx tools/benchmark-forecast-conversion.ts 10` from the repository
+root for a bounded, offline conversion benchmark. It uses the retained full-size
+NOAA HRRR 850 hPa and IFI 8,000 ft fixtures with synthetic sea-level terrain,
+checks every packed-output byte against the preceding converter's digest, and
+reports median conversion, packing and gzip times after two warm-up iterations.
+The source fixtures also retain independent GDAL decoder/projection references.
+It makes no source requests and does not use service state.
+
+On 2026-10-25, Node 24.15.0 on an AMD Ryzen AI MAX+ 395 (x86_64), alternating
+the preceding implementation (`46fae4b`) and the optimized implementation for ten
+measured iterations (after four warm-ups) gave these medians:
+
+| Full CONUS slice | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| Wind, height and temperature | 557 ms | 444 ms | 20% |
+| Icing probability, severity and SLD | 200 ms | 166 ms | 17% |
+
+Packed digests and compressed lengths matched. Wind packing fell from 133 to
+67 ms; icing packing from 63 to 44 ms. Terrain validation and wind rotation reuse
+account for the remaining conversion reduction. The worker's
+[bounded preparation state](README.md#source-and-cache-contract) documents the
+memory tradeoff. These local fixtures do not measure upstream latency, disk
+publication, concurrent services or production cycle completion. A production
+rollout still needs cycle-duration and cgroup-memory observations; this benchmark
+does not establish that a complete generation always finishes before its freshness
+limit.
+
 ## Health and diagnostics
 
 Opening `/api/weather/healthz` in a browser shows a compact HTML view of its
@@ -467,7 +496,9 @@ A compatible rollout may also supply `--allow-unresolved-notams=N` for a capture
 pre-existing source ambiguity. The probe still requires fresh, continuous
 collection and reports the blocking issue count in `warnings`. Proven nonblocking
 metadata needs no allowance and is reported in the probe's `notices` array as
-`notam-association-metadata:N`, without an operational warning. A deployment must
+`notam-association-metadata:N`, without an operational warning. This includes the
+proved `historicalMetadataIssues` subset after expiration; other historical issues
+retain their warnings. A deployment must
 independently compare source IDs against its stopped baseline; a numeric allowance
 alone does not prove the candidate preserved the same ambiguity.
 This source-issue allowance also cannot waive reconciliation failures.

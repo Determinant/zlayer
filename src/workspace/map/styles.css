@@ -182,6 +182,9 @@
 .map-orientation-up { font-size: var(--ui-text-meta); letter-spacing: normal; }
 .map-orientation-toggle[aria-pressed="true"] { color: var(--text-7ae6d7); background: var(--overlay-61d6c5-a120); }
 .map-orientation-toggle.is-waiting { color: var(--text-e9be78); }
+.map-orientation-toggle.is-browsing { background: none; }
+.map-follow-resume { font: 700 var(--ui-text-meta) var(--font-ui); color: var(--text-7ae6d7); }
+.map-follow-resume[hidden] { display: none; }
 
 .maplibregl-ctrl-attrib {
   font-family: var(--font-ui);

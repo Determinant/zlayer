@@ -10,6 +10,14 @@ export const INFO_FRESHNESS = { gridCheck: 90 * 60_000, modelRun: 3 * 3600_000, 
 export function freshAt(time: unknown, now: number, maxAge: number, futureTolerance = 30_000): boolean {
   return typeof time === 'number' && Number.isFinite(time) && time <= now + futureTolerance && now - time < maxAge;
 }
+/** Historical metadata remains informational; older feeds without the subset
+ * count conservatively retain their historical warnings. */
+export function notamHealthCounts(feed: NotamFeedStatus) {
+  const blocking = feed.blockingRecords ?? feed.unresolvedRecords ?? 0;
+  const historicalWarnings = (feed.historicalIssues ?? 0) - (feed.historicalMetadataIssues ?? 0);
+  const metadata = Math.max(0, (feed.unresolvedRecords ?? 0) - blocking - historicalWarnings);
+  return { blocking, historicalWarnings, metadata };
+}
 type Published = { ready: boolean; checkedAt?: number | null | undefined; error?: string | null | undefined;
   nextAttemptAt?: number | null | undefined; unresolvedRecords?: number; errorDetail?: string | null;
   interpretation?: { classification: { sourceDurationAnomalies?: number } } | null };
@@ -82,9 +90,9 @@ export function assessInfoHealth(input: InfoHealthInput, now: number) {
     // The collector proves these members have agreed content and no affected
     // supported queries. Keep their evidence visible without asking an operator
     // to repair a healthy feed. Unknown/legacy impact remains blocking.
-    const metadata = (feed.unresolvedRecords ?? 0) - (feed.historicalIssues ?? 0) - (feed.blockingRecords ?? feed.unresolvedRecords ?? 0);
+    const { metadata, historicalWarnings } = notamHealthCounts(feed);
     if (metadata > 0) notices.push({ product: 'notams', reason: 'association-metadata', severity: 'info', count: metadata });
-    if (feed.historicalIssues) warnings.push({ product: 'notams', reason: 'historical-source-issues', severity: 'warning' });
+    if (historicalWarnings) warnings.push({ product: 'notams', reason: 'historical-source-issues', severity: 'warning' });
     const reconciliation = input.notamReconciliation;
     const overdue = !freshAt(feed.fullSyncAt, now, INFO_FRESHNESS.fullSync, 0);
     if (overdue || reconciliation?.error) problems.push({ product: 'notams.reconciliation',

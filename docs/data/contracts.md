@@ -517,8 +517,13 @@ all IDs remain disjoint and share the existing response bounds. Historical evide
 does not reduce current content coverage or become an authoritative record.
 A ready feed requires zero blocking issues as well as
 healthy collection; the legacy `continuity` still remains incomplete whenever any
-issue is retained. Aggregate health reports nonblocking ambiguity separately in
-`readiness.warnings`, preserving partial coverage and the raw source evidence.
+issue is retained. Optional feed `historicalMetadataIssues` counts the historical
+subset with agreed content and no disputed supported queries; it requires
+`historicalIssues` and cannot exceed that count. Health reports these and current
+metadata-only discrepancies in `readiness.notices`. Other historical ambiguity
+remains in `readiness.warnings`; an absent subset count preserves the older warning
+behavior. Partial coverage, historical evidence and durable unresolved counts
+remain unchanged.
 
 Optional `NotamSourceIssue.observations` retains local first/latest observation
 times and at most the two bulk/delta source kinds. Null first observation preserves

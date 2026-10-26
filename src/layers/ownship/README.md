@@ -13,6 +13,9 @@ there is no saved preference; an explicit Off choice persists. Enabling the laye
 centers the map on the first fresh fix with accuracy of 100 meters or better. In north-up, reloading with GPS already enabled
 preserves the saved camera through that first fix. Later north-up updates preserve
 panning and zooming; **Center aircraft** returns to the current position.
+Panning, rotating or explicitly fitting the map while GPS acquires cancels the
+pending initial center. A later fix cannot override that newer camera choice.
+Explicitly enabling GPS again permits a new initial center.
 Enabling GPS while its renderer loads still centers on the first fix. Turning it
 off and back on during that load also counts as an explicit enable action.
 
@@ -20,12 +23,19 @@ The orientation button beside the zoom controls switches between **N UP** (north
 up, the default) and **TRK UP** (GPS ground track up). The choice persists across
 reloads and shares the existing GPS watch. Selecting track-up centers the aircraft
 and rotates the map to its GPS ground track. Each fresh, accurate fix updates the
-center without changing zoom, including the first fix after restoring track-up.
+center without changing zoom while following is active, including the first fix
+after restoring track-up. A manual pan or rotation, route/plate fit, or feature
+focus pauses following for browsing. **TRK UP** remains selected and its tooltip
+reports **Following paused**; the adjacent **Follow** button resumes centering and
+rotation at the latest usable fix without changing zoom. **Center aircraft** also
+resumes following, with its existing minimum zoom of 9. Browse mode lasts for the
+current map session; GPS recovery cannot silently end it.
 If GPS is off, stale, unavailable, or inaccurate (worse than 100 meters), automatic
 movement stops and the camera holds its current center and bearing. Pending GPS
-centering and any active GPS follow animation are cancelled; following resumes on
-a usable fix. A fresh, accurate position without a ground track still centers the
-aircraft while holding the bearing. Missing track shows **Waiting for GPS track**.
+centering and any active GPS follow animation are cancelled; active following
+resumes on a usable fix, while a browsed view stays paused. A fresh, accurate
+position without a ground track still centers the aircraft while holding the
+bearing. Missing track shows **Waiting for GPS track**.
 North-up works without GPS and does not continuously follow position.
 
 Track-up rotation applies a circular low-pass filter to the combined GPS/sensor
@@ -57,21 +67,31 @@ steps discard relative-motion continuity. These are display limits, not measured
 navigation-integrity bounds.
 
 Heading assistance is acquired only for usable track-up demand and released in
-north-up, on GPS loss/poor quality, or camera teardown. AHRS removal, unavailable
-hardware, denied sensor permission or a failed optional acquisition leave damped
+north-up, while browsing, on GPS loss/poor quality, or camera teardown. AHRS removal,
+unavailable hardware, denied sensor permission or a failed optional acquisition leave damped
 GPS following available. Revoked provider callbacks cannot revive assistance.
 Browsers may require a tap to permit motion: switch to north-up and back to
 track-up with a usable fix to retry. Restoring track-up cannot bypass that browser
 requirement. Keep the device secured; moving it independently of the aircraft
 also moves its sensed heading. See [AHRS heading demand](../ahrs/README.md#automatic-heading-demand).
 
-GPS following waits for a pan, zoom, or route-fit animation to finish. A manual
-pan or **Fit route** keeps its center until the next usable GPS fix; a fix received
-during the movement is applied after it ends. **Fit route**
-calculates its center and zoom at the selected orientation, including the held
-bearing while waiting for track, and respects the recommendation panel's padding.
-Manual rotation returns to the selected orientation when the gesture ends if that
-orientation is available.
+Pressing the map holds the camera immediately, including an animation already in
+progress, so a stationary long press and route editing keep a stable geographic
+target. An open map-actions/nearby-feature menu continues that hold after release.
+GPS position and overlays still update. Closing or selecting from the menu applies
+only the latest pending camera target, unless a pan, rotation or explicit fit has
+entered browse mode. Automatic GPS camera events never dismiss the menu.
+Camera holds follow the same native mouse/touch events as MapLibre, including
+compatibility mouse events after a touch release. Resuming waits until the native
+click handlers finish. An interrupted Center or Follow request keeps its intent across fresh
+GPS fixes; a newer explicit request takes precedence. Backgrounding clears pending
+pointer holds, and teardown cancels deferred releases.
+
+Zoom alone preserves following and applies queued movement after its animation.
+**Fit route** calculates its center and zoom at the selected orientation, including
+the held bearing while browsing or waiting for track, and respects recommendation
+panel padding. Manual rotation in north-up returns to north after the gesture;
+track-up holds the browsed bearing until **Follow** or **Center aircraft**.
 
 The blue aircraft stays at the exact current GPS position and points along a
 smoothed GPS ground track in degrees true, including when the map is rotated. A solid blue track
@@ -133,9 +153,9 @@ browser watches need not send periodic updates while stationary. Core also impos
 a 15-second acquisition deadline on each new watch, including replacements, when
 the browser supplies neither fixes nor errors. Acquisition failures retry after
 five seconds, retaining a clearly stale last position where available. Permission denial stops retries until the user retries
-or returns to the app. Reacquisition preserves panning in north-up and resumes
-centering in track-up; replacing the map centers the new map on its first fresh
-fix unless it restores a saved north-up camera.
+or returns to the app. Reacquisition preserves panning in north-up and paused
+track-up, and resumes active track-up following; replacing the map centers the new
+map on its first fresh fix unless it restores a saved north-up camera.
 
 GPS requires HTTPS (localhost also works), location permission, and a device
 location provider. High accuracy is requested; the browser chooses the provider.
@@ -174,6 +194,8 @@ gesture deferral and cancellation. `map/navigation-control.ts` owns the orientat
 button. Initial/explicit centering raises zoom to at least 9; ordinary following
 preserves zoom. All GPS animations stop when their fix becomes unusable, without
 cancelling user camera movements. Deferred fixes are discarded on loss of validity.
+Ownship tags each centering request as initial or explicit, so camera arbitration
+does not infer user intent from fix timing or the request counter.
 The map renderer remains lazy loaded. Heading updates reach the camera directly;
 they do not publish Ownship geometry or React status snapshots.
 

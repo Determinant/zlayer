@@ -192,8 +192,10 @@ export class MapRuntime {
   }
 
   focus(feature: GeoPointFeature): void {
-    this.#map.flyTo({ center: feature.geometry.coordinates, zoom: 10.5, duration: 650 });
+    this.#map.flyTo({ center: feature.geometry.coordinates, zoom: 10.5, duration: 650 }, { browseCamera: true });
   }
+
+  setInspectionOpen(value: boolean): void { this.#navigation.setInspectionOpen(value); }
 
   destroy(): void { this.#scope.dispose(); }
 

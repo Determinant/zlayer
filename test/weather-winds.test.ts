@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { GRID_BELOW_GROUND, GRID_MISSING, GRID_OUTSIDE, isAwcGridManifest } from '@zlayer/contracts';
 import { decodeGrib } from '../src/layers/weather-awc/grids/grib';
-import { convertValue, rotateWinds } from '../src/layers/weather-awc/grids/conversion';
+import { convertValue, windRotation } from '../src/layers/weather-awc/grids/conversion';
 import { OUTPUT_GRID } from '../src/layers/weather-awc/grids/native-source';
 import { barbGeometry, windSample, windSymbols, type WindView } from '../src/layers/weather-awc/grids/wind';
 import { pressureAltitude, windFrames, windLevelLabel, windPressure, restoredWindAltitude } from '../src/layers/weather-awc/grids/wind-levels';
@@ -31,14 +31,14 @@ test('live HRRR pressure fields agree with every GDAL sample; vectors rotate at 
   const indices = Int32Array.from(reference.samples.map(s => s.cell));
   const east = Float32Array.from(indices, at => convertValue('windEast', fields[2]!.values[at]!));
   const north = Float32Array.from(indices, at => convertValue('windNorth', fields[3]!.values[at]!));
-  rotateWinds(fields[2]!.grid, indices, east, north);
+  windRotation(fields[2]!.grid, indices)(east, north);
   for (const [i, sample] of reference.samples.entries()) {
     assert.ok(Math.abs(east[i]! - sample.east) < .01, `east at ${sample.longitude}`);
     assert.ok(Math.abs(north[i]! - sample.north) < .01, `north at ${sample.longitude}`);
     assert.equal(convertValue('temperature', fields[1]!.values[sample.cell]!), sample.temperature);
   }
   const earth = Float32Array.of(20, GRID_MISSING), northerly = Float32Array.of(-10, 5);
-  rotateWinds({ ...fields[2]!.grid, gridRelative: false }, indices.subarray(0, 2), earth, northerly);
+  windRotation({ ...fields[2]!.grid, gridRelative: false }, indices.subarray(0, 2))(earth, northerly);
   assert.deepEqual([...earth], [20, GRID_MISSING]); assert.deepEqual([...northerly], [-10, GRID_MISSING]);
 });
 

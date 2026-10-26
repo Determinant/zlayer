@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { isNotamFeedStatus } from '@zlayer/contracts';
 import { assessInfoHealth, freshAt, INFO_FRESHNESS, type InfoHealthInput } from '../tools/info-server/health';
 import { SourceDiagnostics, sourceFailureCode } from '../tools/info-server/diagnostics';
 import { DurationStats, InfoMetrics } from '../tools/info-server/metrics';
@@ -136,6 +137,28 @@ test('proved metadata-only NOTAM discrepancies are informational without masking
   assert.deepEqual(mixed.warnings, [{ product: 'notams', reason: 'historical-source-issues', severity: 'warning' }]);
   assert.deepEqual(mixed.problems, [{ product: 'notams', reason: 'unresolved-records', severity: 'error' }]);
 });
+test('historical metadata stays informational without suppressing other historical or operational failures', () => {
+  const value = healthy();
+  Object.assign(value.notams, { unresolvedRecords: 1, recordCount: 1, blockingRecords: 0, historicalIssues: 1,
+    historicalMetadataIssues: 1, unscopedRecords: 0, continuity: 'incomplete', collectionContinuity: 'complete' });
+  const notice = { product: 'notams', reason: 'association-metadata', severity: 'info', count: 1 };
+  assert.ok(isNotamFeedStatus(value.notams));
+  const result = assessInfoHealth(value, NOTAM_NOW);
+  assert.equal(result.ready, true); assert.deepEqual(result.warnings, []); assert.deepEqual(result.notices, [notice]);
+  for (const patch of [{ historicalMetadataIssues: -1 }, { historicalMetadataIssues: 2 },
+    { historicalMetadataIssues: 0.5 }, { historicalIssues: undefined }])
+    assert.equal(isNotamFeedStatus({ ...value.notams, ...patch }), false);
+  for (const patch of [{ checkedAt: 0 }, { collectionContinuity: 'incomplete' }, { error: 'source-http-502' },
+    { fullSyncAt: NOTAM_NOW - INFO_FRESHNESS.fullSync }]) {
+    const status = assessInfoHealth({ ...value, notams: { ...value.notams, ...patch } } as InfoHealthInput, NOTAM_NOW);
+    assert.equal(status.ready, false); assert.deepEqual(status.notices, [notice]);
+  }
+  const mixed = assessInfoHealth({ ...value, notams: { ...value.notams, recordCount: 3, unresolvedRecords: 3,
+    historicalIssues: 2 } }, NOTAM_NOW);
+  assert.deepEqual(mixed.warnings, [{ product: 'notams', reason: 'historical-source-issues', severity: 'warning' }]);
+  assert.deepEqual(mixed.notices, [{ ...notice, count: 2 }]);
+});
+
 test('historical evidence remains a distinct warning and cannot hide collection or reconciliation failures', () => {
   const value = healthy();
   Object.assign(value.notams, { unresolvedRecords: 1, blockingRecords: 0, historicalIssues: 1, unscopedRecords: 0,

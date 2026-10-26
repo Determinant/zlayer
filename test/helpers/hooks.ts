@@ -3,10 +3,12 @@ export class Hooks {
   #index = 0;
   #cells: Array<{ value?: unknown; dependencies?: readonly unknown[]; cleanup?: (() => void) | undefined }> = [];
   #pending: Array<() => void> = [];
+  #layoutPending: Array<() => void> = [];
 
   render<T>(render: () => T): T {
     this.#index = 0;
     const result = render();
+    for (const effect of this.#layoutPending.splice(0)) effect();
     for (const effect of this.#pending.splice(0)) effect();
     return result;
   }
@@ -30,10 +32,18 @@ export class Hooks {
   }
 
   useEffect(effect: () => (() => void) | void, dependencies?: readonly unknown[]) {
+    this.#effect(effect, dependencies, this.#pending);
+  }
+
+  useLayoutEffect(effect: () => (() => void) | void, dependencies?: readonly unknown[]) {
+    this.#effect(effect, dependencies, this.#layoutPending);
+  }
+
+  #effect(effect: () => (() => void) | void, dependencies: readonly unknown[] | undefined, pending: Array<() => void>) {
     const index = this.#index++;
     const cell = this.#cells[index];
     if (cell && dependencies && sameDependencies(cell.dependencies, dependencies)) return;
-    this.#pending.push(() => {
+    pending.push(() => {
       cell?.cleanup?.();
       this.#cells[index] = { ...(dependencies ? { dependencies } : {}), cleanup: effect() ?? undefined };
     });
@@ -48,6 +58,6 @@ function sameDependencies(left: readonly unknown[] | undefined, right: readonly 
 }
 
 export const hookModule = 'data:text/javascript,' + encodeURIComponent(
-  ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect', 'useSyncExternalStore']
+  ['useState', 'useRef', 'useMemo', 'useCallback', 'useEffect', 'useLayoutEffect', 'useSyncExternalStore']
     .map(name => `export const ${name} = (...args) => globalThis.testHooks.${name}(...args);`).join('\n'),
 );

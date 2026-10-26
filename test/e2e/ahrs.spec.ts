@@ -76,6 +76,8 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
     });
   }, { permission, ownshipEnabled });
   await page.goto('/');
+  // Startup keeps workspace controls inert until the map and saved data are ready.
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false', { timeout: 30_000 });
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
   await expect(page.getByRole('region', { name: 'AHRS toolbox', exact: true })).toBeVisible();
 }
@@ -718,7 +720,7 @@ for (const mode of ['unavailable at calibration', 'lost after calibration'] as c
   });
 }
 
-test('confirmed calibration shares GPS, keeps attitude visible under GPS-loss X, and stops cleanly', async ({ page }, testInfo) => {
+test('confirmed calibration shares GPS, keeps attitude visible under GPS-loss X, and stops cleanly', { tag: '@smoke' }, async ({ page }, testInfo) => {
   await page.clock.install();
   await openAhrs(page);
   expect(await countWatches(page)).toBe(0);
@@ -1276,7 +1278,7 @@ test('mechanical GS and GPS altitude animate between fixes, show mph, and clear 
   await expect(page.getByTestId('ahrs-cross')).toHaveText('Low Speed');
 });
 
-test('denied motion permission explains how to retry without starting GPS', async ({ page }) => {
+test('denied motion permission explains how to retry without starting GPS', { tag: '@smoke' }, async ({ page }) => {
   await openAhrs(page, 'denied');
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Allow Motion & Orientation');

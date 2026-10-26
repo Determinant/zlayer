@@ -9,7 +9,7 @@ import { createOwnshipLayer } from '../src/layers/ownship/layer';
 import { createGpsService } from '../src/core/gps/service';
 
 const input = createLayerInput<{ catalog: CatalogResponse }>();
-const state = { input, created: 0, destroyed: 0, catalogs: [] as unknown[], camera: 'initial' };
+const state = { input, created: 0, destroyed: 0, catalogs: [] as unknown[], camera: 'initial', inspection: false };
 Object.assign(globalThis, { testMapState: state });
 const moduleUrl = (source: string) => 'data:text/javascript,' + encodeURIComponent(source);
 const loader = registerHooks({ resolve(specifier, context, next) {
@@ -23,6 +23,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
         update(); this.unsubscribe = s.input.subscribe(update); }
       destroy() { this.unsubscribe(); globalThis.testMapState.destroyed++; }
       focus() {} fitRoute() {} setContributions() {}
+      setInspectionOpen(value) { globalThis.testMapState.inspection = value; }
     }`), shortCircuit: true };
   return next(specifier, context);
 } });
@@ -52,6 +53,10 @@ test('catalog refreshes update an existing map and preserve the user camera', ()
   render();
   props = { ...props, contributions: [] };
   render();
+  for (const inspectionOpen of [true, false]) {
+    props = { ...props, inspectionOpen }; render();
+    assert.equal(state.inspection, inspectionOpen);
+  }
   assert.equal(state.created, 1);
   assert.equal(state.destroyed, 0);
   assert.deepEqual(state.catalogs, catalogs);

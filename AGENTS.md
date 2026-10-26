@@ -27,13 +27,18 @@ the verification commands and browser prerequisites, subject to this scope rule:
 
 - **Server-only work:** run focused Node tests for the affected server/parser
   behavior, appropriate type/import checks, and `npm run info:build`. Do not run
-  PWA builds, browser or graphics tests, broad `npm test`, `npm run verify`, or
-  `npm run verify:full` unless the user explicitly requests them. This also applies
-  to shared parsers under `src/` when the task concerns server ingestion or
-  reconciliation; their location alone does not expand the task to PWA work.
+  PWA builds, browser or graphics tests, broad `npm test`, `npm run verify`,
+  `npm run verify:standard`, or `npm run verify:full` unless the user explicitly
+  requests them. This also applies to shared parsers under `src/` when the task
+  concerns server ingestion or reconciliation; their location alone does not
+  expand the task to PWA work.
   This exception overrides broader verification guidance, including before commits.
-- For other work, the repository requires `npm run verify:full` before committing;
-  device-only release checks remain separate.
+- For other work, run `npm run verify:standard` and focused tests for affected
+  behavior before committing. Long AHRS sensor replays, exhaustive UI matrices
+  and the complete browser/graphics suites are outside this standard gate;
+  run the relevant cases when their behavior changes. Use `npm run verify:full`
+  before releases or when explicitly requesting exhaustive verification.
+  Device-only release checks remain separate.
 
 Update the owning guide when behavior or a contract changes. Follow the
 [documentation maintenance rules](docs/README.md#keeping-the-docs-useful): preserve

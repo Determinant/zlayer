@@ -65,7 +65,7 @@ function environment(t: test.TestContext) {
 }
 const options = () => ({
   container: {} as HTMLElement, contributions: [],
-  orientation: { getSnapshot: () => ({ enabled: false, state: 'disabled', centerRequest: 0 }), subscribe: () => () => {} },
+  orientation: { getSnapshot: () => ({ enabled: false, state: 'disabled', centerRequestKind: 'explicit' as const, centerRequest: 0 }), subscribe: () => () => {} },
   onViewportChange() {}, onError(message: string) { assert.fail(message); },
 });
 

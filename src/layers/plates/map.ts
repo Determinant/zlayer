@@ -7,7 +7,7 @@ import type { PlatesController } from './layer';
 const SOURCE = 'plates-image';
 const LAYER = 'plates-raster';
 
-export function createPlateMapLayer(product: PlatesController, initiallyFitted?: PlateMapImage) {
+export function createPlateMapLayer(product: PlatesController, targetBearing: () => number, initiallyFitted?: PlateMapImage) {
   let map: MapLibreMap | undefined;
   let image: PlateMapImage | undefined;
   // An attachment restores rendering, not an already-consumed camera request.
@@ -42,7 +42,7 @@ export function createPlateMapLayer(product: PlatesController, initiallyFitted?:
       image = next;
       if (next !== fitted && !product.getSnapshot().mapImageRestored) {
         const [northwest, , southeast] = next.coordinates;
-        map.fitBounds([northwest!, southeast!], { padding: 48, maxZoom: 12, duration: 500 });
+        map.fitBounds([northwest!, southeast!], { padding: 48, bearing: targetBearing(), maxZoom: 12, duration: 500 }, { browseCamera: true });
       }
       fitted = next;
     } catch (error) { failed(next, error); }

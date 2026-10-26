@@ -74,7 +74,9 @@ export class MapGestures {
     canvas.addEventListener('pointerdown', pointerDown);
     this.#unbind.push(() => canvas.removeEventListener('pointerdown', pointerDown));
     on('click', (event) => this.#selectFeature(event));
-    on('movestart', () => this.options.onCloseNearby?.());
+    on('movestart', event => {
+      if (!(event as typeof event & { gpsCamera?: boolean }).gpsCamera) this.options.onCloseNearby?.();
+    });
     on('contextmenu', (event) => {
       event.preventDefault();
       this.#cancelNearbyLongPress();

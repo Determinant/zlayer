@@ -1,20 +1,22 @@
 import { GRID_BELOW_GROUND, GRID_MISSING, GRID_OUTSIDE, type AwcGridField } from '@zlayer/contracts';
 import { decodeGrib, lambertGeometrySignature, type GribIdentity, type LambertGrid } from '../../src/layers/weather-awc/grids/grib';
-import { samplingMap, projectField, rotateWinds } from '../../src/layers/weather-awc/grids/conversion';
+import { samplingMap, projectField, windRotation } from '../../src/layers/weather-awc/grids/conversion';
 import type { NativeManifest } from '../../src/layers/weather-awc/grids/native-source';
 import { packGridBands } from '../../src/layers/weather-awc/grids/packed';
-import { readModelTerrain } from '../../src/layers/weather-awc/grids/model-terrain';
 import { weatherTiming } from '../../src/layers/weather-awc/grids/performance';
+
+type PreparedTerrain = { buffer: ArrayBuffer; signature: string; values: Float32Array };
 
 export function createConverter() {
   let manifest: Pick<NativeManifest, 'grid' | 'fields' | 'product'>, values: Float32Array<ArrayBuffer>, indices: Int32Array | undefined, signature = '';
   let terrain: Float32Array | undefined;
   let windGrid: LambertGrid | undefined;
+  let rotation: { gridRelative: boolean | undefined; apply: ReturnType<typeof windRotation> } | undefined;
   const received = new Set<string>();
   let mappingKey = '';
   function mapping(source: LambertGrid, target: NativeManifest['grid']) {
     const key = lambertGeometrySignature(source.signature) + JSON.stringify(target);
-    if (key !== mappingKey) { indices = samplingMap(source, target); mappingKey = key; }
+    if (key !== mappingKey) { indices = samplingMap(source, target); mappingKey = key; rotation = undefined; }
     return indices!;
   }
   return {
@@ -22,7 +24,7 @@ export function createConverter() {
       values = new Float32Array(0); terrain = undefined; signature = ''; windGrid = undefined;
       received.clear();
     },
-    prepareTerrain(raw: ArrayBuffer, identity: GribIdentity, grid: NativeManifest['grid']) {
+    prepareTerrain(raw: ArrayBuffer, identity: GribIdentity, grid: NativeManifest['grid']): PreparedTerrain {
       const field = decodeGrib(raw, identity), map = mapping(field.grid, grid);
       // Fixed 168-byte header: version, 162 ASCII grid-signature bytes, two padding bytes.
       if (field.grid.signature.length !== 162) throw new Error('Unexpected model terrain geometry');
@@ -34,11 +36,11 @@ export function createConverter() {
         if (!Number.isNaN(value) && (!Number.isFinite(value) || value < -500 || value > 10000)) throw new Error('Invalid model terrain height');
         values[i] = value;
       }
-      return artifact;
+      return { buffer: artifact, signature: field.grid.signature, values };
     },
-    terrain(artifact: ArrayBuffer) {
-      const decoded = readModelTerrain(artifact, manifest.grid);
-      signature = decoded.signature; terrain = decoded.values; received.add('terrain');
+    terrain(prepared: PreparedTerrain) {
+      if (prepared.values.length !== manifest.grid.width * manifest.grid.height) throw new Error('Model terrain dimensions do not match');
+      signature = prepared.signature; terrain = prepared.values; received.add('terrain');
     },
     init(value: Pick<NativeManifest, 'grid' | 'fields' | 'product'>) {
       manifest = value;
@@ -71,7 +73,10 @@ export function createConverter() {
         if (field === 'windEast') windGrid = decoded.grid;
         if (field === 'windNorth') {
           if (!windGrid || windGrid.gridRelative !== decoded.grid.gridRelative) throw new Error('Wind components have different orientations');
-          rotateWinds(windGrid, indices, values.subarray(count, 2 * count), target);
+          if (!rotation || rotation.gridRelative !== windGrid.gridRelative) {
+            rotation = { gridRelative: windGrid.gridRelative, apply: windRotation(windGrid, indices) };
+          }
+          rotation.apply(values.subarray(count, 2 * count), target);
         }
       }
       received.add(field);

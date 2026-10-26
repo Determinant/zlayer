@@ -193,7 +193,7 @@ test('captured filing-scope content remains usable while health distinguishes as
     assert.match(row, /Partial source metadata/);
     assert.doesNotMatch(row, />Warning<|>Attention</);
     assert.deepEqual(health.notamSourceIssues, service.sourceIssues);
-    assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0, historical: 0,
+    assert.deepEqual(service.sourceIssues, { total: 1, associationOnly: 1, contentUnresolved: 0, unscoped: 0, historical: 0, historicalMetadata: 0,
       blocking: 0, nonBlocking: 1,
       samples: [{ id: issue.id, kind: 'association', sourceRevision: issue.variants[0]!.sourceUpdatedAt, observations: null,
         applicability: { state: 'upcoming', fixedEndAt: issue.variants[0]!.endsAt, nextTransitionAt: issue.variants[0]!.startsAt },

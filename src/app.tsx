@@ -243,6 +243,7 @@ export function App() {
                 orientation={ownshipLayer}
                 {...(mapView ? { initialView: mapView } : {})}
                 focusTarget={focusTarget}
+                inspectionOpen={!!nearbyFeatures}
                 onViewportChange={setViewport}
                 onViewChange={setMapView}
                 onIdleChange={startup.complete ? undefined : setMapIdle}
